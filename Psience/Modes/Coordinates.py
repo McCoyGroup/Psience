@@ -38,20 +38,11 @@ class TotalCoordinateConverter:
     @classmethod
     def prep_expansions(cls, coordinate_expansion, inverse_expansion):
         if coordinate_expansion is not None and inverse_expansion is None:
-            inverse_expansion = cls.get_inverse_expansion(coordinate_expansion)
+            inverse_expansion = nput.inverse_transformation(coordinate_expansion, len(coordinate_expansion))
         if inverse_expansion is not None and coordinate_expansion is None:
-            coordinate_expansion = cls.get_inverse_expansion(inverse_expansion)
+            coordinate_expansion = nput.inverse_transformation(inverse_expansion, len(inverse_expansion))
 
         return coordinate_expansion, inverse_expansion
-
-    @classmethod
-    def get_inverse_expansion(cls, forward_expansion):
-        forward_derivs = forward_expansion[1:]
-        reverse_derivs = [np.linalg.inv(forward_derivs[0])]
-        for o in range(1, len(forward_derivs)):
-            new_Q = -nput.tensorprod_deriv(forward_derivs, reverse_derivs + [0], o)[-1]
-            reverse_derivs = reverse_derivs + [new_Q]
-        return [-forward_expansion[0]] + reverse_derivs
 
     def convert(self, internals):
         internals = np.asanyarray(internals)

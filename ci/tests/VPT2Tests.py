@@ -40,34 +40,26 @@ class VPT2Tests(TestCase):
     #         # logger=True
     #     )
 
-    """
-      1 0 0    1622.30304     67.45626      1562.20010     68.10792
-  0 1 0    3803.29957      4.14283      3526.00182      3.09491
-  0 0 1    3937.52463      0.00000      3637.69557      0.00001
-  0 2 0    7606.59913      0.00000      6867.75498      0.30230
-  """
-    @debugTest
-    def test_AnalyticPTOperators(self):
+    @validationTest
+    def test_HOHAnalytic(self):
 
-        internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
+        # internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
         internals = None
         file_name = 'HOH_freq.fchk'
-        states = [[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [0, 2, 0]]
+        states = [
+            [0, 0, 0],
+            [1, 0, 0],
+            [0, 1, 0], [0, 0, 1],
+            [1, 1, 0],
+            [1, 0, 1],
+            [0, 1, 1],
+            [0, 2, 0]
+        ]
         mode_selection = None
         # states = [[x] for x in range(7)]
         # mode_selection = [0]
-        # states = [[0, 0], [1, 0], [0, 1], [2, 0], [0, 2], [1, 1]]
+        # states = [[0, 0], [1, 0]]#, [0, 1], [2, 0], [0, 2], [1, 1]]
         # mode_selection = [0, 1]
-
-        """
-        Exception: [
-         [0.00000000e+00 0.00000000e+00]
-         [1.56220010e+03 6.81079235e+01]
-         [3.52600182e+03 3.09491041e+00]
-         [3.63769558e+03 7.22786799e-06]
-         [6.86775499e+03 3.02301574e-01]
-        ]
- """
 
         driver = AnalyticVPTRunner.from_file(
             TestManager.test_data(file_name),
@@ -75,192 +67,148 @@ class VPT2Tests(TestCase):
             internals=internals,
             logger=True,
             mixed_derivative_handling_mode='averaged',
-            expansion_order = {
-                # 'potential': 2,
-                # 'kinetic': 0,
-                'pseudopotential': 0,
-                'coriolis': 0,
-                # 'dipole':0
-            }
-            , intermediate_normalization=False
-            # allowed_coefficients=[
-            #     (0, 5, 0), (0, 5, 1),
-            #     (1, 0, 0, 0, 1),
-            #     (1, 0, 0, 1, 1),
-            # ],
-            # , disallowed_coefficients=[
-            #                             # (1, 0, 0, 0, 0),
-            #                             # (1, 0, 1, 1, 1),
-            #                             # (1, 0, 0, 0, 2),
-            #                             # (1, 0, 0, 1, 2),
-            #                             # (1, 0, 1, 1, 2),
-            #                             # (1, 0, 0, 2, 2),
-            #                             # (1, 0, 1, 2, 2),
-            #                             (1, 0, 0, 0, 3),
-            #                             (1, 0, 0, 1, 3),
-            #                             (1, 0, 1, 1, 3),
-            #                             (1, 0, 1, 2, 3),
-            #                             (1, 0, 0, 3, 3),
-            #                             (1, 0, 1, 3, 3),
-            #                             (1, 0, 2, 3, 3)
-            #                         ] + [
-            #                             (2, 0, 0, 0, 0, 0),
-            #                             (2, 0, 0, 0, 0, 1),
-            #                             (2, 0, 0, 0, 1, 1),
-            #                             (2, 0, 0, 1, 1, 1),
-            #                             (2, 0, 0, 0, 0, 2),
-            #                             (2, 0, 0, 0, 2, 2),
-            #                             (2, 0, 0, 1, 2, 2)
-            #                         ] + [
-            #                             (2, 3) + p
-            #                             for p in itertools.chain(
-            #                                 itertools.permutations([0, 0, 0, 0]),
-            #                                 itertools.permutations([0, 0, 0, 1]),
-            #                                 itertools.permutations([0, 0, 1, 1]),
-            #                                 itertools.permutations([0, 1, 1, 1]),
-            #                                 itertools.permutations([0, 1, 2, 2]),
-            #                                 itertools.permutations([1, 1, 1, 2]),
-            #                                 itertools.permutations([1, 1, 2, 2]),
-            #                                 itertools.permutations([1, 2, 2, 2])
-            #                             )
-            #                         ]
+            # expansion_order = {
+            #     'coriolis':0,
+            #     'pseudopotential':0
+            # }
         )
 
-        # raise Exception(
-        #     driver.eval.solver.operator_correction(2, allowed_terms=[(1, 0, 1)]).expressions[0].gen2.get_poly_terms([-1, -1])
-        # )
-
-        # 6.39298795e-05
-
-        # # driver.eval.expansions[1][0][0, 1, 1] = 1/driver.eval.expansions[1][0][0, 0, 1]#V[1](0, 0, 1)V[1](0, 1, 1)
-        # driver.eval.expansions[1][0][0, 0, 0] = 0
-        # driver.eval.expansions[1][0][1, 1, 1] = 0
-        # driver.eval.expansions[1][0][2, 2, 2] = 0
-        # for p in itertools.permutations([0, 1, 2]):
-        #     driver.eval.expansions[1][0][p] = 0
-        # for p in itertools.permutations([0, 0, 2]):
-        #     driver.eval.expansions[1][0][p] = 0
-        # for p in itertools.permutations([0, 2, 2]):
-        #     driver.eval.expansions[1][0][p] = 0
-        # for p in itertools.permutations([0, 0, 1]):
-        #     driver.eval.expansions[1][0][p] = 0
-        # for p in itertools.permutations([0, 1, 1]):
-        #     driver.eval.expansions[1][0][p] = 0
-        # for p in itertools.permutations([1, 1, 2]):
-        #     driver.eval.expansions[1][0][p] = 0
-        # for p in itertools.permutations([1, 2, 2]): # (0, 0, 2) works with just this
-        #     driver.eval.expansions[1][0][p] = 0
-        # driver.eval.expansions[1][0][:] = 0
-        # # driver.eval.expansions[2][0][:] = 0
-
-
-        ## TODO: LEAVE THIS IN TO GET AGREEMENT WITH PREVIOUS VPT
-        v4 = np.zeros_like(driver.eval.expansions[2][0])
-        for i,j in itertools.combinations(range(len(states[0])), 2):
-            for p in itertools.permutations([i, i, j, j]):
-                v4[p] = driver.eval.expansions[2][0][p]
-        driver.eval.expansions[2][0][:] = v4
-
-        # 1.57484786e-04
-
+        # np.random.seed(1233232123)
         # driver.eval.expansions[2][0][:] = 0
+        # v3 = driver.eval.expansions[1][0]
+        # for i in itertools.combinations(range(3), 1):
+        #     for p in itertools.permutations([i, i, i]):
+        #         pass
+        #         # v3[p] = 0  # 1e-5
+        # for i, j in itertools.combinations(range(3), 2):
+        #     for p in itertools.permutations([i, i, j]):
+        #         # pass
+        #         v3[p] = 0
+        #     for p in itertools.permutations([i, j, j]):
+        #         # pass
+        #         v3[p] = 0
+        # for i, j in [
+        #     [0, 1],
+        #     [1, 2],
+        #     [0, 2]
+        # ]:
+        #     # c = np.random.uniform(1e-4, 7e-4, 1)
+        #     c = 1e-5
+        #     for p in itertools.permutations([i, i, j]):
+        #         # pass
+        #         v3[p] = c  # 1e-5
+        # for i, j in [
+        #     [0, 1],
+        #     [1, 2],
+        #     [0, 2]
+        # ]:
+        #     c = np.random.uniform(1e-4, 7e-4, 1)
+        #     for p in itertools.permutations([i, j, j]):
+        #         # pass
+        #         v3[p] = c
+        # for i, j, k in itertools.combinations(range(3), 3):
+        #     for p in itertools.permutations([i, j, k]):
+        #         # pass
+        #         v3[p] = 1e-5
+        #         # v3[p] = v3[p] * 50
+        #         # v3[p] = 0
 
+        # driver.eval.expansions[1][0][:] = 0
+        # driver.eval.expansions[1][1][:] = 0
+        #
+        # driver.eval.expansions[2][0][:] = 0
+        # # driver.eval.expansions[2][1][:] = 0
+        # G2 = driver.eval.expansions[2][1]
+        # # for i,j in itertools.combinations(range(len(states[0])), 2):
+        # #     for p in itertools.permutations([i, i, j, j]):
+        # #         G2[p] = 0
+        # # driver.eval.expansions[2][1][0, 0, 0, 0] = 0
 
-        # -6.30287372e-06
-        # -1.62206517e-05 Y[1]([2 1])[[0 1]]xM[0]*/Y[1]([-1 -1])[[0 1]]
-        # -1.41858369e-05 Y[1]([2 1])[[0 1]]xM[0]*/Y[1]([-1 -1])[[1 0]]
+        # dips = [list(dd) for dd in driver.ham.dipole_terms.get_terms(2)]
+        # for a in range(3):
+        #     dips[a][0] = 0
+        #     if a < 2:
+        #         dips[a][1][:] = 0
+        #         dips[a][2][:] = 0
+        #         dips[a][3][:] = 0
+        #         continue
+        #     # dips[a][1][:] = 0
+        #     # dips[a][1][1] = .5
+        #     dips[a][1][:] = .5
+        #     # dips[a][2][:] = 5e-2
+        #     # dips[a][1][0] = 5e-1
+        #     # dips[a][1][1] = 1e-1
+        #     # dips[a][1][2] = 2e-1
+        #
+        #     # dips[a][2][:] = 0
+        #     # dips[a][3][:] = 0
 
-        # driver.eval.freqs = np.array([.0005, .003]) #* UnitsData.convert("Wavenumbers", "Hartrees")
-        # driver.eval.freqs = driver.eval.freqs * 250
-        # driver.eval.expansions[0][0] = np.diag(driver.eval.freqs / 2)
-        # driver.eval.expansions[0][1] = np.diag(driver.eval.freqs / 2)
-        # t = driver.eval.expansions[1][0]
-        # # for p in itertools.permutations([0, 0, 1]):
-        # #     t[p] = 0
-        # t[0, 0, 0] = 0
-        # t[1, 1, 1] = 0
-        # for p in itertools.permutations([0, 1, 1]):
-        #     t[p] = 0
-        # for p in itertools.permutations([0, 0, 1]):
-        #     t[p] = 100 * UnitsData.convert("Wavenumbers", "Hartrees")
-
-        # t[0, 0, 0] = 0
-        # for p in itertools.permutations([0, 2, 2]):
-        #     t[p] = 0
-        # for j,k in itertools.permutations(range(1, 3), 2):
-        #     for p in itertools.permutations([0, j, k]):
-        #         t[p] = 0
-        #     for p in itertools.permutations([0, j, j]):
-        #         t[p] = 0
-
-        dips = [list(dd) for dd in driver.ham.dipole_terms.get_terms(2)]
-        # # # raise Exception(dips[2][3])
-        for a in range(3):
-            dips[a][0] = 0
-            if a < 2:
-                dips[a][1][:] = 0
-                dips[a][2][:] = 0
-                dips[a][3][:] = 0
-                continue
-        #     # for j in range(2, 4):
-        #     #     dips[a][j][:] = 0
-
-            # dips[a][1][:] = 0
-            # dips[a][1][0] = 0
-            # dips[a][1][1] = 0
-            # dips[a][1][2] = 0
-            #-1.06750815e-05
-            # for j in range(1, 3): b[j] = 0
-            # b = dips[a][2]
-            # for j,k in itertools.permutations([0, 1, 2], 2):
-            #     b[j,k] = 0
-            # for j in range(1, 3):
-            #     b[j, j] = 0
-            # dips[a][2][:] = 0
-            # dips[a][2][0, 1] = 0
-            # dips[a][2][1, 0] = 0
-            # dips[a][2][0, 0] = 0
-            # dips[a][2][1, 1] = 0
-            # dips[a][3][:] = 0
-            # b = dips[a][3]
-            # for j, k in itertools.permutations(range(1, 3), 2):
-            #     for p in itertools.permutations([0, 0, j]):
-            #         b[p] = 0
-            #     for p in itertools.permutations([j, j, k]):
-            #         b[p] = 0
-            #     for p in itertools.permutations([0, j, k]):
-            #         b[p] = 0
-            #     for p in itertools.permutations([0, j, j]):
-            #         b[p] = 0
-        # raise Exception(dips[2][3])
-
-        runner, _ = VPTRunner.construct(
+        runner, _ = driver.construct_classic_runner(
             TestManager.test_data(file_name),
             np.array(states),
             mode_selection=np.arange(len(mode_selection)) if mode_selection is not None else mode_selection,
             internals=internals,
             logger=False,
             zero_element_warning=False,
-            corrected_fundamental_frequencies=driver.eval.freqs,
-            potential_terms=[
-                2*driver.eval.expansions[0][0],
-                6*driver.eval.expansions[1][0],
-                24*driver.eval.expansions[2][0]
-            ],
-            kinetic_terms=[
-                2*driver.eval.expansions[0][1],
-                2*driver.eval.expansions[1][1],
-                4*driver.eval.expansions[2][1]
-            ],
-            include_coriolis_coupling=internals is not None,
-            coriolis_terms=[driver.eval.expansions[2][3]],
-            pseudopotential_terms=[8*driver.eval.expansions[2][4]],
-            dipole_terms=dips,
-            intermediate_normalization=False
+            # dipole_terms=dips
+        )
+
+        # corrs = driver.eval.solver.wavefunction_correction(2)
+        # poly = corrs.get_poly_terms([2], shift=[1])
+        # print("?"*50)
+        # print(
+        #     poly.format_expr()
+        # )
+        # raise Exception(...)
+
+        # freqs = np.sum(
+        #     driver.get_energy_corrections(states, verbose=True),
+        #     axis=0) * UnitsData.convert("Hartrees", "Wavenumbers")
+        # runner.print_tables(print_intensities=False)
+        # print(freqs[0], freqs[1:]-freqs[0])
+        #
+        # raise Exception(...)
+
+        spec = driver.get_spectrum(
+            states,
+            # axes=[2],
+            # dipole_expansion=dips,
+            verbose=True
         )
         runner.print_tables(print_intensities=True)
+        print(np.array(spec).T)
+        raise Exception(...)
 
-        # raise Exception(...)
+        tt = [
+            (0, 1, 0),
+            (0, 0, 1),
+            (1, 0, 0),
+            (0, 2, 0),
+            (0, 1, 1),
+            (0, 0, 2),
+            (1, 1, 0),
+            (1, 0, 1),
+            (2, 0, 0)
+        ]
+        corr_list = [
+            driver.get_transition_moment_corrections(
+                states,#[1:2],
+                axes=[2],
+                dipole_expansion=dips,
+                terms=[t],
+                verbose=True
+            )[0].corrections[0]
+            for t in tt
+        ]
+        runner.print_tables(print_intensities=True)
+        corrs_array = np.array([c[:, sum(t)] for c,t in zip(corr_list, tt)])
+        print(corrs_array.T)
+        # for state_array in corrs_array.T:
+        #     print(s)
+        # print(*[c[:, 2] for c in corr_list])
+        # for f in driver.eval.freqs:
+        #     print(f)
+        raise Exception(...)
 
         # solver = runner.get_solver()
         # reps = solver.get_VPT_representations()
@@ -275,14 +223,12 @@ class VPT2Tests(TestCase):
         # print(corrs.corrections[0])
         # raise Exception(...)
 
-        # for change in driver.eval.solver.operator_correction(2, allowed_terms=[(1, 0,1 )]).expressions[0].changes[(1,)]:
-        #     print(change[:2])
-        # raise Exception(...)
-
         # wfns = runner.get_wavefunctions()
         # corrs = driver.eval.get_full_wavefunction_corrections(
         #     states,
-        #     order=2, verbose=True)
+        #     order=2,
+        #     verbose=True
+        # )
         # corrs = driver.eval.get_overlap_corrections(states, order=2, verbose=True)
         # print(wfns.corrs.wfn_corrections[1].todense())#[:, :7])
         # print(wfns.corrs.wfn_corrections[2].todense())#[:, :7])
@@ -292,45 +238,285 @@ class VPT2Tests(TestCase):
         #     print(corrs)
         # raise Exception(...)
 
+    @validationTest
+    def test_AnalyticOCHH(self):
 
-        # corrs = driver.get_energy_corrections(
-        #         states,
-        #         verbose=True
-        #     )
-        # ugh = sum(corrs) * UnitsData.convert("Hartrees", "Wavenumbers")
-        # raise Exception(
-        #     # corrs[0].flatten() * UnitsData.convert("Hartrees", "Wavenumbers"),
-        #     # corrs[1].flatten() * UnitsData.convert("Hartrees", "Wavenumbers"),
-        #     ugh[0],
-        #     ugh[1] - ugh[0]
+        file_name = "OCHH_freq.fchk"
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     # mode_selection=mode_selection,
+        #     # internals=internals,
+        #     logger=True,
+        #     mixed_derivative_handling_mode='averaged'
         # )
-        # if mode_selection is not None and len(mode_selection) == 3:
-        #     self.assertAlmostEquals(ugh[0][0], 4605.96833306)
-        #     self.assertAlmostEquals(ugh[1][0] - ugh[0][0], 1571.96615004)
 
-        # print(
-        #     driver.get_transition_moment_corrections(
+        runner, states = AnalyticVPTRunner.construct(
+            TestManager.test_data(file_name),
+            [
+                # [0, 0, 0],
+                # [1, 0, 0],
+                # [0, 1, 0],
+                # [0, 1, 1]
+
+                # [0, 0, 0, 0],
+                # [1, 0, 0, 0],
+                # [0, 1, 0, 0],
+                # [0, 0, 1, 0],
+                # [0, 0, 1, 1]
+
+                # [0, 0, 0, 0, 0],
+                # [1, 0, 0, 0, 0],
+                # [0, 1, 0, 0, 0]
+
+                [0, 0, 0, 0, 0, 0],
+                [1, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 1],
+                [1, 0, 0, 0, 0, 1],
+                [0, 1, 0, 0, 0, 1],
+            ],
+            # mode_selection=[2, 1, 3, 4],
+            mode_selection=[5, 4, 3, 2, 1, 0],
+            # internals=internals,
+            logger=True,
+            mixed_derivative_handling_mode='averaged',
+            # expressions_file=os.path.expanduser("~/Desktop/exprs.json")
+            # verbose=False,
+            # return_runner=True,
+            # return_states=True,
+            # calculate_intensities=False
+            # expansion_order = {
+            #     'coriolis':0,
+            #     'pseudopotential':0
+            # }
+        )
+
+        # og, _ = runner.construct_classic_runner(
+        #     TestManager.test_data(file_name),
+        #     states,
+        #     mode_selection=np.arange(len(states[0])),
+        #     # internals=internals,
+        #     # zero_element_warning=False,
+        #     # dipole_terms=dips,
+        #     logger=False
+        #     # degeneracy_specs='auto'
+        #     # dipole_terms=dips
+        # )
+
+        # freqs = np.sum(
+        #     runner.get_energy_corrections(states, order=2, verbose=True),
+        #     axis=0) * UnitsData.convert("Hartrees", "Wavenumbers")
+        # og.print_tables(print_intensities=False)
+        # print(freqs[0], freqs[1:]-freqs[0])
+        #
+        # raise Exception(...)
+
+        # corr_list = [
+        #     runner.get_transition_moment_corrections(
         #         states[1:2],
         #         axes=[2],
         #         dipole_expansion=dips,
-        #         # terms=[(2, 0, 0)],
+        #         terms=[t],
         #         verbose=True
         #     )[0].corrections[0]
-        # )
+        #     for t in [
+        #         # (0, 1, 1),
+        #         # (0, 0, 2),
+        #         # (1, 1, 0),
+        #         # (1, 0, 1),
+        #         (2, 0, 0)
+        #     ]
+        # ]
+        # og.print_tables(print_intensities=True)
+        # print(*[c[0, 2] for c in corr_list])
         # raise Exception(...)
 
-        raise Exception(
-            np.array(
-                driver.get_spectrum(
-                    states,
-                    axes=[2],
-                    dipole_expansion=dips,
-                    # terms=[(0, 1, 1), (1, 1, 0)]
-                )
-            ).T
+        """
+        [[0.00000000e+00 0.00000000e+00]
+         [2.95841647e+03 4.25354381e+01]
+         [1.16546081e+03 2.23531719e+01]
+         [4.10424899e+03 2.04935052e-11]
+         [4.00233916e+03 4.76888568e-03]]
+         """
+
+        with BlockProfiler():
+            spec = runner.get_spectrum(states,
+                                       # axes=[2],
+                                       # dipole_expansion=dips,
+                                       verbose=False)
+        # og.print_tables(print_intensities=True)
+        print(np.array(spec).T)
+        raise Exception(...)
+
+        corrs_a = runner.get_transition_moment_corrections(
+            states[1:2],
+            axes=[2],
+            # dipole_expansion=dips,
+            # terms=[(1, 1, 0)],
+            verbose=True
+        )[0].corrections[0]
+        og.print_tables(print_intensities=True)
+        print(corrs_a[0, 2])
+
+    @debugTest
+    def test_AnalyticHOONO(self):
+
+        file_name = "HOONO_freq.fchk"
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     # mode_selection=mode_selection,
+        #     # internals=internals,
+        #     logger=True,
+        #     mixed_derivative_handling_mode='averaged'
+        # )
+
+        runner, states = AnalyticVPTRunner.construct(
+            TestManager.test_data(file_name),
+            2,
+            # mode_selection=[8, 7, 6],
+            # internals=internals,
+            logger=True,
+            mixed_derivative_handling_mode='averaged',
+            # expansion_order = {
+            #     'coriolis':0,
+            #     'pseudopotential':0
+            # },
+            # return_runner=True,
+            # return_states=True,
+            # calculate_intensities=False
         )
 
+        # raise Exception(
+        #     runner.get_freqs(states)[1] * UnitsData.convert("Hartrees", "Wavenumbers")
+        # )
 
+        # runner.eval.expansions[2][0][:] = 0
+        # v3 = runner.eval.expansions[1][0]
+        # for i in itertools.combinations(range(3), 1):
+        #     for p in itertools.permutations([i, i, i]):
+        #         v3[p] = 0#1e-5
+        # for i,j in itertools.combinations(range(3), 2):
+        #     for p in itertools.permutations([i, i, j]):
+        #         v3[p] = 0#1e-5
+        #     for p in itertools.permutations([i, j, j]):
+        #         v3[p] = 0
+        # for i,j,k in itertools.combinations(range(3), 3):
+        #     for p in itertools.permutations([i, j, k]):
+        #         v3[p] = 1e-4
+
+        # spec = runner.get_freqs(states) * UnitsData.convert("Hartrees", "Wavenumbers")
+
+        og, _ = runner.construct_classic_runner(
+            TestManager.test_data(file_name),
+            states,
+            mode_selection=np.arange(len(states[0])),
+            zero_element_warning=False,
+            logger=False
+            # internals=internals,
+            # degeneracy_specs='auto'
+            # dipole_terms=dips
+        )
+
+        # freqs = np.sum(runner.get_energy_corrections(states, verbose=True), axis=0) * UnitsData.convert("Hartrees", "Wavenumbers")
+        # from Peeves import Timer
+        # with Timer():
+        #     og.print_tables(print_intensities=True)
+        # print(freqs[0], freqs[1:]-freqs[0])
+        with BlockProfiler():
+            spec = runner.get_spectrum(states, verbose=False)
+        print(np.array(spec).T)
+
+
+    @validationTest
+    def test_SelAnharmAnalytic(self):
+
+        file_name = os.path.expanduser("~/Desktop/freq_anion.fchk")
+        mol = Molecule.from_file(file_name)
+        surf = mol.potential_derivatives
+        modes = mol.normal_modes.modes.basis#.to_new_modes().make_dimensionless()
+        tf = modes.matrix
+        submodes = np.array([108-21, 108-20, 108-19, 108-1])
+        dim = np.diag(1/np.sqrt(modes.freqs[submodes,]))
+
+        derivs = []
+        for n,d in enumerate(surf):
+            if n < 2:
+                derivs.append(d)
+            else:
+                full_deriv = np.zeros((len(modes.freqs),) * (n - 1) + (tf.shape[0],tf.shape[0]))
+                mode_setter = tuple(
+                    np.expand_dims(submodes,
+                                   list(range(i)) + list(range(i+1, n - 1))
+                                   )
+                    for i in range(n - 1)
+
+                ) + (slice(None), slice(None))
+                full_deriv[mode_setter] = d
+                derivs.append(full_deriv)
+
+        # print([d.shape for d in mol.dipole_derivatives])
+        # raise Exception(...)
+        dips = []
+        for n,d in enumerate(mol.dipole_derivatives):
+            if n < 2:
+                dips.append(d)
+            else:
+                full_deriv = np.zeros((len(modes.freqs),) * (n - 1) + (tf.shape[0],3))
+                mode_setter = tuple(
+                    np.expand_dims(submodes,
+                                   list(range(i)) + list(range(i+1, n - 1))
+                                   )
+                    for i in range(n - 1)
+                ) + (slice(None), slice(None))
+                print(mode_setter, d.shape, full_deriv.shape)
+                full_deriv[mode_setter] = d
+                dips.append(full_deriv)
+
+        state = VPTStateMaker(108)
+        spec = AnalyticVPTRunner.run_simple(
+            file_name,
+            [
+                state(),
+                state(21),
+                state(20),
+                state(19),
+            ],
+            potential_derivatives=derivs,
+            dipole_derivatives=dips,
+            calculate_intensities=False,
+            logger=True,
+            verbose=False
+        )
+
+        print(spec)
+
+        # print(np.array(spec).T)
+
+        # with BlockProfiler():
+        #     spec = runner.get_spectrum(states, verbose=False)
+        # print(np.array(spec).T)
+
+        raise Exception(...)
+
+        VPTRunner.run_simple(file_name,
+                             2,
+                             mode_selection={
+                                 "modes": np.array([108 - 21, 108 - 20, 108 - 19, 108 - 1]),
+                                 # "derivatives": [0, 1, 2]
+                             },
+                             degeneracy_specs=[
+                                 [
+                                     [0, 0, 0, 1],
+                                     [0, 0, 2, 0],
+                                     [0, 2, 0, 0],
+                                     [2, 0, 0, 0],
+                                     [0, 1, 1, 0],
+                                     [1, 0, 1, 0],
+                                     [1, 1, 0, 0]
+                                 ]
+                             ]
+                             )
     @validationTest
     def test_GaussianSelectAnharmonicVPT(self):
 

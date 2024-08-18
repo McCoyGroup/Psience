@@ -831,7 +831,10 @@ class Molecule(AbstractMolecule):
         :rtype:
         """
         if self.internal_coordinates is None:
-            raise ValueError("need internal coordinates to calculate the G-matrix")
+            atma = self._atomic_masses()
+            mass_spec = np.broadcast_to(atma[:, np.newaxis], (len(atma), 3)).flatten()
+            return np.diag(1 / mass_spec)
+            # raise ValueError("need internal coordinates to calculate the G-matrix")
         return self.prop('g_matrix')
 
     @property
@@ -1142,6 +1145,9 @@ class Molecule(AbstractMolecule):
              bond_style=None,
              mode='fast',
              objects=False,
+             graphics_class=None,
+             cylinder_class=None,
+             sphere_class=None,
              **plot_ops
              ):
 
@@ -1150,21 +1156,27 @@ class Molecule(AbstractMolecule):
 
         from McUtils.Plots import Graphics3D, Sphere, Cylinder, Line, Disk
 
-        if len(geometries) == 0:
-            geometries = CoordinateSet([self._coords], self._coords.system)
-        elif len(geometries) == 1 and isinstance(geometries[0], CoordinateSet):
-            geometries = geometries[0]
-        else:
-            geometries = CoordinateSet(geometries, self._coords.system)
+        if graphics_class is None:
+            graphics_class = Graphics3D
+        if cylinder_class is None:
+            cylinder_class = Line if mode == 'fast' else Cylinder
+        if sphere_class is None:
+            sphere_class = Sphere if mode == 'fast' else Disk
 
-        # from McUtils.Coordinerds import CoordinateSystemConverters
-        # raise Exception(">>>>>", [(k.__name__, b.__name__) for k, b in CoordinateSystemConverters.converters])
+
+        if len(geometries) == 0:
+            geometries = self.coords
+        elif len(geometries) == 1:
+            geometries = np.asanyarray(geometries[0])
+        else:
+            geometries = CoordinateSet([np.asanyarray(g) for g in geometries], self.coords.system)
+        if geometries.ndim == 2:
+            geometries = geometries[np.newaxis]
 
         geometries = geometries.convert(CartesianCoordinates3D)
 
         if figure is None:
-            #backend = "VTK" -- once the VTK backend is more fleshed out we can use it...
-            figure = Graphics3D(**plot_ops)
+            figure = graphics_class(**plot_ops)
 
         colors = [ at["IconColor"] for at in self._ats ]
         radii = [ atom_radius_scaling * at["IconRadius"] for at in self._ats ]
@@ -1177,8 +1189,6 @@ class Molecule(AbstractMolecule):
         if bond_style is None:
             bond_style = {}
 
-        c_class = Line if mode == 'fast' else Cylinder
-        s_class = Disk if mode == 'fast' else Sphere
         for i, geom in enumerate(geometries):
             bond_list = self.bonds
             if bond_style is not False and bond_list is not None:
@@ -1196,14 +1206,14 @@ class Molecule(AbstractMolecule):
                     c1 = colors[atom1]
                     c2 = colors[atom2]
 
-                    cc1 = c_class(
+                    cc1 = cylinder_class(
                         p1,
                         midpoint,
                         bond_radius,
                         color = c1,
                         **bond_style
                     )
-                    cc2 = c_class(
+                    cc2 = cylinder_class(
                         midpoint,
                         p2,
                         bond_radius,
@@ -1224,7 +1234,7 @@ class Molecule(AbstractMolecule):
                         a_sty['color'] = color
                     else:
                         a_sty = atom_style
-                    sphere = s_class(coord, radius, **a_sty)
+                    sphere = sphere_class(coord, radius, **a_sty)
                     if objects:
                         atoms[i][j] = sphere
                     else:
@@ -1236,6 +1246,8 @@ class Molecule(AbstractMolecule):
 
         return figure, atoms, bonds
 
+
+
     def jupyter_viz(self):
         from McUtils.Jupyter import MoleculeGraphics
 
@@ -1243,6 +1255,8 @@ class Molecule(AbstractMolecule):
                                 np.ndarray.view(self.coords.convert(CartesianCoordinates3D)),
                                 bonds=self.bonds
                                 )
+
+
     def to_widget(self):
         return self.jupyter_viz().to_widget()
     def _ipython_display_(self):

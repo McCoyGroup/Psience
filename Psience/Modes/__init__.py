@@ -10,3 +10,5 @@ from .NormalModes import *; from .NormalModes import __all__ as exposed
 __all__ += exposed
 from .ObliqueModes import *; from .ObliqueModes import __all__ as exposed
 __all__ += exposed
+from .LocalizedModes import *; from .LocalizedModes import __all__ as exposed
+__all__ += exposed

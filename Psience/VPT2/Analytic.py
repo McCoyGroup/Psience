@@ -26,6 +26,7 @@ __all__ = [
 ]
 
 _DEBUG_PRINT = False # statements will be moved into a proper logger later
+_DEBUG_AUDIT = False
 _PERMUTE_CHANGES = False # for debug purposes
 _PERMUTE_FINALS = False
 _TAKE_UNIQUE_CHANGES = False
@@ -123,8 +124,8 @@ class AnalyticPerturbationTheorySolver:
 
     _op_maps = {}
     def get_correction(self, key, cls, order, **kw):
-        k = (key, order)
-        corr = self._op_maps.get(k, None)
+        corr_key = (cls, order)
+        corr = self._op_maps.get(corr_key, None)
         if corr is None:
             for k,v in [
                 ["logger", self.logger],
@@ -138,7 +139,7 @@ class AnalyticPerturbationTheorySolver:
                 if kw.get(k, None) is None:
                     kw[k] = v
             corr = cls(self, order, **kw)
-            self._op_maps[k] = corr
+            self._op_maps[corr_key] = corr
         return corr
 
     def shifted_hamiltonian_correction(self, order, **kw):
@@ -175,6 +176,8 @@ class AnalyticPerturbationTheorySolver:
             )
             for o in range(order+1)
         ]
+
+
 
 class PolynomialInterface(metaclass=abc.ABCMeta):
     """
@@ -240,6 +243,46 @@ class PolynomialInterface(metaclass=abc.ABCMeta):
     def mutate(self, *args, **kwargs) -> 'Self':
         ...
 
+#TODO: add class that provides caching for "path polynomials" generated via different routes
+#      this means we need to only track modifications, not actually convolve at each step
+#      and can easily reconstruct the final polynomials at the end from this
+class PolyPath:
+    """
+    A simple holder class that contains the set of modifications along each dimension
+    used to build a given polynomial
+    """
+    def __init__(self, paths, scaling):
+        self.paths = paths # one path per dimension
+        self.scaling = scaling
+    def as_tuple(self):
+        return (self.paths, self.scaling)
+    def __add__(self, other):
+        # we assume dimension alignment has been handled exterior to this
+        if self.scaling == other.scaling:
+            return type(self)(
+                tuple((p1, p2) for p1, p2 in zip(self.paths, other.paths)),
+                self.scaling
+            )
+        else:
+            return type(self)(
+                (self.as_tuple(), other.as_tuple()),
+                1,
+            )
+    def mul_along(self, other, inds, remainder):
+        li, ri = inds
+        lr, rr = remainder
+        return type(self)(
+            tuple(
+                self.paths[p1] + other.paths[p2]
+                for p1,p2 in zip(li, ri)
+            ) + tuple(
+                self.paths[p1] for p1 in lr
+            ) + tuple(
+                self.paths[p2] for p2 in rr
+            ),
+            self.scaling * other.scaling
+        )
+
 class ProductPTPolynomial(PolynomialInterface):
     """
     TODO: include prefactor term so we can divide out energy changes
@@ -258,6 +301,13 @@ class ProductPTPolynomial(PolynomialInterface):
         self._monics = None
         self._idx = idx
         self.steps = steps
+        if self._idx is not None:
+            self._cache[self._idx] = self
+
+    _cache = {}
+    @classmethod
+    def lookup(cls, idx):
+        return cls._cache.get(idx, None)
 
     def mutate(self, coeffs:'list[np.ndarray]'=default, prefactor:'Any'=default, idx=None, steps=default):
         return type(self)(
@@ -266,6 +316,38 @@ class ProductPTPolynomial(PolynomialInterface):
             idx=idx,
             steps=self.steps if steps is default else steps
         )
+
+    def to_state(self, serializer=None):
+        """
+        Provides just the state that is needed to
+        serialize the object
+        :param serializer:
+        :type serializer:
+        :return:
+        :rtype:
+        """
+        return {
+            'coeffs': [c.tolist() for c in self.coeffs],
+            'prefactor': self.prefactor,
+            'steps': self.steps,
+            # 'key': self._idx
+        }
+    @classmethod
+    def from_state(cls, state, serializer=None):
+        coeffs = state['coeffs']
+        prefactor = state['prefactor']
+        steps = state['steps']
+        key = state['key']
+        # if key is not None:
+        #     test = cls.lookup(key)
+        # else:
+        #     test = None
+        # if test is None:
+        return cls(
+            coeffs, prefactor=prefactor, steps=steps
+        )
+        # else:
+        #     return test
 
     @property
     def ndim(self):
@@ -774,6 +856,27 @@ class ProductPTPolynomialSum(PolynomialInterface):
         self._order = order
         self._ndim = ndim
 
+    def to_state(self, serializer=None):
+        """
+        Provides just the state that is needed to
+        serialize the object
+        :param serializer:
+        :type serializer:
+        :return:
+        :rtype:
+        """
+        return {
+            'polys': serializer.serialize(self.polys),
+            'prefactor': self.prefactor
+        }
+    @classmethod
+    def from_state(cls, state, serializer=None):
+        polys = serializer.deserialize(state['polys'])
+        prefactor = state['prefactor']
+        return cls(
+            polys, prefactor=prefactor
+        )
+
     def mutate(self, polynomials:'list[PolynomialInterface]'=default,
                prefactor:'Any'=default,
                ndim:'Any'=default,
@@ -1046,9 +1149,9 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
             self._ndim = len(next(iter(terms.keys()))[0]) # we assume all of these have the same length
         super().__init__(terms, prefactor=1, canonicalize=canonicalize)
         self.reduced = reduced
-        if canonicalize:
-            for k in terms:
-                if any(all(s == 0 for s in sk) for sk in k): raise ValueError("huh")
+        # if canonicalize:
+        #     for k in terms:
+        #         if any(all(s == 0 for s in sk) for sk in k): raise ValueError("huh")
         # self.audit()
 
     def mutate(self, terms:dict=default, prefactor:'Any'=default,  canonicalize:'Any'=default, reduced:'Any'=default):
@@ -1058,6 +1161,19 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
             prefactor=self.prefactor if prefactor is default else prefactor,
             reduced=self.reduced if reduced is default else reduced
         )
+    def to_state(self, serializer=None):
+        return {
+            'terms': [[k, serializer.serialize(v)] for k,v in self.terms.items()],
+            'prefactor': self.prefactor
+        }
+    @classmethod
+    def from_state(cls, state, serializer=None):
+        terms = {
+            tuple(tuple(k) for k in key):p
+            for key,p in serializer.deserialize(state['terms'])
+        }
+        prefactor = state['prefactor']
+        return cls(terms, prefactor=prefactor, canonicalize=False)
 
     def filter(self, terms, mode='match'):
         base = super().filter(terms, mode=mode)
@@ -1145,18 +1261,18 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         new_terms = {}
         for k, p in self.terms.items():
             k2 = self.shift_key(k, shift)
-            if all(any(s != 0 for s in sk) for sk in k2):
-                new_terms[k2] = p
-        if len(new_terms) == 0:
-            raise ValueError(self.terms, shift)
+            # if all(any(s != 0 for s in sk) for sk in k2):
+            new_terms[k2] = p
+        # if len(new_terms) == 0:
+        #     raise ValueError(self.terms, shift)
         return self.mutate(new_terms)
     def shift(self, shift, shift_energies=False):
         new_terms = {}
         for k,p in self.terms.items():
             if shift_energies:
                 k2 = self.shift_key(k, shift)
-                if all(any(s != 0 for s in sk) for sk in k2):
-                    new_terms[k2] = p.shift(shift)
+                # if all(any(s != 0 for s in sk) for sk in k2):
+                new_terms[k2] = p.shift(shift)
             else:
                 new_terms[k] = p.shift(shift)
         return self.mutate(new_terms)
@@ -1291,7 +1407,7 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
 
         return new_terms
 
-    def combine(self, combine_subterms=True, combine_energies=True):
+    def combine(self, combine_subterms=True, combine_energies=False):
         if self.reduced: return self
 
         new_terms = {}
@@ -1510,6 +1626,20 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
             inds_map=self._inds_map if inds_map is default else inds_map
         )
 
+    def to_state(self, serializer=None):
+        return {
+            'terms': [[k, serializer.serialize(v)] for k,v in self.terms.items()],
+            'prefactor': self.prefactor
+        }
+    @classmethod
+    def from_state(cls, state, serializer=None):
+        terms = {
+            tuple(tuple(k) for k in key):p
+            for key,p in serializer.deserialize(state['terms'])
+        }
+        prefactor = state['prefactor']
+        return cls(terms, prefactor=prefactor, canonicalize=False)
+
 
     def filter(self, terms, mode='match'):
         subterms = super().filter(terms, mode=mode)
@@ -1721,7 +1851,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
             new_key = tuple(kk[:2] + tuple(mapping[iii] for iii in kk[2:]) for kk in k)
             new_terms[new_key] = v.permute(perm)
         return new_terms
-    def combine(self, combine_coeffs=False, combine_subterms=True, combine_energies=True):
+    def combine(self, combine_coeffs=False, combine_subterms=True, combine_energies=False):
         if self.reduced: return self
         new_terms = {}
 
@@ -1743,6 +1873,35 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                 new_terms[k] = p
         return self.mutate(new_terms, reduced=True)
 
+    def free_up_indices(self, start, stop):
+        new_terms = {}
+        for k,poly in self.terms.items():
+            existing_inds = self.get_inds(k)
+            perm_idx = [1] * (stop - start) + [0] * (len(existing_inds) - stop)
+            perms, _ = UniquePermutations(perm_idx).permutations(return_indices=True)
+            full_perms = np.concatenate([
+                np.broadcast_to(np.arange(start)[np.newaxis], (len(perms), start)),
+                perms + start
+            ], axis=1)
+            for perm in full_perms:
+                inv_map = np.argsort(perm)
+                # for coeff_inds, polys in self.terms.items():
+                new_key = tuple(
+                    ci[:2] + tuple(
+                        inv_map[j] #if j < len(new_inds) else j
+                        for j in ci[2:]
+                    )
+                    for ci in k
+                )
+                new_poly = poly.permute(perm)
+                new_terms[new_key] = new_terms.get(new_key, 0) + new_poly
+
+            # _ = poly.permute(full_perms[0])
+            # for p in full_perms[1:]:
+            #     _ += poly.permute(p)
+            # poly = _
+            # new_terms[k] = poly
+        return self.mutate(new_terms, canonicalize=True)
     def shift_energies(self, change):
         new_terms = {}
         for k,p in self.terms.items():
@@ -1769,6 +1928,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
         return (p_sorts[0],) + tuple(rest_sorts) + (p_sorts[1],)
     @staticmethod
     def _coriolis_symmetrizer(idx): # second and last are momenta and everything else is x
+        # return idx
         # symmetry of the Coriolis term is obviously weird since it's not even Hermitian???
         if idx[1] > idx[-1] or (idx[1] == idx[-1] and idx[0] > idx[2]): # only case where we can flip stuff around...
             rest = idx[-2:1:-1] + (idx[0],)
@@ -1797,8 +1957,97 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
     def canonical_key(cls, monomial_tuple):
         return super().canonical_key(tuple(cls._symmetrize(t) for t in monomial_tuple))
 
+    @classmethod
+    def _handle_mul(cls,
+                    new_key, total_order,
+                    num_fixed, mul_size,
+                    poly_1, poly_2,
+                    mul_inds, mul_remainder,
+                    og_remainder,
+                    left_baseline, baseline,
+                    left_choice_x, right_perm_x,
+                    left_rem_x, right_rem_x,
+                    num_left, num_right,
+                    logger, log_level
+                    ):
+        if baseline is not None:
+            right_shift = [0] * num_right
+            for s, i in zip(left_baseline, mul_inds[1]):
+                right_shift[i] = s
+            shift_poly_2 = poly_2
+            if any(s != 0 for s in right_shift):
+                shift_poly_2 = shift_poly_2.shift(right_shift)
+                logger.log_print("baseline: {baseline}", baseline=baseline,
+                                 log_level=log_level
+                                 )
+                logger.log_print("shift: {shift}", shift=right_shift,
+                                 log_level=log_level
+                                 )
+                logger.log_print("{p}", p=shift_poly_2,
+                                 preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
+                                 log_level=log_level
+                                 )
+            new_poly = poly_1.mul_along(shift_poly_2, mul_inds, mul_remainder)
+        else:
+            new_poly = poly_1.mul_along(poly_2, mul_inds, mul_remainder)
+
+        # finally, we need to make sure that the indices are in the right order
+        # by noting that the remainder inds that were specified must be ordered
+        # after the proper inds
+        # so we build a permutation to apply to new_poly by constructing a proxy index
+        # ordered like the indices of new_poly but with values from the target position indices
+        pad_left = num_fixed
+        pad_right = pad_left + len(og_remainder[0])
+        pad_full = pad_right + len(og_remainder[1])
+        true_index = (
+                [0] * num_fixed  # the first indices don't need to be reordered
+                + [
+                    pad_left + i if i < len(og_remainder[0]) else  # left remainder before right remainder
+                    pad_right + j if j < len(og_remainder[1]) else
+                    pad_full + i
+                    for i, j in zip(left_choice_x, right_perm_x)
+                ]
+                + [
+                    pad_left + i if i < len(og_remainder[0]) else
+                    pad_full + i
+                    for i in left_rem_x
+                ]
+                + [
+                    pad_right + j if j < len(og_remainder[1]) else
+                    pad_full + j
+                    for j in right_rem_x
+                ]
+        )
+        perm = np.argsort(true_index)  # gives the position each final index should map to
+        inv_perm = np.argsort(perm)
+        new_poly = new_poly.permute(perm)
+        old_key = new_key
+        new_key = tuple(
+            ci[:2] + tuple(inv_perm[i] for i in ci[2:])
+            for ci in new_key
+        )
+        if (
+                np.any(np.not_equal(cls.coeff_product_inds(new_key), cls.coeff_product_inds(old_key)))
+                or len(cls.coeff_product_inds(new_key)) != num_left + num_right - num_fixed - mul_size
+        ):
+            raise ValueError(old_key, new_key)
+        new_poly.audit(num_left + num_right - num_fixed - mul_size)
+
+        _, counts = cls.coeff_product_inds(new_key, return_counts=True)
+        for c, d in zip(counts, total_order):
+            if c < d or (c % 2 != d % 2): raise ValueError(
+                "bad indices {} for expected order {}".format(
+                    new_key, total_order
+                ))
+        for c in counts[len(total_order):]:
+            if (c % 2 != 0): raise ValueError(
+                "bad indices {} for expected order {}".format(
+                    new_key, total_order
+                ))
+
+        return new_key, new_poly
     def _generate_direct_product_values(self,
-                                        inds, remainder, min_dim, baseline,
+                                        inds, remainder, index_classes, baseline,
                                         k1, k2, poly_1, poly_2
                                         ):
 
@@ -1822,6 +2071,11 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
 
         base_dim = num_left + num_right - num_fixed
 
+        num_free_left = len(left_float_remainder)
+        num_free_right = len(right_float_remainder)
+
+        num_defd_left = len(left_fixed_remainder)
+        num_defd_right = len(right_fixed_remainder)
         # we take every possible combo of remaining indices from left and right
         max_mult = min(
             num_right - num_fixed,
@@ -1868,123 +2122,130 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                              log_level=log_level
                              )
             for mul_size in range(max_mult+1):
-                # total_dimension = base_dim - mul_size
-                if mul_size == 0: # basically just a direct product, every remaining index gets duped
+                # we _assume_ that all permutations are handled directly by the polynomial
+                # construction, and so we really just choose to overlap different numbers of terms here,
+                # assuming a strict ordering, and then permuting all the remainder indices to preserve symmetry
 
-                    with logger.block(tag="0 {inds} {remainder}",
-                                     inds=inds, remainder=remainder, log_level=log_level):
-                        new_poly = poly_1.mul_along(poly_2, inds, remainder)
-                        # logger.log_print("3: {p}", p=new_poly,
-                        #                  preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
-                        #                  log_level=log_level
-                        #                  )
+                # computed once and cached
+                # if mul_size == 0:
+                #     combo_inds_left = [()]
+                #     combo_rem_left = [np.arange(len(left_remainder_inds))]
+                #     combo_inds_right = [()]
+                #     combo_rem_right = [np.arange(len(right_remainder_inds))]
+                # else:
+                # We assume that all of the floating indices are identical and the symmetry is clean
+                # so instead of taking all possible combinations, we consider blocks where
+                # we take differing numbers of elements from the proper remainders and the floating indices
+                # To do this, for now we filter out "bad" combinations from the full set of possibilities
+                # by noting that for any given choice of
 
-                        left_mapping = {k: i for i, k in enumerate(left_fixed_inds)}
-                        left_rem_rem = left_remainder_inds
-                        for j, k in enumerate(left_rem_rem):
-                            left_mapping[k] = j + num_fixed + mul_size
-                        right_mapping = {k: i for i, k in enumerate(right_fixed_inds)}
-                        right_rem_rem = right_remainder_inds
-                        for j, k in enumerate(right_rem_rem):
-                            right_mapping[k] = j + num_left
+                uidx_left, uidx_right = index_classes
+                rem_uleft = np.array([uidx_left[u] for u in left_fixed_remainder])
+                rem_uright = np.array([uidx_right[u] for u in right_fixed_remainder])
+                for nx_left in range(max(mul_size-num_free_left, 0), min(num_defd_left, num_free_right, mul_size)+1):
+                    # m = how many terms to take from the defined remainder
+                    subsize = mul_size - nx_left
 
-                        new_key = tuple(
-                            t[:2] + tuple(left_mapping.get(k, k) for k in t[2:])
-                            for t in k1
-                        ) + tuple(
-                            t[:2] + tuple(right_mapping.get(k, k) for k in t[2:])
-                            for t in k2
-                        )
+                    # sample from the left remainder inds and pad with remainder inds
+                    left_specd_choice = PerturbationTheoryTermProduct.get_combination_inds(num_defd_left, nx_left)
+                    left_specd_rem = PerturbationTheoryTermProduct.get_combination_comp(num_defd_left, nx_left)
+                    left_float_choice = np.arange(num_defd_left, num_defd_left+subsize)
+                    left_float_rem = np.arange(num_defd_left+subsize, len(left_remainder_inds))
 
-                        true_index = (
-                                [0] * num_fixed  # the first indices don't need to be reordered
-                                + [1] * len(left_fixed_remainder)
-                                + [3] * len(left_float_remainder)
-                                + [2] * len(right_fixed_remainder)
-                                + [3] * len(right_float_remainder)
-                        )
-                        perm = np.argsort(true_index)  # gives the position each current index should map to
-                        inv_perm = np.argsort(perm) # gives the position each final index should map from
+                    # we now need to reduce over the unique index classes
+                    if len(uidx_left) > 0:
+                        uchoice_left = nput.vector_take(rem_uleft, left_specd_choice)
+                        _, uinds_left = np.unique(uchoice_left, axis=0, return_index=True)
+                        left_specd_choice = left_specd_choice[uinds_left,]
+                        left_specd_rem = left_specd_rem[uinds_left,]
 
-                        new_poly = new_poly.permute(perm)
-                        old_key = new_key
-                        new_key = tuple(
-                            ci[:2] + tuple(inv_perm[i] for i in ci[2:])
-                            for ci in new_key
-                        )
-                        if (
-                                np.any(np.not_equal(self.get_inds(new_key), self.get_inds(old_key)))
-                                or len(self.get_inds(new_key)) != num_left + num_right - num_fixed
-                        ):
-                            raise ValueError(old_key, new_key)
-                        new_poly.audit(num_left + num_right - num_fixed)
+                    combo_inds_left = np.concatenate([
+                        left_specd_choice,
+                        np.broadcast_to(left_float_choice[np.newaxis], (len(left_specd_choice), subsize))
+                    ], axis=1)
+                    combo_rem_left = np.concatenate([
+                        left_specd_rem,
+                        np.broadcast_to(left_float_rem[np.newaxis],
+                                        (len(left_specd_rem), len(left_float_rem)))
+                    ], axis=1)
 
-                        logger.log_print("{k}", k=new_key,
-                                         log_level=log_level
-                                         )
-                        logger.log_print("{p}", p=new_poly,
-                                         preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
-                                         log_level=log_level
-                                         )
+                    # for the right inds, we need to pad initially by `m` remainder indices
+                    # then we need to sample from the number of _right_ remainders to map onto the left
+                    # choice, where again we need to choose how many of the right remainders to sample at once
+                    right_match_choice = np.arange(num_defd_right, num_defd_right+nx_left)
+                    # right_span = [max(mul_size-num_free_right, 0), min(num_defd_right, subsize)+1]
+                    # logger.log_print("{s} {b} {d} {e}", b=subsize, d=num_defd_right, e=num_free_right, s=right_span)
+                    for nx_right in range(max(mul_size-num_free_right, 0), min(num_defd_right, subsize)+1):
 
-                    _, counts = self.coeff_product_inds(new_key, return_counts=True)
-                    for c, d in zip(counts, total_order):
-                        if c < d or (c % 2 != d % 2): raise ValueError(
-                            "bad indices {} for expected order {}".format(
-                                new_key, total_order
-                            ))
-                    for c in counts[len(total_order):]:
-                        if (c % 2 != 0): raise ValueError(
-                            "bad indices {} for expected order {}".format(
-                                new_key, total_order
-                            ))
+                        sub_subsize = subsize - nx_right # how many free indices we have in the multiplication
+                        num_muld_right = num_defd_right+nx_left
 
-                    yield new_key, new_poly#.ensure_dimension(total_dimension)
-                else:
-                    #TODO: by symmetry all "extra" remainder indices _must_ be identical
-                    #      and so we simply need to multiply one set of them and then take the appropriate
-                    #      set of permutations
+                        right_specd_choice = PerturbationTheoryTermProduct.get_combination_inds(num_defd_right, nx_right)
+                        right_specd_rem = PerturbationTheoryTermProduct.get_combination_comp(num_defd_right, nx_right)
+                        right_float_choice = np.arange(num_muld_right, num_muld_right+sub_subsize)
+                        right_float_rem = np.arange(num_muld_right+sub_subsize, len(right_remainder_inds))
 
+                        # we now need to reduce over the unique index classes
+                        if len(uidx_right) > 0:
+                            uchoice_right = nput.vector_take(rem_uright, right_specd_choice)
+                            _, uinds_right = np.unique(uchoice_right, axis=0, return_index=True)
+                            right_specd_choice = right_specd_choice[uinds_right,]
+                            right_specd_rem = right_specd_rem[uinds_right,]
 
-                    # computed once and cached
-                    combo_inds_left = PerturbationTheoryTermProduct.get_combination_inds(len(left_remainder_inds), mul_size)
-                    combo_rem_left = PerturbationTheoryTermProduct.get_combination_comp(len(left_remainder_inds), mul_size)
-                    combo_inds_right = PerturbationTheoryTermProduct.get_combination_inds(len(right_remainder_inds), mul_size)
-                    combo_rem_right = PerturbationTheoryTermProduct.get_combination_comp(len(right_remainder_inds), mul_size)
+                        # finally we build out these indices
+                        combo_inds_right = np.concatenate([
+                            np.broadcast_to(right_match_choice[np.newaxis], (len(right_specd_choice), nx_left)),
+                            right_specd_choice,
+                            np.broadcast_to(right_float_choice[np.newaxis], (len(right_specd_choice), subsize-nx_right))
+                        ], axis=1)
+                        combo_rem_right = np.concatenate([
+                            right_specd_rem,
+                            np.broadcast_to(right_float_rem[np.newaxis], (len(right_specd_rem), len(right_float_rem)))
+                        ], axis=1)
 
-                    for left_choice_x, left_rem_x in zip(combo_inds_left, combo_rem_left):
-                        left_choice = tuple(left_remainder_inds[k] for k in left_choice_x)
-                        left_mul_inds = left_fixed_inds + left_choice
+                        # combo_inds_left = PerturbationTheoryTermProduct.get_combination_inds(len(left_remainder_inds), mul_size)
+                        # combo_rem_left = PerturbationTheoryTermProduct.get_combination_comp(len(left_remainder_inds), mul_size)
+                        # combo_inds_right = PerturbationTheoryTermProduct.get_combination_inds(len(right_remainder_inds), mul_size)
+                        # combo_rem_right = PerturbationTheoryTermProduct.get_combination_comp(len(right_remainder_inds), mul_size)
 
-                        # now we build our new key, noting that the multiplied inds will be the first _n_
-                        # inds in the new set, then the left inds, then the right ones
-                        left_mapping = {k: i for i, k in enumerate(left_mul_inds)}
-                        left_rem_rem = [left_remainder_inds[x] for x in left_rem_x]
-                        for j, k in enumerate(left_rem_rem):
-                            left_mapping[k] = j + num_fixed + mul_size
-                        left_key = tuple(
-                                    t[:2] + tuple(left_mapping[k] for k in t[2:])
-                                    for t in k1
-                                )
+                        # print("!", m, "l", num_defd_left, num_free_left, 'r', num_defd_right, num_free_right)
+                        # print(combo_inds_left, left_specd_choice, left_float_choice)
+                        # print(left_fixed_remainder, left_float_remainder)
+                        # print(combo_inds_right, right_match_choice, right_specd_choice, right_float_choice)
+                        # print(right_fixed_remainder, right_float_remainder)
+                        for left_choice_x, left_rem_x in zip(combo_inds_left, combo_rem_left):
+                            left_choice = tuple(left_remainder_inds[k] for k in left_choice_x)
+                            left_mul_inds = left_fixed_inds + left_choice
 
-                        if baseline is not None:
-                            # sometimes unchanged inds on the right get multiplied by changed left inds
-                            left_baseline = [
-                                baseline[x] if x < len(baseline) else 0
-                                for x in left_mul_inds
-                            ]
-                        else:
-                            left_baseline = None
+                            # now we build our new key, noting that the multiplied inds will be the first _n_
+                            # inds in the new set, then the left inds, then the right ones
+                            left_mapping = {k: i for i, k in enumerate(left_mul_inds)}
+                            left_rem_rem = [left_remainder_inds[x] for x in left_rem_x]
+                            for j, k in enumerate(left_rem_rem):
+                                left_mapping[k] = j + num_fixed + mul_size
+                            left_key = tuple(
+                                        t[:2] + tuple(left_mapping[k] for k in t[2:])
+                                        for t in k1
+                                    )
 
-                        # for right_perm in [right_choice]:
-                        for right_choice_x, right_rem_x in zip(combo_inds_right, combo_rem_right):
-                            for right_perm_x in itertools.permutations(right_choice_x):
-                                if any(
-                                        i < len(remainder[0]) and j < len(remainder[1])
-                                        for i, j in zip(left_choice_x, right_perm_x)
-                                ): continue  # we can't multiply two remainder indices
+                            if baseline is not None:
+                                # sometimes unchanged inds on the right get multiplied by changed left inds
+                                left_baseline = [
+                                    baseline[x] if x < len(baseline) else 0
+                                    for x in left_mul_inds
+                                ]
+                            else:
+                                left_baseline = None
 
-                                right_choice = tuple(right_remainder_inds[k] for k in right_perm_x)
+                            # for right_perm in [right_choice]:
+                            for right_choice_x, right_rem_x in zip(combo_inds_right, combo_rem_right):
+                                # for right_perm_x in [right_choice_x]:#itertools.permutations(right_choice_x):
+                                    # if any(
+                                    #         i < len(remainder[0]) and j < len(remainder[1])
+                                    #         for i, j in zip(left_choice_x, right_perm_x)
+                                    # ): continue  # we can't multiply two remainder indices
+
+                                right_choice = tuple(right_remainder_inds[k] for k in right_choice_x)
 
                                 right_mul_inds = right_fixed_inds + right_choice
 
@@ -2008,90 +2269,124 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                                     right_rem_rem
                                 ]
 
+                                # if len(left_mul_inds) != len(right_mul_inds):
+                                #     raise ValueError(
+                                #         left_mul_inds, right_mul_inds
+                                #     )
+                                #
+                                # if len(left_rem_rem) != len(right_rem_rem):
+                                #     raise ValueError(
+                                #         left_rem_rem, right_rem_rem,
+                                #         nx_left, nx_right
+                                #     )
+
                                 with logger.block(tag="{m} {mul_inds} {mul_remainder}",
                                                   m=mul_size, mul_inds=mul_inds, mul_remainder=mul_remainder,
                                                   log_level=log_level):
-                                    if baseline is not None:
-                                        right_shift = [0] * num_right
-                                        for s,i in zip(left_baseline, right_mul_inds):
-                                            right_shift[i] = s
-                                        shift_poly_2 = poly_2
-                                        if any(s != 0 for s in right_shift):
-                                            shift_poly_2 = shift_poly_2.shift(right_shift)
-                                            logger.log_print("baseline: {baseline}", baseline=baseline,
-                                                             log_level=log_level
-                                                             )
-                                            logger.log_print("shift: {shift}", shift=right_shift,
-                                                             log_level=log_level
-                                                             )
-                                            logger.log_print("{p}", p=shift_poly_2,
-                                                             preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
-                                                             log_level=log_level
-                                                             )
-                                        new_poly = poly_1.mul_along(shift_poly_2, mul_inds, mul_remainder)
+
+                                    new_key, new_poly = self._handle_mul(
+                                        new_key, total_order,
+                                        num_fixed, mul_size,
+                                        poly_1, poly_2,
+                                        mul_inds, mul_remainder,
+                                        remainder,
+                                        left_baseline, baseline,
+                                        left_choice_x, right_choice_x,
+                                        left_rem_x, right_rem_x,
+                                        num_left, num_right,
+                                        logger, log_level
+                                    )
+
+
+                                    perm_blocks = []
+                                    # we never permute these
+                                    if num_fixed > 0:
+                                        perm_blocks.append([np.arange(num_fixed)])
+
+                                    perm_pad = num_fixed
+                                    if nx_left > 0:
+                                        diff_pos = np.nonzero(np.diff(rem_uleft))
+                                        # print("!!!", uidx_left,
+                                        #       [uidx_left[i] for i in left_fixed_remainder],
+                                        #       left_fixed_remainder
+                                        #       )
+                                        for sub_block_inds in np.split(left_fixed_remainder, diff_pos[0] + 1):
+                                            sub_proxy = [
+                                                1
+                                                    if x in left_choice else
+                                                0
+                                                for x in sub_block_inds
+                                            ]
+                                            sub_perms, _ = UniquePermutations(sub_proxy).permutations(return_indices=True)
+                                            perm_blocks.append(perm_pad + sub_perms)
+                                            perm_pad = perm_pad + len(sub_block_inds)
                                     else:
-                                        new_poly = poly_1.mul_along(poly_2, mul_inds, mul_remainder)
+                                        if num_defd_left > 0:
+                                            perm_blocks.append([np.arange(perm_pad, perm_pad+num_defd_left)])
+                                            perm_pad = perm_pad + num_defd_left
 
-                                    # finally, we need to make sure that the indices are in the right order
-                                    # by noting that the remainder inds that were specified must be ordered
-                                    # after the proper inds
-                                    # so we build a permutation to apply to new_poly by constructing a proxy index
-                                    # ordered like the indices of new_poly but with values from the target position indices
-                                    true_index = (
-                                        [0] * num_fixed # the first indices don't need to be reordered
-                                        + [
-                                            1 if i < len(remainder[0]) else # left remainder before right remainder
-                                            2 if j < len(remainder[1]) else
-                                            3
-                                            for i,j in zip(left_choice_x, right_perm_x)
-                                        ]
-                                        + [
-                                            1 if i < len(remainder[0]) else
-                                            3
-                                            for i in left_rem_x
-                                        ]
-                                        + [
-                                            2 if j < len(remainder[1]) else
-                                            3
-                                            for i in right_rem_x
-                                        ]
-                                    )
-                                    perm = np.argsort(true_index) # gives the position each final index should map to
-                                    inv_perm = np.argsort(perm)
-                                    new_poly = new_poly.permute(perm)
-                                    old_key = new_key
-                                    new_key = tuple(
-                                        ci[:2] + tuple(inv_perm[i] for i in ci[2:])
-                                        for ci in new_key
-                                    )
-                                    if (
-                                            np.any(np.not_equal(self.get_inds(new_key), self.get_inds(old_key)))
-                                            or len(self.get_inds(new_key)) != num_left + num_right - num_fixed - mul_size
-                                    ):
-                                        raise ValueError(old_key, new_key)
-                                    new_poly.audit(num_left + num_right - num_fixed - mul_size)
+                                    if nx_right > 0:
+                                        diff_pos = np.nonzero(np.diff(rem_uright))
+                                        for sub_block_inds in np.split(right_fixed_remainder, diff_pos[0] + 1):
+                                            sub_proxy = [
+                                                1
+                                                    if x in right_choice else
+                                                0
+                                                for x in sub_block_inds
+                                            ]
+                                            sub_perms, _ = UniquePermutations(sub_proxy).permutations(return_indices=True)
+                                            perm_blocks.append(perm_pad + sub_perms)
+                                            perm_pad = perm_pad + len(sub_block_inds)
+                                    else:
+                                        if num_defd_right > 0:
+                                            perm_blocks.append([np.arange(perm_pad, perm_pad+num_defd_right)])
+                                            perm_pad = perm_pad + num_defd_right
 
-                                    logger.log_print("{k}", k=new_key,
-                                                     log_level=log_level
-                                                     )
-                                    logger.log_print("{p}", p=new_poly,
-                                                     preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
-                                                     log_level=log_level
-                                                     )
 
-                                _, counts = self.coeff_product_inds(new_key, return_counts=True)
-                                for c, d in zip(counts, total_order):
-                                    if c < d or (c % 2 != d % 2): raise ValueError(
-                                        "bad indices {} for expected order {}".format(
-                                            new_key, total_order
-                                        ))
-                                for c in counts[len(total_order):]:
-                                    if (c % 2 != 0): raise ValueError(
-                                        "bad indices {} for expected order {}".format(
-                                            new_key, total_order
-                                        ))
+                                    # now any indices that were generated by multiplying or
+                                    # ignoring the "free" remainder indices need to be symmetrized
+                                    perm_idx = [  # TODO: get this faster from nx_left and nx_right
+                                                   2 for i, j in zip(left_choice_x, right_choice_x)
+                                                   if i >= num_defd_left and j >= num_defd_right
+                                               ] + [
+                                                   1 for i in left_rem_x
+                                                   if i >= num_defd_left
+                                               ] + [
+                                                   0 for j in right_rem_x
+                                                   if j >= num_defd_right
+                                               ]
+                                    if len(perm_idx) > 0:
+                                        free_perms, _ = UniquePermutations(perm_idx).permutations(return_indices=True)
+                                        num_prev = num_fixed + num_defd_left + num_defd_right
+                                        perm_blocks.append(num_prev + free_perms)
 
-                                yield new_key, new_poly#.ensure_dimension(total_dimension)
+                                    # print(num_fixed, nx_left, nx_right, perm_blocks, perm_idx)
+                                    for perm_bits in itertools.product(*perm_blocks):
+                                        perm = np.concatenate(perm_bits)
+                                        inv_map = np.argsort(perm)
+                                        perm_key = tuple(
+                                            ci[:2] + tuple(
+                                                inv_map[j]
+                                                for j in ci[2:]
+                                            )
+                                            for ci in new_key
+                                        )
+                                        perm_poly = new_poly.permute(perm)
+
+                                        perm_key = self.canonical_key(perm_key)
+
+                                        logger.log_print("{k} [{r}]",
+                                                         k=perm_key,
+                                                         r=inv_map,
+                                                         preformatter=lambda **vars: dict(vars, k=self.format_tensor_key(vars['k'])),
+                                                         log_level=log_level
+                                                         )
+                                        logger.log_print("{p}", p=perm_poly,
+                                                         preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
+                                                         log_level=log_level
+                                                         )
+
+                                        yield perm_key, perm_poly#.ensure_dimension(total_dimension)
 
     def _adjust_key_right(self, k, other, inds, remainder):
         # TODO: make sure other isn't fucked up somehow
@@ -2111,7 +2406,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
             ci[:2] + tuple(mapping[i] if i < len(mapping) else i for i in ci[2:])
             for ci in k
         )
-    def mul_along(self, other:'PolynomialInterface', inds, remainder=None, min_dim=None,
+    def mul_along(self, other:'PolynomialInterface', inds, remainder=None, index_classes=None,
                   mapping=None, baseline=None):
         """
         We multiply every subpoly along the given indices, transposing the appropriate tensor indices
@@ -2124,12 +2419,13 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
         if isinstance(other, PTTensorCoeffProductSum):
             # we need to take the direct product of aligning (or not)
             # for all of the untouched inds
-            new = self.direct_multiproduct(other,
-                                           lambda *kargs: self._generate_direct_product_values(inds, remainder,
-                                                                                               min_dim, baseline,
-                                                                                               *kargs
-                                                                                               )
-                                           )
+            new = self.direct_multiproduct(
+                other,
+                lambda *kargs: self._generate_direct_product_values(inds, remainder,
+                                                                    index_classes, baseline,
+                                                                    *kargs
+                                                                    )
+            )
         elif isinstance(other, (PTEnergyChangeProductSum, ProductPTPolynomial)):
             new = self.mutate(
                 {
@@ -2272,8 +2568,31 @@ class SqrtChangePoly(PolynomialInterface):
             canonicalize=canonicalize
         )
 
+    def to_state(self, serializer=None):
+        return {
+            'poly': serializer.serialize(self.poly_obj),
+            'change': list(self.poly_change),
+            'shift': list(self.shift_start)
+        }
+    @classmethod
+    def from_state(cls, state, serializer=None):
+        return cls(
+            serializer.deserialize(state['poly']),
+            state['change'],
+            state['shift'],
+            canonicalize=False
+        )
+
     def strip(self):
+        stripped = [i for i,c in enumerate(self.poly_change) if c == 0]
+        if len(stripped) == 0: return self
+        if not np.equal(
+            stripped,
+            np.arange(stripped[0], stripped[0] + len(stripped))
+        ).all():
+            raise ValueError("bad strip...")
         return self.mutate(
+            self.poly_obj.free_up_indices(stripped[0], stripped[-1]+1),
             poly_change=[c for c in self.poly_change if c != 0],
             shift_start=[s for c,s in zip(self.poly_change, self.shift_start) if c != 0]
         )
@@ -2461,12 +2780,13 @@ class SqrtChangePoly(PolynomialInterface):
                 if c < len(self.poly_change)
             ]
         )
-        try:
-            new.audit()
-        except ValueError:
-            raise ValueError("bad permutation {} for {}".format(
-                perm, self
-            ))
+        if _DEBUG_AUDIT:
+            try:
+                new.audit()
+            except ValueError:
+                raise ValueError("bad permutation {} for {}".format(
+                    perm, self
+                ))
         return new
 
     def filter_coefficients(self, terms, mode='match'):
@@ -2581,20 +2901,20 @@ class SqrtChangePoly(PolynomialInterface):
                                 n for n in new_changes #if n != 0
                             ] + [
                                 self.poly_change[r] for r in self_remainder
-                                if r < len(self.poly_change)
+                                # if r < len(self.poly_change)
                             ] + [
                                 other.poly_change[r] for r in other_remainder
-                                if r < len(other.poly_change)
+                                # if r < len(other.poly_change)
                             ]
 
             final_shift = [
                               s for s, n in zip(self_shift, new_changes) #if n != 0
                           ] + [
                               self.shift_start[r] for r in self_remainder
-                              if r < len(self.shift_start)
+                              # if r < len(self.shift_start)
                           ] + [
                               other.shift_start[r] for r in other_remainder
-                              if r < len(other.shift_start)
+                              # if r < len(other.shift_start)
                           ]
 
             other_poly = other.poly_obj
@@ -2617,10 +2937,17 @@ class SqrtChangePoly(PolynomialInterface):
                         baseline[len(self_inds) + len(self_remainder):]
                     )
                 # inds and remainders must be adapted for the fact that we've moved around indices in doing this...
+
+
                 new_poly = new_self.mul_along(
                     other_poly,
                     [list(range(len(self_inds))), other_inds],
-                    min_dim=len(final_changes),
+                    index_classes=[
+                        [
+                            self.poly_change[i] for i in itertools.chain(self_inds, self_remainder)
+                        ], #TODO: check if the shift needs to be included...
+                        other.poly_change
+                    ],
                     remainder=[
                         np.arange(len(self_inds), len(self_remainder) + len(self_inds)),
                         other_remainder
@@ -2632,8 +2959,8 @@ class SqrtChangePoly(PolynomialInterface):
                 new_poly = self.poly_obj.mul_along(
                     other_poly,
                     [self_inds, other_inds],
+                    index_classes=[self.poly_change, other.poly_change],
                     remainder=[self_remainder, other_remainder],
-                    min_dim=len(final_changes),
                     baseline=baseline
                 )
 
@@ -2772,15 +3099,19 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
 
     simplify_by_default = True
 
-    def get_poly_terms(self, changes, simplify=None, shift=None, use_cache=False) -> 'SqrtChangePoly':
+    def get_poly_terms(self, changes, simplify=None, shift=None, use_cache=True) -> 'SqrtChangePoly':
         if any(c == 0 for c in changes): raise ValueError(...)
 
         if simplify is None: simplify = self.simplify_by_default
         log_level = Logger.LogLevel.Normal if _DEBUG_PRINT else Logger.LogLevel.MoreDebug
         with self.logger.block(tag="{s}[{c}]", s=self, c=changes, log_level=log_level):
+            og_changes = changes
             with self.debug_logging():
                 change_perm = self.change_sort(np.asanyarray(changes))
                 changes = tuple(changes[p] for p in change_perm)  # for c in changes if c != 0)
+                if shift is not None:
+                    pad_change_perm = list(change_perm) + list(range(len(change_perm), len(shift)))
+                    shift = [shift[s] for s in pad_change_perm]
                 cache_key = changes if shift is None or all(s == 0 for s in shift) else (changes, tuple(shift))
                 terms = self.changes.get(cache_key, None)
                 if not isinstance(terms, SqrtChangePoly):
@@ -2792,39 +3123,34 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                     if use_cache:
                         with self.checkpoint as chk:
                             key = self.serializer_key
+                            substr = str(changes).replace("(", "").replace(")", "").replace(",", "|")
                             try:
                                 if key is None:
                                     terms = None
                                 else:
-                                    terms = chk[key][changes]
+                                    terms = chk[key, substr]
                             except KeyError:
                                 terms = None
                             if terms is None:
-                                terms = self.get_core_poly(changes, shift=shift)
+                                terms = self.get_core_poly(changes, shift=None)
                                 if simplify and not nput.is_zero(terms):
                                     terms = terms.combine()  # .sort()
                                 self.changes[changes] = terms
                                 if key is not None:
-                                    try:
-                                        base = chk[key]
-                                    except KeyError:
-                                        base = {}
-                                    base[changes] = terms
-                                    chk[key] = base
+                                    # try:
+                                    #     base = chk[key]
+                                    # except KeyError:
+                                    #     base = {}
+                                    # base[substr] = terms
+                                    chk[key, substr] = terms
                     else:
-                        terms = self.get_core_poly(changes)
+                        terms = self.get_core_poly(changes, shift=None)
                         if simplify and not nput.is_zero(terms):
                             terms = terms.combine()
 
                     if nput.is_numeric(terms): return terms
-                    if self.disallowed_coefficients is not None:
-                        terms = terms.filter_coefficients(self.disallowed_coefficients, mode='exclude')
-                    if self.allowed_coefficients is not None:
-                        terms = terms.filter_coefficients(self.allowed_coefficients, mode='include')
-                    if self.allowed_energy_changes is not None:
-                        terms = terms.filter_energies(self.allowed_energy_changes, mode='include')
+
                     if shift is not None and len(shift) > 0 and not nput.is_numeric(terms):
-                        if not isinstance(terms, SqrtChangePoly): raise ValueError(...)
                         terms = terms.shift(shift)
 
                     if isinstance(terms, SqrtChangePoly):
@@ -2850,19 +3176,26 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                     if cache_key is not changes:
                         self.changes[cache_key] = terms
 
-                    self.logger.log_print('{p}', p=terms,
+                    if self.disallowed_coefficients is not None:
+                        terms = terms.filter_coefficients(self.disallowed_coefficients, mode='exclude')
+                    if self.allowed_coefficients is not None:
+                        terms = terms.filter_coefficients(self.allowed_coefficients, mode='include')
+                    if self.allowed_energy_changes is not None:
+                        terms = terms.filter_energies(self.allowed_energy_changes, mode='include')
+
+                    self.logger.log_print('{s}[{c}]: {p}', p=terms, s=self, c=og_changes,
                                           preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
                                           log_level=log_level
                                           )
                     end = time.time()
                     # self.logger.log_print('terms: {t}', t=terms)
                     self.logger.log_print('took {e:.3f}s', e=end - start, log_level=log_level)
-                terms = terms.permute(change_perm)
+                terms = terms.permute(np.argsort(change_perm))
 
         return terms
 
     def __call__(self, changes, shift=None, coeffs=None, freqs=None, check_sorting=True, simplify=None, return_evaluator=True):
-        with self.logger.block(tag="Building evaluator {}[{}]".format(self, changes)):
+        with self.logger.block(tag="Building evaluator {}[{}]".format(self, changes, id(self))):
             if coeffs is not None:
                 raise NotImplementedError(...)
             if freqs is not None:
@@ -2873,20 +3206,23 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                 changes = tuple(changes[p] for p in perm)
             change_key = changes if (shift is None or all(s==0 for s in shift)) else (changes, shift)
             terms = self.changes.get(change_key, None)
+            start = time.time()
             if not isinstance(terms, SqrtChangePoly):
-                if nput.is_numeric(terms): return terms
-
-                terms = self.changes.get(changes, 0)
-                if not (isinstance(terms, SqrtChangePoly) or nput.is_numeric(terms)):
-                    terms = self.get_poly_terms(changes, shift=None)
-                    if simplify and not nput.is_zero(terms):
-                        terms = terms.combine()#.sort()
-                    self.changes[changes] = terms
-                if shift is not None:
-                    raise NotImplementedError("reshifting not supported yet...")
-                    self.changes[change_key] = terms
+                if not nput.is_numeric(terms):
+                    terms = self.changes.get(changes, 0)
+                    if not (isinstance(terms, SqrtChangePoly) or nput.is_numeric(terms)):
+                        terms = self.get_poly_terms(changes, shift=None)
+                        if simplify and not nput.is_zero(terms):
+                            terms = terms.combine()#.sort()
+                        self.changes[changes] = terms
+                    if shift is not None:
+                        raise NotImplementedError("reshifting not supported yet...")
+                        self.changes[change_key] = terms
             if perm is not None and not nput.is_numeric(terms):
                 terms = terms.permute(np.argsort(perm))
+            end = time.time()
+            # self.logger.log_print('terms: {t}', t=terms)
+            self.logger.log_print('took {e:.3f}s', e=end - start)
             if return_evaluator:
                 return PerturbationTheoryExpressionEvaluator(self, terms, changes, logger=self.logger)
             else:
@@ -3172,7 +3508,7 @@ class PerturbationOperator(PerturbationTheoryTerm):
         return "{}|".format(self.subterm)
 
     def get_changes(self) -> 'dict[tuple[int], Any]':
-        return {k:None for k in self.subterm.changes if k != ()}
+        return {k:None for k in self.subterm.changes}# if k != ()}
     def get_core_poly(self, changes, shift=None):
         base_term = self.subterm.get_core_poly(changes)
         if isinstance(base_term, PolynomialInterface):
@@ -3210,20 +3546,19 @@ class PerturbationOperator(PerturbationTheoryTerm):
             prefactor = PTEnergyChangeProductSum.monomial(energy_shift, 1)
             base_term = base_term.mul_simple(prefactor)
         return base_term
-    def get_poly_terms(self, changes, shift=None, **opts) -> 'SqrtChangePoly':
-        # with self.debug_logging():
-        if shift is not None: # TODO: remove contextual energy baseline
-            final_change = tuple(c + s for c, s in zip(changes, shift))
-        else:
-            final_change = tuple(changes)
-        final_change = tuple(c for c in final_change if c != 0)
-        if len(final_change) == 0:
-            return 0
+    # def get_poly_terms(self, changes, shift=None, **opts) -> 'SqrtChangePoly':
+    #     # if shift is not None: # TODO: remove contextual energy baseline
+    #     #     final_change = tuple(c + s for c, s in zip(changes, shift))
+    #     # else:
+    #     #     final_change = tuple(changes)
+    #     # final_change = tuple(c for c in final_change if c != 0)
+    #     # if len(final_change) == 0:
+    #     #     return 0
+    #
+    #     return super().get_poly_terms(changes, shift=shift, **opts)
 
-        return super().get_poly_terms(changes, shift=shift, **opts)
 
-
-class ShiftedEnergyBaseline(PerturbationTheoryTerm):
+class _ShiftedEnergyBaseline(PerturbationTheoryTerm):
     def __init__(self, base_term:'PerturbationTheoryTerm'):
         super().__init__(logger=base_term.logger)
         self.base = base_term
@@ -3239,11 +3574,14 @@ class ShiftedEnergyBaseline(PerturbationTheoryTerm):
 
     def get_core_poly(self, changes, shift=None) -> 'SqrtChangePoly':
         base_term = self.base.get_poly_terms(changes, shift=shift)
-        eshift = [-2*c for c in changes]
-        if shift is not None:
-            raise NotImplementedError(...)
-        return base_term.shift_energies(eshift)
-
+        if shift is None:
+            final_state = changes
+        else:
+            if len(shift) < len(changes):
+                shift = list(shift) + [0] * (len(changes) - len(shift))
+            final_state = [c + s for c,s in zip(changes, shift)]
+        # eshift = [-2*c for c in zip(changes, [0] * )
+        return base_term.shift_energies([-c for c in final_state])
 
 class ShiftedEnergyBaseline(PerturbationTheoryTerm):
     """
@@ -3328,7 +3666,7 @@ class ShiftedHamiltonianCorrection(PerturbationTheoryTerm):
         E = self.parent.energy_correction
         k = self.order
 
-        if k == 1:
+        if k%2 == 1:
             if len(H) == 0:
                 return []
             else:
@@ -3815,8 +4153,17 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                             np.arange(inds_2.shape[0], dtype=int),
                             indexing='ij'
                         )]
+                        upairs = set()
                         for pad_change, initial_sort, nz, x1, x2 in zip(new_change, initial_sortings, nonzero_counts,
                                                                         inds_1_inds, inds_2_inds):
+                            ch2_test = np.array([ch2[i2] for i2 in inds_2[x2]])
+                            ch2_sort = self.change_sort(ch2_test)
+                            test_key = (
+                                tuple(ch1[inds_1[x1][s]] for s in ch2_sort),
+                                tuple(ch2_test[s] for s in ch2_sort)
+                            )
+                            if test_key in upairs: continue
+                            upairs.add(test_key)
                             # we have to handle two combinatoric problems, now
                             # firstly, we need to make sure that combinations like
                             #    2  1 -1
@@ -3830,6 +4177,13 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                             # by _any_ of the [1]s in the second poly, and so I think we need to scale this by
                             # the number of equivalent choices?
                             # [1, 1, 1] x [-1] -> [1, 1] + free index (might be handled by the later summation?)
+
+                            # we actually have a _third_ problem
+                            # consider [1, -1, -1] @ [-1, 1, 1] -> [0, 0, 0]
+                            # where we tneed to make sure that the blocks that map to the same value
+                            # are permuted over the different paths that get you there
+                            # i.e. if given two paths ([1, -1]) and ([-1, 1]) to 0 we need to make sure that we
+                            #      permute appropriately, meaning we take the unique permutations of [i, j, j]
 
 
                             diff_pos = np.nonzero(np.diff(pad_change))
@@ -3845,18 +4199,35 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                             # To do so we take each of the ind_blocks and for the _remainder_ elements we assign
                             # either 0 or 1 depending on which poly they came from, any change element by contrast is
                             # treated as unique
+                            # And for the _product_ elements, we assign a value based on the left and right
+                            # indices
+                            inv_sort = np.argsort(initial_sort)
                             perm_blocks = []
-                            origins = np.array(
-                                list(range(2, 2 + os))
-                                + [0] * (n1 - os)
-                                + [1] * (n2 - os)
-                            )[initial_sort]
-                            for p,v in zip(ind_blocks, block_vals):
-                                if v == 0:
-                                    perm_blocks.append([p])
+                            product_inds = []
+                            proxy_idx = 0# UniquePermutations expects largest to smallest...
+                            path_map = {}
+                            for left_i,right_j in zip(inds_1[x1], inds_2[x2]):
+                                key = (ch1[left_i], ch2[right_j])
+                                if key in path_map:
+                                    val = path_map.get(key)
                                 else:
-                                    perms, _ = UniquePermutations(origins[p]).permutations(return_indices=True)
-                                    perm_blocks.append(nput.vector_take(p, perms))
+                                    val = proxy_idx
+                                    proxy_idx += 1
+                                    path_map[key] = val
+                                product_inds.append(val)
+                            proxy_left = len(product_inds)
+                            proxy_right = proxy_left + n1 - os
+                            origins = np.array(
+                                product_inds
+                                + [proxy_left] * (n1 - os)
+                                + [proxy_right] * (n2 - os)
+                            )
+                            for p,v in zip(ind_blocks, block_vals):
+                                # if v == 0:
+                                #     perm_blocks.append([p])
+                                # else:
+                                perms, _ = UniquePermutations(origins[p]).permutations(return_indices=True)
+                                perm_blocks.append(nput.vector_take(p, perms))
 
                             total_sorts = np.broadcast_to(
                                 initial_sort[np.newaxis],
@@ -3881,384 +4252,7 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                                 total_sorts
                             ))
 
-        # other_changes = self._get_changes()
-        # for k,v in other_changes.items():
-        #     print("?"*20, k, "?"*20)
-        #     # for s in v:
-        #     #     cccc1 = s[0]; cccc2 = s[1]
-        #     #     for n in new_changes[k]:
-        #     #         if (
-        #     #                 len(n[0]) == len(cccc1)
-        #     #             and len(n[1]) == len(cccc2)
-        #     #             and np.all(n[0] == cccc1)
-        #     #             and np.all(n[1] == cccc2)
-        #     #         ):
-        #     #             # print("old", s)
-        #     #             # print("new", n)
-        #     #             break
-        #     #     else:
-        #     #         raise ValueError(s)
-        #
-        #     if len(v) != len(new_changes[k]): raise ValueError(
-        #         k, len(new_changes[k]), len(v)
-        #     )
-        #     for _ in v: print("old", _)
-        #     for _ in new_changes[k]: print("new", _)
-
         return new_changes
-
-    def _get_changes(self):
-
-        changes_1 = self.get_change_classes(self.gen1.changes)
-        changes_2 = self.get_change_classes(self.gen2.changes)
-
-        full_changes = {} # indexed by number of modes in final change
-
-        for n1,ch1 in enumerate(changes_1):
-            if len(ch1) == 0: continue
-            for n2,ch2 in enumerate(changes_2):
-                if len(ch2) == 0: continue
-
-                if n1 == 0:
-                    k = len(ch2)
-                    self._fill_change_data(full_changes, n2, ch2,
-                                           [np.broadcast_to(np.array([[]]), (k, 0)), ch2],
-                                           np.broadcast_to(np.arange(n2)[np.newaxis], (k, n2)),
-                                           [np.broadcast_to(np.array([[]]), (k, 0)), np.broadcast_to(np.array([[]]), (k, 0))],
-                                           [np.broadcast_to(np.array([[]]), (k, 0)), np.broadcast_to(np.arange(n2)[np.newaxis], (k, n2))]
-                                           )
-                elif n2 == 0:
-                    k = len(ch1)
-                    self._fill_change_data(full_changes, n1, ch1,
-                                           [ch1, np.broadcast_to(np.array([[]]), (k, 0))],
-                                           np.broadcast_to(np.arange(n1)[np.newaxis], (k, n1)),
-                                           [np.broadcast_to(np.array([[]]), (k, 0)), np.broadcast_to(np.array([[]]), (k, 0))],
-                                           [np.broadcast_to(np.arange(n1)[np.newaxis], (k, n1)), np.broadcast_to(np.array([[]]), (k, 0))]
-                                           )
-                else:
-                    for m in range(min(n1, n2)+1):
-                        if m == 0:
-                            inds_1 = np.array([[]])
-                            inds_2 = np.array([[]])
-                            rems_1 = np.arange(n1)[np.newaxis]
-                            rems_2 = np.arange(n2)[np.newaxis]
-
-                            uinds = None
-
-                            # pure direct products, concatenate final combinations
-                            new_combo = np.concatenate([
-                                np.broadcast_to(ch1[:, np.newaxis, :], (ch1.shape[0], ch2.shape[0], n1)).reshape(-1, n1),
-                                np.broadcast_to(ch2[np.newaxis, :, :], (ch1.shape[0], ch2.shape[0], n2)).reshape(-1, n2),
-                            ], axis=1)
-                        else:
-                            inds_1 = self.get_combination_inds(n1, m)
-                            inds_2 = self.get_combination_inds(n2, m)
-                            rems_1 = self.get_combination_comp(n1, m)
-                            rems_2 = self.get_combination_comp(n2, m)
-
-                            # ov_2_depdupe = nput.vector_take(ch2, inds_2) # we need this for removing dupes...
-
-                            if _PERMUTE_CHANGES:
-                                # need to permute to get all the appropriate changes...
-                                mperms = nput.permutation_indices(m, m)
-                                inds_2 = nput.vector_take(inds_2, mperms).reshape(-1, m)
-                                if n2 > m:
-                                    rems_2 = np.broadcast_to(rems_2[:, np.newaxis, :],
-                                                             (len(rems_2), len(mperms), n2-m)).reshape(-1, n2-m)
-                                else:
-                                    rems_2 = np.empty((inds_2.shape[0], 0), dtype=int)
-
-                            # ch1 is a c1 x n1 array (c1 changes of len n1)
-                            # we need to broadcast every change pair, so we get a
-                            # c1 x k1 x n1 array where k is n1 choose m
-
-                            # add overlaps, concatenate the remainder
-                            ov_1 = nput.vector_take(ch1, inds_1) # c1 x k1 x m
-                            ov_2 = nput.vector_take(ch2, inds_2) # c2 x k2 x m
-                            re_1 = nput.vector_take(ch1, rems_1) # c1 x k1 x n1 - m
-                            re_2 = nput.vector_take(ch2, rems_2) # c2 x k2 x n2 - m
-
-
-                            ## I think we need the duplicate changes to be fine on the combinatorics?
-                            # remove duplicate changes --> handled later on
-                            # uinds_1 = []
-                            # k1 = len(inds_1)
-                            # for n,block in enumerate(ov_1): # k1 x m blocks
-                            #     _, uu = np.unique(block, axis=0, return_index=True)
-                            #     uu = np.sort(uu)
-                            #     uinds_1.append(k1*n + uu ) # need to add on the block offset
-
-
-                            uinds = None
-                            if _TAKE_UNIQUE_CHANGES:
-                                ## we need to remove duplicate permutations...?
-                                uinds_2 = []
-                                k2 = len(inds_2)
-                                for n,block in enumerate(ov_2): # k2 x m blocks
-                                    km = len(mperms)
-                                    block = block.reshape(-1, km, m) # we need to do this one a subblock-by-subblock basis
-                                    for nm,subblock in enumerate(block):
-                                        _, uu = np.unique(subblock, axis=0, return_index=True)
-                                        uu = np.sort(uu)
-                                        uinds_2.append(k2*n + km*nm + uu ) # need to add on the block offset
-                                uinds = [
-                                    np.arange(len(ch1) * len(inds_1)),
-                                    # np.arange(len(ch2) * len(inds_2))
-                                    np.concatenate(uinds_2)
-                                ]
-
-                            combos = ov_1[:, :, np.newaxis, np.newaxis] + ov_2[np.newaxis, np.newaxis, :, :]
-                            cats = [combos.reshape(-1, m)]
-                            if m < n1:
-                                pads1 = np.broadcast_to(
-                                    re_1[:, :, np.newaxis, np.newaxis],
-                                    re_1.shape[:2] + re_2.shape[:2] + re_1.shape[-1:]
-                                ).reshape(-1, n1 - m)
-                                cats.append(pads1)
-                            if m < n2:
-                                pads2 = np.broadcast_to(re_2[np.newaxis, np.newaxis, :, :],
-                                                        re_1.shape[:2] + re_2.shape[:2] + re_2.shape[-1:]
-                                                        ).reshape(-1, n2 - m)
-                                cats.append(pads2)
-
-                            new_combo = np.concatenate(
-                                cats,
-                                axis=1
-                            )
-
-                        if uinds is not None:
-                            real_inds = np.ravel_multi_index(
-                                [t.flatten() for t in np.meshgrid(*uinds, indexing='ij')],
-                                (len(ch1) * len(inds_1), len(ch2) * len(inds_2))
-                            )
-                        else:
-                            real_inds = np.arange(len(new_combo))
-                        unwrap_inds = np.unravel_index(
-                            real_inds,
-                            (len(ch1), len(inds_1), len(ch2), len(inds_2))
-                        )
-
-                        new_combo = new_combo[real_inds,]
-                        sorts = self.change_sort(new_combo)
-                        nzs = np.count_nonzero(new_combo, axis=1)
-
-                        # we split the array up by the numbers of zeros to make further ops faster since those are dropped
-                        (numzs, ind_blocks), _ = nput.group_by(np.arange(len(nzs)), nzs)
-                        for n, ix in zip(numzs, ind_blocks):
-
-                            subsorts = sorts[ix]
-                            new_changes = nput.vector_take(new_combo[ix], subsorts[:, :n], shared=1)
-                            full_ch1 = ch1[unwrap_inds[0][ix]]
-                            full_ch2 = ch2[unwrap_inds[2][ix]]
-                            contact_1 = inds_1[unwrap_inds[1][ix]]
-                            contact_2 = inds_2[unwrap_inds[3][ix]]
-                            uncontact_1 = rems_1[unwrap_inds[1][ix]]
-                            uncontact_2 = rems_2[unwrap_inds[3][ix]]
-
-                            self._fill_change_data(
-                                full_changes, n, new_changes,
-                                [full_ch1, full_ch2],
-                                subsorts,
-                                [contact_1, contact_2],
-                                [uncontact_1, uncontact_2]
-                            )
-
-                    # new_changes = nput.vector_take(new_combo, sorts)
-
-        changes = {}
-        for n,ndat in full_changes.items():
-            # we can now build the final changes by taking the _unique_ changes and splitting up the
-            # stored values on a per-change basis
-            # the final remaining difficulty is that we need a way to split the extra data
-            # by the block it came from--as these objects are of arbitrary size and cannot be
-            # packed into indvidual numpy arrays
-            # to that point, we construct a block-column point array that we will use to find the actual elements
-            # we are sampling
-            block_lens = [len(x) for x in ndat['sorts'][0]]
-            # block_starts = [0] + list(np.cumsum(block_lens, dtype=int)[:-1])
-            col_ptrs = np.concatenate([np.arange(x) for x in block_lens])
-            row_ptrs = np.concatenate([np.full(x, n) for n,x in enumerate(block_lens)])
-
-            concat_change = np.concatenate(ndat['changes'], axis=0)
-            (uchanges, uinds), sorting = nput.group_by(
-                np.arange(len(concat_change)),
-                concat_change
-            )
-
-            for change, inds in zip(uchanges, uinds):
-
-                perm_changes = []
-                for r, c in zip(row_ptrs[inds], col_ptrs[inds]):
-                    ch1 = ndat['init_changes'][0][r][c]
-                    ch2 = ndat['init_changes'][1][r][c]
-                    c1 = ndat['contacts'][0][r][c]
-                    c2 = ndat['contacts'][1][r][c]
-                    r1 = ndat['rems'][0][r][c]
-                    r2 = ndat['rems'][1][r][c]
-                    initial_sort = ndat['sorts'][0][r][c]
-                    sort_map = ndat['sorts'][1][r][c] # tells us _where_ the summed changes (and remainder) came from
-
-                    if _PERMUTE_FINALS and len(c1) > 0 or len(r1) > 0 or len(r2) > 0:
-                        cats = []
-                        if len(c1) > 0:
-                            cats.append(ch1[c1] + ch2[c2])
-                        # elif len(c1) > 0:
-                        #     cats.append(ch1[c1])
-                        # elif len(c2) > 0:
-                        #     cats.append(ch1[c2])
-                        if len(r1) > 0:
-                            cats.append(ch1[r1])
-                        if len(r2) > 0:
-                            cats.append(ch2[r2])
-                        test_change = np.concatenate(cats, axis=0)
-                        pad_change = np.pad(change, [0, len(c1) + len(r1) + len(r2) - len(change)])
-                        if not np.all(np.sort(test_change) == np.sort(pad_change)):
-                            raise ValueError(
-                                change, test_change, pad_change, ch1, ch2, c1, c2, r1, r2
-                            )
-
-                        if _PERMUTE_FINALS == 'blocks':
-                            # we need to permute both the change coordinates and the
-                            # remainder coordinates, so we create two sets of permutable blocks
-                            rem_sort = sort_map[len(c1):] # the positions in the final change that came from the remainders
-                            rem_ch = pad_change[rem_sort] # the elements we have from the remainders
-
-                            rem_ch_sort = np.argsort(rem_ch) # we sort the remainder change elements so that
-                                                         # we can split them into blocks
-                            rem_ch_inv = np.argsort(rem_ch_sort) # after we've split them into a block and permuted,
-                                                         # we need to map back to the original alignment
-                            split_ch = rem_ch[rem_ch_sort]
-                            diff_pos = np.nonzero(np.diff(split_ch))
-                            if len(diff_pos) == 0 or len(diff_pos[0]) == 0:
-                                rem_ind_blocks = [rem_ch_sort]
-                            else:
-                                rem_ind_blocks = np.split(rem_ch_sort, diff_pos[0] + 1)
-
-                            con_sort = sort_map[:len(c1)]  # the positions in the final change that came from the remainders
-                            con_ch = pad_change[con_sort]  # the elements we have from the remainders
-
-                            con_ch_sort = np.argsort(con_ch)  # we sort the remainder change elements so that
-                            # we can split them into blocks
-                            con_ch_inv = np.argsort(con_ch_sort)  # after we've split them into a block and permuted,
-                            # we need to map back to the original alignment
-                            split_ch = con_ch[con_ch_sort]
-                            diff_pos = np.nonzero(np.diff(split_ch))
-                            if len(diff_pos) == 0 or len(diff_pos[0]) == 0:
-                                con_ind_blocks = [con_ch_sort]
-                            else:
-                                con_ind_blocks = np.split(con_ch_sort, diff_pos[0] + 1)
-                        else:
-                            diff_pos = np.nonzero(np.diff(pad_change))
-                            if len(diff_pos) == 0 or len(diff_pos[0]) == 0:
-                                ind_blocks = [initial_sort]
-                            else:
-                                ind_blocks = np.split(initial_sort, diff_pos[0] + 1)
-
-                        # we now take the direct product of all the ways we could split up these positions
-                        # that we take from the change array, flatten these out, and then map them back to the
-                        # initial positions from the final change array that they generated
-
-                        if _PERMUTE_FINALS == 'blocks':
-                            # storage for all of our sorted perms
-                            total_sorts = np.broadcast_to(
-                                initial_sort[np.newaxis],
-                                (
-                                    np.prod([math.factorial(len(x)) for x in con_ind_blocks], dtype=int),
-                                    np.prod([math.factorial(len(x)) for x in rem_ind_blocks], dtype=int),
-                                    len(initial_sort)
-                                )
-                            ).copy()
-                            con_perms = [itertools.permutations(p) for p in con_ind_blocks]
-                            rem_perms = [list(itertools.permutations(p)) for p in rem_ind_blocks]
-                            for ci, con_sort_prod in enumerate(itertools.product(*con_perms)):
-                                if len(c1) > 0:
-                                    total_con_perm = np.concatenate(list(con_sort_prod))[con_ch_inv]
-                                    for _ in range(total_sorts.shape[1]):
-                                        total_sorts[ci, _, con_sort] = total_sorts[ci, _, con_sort][total_con_perm]
-                                if len(r1) > 0 or len(r2) > 0:
-                                    for i,rem_sort_prod in enumerate(itertools.product(*rem_perms)):
-                                        total_rem_perm = np.concatenate(list(rem_sort_prod))[rem_ch_inv]
-                                        total_sorts[ci, i][rem_sort] = total_sorts[ci, i][rem_sort][total_rem_perm]
-                                        # total_sorts[i] = np.concatenate(sort_prod)
-                                        if not (
-                                                np.all(np.sort(total_sorts[ci, i]) == np.arange(len(initial_sort)))
-                                                and np.all(test_change[initial_sort] == test_change[total_sorts[ci, i]])
-                                        ):
-                                            raise ValueError(ci,i,
-                                                             test_change[initial_sort],
-                                                             test_change[total_sorts[i]],
-                                                             r1, r2
-                                                             # pad_change,
-                                                             # total_sorts[i],
-                                                             # initial_sort, sort_map,
-                                                             # total_perm,
-                                                             # rem_sort,
-                                                             # ch_inv
-                                                             )
-                            total_sorts = total_sorts.reshape(-1, len(initial_sort))
-
-                        else:
-                            total_sorts = np.broadcast_to(
-                                initial_sort[np.newaxis],
-                                (np.prod([math.factorial(len(x)) for x in ind_blocks], dtype=int), len(initial_sort))
-                            ).copy()
-                            perms = [itertools.permutations(p) for p in ind_blocks]
-                            for i, sort_prod in enumerate(itertools.product(*perms)):
-                                # total_perm = np.concatenate(list(sort_prod))[ch_inv]
-                                # total_sorts[i][rem_sort] = total_sorts[i][rem_sort][total_perm]
-                                total_sorts[i] = np.concatenate(sort_prod)
-                                if not (
-                                        np.all(np.sort(total_sorts[i]) == np.arange(len(initial_sort)))
-                                        and np.all(test_change[initial_sort] == test_change[total_sorts[i]])
-                                ):
-                                    raise ValueError(i,
-                                                     test_change[initial_sort],
-                                                     test_change[total_sorts[i]],
-                                                     r1, r2
-                                                     # pad_change,
-                                                     # total_sorts[i],
-                                                     # initial_sort, sort_map,
-                                                     # total_perm,
-                                                     # rem_sort,
-                                                     # ch_inv
-                                                     )
-
-                        if len(np.unique(total_sorts, axis=0)) < len(total_sorts):
-                            raise ValueError(total_sorts, con_ind_blocks, rem_ind_blocks)
-                    else:
-                        total_sorts = [initial_sort]
-
-                    perm_changes.append((
-                        ch1,
-                        ch2,
-                        c1,
-                        c2,
-                        r1,
-                        r2,
-                        total_sorts
-                    ))
-
-                change = tuple(change)
-                changes[change] = perm_changes
-                # changes[change] = [
-                #     (
-                #         ndat['init_changes'][0][r][c],
-                #         ndat['init_changes'][1][r][c],
-                #         ndat['contacts'][0][r][c],
-                #         ndat['contacts'][1][r][c],
-                #         ndat['rems'][0][r][c],
-                #         ndat['rems'][1][r][c],
-                #         ndat['sorts'][r][c]
-                #     )
-                #     for r, c in zip(row_ptrs[inds], col_ptrs[inds])
-                # ]
-
-        return changes
-    # @property
-    # def changes(self):
-    #     if self._changes is None:
-    #         self._changes = self.build_changes()
-    #     return self._changes
 
     def get_expressions(self):
         raise NotImplementedError("shouldn't need this here...")
@@ -4289,10 +4283,12 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                     return 0
                 else:
                     raise ValueError("not sure how we got a number here...")
-            try:
-                polys_1.audit()
-            except:
-                raise ValueError(polys_1, gen1, change_1)
+
+            if _DEBUG_AUDIT:
+                try:
+                    polys_1.audit()
+                except:
+                    raise ValueError(polys_1, gen1, change_1)
             if simplify:
                 polys_1 = polys_1.combine()#.sort()
                 if nput.is_numeric(polys_1):
@@ -4321,7 +4317,8 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                 else:
                     raise ValueError("not sure how we got a number here...")
 
-            polys_2.audit()
+            if _DEBUG_AUDIT:
+                polys_2.audit()
             if simplify:
                 polys_2 = polys_2.combine()#.sort()
             if nput.is_numeric(polys_2):
@@ -4349,19 +4346,22 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
             for i in target_inds[0]: baseline[i] = 0
             base_polys = polys_1.mul_along(polys_2, target_inds, remainder=remainder_inds, baseline=baseline)
 
-            try:
-                base_polys.audit()
-            except ValueError as e:
-                raise ValueError("bad polynomial found in the evaluation of {}[{}][{}]x{}[{}][{}]".format(
-                    gen1, change_1, target_inds[0],
-                    gen2, change_2, target_inds[1]
-                )) from e
+            if _DEBUG_AUDIT:
+                try:
+                    base_polys.audit()
+                except ValueError as e:
+                    raise ValueError("bad polynomial found in the evaluation of {}[{}][{}]x{}[{}][{}]".format(
+                        gen1, change_1, target_inds[0],
+                        gen2, change_2, target_inds[1]
+                    )) from e
 
             if reorgs is not None:
                 _ = base_polys.permute(reorgs[0])
                 for perm in reorgs[1:]:
                     _ += base_polys.permute(perm)
                 base_polys = _
+
+            base_polys = base_polys.strip()
 
             if simplify and not nput.is_numeric(base_polys):
                 base_polys = base_polys.combine()#.sort()
@@ -4371,8 +4371,6 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                     return 0
                 else:
                     raise ValueError("not sure how we got a number here...")
-
-            base_polys = base_polys.strip()
 
             logger.log_print(
                 "{p}", p=base_polys,
@@ -4396,13 +4394,14 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                 # except:
                 #     raise Exception(change_1, change_2, src_inds, target_inds, reorg)
                 if nput.is_zero(new_polys): continue
-                try:
-                    new_polys.audit()
-                except ValueError:
-                    raise Exception("found bad polynomial in evaluating {}[{}[{}]]x{}[{}[{}]]".format(
-                        self.gen1, change_1, contact_1,
-                        self.gen2, change_2, contact_2
-                    ))
+                if _DEBUG_AUDIT:
+                    try:
+                        new_polys.audit()
+                    except ValueError:
+                        raise Exception("found bad polynomial in evaluating {}[{}[{}]]x{}[{}[{}]]".format(
+                            self.gen1, change_1, contact_1,
+                            self.gen2, change_2, contact_2
+                        ))
 
                 # if isinstance(new_polys, SqrtChangePoly):
                 #     new_polys = new_polys.canonical_sort()
@@ -4425,103 +4424,6 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
         else:
             poly_changes = base_changes
         return poly_changes
-
-    # simplify_by_default = True
-    # def get_poly_terms(self, changes, shift=None, simplify=None) -> SqrtChangePoly:
-    #     if simplify is None: simplify = self.simplify_by_default
-    #     with self.debug_logging():
-    #         t = tuple(changes)
-    #         shift = tuple(shift) if shift is not None else None
-    #         # check sorting?
-    #         key = t if shift is None or all(s == 0 for s in shift) else (t, shift)
-    #         base_changes = self.changes.get(key, None)
-    #         if not isinstance(base_changes, SqrtChangePoly):
-    #             if nput.is_numeric(base_changes): return base_changes
-    #
-    #             base_changes = self.changes.get(t, 0)
-    #             if isinstance(base_changes, list):
-    #                 poly_changes = 0
-    #                 for change_1, change_2, contact_1, contact_2, rem_1, rem_2, reorg in base_changes:
-    #                     if allowed_paths is not None and (change_1, change_2) not in allowed_paths:
-    #                         continue
-    #                     # try:
-    #                     new_polys = self.get_poly_product_terms(
-    #                         self.gen1, self.gen2, change_1, change_2,
-    #                         [contact_1, contact_2], [rem_1, rem_2], reorg
-    #                     )
-    #                     # except:
-    #                     #     raise Exception(change_1, change_2, src_inds, target_inds, reorg)
-    #                     if nput.is_zero(new_polys): continue
-    #                     try:
-    #                         new_polys.audit()
-    #                     except ValueError:
-    #                         raise Exception("found bad polynomial in evaluating {}[{}[{}]]x{}[{}[{}]]".format(
-    #                             self.gen1, change_1, contact_1,
-    #                             self.gen2, change_2, contact_2
-    #                             ))
-    #
-    #                     # if isinstance(new_polys, SqrtChangePoly):
-    #                     #     new_polys = new_polys.canonical_sort()
-    #
-    #                     # -print("||||||>",
-    #                     #       change_1, change_2, [contact_1, contact_2],
-    #                     #       reorg, new_polys.poly_change
-    #                     #       )
-    #                     poly_changes += new_polys
-    #
-    #                 if not nput.is_numeric(poly_changes):
-    #
-    #                     log_level = Logger.LogLevel.Normal if _DEBUG_PRINT else Logger.LogLevel.MoreDebug
-    #                     logger = self.default_logger()
-    #                     logger.log_print("{p}",
-    #                                      p=poly_changes,
-    #                                      preformatter=lambda **vars:dict(vars, p=vars['p'].format_expr()),
-    #                                      log_level=log_level
-    #                                      )
-    #                     if simplify:
-    #                         poly_changes = poly_changes.combine()
-    #                     try:
-    #                         poly_changes.audit()
-    #                     except ValueError:
-    #                         raise Exception("found bad polynomial in evaluating {}[{}]".format(self, changes))
-    #                 self.changes[t] = poly_changes
-    #                 base_changes = poly_changes
-    #             if not nput.is_numeric(base_changes):
-    #                 if shift is not None:
-    #                     if not isinstance(base_changes, SqrtChangePoly): raise ValueError(...)
-    #                     base_changes = base_changes.shift(shift)
-    #                     self.changes[key] = base_changes
-    #
-    #         if nput.is_numeric(base_changes):
-    #             return base_changes
-    #         elif isinstance(base_changes, SqrtChangePoly):
-    #             if [c for c in base_changes.poly_change] != [c for c in changes]:
-    #                 raise ValueError("[[{}]] change mismatch between expected {} and obtained {}".format(
-    #                     self,
-    #                     changes,
-    #                     base_changes.poly_change
-    #                 ))
-    #             if shift is None:
-    #                 shift = [] #* len(changes)
-    #             test_shift = base_changes.shift_start
-    #             if all(s == 0 for s in test_shift): test_shift = []
-    #             spec_shift = shift
-    #             if all(s == 0 for s in spec_shift): spec_shift = []
-    #             if list(test_shift) != list(spec_shift):
-    #                 raise ValueError("[[ {} ]] shift mismatch between expected {} and obtained {}".format(
-    #                     self,
-    #                     shift,
-    #                     base_changes.shift_start
-    #                 ))
-    #             new = base_changes
-    #         elif isinstance(base_changes, PolynomialInterface):
-    #             new = SqrtChangePoly(base_changes, changes, shift)
-    #         else:
-    #             raise ValueError("got bad value {}".format(base_changes))
-    #
-    #         new.audit()
-    #
-    #         return new
 
 
 class PerturbationTheoryExpressionEvaluator:
@@ -4549,14 +4451,14 @@ class PerturbationTheoryExpressionEvaluator:
             return coeff_tensor # just a number
 
     @classmethod
-    def _eval_poly(cls, state, fixed, inds, perms,
-                   poly, change, baseline_shift,
-                   verbose, logger):
+    def _eval_raw_poly(cls,
+                   perm_substates, poly, change, baseline_shift,
+                   verbose, logger
+                   ):
         log_level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
         if isinstance(poly, ProductPTPolynomialSum):
             subvals = [
-                cls._eval_poly(state, fixed, inds, perms,
-                               p, change, baseline_shift, verbose, logger)
+                cls._eval_raw_poly(perm_substates, p, change, baseline_shift, verbose, logger)
                 for p in poly.polys
             ]
             return poly.prefactor * np.sum(subvals, axis=0)
@@ -4588,27 +4490,21 @@ class PerturbationTheoryExpressionEvaluator:
                          log_level=log_level
                          )
 
-        perm_states = np.moveaxis(nput.vector_take(state, perms), 0, 1)
         poly_evals = []
-        for pstate in perm_states:
-            if fixed > 0 and len(inds) > 0:
-                substates1 = pstate[:, :fixed]
-                substates2 = pstate[:, inds,]
-                substates = np.concatenate([substates1, substates2], axis=-1)
-            elif fixed > 0:
-                substates = pstate[:, :fixed]
-            else:
-                substates = pstate[:, inds,]
+        for substates in perm_substates:
+
             if baseline_shift is not None:
                 raise NotImplementedError('sorry')
                 substates = substates + baseline_shift[np.newaxis]
 
             if substates.shape[-1] == 0:
-                return np.ones(substates.shape[0])
+                ct = np.ones(substates.shape[0])
             else:
                 # if len(change) != len(poly.coeffs): raise ValueError(change, poly)
                 poly_factor = np.prod(
                     [
+                        # np.dot(c[np.newaxis, :], s[:len(c)])
+                        # for s, c in zip(substate_powers, poly.coeffs)
                         np.dot(c[np.newaxis, :], np.power(s[np.newaxis, :], np.arange(len(c))[:, np.newaxis]))
                         for s, c in zip(substates.T, poly.coeffs)
                     ],
@@ -4628,27 +4524,70 @@ class PerturbationTheoryExpressionEvaluator:
                 sqrt_factor = np.sqrt(np.prod(shifts_sqrts, axis=0)) / np.sqrt(2)**poly.steps
 
                 ct = poly.prefactor * poly_factor * sqrt_factor
-                poly_evals.append(ct)
+            poly_evals.append(ct)
+        if len(poly_evals) == 1:
+            return poly_evals[0][:, np.newaxis]
+        else:
             return np.moveaxis(np.array(poly_evals), 0, 1)
+        # return ct
+
 
     @classmethod
-    def _compute_energy_weights(cls, energy_changes, freqs, full_inds, perms):
+    def _eval_poly(cls, cache, tuple_states, perm_substates, poly, change, baseline_shift,
+                   verbose, logger):
+        # TODO: this could be way faster but we're being dumb for now
 
-        ec_pad = max(len(e) for e in energy_changes)
-        if len(full_inds) < ec_pad:
-            full_inds = list(full_inds) + list(ProductPTPolynomial.fast_ind_remainder(ec_pad, full_inds))
-        ec = np.array([list(e) + [0]*(ec_pad - len(e)) for e in energy_changes])
-        full_inds = full_inds[:ec.shape[1]]
-        freq_pulls = np.array([freqs[p[full_inds,],] for p in perms])
+        if poly not in cache:
+            cache[poly] = {}
+        cache = cache[poly]
+
+        eval_pos = []
+        eval_keys = []
+        eval_states = []
+        vals = np.zeros((len(perm_substates[0]), len(perm_substates)), dtype=float)
+        for j,substates in enumerate(tuple_states):
+            for i,t in enumerate(substates):
+                if t in cache:
+                    vals[i, j] = cache[t]
+                else:
+                    eval_pos.append([i, j])
+                    eval_keys.append(t)
+                    eval_states.append(perm_substates[j][i])
+        if len(eval_states) > 0:
+            if len(eval_states[0]) == 0:
+                substates = np.empty((len(eval_states), 0), dtype=eval_states[0].dtype)
+            else:
+                # substates = np.array(eval_states)
+                substates = np.fromiter(eval_states,
+                                        count=len(eval_states),
+                                        dtype=np.dtype((eval_states[0].dtype, (len(eval_states[0]),)))
+                                        )
+            evals = cls._eval_raw_poly([substates], poly, change, baseline_shift, verbose, logger)
+            for t,v,(i,j) in zip(eval_keys, evals[:, 0], eval_pos):
+                cache[t] = v
+                vals[i, j] = v
+        return vals
+    @classmethod
+    def _compute_energy_weights(cls, energy_changes, perm_freqs):
+
+        # ec_pad = max(len(e) for e in energy_changes)
+        # if len(full_inds) < ec_pad:
+        #     full_inds = list(full_inds) + list(ProductPTPolynomial.fast_ind_remainder(ec_pad, full_inds))
+        # ec = np.array([list(e) + [0]*(ec_pad - len(e)) for e in energy_changes])
+        # full_inds = full_inds[:ec.shape[1]]
+        # freq_pulls = np.array([freqs[p[full_inds,],] for p in perms])
         # print(perms.shape, freq_pulls.shape, ec.shape)
-        echange = np.prod(np.dot(freq_pulls, ec.T), axis=-1)
+        echange = np.prod(np.dot(perm_freqs, np.array(energy_changes).T), axis=-1)
         # print(echange.shape)
         return echange
 
     @classmethod
     def _eval_perm(cls, expr, change, baseline_shift,
+                   max_order,
                    subset, state, perms, coeffs, freqs, cind_sets, num_fixed,
-                   zero_cutoff, eval_cache, verbose, logger, log_scaled):
+                   ustate_data,
+                   zero_cutoff, counts_cache, poly_cache,
+                   verbose, logger, log_scaled):
         log_level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
         log_scaling = 219475.6 if log_scaled else 1
         #TODO: use combinatorics to skip some duplicate evaluations over permutations
@@ -4671,7 +4610,7 @@ class PerturbationTheoryExpressionEvaluator:
         prefactors = np.array([
             [
                 np.prod([cls._extract_coeffs(coeffs, ci, perm) for ci in cinds])
-                    if eval_cache.get(cinds, 0) < np.math.factorial(len(cinds)) else # should cache this
+                    if counts_cache.get(cinds, 0) < np.math.factorial(len(cinds)) else # should cache, avoid retesting...
                 0
                 for cinds in cinds_remapped
             ]
@@ -4679,10 +4618,9 @@ class PerturbationTheoryExpressionEvaluator:
         ])
 
         # logger.log_print("{c}", c=list(zip(prefactors[0], cind_sets)))
-
         contrib = np.zeros([len(state), len(perms)])
         for cinds in cinds_remapped:
-            eval_cache[cinds] = eval_cache.get(cinds, 0) + 1
+            counts_cache[cinds] = counts_cache.get(cinds, 0) + 1
         good_pref = np.where(np.abs(prefactors) > zero_cutoff) # don't bother to include useless terms
         if len(good_pref) == 0 or len(good_pref[0]) == 0: return contrib
         prefac_groups = nput.group_by(good_pref[0], good_pref[1])[0] # group perms by corresponding cinds
@@ -4691,6 +4629,28 @@ class PerturbationTheoryExpressionEvaluator:
         for g,pi in zip(*prefac_groups):
             prefacs = prefactors[pi,][:, g]
             g_key = cind_sets[g]
+
+            perm_states = np.moveaxis(nput.vector_take(state, perms[pi,]), 0, 1)
+            perm_substates = []
+            for pstate in perm_states:
+                if fixed > 0 and len(subset) > 0:
+                    substates1 = pstate[:, :fixed]
+                    substates2 = pstate[:, subset,]
+                    substates = np.concatenate([substates1, substates2], axis=-1)
+                elif fixed > 0:
+                    substates = pstate[:, :fixed]
+                else:
+                    substates = pstate[:, subset,]
+                perm_substates.append(substates)
+            # perm_substates = nput.vector_take(state, perms[pi,][:, full_set])
+            tuple_states = [[tuple(s) for s in ps] for ps in perm_substates]
+            perm_freqs = nput.vector_take(freqs, perms[pi,])[:, full_set]
+            # perm_freqs = full_set, perms[pi,]
+
+
+            # subpowers = np.power(substates[np.newaxis, :, :], np.arange(max_order)[:, np.newaxis, np.newaxis])
+            # perm_powers.append(np.moveaxis(subpowers, -1, 0))
+
             with logger.block(
                     tag="{k} ({p})",
                     preformatter=lambda **vars: dict(vars, k=PTTensorCoeffProductSum.format_key(vars['k'])),
@@ -4702,38 +4662,38 @@ class PerturbationTheoryExpressionEvaluator:
                 if isinstance(subexpr, PTEnergyChangeProductSum):
                     subcontrib = np.zeros([len(state), len(pi)])
                     for echanges, polys in subexpr.terms.items():
-                        with logger.block(tag="{e} * {p}",
-                                          preformatter=lambda **vars: dict(
-                                              vars,
-                                              e="E-["+PTEnergyChangeProductSum.format_energy_prod_key(vars['e']) + "]",
-                                              p=vars['p'].format_expr()
-                                          ),
-                                          pf=subexpr.prefactor,
-                                          e=echanges,
-                                          p=polys,
-                                          log_level=log_level):
-                            energy_factors = cls._compute_energy_weights(echanges, freqs, full_set, perms[pi,])
-                            # TODO: check size of energy factor
-                            poly_factor = cls._eval_poly(state, num_fixed, subset, perms[pi,],
-                                                         polys, change, baseline_shift, verbose, logger)
-                            if not nput.is_zero(poly_factor):
-                                scaled_contrib = poly_factor / energy_factors[np.newaxis, :]
-                                logger.log_print("engs: {ef}", ef=energy_factors.squeeze(), log_level=log_level)
-                                logger.log_print("poly: {pf}", pf=poly_factor.squeeze(), log_level=log_level)
-                                logger.log_print("sc: {pf}",
-                                                 pf=(prefacs[np.newaxis, :]*scaled_contrib).squeeze()*log_scaling,
-                                                 log_level=log_level)
+                        if all(any(e != 0 for e in ech) for ech in echanges):
+                            with logger.block(tag="{e} * {p}",
+                                              preformatter=lambda **vars: dict(
+                                                  vars,
+                                                  e="E-["+PTEnergyChangeProductSum.format_energy_prod_key(vars['e']) + "]",
+                                                  p=vars['p'].format_expr()
+                                              ),
+                                              pf=subexpr.prefactor,
+                                              e=echanges,
+                                              p=polys,
+                                              log_level=log_level):
+                                energy_factors = cls._compute_energy_weights(echanges, perm_freqs)
+                                # TODO: check size of energy factor
+                                poly_factor = cls._eval_poly(poly_cache, tuple_states, perm_substates,
+                                                             polys, change, baseline_shift, verbose, logger)
+                                if not nput.is_zero(poly_factor):
+                                    scaled_contrib = poly_factor / energy_factors[np.newaxis, :]
+                                    logger.log_print("engs: {ef}", ef=energy_factors.squeeze(), log_level=log_level)
+                                    logger.log_print("poly: {pf}", pf=poly_factor.squeeze(), log_level=log_level)
+                                    logger.log_print("sc: {pf}",
+                                                     pf=(prefacs[np.newaxis, :]*scaled_contrib).squeeze()*log_scaling,
+                                                     log_level=log_level)
 
-                        subcontrib += scaled_contrib
+                            subcontrib += scaled_contrib
                     subcontrib *= subexpr.prefactor
                 elif isinstance(subexpr, (ProductPTPolynomial, ProductPTPolynomialSum)):
                     with logger.block(tag="{p}",
                                       p=subexpr,
                                       preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
                                       log_level=log_level):
-                        subcontrib = cls._eval_poly(state, num_fixed, subset, perms[pi],
-                                                    subexpr, change, baseline_shift,
-                                                    verbose, logger)
+                        subcontrib = cls._eval_poly(poly_cache, tuple_states, perm_substates,
+                                                    subexpr, change, baseline_shift, verbose, logger)
                         # if not nput.is_zero(subcontrib):
                         #     subcontrib = subcontrib[:, np.newaxis]
                 else:
@@ -4747,10 +4707,24 @@ class PerturbationTheoryExpressionEvaluator:
 
             logger.log_print("{c}",
                              c=contrib,
-                             preformatter=lambda **vars: dict(vars, e=vars['c'].squeeze() * log_scaling),
+                             preformatter=lambda **vars: dict(vars, c=vars['c'].squeeze() * log_scaling),
                              log_level=log_level)
         return contrib
 
+    @classmethod
+    def _get_max_order(cls, expr):
+        if isinstance(expr, ProductPTPolynomial):
+            return max(len(c) for c in expr.coeffs)
+        elif isinstance(expr, ProductPTPolynomialSum):
+            return max(cls._get_max_order(p) for p in expr.polys)
+        else:
+            return max(
+                cls._get_max_order(e)
+                for e in expr.terms.values()
+            )
+
+    _poly_cache = {} # temporary hack, but these are in principle shared/reused
+    _ecoeff_cache = {}
     @classmethod
     def evaluate_polynomial_expression(cls,
                                        state, coeffs, freqs,
@@ -4770,12 +4744,30 @@ class PerturbationTheoryExpressionEvaluator:
 
         if baseline_shift is not None and all(b == 0 for b in baseline_shift): baseline_shift = None
 
+        # in general, states are mostly comprised of the same value
+        # so why both recomputing the same value over and over?
+        ustate_data = [
+            np.unique(s, return_counts=True, return_index=True)
+            for s in state
+        ]
+
+        # there are a few phases to the evaluation strategy
+        # first we identify how many _free_ indices are required per type of term
+        # then we take every combination of free indices, and for each of these
+        # we want to be as efficient as possible
+        # in particular, since states are mostly zeros, we can cache each type of polynomial
+        # evaluation by determining what the quanta actually involved are
+
         logger = Logger.lookup(logger)
+        log_level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
 
         if nput.is_zero(expr):
             res = np.zeros([len(state), len(perms)])
         else:
-            # max_order = None
+
+            max_order = cls._get_max_order(expr)
+
+            # Group by numbers of coordinates to do the combinatorics over
             free_ind_groups = {}
             for coeff_indices, poly_terms in expr.terms.items():
                 num_inds = len(expr.get_inds(coeff_indices))
@@ -4783,44 +4775,51 @@ class PerturbationTheoryExpressionEvaluator:
                 if free_inds not in free_ind_groups:
                     free_ind_groups[free_inds] = []
                 free_ind_groups[free_inds].append(coeff_indices)
-            #     max_order = max(max_order, poly_terms.order) if max_order is not None else poly_terms.order
-            #
-            # state_polys = np.power(state, np.arange(max_order+1))
+
+            # # Get state counts so that we can avoid doing duplicate polynomial
+            # # evaluations
+            # state_vals = []
+            # state_counds = []
+            # for s in state:
+            #     vals, counts, pos = np.unique()
 
             if zero_cutoff is None:
                 zero_cutoff = 1e-18
 
-            log_level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
             if op is None: op = expr
             with logger.block(tag="Evaluating {op}({ch})", op=op, ch=change, log_level=log_level):
 
                 # TODO: numba-ify this part
                 contrib = np.zeros([len(state), len(perms)])
-                eval_cache = {}  # so we don't hit some coeff sets too many times
+                counts_cache = {}  # so we don't hit some coeff sets too many times
+                poly_cache = cls._poly_cache # so we can avoid redoing the same polynomials a bunch of times
                 for free_inds, cind_sets in free_ind_groups.items():
                     # now we iterate over every subset of inds (outside of the fixed ones)
                     # excluding replacement (since that corresponds to a different coeff/poly)
+
                     if free_inds == 0:
                         with logger.block(tag="()", log_level=log_level):
                             contrib += cls._eval_perm(
-                                expr, change, baseline_shift,
+                                expr, change, baseline_shift, max_order,
                                 (), state, perms, coeffs, freqs,
-                                cind_sets, num_fixed,
+                                cind_sets, num_fixed, ustate_data,
                                 zero_cutoff,
-                                eval_cache, verbose, logger, log_scaled
+                                counts_cache, poly_cache,
+                                verbose, logger, log_scaled
                             )
                     else:
                         for subset in itertools.combinations(range(num_fixed, ndim), r=free_inds):
-                            for subperm in itertools.permutations(subset):
-                                with logger.block(tag="{b} + {s}", b=tuple(range(num_fixed)), s=subperm,
-                                                  log_level=log_level):
-                                    contrib += cls._eval_perm(
-                                        expr, change, baseline_shift,
-                                        subperm, state, perms, coeffs, freqs,
-                                        cind_sets, num_fixed,
-                                        zero_cutoff, eval_cache,
-                                        verbose, logger, log_scaled
-                                    )
+                            # for subperm in itertools.permutations(subset):
+                            subperm = subset
+                            with logger.block(tag="{b} + {s}", b=tuple(range(num_fixed)), s=subperm,
+                                              log_level=log_level):
+                                contrib += cls._eval_perm(
+                                    expr, change, baseline_shift, max_order,
+                                    subperm, state, perms, coeffs, freqs,
+                                    cind_sets, num_fixed, ustate_data,
+                                    zero_cutoff, counts_cache, poly_cache,
+                                    verbose, logger, log_scaled
+                                )
                     # raise Exception(cind_sets)
             res = expr.prefactor * contrib
 
@@ -4905,7 +4904,7 @@ class PerturbationTheoryEvaluator:
         self.freqs = freqs
 
     def get_energy_corrections(self, states, order=None, expansions=None, freqs=None, verbose=False):
-        if expansions is None: expansions = self.expansions
+        expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
         if order is None: order = len(self.expansions) - 1
 
@@ -4920,10 +4919,22 @@ class PerturbationTheoryEvaluator:
 
         return corrs
 
-    def get_overlap_corrections(self, states, order=None, expansions=None, freqs=None, verbose=False):
+    def _prep_expansions(self, expansions):
+        #TODO: check symmetry of G-matrix before manipulating
         if expansions is None: expansions = self.expansions
+        return [
+            [
+                tensor
+                    if i != 1 else
+                ( np.moveaxis(tensor, -1, 0) if not nput.is_numeric(tensor) else tensor )
+                for i,tensor in enumerate(order_expansion)
+            ]
+            for order_expansion in expansions
+        ]
+    def get_overlap_corrections(self, states, order=None, expansions=None, freqs=None, verbose=False):
+        expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
-        if order is None: order = len(self.expansions) - 1
+        if order is None: order = len(expansions) - 1
 
         overlap_evaluators = [
             self.solver.overlap_correction(o)([]) for o in range(2, order + 1)
@@ -4994,10 +5005,11 @@ class PerturbationTheoryEvaluator:
 
         return self.PTCorrections(states, final_states, [np.concatenate(c, axis=0).T for c in final_corrs])
 
-    def _build_corrections(self, corr_gen, states, expansions, order,
+    @staticmethod
+    def _build_corrections(corr_gen, states, expansions, order,
                            terms, allowed_coefficients, disallowed_coefficients,
                            epaths,
-                           change_map, freqs, verbose):
+                           change_map, freqs, verbose, logger):
         corrs = {}
         for o in range(order + 1):
             generator = corr_gen(o, allowed_terms=terms,
@@ -5008,25 +5020,33 @@ class PerturbationTheoryEvaluator:
             for change, perms in change_map.items():
                 corr_block = corrs.get(change, [])
                 corrs[change] = corr_block
-                expr = generator(change)
-                gen_corrs = expr.evaluate(
-                    states,
-                    expansions,
-                    freqs,
-                    perms=perms,
-                    verbose=verbose,
-                    log_scaled=False
-                )
+                with logger.block(tag="Getting corrections at order {o}", o=o):
+                    expr = generator(change)
+                    with logger.block(tag="evaluating..."):
+                        start = time.time()
+                        gen_corrs = expr.evaluate(
+                            states,
+                            expansions,
+                            freqs,
+                            perms=perms,
+                            verbose=verbose,
+                            log_scaled=False
+                        )
+                        end = time.time()
+                        logger.log_print('took {e:.3f}s', e=end - start)
                 corr_block.append(gen_corrs)
         return corrs
 
     def get_state_by_state_corrections(self, generator, states, order=None,
                                        terms=None, epaths=None,
                                        expansions=None, freqs=None, verbose=False,
-                                       allowed_coefficients=None, disallowed_coefficients=None):
-        if expansions is None: expansions = self.expansions
+                                       allowed_coefficients=None, disallowed_coefficients=None,
+                                       logger=None):
+        expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
-        if order is None: order = len(self.expansions) - 1
+        if order is None: order = len(expansions) - 1
+        if logger is None: logger=self.solver.logger
+        logger = Logger.lookup(logger)
 
         all_gs = nput.is_numeric(states[0][0])
         if all_gs:
@@ -5037,7 +5057,7 @@ class PerturbationTheoryEvaluator:
 
         corrs = self._build_corrections(generator, states, expansions, order,
                                         terms, allowed_coefficients, disallowed_coefficients,
-                                        epaths, change_map, freqs, verbose)
+                                        epaths, change_map, freqs, verbose, logger)
         return self._reformat_corrections(states, order, corrs, change_map)
 
     def get_matrix_corrections(self, states, order=None, expansions=None, freqs=None, verbose=False):
@@ -5053,6 +5073,7 @@ class PerturbationTheoryEvaluator:
 
     def _prep_operator_expansion(self, expansions, operator_expansion):
         if expansions is None: expansions = self.expansions
+        # expansions = self._prep_expansions(expansions)
         # if order is None: order = len(operator_expansion) - 1
 
         exps = []
@@ -5065,10 +5086,14 @@ class PerturbationTheoryEvaluator:
         return exps
     def get_operator_corrections(self, operator_expansion, states, order=None, expansions=None, freqs=None,
                                  terms=None, verbose=False, **opts):
-        if expansions is None: expansions = self.expansions
+        # if expansions is None: expansions = self.expansions
         if order is None: order = len(operator_expansion) - 1
 
         exps = self._prep_operator_expansion(expansions, operator_expansion)
+        # raise Exception(
+        #     exps[2][1][0, 1, 1, 0],
+        #     exps[2][1][1, 0, 0, 1]
+        # )
 
         return self.get_state_by_state_corrections(self.solver.operator_correction, states, order=order,
                                                    expansions=exps, freqs=freqs, terms=terms,
@@ -5079,7 +5104,7 @@ class PerturbationTheoryEvaluator:
         expansions = (
             self._prep_operator_expansion(expansions, operator_expansions)
                 if operator_expansions is not None else
-            expansions
+            expansions #self._prep_expansions(expansions)
         )
         return self.get_state_by_state_corrections(
             lambda i, **kw: exprs[i],

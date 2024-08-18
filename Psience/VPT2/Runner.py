@@ -2275,6 +2275,7 @@ class AnalyticVPTRunner:
                          allowed_coefficients=None,
                          disallowed_coefficients=None,
                          allowed_energy_changes=None,
+                         take_diagonal_v4_terms=True,
                          **opts):
         """
         A driver powered by a classic PerturbationTheoryHamiltonian object
@@ -2294,7 +2295,29 @@ class AnalyticVPTRunner:
                 if not internals:
                     V, G, Z, W = e
                     e = [V, G, 0, Z, W]
+                else:
+                    V, G, Z, U = e
+                    e = [V, G, U, Z, 0]
+            if n == 2 and take_diagonal_v4_terms:
+                V, G, U, Z, W = e
+                v4 = np.zeros_like(V)
+                do_G = not nput.is_numeric(G)
+                if do_G:
+                    g2 = np.zeros_like(G)
+                else:
+                    g2 = G
+                for i, j in itertools.combinations(range(V.shape[0]), 2):
+                    for k in (i, j):
+                        v4[k, k, k, k] = V[k, k, k, k]
+                        if do_G:
+                            g2[k, k, k, k] = G[k, k, k, k]
+                    for p in itertools.permutations([i, i, j, j]):
+                        v4[p] = V[p]
+                        if do_G:
+                            g2[p] = G[p]
+                e = [v4, g2, U, Z, W]
             _.append(e)
+
         exps = _
         return cls(
             exps,
@@ -2309,6 +2332,52 @@ class AnalyticVPTRunner:
             disallowed_coefficients=disallowed_coefficients,
             allowed_energy_changes=allowed_energy_changes
         )
+
+    @classmethod
+    def construct(cls,
+                  system,
+                  states=None,
+                  *,
+                  order=2,
+                  expressions_file=None,
+                  allowed_terms=None,
+                  allowed_coefficients=None,
+                  disallowed_coefficients=None,
+                  allowed_energy_changes=None,
+                  mixed_derivative_handling_mode='numerical',
+                  **settings
+                  ):
+
+            runner, _ = VPTRunner.construct(
+                system,
+                1,
+                order=order,
+                mixed_derivative_handling_mode=mixed_derivative_handling_mode,
+                **settings
+            )
+
+            if states is not None:
+                if nput.is_numeric(states):
+                    states = VPTStateSpace.from_system_and_quanta(runner.system, states)
+                elif not isinstance(states, VPTStateSpace):
+                    states = VPTStateSpace(states, system=runner.system)
+                states = states.state_list
+
+            opts = runner.pt_opts.opts
+            new = cls.from_hamiltonian(
+                runner.hamiltonian,
+                opts.get('order', order),
+                checkpoint=expressions_file,
+                expansion_order=opts.get('expansion_order', None),
+                allowed_terms=allowed_terms,
+                allowed_coefficients=allowed_coefficients,
+                disallowed_coefficients=disallowed_coefficients,
+                allowed_energy_changes=allowed_energy_changes
+            )
+            if states is not None:
+                return new, states
+            else:
+                return new
 
     @classmethod
     def from_file(cls, file_name, order=2,
@@ -2335,6 +2404,70 @@ class AnalyticVPTRunner:
             allowed_energy_changes=allowed_energy_changes
         )
 
+    def construct_classic_runner(self, system, states, logger=None,
+                                 corrected_fundamental_frequencies=None,
+                                 potential_terms=None,
+                                 kinetic_terms=None,
+                                 coriolis_terms=None,
+                                 pseudopotential_terms=None,
+                                 dipole_terms=None, **opts):
+        return VPTRunner.construct(
+            system, states,
+            corrected_fundamental_frequencies=(
+                self.eval.freqs
+                    if corrected_fundamental_frequencies is None else
+                corrected_fundamental_frequencies
+            ),
+            potential_terms=(
+                [
+                    np.math.factorial(i + 2) * e[0]
+                    for i, e in enumerate(self.eval.expansions)
+                ]
+                    if potential_terms is None else
+                potential_terms
+            ),
+            kinetic_terms=(
+                [
+                    (2 * np.math.factorial(i)) * e[1]
+                    for i, e in enumerate(self.eval.expansions)
+                ]
+                    if kinetic_terms is None else
+                kinetic_terms
+            ),
+            coriolis_terms=(
+                (
+                    [
+                        # self.eval.expansions[2][3],
+                        (np.math.factorial(i)) * e[3]
+                        for i, e in enumerate(self.eval.expansions[2:])
+                    ]
+                        if self.ham.molecule.internals is None else
+                    None
+                )
+                    if coriolis_terms is None else
+                coriolis_terms
+            ),
+            pseudopotential_terms=(
+                [
+                    (8 * np.math.factorial(i)) * (
+                        e[4] if self.ham.molecule.internals is None else e[2]
+                    )
+                    for i, e in enumerate(self.eval.expansions[2:])
+                ]
+                    if pseudopotential_terms is None else
+                pseudopotential_terms
+            ),
+            dipole_terms=(
+                self.ham.dipole_terms.get_terms(len(self.eval.expansions) - 1)
+                    if dipole_terms is None else
+                dipole_terms
+            ),
+            logger=self.ham.logger if logger is None else logger,
+            **opts
+            # dipole_terms=dips,
+            # intermediate_normalization=False
+        )
+
     def evaluate_expressions(self, states, exprs, operator_expansions=None, verbose=False):
         state_space = VPTStateSpace(states)
         return self.eval.evaluate_expressions(
@@ -2355,6 +2488,12 @@ class AnalyticVPTRunner:
         return self.eval.get_energy_corrections(state_space.state_list,
                                                 order=order,
                                                 verbose=verbose)
+    def get_freqs(self, states, order=None, verbose=False):
+        corrs = self.get_energy_corrections(states, order=order, verbose=verbose)
+        engs = np.sum(corrs, axis=0)
+        freqs = (engs[1:] - engs[0])[:, 0]  # TODO: figure out why we have too much shape
+        return engs[0], freqs
+
     def get_overlap_corrections(self,
                                      states,
                                      order=None, verbose=False
@@ -2420,9 +2559,10 @@ class AnalyticVPTRunner:
 
         return corrs
 
-    def get_spectrum(self, states, dipole_expansion=None, order=None, energy_order=None, axes=None,
+    def get_spectrum(self, states,
+                     dipole_expansion=None, order=None, energy_order=None, axes=None,
                      terms=None,
-                     verbose=True):
+                     verbose=False):
         """
 
         :param states:
@@ -2449,7 +2589,7 @@ class AnalyticVPTRunner:
         specs = []
         for n,initial_state in enumerate(base_corrs[0].initial_states):
             all_state = np.concatenate([[initial_state], base_corrs[0].final_states[n]], axis=0)
-            engs = np.sum(self.get_energy_corrections(all_state, order=energy_order, verbose=False), axis=0)
+            engs = np.sum(self.get_energy_corrections(all_state, order=energy_order, verbose=verbose), axis=0)
             freqs = (engs[1:] - engs[0])[:, 0] #TODO: figure out why we have too much shape
             tmoms = np.sum([np.sum(corr.corrections[n], axis=1)**2 for corr in base_corrs], axis=0)
             # print(tmoms.shape, freqs.shape)
@@ -2461,3 +2601,39 @@ class AnalyticVPTRunner:
         if all_gs: specs = specs[0]
 
         return specs
+
+    @classmethod
+    def run_simple(cls,
+                   system,
+                   states,
+                   # corrected_fundamental_frequencies=None,
+                   calculate_intensities=True,
+                   # plot_spectrum=False,
+                   operators=None,
+                   verbose=False,
+                   return_runner=False,
+                   return_states=False,
+                   **opts
+                   ):
+
+        runner, states = cls.construct(system, states, **opts)
+
+        if calculate_intensities:
+            spec_data = runner.get_spectrum(states, verbose=verbose)
+        else:
+            spec_data = [
+                f * UnitsData.convert("Hartrees", "Wavenumbers")
+                for f in runner.get_freqs(states, verbose=verbose)
+            ]
+
+        res = []
+        if return_runner:
+            res.append(runner)
+        if return_states:
+            res.append(states)
+        res.append(spec_data)
+
+        if len(res) == 1:
+            return res[0]
+        else:
+            return tuple(res)
