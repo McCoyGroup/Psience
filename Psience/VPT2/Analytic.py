@@ -164,12 +164,16 @@ class AnalyticPerturbationTheorySolver:
     @classmethod
     def operator_expansion_terms(cls, order, logger=None, operator_type=None):
 
-        if operator_type is not None:
+        if operator_type is None:
+            padding = 1
+        elif nput.is_numeric(operator_type):
+            padding = operator_type
+        else:
             raise NotImplementedError("only one type of expansion currently supported")
 
         return [
             OperatorExpansionTerm(
-                [['x'] * (o + 1)],
+                [['x'] * (o + padding)],
                 order=o,
                 identities=[5],
                 logger=logger
@@ -3557,7 +3561,6 @@ class PerturbationOperator(PerturbationTheoryTerm):
     #
     #     return super().get_poly_terms(changes, shift=shift, **opts)
 
-
 class _ShiftedEnergyBaseline(PerturbationTheoryTerm):
     def __init__(self, base_term:'PerturbationTheoryTerm'):
         super().__init__(logger=base_term.logger)
@@ -3884,6 +3887,20 @@ class OperatorCorrection(PerturbationTheoryTerm):
         )
 
         return exprs
+
+class ReepxressedHamiltonian(OperatorCorrection):
+
+    def __init__(self, parent,  allowed_terms=None, **opts):
+        super().__init__(allowed_terms=allowed_terms, **opts)
+        self.expansion = [
+                             OperatorExpansionTerm(
+                                 [[]],
+                                 order=0,
+                                 identities=[5]
+                             )
+                         ] + list(parent.hamiltonian_expansion)
+    def __repr__(self):
+        return "<n|H{}|m>".format(self.order)
 
 class ScaledPerturbationTheoryTerm(PerturbationTheoryTerm):
     #TODO: refactor since inheritance isn't really the right paradigm here
@@ -4452,43 +4469,45 @@ class PerturbationTheoryExpressionEvaluator:
 
     @classmethod
     def _eval_raw_poly(cls,
-                   perm_substates, poly, change, baseline_shift,
-                   verbose, logger
-                   ):
+                       perm_substates, poly, change,
+                       baseline_shift, pows,
+                       verbose, logger
+                       ):
         log_level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
         if isinstance(poly, ProductPTPolynomialSum):
             subvals = [
-                cls._eval_raw_poly(perm_substates, p, change, baseline_shift, verbose, logger)
+                cls._eval_raw_poly(perm_substates, p, change, baseline_shift, pows, verbose, logger)
                 for p in poly.polys
             ]
             return poly.prefactor * np.sum(subvals, axis=0)
 
-        # logging_poly = poly.constant_rescale()
-        logging_poly = poly
-        # p = poly
-        logger.log_print("prefactor: {p}{s}",
-                         p=logging_poly.prefactor,
-                         n=logging_poly.steps,
-                         preformatter=lambda **vars:dict(
-                             vars,
-                             s=(
-                                 ""
-                                    if vars['n'] == 0 else
-                                 "/Sqrt[2]"
-                                    if vars['n'] == 1 else
-                                 "/{}".format(2**(vars['n']//2))
-                                    if vars['n']%2 == 0 else
-                                 "/({}*Sqrt[2])".format(
-                                     2**(vars['n']//2)
+        if verbose:
+            # logging_poly = poly.constant_rescale()
+            logging_poly = poly
+            # p = poly
+            logger.log_print("prefactor: {p}{s}",
+                             p=logging_poly.prefactor,
+                             n=logging_poly.steps,
+                             preformatter=lambda **vars:dict(
+                                 vars,
+                                 s=(
+                                     ""
+                                        if vars['n'] == 0 else
+                                     "/Sqrt[2]"
+                                        if vars['n'] == 1 else
+                                     "/{}".format(2**(vars['n']//2))
+                                        if vars['n']%2 == 0 else
+                                     "/({}*Sqrt[2])".format(
+                                         2**(vars['n']//2)
+                                     )
                                  )
+                             ),
+                             log_level=log_level)
+            logger.log_print("coeffs: {c}",
+                             c=logging_poly.coeffs,
+                             preformatter=lambda **vars:dict(vars, c=[np.round(c, 3) for c in vars['c']]),
+                             log_level=log_level
                              )
-                         ),
-                         log_level=log_level)
-        logger.log_print("coeffs: {c}",
-                         c=logging_poly.coeffs,
-                         preformatter=lambda **vars:dict(vars, c=[np.round(c, 3) for c in vars['c']]),
-                         log_level=log_level
-                         )
 
         poly_evals = []
         for substates in perm_substates:
@@ -4505,7 +4524,10 @@ class PerturbationTheoryExpressionEvaluator:
                     [
                         # np.dot(c[np.newaxis, :], s[:len(c)])
                         # for s, c in zip(substate_powers, poly.coeffs)
-                        np.dot(c[np.newaxis, :], np.power(s[np.newaxis, :], np.arange(len(c))[:, np.newaxis]))
+                        np.dot(c[np.newaxis, :],
+                               pows[:len(c), s]
+                               # np.power(s[np.newaxis, :], np.arange(len(c))[:, np.newaxis])
+                               )
                         for s, c in zip(substates.T, poly.coeffs)
                     ],
                     axis=0
@@ -4533,7 +4555,8 @@ class PerturbationTheoryExpressionEvaluator:
 
 
     @classmethod
-    def _eval_poly(cls, cache, tuple_states, perm_substates, poly, change, baseline_shift,
+    def _eval_poly(cls, cache, tuple_states, perm_substates, pows,
+                   poly, change, baseline_shift,
                    verbose, logger):
         # TODO: this could be way faster but we're being dumb for now
 
@@ -4562,7 +4585,7 @@ class PerturbationTheoryExpressionEvaluator:
                                         count=len(eval_states),
                                         dtype=np.dtype((eval_states[0].dtype, (len(eval_states[0]),)))
                                         )
-            evals = cls._eval_raw_poly([substates], poly, change, baseline_shift, verbose, logger)
+            evals = cls._eval_raw_poly([substates], poly, change, baseline_shift, pows, verbose, logger)
             for t,v,(i,j) in zip(eval_keys, evals[:, 0], eval_pos):
                 cache[t] = v
                 vals[i, j] = v
@@ -4570,25 +4593,216 @@ class PerturbationTheoryExpressionEvaluator:
     @classmethod
     def _compute_energy_weights(cls, energy_changes, perm_freqs):
 
-        # ec_pad = max(len(e) for e in energy_changes)
-        # if len(full_inds) < ec_pad:
-        #     full_inds = list(full_inds) + list(ProductPTPolynomial.fast_ind_remainder(ec_pad, full_inds))
-        # ec = np.array([list(e) + [0]*(ec_pad - len(e)) for e in energy_changes])
-        # full_inds = full_inds[:ec.shape[1]]
-        # freq_pulls = np.array([freqs[p[full_inds,],] for p in perms])
-        # print(perms.shape, freq_pulls.shape, ec.shape)
-        echange = np.prod(np.dot(perm_freqs, np.array(energy_changes).T), axis=-1)
+        #TODO: find a way to avoid recomputing the same contributions repeatedly...
+
+        echange = np.prod(np.dot(perm_freqs, energy_changes.T), axis=-1)
         # print(echange.shape)
         return echange
 
     @classmethod
+    def _get_prefacs(cls, perms, cinds_remapped, ctensors, counts_cache, facs, zero_cutoff):
+        # compute prefactor products with fast exiting
+        nevals = 0
+        eval_perms = np.empty(len(perms) * len(cinds_remapped), dtype=int)
+        eval_cinds = np.empty(len(perms) * len(cinds_remapped), dtype=int)
+        prefactors = np.empty((len(perms) * len(cinds_remapped), len(ctensors[0])), dtype=float)
+        for j, cinds in enumerate(cinds_remapped):
+            cur_hits = counts_cache.get(cinds, 0)
+            if cur_hits < facs[len(cinds)]:
+                counts_cache[cinds] = cur_hits + 1
+                prod = np.ones((len(ctensors[j]), len(perms)), dtype=float)
+                good_perms = np.full((len(ctensors[j]), len(perms)), True)
+                for n, (_, ind) in enumerate(cinds):
+                    for k,tlist in enumerate(ctensors[j]):
+                        t = tlist[n]
+                        if len(ind) == 0:
+                            base_val = t
+                            if abs(base_val) < zero_cutoff:
+                                good_perms[:] = False
+                                break
+                            else:
+                                prod[k] *= base_val
+                        else:
+                            # still_good = False
+                            for i, m in enumerate(good_perms[k]):
+                                if m:
+                                    # still_good = True
+                                    perm = perms[i]
+                                    idx = tuple(perm[x] for x in ind)
+                                    base_val = t[idx]
+                                    prod[k, i] *= base_val
+                                    if abs(prod[k, i]) < zero_cutoff:  # we assume monotonic b.c. small corrections
+                                        good_perms[k, i] = False
+                        # if not still_good:
+                        #     break
+                good_perms = np.any(good_perms, axis=0)
+                for i, m in enumerate(good_perms):
+                    if m:
+                        eval_perms[nevals] = i
+                        eval_cinds[nevals] = j
+                        prefactors[nevals] = prod[:, i]
+                        nevals += 1
+
+        return eval_perms[:nevals], eval_cinds[:nevals], prefactors[:nevals]
+
+    @classmethod
+    def _eval_subcontrib(cls,
+                         echanges, perm_freqs,
+                         poly_cache, energy_cache,
+                         tuple_states, perm_substates, pows,
+                         polys, change, baseline_shift, verbose, logger
+                         ):
+        if echanges not in energy_cache:
+            energy_cache[echanges] = np.array(echanges)
+        echanges = energy_cache[echanges]
+
+        energy_factors = cls._compute_energy_weights(echanges, perm_freqs)
+        # TODO: check size of energy factor
+        poly_factor = cls._eval_poly(poly_cache,
+                                     tuple_states, perm_substates, pows,
+                                     polys, change, baseline_shift, verbose, logger)
+        if not nput.is_zero(poly_factor):
+            scaled_contrib = poly_factor / energy_factors[np.newaxis, :]
+        else:
+            scaled_contrib = 0
+        return scaled_contrib, energy_factors, poly_factor
+    @classmethod
+    def _eval_perm_core(cls,
+                        expr, state, tuple_states, perm_substates,
+                        change, baseline_shift,
+                        pi, prefacs, perm_freqs,
+                        pows, key, perm_subsets, degenerate_changes,
+                        poly_cache, energy_cache,
+                        verbose, logger, log_level, log_scaling
+                        ):
+        subexpr = expr.terms[key]
+        conv_subsets = None
+        if isinstance(subexpr, PTEnergyChangeProductSum):
+            subcontrib = np.zeros([len(state), len(pi)])
+
+            if degenerate_changes is not None and key in degenerate_changes:
+                subchanges = degenerate_changes[key]
+            else:
+                subchanges = None
+
+            for echanges, polys in subexpr.terms.items():
+                # if all(any(e != 0 for e in ech) for ech in echanges):
+                # TODO: filter out perms based on degenerate_changes
+                if subchanges is not None and echanges in subchanges:
+                    subsubchanges = subchanges[echanges]
+                    # print("~~~", subchanges)
+                    # if conv_subsets is None: conv_subsets = [tuple(ps) for ps in perm_subsets]
+                    # print(conv_subsets)
+                    good_perms = tuple(i for i,s in enumerate(perm_subsets)
+                                       if s not in subsubchanges
+                                       )
+                    if len(good_perms) == len(perm_subsets):
+                        good_perms = None
+                        good_freqs = perm_freqs
+                        good_perm_substates = perm_substates
+                        good_tuple_states = tuple_states
+                    else:
+                        good_freqs = perm_freqs[good_perms,]
+                        good_perm_substates = perm_substates[good_perms,]
+                        good_tuple_states = [tuple_states[p] for p in good_perms]
+                else:
+                    good_perms = None
+                    good_freqs = perm_freqs
+                    good_perm_substates = perm_substates
+                    good_tuple_states = tuple_states
+                if len(good_perm_substates) > 0:
+                    if verbose:
+                        with logger.block(tag="{e} * {p}",
+                                          preformatter=lambda **vars: dict(
+                                              vars,
+                                              e="E-[" + PTEnergyChangeProductSum.format_energy_prod_key(vars['e']) + "]",
+                                              p=vars['p'].format_expr()
+                                          ),
+                                          pf=subexpr.prefactor,
+                                          e=echanges,
+                                          p=polys,
+                                          log_level=log_level):
+                                scaled_contrib, energy_factors, poly_factor = cls._eval_subcontrib(
+                                    echanges, good_freqs,
+                                    poly_cache, energy_cache,
+                                    good_tuple_states, good_perm_substates, pows,
+                                    polys, change, baseline_shift, verbose, logger
+                                )
+                                if not nput.is_zero(scaled_contrib):
+                                    logger.log_print("engs: {ef}", ef=energy_factors.squeeze(), log_level=log_level)
+                                    logger.log_print("poly: {pf}", pf=poly_factor.squeeze(), log_level=log_level)
+                                    logger.log_print("sc: {pf}",
+                                                     pf=(prefacs[:, np.newaxis, :] * scaled_contrib[np.newaxis, : :]).squeeze() * log_scaling,
+                                             log_level=log_level)
+                    else:
+                        scaled_contrib, energy_factors, poly_factor = cls._eval_subcontrib(
+                            echanges, good_freqs,
+                            poly_cache, energy_cache,
+                            good_tuple_states, good_perm_substates, pows,
+                            polys, change, baseline_shift, verbose, logger
+                        )
+
+                    if good_perms is None:
+                        subcontrib += scaled_contrib
+                    else:
+                        subcontrib[:, good_perms] += scaled_contrib
+            subcontrib *= subexpr.prefactor
+        elif isinstance(subexpr, (ProductPTPolynomial, ProductPTPolynomialSum)):
+            if verbose:
+                with logger.block(tag="{p}",
+                                  p=subexpr,
+                                  preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
+                                  log_level=log_level):
+                    subcontrib = cls._eval_poly(poly_cache, tuple_states, perm_substates, pows,
+                                                subexpr, change, baseline_shift, verbose, logger)
+            else:
+                subcontrib = cls._eval_poly(poly_cache, tuple_states, perm_substates, pows,
+                                            subexpr, change, baseline_shift, verbose, logger)
+
+                # if not nput.is_zero(subcontrib):
+                #     subcontrib = subcontrib[:, np.newaxis]
+        else:
+            raise ValueError("how the hell did we end up with {}".format(subexpr))
+
+        return subcontrib
+
+    @classmethod
+    def _get_state_perms(cls, state, freqs, fixed, subset, sub_perms, take_cache):
+        # key = (fixed, len(subset))
+        # if key not in take_cache:
+        #     take_cache[key] = {}
+        # if 'state_dat' not in take_cache[key]:
+        #     arr, inds = nput.vector_take(state, sub_perms, return_spec=True)
+        #     take_cache[key]['state_dat'] = (arr, inds)
+        # print(fixed, subset, len(state), inds[-1].shape, sub_perms.shape)
+        # arr, inds = nput.vector_take(state, sub_perms, return_spec=True)
+        # # arr, inds = take_cache[key]['state_dat']
+        # inds = inds[:-1] + (np.broadcast_to(sub_perms[np.newaxis], (len(state),) + sub_perms.shape),)
+        # perm_substates = np.moveaxis(arr[inds], 0, 1)
+        perm_substates = np.moveaxis(nput.vector_take(state, sub_perms), 0, 1)
+        tuple_states = [[tuple(s) for s in ps] for ps in perm_substates]
+        perm_freqs = nput.vector_take(freqs, sub_perms)
+
+        # if 'freq_dat' not in take_cache[key]:
+        #     arr, inds = nput.vector_take(freqs, sub_perms, return_spec=True)
+        #     take_cache[key]['freq_dat'] = (arr, inds)
+        # arr, inds = take_cache[key]['freq_dat']
+        # inds = inds[:-1] + (np.broadcast_to(sub_perms[np.newaxis], inds[-1].shape),)
+        # perm_freqs = arr[inds]
+
+        return perm_substates, tuple_states, perm_freqs
+    @classmethod
     def _eval_perm(cls, expr, change, baseline_shift,
-                   max_order,
-                   subset, state, perms, freqs, cind_sets, ctensors,
-                   num_fixed,
+                   # max_order,
+                   subset, state, perms,
+                   freqs, cind_sets, ctensors,
+                   num_fixed, degenerate_changes,
                    ustate_data,
-                   zero_cutoff, counts_cache, poly_cache, facs,
-                   verbose, logger, log_scaled):
+                   zero_cutoff,
+                   counts_cache, poly_cache, take_cache, energy_cache,
+                   facs, pows,
+                   verbose, logger, log_scaled
+                   ):
         log_level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
         log_scaling = 219475.6 if log_scaled else 1
         #TODO: use combinatorics to skip some duplicate evaluations over permutations
@@ -4608,47 +4822,12 @@ class PerturbationTheoryExpressionEvaluator:
             for cinds in cind_sets
         ]
 
-        # compute prefactor products with fast exiting
-        contrib = np.zeros([len(state), len(perms)])
-        nevals = 0
-        eval_perms = np.empty(len(perms)*len(cinds_remapped), dtype=int)
-        eval_cinds = np.empty(len(perms)*len(cinds_remapped), dtype=int)
-        prefactors = np.empty(len(perms)*len(cinds_remapped), dtype=float)
-        for j,cinds in enumerate(cinds_remapped):
-            cur_hits = counts_cache.get(cinds, 0)
-            if cur_hits < facs[len(cinds)]:
-                counts_cache[cinds] = cur_hits + 1
-                prod = np.ones(len(perms), dtype=float)
-                good_perms = np.full(len(perms), True)
-                for t,(_,ind) in zip(ctensors[j],cinds):
-                    if len(ind) == 0:
-                        base_val = t
-                        if abs(base_val) < zero_cutoff:
-                            good_perms[:] = False
-                            break
-                        else:
-                            prod *= base_val
-                    else:
-                        still_good = False
-                        for i, m in enumerate(good_perms):
-                            if m:
-                                still_good = True
-                                perm = perms[i]
-                                idx = tuple(perm[x] for x in ind)
-                                base_val = t[idx]
-                                prod[i] *= base_val
-                                if abs(prod[i]) < zero_cutoff: # we assume monotonic b.c. small corrections
-                                    good_perms[i] = False
-                        if not still_good:
-                            break
-                for i, m in enumerate(good_perms):
-                    if m:
-                        eval_perms[nevals] = i
-                        eval_cinds[nevals] = j
-                        prefactors[nevals] = prod[i]
-                        nevals += 1
 
-        if nevals == 0: return contrib
+        eval_perms, eval_cinds, prefactors = cls._get_prefacs(
+            perms, cinds_remapped, ctensors, counts_cache, facs, zero_cutoff
+        )
+        contrib = np.zeros([prefactors.shape[1], len(state), len(perms)])
+        if prefactors.shape[0] == 0: return contrib
 
         # # logger.log_print("{c}", c=list(zip(prefactors[0], cind_sets)))
         # contrib = np.zeros([len(state), len(perms)])
@@ -4656,103 +4835,86 @@ class PerturbationTheoryExpressionEvaluator:
         #     counts_cache[cinds] = counts_cache.get(cinds, 0) + 1
         # good_pref = np.where(np.abs(prefactors) > zero_cutoff) # don't bother to include useless terms
         # if len(good_pref) == 0 or len(good_pref[0]) == 0: return contrib
-        (groups, group_inds), _ = nput.group_by(np.arange(nevals), eval_cinds[:nevals])
+        (groups, group_inds), _ = nput.group_by(np.arange(len(eval_cinds)), eval_cinds)
         for cind_group,val_group in zip(groups, group_inds):
-            prefacs = prefactors[val_group,]
+            prefacs = prefactors[val_group,].T
             pi = eval_perms[val_group,]
             g_key = cind_sets[cind_group]
 
-            perm_states = np.moveaxis(nput.vector_take(state, perms[pi,]), 0, 1)
-            perm_substates = []
-            for pstate in perm_states:
-                if fixed > 0 and len(subset) > 0:
-                    substates1 = pstate[:, :fixed]
-                    substates2 = pstate[:, subset,]
-                    substates = np.concatenate([substates1, substates2], axis=-1)
-                elif fixed > 0:
-                    substates = pstate[:, :fixed]
-                else:
-                    substates = pstate[:, subset,]
-                perm_substates.append(substates)
-            # perm_substates = nput.vector_take(state, perms[pi,][:, full_set])
-            tuple_states = [[tuple(s) for s in ps] for ps in perm_substates]
-            perm_freqs = nput.vector_take(freqs, perms[pi,])[:, full_set]
+            perm_subsets = perms[pi,][:, full_set]
+            perm_substates, tuple_states, perm_freqs = cls._get_state_perms(
+                state, freqs, fixed, subset, perm_subsets, take_cache
+            )
             # perm_freqs = full_set, perms[pi,]
 
 
             # subpowers = np.power(substates[np.newaxis, :, :], np.arange(max_order)[:, np.newaxis, np.newaxis])
             # perm_powers.append(np.moveaxis(subpowers, -1, 0))
 
-            with logger.block(
-                    tag="{k} ({p})",
-                    preformatter=lambda **vars: dict(vars, k=PTTensorCoeffProductSum.format_key(vars['k'])),
-                    k=g_key,
-                    p=prefacs,
-                    log_level=log_level
-            ):
-                subexpr = expr.terms[g_key]
-                if isinstance(subexpr, PTEnergyChangeProductSum):
-                    subcontrib = np.zeros([len(state), len(pi)])
-                    for echanges, polys in subexpr.terms.items():
-                        if all(any(e != 0 for e in ech) for ech in echanges):
-                            with logger.block(tag="{e} * {p}",
-                                              preformatter=lambda **vars: dict(
-                                                  vars,
-                                                  e="E-["+PTEnergyChangeProductSum.format_energy_prod_key(vars['e']) + "]",
-                                                  p=vars['p'].format_expr()
-                                              ),
-                                              pf=subexpr.prefactor,
-                                              e=echanges,
-                                              p=polys,
-                                              log_level=log_level):
-                                energy_factors = cls._compute_energy_weights(echanges, perm_freqs)
-                                # TODO: check size of energy factor
-                                poly_factor = cls._eval_poly(poly_cache, tuple_states, perm_substates,
-                                                             polys, change, baseline_shift, verbose, logger)
-                                if not nput.is_zero(poly_factor):
-                                    scaled_contrib = poly_factor / energy_factors[np.newaxis, :]
-                                    logger.log_print("engs: {ef}", ef=energy_factors.squeeze(), log_level=log_level)
-                                    logger.log_print("poly: {pf}", pf=poly_factor.squeeze(), log_level=log_level)
-                                    logger.log_print("sc: {pf}",
-                                                     pf=(prefacs[np.newaxis, :]*scaled_contrib).squeeze()*log_scaling,
-                                                     log_level=log_level)
+            if degenerate_changes is not None:
+                perm_subsets = [tuple(p) for p in perm_subsets]
+                # for k,ec in degenerate_changes[g_key].items():
+                # print("-"*10)
+                # print(perm_subsets)
+                # for t,tests in degenerate_changes.get(g_key, {}).items():
+                #     for p in perm_subsets:
+                #         if p in tests:
+                #             print("???", t, p, tests)
 
-                            subcontrib += scaled_contrib
-                    subcontrib *= subexpr.prefactor
-                elif isinstance(subexpr, (ProductPTPolynomial, ProductPTPolynomialSum)):
-                    with logger.block(tag="{p}",
-                                      p=subexpr,
-                                      preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
-                                      log_level=log_level):
-                        subcontrib = cls._eval_poly(poly_cache, tuple_states, perm_substates,
-                                                    subexpr, change, baseline_shift, verbose, logger)
-                        # if not nput.is_zero(subcontrib):
-                        #     subcontrib = subcontrib[:, np.newaxis]
-                else:
-                    raise ValueError("how the hell did we end up with {}".format(subexpr))
+            if verbose:
+                with logger.block(
+                        tag="{k} ({p})",
+                        preformatter=lambda **vars: dict(vars, k=PTTensorCoeffProductSum.format_key(vars['k'])),
+                        k=g_key,
+                        p=prefacs,
+                        log_level=log_level
+                ):
+                    subcontrib = cls._eval_perm_core(
+                        expr, state, tuple_states, perm_substates,
+                        change, baseline_shift,
+                        pi, prefacs, perm_freqs,
+                        pows, g_key, perm_subsets, degenerate_changes,
+                        poly_cache, energy_cache,
+                        verbose, logger, log_level, log_scaling
+                    )
+                    val = prefacs[:, np.newaxis, :] * subcontrib[np.newaxis]
+                    logger.log_print("contrib: {e}", e=val,
+                                     preformatter=lambda **vars: dict(vars, e=vars['e'].squeeze()*log_scaling),
+                                     log_level=log_level)
+                    contrib[:, :, pi] += val
 
-                val = prefacs[np.newaxis, :] * subcontrib
-                logger.log_print("contrib: {e}", e=val,
-                                 preformatter=lambda **vars: dict(vars, e=vars['e'].squeeze()*log_scaling),
+                logger.log_print("{c}",
+                                 c=contrib,
+                                 preformatter=lambda **vars: dict(vars, c=vars['c'].squeeze() * log_scaling),
                                  log_level=log_level)
-                contrib[:, pi] += val
-
-            logger.log_print("{c}",
-                             c=contrib,
-                             preformatter=lambda **vars: dict(vars, c=vars['c'].squeeze() * log_scaling),
-                             log_level=log_level)
+            else:
+                subcontrib = cls._eval_perm_core(
+                    expr, state, tuple_states, perm_substates,
+                    change, baseline_shift,
+                    pi, prefacs, perm_freqs,
+                    pows, g_key, perm_subsets, degenerate_changes,
+                    poly_cache, energy_cache,
+                    verbose, logger, log_level, log_scaling
+                )
+                val = prefacs[:, np.newaxis, :] * subcontrib[np.newaxis]
+                contrib[:, :, pi] += val
         return contrib
 
     @classmethod
-    def _prep_coeff_data(cls, cind_sets, coeffs):
+    def _prep_coeff_data(cls, cind_sets, coeff_lists):
         final_tensors = []
         final_cinds = []
         for cinds in cind_sets:
-            tensors = [coeffs[ci[0]][ci[1]] for ci in cinds]
-            if any(nput.is_zero(t) for t in tensors): continue
-            # indices = [ (ci[:2], ci[:2]) for ci in cinds ]
-            final_tensors.append(tensors)
-            final_cinds.append(cinds)
+            bad = True
+            subtensors = []
+            for coeffs in coeff_lists:
+                tensors = [coeffs[ci[0]][ci[1]] for ci in cinds]
+                if bad and not any(nput.is_zero(t) for t in tensors): bad = False
+                # indices = [ (ci[:2], ci[:2]) for ci in cinds ]
+                subtensors.append(tensors)
+            if not bad:
+                final_tensors.append(subtensors)
+                final_cinds.append(cinds)
         return final_tensors, final_cinds
 
     @classmethod
@@ -4767,6 +4929,60 @@ class PerturbationTheoryExpressionEvaluator:
                 for e in expr.terms.values()
             )
 
+    @classmethod
+    def _identify_possible_degeneracies(cls, expr, changes, nmodes):
+        # changes is stored as `(modes, quanta)` pairs
+        # representing a change between degenerate modes
+
+        degs = {}
+        sort_changes = []
+        for modes,quanta in changes:
+            quanta = np.asanyarray(quanta)
+            sorting = np.argsort(quanta)
+            modes = tuple(modes[k] for k in sorting)
+            sort_changes.append([modes, quanta[sorting]])
+
+        for cinds,t in expr.terms.items():
+            if isinstance(t, PTEnergyChangeProductSum):
+                for ekey in t.terms.keys():
+                    # known_deg = False
+                    for echange in ekey:
+                        # if known_deg: break
+                        zero_pos = [
+                            i for i,e in enumerate(echange)
+                            if e == 0
+                        ]
+                        nonzero_pos = [
+                            i for i, e in enumerate(echange)
+                            if e != 0
+                        ]
+                        sub_e = [echange[i] for i in nonzero_pos]
+                        echange_sorting = np.argsort(sub_e)
+                        num_zero = len(zero_pos)
+                        # pad = len(sub_e)
+                        echange_inverse = np.argsort(
+                                [nonzero_pos[i] for i in echange_sorting] + zero_pos
+                        )
+                        for modes,quanta in sort_changes: # strict ordering preserved
+                            if (
+                                    len(sub_e) == len(quanta)
+                                    and all(sub_e[s] == q for s,q in zip(echange_sorting, quanta))
+                            ):
+                                if cinds not in degs: degs[cinds] = {}
+                                if ekey not in degs[cinds]: degs[cinds][ekey] = set()
+                                if num_zero > 0:
+                                    for pad_inds in itertools.product(
+                                        *[range(nmodes) for _ in range(num_zero)]
+                                    ):
+                                        full_mode = modes + pad_inds
+                                        perm_modes = tuple(full_mode[a] for a in echange_inverse)
+                                        degs[cinds][ekey].add(perm_modes)
+                                else:
+                                    perm_modes = tuple(modes[a] for a in echange_inverse)
+                                    degs[cinds][ekey].add(perm_modes)
+
+        return degs
+
     _poly_cache = {} # temporary hack, but these are in principle shared/reused
     _ecoeff_cache = {}
     @classmethod
@@ -4776,15 +4992,66 @@ class PerturbationTheoryExpressionEvaluator:
                                        num_fixed,
                                        op=None,
                                        logger=None,
-                                       perms=None, zero_cutoff=None, verbose=False, log_scaled=True
+                                       degenerate_changes=None,
+                                       perms=None, zero_cutoff=None,
+                                       verbose=False, log_scaled=True
                                        ):
+
+        # ensure data is in a format where we can loop over states, perms, and degenerate
+        # blocks all in one go
         state = np.asanyarray(state)
         smol = state.ndim == 1
         if smol: state = state[np.newaxis]
         ndim = state.shape[-1]
+
         if perms is None: perms = np.arange(ndim)
         smol_p = perms.ndim == 1
         if smol_p: perms = perms[np.newaxis]
+        # all_p = perms.ndim == 2
+        # if all_p: np.repeat(
+        #         perms[np.new_axis],
+        #         len(state),
+        #         axis=0
+        #     )
+
+        smol_coeffs = PerturbationTheoryEvaluator.is_single_expansion(coeffs)
+        if smol_coeffs: coeffs = [coeffs]
+        coeffs = [
+            [
+                [np.asanyarray(c) if not nput.is_numeric(c) else c for c in order_expansion]
+                for order_expansion in expansion
+            ]
+            for expansion in coeffs
+        ]
+
+        # freqs = np.asanyarray(freqs)
+        # smol_freqs = freqs.ndim == 1
+        # if smol_freqs: freqs = freqs[np.newaxis]
+
+        # uperms, uperm_inv = np.unique(np.concatenate(perms, axis=0), axis=0, return_inverse=True)
+
+        # if degenerate_changes is not None:
+        #     degenerate_changes = [
+        #         tuple(c) for c in degenerate_changes
+        #     ]
+        #     # flat_changes = nput.is_numeric(degenerate_changes[0][0])
+        #     # if flat_changes: degenerate_changes = [degenerate_changes]*len(states)
+        #     # degenerate_changes = [
+        #     #     [
+        #     #         tuple(c) for c in state_degs
+        #     #     ]
+        #     #     for state_degs in degenerate_changes
+        #     # ]
+        #     #
+        #     # degenerate_changes = np.asanyarray(degenerate_changes)
+        #     # all_d = degenerate_changes.ndim == 2
+        #     # if all_d: degenerate_changes = np.repeat(
+        #     #     degenerate_changes[np.new_axis],
+        #     #     len(state),
+        #     #     axis=0
+        #     # )
+
+        # udegs, udeg_inv = np.unique(np.concatenate(degenerate_changes, axis=0), axis=0, return_inverse=True)
 
         if baseline_shift is not None and all(b == 0 for b in baseline_shift): baseline_shift = None
 
@@ -4810,6 +5077,11 @@ class PerturbationTheoryExpressionEvaluator:
         else:
 
             max_order = cls._get_max_order(expr)
+            max_state = np.max(state)
+            pows = np.power(np.arange(max_state+1)[np.newaxis, :], np.arange(max_order+1)[:, np.newaxis])
+
+            if degenerate_changes is not None:
+                degenerate_changes = cls._identify_possible_degeneracies(expr, degenerate_changes, len(freqs))
 
             # Group by numbers of coordinates to do the combinatorics over
             free_ind_groups = {}
@@ -4833,59 +5105,66 @@ class PerturbationTheoryExpressionEvaluator:
             if op is None: op = expr
             with logger.block(tag="Evaluating {op}({ch})", op=op, ch=change, log_level=log_level):
 
-                # TODO: numba-ify this part
-                contrib = np.zeros([len(state), len(perms)])
+                # contrib = [np.zeros([len(p)]) for p in perms]
+                contrib = np.zeros([len(coeffs), len(state), len(perms)])
                 counts_cache = {}  # so we don't hit some coeff sets too many times
                 poly_cache = cls._poly_cache # so we can avoid redoing the same polynomials a bunch of times
+                take_cache = {} # shockingly beneficial...
+                energy_cache = {}
                 for free_inds, cind_sets in free_ind_groups.items():
                     # now we iterate over every subset of inds (outside of the fixed ones)
                     # excluding replacement (since that corresponds to a different coeff/poly)
 
                     tensors,cind_specs = cls._prep_coeff_data(cind_sets, coeffs)
+                    if len(tensors) > 0:
 
-                    facs = [
-                        np.math.factorial(n)
-                        for n in range(max(len(cinds) for cinds in cind_specs)+1)
-                    ]
+                        facs = [
+                            np.math.factorial(n)
+                            for n in range(max([len(cinds) for cinds in cind_specs] + [0])+1)
+                        ]
 
-                    if free_inds == 0:
-                        with logger.block(tag="()", log_level=log_level):
-                            contrib += cls._eval_perm(
-                                expr, change, baseline_shift, max_order,
-                                (), state, perms,
-                                freqs, cind_specs, tensors,
-                                num_fixed, ustate_data,
-                                zero_cutoff,
-                                counts_cache, poly_cache, facs,
-                                verbose, logger, log_scaled
-                            )
-                    else:
-                        for subset in itertools.combinations(range(num_fixed, ndim), r=free_inds):
-                            # for subperm in itertools.permutations(subset):
-                            subperm = subset
-                            with logger.block(tag="{b} + {s}", b=tuple(range(num_fixed)), s=subperm,
-                                              log_level=log_level):
+                        for subset in (
+                                itertools.combinations(range(num_fixed, ndim), r=free_inds)
+                                    if free_inds > 0 else
+                                [()]
+                        ):
+                            if verbose:
+                                with logger.block(tag="{b} + {s}", b=tuple(range(num_fixed)), s=subset,
+                                                  log_level=log_level):
+                                    contrib += cls._eval_perm(
+                                        expr, change, baseline_shift,
+                                        subset, state, perms,
+                                        freqs, cind_specs, tensors,
+                                        num_fixed, degenerate_changes,
+                                        ustate_data,
+                                        zero_cutoff,
+                                        counts_cache, poly_cache, take_cache, energy_cache,
+                                        facs, pows,
+                                        verbose, logger, log_scaled
+                                    )
+                            else:
                                 contrib += cls._eval_perm(
-                                    expr, change, baseline_shift, max_order,
-                                    subperm, state, perms,
+                                    expr, change, baseline_shift,
+                                    subset, state, perms,
                                     freqs, cind_specs, tensors,
-                                    num_fixed, ustate_data,
+                                    num_fixed, degenerate_changes,
+                                    ustate_data,
                                     zero_cutoff,
-                                    counts_cache, poly_cache, facs,
+                                    counts_cache, poly_cache, take_cache, energy_cache,
+                                    facs, pows,
                                     verbose, logger, log_scaled
                                 )
-                    # raise Exception(cind_sets)
             res = expr.prefactor * contrib
 
-        if smol_p: res = res[:, 0]
-        if smol: res = res[0]
+        if smol_p: res = res[:, :, 0]
+        if smol: res = res[:, 0]
+        if smol_coeffs: res = res[0]
+
         return res
 
 
 
-    def evaluate(self, state, coeffs, freqs, perms=None, zero_cutoff=None, verbose=False, log_scaled=True):
-        # we do state-by-state evaluation for now although we will at some
-        # point need to do this in batches
+    def evaluate(self, state, coeffs, freqs, perms=None, degenerate_changes=None, zero_cutoff=None, verbose=False, log_scaled=True):
 
         state = np.asanyarray(state)
         smol = state.ndim == 1
@@ -4895,9 +5174,12 @@ class PerturbationTheoryExpressionEvaluator:
         smol_p = perms.ndim == 1
         if smol_p: perms = perms[np.newaxis]
 
+        smol_coeffs = PerturbationTheoryEvaluator.is_single_expansion(coeffs)
+        if smol_coeffs: coeffs = [coeffs]
+
         expr = self.expr
         if nput.is_zero(expr):
-            return np.zeros([len(state), len(perms)])
+            res = np.zeros([len(coeffs), len(state), len(perms)])
         else:
             if isinstance(expr, SqrtChangePoly):
                 poly_obj = expr.poly_obj
@@ -4919,17 +5201,22 @@ class PerturbationTheoryExpressionEvaluator:
                     first_ekey = next(iter(first_echange_poly.terms.keys()))
                     change = np.sum([list(k) for k in first_ekey], axis=1)
 
-
-            return self.evaluate_polynomial_expression(
+            res = self.evaluate_polynomial_expression(
                 state, coeffs, freqs,
                 poly_obj, change, shift_start,
                 self.num_fixed,
                 op=self.op,
                 logger=self.logger,
                 perms=perms, zero_cutoff=zero_cutoff,
+                degenerate_changes=degenerate_changes,
                 verbose=verbose, log_scaled=log_scaled
             )
 
+        if smol_p: res = res[:, :, 0]
+        if smol: res = res[:, 0]
+        if smol_coeffs: res = res[0]
+
+        return res
 
     # def subtitute_coeffs(self, coeffs):
     #     """
@@ -4957,7 +5244,7 @@ class PerturbationTheoryEvaluator:
         if freqs is None: freqs = 2*np.diag(self.expansions[0][0])
         self.freqs = freqs
 
-    def get_energy_corrections(self, states, order=None, expansions=None, freqs=None, verbose=False):
+    def get_energy_corrections(self, states, order=None, expansions=None, freqs=None, degenerate_states=None, verbose=False):
         expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
         if order is None: order = len(self.expansions) - 1
@@ -4966,12 +5253,34 @@ class PerturbationTheoryEvaluator:
             self.solver.energy_correction(o)([]) for o in range(order + 1) if o % 2 == 0
         ]
 
+        degenerate_changes = self.get_degenerate_changes(degenerate_states)
+
         corrs = [
-            evaluator.evaluate(states, expansions, freqs, verbose=verbose, log_scaled=True)
+            evaluator.evaluate(states, expansions, freqs, verbose=verbose,
+                               degenerate_changes=degenerate_changes, log_scaled=True)
             for evaluator in energy_evaluators
         ]
 
         return corrs
+
+    @staticmethod
+    def is_single_expansion(expansion, min_order=None):
+        if min_order is None:
+            return (
+                    nput.is_numeric(expansion[0][0])
+                    or isinstance(expansion[0][0], np.ndarray)
+                    or (not nput.is_numeric(expansion[0][0][0]) and nput.is_numeric(expansion[0][0][0][0]))
+            )
+        else:
+            def _extract(a, m): return _extract(a[0], m-1) if m > 0 else a
+            return (
+                nput.is_numeric(expansion[0])
+                or (
+                        not nput.is_numeric(expansion[0][0])
+                        and nput.is_numeric(_extract(expansion[0], min_order))
+                )
+            )
+
 
     def _prep_expansions(self, expansions):
         #TODO: check symmetry of G-matrix before manipulating
@@ -5033,11 +5342,14 @@ class PerturbationTheoryEvaluator:
     PTCorrections = collections.namedtuple("PTCorrections",
                                            ['initial_states', 'final_states', 'corrections']
                                            )
-    def _reformat_corrections(self, states, order, corrs, change_map):
+    def _reformat_corrections(self, states, order, corrs, change_map, num_expansions):
         # reshape to allow for better manipulation
         final_corrs = [
-            [[] for _ in range(order + 1)]
-            for _ in range(len(states))
+            [
+                [[] for _ in range(order + 1)]
+                for _ in range(len(states))
+            ]
+            for _ in range(num_expansions if num_expansions is not None else 1)
         ]
         final_states = [
             []
@@ -5046,24 +5358,36 @@ class PerturbationTheoryEvaluator:
         for change, corr_block in corrs.items():
             for n, s in enumerate(states):
                 for o, c in enumerate(corr_block):
-                    final_corrs[n][o].append(c)
+                    if num_expansions is None:
+                        final_corrs[0][n][o].append(c)
+                    else:
+                        for k,ck in enumerate(c):
+                            final_corrs[k][n][o].append(ck)
                 finals = self.get_finals(s, change, change_map[change])
                 final_states[n].append(finals)
 
-        for n, cb in enumerate(final_corrs):
-            for o, c in enumerate(cb):
-                cb[o] = np.concatenate(c, axis=1)
+        for exp_corrs in final_corrs:
+            for n, cb in enumerate(exp_corrs):
+                for o, c in enumerate(cb):
+                    cb[o] = np.concatenate(c, axis=1)
 
         for n, s in enumerate(final_states):
             final_states[n] = np.concatenate(s, axis=0)
 
-        return self.PTCorrections(states, final_states, [np.concatenate(c, axis=0).T for c in final_corrs])
+        all_corrs = [
+            self.PTCorrections(states, final_states, [np.concatenate(c, axis=0).T for c in exp_corrs])
+            for exp_corrs in final_corrs
+        ]
+
+        if num_expansions is None: all_corrs = all_corrs[0]
+
+        return all_corrs
 
     @staticmethod
     def _build_corrections(corr_gen, states, expansions, order,
                            terms, allowed_coefficients, disallowed_coefficients,
                            epaths,
-                           change_map, freqs, verbose, logger):
+                           change_map, degenerate_changes, freqs, verbose, logger):
         corrs = {}
         for o in range(order + 1):
             generator = corr_gen(o, allowed_terms=terms,
@@ -5083,6 +5407,7 @@ class PerturbationTheoryEvaluator:
                             expansions,
                             freqs,
                             perms=perms,
+                            degenerate_changes=degenerate_changes,
                             verbose=verbose,
                             log_scaled=False
                         )
@@ -5091,14 +5416,36 @@ class PerturbationTheoryEvaluator:
                 corr_block.append(gen_corrs)
         return corrs
 
+    @classmethod
+    def get_degenerate_changes(cls, degenerate_pairs):
+        if degenerate_pairs is None: return None
+
+        finals = []
+        for start,end in degenerate_pairs:
+            for e,s in [[end, start], [start, end]]:
+                diff = np.subtract(e, s)
+                nzp = np.nonzero(diff)
+                if len(nzp) > 0: nzp = nzp[0]
+                if len(nzp) > 0:
+                    finals.append([nzp, diff[nzp,]])
+        if len(finals) == 0: finals = None
+
+        return finals
+
     def get_state_by_state_corrections(self, generator, states, order=None,
                                        terms=None, epaths=None,
                                        expansions=None, freqs=None, verbose=False,
                                        allowed_coefficients=None, disallowed_coefficients=None,
+                                       degenerate_states=None,
                                        logger=None):
-        expansions = self._prep_expansions(expansions)
+        spex = expansions is None or self.is_single_expansion(expansions)
+        if spex:
+            expansions = self._prep_expansions(expansions)
+            if order is None: order = len(expansions) - 1
+        else:
+            expansions = [self._prep_expansions(e) for e in expansions]
+            if order is None: order = len(expansions[0]) - 1
         if freqs is None: freqs = self.freqs
-        if order is None: order = len(expansions) - 1
         if logger is None: logger=self.solver.logger
         logger = Logger.lookup(logger)
 
@@ -5109,19 +5456,21 @@ class PerturbationTheoryEvaluator:
             ]
         states, change_map = self.get_diff_map(states)
 
+        degenerate_changes = self.get_degenerate_changes(degenerate_states)
+
         corrs = self._build_corrections(generator, states, expansions, order,
                                         terms, allowed_coefficients, disallowed_coefficients,
-                                        epaths, change_map, freqs, verbose, logger)
-        return self._reformat_corrections(states, order, corrs, change_map)
+                                        epaths, change_map, degenerate_changes, freqs, verbose, logger)
+        return self._reformat_corrections(states, order, corrs, change_map, None if spex else len(expansions))
 
-    def get_matrix_corrections(self, states, order=None, expansions=None, freqs=None, verbose=False):
+    def get_matrix_corrections(self, states, order=None, expansions=None, freqs=None, degenerate_states=None, verbose=False):
         gen = lambda o, **kw: self.solver.hamiltonian_expansion[o]
         return self.get_state_by_state_corrections(gen, states,
                                                    order=order, expansions=expansions, freqs=freqs, verbose=verbose)
-    def get_full_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None, verbose=False):
+    def get_full_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None, degenerate_states=None, verbose=False):
         return self.get_state_by_state_corrections(self.solver.full_wavefunction_correction, states,
                                                    order=order, expansions=expansions, freqs=freqs, verbose=verbose)
-    def get_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None, verbose=False):
+    def get_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None, degenerate_states=None, verbose=False):
         return self.get_state_by_state_corrections(self.solver.wavefunction_correction, states,
                                                    order=order, expansions=expansions, freqs=freqs, verbose=verbose)
 
@@ -5138,22 +5487,35 @@ class PerturbationTheoryEvaluator:
             )
 
         return exps
-    def get_operator_corrections(self, operator_expansion, states, order=None, expansions=None, freqs=None,
-                                 terms=None, verbose=False, **opts):
+
+    def get_operator_corrections(self, operator_expansion, states,
+                                 order=None, expansions=None, freqs=None,
+                                 degenerate_states=None,
+                                 terms=None, min_order=1, verbose=False, **opts):
         # if expansions is None: expansions = self.expansions
         if order is None: order = len(operator_expansion) - 1
 
-        exps = self._prep_operator_expansion(expansions, operator_expansion)
+
+        if self.is_single_expansion(operator_expansion, min_order=min_order):
+            exps = self._prep_operator_expansion(expansions, operator_expansion)
+        else:
+            exps = [
+                self._prep_operator_expansion(expansions, o)
+                for o in operator_expansion
+            ]
         # raise Exception(
         #     exps[2][1][0, 1, 1, 0],
         #     exps[2][1][1, 0, 0, 1]
         # )
 
-        return self.get_state_by_state_corrections(self.solver.operator_correction, states, order=order,
-                                                   expansions=exps, freqs=freqs, terms=terms,
-                                                   verbose=verbose, **opts)
+        return self.get_state_by_state_corrections(
+            lambda *a, **kw: self.solver.operator_correction(*a, operator_type=min_order, **kw), states, order=order,
+            expansions=exps, freqs=freqs, terms=terms, degenerate_states=degenerate_states,
+            verbose=verbose, **opts)
 
-    def evaluate_expressions(self, states, exprs, expansions=None, operator_expansions=None, verbose=False):
+    def evaluate_expressions(self, states, exprs, expansions=None, operator_expansions=None,
+                             degenerate_states=None,
+                             verbose=False):
         order = len(exprs) - 1
         expansions = (
             self._prep_operator_expansion(expansions, operator_expansions)
@@ -5164,6 +5526,7 @@ class PerturbationTheoryEvaluator:
             lambda i, **kw: exprs[i],
             states,
             expansions=expansions,
+            degenerate_states=degenerate_states,
             order=order,
             verbose=verbose
         )

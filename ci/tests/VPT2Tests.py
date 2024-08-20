@@ -66,116 +66,53 @@ class VPT2Tests(TestCase):
             mode_selection=mode_selection,
             internals=internals,
             logger=True,
-            mixed_derivative_handling_mode='averaged',
-            # expansion_order = {
-            #     'coriolis':0,
-            #     'pseudopotential':0
-            # }
+            expansion_order = {
+                'coriolis':0,
+                'pseudopotential':0
+            }
         )
 
-        # np.random.seed(1233232123)
-        # driver.eval.expansions[2][0][:] = 0
-        # v3 = driver.eval.expansions[1][0]
-        # for i in itertools.combinations(range(3), 1):
-        #     for p in itertools.permutations([i, i, i]):
-        #         pass
-        #         # v3[p] = 0  # 1e-5
-        # for i, j in itertools.combinations(range(3), 2):
-        #     for p in itertools.permutations([i, i, j]):
-        #         # pass
-        #         v3[p] = 0
-        #     for p in itertools.permutations([i, j, j]):
-        #         # pass
-        #         v3[p] = 0
-        # for i, j in [
-        #     [0, 1],
-        #     [1, 2],
-        #     [0, 2]
-        # ]:
-        #     # c = np.random.uniform(1e-4, 7e-4, 1)
-        #     c = 1e-5
-        #     for p in itertools.permutations([i, i, j]):
-        #         # pass
-        #         v3[p] = c  # 1e-5
-        # for i, j in [
-        #     [0, 1],
-        #     [1, 2],
-        #     [0, 2]
-        # ]:
-        #     c = np.random.uniform(1e-4, 7e-4, 1)
-        #     for p in itertools.permutations([i, j, j]):
-        #         # pass
-        #         v3[p] = c
-        # for i, j, k in itertools.combinations(range(3), 3):
-        #     for p in itertools.permutations([i, j, k]):
-        #         # pass
-        #         v3[p] = 1e-5
-        #         # v3[p] = v3[p] * 50
-        #         # v3[p] = 0
-
-        # driver.eval.expansions[1][0][:] = 0
-        # driver.eval.expansions[1][1][:] = 0
-        #
-        # driver.eval.expansions[2][0][:] = 0
-        # # driver.eval.expansions[2][1][:] = 0
-        # G2 = driver.eval.expansions[2][1]
-        # # for i,j in itertools.combinations(range(len(states[0])), 2):
-        # #     for p in itertools.permutations([i, i, j, j]):
-        # #         G2[p] = 0
-        # # driver.eval.expansions[2][1][0, 0, 0, 0] = 0
-
-        # dips = [list(dd) for dd in driver.ham.dipole_terms.get_terms(2)]
-        # for a in range(3):
-        #     dips[a][0] = 0
-        #     if a < 2:
-        #         dips[a][1][:] = 0
-        #         dips[a][2][:] = 0
-        #         dips[a][3][:] = 0
-        #         continue
-        #     # dips[a][1][:] = 0
-        #     # dips[a][1][1] = .5
-        #     dips[a][1][:] = .5
-        #     # dips[a][2][:] = 5e-2
-        #     # dips[a][1][0] = 5e-1
-        #     # dips[a][1][1] = 1e-1
-        #     # dips[a][1][2] = 2e-1
-        #
-        #     # dips[a][2][:] = 0
-        #     # dips[a][3][:] = 0
-
-        runner, _ = driver.construct_classic_runner(
-            TestManager.test_data(file_name),
-            np.array(states),
-            mode_selection=np.arange(len(mode_selection)) if mode_selection is not None else mode_selection,
-            internals=internals,
-            logger=False,
-            zero_element_warning=False,
-            # dipole_terms=dips
-        )
-
-        # corrs = driver.eval.solver.wavefunction_correction(2)
-        # poly = corrs.get_poly_terms([2], shift=[1])
-        # print("?"*50)
-        # print(
-        #     poly.format_expr()
+        # runner, _ = driver.construct_classic_runner(
+        #     TestManager.test_data(file_name),
+        #     np.array(states),
+        #     mode_selection=np.arange(len(mode_selection)) if mode_selection is not None else mode_selection,
+        #     internals=internals,
+        #     logger=False,
+        #     zero_element_warning=False,
+        #     # dipole_terms=dips
         # )
-        # raise Exception(...)
+        ""
+        zpe, freqs = driver.get_freqs(
+            states,
+            # axes=[2],
+            # dipole_expansion=dips,
+            degenerate_states=[
+                # [[2, 0, 0], [0, 0, 1]],
+                # [[2, 0, 0], [0, 1, 0]],
+            ],
+            verbose=True
+        )
 
-        # freqs = np.sum(
-        #     driver.get_energy_corrections(states, verbose=True),
-        #     axis=0) * UnitsData.convert("Hartrees", "Wavenumbers")
-        # runner.print_tables(print_intensities=False)
-        # print(freqs[0], freqs[1:]-freqs[0])
-        #
-        # raise Exception(...)
+
+        print(freqs)
+        raise Exception(...)
 
         spec = driver.get_spectrum(
             states,
             # axes=[2],
             # dipole_expansion=dips,
+            degenerate_states=[
+                [[2, 0, 0], [0, 0, 1]],
+                [[2, 0, 0], [0, 1, 0]],
+                # [[1, 0, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0]],
+                # [[1, 0, 0, 0, 0, 0], [0, 2, 0, 0, 0, 0]],
+                # [[1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 2, 0]],
+                # [[1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 2]],
+                # [[1, 0, 0, 0, 0, 0], [2, 0, 0, 0, 0, 0]]
+            ],
             verbose=True
         )
-        runner.print_tables(print_intensities=True)
+        # runner.print_tables(print_intensities=True)
         print(np.array(spec).T)
         raise Exception(...)
 
@@ -238,7 +175,7 @@ class VPT2Tests(TestCase):
         #     print(corrs)
         # raise Exception(...)
 
-    @validationTest
+    @debugTest
     def test_AnalyticOCHH(self):
 
         file_name = "OCHH_freq.fchk"
@@ -253,42 +190,43 @@ class VPT2Tests(TestCase):
 
         runner, states = AnalyticVPTRunner.construct(
             TestManager.test_data(file_name),
-            [
-                # [0, 0, 0],
-                # [1, 0, 0],
-                # [0, 1, 0],
-                # [0, 1, 1]
-
-                # [0, 0, 0, 0],
-                # [1, 0, 0, 0],
-                # [0, 1, 0, 0],
-                # [0, 0, 1, 0],
-                # [0, 0, 1, 1]
-
-                # [0, 0, 0, 0, 0],
-                # [1, 0, 0, 0, 0],
-                # [0, 1, 0, 0, 0]
-
-                [0, 0, 0, 0, 0, 0],
-                [1, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 1],
-                [1, 0, 0, 0, 0, 1],
-                [0, 1, 0, 0, 0, 1],
-            ],
+            2,
+            # [
+            #     # [0, 0, 0],
+            #     # [1, 0, 0],
+            #     # [0, 1, 0],
+            #     # [0, 1, 1]
+            #
+            #     # [0, 0, 0, 0],
+            #     # [1, 0, 0, 0],
+            #     # [0, 1, 0, 0],
+            #     # [0, 0, 1, 0],
+            #     # [0, 0, 1, 1]
+            #
+            #     # [0, 0, 0, 0, 0],
+            #     # [1, 0, 0, 0, 0],
+            #     # [0, 1, 0, 0, 0]
+            #
+            #     [0, 0, 0, 0, 0, 0],
+            #     [1, 0, 0, 0, 0, 0],
+            #     [0, 0, 0, 0, 0, 1],
+            #     [1, 0, 0, 0, 0, 1],
+            #     [0, 1, 0, 0, 0, 1],
+            # ],
             # mode_selection=[2, 1, 3, 4],
             mode_selection=[5, 4, 3, 2, 1, 0],
             # internals=internals,
             logger=True,
-            mixed_derivative_handling_mode='unhandled',
+            mixed_derivative_handling_mode='averaged',
             # expressions_file=os.path.expanduser("~/Desktop/exprs.json")
             # verbose=False,
             # return_runner=True,
             # return_states=True,
             # calculate_intensities=False
-            # expansion_order = {
-            #     'coriolis':0,
-            #     'pseudopotential':0
-            # }
+            expansion_order = {
+                'coriolis':0,
+                'pseudopotential':0
+            }
         )
 
         og, _ = runner.construct_classic_runner(
@@ -302,36 +240,6 @@ class VPT2Tests(TestCase):
             # degeneracy_specs='auto'
             # dipole_terms=dips
         )
-
-        """
-          1 0 0 0 0 0    3061.70143     75.32618      2982.92597     43.03524
-          0 0 0 0 0 1    1188.11390     22.55337      1218.63552     22.42668
-          1 0 0 0 0 1    4249.81533      0.00000      4242.33842      0.00000
-          0 1 0 0 0 1    4165.75438      0.00000      4119.39237      0.00549
-  
-          1 0 0 0 0 0    3061.70143     75.32618      2942.59057     52.22130
-          0 0 0 0 0 1    1188.11390     22.55337      1175.42913     22.61529
-          1 0 0 0 0 1    4249.81533      0.00000      4104.84767      0.00000
-          0 1 0 0 0 1    4165.75438      0.00000      4014.32267      0.00017
-          
-          1 0 0 0 0 0    3061.70143     75.32618      2958.49149     37.27901
-          0 0 0 0 0 1    1188.11390     22.55337      1155.24238     22.09834
-          1 0 0 0 0 1    4249.81533      0.00000      4087.76882      0.00000
-          0 1 0 0 0 1    4165.75438      0.00000      3991.23901      0.02275
-          
-          1 0 0 0 0 0    3061.70143     75.32618      2949.65745     44.83122
-          0 0 0 0 0 1    1188.11390     22.55337      1165.49767     22.34935
-          1 0 0 0 0 1    4249.81533      0.00000      4095.60049      0.00000
-          0 1 0 0 0 1    4165.75438      0.00000      4002.45227      0.00477
-        """
-
-        # freqs = np.sum(
-        #     runner.get_energy_corrections(states, order=2, verbose=True),
-        #     axis=0) * UnitsData.convert("Hartrees", "Wavenumbers")
-        # og.print_tables(print_intensities=False)
-        # print(freqs[0], freqs[1:]-freqs[0])
-        #
-        # raise Exception(...)
 
         # corr_list = [
         #     runner.get_transition_moment_corrections(
@@ -353,21 +261,48 @@ class VPT2Tests(TestCase):
         # print(*[c[0, 2] for c in corr_list])
         # raise Exception(...)
 
-        # spec = runner.get_freqs(states,
-        #                            # axes=[2],
-        #                            # dipole_expansion=dips,
-        #                            verbose=False)
-        # og.print_tables(print_intensities=True)
-        # print(spec[0])
-        # print(spec[1])
-        # raise Exception(...)
+        """
+        [1151.41244473 1226.0756339  1491.95112984 1694.81047899 2833.93063047 2938.20714678 2292.36387658 2437.75533535 2986.38630552 3371.49295177 5604.94714571 5799.61801102 2377.21901674 2639.26018882 2837.54499616 3985.64004167 4049.89226752 2699.21844755 2866.41736878 4068.83137927 4205.61850031 3180.07035575 4291.01246976 4419.48308857 4523.75838346 4679.54992171 5641.27622958]
+        [1151.41244473 1226.0756339  1491.95112984 1694.81047899 2833.93063047 2938.20714678 2292.36387658 2437.75533535 2986.38630552 3371.49295177 5604.94714571 5799.61801102 2377.21901674 2639.26018882 2837.54499616 3985.64004167 4049.89226752 2699.21844755 2866.41736878 4068.83137927 4205.61850031 3180.07035575 4291.01246976 4419.48308857 4523.75838346 4679.54992171 5641.27622958]
 
-        # with BlockProfiler():
+"""
+
+        spec = runner.get_freqs(states,
+                                degenerate_states=[
+                                    # [[1, 0, 0, 0, 0, 0], [0, 0, 0, 2, 0, 0]],
+                                    # [[1, 0, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0]],
+                                    # [[1, 0, 0, 0, 0, 0], [0, 2, 0, 0, 0, 0]],
+                                    # [[1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 2, 0]],
+                                    # [[1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 2]],
+                                    # [[1, 0, 0, 0, 0, 0], [2, 0, 0, 0, 0, 0]],
+
+                                    [[0, 1, 0, 0, 0, 0], [0, 0, 0, 2, 0, 0]],
+                                    [[0, 1, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0]],
+                                    # [[0, 1, 0, 0, 0, 0], [0, 2, 0, 0, 0, 0]],
+                                    [[0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 2, 0]],
+                                    [[0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 2]],
+                                    # [[0, 1, 0, 0, 0, 0], [2, 0, 0, 0, 0, 0]]
+                                ],
+                                verbose=False)
+        # og.print_tables(print_intensities=True)
+        print(spec[0])
+        print(spec[1])
+        raise Exception(...)
+
+        # with BlockProfiler(print_options={'show_all':True}):
         spec = runner.get_spectrum(states,
                                    # axes=[2],
                                    # dipole_expansion=dips,
-                                   verbose=False)
-        og.print_tables(print_intensities=True)
+                                   # degenerate_states=[
+                                   #     [[1, 0, 0, 0, 0, 0], [0, 0, 0, 2, 0, 0]],
+                                   #     [[1, 0, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0]],
+                                   #     [[1, 0, 0, 0, 0, 0], [0, 2, 0, 0, 0, 0]],
+                                   #     [[1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 2, 0]],
+                                   #     [[1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 2]],
+                                   #     [[1, 0, 0, 0, 0, 0], [2, 0, 0, 0, 0, 0]]
+                                   # ],
+                                   verbose=True)
+        # og.print_tables(print_intensities=True)
         print(np.array(spec).T)
         raise Exception(...)
 
@@ -400,7 +335,6 @@ class VPT2Tests(TestCase):
             # mode_selection=[8, 7, 6],
             # internals=internals,
             logger=True,
-            mixed_derivative_handling_mode='averaged',
             # expansion_order = {
             #     'coriolis':0,
             #     'pseudopotential':0
@@ -428,9 +362,6 @@ class VPT2Tests(TestCase):
         #     for p in itertools.permutations([i, j, k]):
         #         v3[p] = 1e-4
 
-        spec = runner.get_freqs(states)
-        raise Exception(spec)
-
         og, _ = runner.construct_classic_runner(
             TestManager.test_data(file_name),
             states,
@@ -449,13 +380,45 @@ class VPT2Tests(TestCase):
         # print(freqs[0], freqs[1:]-freqs[0])
         # with BlockProfiler():
         # with Timer():
-        spec = runner.get_spectrum(states, verbose=False)
+        with BlockProfiler():
+            spec = runner.get_spectrum(states, verbose=False)
+        print(np.array(spec).T)
+
+    @validationTest
+    def test_TrimerAnalytic(self):
+
+        file_name = "water_trimer_freq.fchk"
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     # mode_selection=mode_selection,
+        #     # internals=internals,
+        #     logger=True,
+        #     mixed_derivative_handling_mode='averaged'
+        # )
+
+        runner, states = AnalyticVPTRunner.construct(
+            TestManager.test_data(file_name),
+            2,
+            logger=True
+        )
+
+        og, _ = runner.construct_classic_runner(
+            TestManager.test_data(file_name),
+            states,
+            mode_selection=np.arange(len(states[0])),
+            logger=False
+        )
+
+        # og.print_tables(print_intensities=True)
+        with BlockProfiler(print_options={'show_all':True}):
+            spec = runner.get_spectrum(states, verbose=False)
         print(np.array(spec).T)
 
     @validationTest
     def test_SelAnharmAnalytic(self):
 
-        file_name = os.path.expanduser("~/Desktop/freq_anion.fchk")
+        file_name = os.path.expanduser("~/Documents/Postdoc/freq_anion.fchk")
         mol = Molecule.from_file(file_name)
         surf = mol.potential_derivatives
         modes = mol.normal_modes.modes.basis#.to_new_modes().make_dimensionless()

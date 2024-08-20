@@ -2344,7 +2344,7 @@ class AnalyticVPTRunner:
                   allowed_coefficients=None,
                   disallowed_coefficients=None,
                   allowed_energy_changes=None,
-                  mixed_derivative_handling_mode='numerical',
+                  mixed_derivative_handling_mode='averaged',
                   **settings
                   ):
 
@@ -2468,74 +2468,78 @@ class AnalyticVPTRunner:
             # intermediate_normalization=False
         )
 
-    def evaluate_expressions(self, states, exprs, operator_expansions=None, verbose=False):
+    def evaluate_expressions(self, states, exprs, operator_expansions=None,
+                             degenerate_states=None, verbose=False):
         state_space = VPTStateSpace(states)
         return self.eval.evaluate_expressions(
             state_space.state_list,
             exprs,
             operator_expansions=operator_expansions,
+            degenerate_states=degenerate_states,
             verbose=verbose
         )
 
-    def get_matrix_corrections(self, states, order=None, verbose=False):
+    def get_matrix_corrections(self, states, order=None,  verbose=False):
         state_space = VPTStateSpace(states)
         return self.eval.get_matrix_corrections(state_space.state_list,
                                                 order=order,
                                                 verbose=verbose)
 
-    def get_energy_corrections(self, states, order=None, verbose=False):
+    def get_energy_corrections(self, states, order=None, degenerate_states=None, verbose=False):
         state_space = VPTStateSpace(states)
         return self.eval.get_energy_corrections(state_space.state_list,
                                                 order=order,
+                                                degenerate_states=degenerate_states,
                                                 verbose=verbose)
-    def get_freqs(self, states, order=None, verbose=False):
-        corrs = self.get_energy_corrections(states, order=order, verbose=verbose)
+    def get_freqs(self, states, order=None, degenerate_states=None, verbose=False):
+        corrs = self.get_energy_corrections(states, order=order, degenerate_states=degenerate_states, verbose=verbose)
         engs = np.sum(corrs, axis=0) * UnitsData.convert("Hartrees", "Wavenumbers")
-        freqs = (engs[1:] - engs[0])[:, 0]  # TODO: figure out why we have too much shape
+        freqs = (engs[1:] - engs[0])
         return engs[0], freqs
 
     def get_overlap_corrections(self,
                                      states,
-                                     order=None, verbose=False
+                                     order=None, degenerate_states=None, verbose=False
                                      ):
         state_space = VPTStateSpace(states)
         return self.eval.get_overlap_corrections(
             state_space.state_list,
             order=order,
-            verbose=verbose
+            degenerate_states=degenerate_states, verbose=verbose
         )
     def get_full_wavefunction_corrections(self,
                                      states,
-                                     order=None, verbose=False
+                                     order=None, degenerate_states=None, verbose=False
                                      ):
         state_space = VPTStateSpace(states)
         return self.eval.get_full_wavefunction_corrections(
             state_space.state_list,
             order=order,
-            verbose=verbose
+            degenerate_states=degenerate_states, verbose=verbose
         )
     def get_wavefunction_corrections(self,
                                      states,
-                                     order=None, verbose=False
+                                     order=None, degenerate_states=None, verbose=False
                                      ):
         state_space = VPTStateSpace(states)
         return self.eval.get_wavefunction_corrections(
             state_space.state_list,
             order=order,
-            verbose=verbose
+            degenerate_states=degenerate_states, verbose=verbose
         )
 
     # def get_diff_classes(self, inial):
 
     def get_operator_corrections(self,
                                  operator_expansion, states,
-                                 order=None, terms=None, verbose=False,  **opts
+                                 order=None, terms=None, degenerate_states=None, verbose=False,
+                                 **opts
                                  ):
         state_space = VPTStateSpace(states)
         return self.eval.get_operator_corrections(
             operator_expansion, state_space.state_list,
             order=order, terms=terms,
-            verbose=verbose, **opts
+            verbose=verbose, degenerate_states=degenerate_states, **opts
         )
 
 
@@ -2547,20 +2551,22 @@ class AnalyticVPTRunner:
             dipole_expansion = self.ham.dipole_terms.get_terms(order)
 
 
-        corrs = []
         if axes is None: axes = [0, 1, 2]
-        for x in axes:
-            corrs.append(
-                self.get_operator_corrections(
-                    [x/np.math.factorial(i+1) for i,x in enumerate(dipole_expansion[x][1:])],
-                    states, order=order, **opts
-                )
-            )
+        corrs = self.get_operator_corrections(
+            [
+                [x/np.math.factorial(i+1) for i,x in enumerate(dipole_expansion[x][1:])]
+                for x in axes
+            ],
+            states, order=order, **opts
+        )
 
         return corrs
 
     def get_spectrum(self, states,
-                     dipole_expansion=None, order=None, energy_order=None, axes=None,
+                     dipole_expansion=None,
+                     order=None, energy_order=None,
+                     degenerate_states=None,
+                     axes=None,
                      terms=None,
                      verbose=False):
         """
@@ -2584,13 +2590,15 @@ class AnalyticVPTRunner:
         base_corrs = self.get_transition_moment_corrections(states,
                                                             axes=axes,
                                                             dipole_expansion=dipole_expansion,
+                                                            degenerate_states=degenerate_states,
                                                             order=order, terms=terms, verbose=verbose)
         if energy_order is None: energy_order = order
         specs = []
         for n,initial_state in enumerate(base_corrs[0].initial_states):
             all_state = np.concatenate([[initial_state], base_corrs[0].final_states[n]], axis=0)
-            engs = np.sum(self.get_energy_corrections(all_state, order=energy_order, verbose=verbose), axis=0)
-            freqs = (engs[1:] - engs[0])[:, 0] #TODO: figure out why we have too much shape
+            engs = np.sum(self.get_energy_corrections(all_state, order=energy_order,
+                                                      degenerate_states=degenerate_states, verbose=verbose), axis=0)
+            freqs = (engs[1:] - engs[0])
             tmoms = np.sum([np.sum(corr.corrections[n], axis=1)**2 for corr in base_corrs], axis=0)
             # print(tmoms.shape, freqs.shape)
             ints = freqs * tmoms
