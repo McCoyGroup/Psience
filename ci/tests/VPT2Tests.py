@@ -49,10 +49,11 @@ class VPT2Tests(TestCase):
         states = [
             [0, 0, 0],
             [1, 0, 0],
-            [0, 1, 0], [0, 0, 1],
-            [1, 1, 0],
-            [1, 0, 1],
-            [0, 1, 1],
+            # [0, 1, 0],
+            # [0, 0, 1],
+            # [1, 1, 0],
+            # [1, 0, 1],
+            # [0, 1, 1],
             [0, 2, 0]
         ]
         mode_selection = None
@@ -72,6 +73,16 @@ class VPT2Tests(TestCase):
             }
         )
 
+        # raise Exception(
+        #     driver.eval.solver.full_wavefunction_correction(1).get_poly_terms([])
+        # )
+
+        # hammy = driver.get_reexpressed_hamiltonian(states, order=2, verbose=False, return_orders=True)
+        # for h in hammy:
+        #     print(h)
+        #     print("-" * 30)
+        # raise Exception(...)
+
         # runner, _ = driver.construct_classic_runner(
         #     TestManager.test_data(file_name),
         #     np.array(states),
@@ -81,7 +92,6 @@ class VPT2Tests(TestCase):
         #     zero_element_warning=False,
         #     # dipole_terms=dips
         # )
-        ""
         zpe, freqs = driver.get_freqs(
             states,
             # axes=[2],
@@ -92,7 +102,6 @@ class VPT2Tests(TestCase):
             ],
             verbose=True
         )
-
 
         print(freqs)
         raise Exception(...)
@@ -192,21 +201,6 @@ class VPT2Tests(TestCase):
             TestManager.test_data(file_name),
             2,
             # [
-            #     # [0, 0, 0],
-            #     # [1, 0, 0],
-            #     # [0, 1, 0],
-            #     # [0, 1, 1]
-            #
-            #     # [0, 0, 0, 0],
-            #     # [1, 0, 0, 0],
-            #     # [0, 1, 0, 0],
-            #     # [0, 0, 1, 0],
-            #     # [0, 0, 1, 1]
-            #
-            #     # [0, 0, 0, 0, 0],
-            #     # [1, 0, 0, 0, 0],
-            #     # [0, 1, 0, 0, 0]
-            #
             #     [0, 0, 0, 0, 0, 0],
             #     [1, 0, 0, 0, 0, 0],
             #     [0, 0, 0, 0, 0, 1],
@@ -234,12 +228,27 @@ class VPT2Tests(TestCase):
             states,
             mode_selection=np.arange(len(states[0])),
             # internals=internals,
-            # zero_element_warning=False,
+            zero_element_warning=False,
             # dipole_terms=dips,
             logger=False
             # degeneracy_specs='auto'
             # dipole_terms=dips
         )
+
+        # wfns = og.get_wavefunctions()
+        # corrs = runner.eval.get_full_wavefunction_corrections(
+        #     states,
+        #     order=2,
+        #     verbose=False
+        # )
+        # # corrs = runner.eval.get_overlap_corrections(states, order=2, verbose=False)
+        # print(wfns.corrs.wfn_corrections[1].todense()[:, :len(states)])
+        # print(wfns.corrs.wfn_corrections[2].todense()[:, :len(states)])
+        # with np.printoptions(precision=None):
+        #     # print(corrs.final_states[0])
+        #     # print(corrs.corrections[0])
+        #     print(corrs)
+        # raise Exception(...)
 
         # corr_list = [
         #     runner.get_transition_moment_corrections(
@@ -261,13 +270,23 @@ class VPT2Tests(TestCase):
         # print(*[c[0, 2] for c in corr_list])
         # raise Exception(...)
 
-        """
-        [1151.41244473 1226.0756339  1491.95112984 1694.81047899 2833.93063047 2938.20714678 2292.36387658 2437.75533535 2986.38630552 3371.49295177 5604.94714571 5799.61801102 2377.21901674 2639.26018882 2837.54499616 3985.64004167 4049.89226752 2699.21844755 2866.41736878 4068.83137927 4205.61850031 3180.07035575 4291.01246976 4419.48308857 4523.75838346 4679.54992171 5641.27622958]
-        [1151.41244473 1226.0756339  1491.95112984 1694.81047899 2833.93063047 2938.20714678 2292.36387658 2437.75533535 2986.38630552 3371.49295177 5604.94714571 5799.61801102 2377.21901674 2639.26018882 2837.54499616 3985.64004167 4049.89226752 2699.21844755 2866.41736878 4068.83137927 4205.61850031 3180.07035575 4291.01246976 4419.48308857 4523.75838346 4679.54992171 5641.27622958]
-
-"""
-
+        hammy = runner.get_reexpressed_hamiltonian(states,
+                                                   order=2,
+                                                   return_orders=True,
+                                                   degenerate_states=[
+                                                       [[0, 1, 0, 0, 0, 0], [0, 0, 0, 2, 0, 0]],
+                                                       [[0, 1, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0]],
+                                                       [[0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 2, 0]],
+                                                       [[0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 2]],
+                                                   ]
+                                                   )
+        for h in hammy:
+            print(h)
+            print("-"*30)
+        raise Exception(...)
+        #
         spec = runner.get_freqs(states,
+                                order=2,
                                 degenerate_states=[
                                     # [[1, 0, 0, 0, 0, 0], [0, 0, 0, 2, 0, 0]],
                                     # [[1, 0, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0]],

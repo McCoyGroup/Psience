@@ -2497,6 +2497,42 @@ class AnalyticVPTRunner:
         freqs = (engs[1:] - engs[0])
         return engs[0], freqs
 
+    def get_reexpressed_hamiltonian(self, states, order=None, degenerate_states=None, verbose=False,
+                                    return_orders=False):
+        state_space = VPTStateSpace(states)
+        ham_corrs = self.eval.get_reexpressed_hamiltonian(
+            state_space.state_list,
+            order=order,
+            degenerate_states=degenerate_states, verbose=verbose
+        )
+
+        # print([hc.shape for hc in ham_corrs.corrections])
+        flat_basis = ham_corrs.initial_states
+        for fblock in ham_corrs.final_states:
+            flat_basis = flat_basis.union(fblock)
+
+        ns = len(flat_basis)
+        corr_mats = [
+            np.zeros((ns, ns))
+            for _ in ham_corrs.corrections[0]
+        ]
+
+        initial_inds = flat_basis.find(ham_corrs.initial_states)
+        for row_idx, finals, corrs in zip(initial_inds, ham_corrs.final_states, ham_corrs.corrections):
+            col_idx = flat_basis.find(finals)
+            row_idx = (row_idx,) * len(col_idx)
+            for o,c in enumerate(corrs):
+                corr_mats[o][row_idx, col_idx] = c
+                corr_mats[o][col_idx, row_idx] = c
+        corr_mats = [
+            c * UnitsData.convert("Hartrees", "Wavenumbers")
+            for c in corr_mats
+        ]
+        if return_orders:
+            return corr_mats
+        else:
+            return sum(corr_mats)
+
     def get_overlap_corrections(self,
                                      states,
                                      order=None, degenerate_states=None, verbose=False
