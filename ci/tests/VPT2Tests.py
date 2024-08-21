@@ -227,6 +227,22 @@ class VPT2Tests(TestCase):
         #     mixed_derivative_handling_mode='averaged'
         # )
 
+        wtf = VPTRunner.run_simple(
+            # os.path.expanduser("~/Desktop/i_doh.fchk"),
+            TestManager.test_data('HOH_freq.fchk'),
+            2,
+            # internals=VPTRunner.helpers.parse_zmatrix(os.path.expanduser("~/Desktop/z_mat.dat")),
+            # degeneracy_specs = {
+            #     'wfc_threshold': .1,
+            # },
+            # initial_states=[
+            #     [0, 0, 0, 0, 0, 0],  # ground state
+            #     [0, 0, 0, 0, 1, 0]  # whichever excited states you're interested in
+            # ]
+        )
+
+        raise Exception(...)
+
         runner, states = AnalyticVPTRunner.construct(
             TestManager.test_data(file_name),
             [
@@ -246,7 +262,7 @@ class VPT2Tests(TestCase):
             # internals=internals,
             # logger=os.path.expanduser("~/Desktop/deriv_expr_debug.txt"),
             mixed_derivative_handling_mode='averaged',
-            # expressions_file=os.path.expanduser("~/Desktop/exprs.json")
+            expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
             # verbose=False,
             # return_runner=True,
             # return_states=True,
@@ -363,56 +379,56 @@ class VPT2Tests(TestCase):
         # print(simple_thing_2.corrections[0][2] * 219475.6)
         # raise Exception(...)
 
-        states, hammy = runner.get_reexpressed_hamiltonian(
-            [
-                [0, 0, 0, 0],
-                [0, 0, 0, 1],
-                [0, 2, 0, 0],
-                [2, 0, 0, 0]
-            ],
-            degenerate_states=[
-                [[0, 0, 0, 1], [0, 2, 0, 0]],
-                [[0, 0, 0, 1], [2, 0, 0, 0]]
-            ],
-            order=2,
-            # terms=[
-            #     (1, 1, 0), (0, 1, 1)
-            # ],
-            verbose=False,
-            return_orders=True,
-            only_degenerate_terms=True
-        )
-        states, hammy_2 = runner.get_reexpressed_hamiltonian(
-            [
-                [0, 0, 0, 0],
-                [0, 0, 0, 1],
-                [0, 2, 0, 0],
-                [2, 0, 0, 0]
-            ],
-            degenerate_states=[
-                [[0, 0, 0, 1], [0, 2, 0, 0]],
-                [[0, 0, 0, 1], [2, 0, 0, 0]]
-            ],
-            order=2,
-            # terms=[
-            #     (1, 1, 0), (0, 1, 1)
-            # ],
-            verbose=False,
-            return_orders=True,
-            only_degenerate_terms=False
-        )
-
-        print("="*20)
-        for h in hammy:
-            print(h)
-            print("-"*30)
-
-        print("="*20)
-        for h in hammy_2:
-            print(h)
-            print("-"*30)
-
-        raise Exception(...)
+        # states, hammy = runner.get_reexpressed_hamiltonian(
+        #     [
+        #         [0, 0, 0, 0],
+        #         [0, 0, 0, 1],
+        #         [0, 2, 0, 0],
+        #         [2, 0, 0, 0]
+        #     ],
+        #     degenerate_states=[
+        #         [[0, 0, 0, 1], [0, 2, 0, 0]],
+        #         [[0, 0, 0, 1], [2, 0, 0, 0]]
+        #     ],
+        #     order=2,
+        #     # terms=[
+        #     #     (1, 1, 0), (0, 1, 1)
+        #     # ],
+        #     verbose=False,
+        #     return_orders=True,
+        #     only_degenerate_terms=True
+        # )
+        # states, hammy_2 = runner.get_reexpressed_hamiltonian(
+        #     [
+        #         [0, 0, 0, 0],
+        #         [0, 0, 0, 1],
+        #         [0, 2, 0, 0],
+        #         [2, 0, 0, 0]
+        #     ],
+        #     degenerate_states=[
+        #         [[0, 0, 0, 1], [0, 2, 0, 0]],
+        #         [[0, 0, 0, 1], [2, 0, 0, 0]]
+        #     ],
+        #     order=2,
+        #     # terms=[
+        #     #     (1, 1, 0), (0, 1, 1)
+        #     # ],
+        #     verbose=False,
+        #     return_orders=True,
+        #     only_degenerate_terms=False
+        # )
+        #
+        # print("="*20)
+        # for h in hammy:
+        #     print(h)
+        #     print("-"*30)
+        #
+        # print("="*20)
+        # for h in hammy_2:
+        #     print(h)
+        #     print("-"*30)
+        #
+        # raise Exception(...)
         #
         spec = runner.get_freqs(
             [

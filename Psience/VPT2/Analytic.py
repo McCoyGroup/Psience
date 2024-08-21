@@ -324,37 +324,38 @@ class ProductPTPolynomial(PolynomialInterface):
             steps=self.steps if steps is default else steps
         )
 
-    def to_state(self, serializer=None):
-        """
-        Provides just the state that is needed to
-        serialize the object
-        :param serializer:
-        :type serializer:
-        :return:
-        :rtype:
-        """
-        return {
-            'coeffs': [c.tolist() for c in self.coeffs],
-            'prefactor': self.prefactor,
-            'steps': self.steps,
-            # 'key': self._idx
-        }
-    @classmethod
-    def from_state(cls, state, serializer=None):
-        coeffs = state['coeffs']
-        prefactor = state['prefactor']
-        steps = state['steps']
-        # key = state['key']
-        # if key is not None:
-        #     test = cls.lookup(key)
-        # else:
-        #     test = None
-        # if test is None:
-        return cls(
-            coeffs, prefactor=prefactor, steps=steps
-        )
-        # else:
-        #     return test
+    def to_state(self, serializer=None): # don't let this be directly serialized
+        raise NotImplementedError(...)
+    #     """
+    #     Provides just the state that is needed to
+    #     serialize the object
+    #     :param serializer:
+    #     :type serializer:
+    #     :return:
+    #     :rtype:
+    #     """
+    #     return {
+    #         'coeffs': [c.tolist() for c in self.coeffs],
+    #         'prefactor': self.prefactor,
+    #         'steps': self.steps,
+    #         # 'key': self._idx
+    #     }
+    # @classmethod
+    # def from_state(cls, state, serializer=None):
+    #     coeffs = state['coeffs']
+    #     prefactor = state['prefactor']
+    #     steps = state['steps']
+    #     # key = state['key']
+    #     # if key is not None:
+    #     #     test = cls.lookup(key)
+    #     # else:
+    #     #     test = None
+    #     # if test is None:
+    #     return cls(
+    #         coeffs, prefactor=prefactor, steps=steps
+    #     )
+    #     # else:
+    #     #     return test
 
     @property
     def ndim(self):
@@ -863,26 +864,82 @@ class ProductPTPolynomialSum(PolynomialInterface):
         self._order = order
         self._ndim = ndim
 
-    def to_state(self, serializer=None):
-        """
-        Provides just the state that is needed to
-        serialize the object
-        :param serializer:
-        :type serializer:
-        :return:
-        :rtype:
-        """
-        return {
-            'polys': serializer.serialize(self.polys),
-            'prefactor': self.prefactor
-        }
+    size_key = '_sizes'
     @classmethod
-    def from_state(cls, state, serializer=None):
-        polys = serializer.deserialize(state['polys'])
-        prefactor = state['prefactor']
-        return cls(
-            polys, prefactor=prefactor
-        )
+    def populate_storage(cls, storage, data):
+        sk = cls.size_key
+        for k,v in data.items():
+            if k != sk:
+                if k not in storage: storage[k] = []
+                if isinstance(v[0], np.ndarray) or nput.is_numeric(v[0]):
+                    storage[k].append(v)
+                else:
+                    if sk not in storage: storage[sk] = {}
+                    sizes = storage[sk]
+                    if k not in sizes: sizes[k] = []
+                    sizes[k].append(len(v))
+                    storage[k].extend(v)
+    @classmethod
+    def flatten_storage(cls, storage):
+        sk = cls.size_key
+        if sk not in storage: storage[sk] = {}
+        sizes = storage[sk]
+        print('?~?', storage)
+        for k,v in storage.items():
+            if k != sk:
+                size_block = []
+                if k in sizes:
+                    sizes[k] = [size_block] + sizes[k]
+                else:
+                    sizes[k] = []
+                if nput.is_numeric(v[0]): #1d
+                    sizes[k] = [len(v)]
+                    storage[k] = np.array(v)
+                elif nput.is_numeric(v[0][0]): #2d
+                    sizes[k] = [len(a) for a in v]
+                    storage[k] = np.concatenate(v, axis=0)
+                else: #3d
+                    sizes[k] = [
+                        [len(a[i]) for a in v]
+                        for i in range(len(v[0]))
+                    ]
+                    storage[k] = [
+                        np.concatenate([a[i] for a in v], axis=0)
+                        for i in range(len(v[0]))
+                    ]
+
+    def get_serialization_data(self):
+        base_data = {
+            'prefactor': [self.prefactor],
+            'steps': [self.polys[0].steps],
+            'prefactors': [p.prefactor for p in self.polys],
+            'coeffs': [p.coeffs for p in self.polys]
+        }
+        self.flatten_storage(base_data)
+        return base_data
+
+    def to_state(self, serializer=None): # don't let this be directly serialized
+        raise NotImplementedError(...)
+    # def to_state(self, serializer=None):
+    #     """
+    #     Provides just the state that is needed to
+    #     serialize the object
+    #     :param serializer:
+    #     :type serializer:
+    #     :return:
+    #     :rtype:
+    #     """
+    #     return {
+    #         'polys': serializer.serialize(self.polys),
+    #         'prefactor': self.prefactor
+    #     }
+    # @classmethod
+    # def from_state(cls, state, serializer=None):
+    #     polys = serializer.deserialize(state['polys'])
+    #     prefactor = state['prefactor']
+    #     return cls(
+    #         polys, prefactor=prefactor
+    #     )
 
     def mutate(self, polynomials:'list[PolynomialInterface]'=default,
                prefactor:'Any'=default,
@@ -1168,9 +1225,26 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
             prefactor=self.prefactor if prefactor is default else prefactor,
             reduced=self.reduced if reduced is default else reduced
         )
-    def to_state(self, serializer=None):
+
+    def get_serialization_data(self):
+        data = {}
+        for key, poly in self.terms.items():
+            ProductPTPolynomialSum.populate_storage(data,
+                                                    {
+                                                        'energy_keys':key
+                                                    })
+
+            if isinstance(poly, ProductPTPolynomialSum):
+                poly_data = poly.get_serialization_data()
+                ProductPTPolynomialSum.populate_storage(data, poly_data)
+            else:
+                raise NotImplementedError(...)
+        ProductPTPolynomialSum.flatten_storage(data)
+        return data
+    def to_state(self, serializer=None):# don't let this be directly serialized
+        raise NotImplementedError(...)
         return {
-            'terms': [[k, serializer.serialize(v)] for k,v in self.terms.items()],
+            'term_data': self.get_serialization_data(),
             'prefactor': self.prefactor
         }
     @classmethod
@@ -1633,9 +1707,42 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
             inds_map=self._inds_map if inds_map is default else inds_map
         )
 
-    def to_state(self, serializer=None):
+    def get_serialization_data(self):
+        # We structure this as efficiently as we can
+        # where we group terms by their number of coordinates
+        # and then within each of those blocks
+        term_blocks = {}
+        for key,poly in self.terms.items():
+            num_coords = len(self.get_inds(key))
+            if num_coords not in term_blocks:
+                term_blocks[num_coords] = {}
+            data = term_blocks[num_coords]
+
+            ProductPTPolynomialSum.populate_storage(data,
+                                                    {
+                                                        'tensor_keys': key
+                                                    })
+
+            if isinstance(poly, PTEnergyChangeProductSum):
+                sub_data = poly.get_serialization_data()
+                ProductPTPolynomialSum.populate_storage(data, sub_data)
+            else:
+                if not isinstance(poly, ProductPTPolynomialSum):
+                    poly = ProductPTPolynomialSum([poly])
+                sub_data = poly.get_serialization_data()
+                raise Exception(sub_data)
+                ProductPTPolynomialSum.populate_storage(data, {'energy_keys':((-100,)*len(poly.polys),)})
+                ProductPTPolynomialSum.populate_storage(data, sub_data)
+
+        for num_coords, data in term_blocks.items():
+            ProductPTPolynomialSum.flatten_storage(data)
+
+        return term_blocks
+
+    def to_state(self, serializer=None): # don't let this be directly serialized
+        raise NotImplementedError(...)
         return {
-            'terms': [[k, serializer.serialize(v)] for k,v in self.terms.items()],
+            'term_data': self.get_serialization_data(),
             'prefactor': self.prefactor
         }
     @classmethod
@@ -2571,8 +2678,15 @@ class SqrtChangePoly(PolynomialInterface):
         )
 
     def to_state(self, serializer=None):
+        # if not isinstance(self.poly_obj, (PTTensorCoeffProductSum, PTEnergyChangeProductSum)):
+        #     poly_data = self.poly_obj.get_serialization_data()
+        # else:
+        #     poly_data = self.poly_obj
+        # print(
+        #     self.poly_obj.get_serialization_data()
+        # )
         return {
-            'poly': serializer.serialize(self.poly_obj),
+            'poly': serializer.serialize(self.poly_obj.get_serialization_data()),
             'change': list(self.poly_change),
             'shift': list(self.shift_start)
         }
@@ -3100,8 +3214,8 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
         )
 
     simplify_by_default = True
-
-    def get_poly_terms(self, changes, simplify=None, shift=None, use_cache=True) -> 'SqrtChangePoly':
+    caching_enabled = True
+    def get_poly_terms(self, changes, simplify=None, shift=None) -> 'SqrtChangePoly':
         if any(c == 0 for c in changes): raise ValueError(...)
 
         if simplify is None: simplify = self.simplify_by_default
@@ -3122,29 +3236,29 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                     if nput.is_numeric(subterms): return subterms
 
                     start = time.time()
-                    if use_cache:
-                        with self.checkpoint as chk:
-                            key = self.serializer_key
-                            substr = "<"+str(changes).replace("(", "").replace(")", "").replace(",", "|")+">"
-                            try:
-                                if key is None:
-                                    terms = None
-                                else:
-                                    terms = chk[key, substr]
-                            except KeyError:
+                    if self.caching_enabled:
+                        chk = self.checkpoint
+                        key = self.serializer_key
+                        substr = "<"+str(changes).replace("(", "").replace(")", "").replace(",", "|")+">"
+                        try:
+                            if key is None:
                                 terms = None
-                            if terms is None:
-                                terms = self.get_core_poly(changes, shift=None)
-                                if simplify and not nput.is_zero(terms):
-                                    terms = terms.combine()  # .sort()
-                                self.changes[changes] = terms
-                                if key is not None:
-                                    # try:
-                                    #     base = chk[key]
-                                    # except KeyError:
-                                    #     base = {}
-                                    # base[substr] = terms
-                                    chk[key, substr] = terms
+                            else:
+                                terms = chk[key, substr]
+                        except KeyError:
+                            terms = None
+                        if terms is None:
+                            terms = self.get_core_poly(changes, shift=None)
+                            if simplify and not nput.is_zero(terms):
+                                terms = terms.combine()  # .sort()
+                            self.changes[changes] = terms
+                            if key is not None:
+                                # try:
+                                #     base = chk[key]
+                                # except KeyError:
+                                #     base = {}
+                                # base[substr] = terms
+                                chk[key, substr] = terms
                     else:
                         terms = self.get_core_poly(changes, shift=None)
                         if simplify and not nput.is_zero(terms):
@@ -3196,39 +3310,41 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
 
         return terms
 
-    def __call__(self, changes, shift=None, coeffs=None, freqs=None, check_sorting=True, simplify=None, return_evaluator=True):
+    def __call__(self, changes, shift=None, coeffs=None, freqs=None,
+                 check_sorting=True, simplify=None, return_evaluator=True):
         with self.logger.block(tag="Building evaluator {}[{}]".format(self, changes, id(self))):
-            if coeffs is not None:
-                raise NotImplementedError(...)
-            if freqs is not None:
-                raise NotImplementedError(...)
-            perm = None
-            if check_sorting:
-                perm = self.change_sort(np.asanyarray(changes))
-                changes = tuple(changes[p] for p in perm)
-            change_key = changes if (shift is None or all(s==0 for s in shift)) else (changes, shift)
-            terms = self.changes.get(change_key, None)
-            start = time.time()
-            if not isinstance(terms, SqrtChangePoly):
-                if not nput.is_numeric(terms):
-                    terms = self.changes.get(changes, 0)
-                    if not (isinstance(terms, SqrtChangePoly) or nput.is_numeric(terms)):
-                        terms = self.get_poly_terms(changes, shift=None)
-                        if simplify and not nput.is_zero(terms):
-                            terms = terms.combine()#.sort()
-                        self.changes[changes] = terms
-                    if shift is not None:
-                        raise NotImplementedError("reshifting not supported yet...")
-                        self.changes[change_key] = terms
-            if perm is not None and not nput.is_numeric(terms):
-                terms = terms.permute(np.argsort(perm))
-            end = time.time()
-            # self.logger.log_print('terms: {t}', t=terms)
-            self.logger.log_print('took {e:.3f}s', e=end - start)
-            if return_evaluator:
-                return PerturbationTheoryExpressionEvaluator(self, terms, changes, logger=self.logger)
-            else:
-                return terms
+            with self.checkpoint: # Open once
+                if coeffs is not None:
+                    raise NotImplementedError(...)
+                if freqs is not None:
+                    raise NotImplementedError(...)
+                perm = None
+                if check_sorting:
+                    perm = self.change_sort(np.asanyarray(changes))
+                    changes = tuple(changes[p] for p in perm)
+                change_key = changes if (shift is None or all(s==0 for s in shift)) else (changes, shift)
+                terms = self.changes.get(change_key, None)
+                start = time.time()
+                if not isinstance(terms, SqrtChangePoly):
+                    if not nput.is_numeric(terms):
+                        terms = self.changes.get(changes, 0)
+                        if not (isinstance(terms, SqrtChangePoly) or nput.is_numeric(terms)):
+                            terms = self.get_poly_terms(changes, shift=None)
+                            if simplify and not nput.is_zero(terms):
+                                terms = terms.combine()#.sort()
+                            self.changes[changes] = terms
+                        if shift is not None:
+                            raise NotImplementedError("reshifting not supported yet...")
+                            self.changes[change_key] = terms
+                if perm is not None and not nput.is_numeric(terms):
+                    terms = terms.permute(np.argsort(perm))
+                end = time.time()
+                # self.logger.log_print('terms: {t}', t=terms)
+                self.logger.log_print('took {e:.3f}s', e=end - start)
+                if return_evaluator:
+                    return PerturbationTheoryExpressionEvaluator(self, terms, changes, logger=self.logger)
+                else:
+                    return terms
 
 class OperatorExpansionTerm(PerturbationTheoryTerm):
     def __init__(self, terms, order=None, identities=None, symmetrizers=None, allowed_terms=None, **opts):
