@@ -62,15 +62,23 @@ class VPT2Tests(TestCase):
         # states = [[0, 0], [1, 0]]#, [0, 1], [2, 0], [0, 2], [1, 1]]
         # mode_selection = [0, 1]
 
+        # with Checkpointer.from_file(os.path.expanduser("~/Desktop/exprs.hdf5")) as chk:
+        #     try:
+        #         wat = chk['a']
+        #     except KeyError:
+        #         chk['a'] = np.random.rand(1, 10, 10)
+        #
+        # with Checkpointer.from_file(os.path.expanduser("~/Desktop/exprs.hdf5")) as chk:
+        #     print(chk['a'])
+        #
+        # raise Exception(...)
+
         driver = AnalyticVPTRunner.from_file(
             TestManager.test_data(file_name),
             mode_selection=mode_selection,
             internals=internals,
-            logger=True,
-            expansion_order = {
-                'coriolis':0,
-                'pseudopotential':0
-            }
+            logger=True
+            # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5")
         )
 
         # raise Exception(
@@ -92,6 +100,28 @@ class VPT2Tests(TestCase):
         #     zero_element_warning=False,
         #     # dipole_terms=dips
         # )
+
+        hammy = driver.get_reexpressed_hamiltonian(
+            [
+                [0, 0, 0],
+                [0, 0, 1],
+                [0, 1, 0],
+                [2, 0, 0]
+            ],
+            order=2,
+            return_orders=True,
+            degenerate_states=[
+                [[2, 0, 0], [0, 0, 1]],
+                [[2, 0, 0], [0, 1, 0]],
+            ],
+            only_degenerate_terms=True
+        )
+
+        for h in hammy:
+            print(h)
+            print("-" * 30)
+        raise Exception(...)
+
         zpe, freqs = driver.get_freqs(
             states,
             # axes=[2],
@@ -199,7 +229,11 @@ class VPT2Tests(TestCase):
 
         runner, states = AnalyticVPTRunner.construct(
             TestManager.test_data(file_name),
-            2,
+            [
+                [0, 0, 0, 0],
+                [2, 0, 0, 0]
+            ],
+            # 2,
             # [
             #     [0, 0, 0, 0, 0, 0],
             #     [1, 0, 0, 0, 0, 0],
@@ -207,10 +241,10 @@ class VPT2Tests(TestCase):
             #     [1, 0, 0, 0, 0, 1],
             #     [0, 1, 0, 0, 0, 1],
             # ],
-            # mode_selection=[2, 1, 3, 4],
-            mode_selection=[5, 4, 3, 2, 1, 0],
+            mode_selection=[3, 2, 5, 4],
+            # mode_selection=[5, 4, 3, 2, 1, 0],
             # internals=internals,
-            logger=True,
+            # logger=os.path.expanduser("~/Desktop/deriv_expr_debug.txt"),
             mixed_derivative_handling_mode='averaged',
             # expressions_file=os.path.expanduser("~/Desktop/exprs.json")
             # verbose=False,
@@ -223,86 +257,182 @@ class VPT2Tests(TestCase):
             }
         )
 
+        runner.eval.expansions[2][0][:] = 0
+        v3 = runner.eval.expansions[1][0]
+        # for i,j,k in itertools.combinations(range(4), 3):
+        #     if any(x in (i, j, k) for x in [3]):
+        #         for p in itertools.permutations([i,j,k]):
+        #             v3[p] = 0
+
+        # for i,j in itertools.combinations(range(4), 2):
+        #     # if 3 == j:
+        #     for p in itertools.permutations([i,i,j]):
+        #         v3[p] = 0
+        #     for p in itertools.permutations([i,j,j]):
+        #         v3[p] = 0
+        #
+        # for i, in itertools.combinations(range(4), 1):
+        #     # if i > 0:
+        #     v3[i, i, i] = 0
+
         og, _ = runner.construct_classic_runner(
             TestManager.test_data(file_name),
             states,
             mode_selection=np.arange(len(states[0])),
             # internals=internals,
             zero_element_warning=False,
+
             # dipole_terms=dips,
-            logger=False
+            logger=True
             # degeneracy_specs='auto'
             # dipole_terms=dips
         )
 
-        # wfns = og.get_wavefunctions()
-        # corrs = runner.eval.get_full_wavefunction_corrections(
+        # spec = runner.get_freqs(
         #     states,
-        #     order=2,
         #     verbose=False
         # )
-        # # corrs = runner.eval.get_overlap_corrections(states, order=2, verbose=False)
-        # print(wfns.corrs.wfn_corrections[1].todense()[:, :len(states)])
-        # print(wfns.corrs.wfn_corrections[2].todense()[:, :len(states)])
+        # og.print_tables(print_intensities=False)
+        # print(spec[0])
+        # print(spec[1])
+        # raise Exception(...)
+
+        # wfns = og.get_wavefunctions()
+        # corrs = runner.eval.get_full_wavefunction_corrections(
+        #     [
+        #         [states[0], [states[1]]],
+        #         [states[1], [states[0]]]
+        #     ],
+        #     order=2,
+        #     verbose=True
+        # )
+        # # corrs = runner.eval.get_overlap_corrections(states, order=2, verbose=True)
+        # print(wfns.corrs.wfn_corrections[1].todense())#[:, :7])
+        # print(wfns.corrs.wfn_corrections[2].todense())#[:, :7])
         # with np.printoptions(precision=None):
         #     # print(corrs.final_states[0])
-        #     # print(corrs.corrections[0])
-        #     print(corrs)
+        #     print([c[2] for c in corrs.corrections])
         # raise Exception(...)
 
-        # corr_list = [
-        #     runner.get_transition_moment_corrections(
-        #         states[1:2],
-        #         axes=[2],
-        #         dipole_expansion=dips,
-        #         terms=[t],
-        #         verbose=True
-        #     )[0].corrections[0]
-        #     for t in [
-        #         # (0, 1, 1),
-        #         # (0, 0, 2),
-        #         # (1, 1, 0),
-        #         # (1, 0, 1),
-        #         (2, 0, 0)
-        #     ]
-        # ]
-        # og.print_tables(print_intensities=False)
-        # print(*[c[0, 2] for c in corr_list])
+        # wfns = og.get_wavefunctions()
+        # subhams = wfns.corrs.get_transformed_Hamiltonians(og.get_solver().representations)
+        #
+        # print(wfns.energies * 219475.6)
+        # for s in subhams:
+        #     print(s * 219475.6)
+        #
         # raise Exception(...)
 
-        hammy = runner.get_reexpressed_hamiltonian(states,
-                                                   order=2,
-                                                   return_orders=True,
-                                                   degenerate_states=[
-                                                       [[0, 1, 0, 0, 0, 0], [0, 0, 0, 2, 0, 0]],
-                                                       [[0, 1, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0]],
-                                                       [[0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 2, 0]],
-                                                       [[0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 2]],
-                                                   ]
-                                                   )
+
+        # wfns = og.get_wavefunctions()
+
+        # diag_ham = [np.diag(runner.eval.freqs)]
+        # exps = runner.eval._prep_operator_expansion(None, diag_ham)
+
+        # simple_thing_2 = runner.eval.get_state_by_state_corrections(
+        #     runner.eval.solver.reexpressed_hamiltonian,
+        #     [[states[0], [states[1]]]],
+        #     # degenerate_states=[
+        #     #     [[0, 1, 0, 0], [0, 0, 0, 2]],
+        #     #     [[0, 1, 0, 0], [0, 0, 2, 0]]
+        #     # ],
+        #     # terms=[(2, 0, 0)],
+        #     only_degenerate_terms=False,
+        #     verbose=False,
+        #     order=2, expansions=exps,
+        #     log_scaled=True
+        # )
+
+
+        # subhams = wfns.corrs.get_transformed_Hamiltonians(og.get_solver().representations)
+
+        # simple_thing_1 = runner.eval.get_state_by_state_corrections(
+        #     runner.eval.solver.reexpressed_hamiltonian,
+        #     [[[0, 0, 0, 0], [[0, 0, 0, 2], [0, 0, 2, 0]]]],
+        #     # degenerate_states=[
+        #     #     [[0, 1, 0, 0], [0, 0, 0, 2]],
+        #     #     [[0, 1, 0, 0], [0, 0, 2, 0]]
+        #     # ],
+        #     only_degenerate_terms=True,
+        #     verbose=True,
+        #     order=2, expansions=exps,
+        #     log_scaled=True
+        # )
+        #
+        # print(simple_thing_1.corrections[0][2] * 219475.6)
+        # print(simple_thing_2.corrections[0][2] * 219475.6)
+        # raise Exception(...)
+
+        states, hammy = runner.get_reexpressed_hamiltonian(
+            [
+                [0, 0, 0, 0],
+                [0, 0, 0, 1],
+                [0, 2, 0, 0],
+                [2, 0, 0, 0]
+            ],
+            degenerate_states=[
+                [[0, 0, 0, 1], [0, 2, 0, 0]],
+                [[0, 0, 0, 1], [2, 0, 0, 0]]
+            ],
+            order=2,
+            # terms=[
+            #     (1, 1, 0), (0, 1, 1)
+            # ],
+            verbose=False,
+            return_orders=True,
+            only_degenerate_terms=True
+        )
+        states, hammy_2 = runner.get_reexpressed_hamiltonian(
+            [
+                [0, 0, 0, 0],
+                [0, 0, 0, 1],
+                [0, 2, 0, 0],
+                [2, 0, 0, 0]
+            ],
+            degenerate_states=[
+                [[0, 0, 0, 1], [0, 2, 0, 0]],
+                [[0, 0, 0, 1], [2, 0, 0, 0]]
+            ],
+            order=2,
+            # terms=[
+            #     (1, 1, 0), (0, 1, 1)
+            # ],
+            verbose=False,
+            return_orders=True,
+            only_degenerate_terms=False
+        )
+
+        print("="*20)
         for h in hammy:
             print(h)
             print("-"*30)
+
+        print("="*20)
+        for h in hammy_2:
+            print(h)
+            print("-"*30)
+
         raise Exception(...)
         #
-        spec = runner.get_freqs(states,
-                                order=2,
-                                degenerate_states=[
-                                    # [[1, 0, 0, 0, 0, 0], [0, 0, 0, 2, 0, 0]],
-                                    # [[1, 0, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0]],
-                                    # [[1, 0, 0, 0, 0, 0], [0, 2, 0, 0, 0, 0]],
-                                    # [[1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 2, 0]],
-                                    # [[1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 2]],
-                                    # [[1, 0, 0, 0, 0, 0], [2, 0, 0, 0, 0, 0]],
-
-                                    [[0, 1, 0, 0, 0, 0], [0, 0, 0, 2, 0, 0]],
-                                    [[0, 1, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0]],
-                                    # [[0, 1, 0, 0, 0, 0], [0, 2, 0, 0, 0, 0]],
-                                    [[0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 2, 0]],
-                                    [[0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 2]],
-                                    # [[0, 1, 0, 0, 0, 0], [2, 0, 0, 0, 0, 0]]
-                                ],
-                                verbose=False)
+        spec = runner.get_freqs(
+            [
+                [0, 0, 0, 0, 0, 0],
+                [0, 1, 0, 0, 0, 0],
+                [0, 2, 0, 0, 0, 0],
+                [0, 0, 0, 2, 0, 0],
+                [0, 0, 2, 0, 0, 0],
+                [0, 2, 0, 0, 0, 0],
+                [2, 0, 0, 0, 0, 0]
+            ],
+            degenerate_states=[
+                [[0, 1, 0, 0, 0, 0], [0, 0, 0, 2, 0, 0]],
+                [[0, 1, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0]],
+                [[0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 2, 0]],
+                [[0, 1, 0, 0, 0, 0], [0, 0, 0, 0, 0, 2]],
+                [[0, 1, 0, 0, 0, 0], [2, 0, 0, 0, 0, 0]]
+            ],
+            verbose=False
+        )
         # og.print_tables(print_intensities=True)
         print(spec[0])
         print(spec[1])

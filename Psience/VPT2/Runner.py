@@ -2385,6 +2385,7 @@ class AnalyticVPTRunner:
                   allowed_coefficients=None,
                   disallowed_coefficients=None,
                   allowed_energy_changes=None,
+                  expressions_file=None,
                   **settings):
         runner, _ = VPTRunner.construct(
             file_name,
@@ -2397,6 +2398,7 @@ class AnalyticVPTRunner:
         return cls.from_hamiltonian(
             runner.hamiltonian,
             opts.get('order', order),
+            checkpoint=expressions_file,
             expansion_order=opts.get('expansion_order', None),
             allowed_terms=allowed_terms,
             allowed_coefficients=allowed_coefficients,
@@ -2497,15 +2499,19 @@ class AnalyticVPTRunner:
         freqs = (engs[1:] - engs[0])
         return engs[0], freqs
 
-    def get_reexpressed_hamiltonian(self, states, order=None, degenerate_states=None, verbose=False,
-                                    return_orders=False):
+    def get_reexpressed_hamiltonian(self, states, order=None,
+                                    degenerate_states=None, only_degenerate_terms=True,
+                                    verbose=False, return_orders=False, **opts):
         state_space = VPTStateSpace(states)
         ham_corrs = self.eval.get_reexpressed_hamiltonian(
             state_space.state_list,
             order=order,
-            degenerate_states=degenerate_states, verbose=verbose
+            degenerate_states=degenerate_states,
+            only_degenerate_terms=only_degenerate_terms,
+            verbose=verbose, **opts
         )
 
+        og_basis = BasisStateSpace(ham_corrs.initial_states.basis, state_space.state_list)
         # print([hc.shape for hc in ham_corrs.corrections])
         flat_basis = ham_corrs.initial_states
         for fblock in ham_corrs.final_states:
@@ -2524,14 +2530,16 @@ class AnalyticVPTRunner:
             for o,c in enumerate(corrs):
                 corr_mats[o][row_idx, col_idx] = c
                 corr_mats[o][col_idx, row_idx] = c
+
+        sorting = flat_basis.find(og_basis)
         corr_mats = [
-            c * UnitsData.convert("Hartrees", "Wavenumbers")
+            c[sorting, :][:, sorting] * UnitsData.convert("Hartrees", "Wavenumbers")
             for c in corr_mats
         ]
         if return_orders:
-            return corr_mats
+            return flat_basis, corr_mats
         else:
-            return sum(corr_mats)
+            return flat_basis, sum(corr_mats)
 
     def get_overlap_corrections(self,
                                      states,
