@@ -1944,32 +1944,19 @@ class NormalModesManager(PropertyManager):
 
             modes = parse["VibrationalModes"]
             freqs = parse["VibrationalData"]["Frequencies"] * UnitsData.convert("Wavenumbers", "Hartrees")
+            rm = parse["VibrationalData"]["ReducedMasses"]
             amu_conv = UnitsData.convert("AtomicMassUnits", "ElectronMass")
-            masses = parse['Real atomic weights'] # * amu_conv
+            masses = parse['Real atomic weights'] * amu_conv
 
-            # fcs = self.mol.potential_surface.force_constants
+            mass_vec = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten()
+            g12 = np.diag(np.sqrt(mass_vec))
 
-            # sqrt_freqs = np.sign(freqs) * np.sqrt(np.abs(freqs))
+            renorm = np.diag(1/np.sqrt(rm))
+            modes = renorm @ modes
+            inv = g12 @ g12 @ modes.T / np.sqrt(amu_conv)
+            modes = modes / np.sqrt(amu_conv)
 
-            mass_vec = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten() * amu_conv
-            mw_modes = modes * np.sqrt(mass_vec[np.newaxis, :])
-            modes /= np.linalg.norm(mw_modes, axis=1)[:, np.newaxis] # Gaussian applied a bad normalization
-
-            # ud_modes = modes / sqrt_freqs[:, np.newaxis]
-            #
-            # internal_F2 = np.dot(np.dot(ud_modes, fcs), ud_modes.T)
-            #
-            # final_scale = freqs / np.diag(internal_F2)
-            # raise Exception(np.allclose(final_scale, 1))
-            # modes *= final_scale[:, np.newaxis]
-
-            # raise Exception(modes@modes.T)
-            #
-            # modes = modes_conv
-
-            modes = modes.T
-
-            modes = MolecularNormalModes(self.mol, modes, inverse=np.linalg.pinv(modes), freqs=freqs)
+            modes = MolecularNormalModes(self.mol, modes.T, inverse=inv.T, freqs=freqs)
             self._freqs = freqs # important for rephasing to work right...
 
             if rephase:

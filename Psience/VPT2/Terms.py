@@ -264,12 +264,17 @@ class ExpansionTerms:
         self.use_internal_modes = use_internal_modes
         if modes is None:
             modes = molecule.normal_modes.modes
-        self._modes = modes.basis
+        if hasattr(modes, 'basis'):
+            modes = modes.basis
+        if hasattr(modes, 'to_new_modes'):
+            modes = modes.to_new_modes()
+        self._modes = modes#.basis
         if undimensionalize is None:
             undimensionalize = not self._check_internal_modes(clean=False)
         if undimensionalize:
             self.raw_modes = modes
-            modes = self.undimensionalize(self.masses, self._modes)
+            modes = self.modes.make_dimensionless()
+            # modes = self.undimensionalize(self.masses, self._modes)
         else:
             self.raw_modes = None
             modes = self._modes
@@ -371,30 +376,33 @@ class ExpansionTerms:
         #     # cartesian modes
         return self._modes
 
-    def undimensionalize(self, masses, modes):
-        """
-        Removes units from normal modes
-
-        :param masses:
-        :type masses:
-        :param modes:
-        :type modes:
-        :return:
-        :rtype:
-        """
-        L = modes.matrix.T
-        Linv = modes.inverse
-        freqs = modes.freqs
-        freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
-        if self._check_internal_modes(clean=False):
-            conv = freq_conv
-        else:
-            mass_conv = np.sqrt(np.broadcast_to(self._tripmass(masses)[np.newaxis, :], L.shape))
-            conv = freq_conv * mass_conv
-        L = L * conv
-        Linv = Linv / conv
-        modes = type(modes)(self.molecule, L.T, inverse=Linv, freqs=freqs)
-        return modes
+    # def undimensionalize(self, masses, modes):
+    #     """
+    #     Removes units from normal modes
+    #
+    #     :param masses:
+    #     :type masses:
+    #     :param modes:
+    #     :type modes:
+    #     :return:
+    #     :rtype:
+    #     """
+    #     L = modes.matrix.T
+    #     Linv = modes.inverse
+    #
+    #     freqs = modes.freqs
+    #     freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
+    #     if self._check_internal_modes(clean=False):
+    #         conv = freq_conv
+    #         inv_conv = 1 / freq_conv
+    #     else:
+    #         mass_conv = np.sqrt(np.broadcast_to(self._tripmass(masses)[np.newaxis, :], L.shape))
+    #         conv = freq_conv * mass_conv
+    #         inv_conv = 1 / freq_conv
+    #     L = L * conv
+    #     Linv = Linv / conv
+    #     modes = type(modes)(self.molecule, L.T, inverse=Linv, freqs=freqs)
+    #     return modes
 
     def _tripmass(self, masses):
         if self.strip_dummies:

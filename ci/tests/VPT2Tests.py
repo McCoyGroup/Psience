@@ -227,21 +227,20 @@ class VPT2Tests(TestCase):
         #     mixed_derivative_handling_mode='averaged'
         # )
 
-        wtf = VPTRunner.run_simple(
-            # os.path.expanduser("~/Desktop/i_doh.fchk"),
-            TestManager.test_data('HOH_freq.fchk'),
-            2,
-            # internals=VPTRunner.helpers.parse_zmatrix(os.path.expanduser("~/Desktop/z_mat.dat")),
-            # degeneracy_specs = {
-            #     'wfc_threshold': .1,
-            # },
-            # initial_states=[
-            #     [0, 0, 0, 0, 0, 0],  # ground state
-            #     [0, 0, 0, 0, 1, 0]  # whichever excited states you're interested in
-            # ]
-        )
-
-        raise Exception(...)
+        # wtf = VPTRunner.run_simple(
+        #     # TestManager.test_data("HOH_freq.fchk"),
+        #     os.path.expanduser("~/Desktop/i_doh.fchk"),
+        #     2,
+        #     internals=VPTRunner.helpers.parse_zmatrix(os.path.expanduser("~/Desktop/z_mat.dat")),
+        #     mixed_derivative_handling_mode='numerical',
+        #     degeneracy_specs={
+        #         'wfc_threshold': .1,
+        #     },
+        #     initial_states=[
+        #         [0, 0, 0, 0, 0, 0],  # ground state
+        #         [0, 0, 0, 0, 1, 0]  # whichever excited states you're interested in
+        #     ]
+        # )
 
         runner, states = AnalyticVPTRunner.construct(
             TestManager.test_data(file_name),

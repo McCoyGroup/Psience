@@ -1234,11 +1234,10 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
                                                         'energy_keys':key
                                                     })
 
-            if isinstance(poly, ProductPTPolynomialSum):
-                poly_data = poly.get_serialization_data()
-                ProductPTPolynomialSum.populate_storage(data, poly_data)
-            else:
-                raise NotImplementedError(...)
+            if not isinstance(poly, ProductPTPolynomialSum):
+                poly = ProductPTPolynomialSum([poly])
+            poly_data = poly.get_serialization_data()
+            ProductPTPolynomialSum.populate_storage(data, poly_data)
         ProductPTPolynomialSum.flatten_storage(data)
         return data
     def to_state(self, serializer=None):# don't let this be directly serialized
@@ -1730,14 +1729,16 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                 if not isinstance(poly, ProductPTPolynomialSum):
                     poly = ProductPTPolynomialSum([poly])
                 sub_data = poly.get_serialization_data()
-                raise Exception(sub_data)
                 ProductPTPolynomialSum.populate_storage(data, {'energy_keys':((-100,)*len(poly.polys),)})
                 ProductPTPolynomialSum.populate_storage(data, sub_data)
 
+        new_key_blocks = {}
         for num_coords, data in term_blocks.items():
             ProductPTPolynomialSum.flatten_storage(data)
+            new_key = 'terms_{}'.format(num_coords)
+            new_key_blocks[new_key] = data
 
-        return term_blocks
+        return new_key_blocks
 
     def to_state(self, serializer=None): # don't let this be directly serialized
         raise NotImplementedError(...)
@@ -1746,7 +1747,8 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
             'prefactor': self.prefactor
         }
     @classmethod
-    def from_state(cls, state, serializer=None):
+    def from_state(cls, state, serializer=None): # don't let this be directly serialized
+        raise NotImplementedError(...)
         terms = {
             tuple(tuple(k) for k in key):p
             for key,p in serializer.deserialize(state['terms'])
@@ -2686,14 +2688,21 @@ class SqrtChangePoly(PolynomialInterface):
         #     self.poly_obj.get_serialization_data()
         # )
         return {
-            'poly': serializer.serialize(self.poly_obj.get_serialization_data()),
+            'poly_data': serializer.serialize(self.poly_obj.get_serialization_data()),
             'change': list(self.poly_change),
             'shift': list(self.shift_start)
         }
+
+    @classmethod
+    def reconstruct_poly_tree(cls, poly_dict):
+        raise Exception(poly_dict)
+
     @classmethod
     def from_state(cls, state, serializer=None):
+        big_dict = serializer.deserialize(state['poly'])
+        poly = cls.reconstruct_poly_tree(big_dict)
         return cls(
-            serializer.deserialize(state['poly']),
+            poly,
             state['change'],
             state['shift'],
             canonicalize=False
