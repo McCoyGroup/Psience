@@ -2344,7 +2344,7 @@ class AnalyticVPTRunner:
                   allowed_coefficients=None,
                   disallowed_coefficients=None,
                   allowed_energy_changes=None,
-                  mixed_derivative_handling_mode='averaged',
+                  mixed_derivative_handling_mode='analytical',
                   **settings
                   ):
 
@@ -2594,7 +2594,6 @@ class AnalyticVPTRunner:
                     order = self.expansion_order.get('dipole', None)
             dipole_expansion = self.ham.dipole_terms.get_terms(order)
 
-
         if axes is None: axes = [0, 1, 2]
         corrs = self.get_operator_corrections(
             [
@@ -2612,7 +2611,8 @@ class AnalyticVPTRunner:
                      degenerate_states=None,
                      axes=None,
                      terms=None,
-                     verbose=False):
+                     verbose=False,
+                     return_corrections=False):
         """
 
         :param states:
@@ -2630,29 +2630,40 @@ class AnalyticVPTRunner:
         #     freqs1 * UnitsData.convert("Hartrees", "Wavenumbers")
         # )
 
+        if energy_order is None: energy_order = order
+
         all_gs = nput.is_numeric(states[0][0])
         base_corrs = self.get_transition_moment_corrections(states,
                                                             axes=axes,
                                                             dipole_expansion=dipole_expansion,
                                                             degenerate_states=degenerate_states,
                                                             order=order, terms=terms, verbose=verbose)
-        if energy_order is None: energy_order = order
+
+        all_states = base_corrs[0].initial_states
+        for fstates in base_corrs[0].final_states:
+            all_states = all_states.union(fstates)
+        all_ecorrs = self.get_energy_corrections(all_states, order=energy_order,
+                                                    degenerate_states=degenerate_states, verbose=verbose)
+        all_engs = np.sum(all_ecorrs, axis=0)
         specs = []
-        for n,initial_state in enumerate(base_corrs[0].initial_states):
-            all_state = np.concatenate([[initial_state], base_corrs[0].final_states[n]], axis=0)
-            engs = np.sum(self.get_energy_corrections(all_state, order=energy_order,
-                                                      degenerate_states=degenerate_states, verbose=verbose), axis=0)
-            freqs = (engs[1:] - engs[0])
-            tmoms = np.sum([np.sum(corr.corrections[n], axis=1)**2 for corr in base_corrs], axis=0)
+        for n in range(len(base_corrs[0].initial_states)):
+            initial_state = base_corrs[0].initial_states.take_states([n])
+            gs_eng = all_engs[all_states.find(initial_state)[0]]
+            es_eng = all_engs[all_states.find(base_corrs[0].final_states[n])]
+            freqs = (es_eng - gs_eng)
+            tmoms = np.sum([np.sum(corr.corrections[n], axis=0)**2 for corr in base_corrs], axis=0)
             # print(tmoms.shape, freqs.shape)
             ints = freqs * tmoms
-            specs.append([
+            specs.append(np.array([
                 freqs * UnitsData.convert("Hartrees", "Wavenumbers"),
                 ints * UnitsData.convert("OscillatorStrength", "KilometersPerMole")
-            ])
+            ]))
         if all_gs: specs = specs[0]
 
-        return specs
+        if return_corrections:
+            return specs, (all_states, all_ecorrs, base_corrs)
+        else:
+            return specs
 
     @classmethod
     def run_simple(cls,
@@ -2665,17 +2676,33 @@ class AnalyticVPTRunner:
                    verbose=False,
                    return_runner=False,
                    return_states=False,
+                   return_corrections=False,
+                   degenerate_states=None,
                    **opts
                    ):
 
         runner, states = cls.construct(system, states, **opts)
 
+        corrs = None
         if calculate_intensities:
-            spec_data = runner.get_spectrum(states, verbose=verbose)
+            spec_data = runner.get_spectrum(states,
+                                            return_corrections=return_corrections,
+                                            degenerate_states=degenerate_states,
+                                            verbose=verbose
+                                            )
+            if return_corrections:
+                spec_data, corrs = spec_data
         else:
+            spec_data = runner.get_freqs(states,
+                                         return_corrections=return_corrections,
+                                         degenerate_states=degenerate_states,
+                                         verbose=verbose
+                                         )
+            if return_corrections:
+                spec_data, corrs = spec_data
             spec_data = [
                 f * UnitsData.convert("Hartrees", "Wavenumbers")
-                for f in runner.get_freqs(states, verbose=verbose)
+                for f in spec_data
             ]
 
         res = []
@@ -2684,6 +2711,8 @@ class AnalyticVPTRunner:
         if return_states:
             res.append(states)
         res.append(spec_data)
+        if return_corrections:
+            res.append(corrs)
 
         if len(res) == 1:
             return res[0]

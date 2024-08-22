@@ -214,7 +214,7 @@ class VPT2Tests(TestCase):
         #     print(corrs)
         # raise Exception(...)
 
-    @validationTest
+    @debugTest
     def test_AnalyticOCHH(self):
 
         file_name = "OCHH_freq.fchk"
@@ -241,6 +241,54 @@ class VPT2Tests(TestCase):
         #         [0, 0, 0, 0, 1, 0]  # whichever excited states you're interested in
         #     ]
         # )
+
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     [
+        #         [0, 0, 0, 0, 0, 0],
+        #         [0, 0, 0, 0, 0, 1],
+        #         [0, 0, 0, 0, 1, 0],
+        #         [0, 0, 1, 1, 0, 0],
+        #         [0, 1, 0, 1, 0, 0],
+        #         [0, 1, 1, 0, 0, 0]
+        #     ],
+        #     degeneracy_specs= [
+        #         [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+        #     ]
+        # )
+
+        runner, spec, corrs = AnalyticVPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 1],
+                [0, 1, 0, 1, 0, 0]
+            ],
+            1,
+            return_corrections=True,
+            expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+            # degenerate_states=[
+            #     [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+            # ],
+            return_runner=True
+        )
+        print(corrs)
+
+        print(spec.T)
+
+        coupling_ham = runner.get_reexpressed_hamiltonian(
+            [
+                [0, 0, 0, 0, 0, 1],
+                [0, 1, 0, 1, 0, 0]
+            ],
+            degenerate_states=[
+                [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+            ]
+        )
+
+        print(coupling_ham)
+
+        raise Exception(...)
 
         runner, states = AnalyticVPTRunner.construct(
             TestManager.test_data(file_name),
@@ -378,77 +426,77 @@ class VPT2Tests(TestCase):
         # print(simple_thing_2.corrections[0][2] * 219475.6)
         # raise Exception(...)
 
-        states, hammy = runner.get_reexpressed_hamiltonian(
-            [
-                [0, 0, 0, 0],
-                [0, 0, 0, 1],
-                [0, 2, 0, 0],
-                [2, 0, 0, 0]
-            ],
-            degenerate_states=[
-                [[0, 0, 0, 1], [0, 2, 0, 0]],
-                [[0, 0, 0, 1], [2, 0, 0, 0]]
-            ],
-            order=2,
-            # terms=[
-            #     (1, 1, 0), (0, 1, 1)
-            # ],
-            verbose=False,
-            return_orders=True,
-            only_degenerate_terms=True
-        )
-        states, hammy_2 = runner.get_reexpressed_hamiltonian(
-            [
-                [0, 0, 0, 0],
-                [0, 0, 0, 1],
-                [0, 2, 0, 0],
-                [2, 0, 0, 0]
-            ],
-            degenerate_states=[
-                [[0, 0, 0, 1], [0, 2, 0, 0]],
-                [[0, 0, 0, 1], [2, 0, 0, 0]]
-            ],
-            order=2,
-            # terms=[
-            #     (1, 1, 0), (0, 1, 1)
-            # ],
-            verbose=False,
-            return_orders=True,
-            only_degenerate_terms=False
-        )
-
-        print("="*20)
-        for h in hammy:
-            print(h)
-            print("-"*30)
-
-        print("="*20)
-        for h in hammy_2:
-            print(h)
-            print("-"*30)
-
-        raise Exception(...)
+        # states, hammy = runner.get_reexpressed_hamiltonian(
+        #     [
+        #         [0, 0, 0, 0],
+        #         [0, 0, 0, 1],
+        #         [0, 2, 0, 0],
+        #         [2, 0, 0, 0]
+        #     ],
+        #     degenerate_states=[
+        #         [[0, 0, 0, 1], [0, 2, 0, 0]],
+        #         [[0, 0, 0, 1], [2, 0, 0, 0]]
+        #     ],
+        #     order=2,
+        #     # terms=[
+        #     #     (1, 1, 0), (0, 1, 1)
+        #     # ],
+        #     verbose=False,
+        #     return_orders=True,
+        #     only_degenerate_terms=True
+        # )
+        # states, hammy_2 = runner.get_reexpressed_hamiltonian(
+        #     [
+        #         [0, 0, 0, 0],
+        #         [0, 0, 0, 1],
+        #         [0, 2, 0, 0],
+        #         [2, 0, 0, 0]
+        #     ],
+        #     degenerate_states=[
+        #         [[0, 0, 0, 1], [0, 2, 0, 0]],
+        #         [[0, 0, 0, 1], [2, 0, 0, 0]]
+        #     ],
+        #     order=2,
+        #     # terms=[
+        #     #     (1, 1, 0), (0, 1, 1)
+        #     # ],
+        #     verbose=False,
+        #     return_orders=True,
+        #     only_degenerate_terms=False
+        # )
         #
-        spec = runner.get_freqs(
-            [
-                [0, 0, 0, 0],
-                [0, 1, 0, 0],
-                [0, 2, 0, 0],
-                [0, 0, 0, 2],
-                [0, 0, 2, 0],
-                [0, 2, 0, 0],
-                [2, 0, 0, 0]
-            ],
-            degenerate_states=[
-                [[0, 1, 0, 0], [0, 0, 0, 2]],
-                [[0, 1, 0, 0], [2, 0, 0, 0]]
-            ],
-            verbose=False
-        )
-        # og.print_tables(print_intensities=True)
-        print(spec[0])
-        print(spec[1])
-        raise Exception(...)
+        # print("="*20)
+        # for h in hammy:
+        #     print(h)
+        #     print("-"*30)
+        #
+        # print("="*20)
+        # for h in hammy_2:
+        #     print(h)
+        #     print("-"*30)
+        #
+        # raise Exception(...)
+        #
+        # spec = runner.get_freqs(
+        #     [
+        #         [0, 0, 0, 0],
+        #         [0, 1, 0, 0],
+        #         [0, 2, 0, 0],
+        #         [0, 0, 0, 2],
+        #         [0, 0, 2, 0],
+        #         [0, 2, 0, 0],
+        #         [2, 0, 0, 0]
+        #     ],
+        #     degenerate_states=[
+        #         [[0, 1, 0, 0], [0, 0, 0, 2]],
+        #         [[0, 1, 0, 0], [2, 0, 0, 0]]
+        #     ],
+        #     verbose=False
+        # )
+        # # og.print_tables(print_intensities=True)
+        # print(spec[0])
+        # print(spec[1])
+        # raise Exception(...)
 
         # with BlockProfiler(print_options={'show_all':True}):
         spec = runner.get_spectrum(states,
@@ -462,7 +510,7 @@ class VPT2Tests(TestCase):
                                    #     [[1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 2]],
                                    #     [[1, 0, 0, 0, 0, 0], [2, 0, 0, 0, 0, 0]]
                                    # ],
-                                   verbose=True)
+                                   verbose=False)
         # og.print_tables(print_intensities=True)
         print(np.array(spec).T)
         raise Exception(...)
@@ -576,7 +624,7 @@ class VPT2Tests(TestCase):
             spec = runner.get_spectrum(states, verbose=False)
         print(np.array(spec).T)
 
-    @debugTest
+    @validationTest
     def test_SelAnharmAnalytic(self):
 
         file_name = os.path.expanduser("~/Documents/Postdoc/freq_anion.fchk")
@@ -622,7 +670,7 @@ class VPT2Tests(TestCase):
 
         state = VPTStateMaker(108)
         # with BlockProfiler():
-        spec = AnalyticVPTRunner.run_simple(
+        spec, corrs = AnalyticVPTRunner.run_simple(
             file_name,
             [
                 state(),
@@ -636,8 +684,11 @@ class VPT2Tests(TestCase):
             calculate_intensities=True,
             logger=True,
             verbose=False,
-            expressions_file="/Users/Mark/Desktop/exprs.hdf5"
+            expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+            return_corrections=True
         )
+
+        print(corrs)
 
         # print(spec)
         print(np.array(spec).T)
