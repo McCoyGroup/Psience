@@ -214,7 +214,7 @@ class VPT2Tests(TestCase):
         #     print(corrs)
         # raise Exception(...)
 
-    @debugTest
+    @validationTest
     def test_AnalyticOCHH(self):
 
         file_name = "OCHH_freq.fchk"
@@ -266,14 +266,14 @@ class VPT2Tests(TestCase):
             # return_runner=True,
             # return_states=True,
             # calculate_intensities=False
-            expansion_order = {
-                'coriolis':0,
-                'pseudopotential':0
-            }
+            # expansion_order = {
+            #     'coriolis':0,
+            #     'pseudopotential':0
+            # }
         )
 
-        runner.eval.expansions[2][0][:] = 0
-        v3 = runner.eval.expansions[1][0]
+        # runner.eval.expansions[2][0][:] = 0
+        # v3 = runner.eval.expansions[1][0]
         # for i,j,k in itertools.combinations(range(4), 3):
         #     if any(x in (i, j, k) for x in [3]):
         #         for p in itertools.permutations([i,j,k]):
@@ -378,56 +378,56 @@ class VPT2Tests(TestCase):
         # print(simple_thing_2.corrections[0][2] * 219475.6)
         # raise Exception(...)
 
-        # states, hammy = runner.get_reexpressed_hamiltonian(
-        #     [
-        #         [0, 0, 0, 0],
-        #         [0, 0, 0, 1],
-        #         [0, 2, 0, 0],
-        #         [2, 0, 0, 0]
-        #     ],
-        #     degenerate_states=[
-        #         [[0, 0, 0, 1], [0, 2, 0, 0]],
-        #         [[0, 0, 0, 1], [2, 0, 0, 0]]
-        #     ],
-        #     order=2,
-        #     # terms=[
-        #     #     (1, 1, 0), (0, 1, 1)
-        #     # ],
-        #     verbose=False,
-        #     return_orders=True,
-        #     only_degenerate_terms=True
-        # )
-        # states, hammy_2 = runner.get_reexpressed_hamiltonian(
-        #     [
-        #         [0, 0, 0, 0],
-        #         [0, 0, 0, 1],
-        #         [0, 2, 0, 0],
-        #         [2, 0, 0, 0]
-        #     ],
-        #     degenerate_states=[
-        #         [[0, 0, 0, 1], [0, 2, 0, 0]],
-        #         [[0, 0, 0, 1], [2, 0, 0, 0]]
-        #     ],
-        #     order=2,
-        #     # terms=[
-        #     #     (1, 1, 0), (0, 1, 1)
-        #     # ],
-        #     verbose=False,
-        #     return_orders=True,
-        #     only_degenerate_terms=False
-        # )
-        #
-        # print("="*20)
-        # for h in hammy:
-        #     print(h)
-        #     print("-"*30)
-        #
-        # print("="*20)
-        # for h in hammy_2:
-        #     print(h)
-        #     print("-"*30)
-        #
-        # raise Exception(...)
+        states, hammy = runner.get_reexpressed_hamiltonian(
+            [
+                [0, 0, 0, 0],
+                [0, 0, 0, 1],
+                [0, 2, 0, 0],
+                [2, 0, 0, 0]
+            ],
+            degenerate_states=[
+                [[0, 0, 0, 1], [0, 2, 0, 0]],
+                [[0, 0, 0, 1], [2, 0, 0, 0]]
+            ],
+            order=2,
+            # terms=[
+            #     (1, 1, 0), (0, 1, 1)
+            # ],
+            verbose=False,
+            return_orders=True,
+            only_degenerate_terms=True
+        )
+        states, hammy_2 = runner.get_reexpressed_hamiltonian(
+            [
+                [0, 0, 0, 0],
+                [0, 0, 0, 1],
+                [0, 2, 0, 0],
+                [2, 0, 0, 0]
+            ],
+            degenerate_states=[
+                [[0, 0, 0, 1], [0, 2, 0, 0]],
+                [[0, 0, 0, 1], [2, 0, 0, 0]]
+            ],
+            order=2,
+            # terms=[
+            #     (1, 1, 0), (0, 1, 1)
+            # ],
+            verbose=False,
+            return_orders=True,
+            only_degenerate_terms=False
+        )
+
+        print("="*20)
+        for h in hammy:
+            print(h)
+            print("-"*30)
+
+        print("="*20)
+        for h in hammy_2:
+            print(h)
+            print("-"*30)
+
+        raise Exception(...)
         #
         spec = runner.get_freqs(
             [
@@ -576,7 +576,7 @@ class VPT2Tests(TestCase):
             spec = runner.get_spectrum(states, verbose=False)
         print(np.array(spec).T)
 
-    @validationTest
+    @debugTest
     def test_SelAnharmAnalytic(self):
 
         file_name = os.path.expanduser("~/Documents/Postdoc/freq_anion.fchk")
@@ -635,7 +635,8 @@ class VPT2Tests(TestCase):
             dipole_derivatives=dips,
             calculate_intensities=True,
             logger=True,
-            verbose=False
+            verbose=False,
+            expressions_file="/Users/Mark/Desktop/exprs.hdf5"
         )
 
         # print(spec)

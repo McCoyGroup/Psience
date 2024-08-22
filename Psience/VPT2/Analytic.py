@@ -310,8 +310,8 @@ class TreeSerializer:
                 if track_shapes:
                     shapes.extend(shape)
                 flats.append(flat)
-        print("!", iterable, "->", shapes)
-        print(":", flats)
+        # print("!", iterable, "->", shapes)
+        # print(":", flats)
         flats = concat(flats)
         return shapes, flats
 
@@ -364,9 +364,7 @@ class TreeSerializer:
         vals_trees = {}
         tree_shape = None
         for i,(k, v) in enumerate(vals.items()):
-            print("----", v)
             shape, flat = cls.serialize_iterable(v, vals_primitive_test, concat, track_shapes=i == 0)
-            print("   -", shape, flat)
             if tree_shape is None: tree_shape = shape
             vals_trees[k] = flat
 
