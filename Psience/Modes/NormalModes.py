@@ -328,6 +328,7 @@ class NormalModes(MixtureModes):
         Linv = self.inverse
         freqs = self.freqs
         conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
+
         if masses is None:
             masses = self.masses
         if masses is not None:
