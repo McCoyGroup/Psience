@@ -42,6 +42,6 @@ setup(
     # include_package_data=True
     python_requires=">=3.9",
     install_requires=[
-        'mccoygroup-mcutils>=0.1.2.2'
+        'mccoygroup-mcutils>=0.1.2.3'
     ]
 )
