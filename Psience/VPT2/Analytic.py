@@ -290,6 +290,217 @@ class PolyPath:
             self.scaling * other.scaling
         )
 
+class TreeSerializer:
+    @classmethod
+    def serialize_iterable(cls, iterable, primitive_test, concat, track_shapes=True):
+        if not track_shapes:
+            shapes = None
+        else:
+            shapes = []
+        flats = []
+        if primitive_test(iterable[0][0]):
+            if track_shapes:
+                shapes = [len(iterable)] + [len(i) for i in iterable]
+            flats = iterable
+        else:
+            if track_shapes:
+                shapes.append(len(iterable))
+            for obj in iterable:
+                shape, flat = cls.serialize_iterable(obj, primitive_test, concat)
+                if track_shapes:
+                    shapes.extend(shape)
+                flats.append(flat)
+        print("!", iterable, "->", shapes)
+        print(":", flats)
+        flats = concat(flats)
+        return shapes, flats
+
+    @classmethod
+    def build_dict_trees(cls, dict_obj):
+        vals = {}
+        if isinstance(next(iter(dict_obj.values())), dict):
+            keys = [
+                list(dict_obj.keys())
+            ]  # one set of trees per tree depth
+            for obj in dict_obj.values():
+                subkeys, subvals = cls.build_dict_trees(obj)
+                if subkeys is not None:
+                    for d,k in enumerate(subkeys):
+                        if len(keys) <= d+1:
+                            keys.append([])
+                        keys[d+1].append(k)
+                for k,v in subvals.items():
+                    if k not in vals: vals[k] = []
+                    vals[k].append(v)
+        else:
+            keys = None
+            vals = dict_obj
+            # for k,v in dict_obj.items():
+            #     if k not in vals: vals[k] = []
+            #     vals[k].append(v)
+        return keys, vals
+
+    @classmethod
+    def serialize_tree_dict(cls, dict_obj,
+                            key_primitive_test=None, vals_primitive_test=None, concat=None):
+        if key_primitive_test is None: key_primitive_test = cls.default_prim
+        if vals_primitive_test is None: vals_primitive_test = cls.default_prim
+        if concat is None: concat = cls.default_concat
+
+        keys, vals = cls.build_dict_trees(dict_obj)
+
+        # print("!", keys)
+
+        key_trees = []
+        for k in keys:
+            # print("====", k)
+            shape, flat = cls.serialize_iterable(k, key_primitive_test, concat)
+            # print("   =", shape, flat)
+            key_trees.append([shape, flat])
+
+        # print(key_trees)
+        #
+        # print("[", vals)
+        vals_trees = {}
+        tree_shape = None
+        for i,(k, v) in enumerate(vals.items()):
+            print("----", v)
+            shape, flat = cls.serialize_iterable(v, vals_primitive_test, concat, track_shapes=i == 0)
+            print("   -", shape, flat)
+            if tree_shape is None: tree_shape = shape
+            vals_trees[k] = flat
+
+        # print(tree_shape)
+        #
+        # raise Exception(...)
+
+        return key_trees, tree_shape, vals_trees
+
+    @staticmethod
+    def default_concat(arrays):
+        if nput.is_numeric(arrays[0]):
+            return np.asanyarray(arrays)
+        else:
+            if isinstance(arrays[0][0], np.ndarray):
+                max_dim = max(len(y) for x in arrays for y in x)
+                arrays = [
+                    [np.pad(a, [0, max_dim - len(a)]) for a in subarr]
+                    for subarr in arrays
+                ]
+            return np.concatenate(arrays, axis=0)
+
+    @staticmethod
+    def default_prim(obj):
+        return isinstance(obj, (str, np.ndarray)) or nput.is_numeric(obj)
+
+    @classmethod
+    def deserialize_subiterable(cls, shape, flat, i, pad, depth):
+        if depth == 0:
+            block_size = shape[i]
+            if isinstance(flat, dict):
+                return {key:buff[pad:pad+block_size] for key, buff in flat.items()}
+            else:
+                return flat[pad:pad+block_size], i+1, pad + block_size
+        else:
+            tree = []
+            queue = collections.deque([[shape[i], depth-1, tree]])
+            current = i+1
+            while queue:
+                rem, d, stack = queue.pop()
+                # print(":", current, rem, d)
+                if rem > 1:
+                    # more blocks to process, so push back onto queue to be processed later
+                    queue.append([rem-1, d, stack])
+
+                block_size = shape[current]
+                if d == 1:
+                    current += 1
+                    substack = []
+                    for bs in shape[current:current + block_size]:
+                        if isinstance(flat, dict):
+                            substack.append({key:buff[pad:pad+bs] for key, buff in flat.items()})
+                        else:
+                            substack.append(flat[pad:pad+bs])
+                        pad += bs
+                        # consumed += 1
+                    current += block_size
+                    stack.append(substack)
+                    continue
+                subtree = []
+                stack.append(subtree)
+                queue.append([block_size, d-1, subtree])
+                current += 1
+
+            return tree, current, pad
+
+    @classmethod
+    def deserialize_iterable(cls, shape, flat, depth):
+        if depth == 1:
+            trees = []
+            pad = 0
+            current = 1
+            for bs in shape[current:current+shape[0]]:
+                if isinstance(flat, dict):
+                    trees.append({key: buff[pad:pad + bs] for key, buff in flat.items()})
+                else:
+                    trees.append(flat[pad:pad + bs])
+                pad += bs
+        else:
+            nblock = 0
+            pad = 0
+            # max_block = len(shape)
+            # for i in range(max_block): # max possible test
+            trees, nblock, pad = cls.deserialize_subiterable(shape, flat, nblock, pad, depth)
+                # trees.append(subtree)
+                # nblock += 1
+                # if nblock >= max_block - 1:
+                #     break
+            # else:
+            #     raise ValueError("shouldn't be able to directly exhaust this...")
+        return trees
+    @classmethod
+    def _tuplate(cls, key):
+        return tuple(
+            tuple(k) if nput.is_numeric(k[0]) else cls._tuplate(k)
+            for k in key
+        )
+    @classmethod
+    def stitch_dict(cls, iterables):
+        stitched = {}
+        for p in zip(*iterables):
+            if len(p) == 3:
+                k, subkey, v = p
+                new_dict = {}
+                for i,sk in enumerate(subkey):
+                    if isinstance(sk, (list, np.ndarray)): sk = cls._tuplate(sk)
+                    new_dict[sk] = {
+                        vk:vv[i]
+                        for vk, vv in v.items()
+                    }
+                v = new_dict
+            else:
+                k = p[0]
+                v = cls.stitch_dict(p[1:])
+            # if isinstance(k, list): k = k[0]
+            if isinstance(k, (list, np.ndarray)): k = cls._tuplate(k)
+            stitched[k] = v
+        return stitched
+    @classmethod
+    def rebuild_tree_dict(cls, key_trees, tree_shape, val_buffers):
+        # shape = None
+        total_depth = len(key_trees)
+        keys = []
+        for d,(shape, buffer) in enumerate(key_trees):
+            # print(shape, buffer)
+            st = cls.deserialize_iterable(shape, buffer, d+2)
+            keys.append(st)
+            # print("|||", st)
+        # print(tree_shape, val_buffers)
+        vals = cls.deserialize_iterable(tree_shape, val_buffers, total_depth - 1)
+        # print("-->", vals)
+
+        return cls.stitch_dict(keys + [vals])
+
 class ProductPTPolynomial(PolynomialInterface):
     """
     TODO: include prefactor term so we can divide out energy changes
@@ -864,82 +1075,46 @@ class ProductPTPolynomialSum(PolynomialInterface):
         self._order = order
         self._ndim = ndim
 
-    size_key = '_sizes'
-    @classmethod
-    def populate_storage(cls, storage, data):
-        sk = cls.size_key
-        for k,v in data.items():
-            if k != sk:
-                if k not in storage: storage[k] = []
-                if isinstance(v[0], np.ndarray) or nput.is_numeric(v[0]):
-                    storage[k].append(v)
-                else:
-                    if sk not in storage: storage[sk] = {}
-                    sizes = storage[sk]
-                    if k not in sizes: sizes[k] = []
-                    sizes[k].append(len(v))
-                    storage[k].extend(v)
-    @classmethod
-    def flatten_storage(cls, storage):
-        sk = cls.size_key
-        if sk not in storage: storage[sk] = {}
-        sizes = storage[sk]
-        print('?~?', storage)
-        for k,v in storage.items():
-            if k != sk:
-                size_block = []
-                if k in sizes:
-                    sizes[k] = [size_block] + sizes[k]
-                else:
-                    sizes[k] = []
-                if nput.is_numeric(v[0]): #1d
-                    sizes[k] = [len(v)]
-                    storage[k] = np.array(v)
-                elif nput.is_numeric(v[0][0]): #2d
-                    sizes[k] = [len(a) for a in v]
-                    storage[k] = np.concatenate(v, axis=0)
-                else: #3d
-                    sizes[k] = [
-                        [len(a[i]) for a in v]
-                        for i in range(len(v[0]))
-                    ]
-                    storage[k] = [
-                        np.concatenate([a[i] for a in v], axis=0)
-                        for i in range(len(v[0]))
-                    ]
-
-    def get_serialization_data(self):
-        base_data = {
-            'prefactor': [self.prefactor],
-            'steps': [self.polys[0].steps],
-            'prefactors': [p.prefactor for p in self.polys],
-            'coeffs': [p.coeffs for p in self.polys]
+    def prep_serialization_dict(self):
+        return {
+            'shared_prefactor': self.prefactor,
+            'steps': self.polys[0].steps,
+            'ndim': len(self.polys[0].coeffs),
+            'prefactors': np.array([p.prefactor for p in self.polys]),
+            'shapes': np.concatenate([[len(c) for c in p.coeffs] for p in self.polys], axis=0),
+            'coeffs': np.concatenate([np.concatenate(p.coeffs) for p in self.polys])
         }
-        self.flatten_storage(base_data)
-        return base_data
+    @classmethod
+    def from_serialization_dict(cls, big_dict):
+        polys = []
+        coeff_vector = big_dict['coeffs']
+        ndim = big_dict['ndim']
+        shape_vecs = big_dict['shapes']
+        shapes = shape_vecs[shape_vecs > 0].reshape(-1, ndim)
+        steps = big_dict['steps']
+        prefactors = big_dict['prefactors']
+        padding = 0
+        for i,shape in enumerate(shapes):
+            coeffs = []
+            for s in shape:
+                if s > 0:
+                    coeffs.append(coeff_vector[padding:padding+s])
+                padding += s
+            polys.append(
+                ProductPTPolynomial(coeffs, prefactor=prefactors[i], steps=steps)
+            )
+        return cls(polys, prefactor=big_dict['shared_prefactor'])
+
+        # {
+        #     'prefactor': self.prefactor,
+        #     'steps': self.polys[0].steps,
+        #     'prefactors': np.array([p.prefactor for p in self.polys]),
+        #     'shapes': np.array([[len(c) for c in p.coeffs] for p in self.polys]),
+        #     'coeffs': np.concatenate([np.concatenate(p.coeffs) for p in self.polys])
+        # }
 
     def to_state(self, serializer=None): # don't let this be directly serialized
         raise NotImplementedError(...)
-    # def to_state(self, serializer=None):
-    #     """
-    #     Provides just the state that is needed to
-    #     serialize the object
-    #     :param serializer:
-    #     :type serializer:
-    #     :return:
-    #     :rtype:
-    #     """
-    #     return {
-    #         'polys': serializer.serialize(self.polys),
-    #         'prefactor': self.prefactor
-    #     }
-    # @classmethod
-    # def from_state(cls, state, serializer=None):
-    #     polys = serializer.deserialize(state['polys'])
-    #     prefactor = state['prefactor']
-    #     return cls(
-    #         polys, prefactor=prefactor
-    #     )
 
     def mutate(self, polynomials:'list[PolynomialInterface]'=default,
                prefactor:'Any'=default,
@@ -1226,20 +1401,20 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
             reduced=self.reduced if reduced is default else reduced
         )
 
-    def get_serialization_data(self):
-        data = {}
-        for key, poly in self.terms.items():
-            ProductPTPolynomialSum.populate_storage(data,
-                                                    {
-                                                        'energy_keys':key
-                                                    })
+    def prep_serialization_dict(self):
+        new_data = {}
+        for k,p in self.terms.items():
+            if not isinstance(p, ProductPTPolynomialSum):
+                p = ProductPTPolynomialSum([p])
+            new_data[k] = p.prep_serialization_dict()
+        return new_data
+    @classmethod
+    def from_serialization_dict(cls, big_dict):
+        new_terms = {}
+        for k, subdict in big_dict.items():
+            new_terms[k] = ProductPTPolynomialSum.from_serialization_dict(subdict)
+        return cls(new_terms)
 
-            if not isinstance(poly, ProductPTPolynomialSum):
-                poly = ProductPTPolynomialSum([poly])
-            poly_data = poly.get_serialization_data()
-            ProductPTPolynomialSum.populate_storage(data, poly_data)
-        ProductPTPolynomialSum.flatten_storage(data)
-        return data
     def to_state(self, serializer=None):# don't let this be directly serialized
         raise NotImplementedError(...)
         return {
@@ -1706,39 +1881,25 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
             inds_map=self._inds_map if inds_map is default else inds_map
         )
 
-    def get_serialization_data(self):
-        # We structure this as efficiently as we can
-        # where we group terms by their number of coordinates
-        # and then within each of those blocks
-        term_blocks = {}
-        for key,poly in self.terms.items():
-            num_coords = len(self.get_inds(key))
-            if num_coords not in term_blocks:
-                term_blocks[num_coords] = {}
-            data = term_blocks[num_coords]
-
-            ProductPTPolynomialSum.populate_storage(data,
-                                                    {
-                                                        'tensor_keys': key
-                                                    })
-
-            if isinstance(poly, PTEnergyChangeProductSum):
-                sub_data = poly.get_serialization_data()
-                ProductPTPolynomialSum.populate_storage(data, sub_data)
+    def prep_serialization_dict(self):
+        new_data = {}
+        for k, p in self.terms.items():
+            if not isinstance(p, PTEnergyChangeProductSum):
+                p = PTEnergyChangeProductSum({((-100,),):p})
+            new_data[k] = p.prep_serialization_dict()
+        return new_data
+    @classmethod
+    def from_serialization_dict(cls, big_dict):
+        new_terms = {}
+        for k,subdict in big_dict.items():
+            test_key = next(iter(subdict.keys())) if len(subdict) == 1 else None
+            if len(subdict) == 1 and test_key == ((-100,),):
+                vals = next(iter(subdict.values()))
+                poly = ProductPTPolynomialSum.from_serialization_dict(vals)
             else:
-                if not isinstance(poly, ProductPTPolynomialSum):
-                    poly = ProductPTPolynomialSum([poly])
-                sub_data = poly.get_serialization_data()
-                ProductPTPolynomialSum.populate_storage(data, {'energy_keys':((-100,)*len(poly.polys),)})
-                ProductPTPolynomialSum.populate_storage(data, sub_data)
-
-        new_key_blocks = {}
-        for num_coords, data in term_blocks.items():
-            ProductPTPolynomialSum.flatten_storage(data)
-            new_key = 'terms_{}'.format(num_coords)
-            new_key_blocks[new_key] = data
-
-        return new_key_blocks
+                poly = PTEnergyChangeProductSum.from_serialization_dict(subdict)
+            new_terms[k] = poly
+        return cls(new_terms)
 
     def to_state(self, serializer=None): # don't let this be directly serialized
         raise NotImplementedError(...)
@@ -2680,29 +2841,48 @@ class SqrtChangePoly(PolynomialInterface):
         )
 
     def to_state(self, serializer=None):
-        # if not isinstance(self.poly_obj, (PTTensorCoeffProductSum, PTEnergyChangeProductSum)):
-        #     poly_data = self.poly_obj.get_serialization_data()
-        # else:
-        #     poly_data = self.poly_obj
-        # print(
-        #     self.poly_obj.get_serialization_data()
-        # )
+
+        serial_dict = self.poly_obj.prep_serialization_dict()
+
+        ordered_terms = []
+        for k,t in serial_dict.items():
+            ndim = len(PTTensorCoeffProductSum.coeff_product_inds(k))
+            if len(ordered_terms) < ndim:
+                ordered_terms.extend({} for _ in range(ndim - len(ordered_terms)))
+            ordered_terms[ndim-1][k] = t
+        # print(ordered_terms)
+
+
+        poly_trees = []
+        for i,d in enumerate(ordered_terms):
+            if len(d) > 0:
+                # print("=~!~~+~+~", i)
+                poly_trees.append(TreeSerializer.serialize_tree_dict(d))
+            else:
+                poly_trees.append(None)
+
         return {
-            'poly_data': serializer.serialize(self.poly_obj.get_serialization_data()),
+            'term_ordered_trees': poly_trees,
             'change': list(self.poly_change),
             'shift': list(self.shift_start)
         }
 
     @classmethod
-    def reconstruct_poly_tree(cls, poly_dict):
-        raise Exception(poly_dict)
-
-    @classmethod
     def from_state(cls, state, serializer=None):
-        big_dict = serializer.deserialize(state['poly'])
-        poly = cls.reconstruct_poly_tree(big_dict)
+        trees = state['term_ordered_trees']
+        full_dict = {}
+        for subtree_data in trees:
+            if subtree_data is not None:
+                keys, shape, vals = subtree_data
+                # print(keys)
+                deserialized_dict = TreeSerializer.rebuild_tree_dict(keys, shape, vals)
+                for subk, subv in deserialized_dict.items():
+                    full_dict[subk] = subv
+        # print(full_dict)
+        poly_obj = PTTensorCoeffProductSum.from_serialization_dict(full_dict)
+        # print(poly_obj.format_expr())
         return cls(
-            poly,
+            poly_obj,
             state['change'],
             state['shift'],
             canonicalize=False
