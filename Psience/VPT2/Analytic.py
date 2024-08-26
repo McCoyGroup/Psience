@@ -17,6 +17,8 @@ from ..BasisReps import (
     HarmonicOscillatorMatrixGenerator, HarmonicOscillatorRaisingLoweringPolyTerms
 )
 
+from .Corrections import BasicAPTCorrections
+
 __all__ = [
     'PerturbationTheoryEvaluator',
     'AnalyticPerturbationTheorySolver',
@@ -5655,9 +5657,6 @@ class PerturbationTheoryEvaluator:
         changes = nput.vector_take(base_change, np.argsort(perms, axis=1))
         return np.asanyarray(initial)[np.newaxis] + changes
 
-    PTCorrections = collections.namedtuple("PTCorrections",
-                                           ['initial_states', 'final_states', 'corrections']
-                                           )
     def _reformat_corrections(self, order, corrs, change_map, num_expansions):
         # reshape to allow for better manipulation
 
@@ -5731,10 +5730,12 @@ class PerturbationTheoryEvaluator:
         #
 
         if num_expansions is None:
-            all_corrs = self.PTCorrections(total_basis, [BasisStateSpace(basis, f) for f in finals_map], corrs_map)
+            all_corrs = BasicAPTCorrections(total_basis, [BasisStateSpace(basis, f) for f in finals_map], corrs_map)
         else:
+            # currently is initial x order x operator
             all_corrs = [
-                self.PTCorrections(total_basis, [BasisStateSpace(basis, f) for f in finals_map], [c[i] for c in corrs_map])
+                BasicAPTCorrections(total_basis, [BasisStateSpace(basis, f) for f in finals_map],
+                                    [[c[i] for c in ord_block] for ord_block in corrs_map])
                 for i in range(num_expansions)
             ]
 
@@ -5838,7 +5839,7 @@ class PerturbationTheoryEvaluator:
 
     def get_reexpressed_hamiltonian(self, states, order=None, expansions=None, freqs=None,
                                     degenerate_states=None, only_degenerate_terms=True,
-                                    verbose=False, **opts):
+                                    verbose=False, include_diagonal=False, **opts):
         if freqs is None: freqs = self.freqs
         diag_ham = [np.diag(freqs)]
         if expansions is None:
@@ -5859,8 +5860,8 @@ class PerturbationTheoryEvaluator:
         utri_block = nput.is_numeric(states[0][0])
         if utri_block:
             states = [
-                [states[i], states[i:]]
-                for i in range(len(states))
+                [states[i], states[i+(0 if include_diagonal else 1):]]
+                for i in range(len(states) - (0 if include_diagonal else 1))
             ]
 
         return self.get_state_by_state_corrections(self.solver.reexpressed_hamiltonian, states,

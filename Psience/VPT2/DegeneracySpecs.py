@@ -16,6 +16,7 @@ class DegenerateSpaceInputFormat(enum.Enum):
     Groups = "groups"
     QuantaSpecRules = "nT"
     Polyads = "polyads"
+    Pairs = "pairs"
     StrongCouplings = "wfc_threshold"
     EnergyCutoff = "energy_window"
     Callable = "callable"
@@ -173,6 +174,38 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         """
 
         raise NotImplementedError("abstract interface")
+
+    @staticmethod
+    def get_group_polyad_relation(exc):
+        rows, cols = np.triu_indices(len(exc), k=1)
+        diffs = exc[cols] - exc[rows]
+        negs = diffs < 0
+        a = diffs
+        b = np.zeros_like(a)
+        b[negs] = -diffs[negs]
+        a[negs] = 0
+        return np.moveaxis(np.array([a, b]), 0, 1)
+
+    def get_polyad_pairs(self, input_states, solver=None, **kwargs):
+        """
+        :param solver:
+        :type solver:
+        :param input_states:
+        :type input_states:
+        :return:
+        :rtype:
+        """
+        groups = self.get_groups(input_states, solver=solver, **kwargs)
+        return np.unique(
+            np.concatenate(
+                [
+                    self.get_group_polyad_relation(g)
+                    for g in groups
+                ],
+                axis=0
+            ),
+            axis=0
+        )
 
     @classmethod
     @abc.abstractmethod
@@ -593,6 +626,14 @@ class PolyadDegeneracySpec(DegeneracySpec):
                 groups = _
         groups = [g for g in groups if len(g) > 1]
         return groups
+
+    def get_polyad_pairs(self, input_states, solver=None, **kwargs):
+        return [
+            [p1, p2]
+            for polyad in self.polyads
+            for i,p1 in enumerate(polyad)
+            for p2 in polyad[i+1:]
+        ]
 
     @staticmethod
     def _is_polyad_rule(d, n_modes):
@@ -1096,8 +1137,3 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         # raise Exception(arrs)
 
         return cls(arrs)
-
-
-
-
-

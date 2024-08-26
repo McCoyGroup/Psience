@@ -1256,6 +1256,7 @@ class PotentialTerms(ExpansionTerms):
                  modes=None,
                  potential_derivatives=None,
                  mode_selection=None,
+                 full_surface_mode_selection=None,
                  logger=None,
                  parallelizer=None,
                  checkpointer=None,
@@ -1277,6 +1278,8 @@ class PotentialTerms(ExpansionTerms):
         :type mode_selection: None | Iterable[int]
         """
 
+        self.full_modes=full_surface_mode_selection
+
         super().__init__(molecule, modes, mode_selection=mode_selection,
                          logger=logger, parallelizer=parallelizer, checkpointer=checkpointer,
                          **opts
@@ -1297,7 +1300,7 @@ class PotentialTerms(ExpansionTerms):
         if self._v_derivs is None:
             if self._input_derivs is None:
                 self._input_derivs = self.molecule.potential_surface.derivatives
-            self._v_derivs = self._canonicalize_derivs(self.freqs, self.masses, self._input_derivs)
+            self._v_derivs = self._canonicalize_derivs(self.freqs, self.masses, self._input_derivs, self.full_modes)
 
         return self._v_derivs
     @v_derivs.setter
@@ -1313,7 +1316,7 @@ class PotentialTerms(ExpansionTerms):
             if d.shape != (modes_n,) * len(d.shape):
                 return False
         return True
-    def _canonicalize_derivs(self, freqs, masses, derivs):
+    def _canonicalize_derivs(self, freqs, masses, derivs, full_modes):
 
         if self._check_mode_terms(derivs):
             return derivs
@@ -1341,9 +1344,17 @@ class PotentialTerms(ExpansionTerms):
         internals_n = 3 * n - 6
         coord_n = 3 * n
 
+        if len(derivs) > 2 and full_modes is not None and thirds.shape[0] != modes_n:
+            new_thirds = np.zeros((modes_n,) + fcs.shape)
+            new_thirds[full_modes,] = thirds
+            thirds = new_thirds
         if len(derivs) > 2 and self.mode_sel is not None and thirds.shape[0] == self._presel_dim:
             thirds = thirds[(self.mode_sel,)]
 
+        if len(derivs) > 2 and full_modes is not None and fourths.shape[0] != modes_n:
+            new_fourths = np.zeros((modes_n, modes_n) + fcs.shape)
+            new_fourths[np.ix_(full_modes, full_modes)] = fourths
+            fourths = new_fourths
         if len(derivs) > 3 and self.mode_sel is not None and fourths.shape[0] == self._presel_dim:
             if not isinstance(self.mode_sel, slice):
                 fourths = fourths[np.ix_(self.mode_sel, self.mode_sel)]
@@ -2500,6 +2511,7 @@ class DipoleTerms(ExpansionTerms):
                  mixed_derivs=None,
                  modes=None,
                  mode_selection=None,
+                 full_surface_mode_selection=None,
                  logger=None,
                  parallelizer=None,
                  checkpointer=None,
@@ -2516,6 +2528,7 @@ class DipoleTerms(ExpansionTerms):
         :type mode_selection: None | Iterable[int]
         """
         self.derivs = None
+        self.full_modes=full_surface_mode_selection
         super().__init__(molecule, modes=modes, mode_selection=mode_selection,
                          logger=logger, parallelizer=parallelizer, checkpointer=checkpointer,
                          **opts
@@ -2525,9 +2538,9 @@ class DipoleTerms(ExpansionTerms):
             self.mixed_derivs = mixed_derivs
         if dipole_derivatives is None:
             dipole_derivatives = molecule.dipole_surface.derivatives
-        self.derivs = self._canonicalize_derivs(self.freqs, self.masses, dipole_derivatives)
+        self.derivs = self._canonicalize_derivs(self.freqs, self.masses, dipole_derivatives, self.full_modes)
 
-    def _canonicalize_derivs(self, freqs, masses, derivs):
+    def _canonicalize_derivs(self, freqs, masses, derivs, full_modes):
         """
         Makes sure all of the dipole moments are clean and ready to rotate
         """
@@ -2572,9 +2585,17 @@ class DipoleTerms(ExpansionTerms):
         internals_n = 3 * n - 6
         coord_n = 3 * n
 
+        if len(derivs) > 2 and full_modes is not None and seconds.shape[0] != modes_n:
+            new_seconds = np.zeros((modes_n,) + grad.shape)
+            new_seconds[full_modes,] = seconds
+            seconds = new_seconds
         if len(derivs) > 2 and self.mode_sel is not None and seconds.shape[0] == self._presel_dim:
             seconds = seconds[(self.mode_sel,)]
 
+        if len(derivs) > 2 and full_modes is not None and thirds.shape[0] != modes_n:
+            new_thirds = np.zeros((modes_n,modes_n) + grad.shape)
+            new_thirds[np.ix_(full_modes,full_modes)] = thirds
+            thirds = new_thirds
         if self.mode_sel is not None and thirds.shape[0] == self._presel_dim:
             if not isinstance(self.mode_sel, slice):
                 thirds = thirds[np.ix_(self.mode_sel, self.mode_sel)]

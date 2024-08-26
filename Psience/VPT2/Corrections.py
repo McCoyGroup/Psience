@@ -1,16 +1,19 @@
 
-import numpy as np, itertools
+import numpy as np, itertools, collections, dataclasses
 
 from McUtils.Numputils import SparseArray
 import McUtils.Numputils as nput
 from McUtils.Data import UnitsData
 from McUtils.Scaffolding import NullLogger, Checkpointer
 
-from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace
+from ..Spectra import DiscreteSpectrum
+from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, HarmonicOscillatorProductBasis
 from .Common import PerturbationTheoryException, _safe_dot
 
 __all__ = [
-    "PerturbationTheoryCorrections"
+    "PerturbationTheoryCorrections",
+    "AnalyticPerturbationTheoryCorrections",
+    "BasicAPTCorrections"
 ]
 
 
@@ -898,3 +901,306 @@ class PerturbationTheoryCorrections:
             },
             data['hamiltonians'] # we probably want to ditch this for memory reasons...
         )
+
+
+BasicAPTCorrections = collections.namedtuple("PTCorrections",
+                                       ['initial_states', 'final_states', 'corrections']
+                                       )
+
+@dataclasses.dataclass
+class AnalyticPerturbationTheoryCorrections:
+    states: BasisStateSpace
+    state_lists: 'list[tuple[np.ndarray, np.ndarray]]'
+    _energies: np.ndarray = None
+    _transition_moments: 'Iterable[np.ndarray]' = None
+    _spectra: 'Iterable[DiscreteSpectrum]' = None
+    _deperturbed_energies: np.ndarray = None
+    _deperturbed_transition_moments: 'Iterable[np.ndarray]' = None
+    _deperturbed_spectra: DiscreteSpectrum = None
+    degenerate_states: 'Iterable[BasisStateSpace]' = None
+    _degenerate_hamiltonians: 'Iterable[np.ndarray]' = None
+    _degenerate_coefficients: 'Iterable[np.ndarray]' = None
+    energy_corrections: BasicAPTCorrections = None
+    transition_moment_corrections: 'Iterable[BasicAPTCorrections]' = None
+    degenerate_hamiltonian_corrections: 'Iterable[BasicAPTCorrections]' = None
+    operator_corrections: 'Iterable[BasicAPTCorrections]' = None
+    _deperturbed_operator_values: 'Iterable[np.ndarray]' = None
+    _operator_values: 'Iterable[np.ndarray]' = None
+
+    _zpe_pos: int = None
+
+    def get_zpe_pos(self) -> int:
+        if self._zpe_pos is None:
+            basis = self.states
+            try:
+                zpe_pos = basis.find([np.zeros(basis.ndim, dtype=int)])
+            except IndexError:
+                zpe_pos = 0  # do this better in the future...
+            else:
+                zpe_pos = zpe_pos[0]
+            self._zpe_pos = zpe_pos
+        return self._zpe_pos
+
+    @property
+    def energies(self) -> np.ndarray:
+        if self._energies is None:
+            if self.degenerate_states is None:
+                self._energies = np.sum(self.energy_corrections, axis=0)
+            else:
+                self._deperturbed_energies = np.sum(self.energy_corrections, axis=0)
+                self._energies, (self._degenerate_hamiltonians, self._degenerate_coefficients) = self.get_degenerate_transformations(
+                    self.states, self._deperturbed_energies
+                )
+        return self._energies
+
+    @property
+    def deperturbed_energies(self) -> np.ndarray:
+        if self._deperturbed_energies is None:
+            self._deperturbed_energies = np.sum(self.energy_corrections, axis=0)
+        return self._deperturbed_energies
+
+    @classmethod
+    def handle_degenerate_transformation(cls, degenerate_ham):
+        deg_engs, deg_transf = np.linalg.eigh(degenerate_ham)
+
+        # ov_thresh = .5
+        # for i in range(len(deg_transf)):
+        #     max_ov = np.max(deg_transf[:, i] ** 2)
+        #     if max_ov < ov_thresh:  # there must be a single mode that has more than 50% of the initial state character?
+        #         if logger is not None:
+        #             logger.log_print(
+        #                 "! state {i} is more than 50% mixed",
+        #                 i=i
+        #             )
+
+        # we pick the terms with the max contribution from each input state
+        # and zero out the contributions so that two states can't map
+        # to the same input state
+        sort_transf = np.abs(deg_transf.copy())
+        sorting = [-1] * len(deg_transf)
+        for i in range(len(deg_transf)):
+            o = np.argmax(sort_transf[i, :])
+            sorting[i] = o
+            sort_transf[:, o] = 0.  # np.zeros(len(sort_transf))
+
+        # self.logger.log_print('sorting: {s}', s=sorting)
+
+        deg_engs = deg_engs[sorting,]
+        deg_transf = deg_transf[:, sorting]
+        return deg_engs, deg_transf
+
+    def get_degenerate_transformations(self, basis, energies):
+        energies = energies.copy()
+
+        hams = []
+        transf = []
+        for block_num, (group, hcorr) in enumerate(
+                zip(self.degenerate_states, self.degenerate_hamiltonian_corrections)
+        ):
+            ham = np.sum(hcorr, axis=0)
+            # with self.logger.block(tag="Degenerate Block {n}", n=block_num + 1):
+            #     self.logger.log_print("{s}",
+            #                           s=group,
+            #                           preformatter=lambda **kw: dict(
+            #                               kw,
+            #                               s=self.format_matrix(kw['s'])
+            #                           ))
+            e_pos = basis.find(group)
+            engs = energies[e_pos,]
+            ham = -ham  # only deg terms
+            ham[np.diag_indices_from(ham)] = engs
+            deg_engs, deg_mixing = self.handle_degenerate_transformation(ham)
+
+            # with self.logger.block(tag='contributions'):
+            #     self.logger.log_print(
+            #         "{contribs}",
+            #         contribs=deg_mixing,
+            #         preformatter=lambda **kw: dict(
+            #             kw,
+            #             contribs=self.format_matrix(np.round(100 * (deg_mixing ** 2)))
+            #         )
+            #     )
+
+            energies[e_pos] = deg_engs
+            transf.append(deg_mixing)
+            hams.append(ham)
+
+        return energies, (hams, transf)
+
+    def apply_degenerate_transformations(self, initial_states, final_states, subcorr):
+        initial_space = BasisStateSpace(
+                HarmonicOscillatorProductBasis(len(initial_states[0])),
+                final_states
+            )
+        final_space = BasisStateSpace(
+                HarmonicOscillatorProductBasis(len(initial_states[0])),
+                final_states
+            )
+        all_degs = BasisStateSpace(
+            HarmonicOscillatorProductBasis(len(initial_states[0])),
+            np.concatenate(self.degenerate_states, axis=0)
+        )
+        deg_map_row = np.concatenate([
+            [i] * len(g) for i,g in enumerate(self.degenerate_states)
+        ])
+        deg_map_col = np.concatenate([
+            np.arange(len(g)) for i, g in enumerate(self.degenerate_states)
+        ])
+        init_pos = all_degs.find(initial_states, missing_val=-1)
+        final_pos = all_degs.find(final_states, missing_val=-1)
+
+        # subcorr is a n_init x n_final object, but we need to figure out the transformation to apply to each axis
+        # to do so we find the appropriate transformation and insert it
+        col_tf = np.eye(len(final_states))
+        for i in final_pos:
+            if i != -1:
+                col_pos = deg_map_row[i]
+                deg_block = self.degenerate_coefficients[col_pos]
+                block_idx = final_space.find(self.degenerate_states[col_pos])
+                row_pos = deg_map_col[i]
+                # print(row_pos, col_pos, col_tf.shape)
+                col_tf[row_pos, block_idx] = deg_block[row_pos]
+        row_tf = np.eye(len(initial_states))
+        for i in init_pos:
+            if i != -1:
+                col_pos = deg_map_row[i]
+                deg_block = self.degenerate_coefficients[col_pos]
+                block_idx = initial_space.find(self.degenerate_states[col_pos])
+                row_pos = deg_map_col[i]
+                # print(row_pos, col_pos, col_tf.shape)
+                row_tf[row_pos, block_idx] = deg_block[row_pos]
+
+        return row_tf @ subcorr @ col_tf.T
+
+    @property
+    def degenerate_hamiltonians(self):
+        if self._degenerate_hamiltonians is None:
+            e_base = self.energies # TODO: this is bad practice...
+        return self._degenerate_hamiltonians
+    @property
+    def degenerate_coefficients(self):
+        if self._degenerate_coefficients is None:
+            e_base = self.energies # TODO: this is bad practice...
+        return self._degenerate_coefficients
+
+    def get_freqs(self):
+        return self.energies - self.energies[self.get_zpe_pos()]
+
+    def get_deperturbed_freqs(self):
+        if self.degenerate_states is not None:
+            return self.deperturbed_energies - self.deperturbed_energies[self.get_zpe_pos()]
+        else:
+            return self.get_freqs()
+
+    @property
+    def transition_moments(self):
+        if self._transition_moments is None:
+            if self.degenerate_states is None:
+                self._transition_moments = self.deperturbed_transition_moments
+            else:
+                tmoms = self.deperturbed_transition_moments
+                all_tms = [[] for _ in tmoms] # num axes
+                for block_idx, (init_states, final_states) in enumerate(self.state_lists):
+                    for storage, axis_moms in zip(all_tms, tmoms):
+                        storage.append(
+                            self.apply_degenerate_transformations(
+                                init_states, final_states,
+                                axis_moms[block_idx]
+                            )
+                        )
+                self._transition_moments = all_tms
+
+        return self._transition_moments
+
+    @property
+    def harmonic_transition_moments(self):
+        return [
+            [corr_block[0] for corr_block in axis]
+            for axis in self.transition_moment_corrections
+            # np.sum([np.sum(corr.corrections[n], axis=0) ** 2 for corr in self.transition_moment_corrections], axis=0)
+            # for n in range(len(self.transition_moment_corrections[0]))
+        ]
+
+    @property
+    def deperturbed_transition_moments(self):
+        if self._deperturbed_transition_moments is None:
+            self._deperturbed_transition_moments = [
+                [np.sum(corr_block, axis=0) for corr_block in axis]
+                for axis in self.transition_moment_corrections
+                # np.sum([np.sum(corr.corrections[n], axis=0) ** 2 for corr in self.transition_moment_corrections], axis=0)
+                # for n in range(len(self.transition_moment_corrections[0]))
+            ]
+        return self._deperturbed_transition_moments
+
+    def get_spectra(self, energies, transition_moments):
+        spectra = []
+        for block_idx, (init_states, final_states) in enumerate(self.state_lists):
+            block_specs = []
+            init_engs = energies[self.states.find(init_states),]
+            final_engs = energies[self.states.find(final_states),]
+            for i, init in enumerate(init_states):
+                submoms = np.array([
+                    axis_moms[block_idx][i]
+                    for axis_moms in transition_moments
+                ]).T
+                freqs = final_engs - init_engs[i]
+                block_specs.append(DiscreteSpectrum.from_transition_moments(freqs, submoms))
+            spectra.append(block_specs)
+        return spectra
+
+    @property
+    def harmonic_spectra(self):
+        return self.get_spectra(
+            self.energy_corrections[0],
+            self.harmonic_transition_moments
+        )
+
+    @property
+    def deperturbed_spectra(self):
+        if self._deperturbed_spectra is None:
+            self._deperturbed_spectra = self.get_spectra(
+                self.deperturbed_energies,
+                self.deperturbed_transition_moments
+            )
+        return self._deperturbed_spectra
+
+    @property
+    def spectra(self):
+        if self._spectra is None:
+            if self.degenerate_states is None:
+                self._spectra = self.deperturbed_spectra
+            else:
+                self._spectra = self.get_spectra(
+                    self.energies,
+                    self.transition_moments
+                )
+        return self._spectra
+
+    @property
+    def deperturbed_operator_values(self):
+        if self._deperturbed_operator_values is None:
+            self._deperturbed_operator_values = [
+                [np.sum(corr_block, axis=0) for corr_block in op]
+                for op in self.operator_corrections
+            ]
+        return self._deperturbed_operator_values
+
+    @property
+    def operator_values(self):
+        if self._operator_values is None:
+            if self.degenerate_states is None:
+                self._operator_values = self.deperturbed_operator_values
+            else:
+                ops = self.deperturbed_operator_values
+                all_tms = [[] for _ in ops]  # num operators
+                for block_idx, (init_states, final_states) in enumerate(self.state_lists):
+                    for storage, axis_moms in zip(all_tms, ops):
+                        storage.append(
+                            self.apply_degenerate_transformations(
+                                init_states, final_states,
+                                axis_moms[block_idx]
+                            )
+                        )
+                self._operator_values = all_tms
+
+        return self._operator_values
