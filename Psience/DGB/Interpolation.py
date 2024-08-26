@@ -1,7 +1,7 @@
 
 import abc
 
-import numpy as np, scipy as sp
+import numpy as np, scipy as sp, math
 
 from McUtils.Zachary import InverseDistanceWeightedInterpolator, TensorDerivativeConverter
 import McUtils.Numputils as nput
@@ -296,7 +296,7 @@ class DGBWatsonTaylorInterpolator(DGBInterpolator):
         for n,d in enumerate(derivs[1:]):
             for _ in range(n+1):
                 d = nput.vec_tensordot(d, disps, shared=2, axes=[2, 2]) # one axis vanishes every time
-            vals += d / np.math.factorial(n+1)
+            vals += d / math.factorial(n+1)
 
         vals = nput.vec_tensordot(
             vals,
@@ -315,7 +315,7 @@ class DGBWatsonTaylorInterpolator(DGBInterpolator):
                 for n,d in enumerate(derivs[i+1:]):
                     for _ in range(n+1):
                         d = nput.vec_tensordot(d, disps, shared=2, axes=[2, 2]) # one axis vanishes every time
-                    derv += d / np.math.factorial(n+1)
+                    derv += d / math.factorial(n+1)
                 # interpolate
                 new_derivs.append(
                     nput.vec_tensordot(idw_weights, derv, shared=1, axes=[1, 1])

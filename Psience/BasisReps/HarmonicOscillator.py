@@ -9,7 +9,7 @@ __all__ = [
     "HarmonicOscillatorRaisingLoweringPolyTerms"
 ]
 
-import scipy.sparse as sp, numpy as np, functools, itertools
+import scipy.sparse as sp, numpy as np, functools, itertools, math
 import scipy.signal
 
 from .Bases import *
@@ -317,7 +317,7 @@ class HarmonicOscillatorRaisingLoweringPolyTerms:
     def get_reduced_raising_lowering_coeffs(cls, a, b):
         return np.array([
             sum(
-                (cls.s1(b - w, j) * cls.binom(a, w) * cls.binom(b, w) * np.math.factorial(w) / (2 ** w))
+                (cls.s1(b - w, j) * cls.binom(a, w) * cls.binom(b, w) * math.factorial(w) / (2 ** w))
                 for w in range(0, b - j + 1)
             )
             for j in range(0, b + 1)

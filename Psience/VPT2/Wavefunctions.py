@@ -2,7 +2,7 @@
 Provides classes to support wave functions coming from VPT calculations
 """
 
-import numpy as np, itertools as ip, time, enum
+import numpy as np, itertools as ip, time, enum, math
 
 from McUtils.Numputils import SparseArray
 import McUtils.Numputils as nput
@@ -214,7 +214,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                                                      )
     def get_Mi(self, i, mu, base_sym="M"):
         extra = mu.ndim - i
-        return 1 / np.math.factorial(i) * self.rep_basis.representation(
+        return 1 / math.factorial(i) * self.rep_basis.representation(
             *(("x",) * i), name="{}({})".format(base_sym, i), coeffs=mu,
             axes=[list(range(0, i)), list(range(extra, i + extra))],
             **self.operator_settings
