@@ -5839,7 +5839,7 @@ class PerturbationTheoryEvaluator:
 
     def get_reexpressed_hamiltonian(self, states, order=None, expansions=None, freqs=None,
                                     degenerate_states=None, only_degenerate_terms=True,
-                                    verbose=False, **opts):
+                                    verbose=False, include_diagonal=False, **opts):
         if freqs is None: freqs = self.freqs
         diag_ham = [np.diag(freqs)]
         if expansions is None:
@@ -5860,8 +5860,8 @@ class PerturbationTheoryEvaluator:
         utri_block = nput.is_numeric(states[0][0])
         if utri_block:
             states = [
-                [states[i], states[i:]]
-                for i in range(len(states))
+                [states[i], states[i+(0 if include_diagonal else 1):]]
+                for i in range(len(states) - (0 if include_diagonal else 1))
             ]
 
         return self.get_state_by_state_corrections(self.solver.reexpressed_hamiltonian, states,

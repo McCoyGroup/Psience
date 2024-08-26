@@ -1028,6 +1028,14 @@ class AnalyticPerturbationTheoryCorrections:
         return energies, (hams, transf)
 
     def apply_degenerate_transformations(self, initial_states, final_states, subcorr):
+        initial_space = BasisStateSpace(
+                HarmonicOscillatorProductBasis(len(initial_states[0])),
+                final_states
+            )
+        final_space = BasisStateSpace(
+                HarmonicOscillatorProductBasis(len(initial_states[0])),
+                final_states
+            )
         all_degs = BasisStateSpace(
             HarmonicOscillatorProductBasis(len(initial_states[0])),
             np.concatenate(self.degenerate_states, axis=0)
@@ -1045,17 +1053,22 @@ class AnalyticPerturbationTheoryCorrections:
         # to do so we find the appropriate transformation and insert it
         col_tf = np.eye(len(final_states))
         for i in final_pos:
-            print(i)
             if i != -1:
-                deg_block = self.degenerate_coefficients[deg_map_row[i]]
+                col_pos = deg_map_row[i]
+                deg_block = self.degenerate_coefficients[col_pos]
+                block_idx = final_space.find(self.degenerate_states[col_pos])
                 row_pos = deg_map_col[i]
-                col_tf[row_pos] = deg_block[row_pos]
+                # print(row_pos, col_pos, col_tf.shape)
+                col_tf[row_pos, block_idx] = deg_block[row_pos]
         row_tf = np.eye(len(initial_states))
         for i in init_pos:
             if i != -1:
-                deg_block = self.degenerate_coefficients[deg_map_row[i]]
+                col_pos = deg_map_row[i]
+                deg_block = self.degenerate_coefficients[col_pos]
+                block_idx = initial_space.find(self.degenerate_states[col_pos])
                 row_pos = deg_map_col[i]
-                row_tf[row_pos] = deg_block[row_pos]
+                # print(row_pos, col_pos, col_tf.shape)
+                row_tf[row_pos, block_idx] = deg_block[row_pos]
 
         return row_tf @ subcorr @ col_tf.T
 

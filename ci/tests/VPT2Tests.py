@@ -214,7 +214,7 @@ class VPT2Tests(TestCase):
         #     print(corrs)
         # raise Exception(...)
 
-    @validationTest
+    @debugTest
     def test_AnalyticOCHH(self):
         # check_types('Psience.VPT2')
 
@@ -242,7 +242,9 @@ class VPT2Tests(TestCase):
                     0,
                     [
                         [0, 0, 0, 0, 0, 1],
-                        [0, 1, 0, 1, 0, 0]
+                        [0, 1, 0, 1, 0, 0],
+                        [0, 0, 0, 1, 1, 0],
+                        [0, 0, 0, 0, 1, 0],
                     ],
                 ],
                 [
@@ -640,6 +642,18 @@ class VPT2Tests(TestCase):
     def test_AnalyticHOONO(self):
 
         file_name = "HOONO_freq.fchk"
+        state = VPTStateMaker(9)
+        with BlockProfiler():
+            AnalyticVPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                2,
+                degeneracy_specs=[
+                    [state(1), state(8, 7)]
+                ],
+                expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+            )
+        raise Exception(...)
+
         # VPTRunner.run_simple(
         #     TestManager.test_data(file_name),
         #     2,
@@ -700,9 +714,9 @@ class VPT2Tests(TestCase):
         # print(freqs[0], freqs[1:]-freqs[0])
         # with BlockProfiler():
         # with Timer():
-        with BlockProfiler():
-            spec = runner.get_spectrum(states, verbose=False)
-        print(np.array(spec).T)
+        # with BlockProfiler():
+        #     spec = runner.get_spectrum(states, verbose=False)
+        # print(np.array(spec).T)
 
     @validationTest
     def test_TrimerAnalytic(self):
@@ -907,11 +921,6 @@ class VPT2Tests(TestCase):
         # woof = gg.reexpress(2, ke, ki)
         # print(woof[0])
         # print(woof[1])
-
-
-
-
-
 
     @inactiveTest
     def test_HOHNoKE(self):
