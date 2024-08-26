@@ -17,6 +17,8 @@ from ..BasisReps import (
     HarmonicOscillatorMatrixGenerator, HarmonicOscillatorRaisingLoweringPolyTerms
 )
 
+from .Corrections import BasicAPTCorrections
+
 __all__ = [
     'PerturbationTheoryEvaluator',
     'AnalyticPerturbationTheorySolver',
@@ -5655,9 +5657,6 @@ class PerturbationTheoryEvaluator:
         changes = nput.vector_take(base_change, np.argsort(perms, axis=1))
         return np.asanyarray(initial)[np.newaxis] + changes
 
-    PTCorrections = collections.namedtuple("PTCorrections",
-                                           ['initial_states', 'final_states', 'corrections']
-                                           )
     def _reformat_corrections(self, order, corrs, change_map, num_expansions):
         # reshape to allow for better manipulation
 
@@ -5731,10 +5730,12 @@ class PerturbationTheoryEvaluator:
         #
 
         if num_expansions is None:
-            all_corrs = self.PTCorrections(total_basis, [BasisStateSpace(basis, f) for f in finals_map], corrs_map)
+            all_corrs = BasicAPTCorrections(total_basis, [BasisStateSpace(basis, f) for f in finals_map], corrs_map)
         else:
+            # currently is initial x order x operator
             all_corrs = [
-                self.PTCorrections(total_basis, [BasisStateSpace(basis, f) for f in finals_map], [c[i] for c in corrs_map])
+                BasicAPTCorrections(total_basis, [BasisStateSpace(basis, f) for f in finals_map],
+                                    [[c[i] for c in ord_block] for ord_block in corrs_map])
                 for i in range(num_expansions)
             ]
 

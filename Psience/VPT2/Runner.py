@@ -2,20 +2,23 @@
 A little package of utilities for setting up/running VPT jobs
 """
 
-import numpy as np, sys, os, itertools, scipy
+import numpy as np, sys, os, itertools, scipy, dataclasses
 
 from McUtils.Data import UnitsData, AtomData
 from McUtils.Scaffolding import ParameterManager, Logger
 from McUtils.Zachary import FiniteDifferenceDerivative
 from McUtils.Extensions import ModuleLoader
 import McUtils.Numputils as nput
+from McUtils.Formatters import TableFormatter
 
 from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis, BasisStateSpaceFilter, SelectionRuleStateSpace
 from ..Molecools import Molecule
+from ..Spectra import DiscreteSpectrum
 
 from .DegeneracySpecs import DegeneracySpec
 from .Hamiltonian import PerturbationTheoryHamiltonian
 from .Analytic import PerturbationTheoryEvaluator, AnalyticPerturbationTheorySolver
+from .Corrections import AnalyticPerturbationTheoryCorrections
 
 __all__ = [
     "VPTRunner",
@@ -53,6 +56,7 @@ class VPTSystem:
         "internals",
         "modes",
         "mode_selection",
+        "full_surface_mode_selection",
         "potential_derivatives",
         "potential_function",
         "order",
@@ -66,6 +70,7 @@ class VPTSystem:
                  dummy_atoms=None,
                  modes=None,
                  mode_selection=None,
+                 full_surface_mode_selection=None,
                  potential_derivatives=None,
                  potential_function=None,
                  order=2,
@@ -113,6 +118,7 @@ class VPTSystem:
         if modes is not None:
             self.mol.normal_modes.modes = modes
         self.mode_selection = mode_selection
+        self.full_surface_mode_selection = full_surface_mode_selection
         if potential_derivatives is not None:
             self.mol.potential_derivatives = potential_derivatives
         elif potential_function is not None:
@@ -265,7 +271,8 @@ class VPTStateSpace:
     def __init__(self,
                  states,
                  degeneracy_specs=None,
-                 system=None
+                 system=None,
+                 frequencies=None
                  ):
         """
         :param states: A list of states or a number of quanta to target
@@ -279,8 +286,11 @@ class VPTStateSpace:
                 states
             )
         basis = states.basis
+        self.state_space = states
         self.state_list = states.excitations.tolist()
-        self.degenerate_states = self.build_degenerate_state_spaces(degeneracy_specs, states, system=system)
+        self.degeneracy_spec, self.degenerate_states = self.build_degenerate_state_spaces(degeneracy_specs, states,
+                                                                                          system=system, freqs=frequencies)
+        self.degenerate_pairs = None
         if self.degenerate_states is not None:
             if isinstance(self.degenerate_states, tuple) and isinstance(self.degenerate_states[0], DegeneracySpec):
                 self.degenerate_states, new_states = self.degenerate_states
@@ -300,6 +310,17 @@ class VPTStateSpace:
                         if p not in states:
                             states.append(p)
                 self.state_list = states
+
+            self.degenerate_pairs = self.degeneracy_spec.get_polyad_pairs(self.state_list)
+
+    @classmethod
+    def from_system_and_spec(cls, system, spec, **opts):
+        if isinstance(spec, VPTStateSpace): return spec
+
+        if isinstance(spec, (int, np.integer)):
+            return cls.from_system_and_quanta(system, spec, **opts)
+        else:
+            return cls(spec, system=system, **opts)
 
     @classmethod
     def from_system_and_quanta(cls, system, quanta, target_modes=None, only_target_modes=False, **opts):
@@ -360,7 +381,7 @@ class VPTStateSpace:
                 whee = [p for p in whee if all(j in target_modes or x == 0 for j,x in enumerate(p))]
         return whee
 
-    def build_degenerate_state_spaces(self, degeneracy_specs, states, system=None):
+    def build_degenerate_state_spaces(self, degeneracy_specs, states, system=None, freqs=None) -> '(None|DegeneracySpec, None|list[np.ndarray])':
         """
         :param degeneracy_specs:
         :type degeneracy_specs:
@@ -370,14 +391,15 @@ class VPTStateSpace:
 
         spec = DegeneracySpec.from_spec(degeneracy_specs)
         if hasattr(spec, 'frequencies') and spec.frequencies is None:
-            spec.frequencies = system.mol.normal_modes.modes.freqs
-        # raise Exception(spec)
+            if freqs is None:
+                freqs = system.mol.normal_modes.modes.freqs
+            spec.frequencies = freqs
         if spec is None:
-            return None
+            return None, None
         elif hasattr(spec, 'prep_states'):
             return (spec, spec.prep_states(states))
         else:
-            return spec.get_groups(states)
+            return spec, spec.get_groups(states)
 
         # elif isinstance(degeneracy_specs, dict):
         #     # dispatch on mode
@@ -500,6 +522,7 @@ class VPTHamiltonianOptions:
 
     __props__ = (
         "mode_selection",
+        "full_surface_mode_selection",
         "include_potential",
         "include_gmatrix",
         "include_coriolis_coupling",
@@ -542,6 +565,7 @@ class VPTHamiltonianOptions:
 
     def __init__(self,
                  mode_selection=None,
+                 full_surface_mode_selection=None,
                  include_potential=None,
                  include_gmatrix=None,
                  include_coriolis_coupling=None,
@@ -637,6 +661,7 @@ class VPTHamiltonianOptions:
         """
         all_opts = dict(
             mode_selection=mode_selection,
+            full_surface_mode_selection=full_surface_mode_selection,
             include_potential=include_potential,
             include_gmatrix=include_gmatrix,
             include_coriolis_coupling=include_coriolis_coupling,
@@ -1472,6 +1497,15 @@ class VPTStateMaker:
         self.ndim = ndim
         self.mode = mode
 
+    @classmethod
+    def parse_state(cls, state):
+
+        nzp = np.nonzero(state)
+        if len(nzp) > 0: nzp = nzp[0]
+        if len(nzp) == 0: return "()"
+        pos = len(state) - nzp
+        return "".join("{}({})".format(p, state[i]) for p,i in reversed(list(zip(pos, nzp))))
+
     def make_state(self, *specs, mode=None):
 
         if mode is None:
@@ -2239,13 +2273,71 @@ class AnneInputHelpers:
 VPTRunner.helpers = AnneInputHelpers
 
 
+class MultiVPTStateSpace:
+    """
+    Generalizes a VPTStateSpace to pairs of initial and final spaces
+    """
+    def __init__(self, state_space_pairs, system=None, degeneracy_specs=None, **opts):
+        if (
+                nput.is_numeric(state_space_pairs)
+                or isinstance(state_space_pairs, VPTStateSpace)
+                or all(nput.is_numeric(o) for o in state_space_pairs[0])
+        ):
+            state_space_pairs = [[0, state_space_pairs]]
+
+        state_space_pairs = [
+            [
+                VPTStateSpace.from_system_and_spec(system,
+                                                   [initial_space]
+                                                        if not nput.is_numeric(initial_space) and nput.is_numeric(initial_space[0]) else
+                                                   initial_space,
+                                                   degeneracy_specs=degeneracy_specs, **opts),
+                VPTStateSpace.from_system_and_spec(system,
+                                                   target_space,
+                                                   degeneracy_specs=degeneracy_specs, **opts)
+            ]
+            for initial_space, target_space in state_space_pairs
+        ]
+
+        self.space_pairs = state_space_pairs
+
+        flat_states = np.unique(
+            np.concatenate([
+                s.state_list
+                for pair in self.space_pairs
+                for s in pair
+            ]),
+            axis=0
+        )
+        flat_space = VPTStateSpace(flat_states, system=system, degeneracy_specs=degeneracy_specs, **opts)
+
+        self.flat_space = flat_space
+
+    @property
+    def state_list_pairs(self):
+        return [
+            [init.state_list, target.state_list]
+            for init, target in self.space_pairs
+        ]
+    # @property
+    # def state_list(self):
+    #     return self.flat_space.state_list
+    # @property
+    # def degenerate_pairs(self):
+    #     return self.flat_space.degenerate_pairs
+    # @property
+    # def degenerate_states(self):
+    #     return self.flat_space.degenerate_states
+
+
 class AnalyticVPTRunner:
     def __init__(self, expansions, order=None, expansion_order=None, freqs=None, internals=True, logger=None,
                  hamiltonian=None, checkpoint=None,
                  allowed_terms=None,
                  allowed_coefficients=None,
                  disallowed_coefficients=None,
-                 allowed_energy_changes=None
+                 allowed_energy_changes=None,
+                 intermediate_normalization=None
                  ):
         # self.expansions = expansions
         # if order is None: order = len(expansions) - 1
@@ -2263,11 +2355,13 @@ class AnalyticVPTRunner:
                 allowed_terms=allowed_terms,
                 allowed_coefficients=allowed_coefficients,
                 disallowed_coefficients=disallowed_coefficients,
-                allowed_energy_changes=allowed_energy_changes
+                allowed_energy_changes=allowed_energy_changes,
+                intermediate_normalization=intermediate_normalization
             ),
             expansions,
             freqs=freqs
         )
+        self.logger = self.eval.solver.logger
 
     @classmethod
     def from_hamiltonian(cls, ham, order, expansion_order=None, logger=None, checkpoint=None,
@@ -2276,6 +2370,7 @@ class AnalyticVPTRunner:
                          disallowed_coefficients=None,
                          allowed_energy_changes=None,
                          take_diagonal_v4_terms=True,
+                         intermediate_normalization=None,
                          **opts):
         """
         A driver powered by a classic PerturbationTheoryHamiltonian object
@@ -2330,7 +2425,8 @@ class AnalyticVPTRunner:
             allowed_terms=allowed_terms,
             allowed_coefficients=allowed_coefficients,
             disallowed_coefficients=disallowed_coefficients,
-            allowed_energy_changes=allowed_energy_changes
+            allowed_energy_changes=allowed_energy_changes,
+            intermediate_normalization=intermediate_normalization
         )
 
     @classmethod
@@ -2345,6 +2441,7 @@ class AnalyticVPTRunner:
                   disallowed_coefficients=None,
                   allowed_energy_changes=None,
                   mixed_derivative_handling_mode='analytical',
+                  degeneracy_specs=None,
                   **settings
                   ):
 
@@ -2356,12 +2453,18 @@ class AnalyticVPTRunner:
                 **settings
             )
 
-            if states is not None:
-                if nput.is_numeric(states):
-                    states = VPTStateSpace.from_system_and_quanta(runner.system, states)
-                elif not isinstance(states, VPTStateSpace):
-                    states = VPTStateSpace(states, system=runner.system)
-                states = states.state_list
+            if states is not None and not isinstance(states, MultiVPTStateSpace):
+                if (
+                        isinstance(degeneracy_specs, (list, tuple, np.ndarray))
+                        and all(len(d) == 2 for d in degeneracy_specs)
+                        and nput.is_numeric(degeneracy_specs[0][0][0])
+                ):
+                    degeneracy_specs = {'polyads': degeneracy_specs}
+                states = MultiVPTStateSpace(
+                    states,
+                    runner.system,
+                    degeneracy_specs=degeneracy_specs
+                )
 
             opts = runner.pt_opts.opts
             new = cls.from_hamiltonian(
@@ -2372,7 +2475,8 @@ class AnalyticVPTRunner:
                 allowed_terms=allowed_terms,
                 allowed_coefficients=allowed_coefficients,
                 disallowed_coefficients=disallowed_coefficients,
-                allowed_energy_changes=allowed_energy_changes
+                allowed_energy_changes=allowed_energy_changes,
+                intermediate_normalization=opts.get('intermediate_normalization', None)
             )
             if states is not None:
                 return new, states
@@ -2470,9 +2574,27 @@ class AnalyticVPTRunner:
             # intermediate_normalization=False
         )
 
+    @classmethod
+    def prep_multispace(self, states, freqs, degeneracy_specs=None):
+        if not isinstance(states, MultiVPTStateSpace):
+            if (
+                    isinstance(degeneracy_specs, (list, tuple, np.ndarray))
+                    and all(len(d) == 2 for d in degeneracy_specs)
+                    and nput.is_numeric(degeneracy_specs[0][0][0])
+            ):
+                degeneracy_specs = {'polyads':degeneracy_specs}
+
+            states = MultiVPTStateSpace(states, frequencies=freqs, degeneracy_specs=degeneracy_specs)
+
+        return states
+    def prep_states(self, states, degeneracy_specs=None):
+        return self.prep_multispace(states, self.eval.freqs, degeneracy_specs=degeneracy_specs)
+        # else:
+        #     return states
+
     def evaluate_expressions(self, states, exprs, operator_expansions=None,
-                             degenerate_states=None, verbose=False):
-        state_space = VPTStateSpace(states)
+                             degeneracy_specs=None, verbose=False):
+        state_space, degenerate_states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
         return self.eval.evaluate_expressions(
             state_space.state_list,
             exprs,
@@ -2481,113 +2603,168 @@ class AnalyticVPTRunner:
             verbose=verbose
         )
 
-    def get_matrix_corrections(self, states, order=None,  verbose=False):
-        state_space = VPTStateSpace(states)
-        return self.eval.get_matrix_corrections(state_space.state_list,
+    def get_matrix_corrections(self, states, order=None, degeneracy_specs=None, verbose=False):
+        states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
+        return self.eval.get_matrix_corrections(states.state_list,
                                                 order=order,
                                                 verbose=verbose)
 
-    def get_energy_corrections(self, states, order=None, degenerate_states=None, verbose=False):
-        state_space = VPTStateSpace(states)
-        return self.eval.get_energy_corrections(state_space.state_list,
-                                                order=order,
-                                                degenerate_states=degenerate_states,
-                                                verbose=verbose)
-    def get_freqs(self, states, order=None, degenerate_states=None, verbose=False):
-        corrs = self.get_energy_corrections(states, order=order, degenerate_states=degenerate_states, verbose=verbose)
-        engs = np.sum(corrs, axis=0) * UnitsData.convert("Hartrees", "Wavenumbers")
-        freqs = (engs[1:] - engs[0])
-        return engs[0], freqs
-
-    def get_reexpressed_hamiltonian(self, states, order=None,
-                                    degenerate_states=None, only_degenerate_terms=True,
-                                    verbose=False, return_orders=False, **opts):
-        state_space = VPTStateSpace(states)
-        ham_corrs = self.eval.get_reexpressed_hamiltonian(
-            state_space.state_list,
+    def get_energy_corrections(self, states, order=None, degeneracy_specs=None, verbose=False):
+        states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
+        return self.eval.get_energy_corrections(
+            states.flat_space.state_list,
             order=order,
-            degenerate_states=degenerate_states,
-            only_degenerate_terms=only_degenerate_terms,
-            verbose=verbose, **opts
+            degenerate_states=states.flat_space.degenerate_pairs,
+            verbose=verbose
         )
-
-        og_basis = BasisStateSpace(ham_corrs.initial_states.basis, state_space.state_list)
-        # print([hc.shape for hc in ham_corrs.corrections])
-        flat_basis = ham_corrs.initial_states
-        for fblock in ham_corrs.final_states:
-            flat_basis = flat_basis.union(fblock)
-
-        ns = len(flat_basis)
-        corr_mats = [
-            np.zeros((ns, ns))
-            for _ in ham_corrs.corrections[0]
-        ]
-
-        initial_inds = flat_basis.find(ham_corrs.initial_states)
-        for row_idx, finals, corrs in zip(initial_inds, ham_corrs.final_states, ham_corrs.corrections):
-            col_idx = flat_basis.find(finals)
-            row_idx = (row_idx,) * len(col_idx)
-            for o,c in enumerate(corrs):
-                corr_mats[o][row_idx, col_idx] = c
-                corr_mats[o][col_idx, row_idx] = c
-
-        sorting = flat_basis.find(og_basis)
-        corr_mats = [
-            c[sorting, :][:, sorting] * UnitsData.convert("Hartrees", "Wavenumbers")
-            for c in corr_mats
-        ]
-        if return_orders:
-            return flat_basis, corr_mats
-        else:
-            return flat_basis, sum(corr_mats)
-
     def get_overlap_corrections(self,
-                                     states,
-                                     order=None, degenerate_states=None, verbose=False
-                                     ):
-        state_space = VPTStateSpace(states)
+                                states,
+                                order=None, degeneracy_specs=None, verbose=False
+                                ):
+        states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
         return self.eval.get_overlap_corrections(
-            state_space.state_list,
+            states.flat_space.state_list,
             order=order,
-            degenerate_states=degenerate_states, verbose=verbose
+            degenerate_states=states.degenerate_pairs, verbose=verbose
         )
     def get_full_wavefunction_corrections(self,
                                      states,
-                                     order=None, degenerate_states=None, verbose=False
+                                     order=None, degeneracy_specs=None, verbose=False
                                      ):
-        state_space = VPTStateSpace(states)
+        states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
         return self.eval.get_full_wavefunction_corrections(
-            state_space.state_list,
+            states.state_list_pairs,
             order=order,
-            degenerate_states=degenerate_states, verbose=verbose
+            degenerate_states=states.degenerate_pairs, verbose=verbose
         )
     def get_wavefunction_corrections(self,
                                      states,
-                                     order=None, degenerate_states=None, verbose=False
+                                     order=None, degeneracy_specs=None, verbose=False
                                      ):
-        state_space = VPTStateSpace(states)
+        states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
         return self.eval.get_wavefunction_corrections(
-            state_space.state_list,
+            states.state_list_pairs,
             order=order,
-            degenerate_states=degenerate_states, verbose=verbose
+            degenerate_states=states.degenerate_pairs, verbose=verbose
         )
 
-    # def get_diff_classes(self, inial):
+    @classmethod
+    def unflatten_corr(cls, states, corrs):
+        # corr is expressed over the total space of initial states and final states, we group
+        # this by initial, final blocks
+
+        init_space = corrs.initial_states
+        final_space = corrs.final_states[0]
+        for f in corrs.final_states[1:]: final_space = final_space.union(f)
+        # we need to map from the corrs back onto the state pairs
+        corr_blocks = []
+        for initials, finals in states.state_list_pairs:
+            subcorr = []
+            nord = len(corrs.corrections[0])
+            row_inds = init_space.find(initials)
+            for n in range(nord):
+                order_block = []
+                for i in row_inds:
+                    col_inds = corrs.final_states[i].find(finals)
+                    order_block.append(corrs.corrections[i][n][col_inds])
+                subcorr.append(np.array(order_block))
+            # nord = len(subcorr[0])
+            # subcorr = [
+            #     [s[n] for s in subcorr]
+            #     for n in range(nord)
+            # ]
+            corr_blocks.append(subcorr)
+
+        return corr_blocks
+
 
     def get_operator_corrections(self,
                                  operator_expansion, states,
-                                 order=None, terms=None, degenerate_states=None, verbose=False,
+                                 order=None, terms=None, degeneracy_specs=None, verbose=False,
                                  **opts
                                  ):
-        state_space = VPTStateSpace(states)
-        return self.eval.get_operator_corrections(
-            operator_expansion, state_space.state_list,
+        states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
+
+        base_corrs = self.eval.get_operator_corrections(
+            operator_expansion,
+            [
+                [s, finals]
+                for initials, finals in states.state_list_pairs
+                for s in initials
+            ],
             order=order, terms=terms,
-            verbose=verbose, degenerate_states=degenerate_states, **opts
+            verbose=verbose, degenerate_states=states.flat_space.degenerate_pairs,
+            **opts
         )
 
+        # now we un-flatten each correction to the shape of the input states
+        return [
+            self.unflatten_corr(states, corr)
+            for corr in base_corrs
+        ]
 
-    def get_transition_moment_corrections(self, states, dipole_expansion=None, order=None, axes=None, **opts):
+    def construct_corrections_vectors(self, states, corrs):
+
+        smol = hasattr(corrs, 'initial_states')
+        if smol: corrs = [corrs]
+
+        flat_basis = BasisStateSpace(corrs[0].initial_states.basis, states.state_list)
+        init_states = corrs[0].initial_states
+        for other_corrs in corrs[1:]: init_states = init_states.union(other_corrs.initial_states)
+        ncs = len(flat_basis)
+        nrs = len(init_states)
+        op_corr_mats = [
+            [
+                np.zeros((nrs, ncs))
+                for _ in corr.corrections[0]
+            ]
+            for corr in corrs
+        ]
+        for n, (corr_mats, corr_block) in enumerate(zip(op_corr_mats,corrs)):
+            row_inds = flat_basis.find(corr_block.initial_states)
+            for row_idx, finals, corrs in zip(row_inds, corr_block.final_states, corr_block.corrections):
+                col_idx = flat_basis.find(finals)
+                row_idx = (row_idx,) * len(col_idx)
+                for o, c in enumerate(corrs):
+                    corr_mats[o][row_idx, col_idx] = c
+                    corr_mats[o][col_idx, row_idx] = c
+
+        if smol: op_corr_mats = op_corr_mats[0]
+
+        return init_states, op_corr_mats
+
+    def construct_corrections_matrix(self, group, corrs):
+
+        smol = hasattr(corrs, 'initial_states')
+        if smol: corrs = [corrs]
+
+        flat_basis = BasisStateSpace(corrs[0].initial_states.basis, group)
+        ns = len(flat_basis)
+        op_corr_mats = [
+            [
+                np.zeros((ns, ns))
+                for _ in corr.corrections[0]
+            ]
+            for corr in corrs
+        ]
+        for n, (corr_mats, corr_block) in enumerate(zip(op_corr_mats,corrs)):
+            initial_inds = flat_basis.find(corr_block.initial_states)
+            for row_idx, finals, corrs in zip(initial_inds, corr_block.final_states, corr_block.corrections):
+                col_idx = flat_basis.find(finals)
+                row_idx = (row_idx,) * len(col_idx)
+                for o, c in enumerate(corrs):
+                    corr_mats[o][row_idx, col_idx] = c
+                    corr_mats[o][col_idx, row_idx] = c
+
+        if smol: op_corr_mats = op_corr_mats[0]
+
+        return op_corr_mats
+
+    def get_transition_moment_corrections(self, states,
+                                          dipole_expansion=None, order=None,
+                                          degeneracy_specs=None, axes=None,
+                                          **opts):
+        states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
         if dipole_expansion is None:
             if order is None:
                 if self.expansion_order is not None:
@@ -2600,70 +2777,362 @@ class AnalyticVPTRunner:
                 [x/np.math.factorial(i+1) for i,x in enumerate(dipole_expansion[x][1:])]
                 for x in axes
             ],
-            states, order=order, **opts
+            states,
+            order=order,
+            **opts
         )
 
         return corrs
 
-    def get_spectrum(self, states,
-                     dipole_expansion=None,
-                     order=None, energy_order=None,
-                     degenerate_states=None,
-                     axes=None,
-                     terms=None,
-                     verbose=False,
-                     return_corrections=False):
-        """
-
-        :param states:
-        :param dipole_expansion:
-        :param order:
-        :param energy_order:
-        :param verbose:
-        :return:
-        """
-
-        # all_state = [[0, 0, 0], [0, 0, 1]]
-        # engs = sum(self.get_energy_corrections(all_state, order=energy_order, verbose=verbose))
-        # freqs1 = engs[1:] - engs[0]
-        # raise Exception(
-        #     freqs1 * UnitsData.convert("Hartrees", "Wavenumbers")
-        # )
-
-        if energy_order is None: energy_order = order
-
-        all_gs = nput.is_numeric(states[0][0])
-        base_corrs = self.get_transition_moment_corrections(states,
-                                                            axes=axes,
-                                                            dipole_expansion=dipole_expansion,
-                                                            degenerate_states=degenerate_states,
-                                                            order=order, terms=terms, verbose=verbose)
-
-        all_states = base_corrs[0].initial_states
-        for fstates in base_corrs[0].final_states:
-            all_states = all_states.union(fstates)
-        all_ecorrs = self.get_energy_corrections(all_states, order=energy_order,
-                                                    degenerate_states=degenerate_states, verbose=verbose)
-        all_engs = np.sum(all_ecorrs, axis=0)
-        specs = []
-        for n in range(len(base_corrs[0].initial_states)):
-            initial_state = base_corrs[0].initial_states.take_states([n])
-            gs_eng = all_engs[all_states.find(initial_state)[0]]
-            es_eng = all_engs[all_states.find(base_corrs[0].final_states[n])]
-            freqs = (es_eng - gs_eng)
-            tmoms = np.sum([np.sum(corr.corrections[n], axis=0)**2 for corr in base_corrs], axis=0)
-            # print(tmoms.shape, freqs.shape)
-            ints = freqs * tmoms
-            specs.append(np.array([
-                freqs * UnitsData.convert("Hartrees", "Wavenumbers"),
-                ints * UnitsData.convert("OscillatorStrength", "KilometersPerMole")
-            ]))
-        if all_gs: specs = specs[0]
-
+    def get_freqs(self, states, order=None, degeneracy_specs=None, return_corrections=False, verbose=False):
+        states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
+        corrs = self.get_energy_corrections(states, order=order, verbose=verbose)
+        engs = np.sum(corrs, axis=0) * UnitsData.convert("Hartrees", "Wavenumbers")
+        freqs = (engs[1:] - engs[0])
+        spec_data = engs[0], freqs
         if return_corrections:
-            return specs, (all_states, all_ecorrs, base_corrs)
+            return spec_data, corrs
         else:
-            return specs
+            return spec_data
+
+    def get_reexpressed_hamiltonian(self, states, order=None,
+                                    degeneracy_specs=None, only_degenerate_terms=True,
+                                    verbose=False, **opts):
+        states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
+        degs = states.flat_space.degenerate_pairs
+        if states.flat_space.degenerate_states is None: return None
+        # TODO: break these degenerate states down into directly connected blocks again
+        #       for efficiency sake in the case that we got pairs for our polyads
+        deg_groups = states.flat_space.degenerate_states
+        all_corrs = []
+        all_mats = []
+        for group in deg_groups:
+            ham_corrs = self.eval.get_reexpressed_hamiltonian(
+                group,
+                order=order,
+                degenerate_states=degs,
+                only_degenerate_terms=only_degenerate_terms,
+                verbose=verbose, **opts
+            )
+            corr_mats = self.construct_corrections_matrix(group, ham_corrs)
+            all_corrs.append(corr_mats)
+            all_mats.append(sum(corr_mats))
+        return all_mats, all_corrs
+
+    def format_energies_table(self, states, energies, energy_corrections, zpe_pos, number_format=".3f"):
+
+        nord = len(energy_corrections)
+        energy_table_formatter = TableFormatter(
+            [VPTStateMaker.parse_state, number_format] + [number_format] * nord,
+            row_padding="  ",
+            column_join=" | "
+        )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        energies = energies * h2w
+        flat_corrs = np.array(energy_corrections).T * h2w
+
+        table_data = [
+            [s, (e - energies[zpe_pos])  if i != zpe_pos else e] + list((c - flat_corrs[zpe_pos]) if i != zpe_pos else c)
+            for i,(s, e, c) in enumerate(
+                zip(states.state_list, energies, flat_corrs)
+            )
+        ]
+
+        return energy_table_formatter.format(
+            [
+                ["", "", "Corrections"],
+                ["State", "ZPE/Freq."] + [str(i*2) for i in range(nord)]
+            ],
+            table_data,
+            header_spans=[
+                [1, 1, nord],
+                [1, 1] + [1]*nord
+            ]
+        )
+
+    def format_degenerate_energies_table(self, states, energies, deperturbed_energies, zpe_pos, number_format=".3f"):
+
+        energy_table_formatter = TableFormatter(
+            [VPTStateMaker.parse_state, number_format, number_format],
+            row_padding="  ",
+            column_join=" | ",
+            headers=[
+                ["", "Degenerate", "Deperturbed"],
+                ["State", "ZPE/Freq.", "ZPE/Freq."]
+            ]
+        )
+
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+
+        energies = energies * h2w
+        deperturbed_energies = deperturbed_energies * h2w
+
+        table_data = [
+            [s, (e - energies[zpe_pos]) if i != zpe_pos else e, (d - energies[zpe_pos]) if i != zpe_pos else d]
+            for i,(s, e, d) in enumerate(
+                zip(states.state_list, energies, deperturbed_energies)
+            )
+        ]
+
+        return energy_table_formatter.format(
+            table_data
+        )
+
+    def format_transition_moment_table(self,
+                                       states, transition_moments, transition_moment_corrections,
+                                       number_format=".8f"):
+
+        #transition_moment_corrections : xyz x state block
+        nord = len(transition_moment_corrections)
+        tmom_table_formatter = TableFormatter(
+            [VPTStateMaker.parse_state] + [number_format] * (3*(1+nord)),
+            row_padding="  ",
+            column_join=" | ",
+            headers=[
+                ["", "Transition Moment"] + ["Order {}".format(i) for i in range(nord)],
+                ["States"] + (["x", "y", "z"]*(1+nord))
+            ],
+            header_spans=[
+                [1] + [3]*(1+nord),
+                [1] + [1]*(3*(1+nord))
+            ]
+        )
+
+        all_tables = []
+        for i,(initial_states, final_states) in enumerate(states.state_list_pairs):
+            for j,init in enumerate(initial_states):
+                submoms = [axis_moms[i][j] for axis_moms in transition_moments]
+                submom_mor_corrs = [
+                    np.array([order_mom_corrs[j] for order_mom_corrs in axis_moms_corrs[i]]).T
+                    for axis_moms_corrs in transition_moment_corrections
+                ]
+
+                table_data = [
+                    [s, tx, ty, tz] + list(sum(zip(cx, cy, cz), ()))
+                    for i, (s, tx, ty, tz, cx, cy, cz) in enumerate(
+                        zip(final_states, *submoms, *submom_mor_corrs)
+                    )
+                ]
+                fmt_table = tmom_table_formatter.format(table_data)
+                if (
+                    np.sum(init) > 0
+                    or len(initial_states) > 1
+                        or len(states.state_list_pairs) > 1
+                ):
+                    state_fmt = VPTStateMaker.parse_state(init)
+                    tlen = len(fmt_table.split("\n", 1)[0])
+                    pad = (tlen - 2 - len(state_fmt))//2
+                    all_tables.append("="*pad + " " + state_fmt + " " + "="*pad)
+                all_tables.append(fmt_table)
+
+        return "\n".join(all_tables)
+
+    def format_spectrum_table(self, states, harmonic_spectra, spectra, deperturbed_spectra=None, number_format=".3f"):
+        tmom_table_formatter = TableFormatter(
+            [VPTStateMaker.parse_state] + [number_format] * (4 if deperturbed_spectra is None else 6),
+            row_padding="  ",
+            column_join=" | ",
+            headers=[
+                ["", "Harmonic", "Anharmonic"] + ([] if deperturbed_spectra is None else ["Deperturbed"]),
+                ["States"] + ["Freq.", "Int."] * (2 if deperturbed_spectra is None else 3)
+            ],
+            header_spans=[
+                [1] + [2] * (2 if deperturbed_spectra is None else 3),
+                [1] + [1]*(4 if deperturbed_spectra is None else 6)
+            ]
+        )
+
+        all_tables = []
+        for i,(initial_states, final_states) in enumerate(states.state_list_pairs):
+            for j,init in enumerate(initial_states):
+                spec = spectra[i][j]# type: DiscreteSpectrum
+                harm = harmonic_spectra[i][j]# type: DiscreteSpectrum
+                dep = deperturbed_spectra[i][j] if deperturbed_spectra is not None else None
+
+                table_data = [
+                    list(x)
+                    for x in (
+                        zip(final_states, harm.frequencies, harm.intensities, spec.frequencies, spec.intensities)
+                            if deperturbed_spectra is None else
+                        zip(final_states,
+                            harm.frequencies, harm.intensities,
+                            spec.frequencies, spec.intensities,
+                            dep.frequencies, dep.intensities
+                            )
+                    )
+                ]
+                fmt_table = tmom_table_formatter.format(table_data)
+                if (
+                    np.sum(init) > 0
+                    or len(initial_states) > 1
+                        or len(states.state_list_pairs) > 1
+                ):
+                    state_fmt = VPTStateMaker.parse_state(init)
+                    tlen = len(fmt_table.split("\n", 1)[0])
+                    pad = (tlen - 2 - len(state_fmt))//2
+                    all_tables.append("="*pad + " " + state_fmt + " " + "="*pad)
+                all_tables.append(fmt_table)
+
+        return "\n".join(all_tables)
+
+    def format_matrix(self, ham):
+        ham = np.asanyarray(ham)
+        with np.printoptions(linewidth=1e8, suppress=True, precision=3):
+            return str(ham).replace("[", " ").replace("]", " ")
+    def run_VPT(self,
+                states,
+                calculate_intensities=True,
+                operators=None,
+                order=None,
+                verbose=False,
+                degeneracy_specs=None,
+                handle_degeneracies=True
+                ):
+        with self.logger.block(tag="Running VPT"):
+
+            states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
+            basis = states.flat_space.state_space
+
+            try:
+                zpe_pos = basis.find([[0] * basis.ndim])
+            except IndexError:
+                zpe_pos = 0 # do this better in the future...
+            else:
+                zpe_pos = zpe_pos[0]
+
+            corrs = AnalyticPerturbationTheoryCorrections(basis, states.state_list_pairs)
+            with self.logger.block(tag="Calculating frequency corrections"):
+                energy_corrections = self.get_energy_corrections(
+                    states,
+                    order=order,
+                    verbose=verbose
+                )
+                corrs.energy_corrections = energy_corrections
+
+                # def format_num(e):
+                #     return "{.3f}".format(e) if e != 0 else "-"
+
+                if states.flat_space.degenerate_states is not None:
+                    tag = ["Depertubed"]
+                else:
+                    tag = []
+                self.logger.log_print(
+                    tag + ["{energy_table}"],
+                    preformatter=lambda **kw: dict(
+                        kw,
+                        energy_table=self.format_energies_table(
+                            states.flat_space,
+                            corrs.deperturbed_energies,
+                            energy_corrections,
+                            zpe_pos
+                        )
+                    )
+                )
+
+
+            h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+            if handle_degeneracies and states.flat_space.degenerate_states is not None:
+                corrs.degenerate_states = states.flat_space.degenerate_states
+                with self.logger.block(tag="Handling degeneracies"):
+                    with self.logger.block(tag="Calculating effective Hamiltonians..."):
+                        _, degenerate_corrs = self.get_reexpressed_hamiltonian(
+                            states,
+                            order=order,
+                            verbose=verbose,
+                            only_degenerate_terms=True
+                        )
+                    corrs.degenerate_hamiltonian_corrections = degenerate_corrs
+
+                    zpe = corrs.deperturbed_energies[zpe_pos]
+                    for block_num, (group, ham, tf) in enumerate(zip(
+                            corrs.degenerate_states,
+                            corrs.degenerate_hamiltonians,
+                            corrs.degenerate_coefficients
+                    )):
+                        with self.logger.block(tag="Degenerate Block {n}", n=block_num+1):
+                            self.logger.log_print("{s}",
+                                                  s=group,
+                                                  preformatter=lambda **kw: dict(
+                                                      kw,
+                                                      s=self.format_matrix(kw['s'])
+                                                  ))
+                            with self.logger.block(tag="Effective Hamiltonian"):
+                                self.logger.log_print(
+                                    "{ham}",
+                                    ham=ham,
+                                    preformatter=lambda **kw: dict(
+                                        kw,
+                                        ham=self.format_matrix((kw['ham'] - zpe * np.eye(len(ham))) * h2w)
+                                    ))
+                            with self.logger.block(tag='contributions'):
+                                self.logger.log_print(
+                                    "{contribs}",
+                                    contribs=tf,
+                                    preformatter=lambda **kw: dict(
+                                        kw,
+                                        contribs=self.format_matrix(np.round(100 * (kw['contribs'] ** 2)))
+                                    )
+                                )
+
+                    self.logger.log_print(
+                        ["Degenerate", "{energy_table}"],
+                        preformatter=lambda **kw: dict(
+                            kw,
+                            energy_table=self.format_degenerate_energies_table(
+                                states.flat_space, corrs.energies, corrs.deperturbed_energies, zpe_pos
+                            )
+                        )
+                    )
+
+            if calculate_intensities:
+                transition_moments_corrs = self.get_transition_moment_corrections(
+                    states,
+                    order=order,
+                    verbose=verbose
+                )
+                corrs.transition_moment_corrections = transition_moments_corrs
+
+                with self.logger.block(tag="Transition Moments:"):
+                    self.logger.log_print(
+                        ["{tmom_table}"],
+                        preformatter=lambda **kw: dict(
+                            kw,
+                            tmom_table=self.format_transition_moment_table(
+                                states, corrs.transition_moments, corrs.transition_moment_corrections
+                            )
+                        )
+                    )
+
+                if handle_degeneracies and states.flat_space.degenerate_states is not None:
+                    self.logger.log_print(
+                        ["{spec_table}"],
+                        preformatter=lambda **kw: dict(
+                            kw,
+                            spec_table=self.format_spectrum_table(
+                                states, corrs.harmonic_spectra, corrs.spectra, corrs.deperturbed_spectra
+                            )
+                        )
+                    )
+                else:
+                    self.logger.log_print(
+                        ["{spec_table}"],
+                        preformatter = lambda **kw: dict(
+                            kw,
+                            spec_table=self.format_spectrum_table(
+                                states, corrs.harmonic_spectra, corrs.spectra
+                            )
+                        )
+                    )
+
+
+            if operators is not None:
+                raise NotImplementedError("operator support still to come")
+
+            return corrs
+
+
 
     @classmethod
     def run_simple(cls,
@@ -2675,46 +3144,23 @@ class AnalyticVPTRunner:
                    operators=None,
                    verbose=False,
                    return_runner=False,
-                   return_states=False,
-                   return_corrections=False,
-                   degenerate_states=None,
+                   degeneracy_specs=None,
+                   degeneracy_states=None,
+                   handle_degeneracies=True,
                    **opts
                    ):
+        if degeneracy_states is not None: ValueError("expect `degeneracy_specs`, not `degeneracy_states`")
 
-        runner, states = cls.construct(system, states, **opts)
+        runner, states = cls.construct(system, states, degeneracy_specs=degeneracy_specs, **opts)
 
-        corrs = None
-        if calculate_intensities:
-            spec_data = runner.get_spectrum(states,
-                                            return_corrections=return_corrections,
-                                            degenerate_states=degenerate_states,
-                                            verbose=verbose
-                                            )
-            if return_corrections:
-                spec_data, corrs = spec_data
-        else:
-            spec_data = runner.get_freqs(states,
-                                         return_corrections=return_corrections,
-                                         degenerate_states=degenerate_states,
-                                         verbose=verbose
-                                         )
-            if return_corrections:
-                spec_data, corrs = spec_data
-            spec_data = [
-                f * UnitsData.convert("Hartrees", "Wavenumbers")
-                for f in spec_data
-            ]
+        res = runner.run_VPT(states,
+                             calculate_intensities=calculate_intensities,
+                             operators=operators,
+                             verbose=verbose, degeneracy_specs=degeneracy_specs,
+                             handle_degeneracies=handle_degeneracies
+                             )
 
-        res = []
         if return_runner:
-            res.append(runner)
-        if return_states:
-            res.append(states)
-        res.append(spec_data)
-        if return_corrections:
-            res.append(corrs)
-
-        if len(res) == 1:
-            return res[0]
+            res = (runner,) + res
         else:
-            return tuple(res)
+            return res

@@ -214,8 +214,117 @@ class VPT2Tests(TestCase):
         #     print(corrs)
         # raise Exception(...)
 
-    @debugTest
+    @validationTest
     def test_AnalyticOCHH(self):
+        # check_types('Psience.VPT2')
+
+        # file_name = "OCHH_freq.fchk"
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     [
+        #         [0, 0, 0, 0, 0, 0],
+        #         [0, 0, 0, 0, 0, 1],
+        #         [0, 1, 0, 1, 0, 0]
+        #     ],
+        #     # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+        #     degeneracy_specs={"polyads":[
+        #         [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+        #     ]}
+        # )
+        #
+        # raise Exception(...)
+
+        file_name = "OCHH_freq.fchk"
+        AnalyticVPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [
+                    0,
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 1, 0, 1, 0, 0]
+                    ],
+                ],
+                [
+                    [0, 0, 0, 0, 1, 0],
+                    [
+                        [0, 0, 0, 0, 1, 1],
+                        [0, 1, 0, 1, 1, 0]
+                    ]
+                ]
+            ],
+            expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+            degeneracy_specs=[
+                [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+            ],
+            handle_degeneracies=True
+        )
+
+        raise Exception(...)
+
+        # space = VPTStateSpace(
+        #     [[1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 1, 0]],
+        #     degeneracy_specs={
+        #         'polyads': [
+        #             [[2, 0, 0], [0, 1, 0]],
+        #             [[2, 0, 0], [0, 0, 1]],
+        #         ]
+        #     }
+        # )
+        #
+        # states = space.degenerate_states
+        # states = space.state_list
+        #
+        # raise Exception(states)
+
+        # from McUtils.Formatters import TableFormatter
+
+        # formatter = TableFormatter(
+        #         ['.3f', '^8', ".0e"],
+        #         row_padding="  ",
+        #         column_join="  &  ",
+        #         row_join=" \\\\ \n"
+        #     )
+        # print(
+        #     formatter.format(
+        #         ['left', 'right'], # headers
+        #         np.random.uniform(-10, 10, size=(10, 3)), # data
+        #         header_spans=[2, 1]
+        #     )
+        # )
+
+        formatter = TableFormatter(
+            [['.0f', ' '], "", "", "", "", "", ""],
+            row_padding=" ",
+            column_join="    |  ",
+            # row_join=" \\\\ \n"
+        )
+
+
+        formatted_table = formatter.format(
+            [
+                ["", "Harmonic", "Anharmonic"],  # headers
+                ["State", "ZPE", "Freq.", "Int.", "ZPE", "Freq.", "Int."] # subheaders
+            ],
+            [
+                [[0, 0, 0], 4651.89, "-", "-", 4525, "-", "-"],
+                [[1, 0, 0], "-", 1622.01, 67.2, "-", 1561.1, 68.1],
+                [[0, 1, 0], "-", 3865.01, 4.532, "-", 3622.3, 14.],
+                [[0, 0, 1], "-", 3922.73, 67.4, "-", 3761.1, 63.]
+
+            ],  # data
+            header_spans=[
+                [1, 3, 3],
+                [1, 1, 1, 1, 1, 1, 1]
+            ]
+        )
+
+        print()
+        print(formatted_table)
+
+
+
+        raise Exception(...)
 
         file_name = "OCHH_freq.fchk"
         # VPTRunner.run_simple(
@@ -273,6 +382,8 @@ class VPT2Tests(TestCase):
             return_runner=True
         )
         print(corrs)
+
+        raise Exception(corrs)
 
         print(spec.T)
 
@@ -627,50 +738,11 @@ class VPT2Tests(TestCase):
     @validationTest
     def test_SelAnharmAnalytic(self):
 
-        file_name = os.path.expanduser("~/Documents/Postdoc/freq_anion.fchk")
-        mol = Molecule.from_file(file_name)
-        surf = mol.potential_derivatives
-        modes = mol.normal_modes.modes.basis#.to_new_modes().make_dimensionless()
-        tf = modes.matrix
-        submodes = np.array([108-21, 108-20, 108-19, 108-1])
-        dim = np.diag(1/np.sqrt(modes.freqs[submodes,]))
-
-        derivs = []
-        for n,d in enumerate(surf):
-            if n < 2:
-                derivs.append(d)
-            else:
-                full_deriv = np.zeros((len(modes.freqs),) * (n - 1) + (tf.shape[0],tf.shape[0]))
-                mode_setter = tuple(
-                    np.expand_dims(submodes,
-                                   list(range(i)) + list(range(i+1, n - 1))
-                                   )
-                    for i in range(n - 1)
-
-                ) + (slice(None), slice(None))
-                full_deriv[mode_setter] = d
-                derivs.append(full_deriv)
-
-        # print([d.shape for d in mol.dipole_derivatives])
-        # raise Exception(...)
-        dips = []
-        for n,d in enumerate(mol.dipole_derivatives):
-            if n < 2:
-                dips.append(d)
-            else:
-                full_deriv = np.zeros((len(modes.freqs),) * (n - 1) + (tf.shape[0],3))
-                mode_setter = tuple(
-                    np.expand_dims(submodes,
-                                   list(range(i)) + list(range(i+1, n - 1))
-                                   )
-                    for i in range(n - 1)
-                ) + (slice(None), slice(None))
-                full_deriv[mode_setter] = d
-                dips.append(full_deriv)
+        file_name ="freq_anion.fchk"
 
         state = VPTStateMaker(108)
         # with BlockProfiler():
-        spec, corrs = AnalyticVPTRunner.run_simple(
+        corrs = AnalyticVPTRunner.run_simple(
             file_name,
             [
                 state(),
@@ -678,74 +750,14 @@ class VPT2Tests(TestCase):
                 state(20),
                 state(19),
             ],
-            mixed_derivative_handling_mode='numerical',
-            potential_derivatives=derivs,
-            dipole_derivatives=dips,
-            calculate_intensities=True,
+            full_surface_mode_selection=[108-21, 108-20, 108-19, 108-1],
             logger=True,
-            verbose=False,
-            expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
-            return_corrections=True
+            expressions_file=os.path.expanduser("exprs.hdf5")
         )
 
         print(corrs)
 
-        # print(spec)
-        print(np.array(spec).T)
-
-        # with BlockProfiler():
-        #     spec = runner.get_spectrum(states, verbose=False)
-        # print(np.array(spec).T)
-
         raise Exception(...)
-
-        VPTRunner.run_simple(file_name,
-                             2,
-                             mode_selection={
-                                 "modes": np.array([108 - 21, 108 - 20, 108 - 19, 108 - 1]),
-                                 # "derivatives": [0, 1, 2]
-                             },
-                             degeneracy_specs=[
-                                 [
-                                     [0, 0, 0, 1],
-                                     [0, 0, 2, 0],
-                                     [0, 2, 0, 0],
-                                     [2, 0, 0, 0],
-                                     [0, 1, 1, 0],
-                                     [1, 0, 1, 0],
-                                     [1, 1, 0, 0]
-                                 ]
-                             ]
-                             )
-    @validationTest
-    def test_GaussianSelectAnharmonicVPT(self):
-
-        file_name = os.path.expanduser("~/Desktop/freq_anion.fchk")
-        VPTRunner.run_simple(file_name,
-                             2,
-                             mode_selection={
-                                 "modes": np.array([108 - 21, 108 - 20, 108 - 19, 108 - 1]),
-                                 # "derivatives": [0, 1, 2]
-                             },
-                             degeneracy_specs=[
-                                 [
-                                     [0, 0, 0, 1],
-                                     [0, 0, 2, 0],
-                                     [0, 2, 0, 0],
-                                     [2, 0, 0, 0],
-                                     [0, 1, 1, 0],
-                                     [1, 0, 1, 0],
-                                     [1, 1, 0, 0]
-                                 ]
-                             ]
-                             )
-        # print(
-        #     woof.hamiltonian.V_terms[2] * 219475.6
-        # )
-        # raise Exception(
-        #     runner.hamiltonian.molecule
-        # )
-
 
     @validationTest
     def test_NewEmbedding(self):

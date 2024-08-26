@@ -37,6 +37,7 @@ class PerturbationTheoryHamiltonian:
                  n_quanta=None,
                  modes=None,
                  mode_selection=None,
+                 full_surface_mode_selection=None,
                  potential_derivatives=None,
                  include_potential=True,
                  include_gmatrix=True,
@@ -122,6 +123,7 @@ class PerturbationTheoryHamiltonian:
         self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.integer)) else tuple(n_quanta)
         self.modes = modes
         self.mode_selection = mode_selection
+        self.full_surface_mode_selection = full_surface_mode_selection
 
 
         expansion_options['logger'] = self.logger
@@ -137,11 +139,12 @@ class PerturbationTheoryHamiltonian:
             V_terms = None
         else:
             V_terms = PotentialTerms(self.molecule,
-                                      modes=modes, mode_selection=mode_selection,
-                                      potential_derivatives=potential_derivatives,
-                                      allow_higher_potential_terms=allow_higher_potential_terms,
-                                      **expansion_params.filter(PotentialTerms)
-                                      )
+                                     modes=modes, mode_selection=mode_selection,
+                                     full_surface_mode_selection=full_surface_mode_selection,
+                                     potential_derivatives=potential_derivatives,
+                                     allow_higher_potential_terms=allow_higher_potential_terms,
+                                     **expansion_params.filter(PotentialTerms)
+                                     )
         self.V_terms = self.TermGetter(V_terms, potential_terms, mode_selection=mode_selection)
 
         if not include_gmatrix:
@@ -269,6 +272,7 @@ class PerturbationTheoryHamiltonian:
         if self._dipole_terms is None:
             self._dipole_terms = DipoleTerms(
                 self.molecule, modes=self.modes, mode_selection=self.mode_selection,
+                full_surface_mode_selection=self.full_surface_mode_selection,
                 **ParameterManager(self.expansion_options).filter(DipoleTerms)
             )
         return self._dipole_terms
