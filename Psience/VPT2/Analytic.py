@@ -2,9 +2,8 @@
 Provides a symbolic approach to vibrational perturbation theory based on a Harmonic description
 """
 
-import abc, itertools, collections, enum
+import abc, itertools, collections, enum, math
 import contextlib
-import math
 
 import numpy as np, scipy.signal, time
 
@@ -5420,7 +5419,7 @@ class PerturbationTheoryExpressionEvaluator:
                     if len(tensors) > 0:
 
                         facs = [
-                            np.math.factorial(n)
+                            math.factorial(n)
                             for n in range(max([len(cinds) for cinds in cind_specs] + [0])+1)
                         ]
 

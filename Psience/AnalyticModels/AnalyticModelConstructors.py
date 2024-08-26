@@ -1,6 +1,6 @@
 import itertools
 
-import numpy as np, scipy
+import numpy as np, scipy, math
 
 from McUtils.Data import AtomData, UnitsData
 import McUtils.Numputils as nput
@@ -662,7 +662,7 @@ class AnalyticModel:
             for i, d in enumerate(potential_expansions):
                 for j in range(i):
                     d = AnalyticModelBase.dot(coord_vec, d, axes=[0, -1])
-                pots.append(1/np.math.factorial(i)*d)
+                pots.append(1/math.factorial(i)*d)
         else:
             pots = potential_expansions
         if lambdify:

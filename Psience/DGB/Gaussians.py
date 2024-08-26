@@ -1,4 +1,4 @@
-import numpy as np
+import numpy as np, math
 
 from McUtils.Coordinerds import CartesianCoordinates1D, CartesianCoordinates2D, CartesianCoordinates3D
 from McUtils.Scaffolding import Logger
@@ -1052,7 +1052,7 @@ class DGBGaussians:
             np.flip(np.asarray(sp.special.hermite(coeff_dict.get(k, 0), monic=False)))
             * np.sqrt(
                 (2 * alphas[k] ) ** np.arange(coeff_dict.get(k, 0)+1)
-                / ( 2**(coeff_dict.get(k, 0)) * np.math.factorial(coeff_dict.get(k, 0)) )
+                / ( 2**(coeff_dict.get(k, 0)) * math.factorial(coeff_dict.get(k, 0)) )
             )
             for k in range(ndim)
         ]

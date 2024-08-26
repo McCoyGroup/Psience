@@ -2,7 +2,7 @@
 A little package of utilities for setting up/running VPT jobs
 """
 
-import numpy as np, sys, os, itertools, scipy, dataclasses
+import numpy as np, sys, os, itertools, scipy, dataclasses, math
 
 from McUtils.Data import UnitsData, AtomData
 from McUtils.Scaffolding import ParameterManager, Logger
@@ -2526,7 +2526,7 @@ class AnalyticVPTRunner:
             ),
             potential_terms=(
                 [
-                    np.math.factorial(i + 2) * e[0]
+                    math.factorial(i + 2) * e[0]
                     for i, e in enumerate(self.eval.expansions)
                 ]
                     if potential_terms is None else
@@ -2534,7 +2534,7 @@ class AnalyticVPTRunner:
             ),
             kinetic_terms=(
                 [
-                    (2 * np.math.factorial(i)) * e[1]
+                    (2 * math.factorial(i)) * e[1]
                     for i, e in enumerate(self.eval.expansions)
                 ]
                     if kinetic_terms is None else
@@ -2544,7 +2544,7 @@ class AnalyticVPTRunner:
                 (
                     [
                         # self.eval.expansions[2][3],
-                        (np.math.factorial(i)) * e[3]
+                        (math.factorial(i)) * e[3]
                         for i, e in enumerate(self.eval.expansions[2:])
                     ]
                         if self.ham.molecule.internals is None else
@@ -2555,7 +2555,7 @@ class AnalyticVPTRunner:
             ),
             pseudopotential_terms=(
                 [
-                    (8 * np.math.factorial(i)) * (
+                    (8 * math.factorial(i)) * (
                         e[4] if self.ham.molecule.internals is None else e[2]
                     )
                     for i, e in enumerate(self.eval.expansions[2:])
@@ -2774,7 +2774,7 @@ class AnalyticVPTRunner:
         if axes is None: axes = [0, 1, 2]
         corrs = self.get_operator_corrections(
             [
-                [x/np.math.factorial(i+1) for i,x in enumerate(dipole_expansion[x][1:])]
+                [x/math.factorial(i+1) for i,x in enumerate(dipole_expansion[x][1:])]
                 for x in axes
             ],
             states,

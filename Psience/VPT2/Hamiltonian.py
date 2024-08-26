@@ -2,7 +2,7 @@
 Provides support for build perturbation theory Hamiltonians
 """
 
-import numpy as np, itertools, time
+import numpy as np, itertools, time, math
 
 import McUtils.Numputils as nput
 from McUtils.Scaffolding import Logger, NullLogger, Checkpointer, NullCheckpointer, ParameterManager
@@ -363,7 +363,7 @@ class PerturbationTheoryHamiltonian:
                 p_expansion = ['p'] + ['x'] * o + ['p']
 
                 if return_reps:
-                    T = (iphase / (2*np.math.factorial(o))) * self.basis.representation(*p_expansion,
+                    T = (iphase / (2*math.factorial(o))) * self.basis.representation(*p_expansion,
                                                                                         coeffs=T,
                                                                                         name='T({})'.format(o),
                                                                                         axes=[
@@ -373,7 +373,7 @@ class PerturbationTheoryHamiltonian:
                                                                                         **self.operator_settings
                                                                                         )
                 else:
-                    T = (iphase / (2*np.math.factorial(o))) * T
+                    T = (iphase / (2*math.factorial(o))) * T
             else:
                 T = None
 
@@ -384,7 +384,7 @@ class PerturbationTheoryHamiltonian:
                     V[zero_sel] = 0.
                 v_expansion = ['x'] * (o + 2)
                 if return_reps:
-                    V = 1 / np.math.factorial(o + 2) * self.basis.representation(*v_expansion,
+                    V = 1 / math.factorial(o + 2) * self.basis.representation(*v_expansion,
                                                                                    coeffs=V,
                                                                                    axes=[
                                                                                         list(range(o+2)),
@@ -394,7 +394,7 @@ class PerturbationTheoryHamiltonian:
                                                                                    **self.operator_settings
                                                                                    )
                 else:
-                    V = 1 / np.math.factorial(o + 2) * V
+                    V = 1 / math.factorial(o + 2) * V
             else:
                 V = None
 
@@ -422,7 +422,7 @@ class PerturbationTheoryHamiltonian:
 
                         z_exp = ['x', 'p'] + ['x' for _ in range(oz)] + ['x', 'p']
                         if return_reps:
-                            Z = iphase / (np.math.factorial(oz)) * self.basis.representation(*z_exp,
+                            Z = iphase / (math.factorial(oz)) * self.basis.representation(*z_exp,
                                                                    coeffs=Z,
                                                                    name='Coriolis({})'.format(oz),
                                                                    **self.operator_settings
@@ -434,7 +434,7 @@ class PerturbationTheoryHamiltonian:
 
                             self.logger.log_print("Z({o}) = {Z}", o=oz, Z=Z, log_level=self.logger.LogLevel.Never)
                         else:
-                            Z = iphase / (np.math.factorial(oz)) * Z
+                            Z = iphase / (math.factorial(oz)) * Z
                             self._expansions[o].append(Z)
                     elif not return_reps:
                         self._expansions[o].append(0)
@@ -451,7 +451,7 @@ class PerturbationTheoryHamiltonian:
 
                         u_exp = ['x' for _ in range(oz)]
                         if return_reps:
-                            U = 1 / (8 * np.math.factorial(oz)) * self.basis.representation(*u_exp,
+                            U = 1 / (8 * math.factorial(oz)) * self.basis.representation(*u_exp,
                                                                      coeffs=U,
                                                                      name="V'({})".format(oz),
                                                                      **self.operator_settings
@@ -463,7 +463,7 @@ class PerturbationTheoryHamiltonian:
 
                             self.logger.log_print("U({o}) = {U}", o=oz, U=U, log_level=self.logger.LogLevel.Never)
                         else:
-                            U = 1 / (8 * np.math.factorial(oz)) * U
+                            U = 1 / (8 * math.factorial(oz)) * U
                             self._expansions[o].append(U)
                     elif not return_reps:
                         self._expansions[o].append(0)
