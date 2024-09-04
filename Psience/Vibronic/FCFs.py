@@ -181,7 +181,7 @@ class FranckCondonModel:
             scaling = prefacs * (1 if prealphas is not None else self.zero_point_alpha_contrib(alphas))
 
             ncoords = len(alphas)
-            nperms = np.math.comb(ncoords, ndim)
+            nperms = math.comb(ncoords, ndim)
             # try to split evenly into k batches
             num_batches = 1 + (nperms // batch_size)
             real_batch_size = nperms // num_batches
@@ -850,6 +850,6 @@ class HermiteProductPolynomial:
         return DensePolynomial(
             np.flip(np.asarray(sp.special.hermite(n, monic=False)))
             * np.sqrt(
-                a ** np.arange(n + 1) / (2 ** (n) * np.math.factorial(n))
+                a ** np.arange(n + 1) / (2 ** (n) * math.factorial(n))
             )
         )

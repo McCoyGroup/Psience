@@ -2,7 +2,7 @@
 Stores all of the terms used inside the VPT2 representations
 """
 
-import numpy as np, functools as fp, itertools, time, enum
+import numpy as np, functools as fp, itertools, time, enum, math
 
 from McUtils.Numputils import SparseArray, levi_cevita3
 import McUtils.Numputils as nput
@@ -460,7 +460,7 @@ class ExpansionTerms:
                 for inds in itertools.combinations(all_inds, i):
                     # define a diagonal slice through
                     sel = tuple(slice(None, None, None) if a not in inds else np.arange(s[a]) for a in all_inds)
-                    weights[sel] = 1 / np.math.factorial(i)
+                    weights[sel] = 1 / math.factorial(i)
             weighted = weighted * weights
             # print(weights, weighted.array)
         return weighted
