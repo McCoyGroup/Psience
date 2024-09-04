@@ -126,7 +126,7 @@ class StructuralProperties:
         else:
             multiconfig = True
             extra_shape = coords.shape[:-2]
-            coords = coords.reshape((np.product(extra_shape),) + coords.shape[-2:])
+            coords = coords.reshape((np.prod(extra_shape),) + coords.shape[-2:])
 
         massy_doop = cls.get_prop_inertia_tensors(coords, masses)
         moms, axes = np.linalg.eigh(massy_doop)

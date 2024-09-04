@@ -103,7 +103,11 @@ class MolecularVibrations:
 
         coords = self.coords
         if displacements.ndim == 1:
-            disp_coords = CoordinateSet(np.zeros((n,) + self._basis.coordinate_shape), self._basis)
+            coord_shape = self._basis.coordinate_shape
+            if coord_shape is None:
+                coord_shape = (len(self.freqs),)
+
+            disp_coords = CoordinateSet(np.zeros((n,) + coord_shape), self._basis)
             disp_coords[:, which] = displacements
         else:
             disp_coords = CoordinateSet(displacements, self._basis)
@@ -197,11 +201,23 @@ class MolecularVibrations:
     def to_widget(self):
         from McUtils.Jupyter import JHTML, MenuSelect, ButtonGroup, FunctionDisplay, VariableNamespace
 
+        def get_which(which):
+            try:
+                which = int(which.strip())
+            except:
+                which = 0
+            else:
+                which = which - 1
+            return which
+
         if self._widg is None:
             with VariableNamespace():
                 return JHTML.Div(
                     MenuSelect('which', [str(x+1) for x in range(len(self))], value='1', menu_type=ButtonGroup),
-                    FunctionDisplay(lambda which='1',**kw:self.visualize(which=int(which)-1 if which != '' else 0, mode='jupyter'), ['which'])
+                    FunctionDisplay(
+                        lambda which='1',**kw:self.visualize(which=get_which(which), mode='jupyter'),
+                        ['which']
+                    )
                 )
 
     def __getitem__(self, item):
