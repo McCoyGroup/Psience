@@ -1,5 +1,5 @@
 
-import numpy as np, scipy as sp, itertools as it, collections
+import numpy as np, scipy as sp, itertools as it, collections, math
 from McUtils.Scaffolding import Logger
 from McUtils.Zachary import DensePolynomial
 from McUtils.Combinatorics import IntegerPartitioner, IntegerPartitioner2D, UniquePermutations
