@@ -475,7 +475,7 @@ class DGBEvaluator:
         fac = (-1)**(n) * np.prod(
             2*np.arange(n+1, m+1, 2) - s
         )
-        bin = np.math.comb(m, n)
+        bin = math.comb(m, n)
         return bin * fac
     @classmethod
     def momentum_integral(cls, p, a, k):
