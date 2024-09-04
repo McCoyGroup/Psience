@@ -160,7 +160,7 @@ class DipoleSurface(MultiSurface):
             if gps.ndim == 2:
                 gps = gps.flatten()
             elif gps.ndim > 2:
-                gps = np.reshape(gps, gps.shape[:-2] + (np.product(gps.shape[-2:]),))
+                gps = np.reshape(gps, gps.shape[:-2] + (np.prod(gps.shape[-2:]),))
 
         return super().__call__(gps, **opts)
 
