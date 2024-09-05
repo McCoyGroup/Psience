@@ -29,210 +29,74 @@ class VPT2Tests(TestCase):
 
     # region Water Analogs
 
-    # @debugTest
-    # def test_HODVPTRunner(self):
-    #
-    #     file_name = "OCHH_freq_16.fchk"
-    #     VPTRunner.run_simple(
-    #         TestManager.test_data(file_name),
-    #         2,
-    #         # memory_constrained=True,
-    #         # logger=True
-    #     )
+    @debugTest
+    def test_MultdiDegHOH(self):
+
+        # space = VPTStateSpace(
+        #     [
+        #         [0, 1, 0],
+        #         [0, 0, 1]
+        #     ],
+        #     degeneracy_specs=[
+        #         {
+        #             'polyads': [
+        #                 [[0, 0, 1], [1, 1, 0]],
+        #             ]
+        #         },
+        #         {
+        #             'polyads': [
+        #                 [[0, 1, 0], [1, 0, 0]]
+        #             ]
+        #         }
+        #     ]
+        # )
+        #
+        # space = VPTRunner.run_simple(
+        #     TestManager.test_data('HOH_freq.fchk'),
+        #     1,
+        #     degeneracy_specs=[
+        #          {
+        #             'polyads':[
+        #                 [[0, 0, 1], [1, 1, 0]],
+        #             ]
+        #         },
+        #         {
+        #             'polyads': [
+        #                 [[0, 1, 0], [1, 0, 0]]
+        #             ]
+        #         }
+        #     ]
+        # )
+
+        space = VPTRunner.run_simple(
+            TestManager.test_data('HOH_freq.fchk'),
+            2,
+            degeneracy_specs=[
+                {
+                    'polyads': [
+                        [[0, 0, 1], [1, 1, 0]],
+                    ]
+                },
+                {
+                    'wfc_threshold': .3
+                }
+            ]
+        )
+
+        raise Exception(...)
 
     @validationTest
     def test_HOHAnalytic(self):
 
-        # internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
-        internals = None
-        file_name = 'HOH_freq.fchk'
-        states = [
-            [0, 0, 0],
-            [1, 0, 0],
-            # [0, 1, 0],
-            # [0, 0, 1],
-            # [1, 1, 0],
-            # [1, 0, 1],
-            # [0, 1, 1],
-            [0, 2, 0]
-        ]
-        mode_selection = None
-        # states = [[x] for x in range(7)]
-        # mode_selection = [0]
-        # states = [[0, 0], [1, 0]]#, [0, 1], [2, 0], [0, 2], [1, 1]]
-        # mode_selection = [0, 1]
-
-        # with Checkpointer.from_file(os.path.expanduser("~/Desktop/exprs.hdf5")) as chk:
-        #     try:
-        #         wat = chk['a']
-        #     except KeyError:
-        #         chk['a'] = np.random.rand(1, 10, 10)
-        #
-        # with Checkpointer.from_file(os.path.expanduser("~/Desktop/exprs.hdf5")) as chk:
-        #     print(chk['a'])
-        #
-        # raise Exception(...)
-
-        driver = AnalyticVPTRunner.from_file(
+        file_name = "HOH_freq.fchk"
+        AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
-            mode_selection=mode_selection,
-            internals=internals,
-            logger=True
-            # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5")
+            2,
+            expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5")
         )
-
-        # raise Exception(
-        #     driver.eval.solver.full_wavefunction_correction(1).get_poly_terms([])
-        # )
-
-        # hammy = driver.get_reexpressed_hamiltonian(states, order=2, verbose=False, return_orders=True)
-        # for h in hammy:
-        #     print(h)
-        #     print("-" * 30)
-        # raise Exception(...)
-
-        # runner, _ = driver.construct_classic_runner(
-        #     TestManager.test_data(file_name),
-        #     np.array(states),
-        #     mode_selection=np.arange(len(mode_selection)) if mode_selection is not None else mode_selection,
-        #     internals=internals,
-        #     logger=False,
-        #     zero_element_warning=False,
-        #     # dipole_terms=dips
-        # )
-
-        hammy = driver.get_reexpressed_hamiltonian(
-            [
-                [0, 0, 0],
-                [0, 0, 1],
-                [0, 1, 0],
-                [2, 0, 0]
-            ],
-            order=2,
-            return_orders=True,
-            degenerate_states=[
-                [[2, 0, 0], [0, 0, 1]],
-                [[2, 0, 0], [0, 1, 0]],
-            ],
-            only_degenerate_terms=True
-        )
-
-        for h in hammy:
-            print(h)
-            print("-" * 30)
-        raise Exception(...)
-
-        zpe, freqs = driver.get_freqs(
-            states,
-            # axes=[2],
-            # dipole_expansion=dips,
-            degenerate_states=[
-                # [[2, 0, 0], [0, 0, 1]],
-                # [[2, 0, 0], [0, 1, 0]],
-            ],
-            verbose=True
-        )
-
-        print(freqs)
-        raise Exception(...)
-
-        spec = driver.get_spectrum(
-            states,
-            # axes=[2],
-            # dipole_expansion=dips,
-            degenerate_states=[
-                [[2, 0, 0], [0, 0, 1]],
-                [[2, 0, 0], [0, 1, 0]],
-                # [[1, 0, 0, 0, 0, 0], [0, 0, 2, 0, 0, 0]],
-                # [[1, 0, 0, 0, 0, 0], [0, 2, 0, 0, 0, 0]],
-                # [[1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 2, 0]],
-                # [[1, 0, 0, 0, 0, 0], [0, 0, 0, 0, 0, 2]],
-                # [[1, 0, 0, 0, 0, 0], [2, 0, 0, 0, 0, 0]]
-            ],
-            verbose=True
-        )
-        # runner.print_tables(print_intensities=True)
-        print(np.array(spec).T)
-        raise Exception(...)
-
-        tt = [
-            (0, 1, 0),
-            (0, 0, 1),
-            (1, 0, 0),
-            (0, 2, 0),
-            (0, 1, 1),
-            (0, 0, 2),
-            (1, 1, 0),
-            (1, 0, 1),
-            (2, 0, 0)
-        ]
-        corr_list = [
-            driver.get_transition_moment_corrections(
-                states,#[1:2],
-                axes=[2],
-                dipole_expansion=dips,
-                terms=[t],
-                verbose=True
-            )[0].corrections[0]
-            for t in tt
-        ]
-        runner.print_tables(print_intensities=True)
-        corrs_array = np.array([c[:, sum(t)] for c,t in zip(corr_list, tt)])
-        print(corrs_array.T)
-        # for state_array in corrs_array.T:
-        #     print(s)
-        # print(*[c[:, 2] for c in corr_list])
-        # for f in driver.eval.freqs:
-        #     print(f)
-        raise Exception(...)
-
-        # solver = runner.get_solver()
-        # reps = solver.get_VPT_representations()
-        # H1_mat = reps[1].todense()
-        # H1_gen = driver.eval.solver.hamiltonian_expansion[1]
-        # corrs = driver.evaluate_expressions(
-        #     states,
-        #     [H1_gen*H1_gen],
-        #     verbose=True
-        # )
-        # print((H1_mat@H1_mat)[0])
-        # print(corrs.corrections[0])
-        # raise Exception(...)
-
-        # wfns = runner.get_wavefunctions()
-        # corrs = driver.eval.get_full_wavefunction_corrections(
-        #     states,
-        #     order=2,
-        #     verbose=True
-        # )
-        # corrs = driver.eval.get_overlap_corrections(states, order=2, verbose=True)
-        # print(wfns.corrs.wfn_corrections[1].todense())#[:, :7])
-        # print(wfns.corrs.wfn_corrections[2].todense())#[:, :7])
-        # with np.printoptions(precision=None):
-        #     # print(corrs.final_states[0])
-        #     # print(corrs.corrections[0])
-        #     print(corrs)
-        # raise Exception(...)
 
     @validationTest
     def test_AnalyticOCHH(self):
-        # check_types('Psience.VPT2')
-
-        # file_name = "OCHH_freq.fchk"
-        # VPTRunner.run_simple(
-        #     TestManager.test_data(file_name),
-        #     [
-        #         [0, 0, 0, 0, 0, 0],
-        #         [0, 0, 0, 0, 0, 1],
-        #         [0, 1, 0, 1, 0, 0]
-        #     ],
-        #     # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
-        #     degeneracy_specs={"polyads":[
-        #         [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
-        #     ]}
-        # )
-        #
-        # raise Exception(...)
 
         file_name = "OCHH_freq.fchk"
         AnalyticVPTRunner.run_simple(
@@ -1430,7 +1294,8 @@ class VPT2Tests(TestCase):
 
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
-            3
+            3,
+            degeneracy_specs='auto'
         )
 
     @validationTest
@@ -1480,19 +1345,6 @@ class VPT2Tests(TestCase):
             # },
             logger=True
         )
-
-    # @debugTest
-    # def test_IHOHBasic(self):
-    #     wfns = VPTRunner.run_simple(
-    #         TestManager.test_data("i_hoh_opt.fchk"),
-    #         2,
-    #         # initial_states=1,
-    #         degeneracy_specs={'wfc_threshold':.3},
-    #         # internals=VPTRunner.helpers.parse_zmatrix("criegee/z_mat.dat"),
-    #         mixed_derivative_handling_mode='unhandled',
-    #         # logger=filename,  # output file name
-    #         plot_spectrum=True
-    #     )
 
     @validationTest
     def test_BlockLabels(self):

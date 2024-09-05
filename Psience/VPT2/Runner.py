@@ -292,30 +292,59 @@ class VPTStateSpace:
         basis = states.basis
         self.state_space = states
         self.state_list = states.excitations.tolist()
-        self.degeneracy_spec, self.degenerate_states = self.build_degenerate_state_spaces(degeneracy_specs, states,
-                                                                                          system=system, freqs=frequencies)
-        self.degenerate_pairs = None
-        if self.degenerate_states is not None:
-            if isinstance(self.degenerate_states, tuple) and isinstance(self.degenerate_states[0], DegeneracySpec):
-                self.degenerate_states, new_states = self.degenerate_states
-                if isinstance(new_states, BasisStateSpace):
-                    new_states = new_states.excitations.tolist()
-                states = np.asanyarray(self.state_list).tolist()
-                for state in new_states:
-                    if state not in states:
-                        states.append(state)
-                self.states = BasisStateSpace(basis, states)
-                self.state_list = states
-            else:
-                self.degenerate_states = [np.array(x).tolist() for x in self.degenerate_states]
-                states = np.asanyarray(self.state_list).tolist()
-                for pair in self.degenerate_states:
-                    for p in pair:
-                        if p not in states:
-                            states.append(p)
-                self.state_list = states
 
-            self.degenerate_pairs = self.degeneracy_spec.get_polyad_pairs(self.state_list)
+
+        self.degenerate_states = None
+        self.degenerate_pairs = None
+
+        if degeneracy_specs is None:
+            degeneracy_specs = [degeneracy_specs]
+        elif nput.is_atomic(degeneracy_specs) or isinstance(degeneracy_specs, dict):
+            degeneracy_specs = [degeneracy_specs]
+        elif not all(nput.is_atomic(d) or isinstance(d, dict) for d in degeneracy_specs):
+            degeneracy_specs = [degeneracy_specs]
+
+        self.degeneracy_specs = []
+
+        new_states = []
+        deg_state_blocks = []
+        deg_pair_blocks = []
+        all_states = np.asanyarray(self.state_list)
+        for spec in degeneracy_specs:
+            deg_spec, deg_states = self.build_degenerate_state_spaces(spec, states, system=system, freqs=frequencies)
+            self.degeneracy_specs.append(deg_spec)
+
+            if deg_states is not None:
+                if isinstance(deg_states, BasisStateSpace):
+                    new_states.append(deg_states.excitations)
+                else:
+                    new_states.extend(deg_states)
+                    deg_state_blocks.extend(deg_states)
+                    if deg_spec.application_order == 'pre':
+                        deg_pair_blocks.append(
+                            deg_spec.get_polyad_pairs(self.state_list)
+                        )
+
+        if all(ds is None for ds in self.degeneracy_specs):
+            self.degeneracy_specs = None
+
+        if len(new_states) > 0:
+            all_states = np.concatenate([all_states] + new_states, axis=0)
+            ustates, ord = np.unique(all_states, axis=0, return_index=True)
+            ord = np.argsort(ord)
+            all_states = ustates[ord,]
+            self.states = BasisStateSpace(basis, all_states)
+            self.state_list = all_states.tolist()
+
+        if len(deg_state_blocks) == 0:
+            self.degenerate_states = None
+        else:
+            self.degenerate_states = DegeneracySpec.merge_state_blocks(deg_state_blocks)
+
+        if len(deg_pair_blocks) == 0:
+            self.degenerate_pairs = None
+        else:
+            self.degenerate_pairs = np.unique(np.concatenate(deg_pair_blocks, axis=0), axis=0)
 
     @classmethod
     def from_system_and_spec(cls, system, spec, **opts):
@@ -1074,6 +1103,8 @@ class VPTRunner:
         pt_opts = self.pt_opts.opts.copy()
         if 'degenerate_states' not in pt_opts:
             pt_opts['degenerate_states'] = self.states.degenerate_states
+        if 'degeneracy_handlers' not in pt_opts:
+            pt_opts['degeneracy_handlers'] = self.states.degeneracy_specs
         return self.hamiltonian.get_wavefunctions(
             self.states.state_list,
             initial_states=self.initial_states.state_list,
@@ -1437,7 +1468,11 @@ class VPTRunner:
                         message_prepper=lambda a:str(np.array(a)).splitlines()
                     )
                 with logger.block(tag="Degeneracies"):
-                    if states.degenerate_states is None:
+                    if states.degeneracy_specs is not None:
+                        for spec in states.degeneracy_specs:
+                            if spec.application_order != 'pre':
+                                logger.log_print(str(spec))
+                    if states.degenerate_states is None and states.degeneracy_specs is None:
                         logger.log_print("None")
                     else:
                         ds = states.degenerate_states
@@ -1449,6 +1484,7 @@ class VPTRunner:
                                 )
                         else:
                             logger.log_print(str(ds))
+
 
                 wfns = runner.get_wavefunctions()
                 runner.print_tables(

@@ -30,11 +30,13 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
 
     application_order = 'pre'
     group_filter = None
-    def __init__(self, application_order=None, group_filter=None, energy_cutoff=2.25e-3,
+    def __init__(self,
+                 application_order=None, group_filter=None, energy_cutoff=2.25e-3,
                  test_modes=None,
                  maximize_filtered_groups=True,
                  decoupling_overide=100,
-                 extra_groups=None
+                 extra_groups=None,
+                 inconsistent_polyads=None
                  ):
         if application_order is None:
             application_order = self.application_order
@@ -46,12 +48,15 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         self.test_modes = test_modes
         self.maximize_filtered_groups = maximize_filtered_groups
         self.decoupling_overide = decoupling_overide
-        self.extra_groups=extra_groups
+        self.extra_groups = extra_groups
+        self.inconsistent_polyads = inconsistent_polyads
 
     repr_opts = ['energy_cutoff']
     def __repr__(self):
         return "{}({})".format(type(self).__name__, ", ".join('{}={}'.format(k, getattr(self, k)) for k in self.repr_opts))
-
+    @classmethod
+    def merge_state_blocks(cls, state_blocks):
+        return [g[1] for g in PermutationRelationGraph.make_relation_graph(state_blocks)[0]]
     def get_degenerate_group_filter(self, solver, corrs=None, threshold=None):
         group_filter = self.group_filter
         if isinstance(group_filter, str) and group_filter == 'default':
@@ -196,7 +201,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         :rtype:
         """
         groups = self.get_groups(input_states, solver=solver, **kwargs)
-        return np.unique(
+        base_polyads = np.unique(
             np.concatenate(
                 [
                     self.get_group_polyad_relation(g)
@@ -206,6 +211,13 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
             ),
             axis=0
         )
+
+        # filter out anything that just adds one quantum
+        base_polyads = [
+            b for b in base_polyads
+            if (np.sum(np.abs(b[0])) > 0 and np.sum(np.abs(b[1])) > 0)
+        ]
+        return base_polyads
 
     @classmethod
     @abc.abstractmethod
@@ -302,7 +314,7 @@ class MartinTestDegeneracySpec(DegeneracySpec):
     def get_coupled_spaces(self, input_states:BasisStateSpace, solver=None):
         # raise NotImplementedError("...")
         if self._test_groups is None:
-            self.prep_states(input_states)
+            self._test_groups = self.prep_states(input_states)
         elif len(self._test_groups) == 0:
             return []
         if solver is None:
@@ -523,6 +535,7 @@ class PolyadDegeneracySpec(DegeneracySpec):
                  iterations=2,
                  require_converged=False,
                  extra_groups=None,
+                 extra_polyads=None,
                  **opts
                  ):
         super().__init__(**opts)
@@ -579,11 +592,11 @@ class PolyadDegeneracySpec(DegeneracySpec):
             require_converged=self.require_converged,
             extra_groups=self.extra_groups
         )
-
     @classmethod
     def get_degenerate_polyad_space(cls, states, polyadic_pairs,
                                     max_quanta=None, iterations=2,
-                                    require_converged=False, extra_groups=None):
+                                    require_converged=False, extra_groups=None
+                                    ):
         """
         Gets degenerate spaces by using pairs of transformation rules to
         take an input state and connect it to other degenerate states
@@ -626,6 +639,8 @@ class PolyadDegeneracySpec(DegeneracySpec):
                 groups = _
         groups = [g for g in groups if len(g) > 1]
         return groups
+
+
 
     def get_polyad_pairs(self, input_states, solver=None, **kwargs):
         return [
