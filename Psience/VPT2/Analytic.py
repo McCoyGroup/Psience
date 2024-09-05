@@ -5826,6 +5826,10 @@ class PerturbationTheoryEvaluator:
 
         degenerate_changes = self.get_degenerate_changes(degenerate_states)
 
+        # print(self._reformat_corrections(order, None, change_map, None if spex else len(expansions)))
+        #
+        # raise Exception(change_map)
+
         corrs = self._build_corrections(generator, expansions, order,
                                         terms, allowed_coefficients, disallowed_coefficients,
                                         epaths, change_map, degenerate_changes, only_degenerate_terms,
