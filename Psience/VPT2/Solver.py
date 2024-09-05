@@ -3,12 +3,16 @@ import numpy as np, itertools, time, types
 from collections import namedtuple
 
 from McUtils.Numputils import SparseArray
+import McUtils.Numputils as nput
 from McUtils.Scaffolding import Logger, NullLogger, NullCheckpointer
 from McUtils.Parallelizers import Parallelizer, SerialNonParallelizer
 from McUtils.Data import UnitsData
 from McUtils.Combinatorics import LatticePathGenerator
 
-from ..BasisReps import Representation, BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BasisStateSpaceFilter
+from ..BasisReps import (
+    Representation, BasisStateSpace, BasisMultiStateSpace,
+    SelectionRuleStateSpace, BasisStateSpaceFilter, HarmonicOscillatorProductBasis
+)
 
 from .DegeneracySpecs import DegenerateMultiStateSpace, DegeneracySpec
 from .Common import *
@@ -48,6 +52,7 @@ class PerturbationTheorySolver:
                  check_overlap=True,
                  zero_element_warning=True,
                  degenerate_states=None,
+                 degeneracy_handlers=None,
                  handle_strong_couplings=False,
                  # strong_coupling_test_modes=None,
                  # strong_couplings_state_filter=None,
@@ -133,22 +138,38 @@ class PerturbationTheorySolver:
         self.states = states
         self.full_basis = states.full_basis
 
-        self.degeneracy_spec = degenerate_states
+        if degeneracy_handlers is None:
+            degeneracy_handlers = [degeneracy_handlers]
+        elif nput.is_atomic(degeneracy_handlers) or isinstance(degeneracy_handlers, dict):
+            degeneracy_handlers = [degeneracy_handlers]
+        elif not all(nput.is_atomic(d) or isinstance(d, (DegeneracySpec, dict)) for d in degeneracy_handlers):
+            degeneracy_handlers = [degeneracy_handlers]
+        elif isinstance(degeneracy_handlers, DegeneracySpec):
+            degeneracy_handlers = [degeneracy_handlers]
+        self.degeneracy_handlers = [
+            DegeneracySpec.from_spec(d) if not (d is None or isinstance(d, DegeneracySpec)) else d
+            for d in degeneracy_handlers
+        ]
+
+        self.degenerate_states = degenerate_states
         self._deg_states = None
-        if self.degeneracy_spec is None:
+        if len(self.degeneracy_handlers) == 1 and self.degeneracy_handlers[0] is None:
             if handle_strong_couplings is None:
                 handle_strong_couplings = True
             if handle_strong_couplings is not False:
-                self.degeneracy_spec = DegeneracySpec.from_spec({
-                    'wfc_threshold':'auto' if handle_strong_couplings is True else handle_strong_couplings,
-                    'iterations':order//2
-                })
-        elif hasattr(self.degeneracy_spec, 'wfc_threshold') and self.degeneracy_spec.iterations is None:
-            self.degeneracy_spec.iterations = order//2
-        self.handle_strong_couplings = hasattr(self.degeneracy_spec, 'wfc_threshold')
+                self.degeneracy_handlers = [
+                    DegeneracySpec.from_spec({
+                        'wfc_threshold': 'auto' if handle_strong_couplings is True else handle_strong_couplings
+                    })
+                ]
+
+        self.handle_strong_couplings = False
+        for dspec in self.degeneracy_handlers:
+            if hasattr(dspec, 'wfc_threshold'):
+                self.handle_strong_couplings = True
+                if dspec.iterations is None: dspec.iterations = order//2
         self.nondeg_hamiltonian_precision=nondeg_hamiltonian_precision
 
-        # self.handle_strong_couplings = handle_strong_couplings
         # self.extend_strong_coupling_spaces = extend_strong_coupling_spaces
         # self.strong_coupling_test_modes = strong_coupling_test_modes
         # self.strong_couplings_state_filter = strong_couplings_state_filter
@@ -247,15 +268,67 @@ class PerturbationTheorySolver:
         :rtype:
         """
         if self._deg_states is None:
-            spec = self.degeneracy_spec
-            if isinstance(spec, DegeneracySpec) and spec.application_order != 'pre':
-                spec = None
-            self._deg_states = DegenerateMultiStateSpace.from_spec(
-                spec,
-                solver=self,
-                full_basis=self.full_basis
-            )
+            new_states = []
+            if self.degenerate_states is not None:
+                new_states.append(
+                    DegenerateMultiStateSpace.from_spec(
+                        new_states,
+                        solver=self,
+                        full_basis=self.full_basis,
+                        group_filter=None,
+                        log_groups=True
+                    )
+                )
+            for spec in self.degeneracy_handlers:
+                if spec is not None and not isinstance(spec, DegeneracySpec):
+                    raise ValueError("expected `{}` object".format(DegeneracySpec.__name__))
+                if spec is not None and spec.application_order != 'pre':
+                    spec = None
+
+                if spec is None:
+                    group_filter = None
+                else:
+                    if spec.group_filter is not None:
+                        group_filter = spec.get_degenerate_group_filter(self)
+                    else:
+                        group_filter = None
+                new_states.append(DegenerateMultiStateSpace.from_spec(
+                    spec,
+                    solver=self,
+                    full_basis=self.full_basis,
+                    group_filter=group_filter,
+                    log_groups=True
+                ))
+            if len(new_states) > 0:
+                if len(new_states) == 1:
+                    self._deg_states = new_states[0]
+                else:
+                    self._deg_states = self.merge_deg_spaces(new_states)
+            else:
+                self._deg_states = None
         return self._deg_states
+
+    @classmethod
+    def merge_deg_spaces(cls, new_states):
+        all_blocks = [
+            b.excitations if isinstance(b, BasisStateSpace) else b
+            for deg_spaces in new_states
+            for b in (
+                deg_spaces.flat if isinstance(deg_spaces, DegenerateMultiStateSpace) else deg_spaces
+            )
+        ]
+        merged = DegeneracySpec.merge_state_blocks(all_blocks)
+        basis = None
+        for b in new_states:
+            if isinstance(b, DegenerateMultiStateSpace):
+                basis = b.basis
+                break
+        else:
+            basis = HarmonicOscillatorProductBasis(len(all_blocks[0][0]))
+        return DegenerateMultiStateSpace(
+            [BasisStateSpace(basis, b) for b in merged]
+        )
+
 
     @property
     def zero_order_energies(self):
@@ -1369,23 +1442,6 @@ class PerturbationTheorySolver:
         if handle_strong_couplings is None:
             handle_strong_couplings = self.handle_strong_couplings
 
-        if isinstance(self.degeneracy_spec, DegeneracySpec):
-            if self.degeneracy_spec.group_filter is not None:
-                group_filter = self.get_degenerate_group_filter(group_filter=self.degeneracy_spec.group_filter)
-            else:
-                group_filter = None
-            degenerate_states = DegenerateMultiStateSpace.from_spec(
-                None if handle_strong_couplings else self.degeneracy_spec,
-                solver=self,
-                full_basis=self.full_basis,
-                group_filter=group_filter,
-                log_groups=True
-            )#self.degeneracy_spec.get_groups(states, solver=self)
-        # degenerate_states = None,
-        # degeneracy_mode = None,
-        # logger = None,
-        # checkpointer = None,
-
         if non_zero_cutoff is None:
             non_zero_cutoff = Settings.non_zero_cutoff
 
@@ -1414,22 +1470,20 @@ class PerturbationTheorySolver:
 
     default_strong_coupling_threshold = .3
     def identify_strong_couplings(self, corrs):
-        spec = self.degeneracy_spec
-        if spec is None:
+        for spec in self.degeneracy_handlers:
+            if hasattr(spec, 'wfc_threshold'):
+                return spec.identify_strong_couplings(
+                    self,
+                    corrs
+                ), spec.wfc_threshold
+        else:
             spec = DegeneracySpec.from_spec('auto')
-        return spec.identify_strong_couplings(
-            self,
-            corrs
-        ), spec.wfc_threshold
+            return spec.identify_strong_couplings(
+                self,
+                corrs
+            ), spec.wfc_threshold
 
-    def get_degenerate_group_filter(self, corrs=None, threshold=None, group_filter=None):
-        return self.degeneracy_spec.get_degenerate_group_filter(
-            self,
-            corrs=corrs,
-            threshold=threshold
-        )
-
-    def construct_strong_coupling_spaces(self, sc, corrs, states, threshold):
+    def construct_strong_coupling_spaces(self, spec, sc, corrs, states, threshold):
         sc = corrs.collapse_strong_couplings(sc)
         # self.logger.log_print(
         #     corrs.states.excitations,
@@ -1443,16 +1497,16 @@ class PerturbationTheorySolver:
                     log_level=self.logger.LogLevel.Never
                 )
 
-        group_filter = self.get_degenerate_group_filter(corrs=corrs, threshold=threshold)
+        group_filter = spec.get_degenerate_group_filter(self, corrs=corrs, threshold=threshold)
         degenerate_states = DegenerateMultiStateSpace.from_spec(
-            self.degeneracy_spec,
+            spec,
             couplings=sc,
             solver=self,
             group_filter=group_filter,
             log_groups=True
         )
 
-        if self.degeneracy_spec.extend_spaces:
+        if spec.extend_spaces:
             missing = degenerate_states.to_single().difference(states)
             if len(missing) > 0:
                 with self.logger.block(tag='new states'):
@@ -1678,54 +1732,62 @@ class PerturbationTheorySolver:
                 , nondeg_hamiltonian_precision=self.nondeg_hamiltonian_precision
             )
 
-            if (
-                    degenerate_states is None
-                    or all(len(x) == 1 for x in degenerate_states)
-            ):
-                sc, degenerate_correction_threshold = self.identify_strong_couplings(corrs)
-                if len(sc) > 0:
-                    with self.logger.block(tag="Strongly coupled states (threshold={})".format(degenerate_correction_threshold)):
-                        self.logger.log_print(
-                            corrs.format_strong_couplings_report(sc, join=False)
-                        )
+            # if (
+            #         degenerate_states is None
+            #         or all(len(x) == 1 for x in degenerate_states)
+            # ):
+            sc, degenerate_correction_threshold = self.identify_strong_couplings(corrs)
+            if len(sc) > 0:
+                with self.logger.block(tag="Strongly coupled states (threshold={})".format(degenerate_correction_threshold)):
+                    self.logger.log_print(
+                        corrs.format_strong_couplings_report(sc, join=False)
+                    )
 
-                        if handle_strong_couplings and (sc is not None and len(sc) > 0):
-                            degenerate_states, meta = self.construct_strong_coupling_spaces(sc, corrs, states, degenerate_correction_threshold)
-                            states, perturbations, flat_total_space, N = meta
-                            if self.degeneracy_spec.iterations > 1:
-                                self.degeneracy_spec.iterations -= 1
-                                degenerate_states = None
-                                corrs = self._get_corrections(
-                                    perturbations,
-                                    states,
-                                    order,
-                                    flat_total_space,
-                                    N,
-                                    checkpointer,
-                                    logger,
-                                    degenerate_states,
-                                    handle_strong_couplings=True,
-                                    non_zero_cutoff=non_zero_cutoff
-                                )
-                            else:
-                                with self.logger.block(tag="Redoing PT with strong couplings handled"):
-                                    with self.logger.block(tag="Degenerate groups:"):
-                                        for g in degenerate_states.flat:
-                                            if len(g) > 1:
-                                                self.logger.log_print(str(g.excitations).splitlines())
-                                corrs = self._get_corrections(
-                                    perturbations,
-                                    states,
-                                    order,
-                                    flat_total_space,
-                                    N,
-                                    checkpointer,
-                                    logger,
-                                    degenerate_states,
-                                    handle_strong_couplings=False,
-                                    non_zero_cutoff=non_zero_cutoff
-                                )
-                            return corrs
+                    if handle_strong_couplings and (sc is not None and len(sc) > 0):
+                        for spec in self.degeneracy_handlers:
+                            if hasattr(spec, 'wfc_threshold'):
+                                degenerate_states, meta = self.construct_strong_coupling_spaces(spec, sc, corrs, states,
+                                                                                                degenerate_correction_threshold
+                                                                                                )
+                                states, perturbations, flat_total_space, N = meta
+                                if spec.iterations > 1:
+                                    spec.iterations -= 1
+                                    degenerate_states = None
+                                    corrs = self._get_corrections(
+                                        perturbations,
+                                        states,
+                                        order,
+                                        flat_total_space,
+                                        N,
+                                        checkpointer,
+                                        logger,
+                                        degenerate_states,
+                                        handle_strong_couplings=True,
+                                        non_zero_cutoff=non_zero_cutoff
+                                    )
+                                else:
+                                    with self.logger.block(tag="Redoing PT with strong couplings handled"):
+                                        with self.logger.block(tag="Degenerate groups:"):
+                                            for g in degenerate_states.flat:
+                                                if len(g) > 1:
+                                                    self.logger.log_print(str(g.excitations).splitlines())
+                                    if self.degenerate_states is not None:
+                                        degenerate_states = self.merge_deg_spaces(
+                                            [degenerate_states, self.degenerate_states]
+                                        )
+                                    corrs = self._get_corrections(
+                                        perturbations,
+                                        states,
+                                        order,
+                                        flat_total_space,
+                                        N,
+                                        checkpointer,
+                                        logger,
+                                        degenerate_states,
+                                        handle_strong_couplings=False,
+                                        non_zero_cutoff=non_zero_cutoff
+                                    )
+                                return corrs
             else:
                 sc = None
 
@@ -2188,92 +2250,3 @@ class PerturbationTheorySolver:
         return pert_blocks, perts
 
     #endregion
-
-    # def _martin_test(cls, h_reps, states, threshold, total_coupled_space):
-    #     """
-    #     Applies the Martin Test to a set of states and perturbations to determine which resonances need to be
-    #     treated variationally. Everything is done within the set of indices for the representations.
-    #
-    #     :param h_reps: The representation matrices of the perturbations we're applying.
-    #     :type h_reps: Iterable[np.ndarray | SparseArray]
-    #     :param states: The indices of the states to which we're going apply to the Martin test.
-    #     :type states: np.ndarray
-    #     :param threshold: The threshold for what should be treated variationally (in the same energy units as the Hamiltonians)
-    #     :type threshold: float
-    #     :return: Pairs of coupled states
-    #     :rtype: tuple[BasisStateSpace, BasisStateSpace]
-    #     """
-    #
-    #     raise NotImplementedError("This is fucked up :weep:; need to do full non-degenerate calc per pair of states")
-    #
-    #     H0 = h_reps[0]
-    #     H1 = h_reps[1]
-    #     energies = np.diag(H0) if isinstance(H0, np.ndarray) else H0.diag
-    #
-    #     # the 'states' should already be indices within the space over which we do the H1 calculation
-    #     # basically whichever states we need to treat as degenerate for
-    #     state_energies = energies[states]
-    #     diffs = state_energies[:, np.newaxis] - energies[np.newaxis, :]
-    #     for n, s in enumerate(states):
-    #         diffs[n, s] = 1
-    #
-    #     deg_states = []
-    #     for s in states:
-    #         # pull the blocks out of H1 that correspond to each the `states` we fed in...
-    #         H1_block = H1[s, :]
-    #         if isinstance(H1_block, SparseArray):
-    #             nzvals = H1_block.block_vals
-    #             nzinds, _ = H1_block.block_inds
-    #             H1_block = nzvals
-    #             diffs = energies[s] - energies[nzinds]  # do I need an abs ?
-    #         else:
-    #             # compute the energy differences
-    #             diffs = energies[s] - energies  # do I need an abs ?
-    #             nzinds = np.arange(len(energies))
-    #
-    #         s_pos = np.where(nzinds == s)[0]
-    #         H1_block[s_pos] = 0
-    #         diffs[s_pos] = 1
-    #
-    #         anh_eff = (np.abs(H1_block) ** 4) / (diffs ** 3)
-    #         big = np.where(np.abs(anh_eff) > threshold)[0]
-    #         if len(big) > 0:
-    #             deg_states.extend((s, nzinds[d]) for d in big)
-    #
-    #     if len(deg_states) == 0:
-    #         return None
-    #     else:
-    #         new_degs = np.array(deg_states).T
-    #
-    #         # raise Exception(new_degs)
-    #
-    #         # we now have indices inside the space of coupled states...
-    #         # so now we need to broadcast these back into their indices in the overall basis of states
-    #         tc_inds = total_coupled_space.indices
-    #         basis = total_coupled_space.basis
-    #
-    #         degs = (
-    #             BasisStateSpace(basis, tc_inds[new_degs[0]], mode='indices'),
-    #             BasisStateSpace(basis, tc_inds[new_degs[1]], mode='indices')
-    #         )
-    #
-    #         return degs
-
-    # def _prep_degeneracies_spec(self, degeneracies):
-    #     if (
-    #             degeneracies is not None
-    #             and not isinstance(degeneracies, (int, float, np.integer, np.floating))
-    #     ):
-    #         if isinstance(degeneracies[0], (int, np.integer)):
-    #             degs = BasisStateSpace(self.basis, degeneracies, mode="indices")
-    #             degeneracies = (degs, degs)
-    #         elif isinstance(degeneracies[0][0], (int, np.integer)):
-    #             degs = BasisStateSpace(self.basis, degeneracies, mode="excitations")
-    #             degeneracies = (degs, degs)
-    #         else:
-    #             degeneracies = (
-    #                 BasisStateSpace(self.basis, degeneracies[0]),
-    #                 BasisStateSpace(self.basis, degeneracies[1])
-    #             )
-    #
-    #     return degeneracies
