@@ -1,9 +1,11 @@
 
-import numpy as np, scipy as sp, itertools as it, collections, math
+import numpy as np, scipy as sp, itertools as it, collections, math, time
 from McUtils.Scaffolding import Logger
+from McUtils.Formatters import TableFormatter
 from McUtils.Zachary import DensePolynomial
 from McUtils.Combinatorics import IntegerPartitioner, IntegerPartitioner2D, UniquePermutations
 
+from ..BasisReps import StateMaker
 from ..Modes import NormalModes
 
 __all__ = [
@@ -36,7 +38,7 @@ class FranckCondonModel:
         self.gs_nms = gs_nms
         self.es_nms = es_nms
 
-        self.logger = logger
+        self.logger = Logger.lookup(logger)
 
     @classmethod
     def from_files(cls, gs_file, es_file, embed=True, mass_weight=True, logger=None):
@@ -61,13 +63,15 @@ class FranckCondonModel:
             logger=logger
         )
 
-    def get_overlaps(self, excitations, *, ground_states=None):
+    def get_overlaps(self, excitations, *, duschinsky_cutoff=None, ground_states=None):
         return self.get_fcfs(
             self.gs_nms, self.es_nms,
             excitations,
             ground_states=ground_states,
             embed=True,
-            mass_weight=False
+            duschinsky_cutoff=duschinsky_cutoff,
+            mass_weight=False,
+            logger=self.logger
         )
 
 
@@ -299,19 +303,23 @@ class FranckCondonModel:
         return contribs
 
 
-
+    duschinsky_cutoff = 1e-20
     evaluator_plans = {}
     @classmethod
     def evaluate_shifted_poly_overlap(self,
                                       poly:'HermiteProductPolynomial',
                                       Q,
-                                      alphas
+                                      alphas,
+                                      poly_scaling=1,
+                                      duschinsky_cutoff=None
                                       ):
+        if duschinsky_cutoff is None: duschinsky_cutoff = self.duschinsky_cutoff
 
         contrib = 0
 
         work_queues = {}
-        for exponents, scaling, inds in poly.term_iter(filter=lambda x,nzi,nzc:sum(x[i] for i in nzi)%2==0):
+        for exponents, scaling, inds in poly.term_iter(filter=lambda x,nzi,nzc:sum(x[i] for i in nzi)%2==0): # even/odd
+            scaling = scaling * poly_scaling
             exponents = np.array(exponents)
             ordering = np.argsort(-exponents)
             exponents = exponents[ordering]
@@ -335,8 +343,8 @@ class FranckCondonModel:
                 else:
                     plan = self.get_poly_evaluation_plan(exponents)
                 self.evaluator_plans[key] = plan
-            coeff_stack = [poly for poly,scaling in queue if abs(scaling) > 1e-15]
-            coeff_weights = [scaling for poly,scaling in queue if abs(scaling) > 1e-15]
+            coeff_stack = [poly for poly,scaling in queue if abs(scaling) > duschinsky_cutoff]
+            coeff_weights = [scaling for poly,scaling in queue if abs(scaling) > duschinsky_cutoff]
             if len(coeff_weights) > 0:
                 subcontribs = plan(alphas, coeff_stack)
                 # print("--->", len(coeff_stack), subcontribs, coeff_weights)
@@ -439,6 +447,7 @@ class FranckCondonModel:
     def eval_fcf_overlaps(self,
                           excitations_gs, freqs_gs, modes_gs, inv_gs, center_gs,
                           excitations_es, freqs_es, modes_es, inv_es, center_es,
+                          duschinsky_cutoff=None,
                           logger=None
                           ):
         """
@@ -486,14 +495,18 @@ class FranckCondonModel:
         Q_gs = (modes_c @ L_gs)
         Q_es = (modes_c @ L_es)
 
-        polys1 = [
-            HermiteProductPolynomial.from_quanta(eg, freqs_gs).shift(shift_gs)
-            for eg in excitations_gs
-        ]
-        polys2 = [
-            HermiteProductPolynomial.from_quanta(ee, freqs_es).shift(shift_es)
-            for ee in excitations_es
-        ]
+        start = time.time()
+        with logger.block(tag="Computing base polynomials"):
+            polys1 = [
+                HermiteProductPolynomial.from_quanta(eg, freqs_gs).shift(shift_gs)
+                for eg in excitations_gs
+            ]
+            polys2 = [
+                HermiteProductPolynomial.from_quanta(ee, freqs_es).shift(shift_es)
+                for ee in excitations_es
+            ]
+            end = time.time()
+            logger.log_print("   took: {e:.3f}s", e=(end-start))
 
         Q = np.concatenate([Q_gs, Q_es], axis=1)
 
@@ -505,28 +518,57 @@ class FranckCondonModel:
             block_size = 1000
             full_blocks = len(excitations_gs) * len(excitations_es)
             num_blocks = int(np.ceil(full_blocks / block_size))
-            import time
             block_start = None
             logger.log_print("num integrals: {n}", n=full_blocks)
-            for spoly_gs in polys1:
-                for spoly_es in polys2:
-                    if n % block_size == 0:
-                        if block_start is not None:
-                            block_end = time.time()
-                            logger.log_print("   took: {:.3f}s".format(block_end-block_start))
-                        block_start = time.time()
-                        logger.log_print("evaluating block {} of {}".format(
-                            block_counter, num_blocks
-                        ))
-                        block_counter += 1
-                    n += 1
-                    poly = spoly_gs.concat(spoly_es)
-                    ov = scaling * self.evaluate_shifted_poly_overlap(
+            for eg,spoly_gs in zip(excitations_gs,polys1):
+                subovs = []
+                with logger.block(
+                        tag="Overlaps from: {gs}",
+                        gs=eg,
+                        preformatter=lambda **kw:dict(kw, gs=StateMaker.parse_state(kw['gs']))
+                    ):
+                    for spoly_es in polys2:
+                        if n % block_size == 0:
+                            if block_start is not None:
+                                block_end = time.time()
+                                logger.log_print(
+                                    "{fmt_table}",
+                                    es=excitations_es,
+                                    ov=subovs[block_counter*block_size:(block_counter+1)*block_size],
+                                    preformatter=lambda **kw: dict(kw,
+                                                                   fmt_table=self.format_overlap_tables(
+                                                                       kw['es'],
+                                                                       kw['ov'],
+                                                                       include_headers=False
+                                                                   )
+                                                                   )
+                                )
+                                logger.log_print("   took: {e:.3f}s", e=block_end-block_start)
+                            block_start = time.time()
+                            logger.log_print("evaluating block {} of {}".format(
+                                block_counter, num_blocks
+                            ))
+                            block_counter += 1
+                        n += 1
+                        poly = spoly_gs.concat(spoly_es)
+                        ov = self.evaluate_shifted_poly_overlap(
                             poly, Q,
-                            alphas
+                            alphas,
+                            scaling,
+                            duschinsky_cutoff=duschinsky_cutoff
                         )
-                    # print("<::", scaling, ov/scaling, ov)
-                    overlaps.append(ov)
+                        # print("<::", scaling, ov/scaling, ov)
+                        subovs.append(ov)
+                logger.log_print(
+                    "{fmt_table}",
+                    es=excitations_es,
+                    ov=subovs,
+                    preformatter=lambda **kw:dict(kw,
+                                                  fmt_table=self.format_overlap_tables(kw['es'], kw['ov'])
+                                                  )
+                )
+
+                overlaps.extend(subovs)
 
         return overlaps
 
@@ -698,6 +740,7 @@ class FranckCondonModel:
                  gs_nms: 'NormalModes', es_nms: 'NormalModes',
                  excitations, ground_states=None,
                  embed=True, masses=None, mass_weight=True,
+                 duschinsky_cutoff=None,
                  logger=None
                  ):
 
@@ -721,14 +764,27 @@ class FranckCondonModel:
         return self.eval_fcf_overlaps(
             ground_states, gs_freqs, gs_basis, gs_nms.inverse, gs_center,
             excitations, es_freqs, es_basis, es_nms.inverse, es_center,
+            duschinsky_cutoff=duschinsky_cutoff,
             logger=logger
         )
+    @classmethod
+    def format_overlap_tables(cls, es, overlaps, include_headers=True):
+
+        fmt_table = TableFormatter(
+            [StateMaker.parse_state, ".3e"],
+            headers=["State", "Overlap"] if include_headers else None
+        ).format(
+            [[s, o] for s, o in zip(es, overlaps)]
+        )
+
+        return fmt_table
     @classmethod
     def get_fcf_spectrum(self,
                          gs_nms: 'NormalModes', es_nms: 'NormalModes',
                          excitations, ground_states=None,
                          embed=True, masses=None, mass_weight=True,
                          logger=None,
+                         duschinsky_cutoff=None,
                          return_states=False
                          ):
         from ..Spectra import DiscreteSpectrum
@@ -749,6 +805,7 @@ class FranckCondonModel:
             gs_nms, es_nms,
             excitations, ground_states=ground_states,
             embed=False, masses=None, mass_weight=False,
+            duschinsky_cutoff=duschinsky_cutoff,
             logger=logger
         )
 
@@ -772,7 +829,8 @@ class FranckCondonModel:
 
     def get_spectrum(self,
                      excitations, *, ground_states=None,
-                     return_states=False
+                     return_states=False,
+                     duschinsky_cutoff=None
                      ):
         return self.get_fcf_spectrum(
             self.gs_nms, self.es_nms,
@@ -781,6 +839,7 @@ class FranckCondonModel:
             embed=False,
             mass_weight=False,
             return_states=return_states,
+            duschinsky_cutoff=duschinsky_cutoff,
             logger=self.logger
         )
 

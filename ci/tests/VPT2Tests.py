@@ -214,7 +214,7 @@ class VPT2Tests(TestCase):
         #     print(corrs)
         # raise Exception(...)
 
-    @debugTest
+    @validationTest
     def test_AnalyticOCHH(self):
         # check_types('Psience.VPT2')
 
@@ -772,6 +772,49 @@ class VPT2Tests(TestCase):
         print(corrs)
 
         raise Exception(...)
+
+    @validationTest
+    def test_PyreneAnalytic(self):
+        file_name = "pyrene_try3.fchk"
+        state = VPTStateMaker(72)
+        degs = [
+            [state(8), state(9)],
+            [state(15), state(69)],
+            [state(16), state(39)],
+            [state(19), state(20)],
+            [state(19), state(15)],
+            [state(20), state(16)],
+            [state(21), state(70)],
+            [state(22), state(18)],
+            [state(23), state(24)],
+            [state(24), state(55)],
+            [state(27), state(28)],
+            [state(35), state(66)],
+            [state(36), state(37)],
+            [state(37), state(15)],
+            [state(38), state(69)],
+            [state(39), state(40)],
+            [state(41), state(71)],
+            [state(42), state(43)],
+            [state(67), state(68)],
+            [state(67), state(37)],
+            [state(68), state(69)],
+            [state(71), state(18)],
+            [state(71), state(22)]
+        ]
+        # with BlockProfiler():
+        corrs = AnalyticVPTRunner.run_simple(
+            file_name,
+            # [
+            #     state(8), state(9),
+            #     state(10), state(11)
+            # ],
+            1,
+            expressions_file="exprs.hdf5",
+            degeneracy_specs=degs,
+            logger=True,
+            zero_cutoff=1e-12
+        )
 
     @validationTest
     def test_NewEmbedding(self):

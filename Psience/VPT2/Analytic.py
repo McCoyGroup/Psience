@@ -5038,16 +5038,17 @@ class PerturbationTheoryExpressionEvaluator:
         return subcontrib
 
     @classmethod
-    def _get_state_perms(cls, state, freqs, fixed, subset, sub_perms, take_cache):
-        # key = (fixed, len(subset))
+    def _get_state_perms(cls, state_idx, state, freqs, fixed, subset, sub_perms, take_cache,
+                         mask_pos, full_set):
+        # key = (state_idx, mask_pos, full_set)
         # if key not in take_cache:
         #     take_cache[key] = {}
         # if 'state_dat' not in take_cache[key]:
         #     arr, inds = nput.vector_take(state, sub_perms, return_spec=True)
         #     take_cache[key]['state_dat'] = (arr, inds)
-        # print(fixed, subset, len(state), inds[-1].shape, sub_perms.shape)
-        # arr, inds = nput.vector_take(state, sub_perms, return_spec=True)
-        # # arr, inds = take_cache[key]['state_dat']
+        # # print(fixed, subset, len(state), inds[-1].shape, sub_perms.shape)
+        # # arr, inds = nput.vector_take(state, sub_perms, return_spec=True)
+        # arr, inds = take_cache[key]['state_dat']
         # inds = inds[:-1] + (np.broadcast_to(sub_perms[np.newaxis], (len(state),) + sub_perms.shape),)
         # perm_substates = np.moveaxis(arr[inds], 0, 1)
         perm_substates = np.moveaxis(nput.vector_take(state, sub_perms), 0, 1)
@@ -5070,7 +5071,7 @@ class PerturbationTheoryExpressionEvaluator:
                    num_fixed, degenerate_changes, only_degenerate_terms,
                    zero_cutoff,
                    counts_cache, poly_cache, take_cache, energy_cache,
-                   facs, pows,
+                   facs, pows, split_spec,
                    verbose, logger, log_scaled
                    ):
         log_level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
@@ -5110,7 +5111,6 @@ class PerturbationTheoryExpressionEvaluator:
         # we build a mask of the size of the total unique set, then figure out how these
         # map back onto the total space
 
-        split_spec = np.cumsum([0] + [len(perms) for state,perms in state_perms])[1:]
         all_perms_mask = np.full(len(all_perms), False)
         subgroup_map = np.zeros((len(all_perms),), dtype=int)
 
@@ -5142,7 +5142,7 @@ class PerturbationTheoryExpressionEvaluator:
                 prefacs = prefactors[vps,].T
                 perm_subsets = aperms[mask_pos,][:, full_set]
                 perm_substates, tuple_states, perm_freqs = cls._get_state_perms(
-                    state, freqs, fixed, subset, perm_subsets, take_cache
+                    state_idx, state, freqs, fixed, subset, perm_subsets, take_cache, tuple(mask_pos), full_set
                 )
 
 
@@ -5286,6 +5286,7 @@ class PerturbationTheoryExpressionEvaluator:
 
     _poly_cache = {} # temporary hack, but these are in principle shared/reused
     _ecoeff_cache = {}
+    default_zero_cutoff = 1e-18
     @classmethod
     def evaluate_polynomial_expression(cls,
                                        state_perms, coeffs, freqs,
@@ -5397,7 +5398,7 @@ class PerturbationTheoryExpressionEvaluator:
             #     vals, counts, pos = np.unique()
 
             if zero_cutoff is None:
-                zero_cutoff = 1e-18
+                zero_cutoff = cls.default_zero_cutoff
 
             if op is None: op = expr
             with logger.block(tag="Evaluating {op}({ch})", op=op, ch=change, log_level=log_level):
@@ -5423,6 +5424,8 @@ class PerturbationTheoryExpressionEvaluator:
                             for n in range(max([len(cinds) for cinds in cind_specs] + [0])+1)
                         ]
 
+                        split_spec = np.cumsum([0] + [len(perms) for state, perms in state_perms])[1:]
+
                         for subset in (
                                 itertools.combinations(range(num_fixed, ndim), r=free_inds)
                                     if free_inds > 0 else
@@ -5438,7 +5441,7 @@ class PerturbationTheoryExpressionEvaluator:
                                         num_fixed, degenerate_changes, only_degenerate_terms,
                                         zero_cutoff,
                                         counts_cache, poly_cache, take_cache, energy_cache,
-                                        facs, pows,
+                                        facs, pows, split_spec,
                                         verbose, logger, log_scaled
                                     )
                             else:
@@ -5449,7 +5452,7 @@ class PerturbationTheoryExpressionEvaluator:
                                     num_fixed, degenerate_changes, only_degenerate_terms,
                                     zero_cutoff,
                                     counts_cache, poly_cache, take_cache, energy_cache,
-                                    facs, pows,
+                                    facs, pows, split_spec,
                                     verbose, logger, log_scaled
                                 )
                             for storage,corr in zip(contrib, subcontrib):
@@ -5543,7 +5546,8 @@ class PerturbationTheoryEvaluator:
         if freqs is None: freqs = 2*np.diag(self.expansions[0][0])
         self.freqs = freqs
 
-    def get_energy_corrections(self, states, order=None, expansions=None, freqs=None, degenerate_states=None, verbose=False):
+    def get_energy_corrections(self, states, order=None, expansions=None, freqs=None,
+                               zero_cutoff=None, degenerate_states=None, verbose=False):
         expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
         if order is None: order = len(self.expansions) - 1
@@ -5559,7 +5563,7 @@ class PerturbationTheoryEvaluator:
                 evaluator.evaluate(
                     [[s, [np.arange(len(s))]] for s in states],
                     expansions, freqs, verbose=verbose,
-                    degenerate_changes=degenerate_changes, log_scaled=True
+                    degenerate_changes=degenerate_changes, zero_cutoff=zero_cutoff, log_scaled=True
                 )
             )
             for evaluator in energy_evaluators
@@ -5599,7 +5603,8 @@ class PerturbationTheoryEvaluator:
             for order_expansion in expansions
         ]
     def get_overlap_corrections(self, states, order=None, expansions=None,
-                                degenerate_states=None, freqs=None, verbose=False):
+                                degenerate_states=None, freqs=None,
+                                zero_cutoff=None, verbose=False):
         expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
         if order is None: order = len(expansions) - 1
@@ -5620,7 +5625,7 @@ class PerturbationTheoryEvaluator:
                 evaluator.evaluate(
                     [[s, [np.arange(len(s))]] for s in states],
                     expansions, freqs, verbose=verbose,
-                    degenerate_changes=degenerate_changes, log_scaled=True
+                    degenerate_changes=degenerate_changes, zero_cutoff=zero_cutoff, log_scaled=True
                 )
             )[:, np.newaxis]
             for evaluator in overlap_evaluators
@@ -5745,7 +5750,7 @@ class PerturbationTheoryEvaluator:
                            terms, allowed_coefficients, disallowed_coefficients,
                            epaths,
                            change_map, degenerate_changes, only_degenerate_terms,
-                           freqs, verbose, logger, log_scaled):
+                           freqs, verbose, logger, zero_cutoff, log_scaled):
         corrs = {}
         for o in range(order + 1):
             generator = corr_gen(o,
@@ -5769,6 +5774,7 @@ class PerturbationTheoryEvaluator:
                             degenerate_changes=degenerate_changes,
                             only_degenerate_terms=only_degenerate_terms,
                             verbose=verbose,
+                            zero_cutoff=zero_cutoff,
                             log_scaled=log_scaled
                         )
                         end = time.time()
@@ -5798,6 +5804,7 @@ class PerturbationTheoryEvaluator:
                                        allowed_coefficients=None, disallowed_coefficients=None,
                                        degenerate_states=None, only_degenerate_terms=False,
                                        log_scaled=False,
+                                       zero_cutoff=None,
                                        logger=None):
         spex = expansions is None or self.is_single_expansion(expansions)
         if spex:
@@ -5822,19 +5829,22 @@ class PerturbationTheoryEvaluator:
         corrs = self._build_corrections(generator, expansions, order,
                                         terms, allowed_coefficients, disallowed_coefficients,
                                         epaths, change_map, degenerate_changes, only_degenerate_terms,
-                                        freqs, verbose, logger, log_scaled)
+                                        freqs, verbose, logger, zero_cutoff, log_scaled)
         return self._reformat_corrections(order, corrs, change_map, None if spex else len(expansions))
 
-    def get_matrix_corrections(self, states, order=None, expansions=None, freqs=None, verbose=False):
+    def get_matrix_corrections(self, states, order=None, expansions=None, freqs=None,
+                               zero_cutoff=None, verbose=False):
         gen = lambda o, **kw: self.solver.hamiltonian_expansion[o]
         return self.get_state_by_state_corrections(gen, states, order=order, expansions=expansions,
-                                                   freqs=freqs, verbose=verbose)
-    def get_full_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None, degenerate_states=None, verbose=False):
+                                                   freqs=freqs, zero_cutoff=zero_cutoff, verbose=verbose)
+    def get_full_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None,
+                                          zero_cutoff=None, degenerate_states=None, verbose=False):
         return self.get_state_by_state_corrections(self.solver.full_wavefunction_correction, states, degenerate_states=degenerate_states,
-                                                   order=order, expansions=expansions, freqs=freqs, verbose=verbose)
-    def get_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None, degenerate_states=None, verbose=False):
+                                                   order=order, expansions=expansions, freqs=freqs, zero_cutoff=zero_cutoff, verbose=verbose)
+    def get_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None,
+                                          zero_cutoff=None, degenerate_states=None, verbose=False):
         return self.get_state_by_state_corrections(self.solver.wavefunction_correction, states, degenerate_states=degenerate_states,
-                                                   order=order, expansions=expansions, freqs=freqs, verbose=verbose)
+                                                   order=order, expansions=expansions, freqs=freqs, zero_cutoff=zero_cutoff, verbose=verbose)
 
     def get_reexpressed_hamiltonian(self, states, order=None, expansions=None, freqs=None,
                                     degenerate_states=None, only_degenerate_terms=True,
@@ -5912,7 +5922,7 @@ class PerturbationTheoryEvaluator:
             verbose=verbose, **opts)
 
     def evaluate_expressions(self, states, exprs, expansions=None, operator_expansions=None,
-                             degenerate_states=None,
+                             degenerate_states=None, zero_cutoff=None,
                              verbose=False):
         order = len(exprs) - 1
         expansions = (
@@ -5926,5 +5936,6 @@ class PerturbationTheoryEvaluator:
             expansions=expansions,
             degenerate_states=degenerate_states,
             order=order,
-            verbose=verbose
+            verbose=verbose,
+            zero_cutoff=zero_cutoff
         )
