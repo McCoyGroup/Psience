@@ -1030,7 +1030,7 @@ class AnalyticPerturbationTheoryCorrections:
     def apply_degenerate_transformations(self, initial_states, final_states, subcorr):
         initial_space = BasisStateSpace(
                 HarmonicOscillatorProductBasis(len(initial_states[0])),
-                final_states
+                initial_states
             )
         final_space = BasisStateSpace(
                 HarmonicOscillatorProductBasis(len(initial_states[0])),

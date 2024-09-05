@@ -29,7 +29,7 @@ class VPT2Tests(TestCase):
 
     # region Water Analogs
 
-    @debugTest
+    @validationTest
     def test_MultdiDegHOH(self):
 
         # space = VPTStateSpace(
@@ -93,6 +93,45 @@ class VPT2Tests(TestCase):
             TestManager.test_data(file_name),
             2,
             expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5")
+        )
+
+    @debugTest
+    def test_AnalyticOCHHMultiple(self):
+
+        file_name = "OCHH_freq.fchk"
+        woof = AnalyticVPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [
+                    0,
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 1, 0, 1, 0, 0],
+                        [0, 0, 0, 1, 1, 0],
+                        [0, 0, 0, 0, 1, 0],
+                    ],
+                ],
+                [
+                    [0, 0, 0, 0, 1, 0],
+                    [
+                        [0, 0, 0, 0, 1, 1],
+                        [0, 1, 0, 1, 1, 0]
+                    ]
+                ]
+            ],
+            expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+            degeneracy_specs=[
+                {
+                    'polyads': [
+                        [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+                    ]
+                },
+                {
+                    'polyads': [
+                        [[0, 0, 0, 0, 1, 0], [0, 1, 0, 1, 0, 0]]
+                    ]
+                }
+            ]
         )
 
     @validationTest

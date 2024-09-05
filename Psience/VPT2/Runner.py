@@ -2306,9 +2306,21 @@ class MultiVPTStateSpace:
             ]),
             axis=0
         )
-        flat_space = VPTStateSpace(flat_states, system=system, degeneracy_specs=degeneracy_specs, **opts)
+        flat_space = VPTStateSpace(flat_states, system=system, degeneracy_specs=None, **opts)
+
+        flat_degs = np.unique(
+            [
+                p
+                for pair in self.space_pairs
+                for s in pair
+                for p in
+                s.degenerate_pairs
+            ], axis=0
+        )
+
 
         self.flat_space = flat_space
+        self.flat_space.degenerate_pairs = flat_degs
 
     @property
     def state_list_pairs(self):
