@@ -11,7 +11,9 @@ from McUtils.Extensions import ModuleLoader
 import McUtils.Numputils as nput
 from McUtils.Formatters import TableFormatter
 
-from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis, BasisStateSpaceFilter, SelectionRuleStateSpace
+from ..BasisReps import (
+    BasisStateSpace, HarmonicOscillatorProductBasis, BasisStateSpaceFilter, SelectionRuleStateSpace, StateMaker
+)
 from ..Molecools import Molecule
 from ..Spectra import DiscreteSpectrum
 
@@ -19,6 +21,8 @@ from .DegeneracySpecs import DegeneracySpec
 from .Hamiltonian import PerturbationTheoryHamiltonian
 from .Analytic import PerturbationTheoryEvaluator, AnalyticPerturbationTheorySolver
 from .Corrections import AnalyticPerturbationTheoryCorrections
+
+VPTStateMaker = StateMaker # alias
 
 __all__ = [
     "VPTRunner",
@@ -1487,49 +1491,6 @@ class VPTRunner:
             ...
         convert = UnitsData.convert
 
-class VPTStateMaker:
-    """
-    A tiny but useful class to make states based on their quanta
-    of excitation
-    """
-
-    def __init__(self, ndim, mode='low-high'):
-        self.ndim = ndim
-        self.mode = mode
-
-    @classmethod
-    def parse_state(cls, state):
-
-        nzp = np.nonzero(state)
-        if len(nzp) > 0: nzp = nzp[0]
-        if len(nzp) == 0: return "()"
-        pos = len(state) - nzp
-        return "".join("{}({})".format(p, state[i]) for p,i in reversed(list(zip(pos, nzp))))
-
-    def make_state(self, *specs, mode=None):
-
-        if mode is None:
-            mode = self.mode
-
-        state = [0] * self.ndim
-        for s in specs:
-            if isinstance(s, (int, np.integer)):
-                i = s
-                q = 1
-            else:
-                i,q = s
-            if mode == 'low-high':
-                state[-i] = q
-            elif mode == 'high-low':
-                state[i-1] = q
-            elif mode == 'normal':
-                state[i] = q
-            else:
-                raise ValueError("don't know what to do with filling mode '{}'".format(mode))
-        return state
-
-    def __call__(self, *specs, mode=None):
-        return self.make_state(*specs, mode=mode)
 
 class AnneInputHelpers:
 
@@ -2592,7 +2553,7 @@ class AnalyticVPTRunner:
         # else:
         #     return states
 
-    def evaluate_expressions(self, states, exprs, operator_expansions=None,
+    def evaluate_expressions(self, states, exprs, zero_cutoff=None, operator_expansions=None,
                              degeneracy_specs=None, verbose=False):
         state_space, degenerate_states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
         return self.eval.evaluate_expressions(
@@ -2600,52 +2561,61 @@ class AnalyticVPTRunner:
             exprs,
             operator_expansions=operator_expansions,
             degenerate_states=degenerate_states,
-            verbose=verbose
+            verbose=verbose,
+            zero_cutoff=zero_cutoff
         )
 
-    def get_matrix_corrections(self, states, order=None, degeneracy_specs=None, verbose=False):
+    def get_matrix_corrections(self, states, order=None, degeneracy_specs=None, zero_cutoff=None, verbose=False):
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
         return self.eval.get_matrix_corrections(states.state_list,
                                                 order=order,
-                                                verbose=verbose)
+                                                verbose=verbose,
+                                                zero_cutoff=zero_cutoff)
 
-    def get_energy_corrections(self, states, order=None, degeneracy_specs=None, verbose=False):
+    def get_energy_corrections(self, states, order=None, degeneracy_specs=None, zero_cutoff=None, verbose=False):
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
         return self.eval.get_energy_corrections(
             states.flat_space.state_list,
             order=order,
             degenerate_states=states.flat_space.degenerate_pairs,
-            verbose=verbose
+            verbose=verbose,
+            zero_cutoff=zero_cutoff
         )
     def get_overlap_corrections(self,
                                 states,
-                                order=None, degeneracy_specs=None, verbose=False
+                                order=None, degeneracy_specs=None,
+                                zero_cutoff=None, verbose=False
                                 ):
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
         return self.eval.get_overlap_corrections(
             states.flat_space.state_list,
             order=order,
-            degenerate_states=states.degenerate_pairs, verbose=verbose
+            degenerate_states=states.degenerate_pairs, verbose=verbose,
+            zero_cutoff=zero_cutoff
         )
     def get_full_wavefunction_corrections(self,
-                                     states,
-                                     order=None, degeneracy_specs=None, verbose=False
-                                     ):
+                                          states,
+                                          order=None, degeneracy_specs=None,
+                                          zero_cutoff=None, verbose=False
+                                          ):
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
         return self.eval.get_full_wavefunction_corrections(
             states.state_list_pairs,
             order=order,
-            degenerate_states=states.degenerate_pairs, verbose=verbose
+            degenerate_states=states.degenerate_pairs, verbose=verbose,
+            zero_cutoff=zero_cutoff
         )
     def get_wavefunction_corrections(self,
                                      states,
-                                     order=None, degeneracy_specs=None, verbose=False
+                                     order=None, degeneracy_specs=None,
+                                     zero_cutoff=None, verbose=False
                                      ):
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
         return self.eval.get_wavefunction_corrections(
             states.state_list_pairs,
             order=order,
-            degenerate_states=states.degenerate_pairs, verbose=verbose
+            degenerate_states=states.degenerate_pairs, verbose=verbose,
+            zero_cutoff=zero_cutoff
         )
 
     @classmethod
@@ -2823,7 +2793,7 @@ class AnalyticVPTRunner:
 
         nord = len(energy_corrections)
         energy_table_formatter = TableFormatter(
-            [VPTStateMaker.parse_state, number_format] + [number_format] * nord,
+            [StateMaker.parse_state, number_format] + [number_format] * nord,
             row_padding="  ",
             column_join=" | "
         )
@@ -2855,7 +2825,7 @@ class AnalyticVPTRunner:
     def format_degenerate_energies_table(self, states, energies, deperturbed_energies, zpe_pos, number_format=".3f"):
 
         energy_table_formatter = TableFormatter(
-            [VPTStateMaker.parse_state, number_format, number_format],
+            [StateMaker.parse_state, number_format, number_format],
             row_padding="  ",
             column_join=" | ",
             headers=[
@@ -2887,7 +2857,7 @@ class AnalyticVPTRunner:
         #transition_moment_corrections : xyz x state block
         nord = len(transition_moment_corrections)
         tmom_table_formatter = TableFormatter(
-            [VPTStateMaker.parse_state] + [number_format] * (3*(1+nord)),
+            [StateMaker.parse_state] + [number_format] * (3*(1+nord)),
             row_padding="  ",
             column_join=" | ",
             headers=[
@@ -2921,7 +2891,7 @@ class AnalyticVPTRunner:
                     or len(initial_states) > 1
                         or len(states.state_list_pairs) > 1
                 ):
-                    state_fmt = VPTStateMaker.parse_state(init)
+                    state_fmt = StateMaker.parse_state(init)
                     tlen = len(fmt_table.split("\n", 1)[0])
                     pad = (tlen - 2 - len(state_fmt))//2
                     all_tables.append("="*pad + " " + state_fmt + " " + "="*pad)
@@ -2931,7 +2901,7 @@ class AnalyticVPTRunner:
 
     def format_spectrum_table(self, states, harmonic_spectra, spectra, deperturbed_spectra=None, number_format=".3f"):
         tmom_table_formatter = TableFormatter(
-            [VPTStateMaker.parse_state] + [number_format] * (4 if deperturbed_spectra is None else 6),
+            [StateMaker.parse_state] + [number_format] * (4 if deperturbed_spectra is None else 6),
             row_padding="  ",
             column_join=" | ",
             headers=[
@@ -2969,7 +2939,7 @@ class AnalyticVPTRunner:
                     or len(initial_states) > 1
                         or len(states.state_list_pairs) > 1
                 ):
-                    state_fmt = VPTStateMaker.parse_state(init)
+                    state_fmt = StateMaker.parse_state(init)
                     tlen = len(fmt_table.split("\n", 1)[0])
                     pad = (tlen - 2 - len(state_fmt))//2
                     all_tables.append("="*pad + " " + state_fmt + " " + "="*pad)
@@ -2988,7 +2958,8 @@ class AnalyticVPTRunner:
                 order=None,
                 verbose=False,
                 degeneracy_specs=None,
-                handle_degeneracies=True
+                handle_degeneracies=True,
+                zero_cutoff=None
                 ):
         with self.logger.block(tag="Running VPT"):
 
@@ -3007,7 +2978,8 @@ class AnalyticVPTRunner:
                 energy_corrections = self.get_energy_corrections(
                     states,
                     order=order,
-                    verbose=verbose
+                    verbose=verbose,
+                    zero_cutoff=zero_cutoff
                 )
                 corrs.energy_corrections = energy_corrections
 
@@ -3041,7 +3013,8 @@ class AnalyticVPTRunner:
                             states,
                             order=order,
                             verbose=verbose,
-                            only_degenerate_terms=True
+                            only_degenerate_terms=True,
+                            zero_cutoff=zero_cutoff
                         )
                     corrs.degenerate_hamiltonian_corrections = degenerate_corrs
 
@@ -3090,7 +3063,8 @@ class AnalyticVPTRunner:
                 transition_moments_corrs = self.get_transition_moment_corrections(
                     states,
                     order=order,
-                    verbose=verbose
+                    verbose=verbose,
+                    zero_cutoff=zero_cutoff
                 )
                 corrs.transition_moment_corrections = transition_moments_corrs
 
@@ -3147,6 +3121,7 @@ class AnalyticVPTRunner:
                    degeneracy_specs=None,
                    degeneracy_states=None,
                    handle_degeneracies=True,
+                   zero_cutoff=None,
                    **opts
                    ):
         if degeneracy_states is not None: ValueError("expect `degeneracy_specs`, not `degeneracy_states`")
@@ -3157,7 +3132,8 @@ class AnalyticVPTRunner:
                              calculate_intensities=calculate_intensities,
                              operators=operators,
                              verbose=verbose, degeneracy_specs=degeneracy_specs,
-                             handle_degeneracies=handle_degeneracies
+                             handle_degeneracies=handle_degeneracies,
+                             zero_cutoff=zero_cutoff
                              )
 
         if return_runner:

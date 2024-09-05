@@ -197,14 +197,14 @@ class VibronicTests(TestCase):
             [0.16796089572281053, -1.0693197339113112e-16, -0.10980392299108514]
         ))
 
-    @validationTest
+    @debugTest
     def test_FCFsNH3(self):
         # print()
 
         fc_model = FranckCondonModel.from_files(
             TestManager.test_data('nh3_s0.fchk'),
             TestManager.test_data('nh3_s1.fchk'),
-            logger=True
+            logger=False
         )
 
         # od = fc_model.get_overlap_data()
@@ -244,7 +244,20 @@ class VibronicTests(TestCase):
                 ),
                 2
             )
-        print(uuugh)
+
+        from Psience.BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis as HO
+        # from McUtils.Formatters import TableFormatter
+        # from Psience.VPT2 import VPTStateMaker
+        # state = VPTStateMaker(6)
+        basis = BasisStateSpace.from_quanta(HO(6), range(7)).excitations
+        # basis = [
+        #     state([1, i], [2, j])
+        #     for i in range(6)
+        #     for j in range(6)
+        # ]
+        ovs = fc_model.get_overlaps(basis, duschinsky_cutoff=1e-15)
+
+        # print(uuugh)
         # print(np.sum(uuugh))
         # self.assertTrue(np.allclose(
         #     uuugh,
@@ -294,7 +307,7 @@ class VibronicTests(TestCase):
 
         return klow, klow_exc
         # raise Exception(...)
-    @debugTest
+    @validationTest
     def test_FCFsBig(self):
 
         root = os.path.expanduser('~/Documents/Postdoc/FCFs/')
