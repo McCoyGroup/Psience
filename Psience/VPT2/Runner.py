@@ -2313,10 +2313,11 @@ class MultiVPTStateSpace:
                 p
                 for pair in self.space_pairs
                 for s in pair
-                for p in
-                s.degenerate_pairs
+                for p in (s.degenerate_pairs if s.degenerate_pairs is not None else [])
             ], axis=0
         )
+
+        if len(flat_degs) == 0: flat_degs = None
 
 
         self.flat_space = flat_space
