@@ -85,7 +85,7 @@ class VPT2Tests(TestCase):
 
         raise Exception(...)
 
-    @debugTest
+    @validationTest
     def test_HOHAnalytic(self):
 
         file_name = "HOH_freq.fchk"
@@ -95,7 +95,7 @@ class VPT2Tests(TestCase):
             expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5")
         )
 
-    @validationTest
+    @debugTest
     def test_AnalyticOCHHMultiple(self):
 
         file_name = "OCHH_freq.fchk"
@@ -106,9 +106,9 @@ class VPT2Tests(TestCase):
                     0,
                     [
                         [0, 0, 0, 0, 0, 1],
-                        [0, 1, 0, 1, 0, 0],
-                        [0, 0, 0, 1, 1, 0],
-                        [0, 0, 0, 0, 1, 0],
+                        # [0, 1, 0, 1, 0, 0],
+                        # [0, 0, 0, 1, 1, 0],
+                        # [0, 0, 0, 0, 1, 0],
                     ],
                 ],
                 [

@@ -290,6 +290,8 @@ class VPTStateSpace:
                 states
             )
         basis = states.basis
+
+        self.states = states
         self.state_space = states
         self.state_list = states.excitations.tolist()
 
@@ -2308,6 +2310,44 @@ class MultiVPTStateSpace:
         )
         flat_space = VPTStateSpace(flat_states, system=system, degeneracy_specs=None, **opts)
 
+        flat_deg_blocks = [
+                s.degenerate_states
+                for pair in self.space_pairs
+                for s in pair
+            ]
+        if len(flat_deg_blocks) == 0:
+            flat_deg_blocks = None
+        elif len(flat_deg_blocks) == 1:
+            flat_deg_blocks = flat_deg_blocks[0]
+        else:
+            flat_deg_blocks = DegeneracySpec.merge_state_blocks([
+                f
+                for block in flat_deg_blocks
+                for f in (block if block is not None else [])
+            ])
+
+            basis = self.space_pairs[0][0].states.basis
+            all_friends = [
+                BasisStateSpace(
+                    basis,
+                    d
+                )
+                for d in flat_deg_blocks
+            ]
+
+            new_pairs = []
+            for pair in self.space_pairs:
+                pp = []
+                for space in pair:
+                    space = space.states
+                    for friend in all_friends:
+                        intersects = len(friend.intersection(space)) > 0
+                        if intersects:
+                            space = space.union(friend)
+                    pp.append(VPTStateSpace(space))
+                new_pairs.append(pp)
+            self.space_pairs = new_pairs
+
         flat_degs = np.unique(
             [
                 p
@@ -2316,12 +2356,12 @@ class MultiVPTStateSpace:
                 for p in (s.degenerate_pairs if s.degenerate_pairs is not None else [])
             ], axis=0
         )
-
         if len(flat_degs) == 0: flat_degs = None
 
-
         self.flat_space = flat_space
+        self.flat_space.degenerate_states = flat_deg_blocks
         self.flat_space.degenerate_pairs = flat_degs
+        self.degenerate_pairs = flat_degs
 
     @property
     def state_list_pairs(self):
@@ -2712,7 +2752,7 @@ class AnalyticVPTRunner:
                 for s in initials
             ],
             order=order, terms=terms,
-            verbose=verbose, degenerate_states=states.flat_space.degenerate_pairs,
+            verbose=verbose, degenerate_states=states.degenerate_pairs,
             **opts
         )
 
@@ -2818,7 +2858,7 @@ class AnalyticVPTRunner:
                                     degeneracy_specs=None, only_degenerate_terms=True,
                                     verbose=False, **opts):
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
-        degs = states.flat_space.degenerate_pairs
+        degs = states.degenerate_pairs
         if states.flat_space.degenerate_states is None: return None
         # TODO: break these degenerate states down into directly connected blocks again
         #       for efficiency sake in the case that we got pairs for our polyads
@@ -3022,6 +3062,11 @@ class AnalyticVPTRunner:
             else:
                 zpe_pos = zpe_pos[0]
 
+            # raise Exception(
+            #     states.state_list_pairs,
+            #     states.flat_space.degenerate_states
+            # )
+
             corrs = AnalyticPerturbationTheoryCorrections(basis, states.state_list_pairs)
             with self.logger.block(tag="Calculating frequency corrections"):
                 energy_corrections = self.get_energy_corrections(
@@ -3035,7 +3080,7 @@ class AnalyticVPTRunner:
                 # def format_num(e):
                 #     return "{.3f}".format(e) if e != 0 else "-"
 
-                if states.flat_space.degenerate_states is not None:
+                if states.flat_space.degenerate_pairs is not None:
                     tag = ["Depertubed"]
                 else:
                     tag = []
