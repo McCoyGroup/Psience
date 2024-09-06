@@ -443,6 +443,7 @@ class FranckCondonModel:
 
         return (alphas_c, modes_c, center, prefactor), (L_g, dx_g), (L_e, dx_e)
 
+    integral_block_size = 1000
     @classmethod
     def eval_fcf_overlaps(self,
                           excitations_gs, freqs_gs, modes_gs, inv_gs, center_gs,
@@ -515,13 +516,14 @@ class FranckCondonModel:
             overlaps = []
             n = 0
             block_counter = 1
-            block_size = 1000
+            block_size = self.integral_block_size
             full_blocks = len(excitations_gs) * len(excitations_es)
             num_blocks = int(np.ceil(full_blocks / block_size))
             block_start = None
             logger.log_print("num integrals: {n}", n=full_blocks)
             for eg,spoly_gs in zip(excitations_gs,polys1):
                 subovs = []
+                subcounter = 0
                 with logger.block(
                         tag="Overlaps from: {gs}",
                         gs=eg,
@@ -534,7 +536,7 @@ class FranckCondonModel:
                                 logger.log_print(
                                     "{fmt_table}",
                                     es=excitations_es,
-                                    ov=subovs[block_counter*block_size:(block_counter+1)*block_size],
+                                    ov=subovs[(subcounter - 1)*block_size:(subcounter)*block_size],
                                     preformatter=lambda **kw: dict(kw,
                                                                    fmt_table=self.format_overlap_tables(
                                                                        kw['es'],
@@ -549,6 +551,7 @@ class FranckCondonModel:
                                 block_counter, num_blocks
                             ))
                             block_counter += 1
+                            subcounter += 1
                         n += 1
                         poly = spoly_gs.concat(spoly_es)
                         ov = self.evaluate_shifted_poly_overlap(

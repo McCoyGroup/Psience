@@ -204,7 +204,7 @@ class VibronicTests(TestCase):
         fc_model = FranckCondonModel.from_files(
             TestManager.test_data('nh3_s0.fchk'),
             TestManager.test_data('nh3_s1.fchk'),
-            logger=False
+            logger=True
         )
 
         # od = fc_model.get_overlap_data()
