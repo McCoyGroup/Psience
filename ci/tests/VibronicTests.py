@@ -336,8 +336,8 @@ class VibronicTests(TestCase):
         fc_model = FranckCondonModel.from_files(
             path(f'{s}_m0_s0.fchk'),
             path(f'{s}_m0_s1.fchk'),
-            logger=True,
-            mode_selection=np.arange(30, dtype=int)
+            logger=False,
+            mode_selection=np.arange(50, dtype=int)
         )
 
         main_modes = [1, 4, 7]
@@ -368,7 +368,8 @@ class VibronicTests(TestCase):
                     #     for s in range(len(fc_model.es_nms.freqs))
                     # ]
                 },
-                return_states=True
+                return_states=True,
+                duschinsky_cutoff=1e-10
             )
         # oof.plot().savefig(path(f'{s}_m0_{t}_{q}_quanta.png'))
         # np.savez(path(f'{s}_m0_{t}_{q}_spec.npz'),
@@ -378,3 +379,6 @@ class VibronicTests(TestCase):
         # with open(path(f'Na2_m0_{t}_{q}_quanta.txt'), 'w+') as out:
         #     print('Freqs:', oof.frequencies, file=out)
         #     print('FCFs:', oof.intensities, file=out)
+
+        with np.printoptions(linewidth=1e8, threshold=None):
+            print(oof.intensities[:1500])

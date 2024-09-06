@@ -276,7 +276,7 @@ class FranckCondonModel:
         # compute contribution from polynomial factors, can add them up immediately
         multi_contrib = np.zeros(len(poly_coeffs))
         for ii,pc in enumerate(poly_coeffs):
-            poly_exps = cls._expand(pc[:, :, :, 1], splits)
+            # poly_exps = cls._expand(pc[:, :, :, 1], splits)
             # poly_contrib = cls._contract(poly_exps, weights)
             poly_contrib = cls._index_contract(pc, weights, split_inds)
             multi_contrib[ii] = np.dot(alpha_contrib, poly_contrib)
@@ -324,7 +324,7 @@ class FranckCondonModel:
         return contribs
 
 
-    duschinsky_cutoff = 0#1e-20
+    duschinsky_cutoff = 1e-20
     evaluator_plans = {}
     @classmethod
     def evaluate_shifted_poly_overlap(self,
@@ -944,11 +944,16 @@ class HermiteProductPolynomial:
             len(alphas)
         )
 
+    _hermite_cache = {}
     @classmethod
-    def get_1D_hermite_poly(self, n, a):
+    def _hermite_coeffs(cls, n):
+        if n not in cls._hermite_cache:
+            cls._hermite_cache[n] = np.flip(np.asarray(sp.special.hermite(n, monic=False)))
+        return cls._hermite_cache[n]
+    @classmethod
+    def get_1D_hermite_poly(cls, n, a):
         return DensePolynomial(
-            np.flip(np.asarray(sp.special.hermite(n, monic=False)))
-            * np.sqrt(
+            cls._hermite_coeffs(n) * np.sqrt(
                 a ** np.arange(n + 1) / (2 ** (n) * math.factorial(n))
             )
         )
