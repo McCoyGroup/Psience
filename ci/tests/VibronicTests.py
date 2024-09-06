@@ -197,7 +197,7 @@ class VibronicTests(TestCase):
             [0.16796089572281053, -1.0693197339113112e-16, -0.10980392299108514]
         ))
 
-    @debugTest
+    @validationTest
     def test_FCFsNH3(self):
         # print()
 
@@ -307,7 +307,7 @@ class VibronicTests(TestCase):
 
         return klow, klow_exc
         # raise Exception(...)
-    @validationTest
+    @debugTest
     def test_FCFsBig(self):
 
         root = os.path.expanduser('~/Documents/Postdoc/FCFs/')
@@ -336,7 +336,8 @@ class VibronicTests(TestCase):
         fc_model = FranckCondonModel.from_files(
             path(f'{s}_m0_s0.fchk'),
             path(f'{s}_m0_s1.fchk'),
-            logger=True
+            logger=True,
+            mode_selection=np.arange(30, dtype=int)
         )
 
         main_modes = [1, 4, 7]
@@ -346,34 +347,34 @@ class VibronicTests(TestCase):
         #              33, 37, 41, 44, 46, 47, 51, 55, 56, 59, 60 ]
 
 
-        q = 3
+        q = 4
         # t0 = 0000
         t = 2000
-        # with BlockProfiler('FCFs'):
-        oof, (_, excitations) = fc_model.get_spectrum(
-            {
-                'threshold': t / UnitsData.hartrees_to_wavenumbers,
-                # 'min_quanta': q,
-                # 'min_freq': t0 / UnitsData.hartrees_to_wavenumbers,
-                'max_quanta': q,
-                # 'max_state': [
-                #     (
-                #         q
-                #             if s in main_modes else
-                #         2
-                #             if s in aux_modes else
-                #         0
-                #     )
-                #     for s in range(len(fc_model.es_nms.freqs))
-                # ]
-            },
-            return_states=True
-        )
-        oof.plot().savefig(path(f'{s}_m0_{t}_{q}_quanta.png'))
-        np.savez(path(f'{s}_m0_{t}_{q}_spec.npz'),
-                 freqs=oof.frequencies,
-                 fcfs=oof.intensities,
-                 excitations=excitations)
+        with BlockProfiler('FCFs'):
+            oof, (_, excitations) = fc_model.get_spectrum(
+                {
+                    'threshold': t / UnitsData.hartrees_to_wavenumbers,
+                    # 'min_quanta': q,
+                    # 'min_freq': t0 / UnitsData.hartrees_to_wavenumbers,
+                    'max_quanta': q,
+                    # 'max_state': [
+                    #     (
+                    #         q
+                    #             if s in main_modes else
+                    #         2
+                    #             if s in aux_modes else
+                    #         0
+                    #     )
+                    #     for s in range(len(fc_model.es_nms.freqs))
+                    # ]
+                },
+                return_states=True
+            )
+        # oof.plot().savefig(path(f'{s}_m0_{t}_{q}_quanta.png'))
+        # np.savez(path(f'{s}_m0_{t}_{q}_spec.npz'),
+        #          freqs=oof.frequencies,
+        #          fcfs=oof.intensities,
+        #          excitations=excitations)
         # with open(path(f'Na2_m0_{t}_{q}_quanta.txt'), 'w+') as out:
         #     print('Freqs:', oof.frequencies, file=out)
         #     print('FCFs:', oof.intensities, file=out)

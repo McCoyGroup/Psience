@@ -26,7 +26,7 @@ class FranckCondonModel:
     #
 
     def __init__(self, gs_nms:NormalModes, es_nms, embed=True, masses=None, mass_weight=True,
-                 logger=None
+                 logger=None, mode_selection=None
                  ):
         if embed:
             gs_nms, es_nms = self.embed_modes(gs_nms, es_nms, masses=masses)
@@ -35,24 +35,28 @@ class FranckCondonModel:
             gs_nms = self.mass_weight_nms(gs_nms, masses=masses)
             es_nms = self.mass_weight_nms(es_nms, masses=masses)
 
+        if mode_selection is not None:
+            gs_nms = gs_nms[mode_selection]
+            es_nms = es_nms[mode_selection]
         self.gs_nms = gs_nms
         self.es_nms = es_nms
 
         self.logger = Logger.lookup(logger)
 
     @classmethod
-    def from_files(cls, gs_file, es_file, embed=True, mass_weight=True, logger=None):
+    def from_files(cls, gs_file, es_file, embed=True, mass_weight=True, logger=None, mode_selection=None):
         from ..Molecools import Molecule
         return cls.from_mols(
             Molecule.from_file(gs_file),
             Molecule.from_file(es_file),
             embed=embed,
             mass_weight=mass_weight,
-            logger=logger
+            logger=logger,
+            mode_selection=mode_selection
         )
 
     @classmethod
-    def from_mols(cls, gs, es, embed=True, mass_weight=True, logger=None):
+    def from_mols(cls, gs, es, embed=True, mass_weight=True, logger=None, mode_selection=None):
         gg = gs.normal_modes.modes.basis.to_new_modes()
         ee = es.normal_modes.modes.basis.to_new_modes()
 
@@ -60,7 +64,8 @@ class FranckCondonModel:
             gg, ee,
             embed=embed,
             mass_weight=mass_weight,
-            logger=logger
+            logger=logger,
+            mode_selection=mode_selection
         )
 
     def get_overlaps(self, excitations, *, duschinsky_cutoff=None, ground_states=None):
@@ -102,7 +107,7 @@ class FranckCondonModel:
         )
 
     @classmethod
-    def get_poly_evaluation_plan(self, exponents, alphas=None):
+    def get_poly_evaluation_plan(self, exponents, alphas=None, zpe_prod=None):
         """
         Provides a function that can take a set of indices and rotation matrices
         from the gs and es bases to the shared basis of the central Gaussian and compute
@@ -113,6 +118,7 @@ class FranckCondonModel:
         :param te:
         :return:
         """
+        key = exponents
         exponents = np.asanyarray(exponents)
         n = np.sum(exponents, dtype=int)
 
@@ -120,10 +126,10 @@ class FranckCondonModel:
 
         evaluators = []
         if n == 0:
-            def evaluate_zero(alphas, poly_coeffs, batch_size=int(1e7)):
-                base_val = np.sqrt(2 * np.pi) ** (len(alphas)) / np.prod(np.sqrt(alphas))
-                if not (isinstance(poly_coeffs, np.ndarray) and poly_coeffs.ndim == 2):
-                    base_val = np.full(len(poly_coeffs), base_val)
+            def evaluate_zero(alphas, zpe_prod, exped_poly_coeffs, batch_size=int(1e7)):
+                base_val = self.zero_point_alpha_contrib(alphas) if zpe_prod is None else zpe_prod
+                if not (isinstance(exped_poly_coeffs[0], np.ndarray) and exped_poly_coeffs[0].ndim == 2):
+                    base_val = np.full(len(exped_poly_coeffs[0]), base_val)
                 return base_val
             evaluators.append(evaluate_zero)
         else:
@@ -139,6 +145,14 @@ class FranckCondonModel:
                     for terms in parts
                 ]
 
+                term_class_inds = [
+                    [
+                        (slice(None),) + np.where(np.ones(t.shape)) + (t.flatten(),)
+                        for t in term_class
+                    ]
+                    for term_class in term_classes
+                ]
+
                 weights = [
                     np.array([
                         np.prod([UniquePermutations.count_permutations(counts) for counts in term])
@@ -147,21 +161,14 @@ class FranckCondonModel:
                     for term_class in term_classes
                 ]
 
-                # print(">---- exps -------:", exponents)
-                # for e,s,w in zip(parts, term_classes, weights):
-                #     print(e)
-                #     print(s)
-                #     print(w)
-                #     print(":---------------<")
-
                 evaluators.append(
-                    self.term_evaluator(parts, term_classes, weights, max_gamma, alphas=alphas)
+                    self.term_evaluator(parts, term_classes, term_class_inds, weights, max_gamma, alphas=alphas, zpe_prod=zpe_prod)
                 )
 
-        def evaluate_contrib(alphas, poly_coeffs, batch_size=int(1e7)):
+        def evaluate_contrib(alphas, zpe_prod, poly_coeffs, batch_size=int(1e7)):
             return sum(
                 [
-                    ev(alphas, poly_coeffs, batch_size=batch_size)
+                    ev(alphas, zpe_prod, poly_coeffs, batch_size=batch_size)
                     for ev in evaluators
                  ]
             )
@@ -170,19 +177,25 @@ class FranckCondonModel:
 
     @classmethod
     def zero_point_alpha_contrib(cls, alphas):
-        return (np.sqrt(2 * np.pi)**len(alphas))/np.prod(np.sqrt(alphas))
+        return (np.sqrt(2 * np.pi) ** len(alphas)) / np.prod(np.sqrt(alphas))
     @classmethod
-    def term_evaluator(self, exponents_list, splits_list, weights_list, gammas, alphas=None):
+    def term_evaluator(self, exponents_list, splits_list, splits_inds_list, weights_list, gammas, alphas=None, zpe_prod=None):
         ndim = len(exponents_list[0])
         prefacs = np.array([np.prod(gammas[exponents]) for exponents in exponents_list])
         if alphas is not None:
-            prefacs = prefacs * self.zero_point_alpha_contrib(alphas)
+            prefacs = prefacs * (self.zero_point_alpha_contrib(alphas) if zpe_prod is None else zpe_prod)
         prealphas = alphas
 
-        def evaluate_contrib(alphas, poly_coeffs, batch_size=int(1e7)):
+        def evaluate_contrib(alphas, zpe_prod, exped_poly_coeffs, batch_size=int(1e7)):
             contrib = [0] * len(exponents_list)
 
-            scaling = prefacs * (1 if prealphas is not None else self.zero_point_alpha_contrib(alphas))
+            scaling = prefacs * (
+                1
+                    if prealphas is not None else
+                self.zero_point_alpha_contrib(alphas)
+                    if zpe_prod is None else
+                zpe_prod
+            )
 
             ncoords = len(alphas)
             nperms = math.comb(ncoords, ndim)
@@ -212,9 +225,10 @@ class FranckCondonModel:
                     ind_array,
                     exponents_list,
                     splits_list,
+                    splits_inds_list,
                     weights_list,
                     alphas,
-                    poly_coeffs
+                    exped_poly_coeffs
                 )
                 for i,c in enumerate(new_contribs):
                     contrib[i] += c#sum(cc*ss for cc,ss in zip(c, scaling))
@@ -245,9 +259,15 @@ class FranckCondonModel:
                 weights
             )
     @classmethod
-    def evaluate_poly_chunks(cls, poly_coeffs, exps, splits, weights, alphas, include_baseline=False):
+    def _index_contract(cls, pc, weights, split_inds):
+        return sum(
+            w * np.prod(pc[s], axis=-1)
+            for w, s in zip(weights, split_inds)
+        )
+    @classmethod
+    def evaluate_poly_chunks(cls, poly_coeffs, exps, splits, split_inds, weights, alphas, include_baseline=False):
         if isinstance(poly_coeffs, np.ndarray) and poly_coeffs.ndim == 2:
-            return cls.evaluate_poly_chunks([poly_coeffs], exps, splits, weights, alphas)[0]
+            return cls.evaluate_poly_chunks([poly_coeffs], exps, splits, split_inds, weights, alphas)[0]
 
         if include_baseline:
             raise NotImplementedError("need to add")
@@ -256,61 +276,62 @@ class FranckCondonModel:
         # compute contribution from polynomial factors, can add them up immediately
         multi_contrib = np.zeros(len(poly_coeffs))
         for ii,pc in enumerate(poly_coeffs):
-            poly_exps = cls._expand(pc, splits)
-            poly_contrib = cls._contract(poly_exps, weights)
-            # print("??", alpha_contrib)
-            # print("??", poly_contrib)
+            poly_exps = cls._expand(pc[:, :, :, 1], splits)
+            # poly_contrib = cls._contract(poly_exps, weights)
+            poly_contrib = cls._index_contract(pc, weights, split_inds)
             multi_contrib[ii] = np.dot(alpha_contrib, poly_contrib)
 
         return multi_contrib
 
     @classmethod
-    def evaluate_poly_contrib_chunk(self, inds, exponents_list, splits_list, weights_list, alphas, coeffs):
+    def evaluate_poly_contrib_chunk(self, inds, exponents_list, splits_list, splits_inds_list,
+                                    weights_list, alphas, coeffs):
         # k is the number of initial coords, d is the number of final coords
         # n is the total number of coords
         # exps is a d vector of exponents
         # splits is an l x k x d array of the way the exps divide over the initial coords
-        # coeffs is a k x n array of polynomial coeffs for each coord
+        # coeffs is an k x n x e array of exponentiated polynomial coeffs for each coord
         # inds is a c x d array where c is the number of inds in this chunk
         # alphas is a n vector
 
         multicoeff = not isinstance(coeffs, np.ndarray) and isinstance(coeffs[0], np.ndarray)
 
+        e = coeffs.shape[-1] if not multicoeff else coeffs[0].shape[-1]
         c = inds.shape[0]
         k = coeffs.shape[1] if not multicoeff else coeffs[0].shape[1]
         d = inds.shape[1]
         if multicoeff:
             poly_coeffs = []
             for cc in coeffs:
-                pcs = np.empty((c, k, d), dtype=cc.dtype)
-                for i in range(k): pcs[:, i, :] = cc[:, i][inds]
+                pcs = np.empty((c, k, d, e), dtype=cc.dtype)
+                for i in range(k): pcs[:, i, :, :] = cc[inds, i, :]
                 cc = pcs
                 poly_coeffs.append(cc)
         else:
-            poly_coeffs = np.empty((c, k, d), dtype=coeffs.dtype)
-            for i in range(k): poly_coeffs[:, i, :] = coeffs[:, i][inds]
+            poly_coeffs = np.empty((c, k, d, e), dtype=coeffs.dtype)
+            for i in range(k): poly_coeffs[:, i, :, :] = coeffs[inds, i, :]
 
         # compute extra alpha contrib to integrals
         subalphas = alphas[inds] # c x d array of non-zero alphas
 
         contribs = []
-        for exps, splits, weights in zip(exponents_list, splits_list, weights_list):
+        for exps, splits, splits_inds, weights in zip(exponents_list, splits_list, splits_inds_list, weights_list):
             poly_chunks = self.evaluate_poly_chunks(
-                poly_coeffs, exps, splits, weights, subalphas
+                poly_coeffs, exps, splits, splits_inds, weights, subalphas
             )
             contribs.append(poly_chunks)
 
         return contribs
 
 
-    duschinsky_cutoff = 1e-20
+    duschinsky_cutoff = 0#1e-20
     evaluator_plans = {}
     @classmethod
     def evaluate_shifted_poly_overlap(self,
                                       poly:'HermiteProductPolynomial',
                                       Q,
                                       alphas,
-                                      poly_scaling=1,
+                                      zpe_prod,
                                       duschinsky_cutoff=None
                                       ):
         if duschinsky_cutoff is None: duschinsky_cutoff = self.duschinsky_cutoff
@@ -318,12 +339,21 @@ class FranckCondonModel:
         contrib = 0
 
         work_queues = {}
+        max_exponent = max([0] + [
+            np.max(e) if len(e) > 0 else 0
+            for e, _, _ in poly.term_iter(filter=lambda x,nzi,nzc:sum(x[i] for i in nzi)%2==0)
+        ])
+        if Q is not None:
+            Q_sels = Q[:, :, np.newaxis] ** np.arange(max_exponent+1)[np.newaxis, np.newaxis, :]
+        else:
+            Q_sels = None
         for exponents, scaling, inds in poly.term_iter(filter=lambda x,nzi,nzc:sum(x[i] for i in nzi)%2==0): # even/odd
-            scaling = scaling * poly_scaling
-            exponents = np.array(exponents)
+            # scaling = scaling
+            exponents = np.asanyarray(exponents)
             ordering = np.argsort(-exponents)
             exponents = exponents[ordering]
-            poly_coeffs = Q[:, inds][:, ordering] if Q is not None else None
+            inds = [inds[o] for o in ordering]
+            poly_coeffs = Q_sels[:, inds, :] if Q is not None else None
 
             # put coeffs on the queue so we can batch the calls
             key = tuple(exponents)
@@ -346,7 +376,7 @@ class FranckCondonModel:
             coeff_stack = [poly for poly,scaling in queue if abs(scaling) > duschinsky_cutoff]
             coeff_weights = [scaling for poly,scaling in queue if abs(scaling) > duschinsky_cutoff]
             if len(coeff_weights) > 0:
-                subcontribs = plan(alphas, coeff_stack)
+                subcontribs = plan(alphas, zpe_prod, coeff_stack)
                 # print("--->", len(coeff_stack), subcontribs, coeff_weights)
                 wtf = sum(w*c for w,c in zip(coeff_weights, subcontribs))
                 contrib += wtf
@@ -430,18 +460,25 @@ class FranckCondonModel:
         S_es = (L_e @ np.diag(1/freqs_es) @ L_e.T)
         S_c = S_gs + S_es
 
-        norm_gs = np.prod(np.power(freqs_gs, 1/4))
-        norm_es = np.prod(np.power(freqs_es, 1/4))
-        prefactor = (
-                norm_gs * norm_es / np.power(np.pi, len(freqs_es) / 2)
-                * np.exp(-1/2 * np.dot(dx_g+dx_e, np.dot(np.linalg.inv(S_c), dx_g+dx_e))) # one of these is always zero
-        )
+        norm_gs = np.power(freqs_gs, 1/4)
+        norm_es = np.power(freqs_es, 1/4)
+        # prefactor = (
+        #         np.prod(norm_gs * norm_es) / np.power(np.pi, len(freqs_es) / 2)
+        #         * np.exp(-1/2 * np.dot(dx_g+dx_e, np.dot(np.linalg.inv(S_c), dx_g+dx_e))) # one of these is always zero
+        # )
         # prefactor = 1
+        decay = (
+                np.exp(-1/2 * np.dot(dx_g+dx_e, np.dot(np.linalg.inv(S_c), dx_g+dx_e))) # one of these is always zero
+        )
 
         alphas_c, modes_c = np.linalg.eigh(Z_c)
         center = np.linalg.inv(Z_c) @ (Z_es @ dx_e + Z_gs @ dx_g)
 
-        return (alphas_c, modes_c, center, prefactor), (L_g, dx_g), (L_e, dx_e)
+        zpe_prod = decay * np.prod(norm_gs*norm_es/np.sqrt(alphas_c/2))
+        # zpe_prod = prefactor * self.zero_point_alpha_contrib(alphas_c)
+        # zpe_prod = decay * self.zero_point_alpha_contrib(norm_gs*norm_es*alphas_c / np.power(np.pi, len(freqs_es) / 2))
+
+        return (alphas_c, modes_c, center, zpe_prod), (L_g, dx_g), (L_e, dx_e)
 
     integral_block_size = 1000
     @classmethod
@@ -476,7 +513,7 @@ class FranckCondonModel:
         center_gs = np.asanyarray(center_gs)
         center_es = np.asanyarray(center_es)
 
-        (alphas, modes_c, center, scaling), (L_gs, c_gs), (L_es, c_es) = self.get_overlap_gaussian_data(
+        (alphas, modes_c, center, zpe_prod), (L_gs, c_gs), (L_es, c_es) = self.get_overlap_gaussian_data(
             freqs_gs, modes_gs, inv_gs, center_gs,
             freqs_es, modes_es, inv_es, center_es
         )
@@ -557,7 +594,7 @@ class FranckCondonModel:
                         ov = self.evaluate_shifted_poly_overlap(
                             poly, Q,
                             alphas,
-                            scaling,
+                            zpe_prod,
                             duschinsky_cutoff=duschinsky_cutoff
                         )
                         # print("<::", scaling, ov/scaling, ov)

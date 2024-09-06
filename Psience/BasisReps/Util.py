@@ -16,13 +16,20 @@ class StateMaker:
         self.mode = mode
 
     @classmethod
-    def parse_state(cls, state):
-
+    def parse_state(cls, state, mode='low-high'):
         nzp = np.nonzero(state)
         if len(nzp) > 0: nzp = nzp[0]
         if len(nzp) == 0: return "()"
-        pos = len(state) - nzp
-        return "".join("{}({})".format(p, state[i]) for p,i in reversed(list(zip(pos, nzp))))
+        if mode == 'low-high':
+            pos = len(state) - nzp
+            state_quants = reversed(list(zip(pos, nzp)))
+        elif mode == 'high-low':
+            pos = nzp + 1
+            state_quants = list(zip(pos, nzp))
+        else:
+            pos = nzp
+            state_quants = list(zip(pos, nzp))
+        return "".join("{}({})".format(p, state[i]) for p,i in state_quants)
 
     def make_state(self, *specs, mode=None):
 
