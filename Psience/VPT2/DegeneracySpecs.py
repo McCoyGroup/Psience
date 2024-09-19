@@ -400,10 +400,12 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
     """
 
     """
-    application_order = 'post'
+    # application_order = 'post'
     format = DegenerateSpaceInputFormat.StrongCouplings
     default_threshold=.3
-    def __init__(self, wfc_threshold=None, state_filter=None, extend_spaces=True, iterations=None, **opts):
+    def __init__(self, wfc_threshold=None, state_filter=None, extend_spaces=True, iterations=None,
+                 evaluator=None,
+                 **opts):
         super().__init__(**opts)
         if wfc_threshold is None or isinstance(wfc_threshold, str) and wfc_threshold == 'auto':
             wfc_threshold = self.default_threshold
@@ -412,6 +414,11 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         self.extend_spaces=extend_spaces
         self._iterations = iterations
         self.iterations = iterations
+        self.evaluator = evaluator
+
+    @property
+    def application_order(self):
+        return 'post' if self.evaluator is None else 'pre'
 
     repr_opts = ['energy_cutoff', 'wfc_threshold']
     def prep_states(self, input_states):
@@ -446,11 +453,15 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         :return:
         :rtype:
         """
-        if couplings is None:
-            raise ValueError("need couplings")
-        if extra_groups is None:
-            extra_groups = self.extra_groups
-        return self.get_strong_coupling_space(input_states, couplings, extra_groups=extra_groups)
+        if self.evaluator is not None:
+            raise NotImplementedError("in process")
+            wfcs = self.evaluator.get_test_wfn_corrs(input_states, self.wfc_threshold)
+        else:
+            if couplings is None:
+                raise ValueError("need couplings")
+            if extra_groups is None:
+                extra_groups = self.extra_groups
+            return self.get_strong_coupling_space(input_states, couplings, extra_groups=extra_groups)
 
     @classmethod
     def canonicalize(cls, spec):

@@ -276,7 +276,8 @@ class VPTStateSpace:
                  states,
                  degeneracy_specs=None,
                  system=None,
-                 frequencies=None
+                 frequencies=None,
+                 evaluator=None
                  ):
         """
         :param states: A list of states or a number of quanta to target
@@ -313,7 +314,9 @@ class VPTStateSpace:
         deg_pair_blocks = []
         all_states = np.asanyarray(self.state_list)
         for spec in degeneracy_specs:
-            deg_spec, deg_states = self.build_degenerate_state_spaces(spec, states, system=system, freqs=frequencies)
+            deg_spec, deg_states = self.build_degenerate_state_spaces(spec, states,
+                                                                      evaluator=evaluator,
+                                                                      system=system, freqs=frequencies)
             self.degeneracy_specs.append(deg_spec)
 
             if deg_states is not None:
@@ -416,7 +419,9 @@ class VPTStateSpace:
                 whee = [p for p in whee if all(j in target_modes or x == 0 for j,x in enumerate(p))]
         return whee
 
-    def build_degenerate_state_spaces(self, degeneracy_specs, states, system=None, freqs=None) -> '(None|DegeneracySpec, None|list[np.ndarray])':
+    def build_degenerate_state_spaces(self, degeneracy_specs, states, system=None,
+                                      evaluator=None,
+                                      freqs=None) -> '(None|DegeneracySpec, None|list[np.ndarray])':
         """
         :param degeneracy_specs:
         :type degeneracy_specs:
@@ -425,6 +430,8 @@ class VPTStateSpace:
         """
 
         spec = DegeneracySpec.from_spec(degeneracy_specs)
+        if hasattr(spec, 'evalutor') and spec.evalutor is None:
+            spec.evalutor = evaluator
         if hasattr(spec, 'frequencies') and spec.frequencies is None:
             if freqs is None:
                 freqs = system.mol.normal_modes.modes.freqs
@@ -2276,7 +2283,12 @@ class MultiVPTStateSpace:
     """
     Generalizes a VPTStateSpace to pairs of initial and final spaces
     """
-    def __init__(self, state_space_pairs, system=None, degeneracy_specs=None, **opts):
+    def __init__(self, state_space_pairs,
+                 system=None,
+                 degeneracy_specs=None,
+                 evaluator=None,
+                 **opts
+                 ):
         if (
                 nput.is_numeric(state_space_pairs)
                 or isinstance(state_space_pairs, VPTStateSpace)
@@ -2290,10 +2302,13 @@ class MultiVPTStateSpace:
                                                    [initial_space]
                                                         if not nput.is_numeric(initial_space) and nput.is_numeric(initial_space[0]) else
                                                    initial_space,
-                                                   degeneracy_specs=degeneracy_specs, **opts),
+                                                   degeneracy_specs=degeneracy_specs,
+                                                   **opts),
                 VPTStateSpace.from_system_and_spec(system,
                                                    target_space,
-                                                   degeneracy_specs=degeneracy_specs, **opts)
+                                                   degeneracy_specs=degeneracy_specs,
+                                                   **opts
+                                                   )
             ]
             for initial_space, target_space in state_space_pairs
         ]
@@ -2314,9 +2329,19 @@ class MultiVPTStateSpace:
                 s.degenerate_states
                 for pair in self.space_pairs
                 for s in pair
+                if s.degenerate_states is not None
             ]
+        flat_degs = np.unique(
+            [
+                p
+                for pair in self.space_pairs
+                for s in pair
+                for p in (s.degenerate_pairs if s.degenerate_pairs is not None else [])
+            ], axis=0
+        )
+        if len(flat_degs) == 0: flat_degs = None
         if len(flat_deg_blocks) == 0:
-            flat_deg_blocks = None
+            flat_degs = None
         elif len(flat_deg_blocks) == 1:
             flat_deg_blocks = flat_deg_blocks[0]
         else:
@@ -2335,6 +2360,7 @@ class MultiVPTStateSpace:
                 for d in flat_deg_blocks
             ]
 
+
             new_pairs = []
             for pair in self.space_pairs:
                 pp = []
@@ -2347,16 +2373,6 @@ class MultiVPTStateSpace:
                     pp.append(VPTStateSpace(space))
                 new_pairs.append(pp)
             self.space_pairs = new_pairs
-
-        flat_degs = np.unique(
-            [
-                p
-                for pair in self.space_pairs
-                for s in pair
-                for p in (s.degenerate_pairs if s.degenerate_pairs is not None else [])
-            ], axis=0
-        )
-        if len(flat_degs) == 0: flat_degs = None
 
         self.flat_space = flat_space
         self.flat_space.degenerate_states = flat_deg_blocks
@@ -2638,7 +2654,10 @@ class AnalyticVPTRunner:
 
         return states
     def prep_states(self, states, degeneracy_specs=None):
-        return self.prep_multispace(states, self.eval.freqs, degeneracy_specs=degeneracy_specs)
+        return self.prep_multispace(states,
+                                    self.eval.freqs,
+                                    degeneracy_specs=degeneracy_specs
+                                    )
         # else:
         #     return states
 
@@ -2877,6 +2896,32 @@ class AnalyticVPTRunner:
             all_corrs.append(corr_mats)
             all_mats.append(sum(corr_mats))
         return all_mats, all_corrs
+
+    def get_test_wfn_corrs(self, input_states:BasisStateSpace, threshold):
+        """
+        We take the expansions and frequencies that we have and at find the possible terms
+        that could possibly lead to a correction greater than the specified threshold
+        To do this, we first determine from the expansions what magnitude of energy difference
+        could possible lead to terms above this threshold
+        """
+        exc = input_states.excitations
+        freqs = self.eval.freqs
+        expansions = self.eval.expansions
+        threshold_cutoffs = [
+            sum(np.max(np.abs(e)) for e in exp)
+            for exp in expansions[1:]
+        ]
+        freq_sums = []
+
+        for ord in range(3, 3+len(threshold_cutoffs)):
+            freq_sums = ...
+
+        for subexp in expansions[1:]:
+            # We'd like to consider the space of different number of quanta changes
+            # and find the corresponding
+            ...
+
+
 
     def format_energies_table(self, states, energies, energy_corrections, zpe_pos, number_format=".3f"):
 
@@ -3123,7 +3168,10 @@ class AnalyticVPTRunner:
                                                   s=group,
                                                   preformatter=lambda **kw: dict(
                                                       kw,
-                                                      s=self.format_matrix(kw['s'])
+                                                      s="\n".join(
+                                                          VPTStateMaker.parse_state(k)
+                                                          for k in kw['s']
+                                                      )
                                                   ))
                             with self.logger.block(tag="Effective Hamiltonian"):
                                 self.logger.log_print(
@@ -3231,6 +3279,6 @@ class AnalyticVPTRunner:
                              )
 
         if return_runner:
-            res = (runner,) + res
+            return runner, res
         else:
             return res
