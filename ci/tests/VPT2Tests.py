@@ -95,20 +95,20 @@ class VPT2Tests(TestCase):
             expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5")
         )
 
-    @debugTest
-    def test_AnalyticOCHHMultiple(self):
+    @validationTest
+    def test_AnalyticWFC(self):
 
         file_name = "OCHH_freq.fchk"
-        woof = AnalyticVPTRunner.run_simple(
+        AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
             [
                 [
                     0,
                     [
                         [0, 0, 0, 0, 0, 1],
-                        # [0, 1, 0, 1, 0, 0],
-                        # [0, 0, 0, 1, 1, 0],
-                        # [0, 0, 0, 0, 1, 0],
+                        [0, 1, 0, 1, 0, 0],
+                        [0, 0, 0, 1, 1, 0],
+                        [0, 0, 0, 0, 1, 0],
                     ],
                 ],
                 [
@@ -120,6 +120,41 @@ class VPT2Tests(TestCase):
                 ]
             ],
             expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+            degeneracy_specs='auto',
+            handle_degeneracies=True
+        )
+
+    @debugTest
+    def test_AnalyticOCHHMultiple(self):
+
+        file_name = "OCHH_freq.fchk"
+        woof = AnalyticVPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [
+                    0,
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, 0, 1, 0],
+                        [0, 1, 0, 1, 0, 0],
+                        # [0, 0, 0, 1, 1, 0],
+                    ],
+                ],
+                [
+                    [0, 0, 0, 0, 1, 0],
+                    [
+                        [0, 0, 0, 0, 1, 1],
+                        [0, 1, 0, 1, 1, 0]
+                    ]
+                ]
+            ],
+            expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+            # degeneracy_specs=None,
+            # degeneracy_specs = {
+            #     'polyads': [
+            #         [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+            #     ]
+            # }
             degeneracy_specs=[
                 {
                     'polyads': [
