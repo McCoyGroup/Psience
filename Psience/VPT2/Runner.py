@@ -2341,7 +2341,7 @@ class MultiVPTStateSpace:
         )
         if len(flat_degs) == 0: flat_degs = None
         if len(flat_deg_blocks) == 0:
-            flat_degs = None
+            flat_deg_blocks = None
         elif len(flat_deg_blocks) == 1:
             flat_deg_blocks = flat_deg_blocks[0]
         else:

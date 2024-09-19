@@ -149,24 +149,24 @@ class VPT2Tests(TestCase):
                 ]
             ],
             expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
-            # degeneracy_specs=None,
+            degeneracy_specs=None,
             # degeneracy_specs = {
             #     'polyads': [
             #         [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
             #     ]
             # }
-            degeneracy_specs=[
-                {
-                    'polyads': [
-                        [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
-                    ]
-                },
-                {
-                    'polyads': [
-                        [[0, 0, 0, 0, 1, 0], [0, 1, 0, 1, 0, 0]]
-                    ]
-                }
-            ]
+            # degeneracy_specs=[
+            #     {
+            #         'polyads': [
+            #             [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+            #         ]
+            #     },
+            #     {
+            #         'polyads': [
+            #             [[0, 0, 0, 0, 1, 0], [0, 1, 0, 1, 0, 0]]
+            #         ]
+            #     }
+            # ]
         )
 
     @validationTest
