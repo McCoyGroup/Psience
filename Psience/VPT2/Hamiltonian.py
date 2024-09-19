@@ -100,6 +100,7 @@ class PerturbationTheoryHamiltonian:
         self.molecule = molecule
         if modes is None:
             modes = molecule.normal_modes.modes
+        full_modes = modes
         if isinstance(mode_selection, dict):
             submodes = mode_selection.get('modes', None)
             if submodes is not None:
@@ -139,7 +140,8 @@ class PerturbationTheoryHamiltonian:
             V_terms = None
         else:
             V_terms = PotentialTerms(self.molecule,
-                                     modes=modes, mode_selection=mode_selection,
+                                     modes=modes,
+                                     mode_selection=mode_selection,
                                      full_surface_mode_selection=full_surface_mode_selection,
                                      potential_derivatives=potential_derivatives,
                                      allow_higher_potential_terms=allow_higher_potential_terms,

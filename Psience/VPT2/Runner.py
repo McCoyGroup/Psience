@@ -2518,6 +2518,8 @@ class AnalyticVPTRunner:
                 mixed_derivative_handling_mode=mixed_derivative_handling_mode,
                 **settings
             )
+            if isinstance(degeneracy_specs, (list, tuple)) and len(degeneracy_specs) == 0:
+                degeneracy_specs = None
 
             if states is not None and not isinstance(states, MultiVPTStateSpace):
                 if (
@@ -2771,7 +2773,8 @@ class AnalyticVPTRunner:
                 for s in initials
             ],
             order=order, terms=terms,
-            verbose=verbose, degenerate_states=states.degenerate_pairs,
+            verbose=verbose,
+            degenerate_states=states.degenerate_pairs,
             **opts
         )
 
@@ -3112,7 +3115,7 @@ class AnalyticVPTRunner:
             #     states.flat_space.degenerate_states
             # )
 
-            corrs = AnalyticPerturbationTheoryCorrections(basis, states.state_list_pairs)
+            corrs = AnalyticPerturbationTheoryCorrections(basis, states.state_list_pairs, logger=self.logger)
             with self.logger.block(tag="Calculating frequency corrections"):
                 energy_corrections = self.get_energy_corrections(
                     states,
