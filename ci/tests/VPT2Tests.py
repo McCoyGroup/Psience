@@ -124,7 +124,64 @@ class VPT2Tests(TestCase):
             handle_degeneracies=True
         )
 
-    @debugTest
+    @inactiveTest
+    def test_PartialRebuild(self):
+        state = VPTStateMaker(7)
+        corrs = AnalyticVPTRunner.run_simple(
+            mol,
+            # [
+            #     state(),
+            #     state(21),
+            #     state(20),
+            #     state(19),
+            #     state([21, 2]),
+            #     state([20, 2]),
+            #     state([19, 2]),
+            #     state(21, 19),
+            #     state(21, 20),
+            #     state(20, 19)
+            # ],
+            [
+                [
+                    [state()],
+                    [
+                        state(1),
+                        state(2),
+                        state(3),
+                        state([1, 2]),
+                        state([2, 2]),
+                        state([3, 2]),
+                        state(1, 2),
+                        state(1, 3),
+                        state(2, 3),
+                    ]
+                ]
+            ],
+            full_surface_mode_selection=[108 - 108, 108 - 107, 108 - 106, 108 - 105, 108 - 21, 108 - 20, 108 - 19,
+                                         108 - 1],
+            # degeneracy_specs = [
+            #   {'polyads':[[state(19), state(20, 107)]]},
+            #   {'polyads':[[state(106, 106), state(108, 108)]]},
+            #   {'polyads':[[state(106), state(107)], [state(105), state(107)], [state(105), state(108)]]}
+            # ],
+            mode_selection=[108 - 108, 108 - 107, 108 - 106, 108 - 105, 108 - 21, 108 - 20, 108 - 19],
+            # degeneracy_specs = [
+            #   {'polyads':[[state(1), state(2, 6)]]},
+            #   {'polyads':[[state([5, 2]), state([7, 2])]]},
+            #   {
+            #       'polyads':
+            #         [
+            #           [state(4), state(6)],
+            #           [state(4), state(7)],
+            #           [state(5), state(6)]
+            #         ]
+            #     }
+            # ],
+            # logger=output_file,
+            expressions_file=os.path.expanduser("exprs.hdf5")
+        )
+
+    @validationTest
     def test_AnalyticOCHHMultiple(self):
 
         file_name = "OCHH_freq.fchk"
@@ -140,33 +197,33 @@ class VPT2Tests(TestCase):
                         # [0, 0, 0, 1, 1, 0],
                     ],
                 ],
-                [
-                    [0, 0, 0, 0, 1, 0],
-                    [
-                        [0, 0, 0, 0, 1, 1],
-                        [0, 1, 0, 1, 1, 0]
-                    ]
-                ]
+                # [
+                #     [0, 0, 0, 0, 1, 0],
+                #     [
+                #         [0, 0, 0, 0, 1, 1],
+                #         [0, 1, 0, 1, 1, 0]
+                #     ]
+                # ]
             ],
-            expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
-            degeneracy_specs=None,
+            # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+            # degeneracy_specs=None,
             # degeneracy_specs = {
             #     'polyads': [
             #         [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
             #     ]
             # }
-            # degeneracy_specs=[
-            #     {
-            #         'polyads': [
-            #             [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
-            #         ]
-            #     },
-            #     {
-            #         'polyads': [
-            #             [[0, 0, 0, 0, 1, 0], [0, 1, 0, 1, 0, 0]]
-            #         ]
-            #     }
-            # ]
+            degeneracy_specs=[
+                {
+                    'polyads': [
+                        [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+                    ]
+                },
+                {
+                    'polyads': [
+                        [[0, 0, 0, 0, 1, 0], [0, 1, 0, 1, 0, 0]]
+                    ]
+                }
+            ]
         )
 
     @validationTest
