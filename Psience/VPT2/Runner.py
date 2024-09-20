@@ -2900,7 +2900,7 @@ class AnalyticVPTRunner:
             all_mats.append(sum(corr_mats))
         return all_mats, all_corrs
 
-    def get_test_wfn_corrs(self, input_states:BasisStateSpace, threshold):
+    def get_test_wfn_corrs(self, input_states:BasisStateSpace, energy_window):
         """
         We take the expansions and frequencies that we have and at find the possible terms
         that could possibly lead to a correction greater than the specified threshold
