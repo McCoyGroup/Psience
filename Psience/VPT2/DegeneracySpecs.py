@@ -454,7 +454,6 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         :rtype:
         """
         if self.evaluator is not None:
-            raise NotImplementedError("in process")
             wfcs = self.evaluator.get_test_wfn_corrs(input_states, self.wfc_threshold)
         else:
             if couplings is None:

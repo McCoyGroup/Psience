@@ -4946,6 +4946,7 @@ class PerturbationTheoryExpressionEvaluator:
             else:
                 subchanges = None
 
+
             for echanges, polys in subexpr.terms.items():
                 # if all(any(e != 0 for e in ech) for ech in echanges):
                 # TODO: filter out perms based on degenerate_changes
@@ -5151,13 +5152,6 @@ class PerturbationTheoryExpressionEvaluator:
 
                 if degenerate_changes is not None:
                     perm_subsets = [tuple(p) for p in perm_subsets]
-                    # for k,ec in degenerate_changes[g_key].items():
-                    # print("-"*10)
-                    # print(perm_subsets)
-                    # for t,tests in degenerate_changes.get(g_key, {}).items():
-                    #     for p in perm_subsets:
-                    #         if p in tests:
-                    #             print("???", t, p, tests)
 
                 if verbose:
                     with logger.block(
@@ -5264,23 +5258,38 @@ class PerturbationTheoryExpressionEvaluator:
                         echange_inverse = np.argsort(
                                 [nonzero_pos[i] for i in echange_sorting] + zero_pos
                         )
+                        # need to permute over sorted echange blocks
+                        echange_splits = np.nonzero(np.diff([sub_e[i] for i in echange_sorting]))
+                        if len(echange_splits) > 0 and len(echange_splits[0]) > 0:
+                            echange_blocks = [
+                                list(itertools.permutations(p))
+                                for p in np.split(np.arange(len(sub_e)), echange_splits[0] + 1)
+                            ]
+                        else:
+                            echange_blocks = [
+                                [np.arange(len(sub_e))]
+                            ]
+
                         for modes,quanta in sort_changes: # strict ordering preserved
                             if (
                                     len(sub_e) == len(quanta)
                                     and all(sub_e[s] == q for s,q in zip(echange_sorting, quanta))
                             ):
+                                modes = tuple(modes)
                                 if cinds not in degs: degs[cinds] = {}
                                 if ekey not in degs[cinds]: degs[cinds][ekey] = set()
-                                if num_zero > 0:
-                                    for pad_inds in itertools.product(
-                                        *[range(nmodes) for _ in range(num_zero)]
+                                for subperm in itertools.product(*echange_blocks):
+                                    subperm = sum(subperm, ())
+                                    for pad_inds in (
+                                            itertools.product(*[range(nmodes) for _ in range(num_zero)])
+                                                if num_zero > 0 else
+                                            [()]
                                     ):
                                         full_mode = modes + pad_inds
+                                        full_mode = tuple(full_mode[s] for s in subperm) + pad_inds
+                                        # print(num_zero, modes, pad_inds, full_mode, subperm, echange_inverse)
                                         perm_modes = tuple(full_mode[a] for a in echange_inverse)
                                         degs[cinds][ekey].add(perm_modes)
-                                else:
-                                    perm_modes = tuple(modes[a] for a in echange_inverse)
-                                    degs[cinds][ekey].add(perm_modes)
 
         return degs
 
