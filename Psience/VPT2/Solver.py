@@ -2075,7 +2075,7 @@ class PerturbationTheorySolver:
             state_sums = np.sum(total_state_space.excitations, axis=1)
             gs_pos = np.where(state_sums == 0)
             label = "Deperturbed States/Energies:"
-            if len(gs_pos) > 0:
+            if len(gs_pos) > 0 and len(gs_pos[0]) > 0:
                 label = "Deperturbed States/Frequencies:"
                 gs_pos = gs_pos[0]
                 if len(gs_pos) > 0:

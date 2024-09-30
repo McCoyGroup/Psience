@@ -185,6 +185,22 @@ class VPT2Tests(TestCase):
     def test_AnalyticOCHHMultiple(self):
 
         file_name = "OCHH_freq.fchk"
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     [
+        #         [0, 0, 0, 0, 0, 0],
+        #         [0, 0, 0, 0, 0, 1],
+        #         [0, 0, 0, 0, 1, 0],
+        #         [0, 1, 0, 1, 0, 0],
+        #     ],
+        #     mixed_derivative_handling_mode='analytical',
+        #     calculate_intensities=False,
+        #     # degeneracy_specs = {
+        #     #     'polyads': [
+        #     #         [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+        #     #     ]
+        #     # }
+        # )
         woof = AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
             [
@@ -193,18 +209,19 @@ class VPT2Tests(TestCase):
                     [
                         [0, 0, 0, 0, 0, 1],
                         [0, 0, 0, 0, 1, 0],
-                        [0, 1, 0, 1, 0, 0],
-                        # [0, 0, 0, 1, 1, 0],
-                    ],
-                ],
-                [
-                    [0, 0, 0, 0, 1, 0],
-                    [
-                        [0, 0, 0, 0, 1, 1],
-                        [0, 1, 0, 1, 1, 0]
+                        [0, 1, 0, 1, 0, 0]
                     ]
-                ]
+                ],
+                # [
+                #     [0, 0, 0, 0, 1, 0],
+                #     [
+                #         [0, 0, 0, 0, 1, 1],
+                #         [0, 1, 0, 1, 1, 0]
+                #     ]
+                # ]
             ],
+            # calculate_intensities=False,
+            # mixed_derivative_handling_mode='analytical',
             # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
             # degeneracy_specs=None,
             degeneracy_specs = {

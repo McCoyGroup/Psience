@@ -3110,11 +3110,6 @@ class AnalyticVPTRunner:
             else:
                 zpe_pos = zpe_pos[0]
 
-            # raise Exception(
-            #     states.state_list_pairs,
-            #     states.flat_space.degenerate_states
-            # )
-
             corrs = AnalyticPerturbationTheoryCorrections(basis, states.state_list_pairs, logger=self.logger)
             with self.logger.block(tag="Calculating frequency corrections"):
                 energy_corrections = self.get_energy_corrections(
@@ -3230,7 +3225,8 @@ class AnalyticVPTRunner:
                         preformatter=lambda **kw: dict(
                             kw,
                             spec_table=self.format_spectrum_table(
-                                states, corrs.harmonic_spectra, corrs.spectra, corrs.deperturbed_spectra
+                                states, corrs.harmonic_spectra, corrs.spectra,
+                                deperturbed_spectra=corrs.deperturbed_spectra
                             )
                         )
                     )

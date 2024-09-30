@@ -4913,9 +4913,10 @@ class PerturbationTheoryExpressionEvaluator:
                          tuple_states, perm_substates, pows,
                          polys, change, baseline_shift, verbose, logger
                          ):
-        if echanges not in energy_cache:
-            energy_cache[echanges] = np.array(echanges)
-        echanges = energy_cache[echanges]
+        # if echanges not in energy_cache:
+        #     energy_cache[echanges] = np.array(echanges)
+        # echanges = energy_cache[echanges]
+        echanges = np.asanyarray(echanges)
 
         energy_factors = cls._compute_energy_weights(echanges, perm_freqs)
         # TODO: check size of energy factor
@@ -4951,16 +4952,16 @@ class PerturbationTheoryExpressionEvaluator:
                 # if all(any(e != 0 for e in ech) for ech in echanges):
                 # TODO: filter out perms based on degenerate_changes
                 if subchanges is not None and echanges in subchanges:
-                    subsubchanges = subchanges[echanges]
+                    subsubchange_test = subchanges[echanges]
                     if only_degenerate_terms:
                         good_perms = tuple(
                             i for i, s in enumerate(perm_subsets)
-                            if s in subsubchanges
+                            if subsubchange_test(s)# in subsubchanges
                         )
                     else:
                         good_perms = tuple(
                             i for i,s in enumerate(perm_subsets)
-                            if s not in subsubchanges
+                            if not subsubchange_test(s)# not in subsubchanges
                         )
                     if len(good_perms) == len(perm_subsets):
                         good_perms = None
@@ -5224,10 +5225,41 @@ class PerturbationTheoryExpressionEvaluator:
                 for e in expr.terms.values()
             )
 
+    @staticmethod
+    def _deg_test(modes):
+        check_pos = tuple(i for i,m in enumerate(modes) if m >= 0)
+        def test(state, check_pos=check_pos, modes=modes):
+            # I thought about searchsorted, but for this
+            # really short state-by-state case that's probably
+            # slower
+            return all(
+                state[c] == modes[c]
+                for c in check_pos
+            )
+        return test
     @classmethod
-    def _identify_possible_degeneracies(cls, expr, changes, nmodes):
+    def _make_full_deg_test(cls, tests):
+        if isinstance(tests, set):
+            def test(modes, tests=tests):
+                return modes in tests
+        else:
+            def test(modes, tests=tests):
+                return any(t(modes) for t in tests)
+        return test
+
+    default_deg_id_method = None
+    deg_id_method_nmodes_switch = 50
+    @classmethod
+    def _identify_possible_degeneracies(cls, expr, changes, nmodes, method=None):
         # changes is stored as `(modes, quanta)` pairs
         # representing a change between degenerate modes
+        if method is None:
+            method = cls.default_deg_id_method
+        if method is None:
+            if nmodes > cls.deg_id_method_nmodes_switch:
+                method = 'linear'
+            else:
+                method = 'perfect'
 
         degs = {}
         sort_changes = []
@@ -5254,7 +5286,6 @@ class PerturbationTheoryExpressionEvaluator:
                         sub_e = [echange[i] for i in nonzero_pos]
                         echange_sorting = np.argsort(sub_e)
                         num_zero = len(zero_pos)
-                        # pad = len(sub_e)
                         echange_inverse = np.argsort(
                                 [nonzero_pos[i] for i in echange_sorting] + zero_pos
                         )
@@ -5270,28 +5301,50 @@ class PerturbationTheoryExpressionEvaluator:
                                 [np.arange(len(sub_e))]
                             ]
 
+
                         for modes,quanta in sort_changes: # strict ordering preserved
                             if (
                                     len(sub_e) == len(quanta)
                                     and all(sub_e[s] == q for s,q in zip(echange_sorting, quanta))
                             ):
-                                modes = tuple(modes)
+                                # modes = tuple(modes)
                                 if cinds not in degs: degs[cinds] = {}
-                                if ekey not in degs[cinds]: degs[cinds][ekey] = set()
-                                for subperm in itertools.product(*echange_blocks):
-                                    subperm = sum(subperm, ())
-                                    for pad_inds in (
-                                            itertools.product(*[range(nmodes) for _ in range(num_zero)])
+
+                                if method == 'perfect':
+                                    if ekey not in degs[cinds]: degs[cinds][ekey] = set()
+                                    for subperm in itertools.product(*echange_blocks):
+                                        subperm = sum(subperm, ())
+                                        for pad_inds in (
+                                                itertools.product(*[range(nmodes) for _ in range(num_zero)])
                                                 if num_zero > 0 else
-                                            [()]
-                                    ):
+                                                [()]
+                                        ):
+                                            full_mode = modes + pad_inds
+                                            full_mode = tuple(full_mode[s] for s in subperm) + pad_inds
+                                            # print(num_zero, modes, pad_inds, full_mode, subperm, echange_inverse)
+                                            perm_modes = tuple(full_mode[a] for a in echange_inverse)
+                                            degs[cinds][ekey].add(perm_modes)
+                                elif method == 'linear':
+                                    if ekey not in degs[cinds]: degs[cinds][ekey] = []
+                                    for subperm in itertools.product(*echange_blocks):
+                                        subperm = sum(subperm, ())
+                                        pad_inds = (-1,) * num_zero
                                         full_mode = modes + pad_inds
                                         full_mode = tuple(full_mode[s] for s in subperm) + pad_inds
                                         # print(num_zero, modes, pad_inds, full_mode, subperm, echange_inverse)
                                         perm_modes = tuple(full_mode[a] for a in echange_inverse)
-                                        degs[cinds][ekey].add(perm_modes)
+                                        degs[cinds][ekey].add(cls._deg_test(perm_modes))
+                                else:
+                                    if ekey not in degs[cinds]: degs[cinds][ekey] = []
+                                    degs[cinds][ekey].append(method(modes, echange)) # TODO: supply more info to custom methods
+
+
+                    if cinds in degs and ekey in degs[cinds]:
+                        degs[cinds][ekey] = cls._make_full_deg_test(degs[cinds][ekey])
 
         return degs
+
+
 
     _poly_cache = {} # temporary hack, but these are in principle shared/reused
     _ecoeff_cache = {}
@@ -5807,6 +5860,26 @@ class PerturbationTheoryEvaluator:
 
         return finals
 
+    def _sort_corrections(self, corrs:BasicAPTCorrections, state_pairs):
+        # print(corrs)
+        # print(corrs.initial_states)
+        # print(corrs.final_states)
+        basis = corrs.initial_states.basis
+        initial_basis = BasisStateSpace(basis, [s[0] for s in state_pairs])
+        corr_sorting = np.argsort(initial_basis.find(corrs.initial_states))
+        corr_data = list(zip(corrs.final_states, corrs.corrections))
+        new_finals = []
+        new_corrs = []
+        for n,(finals, corr_block) in enumerate(corr_data[i] for i in corr_sorting):
+            final_basis = BasisStateSpace(basis, state_pairs[n][1])
+            subcorr_sorting = np.argsort(final_basis.find(finals, missing_val=len(final_basis)+1))
+            corr_block = [c[subcorr_sorting,] for c in corr_block]
+            finals = final_basis.take_subspace(subcorr_sorting)
+            new_corrs.append(corr_block)
+            new_finals.append(finals)
+
+        return BasicAPTCorrections(initial_basis, new_finals, new_corrs)
+
     def get_state_by_state_corrections(self, generator, states, order=None,
                                        terms=None, epaths=None,
                                        expansions=None, freqs=None, verbose=False,
@@ -5814,6 +5887,7 @@ class PerturbationTheoryEvaluator:
                                        degenerate_states=None, only_degenerate_terms=False,
                                        log_scaled=False,
                                        zero_cutoff=None,
+                                       return_sorted=False,
                                        logger=None):
         spex = expansions is None or self.is_single_expansion(expansions)
         if spex:
@@ -5835,15 +5909,17 @@ class PerturbationTheoryEvaluator:
 
         degenerate_changes = self.get_degenerate_changes(degenerate_states)
 
-        # print(self._reformat_corrections(order, None, change_map, None if spex else len(expansions)))
-        #
-        # raise Exception(change_map)
-
         corrs = self._build_corrections(generator, expansions, order,
                                         terms, allowed_coefficients, disallowed_coefficients,
                                         epaths, change_map, degenerate_changes, only_degenerate_terms,
                                         freqs, verbose, logger, zero_cutoff, log_scaled)
-        return self._reformat_corrections(order, corrs, change_map, None if spex else len(expansions))
+        new_corrs = self._reformat_corrections(order, corrs, change_map, None if spex else len(expansions))
+        if return_sorted:
+            if isinstance(new_corrs, BasicAPTCorrections):
+                new_corrs = self._sort_corrections(new_corrs, states)
+            else:
+                new_corrs = [self._sort_corrections(nc, states) for nc in new_corrs]
+        return new_corrs
 
     def get_matrix_corrections(self, states, order=None, expansions=None, freqs=None,
                                zero_cutoff=None, verbose=False):
