@@ -5247,7 +5247,7 @@ class PerturbationTheoryExpressionEvaluator:
                 return any(t(modes) for t in tests)
         return test
 
-    default_deg_id_method = None
+    default_deg_id_method = 'linear'
     deg_id_method_nmodes_switch = 50
     @classmethod
     def _identify_possible_degeneracies(cls, expr, changes, nmodes, method=None):
@@ -5333,7 +5333,7 @@ class PerturbationTheoryExpressionEvaluator:
                                         full_mode = tuple(full_mode[s] for s in subperm) + pad_inds
                                         # print(num_zero, modes, pad_inds, full_mode, subperm, echange_inverse)
                                         perm_modes = tuple(full_mode[a] for a in echange_inverse)
-                                        degs[cinds][ekey].add(cls._deg_test(perm_modes))
+                                        degs[cinds][ekey].append(cls._deg_test(perm_modes))
                                 else:
                                     if ekey not in degs[cinds]: degs[cinds][ekey] = []
                                     degs[cinds][ekey].append(method(modes, echange)) # TODO: supply more info to custom methods
