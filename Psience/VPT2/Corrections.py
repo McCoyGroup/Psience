@@ -921,6 +921,7 @@ class AnalyticPerturbationTheoryCorrections:
     _deperturbed_transition_moments: 'Iterable[np.ndarray]' = None
     _deperturbed_spectra: DiscreteSpectrum = None
     degenerate_states: 'Iterable[BasisStateSpace]' = None
+    only_degenerate_terms: 'bool' = True
     _degenerate_hamiltonians: 'Iterable[np.ndarray]' = None
     _degenerate_coefficients: 'Iterable[np.ndarray]' = None
     _degenerate_state_list_transformations: 'Iterable[list[np.ndarray, np.ndarray]]' = None
@@ -1010,9 +1011,11 @@ class AnalyticPerturbationTheoryCorrections:
             #                               kw,
             #                               s=self.format_matrix(kw['s'])
             #                           ))
+            print(ham * 219475.6)
             e_pos = basis.find(group)
+            if self.only_degenerate_terms:
+                ham = -ham  # only deg terms
             engs = energies[e_pos,]
-            ham = -ham  # only deg terms
             ham[np.diag_indices_from(ham)] = engs
             deg_engs, deg_mixing = self.handle_degenerate_transformation(ham)
 

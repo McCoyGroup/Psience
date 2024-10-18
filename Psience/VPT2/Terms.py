@@ -2209,7 +2209,7 @@ class KineticTerms(ExpansionTerms):
 
     @classmethod
     def reexpress_G(self,
-                    G_expansion, forward_derivs, reverse_derivs, order=2
+                    G_expansion, forward_derivs, reverse_derivs=None, order=2
                     # G_subexpansion=None
                     ):
         """
@@ -2220,6 +2220,21 @@ class KineticTerms(ExpansionTerms):
         :param order:
         :return:
         """
+
+        if reverse_derivs is None:
+            reverse_derivs = nput.inverse_transformation(forward_derivs, order)
+        if forward_derivs is None:
+            forward_derivs = nput.inverse_transformation(reverse_derivs, order)
+
+
+        from ..Molecools.Hamiltonian import GMatrixExpansion
+
+        return GMatrixExpansion.reexpress_G(
+                    G_expansion, forward_derivs, reverse_derivs,
+                    order
+                    )
+
+
         R = reverse_derivs
         Q = forward_derivs
         G = G_expansion
@@ -2233,7 +2248,7 @@ class KineticTerms(ExpansionTerms):
         # raise Exception(...)
 
         return [G[0]] + TensorDerivativeConverter.convert_fast(Q, G_R, order=order, val_axis=0)
-    def reexpress(self, forward_derivs, reverse_derivs, order=2):
+    def reexpress(self, forward_derivs, reverse_derivs=None, order=2):
         """
         Finds a coordinate transformation the give 0 contribution to the G-matrix
 
@@ -2242,6 +2257,7 @@ class KineticTerms(ExpansionTerms):
         :param order:
         :return:
         """
+
         G = list(reversed([self[o] for o in range(order, -1, -1)]))
         return self.reexpress_G(G, forward_derivs, reverse_derivs)
 
@@ -2251,6 +2267,23 @@ class KineticTerms(ExpansionTerms):
         # that includes the highest derivative of the new coordinates with respect to the old
         # multiplied by the G matrix, done two ways, so a transformation that eliminates the
         # coordinates is just (R^n)_a...bij = -1/2w_i [rem]_a...bij
+
+        w = np.diag(G_expansion[0])
+        ndim = len(w)
+        R = np.eye(ndim)
+        R2 = np.zeros((ndim,)*3)
+        G1 = G_expansion[1]
+        print(G1)
+        for p in itertools.combinations_with_replacement(range(ndim), 3):
+            for i,j,k in itertools.permutations(p):
+                # print(i, j, k)
+                R2[i,j,k] = -(w[i]*G1[i, j, k] + w[j]*G1[j, i, k] - w[k]*G1[k, j, i]) / (2 * w[i] * w[j])
+
+        # raise Exception(R2)
+        # raise Exception(R2 - np.transpose(R2, (1, 0, 2)))
+
+        new_G = cls.reexpress_G(G_expansion, None, [R, R2], order=2)
+        raise Exception(new_G[1])
 
         G = G_expansion
         w = np.diag(G[0])

@@ -84,8 +84,12 @@ class MolecularHamiltonian:
 
         return coordinate_transformation
 
-    def get_embedding(self, dimensionless=False):
-        return ModeEmbedding(self.embedding, self.modes, dimensionless=dimensionless)
+    def get_embedding(self, modes=True, dimensionless=False):
+        if modes is True:
+            modes = self.modes
+        elif modes is False:
+            modes = None
+        return ModeEmbedding(self.embedding, modes, dimensionless=dimensionless)
 
     def potential_expansion(self,
                             order=None,
@@ -93,9 +97,10 @@ class MolecularHamiltonian:
                             dimensionless=False,
                             embedding=None,
                             exclude_gradient=False,
+                            **embedding_opts
                             ):
         if embedding is None:
-            embedding = self.get_embedding(dimensionless=dimensionless)
+            embedding = self.get_embedding(dimensionless=dimensionless, **embedding_opts)
 
         ders = self.potential.derivatives
         if exclude_gradient:
@@ -111,12 +116,14 @@ class MolecularHamiltonian:
                                                dimensionless=False,
                                                embedding=None,
                                                exclude_gradient=True,
+                                               **embedding_opts
                                                ):
         return nput.optimizing_transformation(
             self.potential_expansion(order,
                                      dimensionless=dimensionless,
                                      embedding=embedding,
-                                     exclude_gradient=exclude_gradient
+                                     exclude_gradient=exclude_gradient,
+                                     **embedding_opts
                                      ),
             order
         )
@@ -125,10 +132,11 @@ class MolecularHamiltonian:
                           order=None,
                           *,
                           dimensionless=False,
-                          embedding=None
+                          embedding=None,
+                            **embedding_opts
                           ):
         if embedding is None:
-            embedding = self.get_embedding(dimensionless=dimensionless)
+            embedding = self.get_embedding(dimensionless=dimensionless, **embedding_opts)
 
         exp = cls(embedding)
         if order is not None:
@@ -138,20 +146,23 @@ class MolecularHamiltonian:
                           order=None,
                           *,
                           dimensionless=False,
-                          embedding=None
+                          embedding=None,
+                          **embedding_opts
                           ) -> "GMatrixExpansion|np.ndarray":
         return self._get_ke_expansion(GMatrixExpansion,
                                       order=order,
                                       dimensionless=dimensionless,
-                                      embedding=embedding
+                                      embedding=embedding,
+                                      **embedding_opts
                                       )
     def get_kinetic_optmizing_transformation(self,
                                              order,
                                              *,
                                              dimensionless=False,
-                                             embedding=None
+                                             embedding=None,
+                                             **embedding_opts
                                              ):
-        g = self.gmatrix_expansion(dimensionless=dimensionless, embedding=embedding) #type:GMatrixExpansion
+        g = self.gmatrix_expansion(dimensionless=dimensionless, embedding=embedding, **embedding_opts) #type:GMatrixExpansion
         G_r = g.get_terms(order)
 
         w = np.diag(G_r[0])
@@ -204,37 +215,43 @@ class MolecularHamiltonian:
         return Q, R
 
     def pseudopotential_expansion(self,
-                          order=None,
-                          *,
-                          dimensionless=False,
-                          embedding=None
-                          ):
+                                  order=None,
+                                  *,
+                                  dimensionless=False,
+                                  embedding=None,
+                                  **embedding_opts
+                                  ):
         return self._get_ke_expansion(PseudopotentialExpansion,
                                       order=order,
                                       dimensionless=dimensionless,
-                                      embedding=embedding
+                                      embedding=embedding,
+                                      **embedding_opts
                                       )
     def coriolis_expansion(self,
-                          order=None,
-                          *,
-                          dimensionless=False,
-                          embedding=None
-                          ):
+                           order=None,
+                           *,
+                           dimensionless=False,
+                           embedding=None,
+                           **embedding_opts
+                           ):
         return self._get_ke_expansion(CoriolisRotationExpansion,
                                       order=order,
                                       dimensionless=dimensionless,
-                                      embedding=embedding
+                                      embedding=embedding,
+                                      **embedding_opts
                                       )
     def watson_expansion(self,
-                          order=None,
-                          *,
-                          dimensionless=False,
-                          embedding=None
-                          ):
+                         order=None,
+                         *,
+                         dimensionless=False,
+                         embedding=None,
+                         **embedding_opts
+                         ):
         return self._get_ke_expansion(ReciprocalInertiaExpansion,
                                       order=order,
                                       dimensionless=dimensionless,
-                                      embedding=embedding
+                                      embedding=embedding,
+                                      **embedding_opts
                                       )
 
 class ScalarOperatorManager:
@@ -277,7 +294,8 @@ class ModeEmbedding:
                  ):
         self.embedding = embedding
         self.mass_weighted = mass_weight or dimensionless
-        modes = modes.modes
+        if hasattr(modes, 'modes'):
+            modes = modes.modes
         if modes is not None:
             modes = modes.basis.to_new_modes()
             if dimensionless:
@@ -322,7 +340,7 @@ class ModeEmbedding:
                 order=order,
                 strip_embedding=strip_embedding
             )
-        if self.mass_weighted:
+        if not self.mass_weighted:
             YX = self.mw_inverse()
             YR = []
             for X_tf in XR:

@@ -496,7 +496,6 @@ class TreeSerializer:
             # print("|||", st)
         # print(tree_shape, val_buffers)
         vals = cls.deserialize_iterable(tree_shape, val_buffers, total_depth - 1)
-        # print("-->", vals)
 
         return cls.stitch_dict(keys + [vals])
 
@@ -4951,7 +4950,7 @@ class PerturbationTheoryExpressionEvaluator:
             for echanges, polys in subexpr.terms.items():
                 # if all(any(e != 0 for e in ech) for ech in echanges):
                 # TODO: filter out perms based on degenerate_changes
-                if subchanges is not None and echanges in subchanges:
+                if False and subchanges is not None and echanges in subchanges:
                     subsubchange_test = subchanges[echanges]
                     if only_degenerate_terms:
                         good_perms = tuple(
@@ -5247,7 +5246,7 @@ class PerturbationTheoryExpressionEvaluator:
                 return any(t(modes) for t in tests)
         return test
 
-    default_deg_id_method = 'linear'
+    default_deg_id_method = 'perfect'
     deg_id_method_nmodes_switch = 50
     @classmethod
     def _identify_possible_degeneracies(cls, expr, changes, nmodes, method=None):
@@ -5271,6 +5270,7 @@ class PerturbationTheoryExpressionEvaluator:
 
         for cinds,t in expr.terms.items():
             if isinstance(t, PTEnergyChangeProductSum):
+                # echange_tests = {}
                 for ekey in t.terms.keys():
                     # known_deg = False
                     for echange in ekey:
@@ -5315,7 +5315,13 @@ class PerturbationTheoryExpressionEvaluator:
                                     for subperm in itertools.product(*echange_blocks):
                                         subperm = sum(subperm, ())
                                         for pad_inds in (
-                                                itertools.product(*[range(nmodes) for _ in range(num_zero)])
+                                                itertools.chain(*[
+                                                    itertools.permutations(p) for p in
+                                                        itertools.combinations(
+                                                        [x for x in range(nmodes) if x not in modes],
+                                                        r=num_zero
+                                                    )
+                                                ])
                                                 if num_zero > 0 else
                                                 [()]
                                         ):
@@ -5338,8 +5344,7 @@ class PerturbationTheoryExpressionEvaluator:
                                     if ekey not in degs[cinds]: degs[cinds][ekey] = []
                                     degs[cinds][ekey].append(method(modes, echange)) # TODO: supply more info to custom methods
 
-
-                    if cinds in degs and ekey in degs[cinds]:
+                    if len(degs.get(cinds, {}).get(ekey, [])) > 0:
                         degs[cinds][ekey] = cls._make_full_deg_test(degs[cinds][ekey])
 
         return degs
@@ -5356,7 +5361,8 @@ class PerturbationTheoryExpressionEvaluator:
                                        num_fixed,
                                        op=None,
                                        logger=None,
-                                       degenerate_changes=None, only_degenerate_terms=False,
+                                       degenerate_changes=None,
+                                       only_degenerate_terms=False,
                                        zero_cutoff=None,
                                        verbose=False, log_scaled=True
                                        ):
@@ -5432,7 +5438,12 @@ class PerturbationTheoryExpressionEvaluator:
             pows = np.power(np.arange(max_state+1)[np.newaxis, :], np.arange(max_order+1)[:, np.newaxis])
 
             if degenerate_changes is not None:
-                degenerate_changes = cls._identify_possible_degeneracies(expr, degenerate_changes, len(freqs))
+                if len(degenerate_changes) != len(state_perms):
+                    raise ValueError("each state needs its own block of degeneracies")
+                degenerate_changes = [
+                    cls._identify_possible_degeneracies(expr, dc, len(freqs))
+                    for dc in degenerate_changes
+                ]
 
             # Group by numbers of coordinates to do the combinatorics over
             free_ind_groups = {}

@@ -115,6 +115,28 @@ class AnalyticModelBase:
         instance_tag = "" if instance is None else str(instance)
         return sym.symbols(" ".join(n+instance_tag for n in names))
     @staticmethod
+    def symbolic_x(i):
+        """
+        Provides a symbolic representation of a position
+
+        :param i:
+        :type i:
+        :return:
+        :rtype:
+        """
+        return sym.Symbol('x[{i}]'.format(i=i), real=True)
+    @staticmethod
+    def symbolic_n(i, j, k):
+        """
+        Provides a symbolic representation of a normal to a plane
+
+        :param i:
+        :type i:
+        :return:
+        :rtype:
+        """
+        return sym.Symbol('n[{i},{j},{k}]'.format(i=i, j=j, k=k), real=True)
+    @staticmethod
     def symbolic_m(i):
         """
         Provides a symbolic representation of a mass
@@ -199,19 +221,43 @@ class AnalyticModelBase:
         :return:
         :rtype:
         """
+        if l < k:
+            i, j, k, l = i, j, l, k
         return sym.Symbol('y[{i},{j},{k},{l}]'.format(i=i, j=j, k=k, l=l), real=True)
+
     @classmethod
-    def var(cls, *args):
-        if len(args) == 0:
-            return sym.Symbol("x", real=True)
-        elif len(args) == 1:
+    def infer_coord_type(cls, inds):
+        if len(inds) == 0:
+            return "d"
+        elif len(inds) == 1:
+            return "m"
+        elif len(inds) == 2:
+            return "r"
+        elif len(inds) == 3:
+            return "a"
+        elif len(inds) == 4:
+            return "t"
+        elif len(inds) == 5 and inds[-1] == -1:
+            return "y"
+        else:
+            raise ValueError("too many indices")
+    @classmethod
+    def var(cls, *args, coord_type=None):
+        if coord_type is None:
+            coord_type = cls.infer_coord_type(args)
+
+        if coord_type == "d":
+            return sym.Symbol("d", real=True)
+        elif coord_type == "m":
             return cls.symbolic_m(*args)
-        elif len(args) == 2:
+        elif coord_type == "r":
             return cls.symbolic_r(*args)
-        elif len(args) == 3:
+        elif coord_type == "a":
             return cls.symbolic_a(*args)
-        elif len(args) == 4:
+        elif coord_type == "t":
             return cls.symbolic_t(*args)
+        elif coord_type == "y":
+            return cls.symbolic_y(*args)
         else:
             raise NotImplementedError("huh")
 

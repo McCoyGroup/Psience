@@ -529,14 +529,16 @@ class BasisStateSpace(AbstractStateSpace):
                 if self._indices.ndim != 1:
                     raise ValueError("excitations shape {} is incompatible with {}".format(
                         self._indices.shape,
-                        type(self).__name__
+                        self.basis
+                        # type(self).__name__
                     ))
             else:
                 self._excitations = self._init_states.astype(self.excitations_dtype)
                 if self._excitations.ndim != 2:
                     raise ValueError("excitations shape {} is incompatible with {}".format(
                         self._excitations.shape,
-                        type(self).__name__
+                        self.basis
+                        # type(self).__name__
                     ))
             if not self.keep_excitations:
                 self.indices # caching

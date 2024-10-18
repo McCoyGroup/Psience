@@ -4,7 +4,7 @@ but which lacked sufficient information about the coordinates involved
 """
 
 import numpy as np
-from .Helpers import sym
+from .Helpers import sym, AnalyticModelBase
 
 class OrientationVector:
     def __init__(self, x, y, z, basis):
@@ -63,6 +63,9 @@ class RotationMatrix:
     def __neg__(self):
         return type(self)(*(-x for x in self.vectors))
 class BondVector:
+    from McUtils.Scaffolding import Logger, NullLogger
+    # logger = Logger()
+    logger = NullLogger()
     def __init__(self, i, j, norm=1, embedding=None):
         if i == j:
             raise ValueError("bond from {} to {} invalid".format(i, j))
@@ -71,6 +74,25 @@ class BondVector:
         self.norm = norm
         self.embedding = embedding
 
+    def one_common_atom(self, bond:'BondVector', mode='shared'):
+        if self.i == bond.i or self.i == bond.j:
+            if self.j == bond.i or self.j == bond.j:
+                raise ValueError("all shared atoms")
+            if mode == 'shared':
+                return self.i
+            else:
+                return self.j
+        elif self.j == bond.i or self.j == bond.j:
+            if mode == 'shared':
+                return self.j
+            else:
+                return self.i
+        else:
+            raise ValueError("no shared atoms")
+    def shared_atom(self, bond:'BondVector'):
+        return self.one_common_atom(bond, mode='shared')
+    def unshared_atom(self, bond:'BondVector'):
+        return self.one_common_atom(bond, mode='unshared')
     @property
     def direction(self):
         return type(self)(self.i, self.j, norm=1, embedding=self.embedding)
@@ -86,9 +108,33 @@ class BondVector:
     def __rmul__(self, other):
         return self.__mul__(other)
     def __add__(self, other):
-        return BondVectorSum(self, other)
+        if isinstance(other, BondVectorSum):
+            return other + self
+        else:
+            return BondVectorSum(self, other)
+    def __sub__(self, other):
+        return self + (-other)
     def __eq__(self, other):
-        return self.dot(other) == 1
+        if not isinstance(other, BondVector):
+            return self.dot(other) == 1
+        else:
+            return other.i == self.i and other.j == self.j
+    def as_expr(self):
+        return self.norm * (
+                AnalyticModelBase.symbolic_x(self.j) - AnalyticModelBase.symbolic_x(self.i)
+        ) / AnalyticModelBase.symbolic_r(self.j, self.i)
+    @classmethod
+    def get_embedding_angle_cos(self, i, j, k, l):
+        # l is attached to k by definition
+        return -sym.sin(AnalyticModelBase.symbolic_a(j, k, l)) * sym.sin(AnalyticModelBase.symbolic_t(i, j, k, l))
+    @classmethod
+    def get_positioning_cos(cls, i, j, k, l):
+        # l is attached to k by definition
+        a_ijk = AnalyticModelBase.symbolic_a(i,j,k)
+        a_jkl = AnalyticModelBase.symbolic_a(j,k,l)
+        t_ijkl = AnalyticModelBase.symbolic_t(i, j, k, l)
+        cos = sym.cos; sin = sym.sin
+        return cos(a_ijk)*cos(a_jkl) - sin(a_ijk)*sin(a_jkl)*cos(t_ijkl)
     def angle_cos(self, other, require_int=False):
         if isinstance(other, BondNormal):
             return other.angle_cos(self, require_int=require_int)
@@ -108,17 +154,24 @@ class BondVector:
                 else:
                     cos = -1
             elif match_sum == 0:
-                embedding = self.embedding
-                if embedding is None:
-                    embedding = other.embedding
-                if embedding is not None:  # TODO: I don't need this for match_sum == 1...
-                    my_embedding = self.polar_components(embedding, self)
-                    other_embedding = other.polar_components(embedding, other)
-                    # print("=" * 50, embedding)
-                    # print(self, my_embedding)
-                    # print(other, other_embedding)
-                    cos = my_embedding.dot(other_embedding).expand()
-                    # print(cos)
+                return self.get_positioning_cos(self.i, self.j, other.i, other.j)
+                # i = self.i
+                # j = self.j
+                # k = other.i
+                # l = other.j
+                #
+                #
+                # embedding = self.embedding
+                # if embedding is None:
+                #     embedding = other.embedding
+                # if embedding is None:
+                embedding = (self.i, self.j, other.i)
+                self.logger.log_print(f"using embedding {embedding}")
+                my_embedding = self.polar_components(embedding, self)
+                other_embedding = other.polar_components(embedding, other)
+                self.logger.log_print(f"emb1: {my_embedding}")
+                self.logger.log_print(f"emb2: {other_embedding}")
+                cos = my_embedding.dot(other_embedding).expand().simplify()
             else:
                 if require_int:
                     return 2 + np.ravel_multi_index(match_table, (2, 2, 2, 2)) # binary encoding
@@ -144,15 +197,19 @@ class BondVector:
                         j = self.j
                         k = other.i
                         sign = 1
-                    cos = sign * sym.cos(InternalJacobianDisplacements.symbolic_a(i, j, k))
+                    cos = sign * sym.cos(AnalyticModelBase.symbolic_a(i, j, k))
             return cos
     def dot(self, other:'BondVector'):
         if isinstance(other, BondVectorSum):
             return other.distribute(
-                lambda x:self.angle_cos(x) * self.norm * x.norm
+                lambda x:self.dot(x)
             ).simplify()
         else:
-            acos = self.angle_cos(other)
+            with self.logger.block():
+                self.logger.log_print("{s}", s=self)
+                self.logger.log_print("{s}", s=other)
+                acos = self.angle_cos(other)
+                self.logger.log_print("acos: {acos}", acos=acos)
             return acos * self.norm * other.norm
     def cross(self, other):
         if isinstance(other, BondVectorSum):
@@ -168,89 +225,85 @@ class BondVector:
 
     @classmethod
     def polar_components(self, embedding_atoms, vector):
+        raise NotImplementedError("dead code path")
         # returns the components and the basis for the embdedding
         # of atom l with respect to reference atoms i, j, and k
-        i, j, k = embedding_atoms
-        # embedding = [
-        #         BondVector(k, j),
-        #         BondVector(j, k).cross(BondVector(i, j)),
-        #         BondVector(j, k).cross(BondVector(i, j)).cross(BondVector(j, k))
-        #     ]
-        basis = [
-            BondVector(k, j),
-            BondNormal(BondVector(k, j),
-                       BondNormal(BondVector(k, j), BondVector(j, i))
-                       ),
-            BondNormal(BondVector(k, j), BondVector(j, i))
-            ]
-        kk = vector.i
-        l = vector.j
-        # print("?", (kk, l), embedding_atoms)
+        i, j, k = embedding_atoms#sorted(embedding_atoms)
+        basis = BondNormal.embedding_basis((i, j, k))
+        # x-axis: i->j
+        # z-axis: i->j X j->k
+        n = vector.i
+        m = vector.j
         sign = 1
-        # given that our x is k->j we have two cases:
+        # We have two cases:
         #  1. all stuff inside i,j,k (simple rotations)
         #  2. i->l, j->l, or k->l (rotation + out of plane transform)
-        if ( # simple canonicalizations to cut down on the number of cases
-                l == k or
-                kk == i or
-                kk not in (i, j, k)
-        ): # flip the vector and multiply all components by negative one
-            kk, l = l, kk
-            sign = -1
-        matches = [l in (i, j, k), kk in (i, j, k)]
+        matches = [n in (i, j, k), m in (i, j, k)]
         match_sum = np.sum(matches)
 
         if match_sum == 2: # simple rotation of main
-            if kk == k: # vector is k->i
-                if l == i:
-                    angle = InternalJacobianDisplacements.symbolic_a(j, k, i)
-                else:  # k->j
+            if m == j: # pointing towards center, should be flipped
+                n, m = m, n
+                sign *= -1
+            if n == j:
+                if m == i: # j->i is a flip of the basis vector
+                    sign *= -1
                     angle = None
-            elif l == k:
-                raise NotImplementedError("...?")
-            else:  # l == i and  k == j
-                angle = InternalJacobianDisplacements.symbolic_a(i, j, k) - sym.pi
+                else: # j->k, need i->j into j->k
+                    angle = AnalyticModelBase.symbolic_a(i, j, k)
+            else:
+                if n == k: sign *= - 1
+                # vector is i->k, need to rotation i->j into i->k
+                angle = AnalyticModelBase.symbolic_a(j, i, k)
+
             if angle is None:
                 components = OrientationVector(1, 0, 0, basis)
             else:
+                self.logger.log_print("{n}->{m} in ({i},{j},{k}) = {a}", n=n,m=m,i=i,j=j,k=k,a=angle)
                 rmat = OrientationVector.rotation_matrix(angle, OrientationVector(0, 0, 1, basis))
                 v = OrientationVector(1, 0, 0, basis)
                 components = rmat.dot(v)
         elif match_sum == 0:
+            self.logger.log_print(f"{n}->{m} in ({i},{j},{k})")
             raise NotImplementedError("this shouldn't happen...")
-        else: # rotation in plane and rotation out of plane
-            if kk == i:
-                chob = InternalJacobianDisplacements.symbolic_a(i, j, k)
-                angle = -InternalJacobianDisplacements.symbolic_a(j, i, l)
-                # eij = -eji = -R(a[ijk]).ekj
-                polar = InternalJacobianDisplacements.symbolic_t(k, j, i, l)
-            elif kk == k:
+        else:
+            # rotation in plane and rotation out of plane
+            if matches[1]: # want first point shared with embedding
+                n, m = m, n
+                sign *= -1
+
+            if n == i: # simple dihedral
+                # m<-i->j->k
                 chob = None
-                angle = InternalJacobianDisplacements.symbolic_a(j, k, l)
-                polar = InternalJacobianDisplacements.symbolic_t(i, j, k, l)
-            elif kk == j: # this feels wrong...
+                angle = AnalyticModelBase.symbolic_a(m, i, j)
+                polar = AnalyticModelBase.symbolic_t(k, j, i, m)
+            elif n == j:
+                # i->j(->m)->k
                 chob = None
-                angle = InternalJacobianDisplacements.symbolic_a(k, j, l)
-                polar = InternalJacobianDisplacements.symbolic_t(k, i, j, l)
+                angle = AnalyticModelBase.symbolic_a(i, j, m)
+                polar = AnalyticModelBase.symbolic_t(k, i, j, m)
             else:
-                raise NotImplementedError("case: {}->{} in {}".format(kk, l, embedding_atoms))
+                sign *= -1
+                # need to rotate i->j->k->m so that ij -> kj
+                chob = AnalyticModelBase.symbolic_a(i, j, k)
+                angle = AnalyticModelBase.symbolic_a(j, k, m)
+                polar = AnalyticModelBase.symbolic_t(i, j, k, m)
+
+            self.logger.log_print("{n}->{m} in ({i},{j},{k}) = {a} | {p}", n=n,m=m,i=i,j=j,k=k,a=angle, p=polar)
 
             ax = OrientationVector(1, 0, 0, basis)
-            # if chob is not None:
-            #     cr = -OrientationVector.rotation_matrix(chob, OrientationVector(0, 0, 1, basis))
-            #     ax = cr.dot(ax)
             v = ax
+            if chob is not None:
+                cr = OrientationVector.rotation_matrix(chob, OrientationVector(0, 0, 1, basis))
+                v = cr.dot(v)
             amat = OrientationVector.rotation_matrix(angle, OrientationVector(0, 0, 1, basis))
             v = amat.dot(v)
             tmat = OrientationVector.rotation_matrix(polar, ax)
             v = tmat.dot(v)
-            if chob is not None:
-                cr = OrientationVector.rotation_matrix(chob, OrientationVector(0, 0, 1, basis))
-                v = cr.dot(v)
             components = v
+        self.logger.log_print(f"{n}->{m} in ({i},{j},{k}) -> {sign}")
         if sign < 0:
             components = -components
-        # print(components)
         return components
 class BondNormal:
     def __init__(self, a, b, norm=1, embedding=None):
@@ -285,18 +338,36 @@ class BondNormal:
     def __mul__(self, other):
         return type(self)(self.a, self.b, norm=self.norm*other, embedding=self.embedding)
     def __add__(self, other):
-        return BondVectorSum(self, other)
+        if isinstance(other, BondVectorSum):
+            return other + self
+        else:
+            return BondVectorSum(self, other)
     def __sub__(self, other):
-        return BondVectorSum(self, -other)
+        if isinstance(other, BondVectorSum):
+            return self + (-other)
+        else:
+            return BondVectorSum(self, -other)
     def __eq__(self, other):
-        return self.dot(other) == 1
+        if not isinstance(other, BondNormal):
+            return self.dot(other) == 1
+        else:
+            return self.a == other.a and self.b == other.b
+    @classmethod
+    def embedding_basis(cls, embedding):
+        ei = BondVector(embedding[0], embedding[1])
+        x = BondVector(embedding[1], embedding[2])
+        ej = BondNormal(ei, x)
+        ek = BondNormal(ei, ej)
+        return [ei, ek, ej]
     @classmethod
     def polar_components(cls, embedding, self):
+        raise NotImplementedError("dead code path")
         a = self.a.polar_components(embedding, self.a)
         a1, a2, a3 = a.vec
         b = self.b.polar_components(embedding, self.b)
         b1, b2, b3 = b.vec
-        sangle = sym.sin(sym.acos(self.a.angle_cos(self.b))).trigsimp().subs(sym.Abs, sym.Id)
+        ang = sym.acos(self.a.angle_cos(self.b))
+        sangle = sym.sin(ang).trigsimp().subs(sym.Abs, sym.Id)
         return OrientationVector( # gotta normalize...
             (a2*b3 - b2*a3)/sangle,
             (b1*a3 - a1*b3)/sangle,
@@ -304,32 +375,70 @@ class BondNormal:
             a.basis
         )
     def angle_cos(self, other, require_int=True):
-        if isinstance(other, BondVector):
+        if isinstance(other, BondVectorSum):
+            return other.distribute(lambda v:self.angle_cos(v))
+        if isinstance(other, BondVector) and isinstance(self.a, BondVector) and isinstance(self.b, BondVector):
             alignment_1 = self.a.angle_cos(other, require_int=True)
             alignment_2 = self.b.angle_cos(other, require_int=True)
             if abs(alignment_1) == 1 or abs(alignment_2) == 1: # cross product is perpendicular to contained vector
                 cos = 0
             else:
-                embedding = self.embedding
-                if embedding is None:
-                    embedding = other.embedding
-                if embedding is not None:
-                    # print("="*50)
-                    # print(self.direction)
-                    # print(other.direction)
-                    my_embedding = self.polar_components(embedding, self)
-                    # print("!", my_embedding)
-                    other_embedding = other.polar_components(embedding, other)
-                    # print("+", other_embedding.vec)
-                    cos = my_embedding.dot(other_embedding)
-                    # print(">", cos)
+                i = self.a.unshared_atom(self.b)
+                j = self.a.shared_atom(self.b)
+                k = self.b.unshared_atom(self.a)
+
+                if other.i == i:
+                    l = other.j
+                    i,j,k = k,j,i
+                    sign = -1
+                elif other.j == i:
+                    l = other.i
+                    i,j,k = k,j,i
+                    sign = 1
+                elif other.i == j:
+                    l = other.j
+                    i,j,k = i,k,j
+                    sign = -1
+                elif other.j == j:
+                    l = other.i
+                    i,j,k = i,k,j
+                    sign = 1
+                elif other.i == k:
+                    l = other.j
+                    sign = 1
+                elif other.j == k:
+                    l = other.i
+                    sign = -1
                 else:
-                    raise NotImplementedError("{}".format(self))
-                # raise NotImplementedError('angle between vector and vector cross not symbolically useful ({} and {})'.format(
-                #     self,
-                #     other
-                # ))
+                    raise ValueError("5 atom angles unsupported")
+
+                return sign * BondVector.get_embedding_angle_cos(i, j, k, l)
+
+                # embedding = self.embedding
+                # # if embedding is None:
+                # #     embedding = other.embedding
+                # if embedding is not None:
+                #     my_embedding = self.polar_components(embedding, self)
+                #     other_embedding = other.polar_components(embedding, other)
+                #     BondVector.logger.log_print(f"emb1: {my_embedding}")
+                #     BondVector.logger.log_print(f"emb2: {other_embedding}")
+                #     cos = my_embedding.dot(other_embedding)
+                # else:
+                #     raise NotImplementedError("{}".format(self))
         else:
+            # (axb).(cxd) = (a.c)(b.d) - (a.d)(b.c)
+            #             = acos(a,c)acos(b,d) - acos(a,d)acos(b,c)
+            aa = self.a.angle_cos(other.a)
+            bb = self.b.angle_cos(other.b)
+            ab = self.a.angle_cos(other.b)
+            ba = self.b.angle_cos(other.a)
+            # BondVector.logger.log_print(f"??? aa{aa} bb{bb} ab{ab} ba{ba}")
+
+            ang_ab = sym.acos(self.a.angle_cos(self.b))
+            sangle_ab = sym.sin(ang_ab).trigsimp().subs(sym.Abs, sym.Id)
+            ang = sym.acos(other.a.angle_cos(other.b))
+            sangle_cd = sym.sin(ang).trigsimp().subs(sym.Abs, sym.Id)
+            return (aa*bb - ab*ba) / (sangle_ab*sangle_cd)
 
             alignments = [
                 self.a.angle_cos(other.a, require_int=True),
@@ -365,24 +474,33 @@ class BondNormal:
                         j = self.b.shared_atom(self.a)
                         k = self.a.unshared_atom(self.b)
                         l = other.b.unshared_atom(other.a)
+                        sign = alignments[0]
                     elif matches[1]:  # shared first and second
                         i = self.b.unshared_atom(self.a)
                         j = self.b.shared_atom(self.a)
                         k = self.a.unshared_atom(self.b)
                         l = other.a.unshared_atom(other.b)
+                        sign = alignments[1]
                     elif matches[2]:  # shared second and first
                         i = self.a.unshared_atom(self.b)
                         j = self.a.shared_atom(self.b)
                         k = self.b.unshared_atom(self.a)
                         l = other.b.unshared_atom(other.a)
+                        sign = alignments[2]
                     else: # shared second atom
                         i = self.a.unshared_atom(self.b)
                         j = self.a.shared_atom(self.b)
                         k = self.b.unshared_atom(self.a)
                         l = other.a.unshared_atom(other.b)
-                    cos = sym.cos(InternalJacobianDisplacements.symbolic_t(i, j, k, l))
+                        sign = alignments[3]
+                    cos = sign * sym.cos(AnalyticModelBase.symbolic_t(i, j, k, l))
 
         return cos
+    def as_expr(self):
+        i = self.a.unshared_atom(self.b)
+        j = self.a.shared_atom(self.b)
+        k = self.b.unshared_atom(self.a)
+        return self.norm * self.a.norm * self.b.norm * AnalyticModelBase.symbolic_n(k, j, i)
     def cross(self, other):
         if isinstance(other, BondVectorSum):
             return other.distribute(
@@ -395,7 +513,10 @@ class BondNormal:
                               embedding=self.embedding if self.embedding is not None else other.embedding
             )
     def dot(self, other):
-        return self.angle_cos(other) * self.norm * other.norm
+        if isinstance(other, BondVectorSum):
+            return other.distribute(lambda v:self.dot(v))
+        else:
+            return self.angle_cos(other) * self.norm * other.norm
 class BondVectorSum:
     def __init__(self, *terms):
         self.terms = terms
@@ -404,16 +525,30 @@ class BondVectorSum:
             return type(self)(*self.terms, *other.terms)
         else:
             return type(self)(*self.terms, other)
+    def __radd__(self, other):
+        return self + other
     def __rmul__(self, other):
         return self.distribute(lambda a:other*a)
     def __mul__(self, other):
         return self.distribute(lambda a:other*a)
     def __repr__(self):
         return "{}({})".format(type(self).__name__, self.terms)
+    def __neg__(self):
+        return type(self)(*(-t for t in self.terms))
     def simplify(self):
         return sum(self.terms)
+
+    def as_expr(self):
+        return sum(
+            b.as_expr() if hasattr(b, 'as_expr') else b
+            for b in self.terms
+        )
     def distribute(self, f):
-        return type(self)(*(f(a) for a in self.terms))
+        all_terms = [f(a) for a in self.terms]
+        new_terms = ()
+        for t in all_terms:
+            new_terms = new_terms + (t.terms if isinstance(t, BondVectorSum) else (t,))
+        return type(self)(*new_terms)
     def dot(self, other):
         return self.distribute(lambda a:a.dot(other))
 
@@ -469,7 +604,7 @@ class InternalJacobianDisplacements:
         l321 = cls.lam(k, j, i)
         l123 = cls.lam(i, j, k)
         return [
-            1 / (r12 * sym.sin(a)) * (sym.cos(a) * e12 + e23),
+            -1 / (r12 * sym.sin(a)) * (sym.cos(a) * e12 + e23),
             -l321 * e12 + l123 * e23,
             1 / (r23 * sym.sin(a)) * (e12 + sym.cos(a) * e23)
         ]
@@ -486,13 +621,13 @@ class InternalJacobianDisplacements:
         a2 = cls.symbolic_a(j, k, l)
         l123 = cls.lam(i, j, k)
         l432 = cls.lam(l, k, j)
-        x123 = BondNormal(e12, e23)
-        x432 = BondNormal(e34, e23)
+        x123 = BondNormal(e12, e23, embedding=(i, j, k))
+        x234 = BondNormal(e23, e34, embedding=(j, k, l))
         return [
-            -1 / (r12 * sym.sin(a1)) * x123,
-            l123 * x123 + sym.cot(a2) / r23 * x432,
-            l432 * x432 + sym.cot(a1) / r23 * x123,
-            -1 / (r34 * sym.sin(a2)) * x432
+           -1 / (r12 * sym.sin(a1)) * x123,
+            l123 * x123 - sym.cot(a2) / r23 * x234,
+           -l432 * x234 + sym.cot(a1) / r23 * x123,
+            1 / (r34 * sym.sin(a2)) * x234
         ]
 
     @classmethod
@@ -500,12 +635,20 @@ class InternalJacobianDisplacements:
         raise NotImplementedError("oops")
 
     @classmethod
-    def displacement_vectors(cls, inds):
-        if len(inds) == 2:
-            return cls.dr(*inds)
-        elif len(inds) == 3:
-            return cls.da(*inds)
-        elif len(inds) == 4:
-            return cls.dt(*inds)
+    def displacement_vectors(cls, inds, coord_type=None):
+        if coord_type is None:
+            if len(inds) == 2:
+                return cls.dr(*inds)
+            elif len(inds) == 3:
+                return cls.da(*inds)
+            elif len(inds) == 4:
+                return cls.dt(*inds)
+            else:
+                return cls.dy(*inds)
         else:
-            return cls.dy(*inds)
+            return {
+                "r":cls.dr,
+                "a":cls.da,
+                "t":cls.dt,
+                "y":cls.dy
+            }[coord_type](*inds)
