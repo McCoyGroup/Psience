@@ -209,7 +209,7 @@ class MolecularEmbedding:
                         jacs,
                         strip_dummies=False,
                         stencil=None, mesh_spacing=1.0e-3,
-                        all_numerical=True, reembed=False,
+                        all_numerical=True, reembed=True,
                         planar_ref_tolerance=None,
                         parallelizer=None
                         ):
@@ -321,13 +321,13 @@ class MolecularEmbedding:
                 embedding = None
         return embedding
 
-    def get_cartesians_by_internals(self, order=None, strip_embedding=False, reembed=False):
+    def get_cartesians_by_internals(self, order=None, strip_embedding=False, reembed=True):
         if not reembed:
             wtf = self.get_internals_by_cartesians(order, strip_embedding=False) # faster to just do these derivs.
             base = nput.inverse_transformation(wtf, order-1)
             # print(order, len(wtf), len(base))
         else:
-            base = self._get_int_jacobs(order, reembed=True) if order is not None else self._jacobians['internals']
+            base = self._get_int_jacobs(order, reembed=reembed) if order is not None else self._jacobians['internals']
             if order is not None:
                 if len(base) < order:
                     raise ValueError("insufficient {} (have {} but expected {})".format(

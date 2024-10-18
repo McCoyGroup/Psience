@@ -285,6 +285,8 @@ class VPTStateSpace:
         :param degeneracy_specs: A specification of degeneracies, either as polyads, explicit groups of states, or parameters to a method. (see Details for more info)
         :type degeneracy_specs: 'auto' | list | dict
         """
+
+        self.system = system
         if not isinstance(states, BasisStateSpace):
             states = BasisStateSpace(
                 HarmonicOscillatorProductBasis(len(states[0])),
@@ -1108,7 +1110,7 @@ class VPTRunner:
             self._ham = self.get_Hamiltonian()
         return self._ham
 
-    def get_wavefunctions(self):
+    def get_wavefunctions(self, **opts):
         pt_opts = self.pt_opts.opts.copy()
         if 'degenerate_states' not in pt_opts:
             pt_opts['degenerate_states'] = self.states.degenerate_states
@@ -1117,8 +1119,13 @@ class VPTRunner:
         return self.hamiltonian.get_wavefunctions(
             self.states.state_list,
             initial_states=self.initial_states.state_list,
-            **pt_opts,
-            **self.runtime_opts.solver_opts
+            **dict(
+                dict(
+                    pt_opts,
+                    **self.runtime_opts.solver_opts
+                ),
+                **opts
+            )
         )
 
     def get_solver(self):
@@ -1335,19 +1342,23 @@ class VPTRunner:
             ))
 
         par = ParameterManager(**opts)
-        sys = VPTSystem(system, **par.filter(VPTSystem))
-        if isinstance(states, int) or isinstance(states[0], int):
-            states = VPTStateSpace.from_system_and_quanta(
-                sys,
-                states,
-                **par.filter(VPTStateSpace)
-            )
+        if not isinstance(system, VPTSystem):
+            sys = VPTSystem(system, **par.filter(VPTSystem))
         else:
-            states = VPTStateSpace(
-                states,
-                system=sys,
-                **par.filter(VPTStateSpace)
-            )
+            sys = system
+        if not isinstance(states, VPTStateSpace):
+            if isinstance(states, int) or isinstance(states[0], int):
+                states = VPTStateSpace.from_system_and_quanta(
+                    sys,
+                    states,
+                    **par.filter(VPTStateSpace)
+                )
+            else:
+                states = VPTStateSpace(
+                    states,
+                    system=sys,
+                    **par.filter(VPTStateSpace)
+                )
 
         if initial_states is not None:
             if isinstance(initial_states, int) or isinstance(initial_states[0], int):
@@ -2452,6 +2463,11 @@ class AnalyticVPTRunner:
         internals = ham.molecule.internals is not None
         _ = []
         for n,e in enumerate(exps):
+            if n == 0:
+                V, G = e
+                V = np.diag(np.diag(V)) # zero out small off diags
+                G = np.diag(np.diag(G)) # zero out small off diags
+                e = [V, G]
             if n > 1:
                 if not internals:
                     V, G, Z, W = e
@@ -2578,20 +2594,47 @@ class AnalyticVPTRunner:
             allowed_energy_changes=allowed_energy_changes
         )
 
-    def construct_classic_runner(self, system, states, logger=None,
+    def construct_classic_runner(self,
+                                 # system,
+                                 states,
+                                 system=None,
+                                 logger=None,
                                  corrected_fundamental_frequencies=None,
                                  potential_terms=None,
                                  kinetic_terms=None,
                                  coriolis_terms=None,
                                  pseudopotential_terms=None,
-                                 dipole_terms=None, **opts):
+                                 dipole_terms=None,
+                                 initial_states=None,
+                                 **opts
+                                 ):
+        freqs = (
+            self.eval.freqs
+                if corrected_fundamental_frequencies is None else
+            corrected_fundamental_frequencies
+        )
+        if isinstance(states, MultiVPTStateSpace):
+            if initial_states is None:
+                initial_states = np.concatenate([s[0] for s in states.state_list_pairs], axis=0)
+            states = states.flat_space
+            # system = states.system
+        if system is None:
+            # system = self.ham.molecule
+            ndim = len(freqs)
+            nats = ((ndim + 6)//3)
+            system = Molecule(
+                ['H']*nats, # doesn't need to make sense
+                np.zeros((nats, 3)),
+                normal_modes={
+                    'freqs':freqs,
+                    'matrix':np.zeros((nats*3, ndim)),
+                    'inverse':np.zeros((ndim, nats*3)),
+                }
+            )
         return VPTRunner.construct(
             system, states,
-            corrected_fundamental_frequencies=(
-                self.eval.freqs
-                    if corrected_fundamental_frequencies is None else
-                corrected_fundamental_frequencies
-            ),
+            initial_states=initial_states,
+            corrected_fundamental_frequencies=freqs,
             potential_terms=(
                 [
                     math.factorial(i + 2) * e[0]
@@ -2643,7 +2686,7 @@ class AnalyticVPTRunner:
         )
 
     @classmethod
-    def prep_multispace(self, states, freqs, degeneracy_specs=None):
+    def prep_multispace(self, states, freqs, system=None, degeneracy_specs=None):
         if not isinstance(states, MultiVPTStateSpace):
             if (
                     isinstance(degeneracy_specs, (list, tuple, np.ndarray))
@@ -2652,12 +2695,22 @@ class AnalyticVPTRunner:
             ):
                 degeneracy_specs = {'polyads':degeneracy_specs}
 
-            states = MultiVPTStateSpace(states, frequencies=freqs, degeneracy_specs=degeneracy_specs)
+            states = MultiVPTStateSpace(states,
+                                        frequencies=freqs,
+                                        system=system,
+                                        degeneracy_specs=degeneracy_specs
+                                        )
 
         return states
+
+    class _dummy_system:
+        def __init__(self, runner):
+            self.runner = runner
+            self.nmodes = len(self.runner.eval.freqs)
     def prep_states(self, states, degeneracy_specs=None):
         return self.prep_multispace(states,
                                     self.eval.freqs,
+                                    system=self._dummy_system(self),
                                     degeneracy_specs=degeneracy_specs
                                     )
         # else:
@@ -3096,7 +3149,8 @@ class AnalyticVPTRunner:
                 verbose=False,
                 degeneracy_specs=None,
                 handle_degeneracies=True,
-                zero_cutoff=None
+                zero_cutoff=None,
+                transition_moment_terms=None
                 ):
         with self.logger.block(tag="Running VPT"):
 
@@ -3144,15 +3198,17 @@ class AnalyticVPTRunner:
             h2w = UnitsData.convert("Hartrees", "Wavenumbers")
             if handle_degeneracies and states.flat_space.degenerate_states is not None:
                 corrs.degenerate_states = states.flat_space.degenerate_states
+                only_degenerate_terms = False
                 with self.logger.block(tag="Handling degeneracies"):
                     with self.logger.block(tag="Calculating effective Hamiltonians..."):
                         _, degenerate_corrs = self.get_reexpressed_hamiltonian(
                             states,
                             order=order,
                             verbose=verbose,
-                            only_degenerate_terms=True,
+                            only_degenerate_terms=only_degenerate_terms,
                             zero_cutoff=zero_cutoff
                         )
+                    corrs.only_degenerate_terms = only_degenerate_terms
                     corrs.degenerate_hamiltonian_corrections = degenerate_corrs
 
                     zpe = corrs.deperturbed_energies[zpe_pos]
@@ -3204,7 +3260,8 @@ class AnalyticVPTRunner:
                     states,
                     order=order,
                     verbose=verbose,
-                    zero_cutoff=zero_cutoff
+                    zero_cutoff=zero_cutoff,
+                    terms=transition_moment_terms
                 )
                 corrs.transition_moment_corrections = transition_moments_corrs
 

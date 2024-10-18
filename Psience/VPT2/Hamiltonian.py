@@ -851,6 +851,7 @@ class PerturbationTheoryHamiltonian:
                           target_property_rules=None,
                           results=None,
                           degenerate_transformation_layout=None,
+                          return_solver=False,
                           **opts
                           ):
         """
@@ -923,7 +924,7 @@ class PerturbationTheoryHamiltonian:
         operator_settings = self.operator_settings.copy()
         operator_settings['memory_constrained'] = memory_constrained
 
-        return PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs,
+        wfns = PerturbationTheoryWavefunctions(self.molecule, self.basis, corrs,
                                                initial_states=initial_states,
                                                modes=self.modes,
                                                mode_selection=self.mode_selection,
@@ -934,6 +935,11 @@ class PerturbationTheoryHamiltonian:
                                                expansion_options=expansion_options,
                                                degenerate_transformation_layout=degenerate_transformation_layout
                                                )
+
+        if return_solver:
+            return wfns, solver
+        else:
+            return wfns
 
     @classmethod
     def _invert_action_expansion_tensors(cls,

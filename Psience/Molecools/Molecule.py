@@ -835,6 +835,7 @@ class Molecule(AbstractMolecule):
             mass_spec = np.broadcast_to(atma[:, np.newaxis], (len(atma), 3)).flatten()
             return np.diag(1 / mass_spec)
             # raise ValueError("need internal coordinates to calculate the G-matrix")
+        return self.hamiltonian.gmatrix_expansion(0, modes=None)
         return self.prop('g_matrix')
 
     @property

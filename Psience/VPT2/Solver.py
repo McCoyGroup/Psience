@@ -272,7 +272,7 @@ class PerturbationTheorySolver:
             if self.degenerate_states is not None:
                 new_states.append(
                     DegenerateMultiStateSpace.from_spec(
-                        new_states,
+                        self.degenerate_states,
                         solver=self,
                         full_basis=self.full_basis,
                         group_filter=None,
@@ -1930,7 +1930,7 @@ class PerturbationTheorySolver:
 
         block_tag_formatter = lambda:'getting corrections for state {}/{}'.format(
             n,
-            total_state_space.take_subspace([n_ind]).excitations[0]
+            total_state_space.take_subspace(n_ind).excitations[0]
         )
 
         with logger.block(

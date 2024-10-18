@@ -181,7 +181,7 @@ class VPT2Tests(TestCase):
             expressions_file=os.path.expanduser("exprs.hdf5")
         )
 
-    @debugTest
+    @validationTest
     def test_AnalyticOCHHMultiple(self):
 
         file_name = "OCHH_freq.fchk"
@@ -191,16 +191,136 @@ class VPT2Tests(TestCase):
         #         [0, 0, 0, 0, 0, 0],
         #         [0, 0, 0, 0, 0, 1],
         #         [0, 0, 0, 0, 1, 0],
+        #         [0, 0, 0, 1, 0, 0],
         #         [0, 1, 0, 1, 0, 0],
         #     ],
         #     mixed_derivative_handling_mode='analytical',
         #     calculate_intensities=False,
-        #     # degeneracy_specs = {
-        #     #     'polyads': [
-        #     #         [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
-        #     #     ]
-        #     # }
+        #     degeneracy_specs = {
+        #         'polyads': [
+        #             # [
+        #             #     [0, 0, 0, 0, 0, 1],
+        #             #     [0, 1, 0, 1, 0, 0]
+        #             # ]
+        #             [
+        #                 [0, 0, 1, 0, 0, 0],
+        #                 [0, 0, 0, 1, 0, 0],
+        #             ]
+        #         ]
+        #     }
         # )
+
+        try:
+            os.remove(os.path.expanduser("~/Desktop/woof.txt"))
+        except OSError:
+            ...
+        runner, states = AnalyticVPTRunner.construct(
+            TestManager.test_data(file_name),
+            [
+                [
+                    [0, 0, 1],
+                    [
+                        # [0, 0, 4],
+                        [0, 1, 0]
+                    ]
+                ]
+            ],
+            # [
+            #     [0, 0, 1],
+            #     [0, 1, 0]
+            # ],
+            mode_selection=[1, 2, 3],
+            degeneracy_specs={
+                'polyads': [
+                    [
+                        [0, 1, 0],
+                        [0, 0, 1],
+                    ]
+                ]
+            },
+            mixed_derivative_handling_mode='analytical',
+            expansion_order={
+                'coriolis':0,
+                'pseudopotential':0
+            }
+            # logger=os.path.expanduser("~/Desktop/woof.txt")
+        )
+        for c in itertools.combinations(range(3), 1):
+            for i in itertools.permutations(c):
+                for p in itertools.permutations([i, i, i]):
+                    runner.eval.expansions[1][0][p] = 0
+        for c in itertools.combinations(range(3), 2):
+            for i,j in itertools.permutations(c):
+                if (i, j) not in {(0,1), (0,2)}:
+                    for p in itertools.permutations([i, i, j]):
+                        runner.eval.expansions[1][0][p] = 0
+        for p1 in itertools.combinations(range(3), 3):
+            for p in itertools.permutations(p1):
+                runner.eval.expansions[1][0][p] = 0
+        classic, _ = runner.construct_classic_runner(
+            states,
+            zero_element_warning=False
+            # target_property='wavefunctions'
+        )
+
+        # wfns, solver = classic.get_wavefunctions(return_solver=True)
+        # wfns.corrs.get_degenerate_transformation(
+        #     wfns.corrs.states,
+        #     solver.representations,
+        #     label="Block {group_num}".format(group_num=1),
+        #     gaussian_resonance_handling=False
+        # )
+
+        # classic.print_tables(
+        #     print_intensities=False
+        # )
+        # raise Exception(...)
+
+        sum_ham, hams = runner.get_reexpressed_hamiltonian(
+            states,
+            order=2,
+            verbose=True,
+            terms=[
+                (2, 0, 0),
+                (0, 0, 2),
+                # (0, 1, 1),
+                # (1, 1, 0),
+                # (1, 0, 1),
+            ],
+            only_degenerate_terms=False,
+            include_diagonal=False
+        )
+        print(sum_ham[0] * 219475.6)
+        raise Exception(...)
+
+        # corrs = runner.eval.get_reexpressed_hamiltonian(
+        #     [
+        #         [0, 0, 1],
+        #         [0, 1, 0]
+        #     ],
+        #     order=2,
+        #     verbose=True,
+        #     only_degenerate_terms=True,
+        #     degenerate_states=states.degenerate_pairs,
+        #     terms=[
+        #         # (2, 0, 0),
+        #         (0, 0, 2)
+        #         # (0, 1, 1)
+        #     ],
+        #     zero_cutoff=None,
+        #     include_diagonal=False
+        # )
+        raise Exception(
+            sum(corrs.corrections[0]) * 219475.6
+        )
+
+        # for ham in hams[0]:
+        #     print(ham * 219475.6)
+        print(sum_ham[0] * 219475.6)
+
+        raise Exception(...)
+
+
         woof = AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
             [
@@ -209,6 +329,7 @@ class VPT2Tests(TestCase):
                     [
                         [0, 0, 0, 0, 0, 1],
                         [0, 0, 0, 0, 1, 0],
+                        [0, 0, 0, 1, 0, 0],
                         [0, 1, 0, 1, 0, 0]
                     ]
                 ],
@@ -226,7 +347,11 @@ class VPT2Tests(TestCase):
             # degeneracy_specs=None,
             degeneracy_specs = {
                 'polyads': [
-                    [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+                    # [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+                    [
+                        [0, 0, 1, 0, 0, 0],
+                        [0, 0, 0, 1, 0, 0],
+                    ]
                 ]
             }
             # degeneracy_specs=[
@@ -977,7 +1102,7 @@ class VPT2Tests(TestCase):
         # print(woof[0])
         # print(woof[1])
 
-    @inactiveTest
+    @debugTest
     def test_HOHNoKE(self):
         print()
 
@@ -990,6 +1115,8 @@ class VPT2Tests(TestCase):
         #     potential_terms=[np.zeros((3,)*(i+2)) for i in range(3)],
         #     zero_element_warning=False
         # )
+
+
 
         COM = -3
         A = -2
@@ -1020,16 +1147,16 @@ class VPT2Tests(TestCase):
         ]
 
 
+        test_internals = None
         file_name = "HOH_freq.fchk"
-        test_internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
+        # test_internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
         # file_name = "water_dimer_freq.fchk"
         # test_internals = dimer_internals
         # file_name = "HOONO_freq.fchk"
         # test_internals = hoono_internals
         # file_name = "OCHH_freq.fchk"
-
-        mol = Molecule.from_file(TestManager.test_data(file_name))
-        # test_internals = None
+        # file_name = "nh3.fchk"
+        # test_internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1], [3, 0, 1, 2]]
 
         runner1, _ = VPTRunner.construct(
             TestManager.test_data(file_name),
@@ -1040,11 +1167,13 @@ class VPT2Tests(TestCase):
             logger=False
         )
         # runner1.print_tables()
-        # R = [np.random.rand(3, 3), np.random.rand(3, 3, 3), np.random.rand(3, 3, 3, 3)]
+        # R2 = np.zeros((3, 3, 3))
+        # for i,j,k in itertools.permutations()
+        # R = [np.eye(3), ]
         # Q = [np.random.rand(3, 3), np.random.rand(3, 3, 3), np.random.rand(3, 3, 3, 3)]
-        #
-        # G_new = runner1.hamiltonian.reexpress_G(R, Q)
-        # raise Exception([G.shape for G in G_new])
+
+        G_new = runner1.hamiltonian.G_terms.base_terms.optimize_coordinates()
+        raise Exception([G.shape for G in G_new])
 
 
         runner2, _ = VPTRunner.construct(
