@@ -181,7 +181,7 @@ class VPT2Tests(TestCase):
             expressions_file=os.path.expanduser("exprs.hdf5")
         )
 
-    @validationTest
+    @debugTest
     def test_AnalyticOCHHMultiple(self):
 
         file_name = "OCHH_freq.fchk"
@@ -218,24 +218,37 @@ class VPT2Tests(TestCase):
             TestManager.test_data(file_name),
             [
                 [
-                    [0, 0, 1],
                     [
-                        # [0, 0, 4],
-                        [0, 1, 0]
-                    ]
+                        [0, 0, 1],
+                        [0, 1, 0],
+                        [2, 0, 0]
+                    ],
+                    [
+                        [0, 0, 1],
+                        [0, 1, 0],
+                        [2, 0, 0]
+                    ],
                 ]
             ],
             # [
             #     [0, 0, 1],
             #     [0, 1, 0]
             # ],
-            mode_selection=[1, 2, 3],
+            mode_selection=[2, 3, 4],
             degeneracy_specs={
                 'polyads': [
                     [
-                        [0, 1, 0],
                         [0, 0, 1],
-                    ]
+                        [0, 1, 0]
+                    ],
+                    [
+                        [0, 1, 0],
+                        [2, 0, 0]
+                    ],
+                    [
+                        [0, 0, 1],
+                        [2, 0, 0]
+                    ],
                 ]
             },
             mixed_derivative_handling_mode='analytical',
@@ -245,22 +258,22 @@ class VPT2Tests(TestCase):
             }
             # logger=os.path.expanduser("~/Desktop/woof.txt")
         )
-        for c in itertools.combinations(range(3), 1):
-            for i in itertools.permutations(c):
-                for p in itertools.permutations([i, i, i]):
-                    runner.eval.expansions[1][0][p] = 0
-        for c in itertools.combinations(range(3), 2):
-            for i,j in itertools.permutations(c):
-                if (i, j) not in {(0,1), (0,2)}:
-                    for p in itertools.permutations([i, i, j]):
-                        runner.eval.expansions[1][0][p] = 0
-        for p1 in itertools.combinations(range(3), 3):
-            for p in itertools.permutations(p1):
-                runner.eval.expansions[1][0][p] = 0
+        # for c in itertools.combinations(range(3), 1):
+        #     for i in itertools.permutations(c):
+        #         for p in itertools.permutations([i, i, i]):
+        #             runner.eval.expansions[1][0][p] = 0
+        # for c in itertools.combinations(range(3), 2):
+        #     for i,j in itertools.permutations(c):
+        #         if (i, j) not in {(0,1), (0,2)}:
+        #             for p in itertools.permutations([i, i, j]):
+        #                 runner.eval.expansions[1][0][p] = 0
+        # for p1 in itertools.combinations(range(3), 3):
+        #     for p in itertools.permutations(p1):
+        #         runner.eval.expansions[1][0][p] = 0
         classic, _ = runner.construct_classic_runner(
             states,
-            zero_element_warning=False
-            # target_property='wavefunctions'
+            zero_element_warning=False,
+            target_property='wavefunctions'
         )
 
         # wfns, solver = classic.get_wavefunctions(return_solver=True)
@@ -270,25 +283,77 @@ class VPT2Tests(TestCase):
         #     label="Block {group_num}".format(group_num=1),
         #     gaussian_resonance_handling=False
         # )
-
-        # classic.print_tables(
-        #     print_intensities=False
+        # # #
+        # # # """
+        # # # [[-0.03008043  0.00317708]
+        # # #  [ 0.00317708 -0.00067181]]
+        # # # [array([0.006756])]
+        # # # """
+        # # #
+        # """
+        # [array([-0.03008043,  0.006756  ]), array([-0.00067181, -0.00040184])]
+        # [array([-0.03008043,  0.006756  ]), array([-0.00067181, -0.00040184])]
+        # """
+        # corrs = runner.get_full_wavefunction_corrections(
+        #     states
         # )
+        # #
+        # # # target_rows = wfns.corrs.states.find([[0, 0, 1]])
+        # # # target_cols = wfns.corrs.total_basis.find([[0, 1, 0]])
+        # # #
+        # # # # corrs = runner.eval.get_overlap_corrections(states, order=2, verbose=True)
+        # # # # print(wfns.corrs.wfn_corrections[1].todense())#[:, :7])
+        # # # print(wfns.corrs.wfn_corrections[2].todense()[np.ix_(target_rows, target_cols)])
+        # with np.printoptions(precision=None):
+        #     print([c[2] for c in corrs.corrections])
         # raise Exception(...)
+        # #
+        # # classic.print_tables(
+        # #     print_intensities=False
+        # # )
+        # # raise Exception(...)
+
+        """
+        >>--------------------------------------------------<<
+        <0|H(0)|0>                        <0|H(1)|0>                        <0|H(0)|1>                        <1|H(0)|0>                        <0|H(2)|0>                        <0|H(1)|1>                        <0|H(0)|2>                        <1|H(1)|0>                        <1|H(0)|1>                        <2|H(0)|0>                       
+          6.09352250e+03   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   5.52793643e+01   0.00000000e+00  -5.31493998e+00   5.02529731e-01  -1.83295803e+02   1.93595981e+01  -5.31493998e+00   8.44877009e+00   3.71906546e+02  -3.92217259e+01  -1.83295803e+02   1.53864779e+01
+          0.00000000e+00   4.84296465e+03   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   0.00000000e+00   2.76979374e+01   8.44877009e+00  -1.77496479e+00   1.53864779e+01  -3.25356944e+00   5.02529731e-01  -1.77496479e+00  -3.92217259e+01   8.28210366e+00   1.93595981e+01  -3.25356944e+00
+        >>------------------------- non-degenerate Hamiltonian -------------------------
+        :: [[   -0.016     4.476]
+        ::  [    4.476 -1274.615]]
+        """
+
+        """
+        :: [[    2.827     7.507    18.7  ]
+        ::  [    7.507 -1192.587   -33.686]
+        ::  [   18.7     -33.686   117.97 ]]
+        """
+
+        """
+        [[0.00000000e+00 7.98125251e+00 7.03459218e-08]
+         [7.98125251e+00 0.00000000e+00 1.86996846e+01]
+         [7.03459218e-08 1.86996846e+01 0.00000000e+00]]
+         """
 
         sum_ham, hams = runner.get_reexpressed_hamiltonian(
             states,
             order=2,
-            verbose=True,
-            terms=[
-                (2, 0, 0),
-                (0, 0, 2),
-                # (0, 1, 1),
-                # (1, 1, 0),
-                # (1, 0, 1),
-            ],
-            only_degenerate_terms=False,
-            include_diagonal=False
+            verbose=False,
+            # terms=[
+            #     (2, 0, 0),
+            #     (0, 0, 2),
+            #     (0, 1, 1),
+            #     (1, 1, 0),
+            #     (1, 0, 1),
+            # ],
+            only_degenerate_terms=True,
+            include_diagonal=False,
+            # include_degenerate_correction_terms={
+            #     'main':True,
+            #     'neither':True,
+            #     # 'right':True,
+            #     # 'both':True
+            # }
         )
         print(sum_ham[0] * 219475.6)
         raise Exception(...)
@@ -392,7 +457,7 @@ class VPT2Tests(TestCase):
                     ]
                 ]
             ],
-            expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+            # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
             degeneracy_specs=[
                 [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
             ],
@@ -1102,7 +1167,7 @@ class VPT2Tests(TestCase):
         # print(woof[0])
         # print(woof[1])
 
-    @debugTest
+    @inactiveTest
     def test_HOHNoKE(self):
         print()
 

@@ -125,7 +125,7 @@ class AnalyticPerturbationTheorySolver:
 
     _op_maps = {}
     def get_correction(self, key, cls, order, **kw):
-        corr_key = (cls, order)
+        corr_key = (cls, key, order)
         corr = self._op_maps.get(corr_key, None)
         if corr is None:
             for k,v in [
@@ -152,8 +152,12 @@ class AnalyticPerturbationTheorySolver:
     def wavefunction_correction(self, order, **kw):
         return self.get_correction('proj_wfn', WavefunctionCorrection, order, **kw)
 
-    def overlap_correction(self, order, **kw):
-        return self.get_correction('ov', WavefunctionOverlapCorrection, order, **kw)
+    def overlap_correction(self, order, degenerate_changes=None, **kw):
+        if degenerate_changes is not None:
+            key = ('ov', tuple(sorted(tuple(c) for c in degenerate_changes)))
+        else:
+            key = 'ov'
+        return self.get_correction(key, WavefunctionOverlapCorrection, order, degenerate_changes=degenerate_changes, **kw)
 
     def full_wavefunction_correction(self, order, **kw):
         return self.get_correction('wfn', FullWavefunctionCorrection, order, **kw)
@@ -161,9 +165,16 @@ class AnalyticPerturbationTheorySolver:
     def operator_correction(self, order, operator_type=None, **kw):
         return self.get_correction('op', OperatorCorrection, order, operator_type=operator_type, **kw)
         # return OperatorCorrection(self, order, operator_type=operator_type, logger=self.logger)
+    def operator_degenerate_correction(self, order, /, degenerate_changes, operator_type=None, **kw):
+        key = ('op', tuple(sorted(tuple(c) for c in degenerate_changes)))
+        return self.get_correction(key, OperatorDegenerateCorrection, order, operator_type=operator_type, degenerate_changes=degenerate_changes, **kw)
+        # return OperatorCorrection(self, order, operator_type=operator_type, logger=self.logger)
 
     def reexpressed_hamiltonian(self, order, **kw):
         return self.get_correction('reH', ReexpressedHamiltonian, order, **kw)
+    def reexpressed_hamiltonian_degenerate_correction(self, order, /, degenerate_changes, **kw):
+        key = ('reH', tuple(sorted(tuple(c) for c in degenerate_changes)))
+        return self.get_correction(key, ReexpressedHamiltonianDegenerateCorrection, order, degenerate_changes=degenerate_changes, **kw)
 
     @classmethod
     def operator_expansion_terms(cls, order, logger=None, operator_type=None):
@@ -311,8 +322,6 @@ class TreeSerializer:
                 if track_shapes:
                     shapes.extend(shape)
                 flats.append(flat)
-        # print("!", iterable, "->", shapes)
-        # print(":", flats)
         flats = concat(flats)
         return shapes, flats
 
@@ -350,28 +359,18 @@ class TreeSerializer:
 
         keys, vals = cls.build_dict_trees(dict_obj)
 
-        # print("!", keys)
 
         key_trees = []
         for k in keys:
-            # print("====", k)
             shape, flat = cls.serialize_iterable(k, key_primitive_test, concat)
-            # print("   =", shape, flat)
             key_trees.append([shape, flat])
 
-        # print(key_trees)
-        #
-        # print("[", vals)
         vals_trees = {}
         tree_shape = None
         for i,(k, v) in enumerate(vals.items()):
             shape, flat = cls.serialize_iterable(v, vals_primitive_test, concat, track_shapes=i == 0)
             if tree_shape is None: tree_shape = shape
             vals_trees[k] = flat
-
-        # print(tree_shape)
-        #
-        # raise Exception(...)
 
         return key_trees, tree_shape, vals_trees
 
@@ -406,7 +405,6 @@ class TreeSerializer:
             current = i+1
             while queue:
                 rem, d, stack = queue.pop()
-                # print(":", current, rem, d)
                 if rem > 1:
                     # more blocks to process, so push back onto queue to be processed later
                     queue.append([rem-1, d, stack])
@@ -490,11 +488,8 @@ class TreeSerializer:
         total_depth = len(key_trees)
         keys = []
         for d,(shape, buffer) in enumerate(key_trees):
-            # print(shape, buffer)
             st = cls.deserialize_iterable(shape, buffer, d+2)
             keys.append(st)
-            # print("|||", st)
-        # print(tree_shape, val_buffers)
         vals = cls.deserialize_iterable(tree_shape, val_buffers, total_depth - 1)
 
         return cls.stitch_dict(keys + [vals])
@@ -1399,6 +1394,17 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
             reduced=self.reduced if reduced is default else reduced
         )
 
+    def flip_energy_terms(self):
+        return self.mutate(
+            {
+                tuple(
+                    ((side + 1) % 2,) + k
+                    for side, k in self.side_change_iter(key)
+                ):term
+                for key,term in self.terms.items()
+            }
+        )
+
     def prep_serialization_dict(self):
         new_data = {}
         for k,p in self.terms.items():
@@ -1434,24 +1440,33 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
     @classmethod
     def canonical_key(cls, monomial_tuple):
         l = max(len(l) for l in monomial_tuple) if len(monomial_tuple) > 0 else 0
-        return super().canonical_key(
-            tuple(
+        return tuple(
                 t + (0,) * (l - len(t))
                 for t in monomial_tuple
             )
-        )
+        # return super().canonical_key(
+        #     tuple(
+        #         t + (0,) * (l - len(t))
+        #         for t in monomial_tuple
+        #     )
+        # )
 
+    @classmethod
+    def side_change_iter(cls, key):
+        return ((k[0], k[1:]) for k in key)
     @classmethod
     def format_key(self, key):
         return "E-[{}]".format(
             "x".join(
-                ("({})" if len(k) > 1 else "{}").format(
-                    "+".join(
-                        "{s}w{i}".format(s=("" if s == 1 else "-" if s == -1 else s), i=i)
-                        for i,s in enumerate(k)
+                "[R]" if side == 1 else "[L]" + (
+                    ("({})" if len(k) > 1 else "{}").format(
+                        "+".join(
+                            "{s}w{i}".format(s=("" if s == 1 else "-" if s == -1 else s), i=i)
+                            for i,s in enumerate(k)
+                        )
                     )
                 )
-                for k in key
+                for side,k in self.side_change_iter(key)
                 )
         )
 
@@ -1464,17 +1479,15 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
     @classmethod
     def format_energy_prod_key(cls, key):
         substr = [
-            "+".join(
+            "[{}](".format("R" if side == 1 else "L")
+            + "+".join(
                 "{s}w[{i}]".format(s=("" if s == 1 else "-" if s == -1 else s), i=i)
                 for i, s in enumerate(k)
                 if s != 0
-            )
-            for k in key
+            ) + ")"
+            for side,k in cls.side_change_iter(key)
         ]
-        bb = "*".join(
-            ("({})" if len(s) > 3 else "{}").format(s)
-            for s in substr
-        )
+        bb = "*".join(substr)
         return ("({})" if "*" in bb else "{}").format(bb)
 
     def format_expr(self):
@@ -1504,11 +1517,11 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         ]
         return join.join(key_prods)
 
-    @staticmethod
-    def shift_key(key, shift):
+    @classmethod
+    def shift_key(cls, key, shift):
         return tuple(
-            tuple(k + (shift[i] if i < len(shift) else 0) for i,k in enumerate(ksum))
-            for ksum in key
+            (side,) + tuple(k + (shift[i] if i < len(shift) else 0) for i,k in enumerate(ksum))
+            for side,ksum in cls.side_change_iter(key)
         )
     def shift_energies(self, shift):
         new_terms = {}
@@ -1541,7 +1554,7 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
     def get_key_ndim(cls, terms:dict):
         if len(terms) == 0: return 0
         return max(
-            max(len(k) for k in key_tup)
+            max(len(k) for side,k in cls.side_change_iter(key_tup))
             for key_tup in terms.keys()
         )
     @property
@@ -1554,7 +1567,9 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         # if target is None:
         #     target = self.ndim
         for change,poly in self.terms.items():
-            if target is not None and len(change[0]) != target:
+            if any(c[0] not in {0, 1} for c in change):
+                raise ValueError("change {} invalid, L/R index must be 0/1".format(change))
+            if target is not None and len(change[0]) - 1 != target:
                 raise ValueError(
                     "({}) energy change {} doesn't have target dimension ({})".format(
                         type(self)({change: poly}),
@@ -1563,7 +1578,7 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
                 )
             if not nput.is_numeric(poly):
                 try:
-                    poly.audit(len(change[0]), ignore_constants=ignore_constants)
+                    poly.audit(len(change[0]) - 1, ignore_constants=ignore_constants)
                 except ValueError:
                     raise ValueError("bad polynomial for changes {}: {}".format(
                         change,
@@ -1575,7 +1590,7 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
 
         new_terms = {}
         for key,polys in self.terms.items():
-            new_key = tuple(k + (0,) * (ndim - len(k)) for k in key)
+            new_key = tuple(k + (0,) * (ndim - (len(k)-1)) for k in key)
             new_terms[new_key] = polys.ensure_dimension(ndim) if not nput.is_numeric(polys) else polys
 
         return self.mutate(new_terms)
@@ -1583,7 +1598,8 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
     def sort(self):
         return self.mutate(
             {
-                k: self.terms[k] for k in sorted(self.terms.keys())
+                k: self.terms[k]
+                for k in sorted(self.terms.keys())
             }
         )
 
@@ -1597,8 +1613,8 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         new_terms = {}
         for energy_changes,polys in self.terms.items():
             new_ech = tuple(
-                self._permute_changes(ec, new_inds)
-                for ec in energy_changes
+                (side,)+self._permute_changes(ec, new_inds)
+                for side,ec in self.side_change_iter(energy_changes)
             )
             new_terms[new_ech] = polys.permute(new_inds, check_perm=check_perm)
         return self.mutate(new_terms)
@@ -1629,6 +1645,7 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
 
 
     def combine_energies(self):
+        raise NotImplementedError(...)
         # terms = self.factor_energies()
         terms = self.terms
 
@@ -1692,6 +1709,7 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         #     rem = ProductPTPolynomial.fast_ind_remainder(max_remapping, inds)
         # else:
         #     rem = remainder[1]
+        side, idx = idx[0], idx[1:]
         new = tuple(
             idx[inds[i]]
                 if i < len(inds) else
@@ -1699,38 +1717,38 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
             for i in range(ndim)
         )
         if all(n == 0 for n in new): raise ValueError(idx, inds, new)
-        return new
+        return (side,) + new
+
     @classmethod
     def _build_new_echange_key(cls, k1, k2, inds, remainder):
-        l1 = len(k1[0])
-        l2 = len(k2[0]) #if len(k2) > 0 else 0
-        # r1 = l1 - len(inds[0]) - len(remainder[0])
-        # r2 = l2 - len(inds[1]) - len(remainder[1])
-        # ndim = l1 + l2 - len(inds[0])
+        l1 = len(k1[0]) - 1
+        l2 = len(k2[0]) - 1
         i1 = len(inds[0])
         r1 = len(remainder[0])
         i2 = len(inds[1])
         r2 = len(remainder[1])
         new_key = tuple(
-            tuple(k[i] for i in inds[0])
+            (side,)
+            + tuple(k[i] for i in inds[0])
             + tuple(k[j] for j in remainder[0])
             + k[i1 + r1:]
             + (0,) * (l2 - i2)
-            for k in k1
+            for side,k in cls.side_change_iter(k1)
         ) + tuple(
-            tuple(k[i] for i in inds[1])
+            (side,)
+            + tuple(k[i] for i in inds[1])
             + (0,) * (l1 - i1)
             + tuple(k[j] for j in remainder[1])
             + k[i2 + r2:]
-            for k in k2
+            for side,k in cls.side_change_iter(k2)
         )
         return new_key
     @classmethod
     def _pad_echange_key_right(cls, k, ndim, inds, remainder):
-        return cls._build_new_echange_key(k, ((0,)*ndim,), inds, remainder)[:-1]
+        return cls._build_new_echange_key(k, ((0,)*(ndim+1),), inds, remainder)[:-1]
     @classmethod
     def _pad_echange_key_left(cls, k, ndim, inds, remainder):
-        return cls._build_new_echange_key(((0,)*ndim,), k, inds, remainder)[1:]
+        return cls._build_new_echange_key(((0,)*(ndim+1),), k, inds, remainder)[1:]
     def mul_along(self, other:'PolynomialInterface', inds, remainder=None, mapping=None):
         """
         We multiply every subpoly along the given indices, transposing the appropriate tensor indices
@@ -1915,6 +1933,13 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
         prefactor = state['prefactor']
         return cls(terms, prefactor=prefactor, canonicalize=False)
 
+    def flip_energy_terms(self):
+        return self.mutate(
+            {
+                k: t.flip_energy_terms() if hasattr(t, 'flip_energy_terms') else t
+                for k, t in self.terms.items()
+            }
+        )
 
     def filter(self, terms, mode='match'):
         subterms = super().filter(terms, mode=mode)
@@ -3341,10 +3366,19 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
 
     @staticmethod
     def change_sort_key(changes):
+        changes = np.asanyarray(changes)
         return -(10 * np.abs(changes) - (changes < 0))
     @classmethod
     def change_sort(cls, changes):
         return np.argsort(cls.change_sort_key(changes), axis=-1)
+    @classmethod
+    def sorted_changes(cls, changes):
+        changes = np.asanyarray(changes)
+        sorting = np.argsort(cls.change_sort_key(changes), axis=-1)
+        if sorting.ndim == 1:
+            return tuple(changes[i] for i in sorting)
+        else:
+            return nput.vector_take(changes, sorting, shared=sorting.ndim - 1)
     @abc.abstractmethod
     def get_changes(self) -> 'dict[tuple[int], Any]':
         ...
@@ -3803,7 +3837,7 @@ class PerturbationOperator(PerturbationTheoryTerm):
             #             list(self._energy_baseline) + [0] * (elen - blen)
             #         )
             #     )
-            prefactor = PTEnergyChangeProductSum.monomial(energy_shift, 1)
+            prefactor = PTEnergyChangeProductSum.monomial((0,) + energy_shift, 1)
             base_term = base_term.mul_simple(prefactor)
         return base_term
     # def get_poly_terms(self, changes, shift=None, **opts) -> 'SqrtChangePoly':
@@ -3892,6 +3926,7 @@ class ShiftedEnergyBaseline(PerturbationTheoryTerm):
         if isinstance(reexpressed_poly, SqrtChangePoly):
             reexpressed_poly = reexpressed_poly.poly_obj.shift([c for c in shift_change])
         if nput.is_numeric(reexpressed_poly): return reexpressed_poly
+        reexpressed_poly = reexpressed_poly.flip_energy_terms()
         return SqrtChangePoly(reexpressed_poly, changes, shift)
 
 class ShiftedHamiltonianCorrection(PerturbationTheoryTerm):
@@ -4028,34 +4063,39 @@ class EnergyCorrection(PerturbationTheoryTerm):
         return super().__call__((), shift=shift, coeffs=coeffs, freqs=freqs, check_sorting=False, simplify=simplify)
 
 class WavefunctionOverlapCorrection(PerturbationTheoryTerm):
-    """
-    Provides a slight optimization on the base `WavefunctionCorrection`
-    """
 
-    def __init__(self, parent, order, allowed_terms=None, **opts):
+    def __init__(self, parent, order, allowed_terms=None, degenerate_changes=None, **opts):
         super().__init__(allowed_terms=allowed_terms, **opts)
 
         self.parent = parent
         self.order = order
+        self.change = degenerate_changes
 
     def get_serializer_key(self): # to be overridden
         return self.__repr__()
     def __repr__(self):
-        return "O[{}]".format(self.order)
+        if self.change is None:
+            return "O[{}]".format(self.order)
+        else:
+            return "O[{},{}]".format(self.change, self.order)
 
     def get_changes(self) -> 'dict[tuple[int], Any]':
-        return {():None}
+        changes = self.change
+        if changes is None:
+            changes = [()]
+        return {ch:None for ch in changes}
 
     def get_subexpresions(self) -> 'Iterable[PerturbationTheoryTerm]':
         W = self.parent.full_wavefunction_correction
         k = self.order
         L = lambda o:ShiftedEnergyBaseline(W(o))
 
-        if k == 1:
-            return []
+        # if k == 1:
+        #     return []
 
         return [
-            -1/2 * (L(k - i) * W(i)) for i in range(1, k)
+            -1/2 * (L(k - i) * W(i))
+            for i in range(1, k)
         ]
 
 class FullWavefunctionCorrection(PerturbationTheoryTerm):
@@ -4088,23 +4128,25 @@ class FullWavefunctionCorrection(PerturbationTheoryTerm):
         O = self.parent.overlap_correction
         k = self.order
 
-        if k == 1 or self.intermediate_normalization:
+        if (k % 2) == 1 or self.intermediate_normalization:
             return [W(k)]
         else:
             return [W(k), O(k)]
 
 class OperatorCorrection(PerturbationTheoryTerm):
 
-    def __init__(self, parent, order, operator_type=None, allowed_terms=None, **opts):
+    def __init__(self, parent, order, operator_type=None, allowed_terms=None, wavefunction_generator=None, **opts):
         super().__init__(allowed_terms=allowed_terms, **opts)
         self.parent = parent
         self.order = order
         self.expansion = parent.operator_expansion_terms(order, logger=self.logger, operator_type=operator_type)
+        self._wavefunction_generator = wavefunction_generator
 
     def get_serializer_key(self):  # to be overridden
         return self.__repr__()
+    repr_key = "H"
     def __repr__(self):
-        return "<n|M|m>({})".format(self.order)
+        return "<n|{}|m>({})".format(self.repr_key, self.order)
 
     def get_changes(self):
         base_changes = {}
@@ -4114,35 +4156,166 @@ class OperatorCorrection(PerturbationTheoryTerm):
                 base_changes[subchange].append(expr) # just track which exprs generate the change
         base_changes[()] = None # also the constant term
         return base_changes
+    def default_wavefunction_generator(self, o:int):
+        return self.parent.full_wavefunction_correction(o)
+    def wavefunction_generator(self, o:int):# -> '(int)->FullWavefunctionCorrection':
+        if self._wavefunction_generator is None:
+            return self.default_wavefunction_generator(o)
+        else:
+            return self._wavefunction_generator(o)
 
-    def get_subexpresions(self) -> 'Iterable[PerturbationTheoryTerm]':
-        W = self.parent.full_wavefunction_correction
+    def get_subexpresions(self,
+                          bra_wavefunction_generator=None,
+                          ket_wavefunction_generator=None,
+                          bounds=None,
+                          const_zeros=None
+                          ) -> 'Iterable[PerturbationTheoryTerm]':
+        if const_zeros is None:
+            const_zeros = [False, False]
+        if ket_wavefunction_generator is None:
+            const_zeros[1] = True
+            ket_wavefunction_generator = self.wavefunction_generator
+        W = ket_wavefunction_generator
         M = self.expansion
         k = self.order
-        L = lambda o:ShiftedEnergyBaseline(W(o))
+        if bra_wavefunction_generator is None:
+            const_zeros[0] = True
+            bra_wavefunction_generator = lambda o:ShiftedEnergyBaseline(W(o))
+        L = bra_wavefunction_generator
 
+        if bounds is None:
+            bounds = [0, k+1]
+        n_min, n_max = bounds
         terms = [
             (i, k - i - j, j)
-            for i in range(0, k + 1)
-            for j in range(0, k + 1 - i)
+            for i in range(n_min, n_max)
+            for j in range(n_min, n_max - i)
         ]
         if self.allowed_terms is not None:
             allowed_terms = {tuple(t) for t in self.allowed_terms}
             terms = [t for t in terms if t in allowed_terms]
 
-        exprs = tuple(
+        ub, uk = const_zeros
+        exprs = [
             M[a]
-                if i == 0 and j == 0 else
+                if (ub and uk) and i == 0 and j == 0 else
             L(j) * M[a] * W(i)
                 if i > 0 and j > 0 else
             M[a] * W(i)
-                if i > 0 else
+                if ub and i > 0 else
             L(j) * M[a]
-
+                if uk and j > 0 else
+            None
             for i, a, j in terms
-        )
+        ]
+        exprs = tuple(e for e in exprs if e is not None)
 
         return exprs
+
+class OperatorDegenerateCorrection(OperatorCorrection):
+
+    def __init__(self, parent, order, degenerate_changes=None, operator_type=None, allowed_terms=None, **opts):
+        super().__init__(parent, order, operator_type=operator_type, allowed_terms=allowed_terms, **opts)
+        self.degenerate_changes = degenerate_changes
+        self.left = self.Left(parent, order, self) # hack to minimize code necessary
+        self.right = self.Right(parent, order, self) # hack to minimize code necessary
+        self.both = self.Both(parent, order, self) # hack to minimize code necessary
+
+    def __repr__(self):
+        return "<n||{}||m>({},{})".format(self.repr_key,self.degenerate_changes,self.order)
+
+    def default_wavefunction_generator(self, o:int):
+        return self.parent.overlap_correction(o, degenerate_changes=self.degenerate_changes)
+
+    class Left(OperatorCorrection):
+        def __init__(self, parent, order, real_parent):
+            super().__init__(parent, order, logger=real_parent.logger)
+            self.op = real_parent
+        def __repr__(self):
+            return "<n||{}|m>({},{})".format(self.op.repr_key, self.op.degenerate_changes, self.order)
+        def get_subexpresions(self):
+            woof = self.op.get_left_degenerate_expressions()
+            return woof
+    class Right(OperatorCorrection):
+        def __init__(self, parent, order, real_parent):
+            super().__init__(parent, order, logger=real_parent.logger)
+            self.op = real_parent
+        def __repr__(self):
+            return "<n|{}||m>({},{})".format(self.op.repr_key,self.op.degenerate_changes,self.order)
+        def get_subexpresions(self):
+            return self.op.get_right_degenerate_expressions()
+    class Both(OperatorCorrection):
+        def __init__(self, parent, order, real_parent):
+            super().__init__(parent, order, logger=real_parent.logger)
+            self.op = real_parent
+        def __repr__(self):
+            return "<n||{}||m>({},{})".format(self.op.repr_key,self.op.degenerate_changes,self.order)
+        def get_subexpresions(self):
+            return self.op.get_both_degenerate_expressions()
+    def get_subexpresions(self,
+                          bra_wavefunction_generator=None,
+                          ket_wavefunction_generator=None
+                          ) -> 'Iterable[PerturbationTheoryTerm]':
+        raise NotImplementedError("ill-defined")
+        W1 = lambda o: self.parent.full_wavefunction_correction(o)
+        L1 = lambda o: ShiftedEnergyBaseline(W1(o))
+        W2 = lambda o: self.parent.overlap_correction(o, degenerate_changes=self.degenerate_changes)
+        L2 = lambda o: ShiftedEnergyBaseline(W2(o))
+        return (
+                super().get_subexpresions(
+                    bra_wavefunction_generator=L1,
+                    ket_wavefunction_generator=W2
+                )
+                + super().get_subexpresions(
+                    bra_wavefunction_generator=L2,
+                    ket_wavefunction_generator=W1
+                )
+                + super().get_subexpresions(
+                    bra_wavefunction_generator=L2,
+                    ket_wavefunction_generator=W2
+                )
+        )
+
+    def get_right_degenerate_expressions(self,
+                                        bra_wavefunction_generator=None,
+                                        ket_wavefunction_generator=None
+                                        ) -> 'Iterable[PerturbationTheoryTerm]':
+        # W1 = lambda o: self.parent.full_wavefunction_correction(o)
+        # L1 = lambda o: ShiftedEnergyBaseline(W1(o))
+        W2 = lambda o: self.parent.overlap_correction(o, degenerate_changes=self.degenerate_changes)
+        L2 = lambda o: ShiftedEnergyBaseline(W2(o))
+        return super().get_subexpresions(
+            bra_wavefunction_generator=L2,
+            ket_wavefunction_generator=None,
+            # const_zeros=[True, False]
+        )
+
+    def get_left_degenerate_expressions(self,
+                                         bra_wavefunction_generator=None,
+                                         ket_wavefunction_generator=None
+                                         ) -> 'Iterable[PerturbationTheoryTerm]':
+        # W1 = lambda o: self.parent.full_wavefunction_correction(o)
+        # L1 = lambda o: ShiftedEnergyBaseline(W1(o))
+        W2 = lambda o: self.parent.overlap_correction(o, degenerate_changes=self.degenerate_changes)
+        L2 = lambda o: ShiftedEnergyBaseline(W2(o))
+        return super().get_subexpresions(
+            bra_wavefunction_generator=None,
+            ket_wavefunction_generator=W2,
+            # const_zeros=[False, True]
+        )
+
+    def get_both_degenerate_expressions(self,
+                                        bra_wavefunction_generator=None,
+                                        ket_wavefunction_generator=None
+                                        ) -> 'Iterable[PerturbationTheoryTerm]':
+        W2 = lambda o: self.parent.overlap_correction(o, degenerate_changes=self.degenerate_changes)
+        L2 = lambda o: ShiftedEnergyBaseline(W2(o))
+        return super().get_subexpresions(
+            bra_wavefunction_generator=L2,
+            ket_wavefunction_generator=W2,
+            bounds=[1, self.order],
+            # const_zeros=[False, False]
+        )
 
 class DiagonalHamiltonian(OperatorExpansionTerm):
     def __init__(self):
@@ -4156,12 +4329,17 @@ class DiagonalHamiltonian(OperatorExpansionTerm):
     def get_changes(self):
         return {():None}
 class ReexpressedHamiltonian(OperatorCorrection):
+    repr_key = "H"
+
+    def __init__(self, parent, order, allowed_terms=None, degenerate_changes=None, **opts):
+        super().__init__(parent, order, allowed_terms=allowed_terms, **opts)
+        self.expansion = list(parent.hamiltonian_expansion)
+class ReexpressedHamiltonianDegenerateCorrection(OperatorDegenerateCorrection):
+    repr_key = "H"
 
     def __init__(self, parent, order, allowed_terms=None, **opts):
         super().__init__(parent, order, allowed_terms=allowed_terms, **opts)
         self.expansion = list(parent.hamiltonian_expansion)
-    def __repr__(self):
-        return "<n|H|m>({})".format(self.order)
 
 class ScaledPerturbationTheoryTerm(PerturbationTheoryTerm):
     #TODO: refactor since inheritance isn't really the right paradigm here
@@ -4681,13 +4859,6 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                             self.gen2, change_2, contact_2
                         ))
 
-                # if isinstance(new_polys, SqrtChangePoly):
-                #     new_polys = new_polys.canonical_sort()
-
-                # -print("||||||>",
-                #       change_1, change_2, [contact_1, contact_2],
-                #       reorg, new_polys.poly_change
-                #       )
                 poly_changes += new_polys
 
             # if not nput.is_numeric(poly_changes):
@@ -4856,7 +5027,7 @@ class PerturbationTheoryExpressionEvaluator:
 
         #TODO: find a way to avoid recomputing the same contributions repeatedly...
 
-        echange = np.prod(np.dot(perm_freqs, energy_changes.T), axis=-1)
+        echange = np.prod(np.dot(perm_freqs, energy_changes[:, 1:].T), axis=-1)
         return echange
 
     @classmethod
@@ -4928,8 +5099,19 @@ class PerturbationTheoryExpressionEvaluator:
             scaled_contrib = 0
         return scaled_contrib, energy_factors, poly_factor
     @classmethod
+    def _test_degs(cls, subchanges, echanges, perm_subsets, only_deg):
+        subsubchange_test = subchanges.get(echanges, None) if subchanges is not None else None
+        if subsubchange_test is None:
+            base = True if not only_deg else False
+            return [base] * len(perm_subsets)
+        else:
+            if only_deg:
+                return [subsubchange_test(perm) for perm in perm_subsets]
+            else:
+                return [not subsubchange_test(perm) for perm in perm_subsets]
+    @classmethod
     def _eval_perm_core(cls,
-                        expr, state, tuple_states, perm_substates,
+                        expr, state, tuple_states, perm_substates, which_perms,
                         change, baseline_shift,
                         prefacs, perm_freqs,
                         pows, key, perm_subsets, degenerate_changes, only_degenerate_terms,
@@ -4938,50 +5120,49 @@ class PerturbationTheoryExpressionEvaluator:
                         ):
         subexpr = expr.terms[key]
         conv_subsets = None
+        use_degs_left, use_degs_right, deg_join = only_degenerate_terms
+        include_degs = (use_degs_left or use_degs_right)
         if isinstance(subexpr, PTEnergyChangeProductSum):
             subcontrib = np.zeros([len(state), len(perm_subsets)])
 
-            if degenerate_changes is not None and key in degenerate_changes:
-                subchanges = degenerate_changes[key]
+            if degenerate_changes is not None:
+                left_changes, right_changes = [d.get(key, {}) for d in degenerate_changes]
+                # all_subchanges = [
+                #     degenerate_changes[i].get(key, None)
+                #     for i in which_perms
+                # ]
             else:
-                subchanges = None
-
+                left_changes = right_changes = None
+                # all_subchanges = [None] * len(which_perms)
 
             for echanges, polys in subexpr.terms.items():
                 # if all(any(e != 0 for e in ech) for ech in echanges):
-                # TODO: filter out perms based on degenerate_changes
-                if False and subchanges is not None and echanges in subchanges:
-                    subsubchange_test = subchanges[echanges]
-                    if only_degenerate_terms:
-                        good_perms = tuple(
-                            i for i, s in enumerate(perm_subsets)
-                            if subsubchange_test(s)# in subsubchanges
-                        )
-                    else:
-                        good_perms = tuple(
-                            i for i,s in enumerate(perm_subsets)
-                            if not subsubchange_test(s)# not in subsubchanges
-                        )
-                    if len(good_perms) == len(perm_subsets):
-                        good_perms = None
-                        good_freqs = perm_freqs
-                        good_perm_substates = perm_substates
-                        good_tuple_states = tuple_states
-                    else:
-                        good_freqs = perm_freqs[good_perms,]
-                        good_perm_substates = perm_substates[good_perms,]
-                        good_tuple_states = [tuple_states[p] for p in good_perms]
+                left_matches = cls._test_degs(left_changes, echanges, perm_subsets, use_degs_left)
+                right_matches = cls._test_degs(right_changes, echanges, perm_subsets, use_degs_right)
+                good_perms = np.where(deg_join(left_matches, right_matches))[0]
+
+                # good_perms = []
+                # for idx, subchanges in enumerate(all_subchanges):
+                #     if subchanges is not None and echanges in subchanges:
+                #         subsubchange_test = subchanges[echanges]
+                #         # deg_match = subsubchange_test(perm_subsets[idx])
+                #         if only_degenerate_terms:
+                #             if deg_match: good_perms.append(idx)
+                #         else:
+                #             if not deg_match: good_perms.append(idx)
+                #     elif not only_degenerate_terms:
+                #         good_perms.append(idx)
+                if len(good_perms) == len(perm_subsets):
+                    good_perms = None
+                    good_freqs = perm_freqs
+                    good_perm_substates = perm_substates
+                    good_tuple_states = tuple_states
                 else:
-                    if only_degenerate_terms:
-                        good_perms = ()
-                        good_freqs = perm_freqs[good_perms,]
-                        good_perm_substates = perm_substates[good_perms,]
-                        good_tuple_states = [tuple_states[p] for p in good_perms]
-                    else:
-                        good_perms = None
-                        good_freqs = perm_freqs
-                        good_perm_substates = perm_substates
-                        good_tuple_states = tuple_states
+                    good_perms = tuple(good_perms)
+                    good_freqs = perm_freqs[good_perms,]
+                    good_perm_substates = perm_substates[good_perms,]
+                    good_tuple_states = [tuple_states[p] for p in good_perms]
+
                 if len(good_perm_substates) > 0:
                     if verbose:
                         with logger.block(tag="{e} * {p}",
@@ -5019,7 +5200,7 @@ class PerturbationTheoryExpressionEvaluator:
                     else:
                         subcontrib[:, good_perms] += scaled_contrib
             subcontrib *= subexpr.prefactor
-        elif not only_degenerate_terms and isinstance(subexpr, (ProductPTPolynomial, ProductPTPolynomialSum)):
+        elif (not include_degs) and isinstance(subexpr, (ProductPTPolynomial, ProductPTPolynomialSum)):
             if verbose:
                 with logger.block(tag="{p}",
                                   p=subexpr,
@@ -5034,7 +5215,7 @@ class PerturbationTheoryExpressionEvaluator:
                 # if not nput.is_zero(subcontrib):
                 #     subcontrib = subcontrib[:, np.newaxis]
         else:
-            raise ValueError("how the hell did we end up with {}".format(subexpr))
+            raise ValueError("degenerate terms requested on {}".format(subexpr.format_expr()))
 
         return subcontrib
 
@@ -5126,7 +5307,10 @@ class PerturbationTheoryExpressionEvaluator:
             all_perms_mask[pi] = True
             split_ap_pos = np.split(all_perms_mask[perm_map], split_spec)
             split_ev_pos = np.split(subgroup_map[perm_map], split_spec)
-            for state_idx, ((state, aperms), a_mask, ev_pos) in enumerate(zip(state_perms, split_ap_pos, split_ev_pos)):
+            split_ap_inds = np.split(perm_map, split_spec)
+            for state_idx, ((state, aperms), a_mask, ev_pos, a_inds) in enumerate(
+                    zip(state_perms, split_ap_pos, split_ev_pos, split_ap_inds)
+            ):
                 # `up_pos` tells us which elements of `all_perms` correspond to `aperms`
                 # `eval_perms` tells us which elements of `all_perms` to include at all
                 # `val_groups` tells us which elements of `eval_perms` to include for this block
@@ -5141,6 +5325,7 @@ class PerturbationTheoryExpressionEvaluator:
                 state = state[np.newaxis] # old implementation expected state blocks
                 vps = ev_pos[mask_pos,]
                 prefacs = prefactors[vps,].T
+                which_perms = a_inds[mask_pos]
                 perm_subsets = aperms[mask_pos,][:, full_set]
                 perm_substates, tuple_states, perm_freqs = cls._get_state_perms(
                     state_idx, state, freqs, fixed, subset, perm_subsets, take_cache, tuple(mask_pos), full_set
@@ -5162,7 +5347,7 @@ class PerturbationTheoryExpressionEvaluator:
                             log_level=log_level
                     ):
                         subcontrib = cls._eval_perm_core(
-                            expr, state, tuple_states, perm_substates,
+                            expr, state, tuple_states, perm_substates, which_perms,
                             change, baseline_shift,
                             prefacs, perm_freqs,
                             pows, g_key, perm_subsets, degenerate_changes, only_degenerate_terms,
@@ -5181,7 +5366,7 @@ class PerturbationTheoryExpressionEvaluator:
                                      log_level=log_level)
                 else:
                     subcontrib = cls._eval_perm_core(
-                        expr, state, tuple_states, perm_substates,
+                        expr, state, tuple_states, perm_substates, which_perms,
                         change, baseline_shift,
                         prefacs, perm_freqs,
                         pows, g_key, perm_subsets, degenerate_changes, only_degenerate_terms,
@@ -5220,8 +5405,11 @@ class PerturbationTheoryExpressionEvaluator:
             return max(cls._get_max_order(p) for p in expr.polys)
         else:
             return max(
-                cls._get_max_order(e)
-                for e in expr.terms.values()
+                [-1] +
+                [
+                    cls._get_max_order(e)
+                    for e in expr.terms.values()
+                ]
             )
 
     @staticmethod
@@ -5246,10 +5434,10 @@ class PerturbationTheoryExpressionEvaluator:
                 return any(t(modes) for t in tests)
         return test
 
-    default_deg_id_method = 'perfect'
+    default_deg_id_method = 'linear'
     deg_id_method_nmodes_switch = 50
     @classmethod
-    def _identify_possible_degeneracies(cls, expr, changes, nmodes, method=None):
+    def _identify_possible_degeneracies(cls, all_perms, sides, expr, changes, nmodes, method=None):
         # changes is stored as `(modes, quanta)` pairs
         # representing a change between degenerate modes
         if method is None:
@@ -5260,20 +5448,57 @@ class PerturbationTheoryExpressionEvaluator:
             else:
                 method = 'perfect'
 
-        degs = {}
-        sort_changes = []
+        left_changes = []
+        right_changes = []
+        # initial_changes = []
         for modes,quanta in changes:
             quanta = np.asanyarray(quanta)
             sorting = np.argsort(quanta)
             modes = tuple(modes[k] for k in sorting)
-            sort_changes.append([modes, quanta[sorting]])
+            sort_quants = quanta[sorting]
+            # for side in sides:
+            left_changes.append([modes, 0, sort_quants])
+            right_changes.append([modes, 1, sort_quants])
 
+        all_changes = [left_changes, right_changes]
+        all_degs = [{}, {}]
+
+            # initial_changes.append([tuple(reversed(modes)), 1, np.flip(-sort_quants)])
+        # the final state has similar resonance conditions, but we need to
+        # adjust for the shift in the baseline state, which means we need
+        # to iterate over perms
+        # all_changes = [
+        #     initial_changes.copy()
+        #     for _ in all_perms
+        # ]
+        # num_changes = len(total_change)
+        # for change_list, perm in zip(all_changes, all_perms):
+        #     changed_pos = perm[:num_changes]
+        #     for modes, quanta in changes:
+        #         modes = list(modes)
+        #         quanta = list(quanta) # force a copy
+        #         for p,q in zip(changed_pos, total_change):
+        #             try:
+        #                 q_idx = modes.index(p)
+        #             except ValueError:
+        #                 modes.append(p)
+        #                 quanta.append(q)
+        #             else:
+        #                 quanta[q_idx] += q
+        #         quanta = np.asanyarray(quanta)
+        #         sorting = np.argsort(quanta)
+        #         modes = tuple(modes[k] for k in sorting)
+        #         sort_quants = quanta[sorting]
+        #         change_list.append([modes, 1, sort_quants])
+
+        # all_degs = [
+        #     {} for _ in all_perms
+        # ]
         for cinds,t in expr.terms.items():
             if isinstance(t, PTEnergyChangeProductSum):
                 # echange_tests = {}
                 for ekey in t.terms.keys():
-                    # known_deg = False
-                    for echange in ekey:
+                    for eside,echange in t.side_change_iter(ekey):
                         # if known_deg: break
                         zero_pos = [
                             i for i,e in enumerate(echange)
@@ -5301,54 +5526,53 @@ class PerturbationTheoryExpressionEvaluator:
                                 [np.arange(len(sub_e))]
                             ]
 
+                        for degs,sort_changes in zip(all_degs,all_changes):
+                            for modes,side,quanta in sort_changes: # strict ordering preserved
+                                if (
+                                        eside == side
+                                        and len(sub_e) == len(quanta)
+                                        and all(sub_e[s] == q for s, q in zip(echange_sorting, quanta))
+                                ):
+                                    # modes = tuple(modes)
+                                    if cinds not in degs: degs[cinds] = {}
 
-                        for modes,quanta in sort_changes: # strict ordering preserved
-                            if (
-                                    len(sub_e) == len(quanta)
-                                    and all(sub_e[s] == q for s,q in zip(echange_sorting, quanta))
-                            ):
-                                # modes = tuple(modes)
-                                if cinds not in degs: degs[cinds] = {}
-
-                                if method == 'perfect':
-                                    if ekey not in degs[cinds]: degs[cinds][ekey] = set()
-                                    for subperm in itertools.product(*echange_blocks):
-                                        subperm = sum(subperm, ())
-                                        for pad_inds in (
-                                                itertools.chain(*[
-                                                    itertools.permutations(p) for p in
-                                                        itertools.combinations(
-                                                        [x for x in range(nmodes) if x not in modes],
-                                                        r=num_zero
-                                                    )
-                                                ])
-                                                if num_zero > 0 else
-                                                [()]
-                                        ):
+                                    if method == 'perfect':
+                                        if ekey not in degs[cinds]: degs[cinds][ekey] = set()
+                                        for subperm in itertools.product(*echange_blocks):
+                                            subperm = sum(subperm, ())
+                                            for pad_inds in (
+                                                    itertools.chain(*[
+                                                        itertools.permutations(p) for p in
+                                                            itertools.combinations(
+                                                            [x for x in range(nmodes) if x not in modes],
+                                                            r=num_zero
+                                                        )
+                                                    ])
+                                                    if num_zero > 0 else
+                                                    [()]
+                                            ):
+                                                full_mode = modes + pad_inds
+                                                full_mode = tuple(full_mode[s] for s in subperm) + pad_inds
+                                                # print(num_zero, modes, pad_inds, full_mode, subperm, echange_inverse)
+                                                perm_modes = tuple(full_mode[a] for a in echange_inverse)
+                                                degs[cinds][ekey].add(perm_modes)
+                                    elif method == 'linear':
+                                        if ekey not in degs[cinds]: degs[cinds][ekey] = []
+                                        for subperm in itertools.product(*echange_blocks):
+                                            subperm = sum(subperm, ())
+                                            pad_inds = (-1,) * num_zero
                                             full_mode = modes + pad_inds
                                             full_mode = tuple(full_mode[s] for s in subperm) + pad_inds
                                             # print(num_zero, modes, pad_inds, full_mode, subperm, echange_inverse)
                                             perm_modes = tuple(full_mode[a] for a in echange_inverse)
-                                            degs[cinds][ekey].add(perm_modes)
-                                elif method == 'linear':
-                                    if ekey not in degs[cinds]: degs[cinds][ekey] = []
-                                    for subperm in itertools.product(*echange_blocks):
-                                        subperm = sum(subperm, ())
-                                        pad_inds = (-1,) * num_zero
-                                        full_mode = modes + pad_inds
-                                        full_mode = tuple(full_mode[s] for s in subperm) + pad_inds
-                                        # print(num_zero, modes, pad_inds, full_mode, subperm, echange_inverse)
-                                        perm_modes = tuple(full_mode[a] for a in echange_inverse)
-                                        degs[cinds][ekey].append(cls._deg_test(perm_modes))
-                                else:
-                                    if ekey not in degs[cinds]: degs[cinds][ekey] = []
-                                    degs[cinds][ekey].append(method(modes, echange)) # TODO: supply more info to custom methods
-
-                    if len(degs.get(cinds, {}).get(ekey, [])) > 0:
-                        degs[cinds][ekey] = cls._make_full_deg_test(degs[cinds][ekey])
-
-        return degs
-
+                                            degs[cinds][ekey].append(cls._deg_test(perm_modes))
+                                    else:
+                                        if ekey not in degs[cinds]: degs[cinds][ekey] = []
+                                        degs[cinds][ekey].append(method(modes, echange)) # TODO: supply more info to custom methods
+                    for degs in all_degs:
+                        if len(degs.get(cinds, {}).get(ekey, [])) > 0:
+                            degs[cinds][ekey] = cls._make_full_deg_test(degs[cinds][ekey])
+        return all_degs
 
 
     _poly_cache = {} # temporary hack, but these are in principle shared/reused
@@ -5426,35 +5650,47 @@ class PerturbationTheoryExpressionEvaluator:
         logger = Logger.lookup(logger)
         log_level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
 
-        if nput.is_zero(expr):
+        if nput.is_zero(expr) or len(expr.terms) == 0:
             res = tuple(
                 np.zeros([len(coeffs), len(perms)])
                 for state,perms in state_perms
             )
         else:
-
             max_order = cls._get_max_order(expr)
+            if max_order < 0:
+                raise Exception(expr)
             max_state = np.max(np.concatenate([state for state,perms in state_perms]))
             pows = np.power(np.arange(max_state+1)[np.newaxis, :], np.arange(max_order+1)[:, np.newaxis])
 
             if degenerate_changes is not None:
-                if len(degenerate_changes) != len(state_perms):
-                    raise ValueError("each state needs its own block of degeneracies")
-                degenerate_changes = [
-                    cls._identify_possible_degeneracies(expr, dc, len(freqs))
-                    for dc in degenerate_changes
-                ]
+                # if len(degenerate_changes) != len(state_perms):
+                #     raise ValueError("each state needs its own block of degeneracies")
+                degenerate_changes = cls._identify_possible_degeneracies(
+                    all_perms, change,
+                    expr, degenerate_changes, len(freqs)
+                )
+                #     for dc in degenerate_changes
+                # ]
+                if only_degenerate_terms is True:
+                    only_degenerate_terms = [only_degenerate_terms, only_degenerate_terms, np.logical_or]
+                elif only_degenerate_terms is False:
+                    only_degenerate_terms = [only_degenerate_terms, only_degenerate_terms, np.logical_and]
+                if len(only_degenerate_terms) == 2:
+                    only_degenerate_terms = list(only_degenerate_terms) + [np.logical_and]
+            else:
+                only_degenerate_terms = [False, False, np.logical_and]
 
             # Group by numbers of coordinates to do the combinatorics over
             free_ind_groups = {}
-            if only_degenerate_terms:
+            if only_degenerate_terms[0] and only_degenerate_terms[1]:
                 if degenerate_changes is not None:
-                    for coeff_indices in degenerate_changes.keys():
-                        num_inds = len(expr.get_inds(coeff_indices))
-                        free_inds = num_inds - num_fixed
-                        if free_inds not in free_ind_groups:
-                            free_ind_groups[free_inds] = []
-                        free_ind_groups[free_inds].append(coeff_indices)
+                    for subchanges in degenerate_changes:
+                        for coeff_indices in subchanges.keys():
+                            num_inds = len(expr.get_inds(coeff_indices))
+                            free_inds = num_inds - num_fixed
+                            if free_inds not in free_ind_groups:
+                                free_ind_groups[free_inds] = []
+                            free_ind_groups[free_inds].append(coeff_indices)
             else:
                 for coeff_indices, poly_terms in expr.terms.items():
                     num_inds = len(expr.get_inds(coeff_indices))
@@ -5769,7 +6005,6 @@ class PerturbationTheoryEvaluator:
             basis_idx = total_basis.find(initial_states)
             for o in range(order+1):
                 for state_pos, finals, exp_corr_vals in zip(basis_idx, final_states, subcorrs[o]):
-                    # print("???", corrs_map[state_pos])
                     if corrs_map[state_pos][o] is None:
                         if num_expansions is None:
                             corrs_map[state_pos][o] = exp_corr_vals
@@ -5817,14 +6052,35 @@ class PerturbationTheoryEvaluator:
             ]
 
         return all_corrs
-
-    @staticmethod
-    def _build_corrections(corr_gen, expansions, order,
+    @classmethod
+    def _compute_corr(cls,  gen_corrs, only_degs, key, gen, expr, *args, only_degenerate_terms=None, **kwargs):
+        new_corrs = expr.evaluate(*args, **kwargs)
+        if only_degenerate_terms is True or only_degenerate_terms is False:
+            only_degenerate_terms = [only_degenerate_terms, only_degenerate_terms]
+        other_degs = only_degenerate_terms[0] is only_degenerate_terms[1]
+        if other_degs and not only_degs:
+            new_corrs = [-c for c in new_corrs]
+        # print(f"|{key}", gen, "->", new_corrs)
+        if gen_corrs is None:
+            gen_corrs = new_corrs
+        else:
+            gen_corrs = [
+                g + d
+                for g, d in zip(gen_corrs, new_corrs)
+            ]
+        return gen_corrs
+    @classmethod
+    def _build_corrections(cls, corr_gen, degenerate_corr_gen, expansions, order,
                            terms, allowed_coefficients, disallowed_coefficients,
                            epaths,
                            change_map, degenerate_changes, only_degenerate_terms,
+                           include_degenerate_correction_terms,
                            freqs, verbose, logger, zero_cutoff, log_scaled):
         corrs = {}
+        if degenerate_changes is not None:
+            allowed_degenerate_changes = list({PerturbationTheoryTerm.sorted_changes(c) for _,c in degenerate_changes})
+        else:
+            allowed_degenerate_changes = None
         for o in range(order + 1):
             generator = corr_gen(o,
                                  allowed_terms=terms,
@@ -5832,24 +6088,123 @@ class PerturbationTheoryEvaluator:
                                  allowed_coefficients=allowed_coefficients,
                                  disallowed_coefficients=disallowed_coefficients
                                  )
+            if degenerate_changes is not None and degenerate_corr_gen is not None:
+                deg_gen = degenerate_corr_gen(
+                    o,
+                    allowed_terms=terms,
+                    allowed_energy_changes=epaths,
+                    allowed_coefficients=allowed_coefficients,
+                    degenerate_changes=allowed_degenerate_changes,
+                    disallowed_coefficients=disallowed_coefficients
+                )
+                if not isinstance(deg_gen, dict):
+                    if hasattr(deg_gen, 'both'): # TODO: figure out why the corrections really use the neither form...
+                        deg_gen = {
+                            'left':deg_gen.left,
+                            'right':deg_gen.right,
+                            'both':deg_gen.both
+                        }
+                    else:
+                        deg_gen = {
+                            'both':deg_gen
+                        }
+                deg_left_gen = deg_gen.get('left')
+                deg_right_gen = deg_gen.get('right')
+                deg_both_gen = deg_gen.get('both')
+                deg_neither_gen = deg_gen.get('neither')
+            else:
+                deg_left_gen = deg_right_gen = deg_both_gen = deg_neither_gen = None
+            if include_degenerate_correction_terms is True:
+                include_degenerate_correction_terms = ['left', 'right', 'both', 'neither']
+            elif include_degenerate_correction_terms is False:
+                include_degenerate_correction_terms = []
+            if not isinstance(include_degenerate_correction_terms, dict):
+                include_degenerate_correction_terms = {k:True for k in include_degenerate_correction_terms}
+            include_degenerate_correction_terms = dict(
+                {
+                    'main':True,
+                    'left':False,
+                    'right':False,
+                    'both':False,
+                    'neither':False
+                },
+                **include_degenerate_correction_terms
+            )
+            if not include_degenerate_correction_terms['main']:
+                main_gen = None
+            else:
+                main_gen = generator
+            if not include_degenerate_correction_terms['left']:
+                deg_left_gen = None
+            if not include_degenerate_correction_terms['right']:
+                deg_right_gen = None
+            if not include_degenerate_correction_terms['both']:
+                deg_both_gen = None
+            if not include_degenerate_correction_terms['neither']:
+                deg_neither_gen = None
             for change, state_perms in change_map.items():
                 corr_block = corrs.get(change, [])
                 corrs[change] = corr_block
                 with logger.block(tag="Getting corrections at order {o}", o=o):
-                    expr = generator(change)
+                    expr = None if main_gen is None else main_gen(change)
+                    left_deg_expr = None if deg_left_gen is None else deg_left_gen(change)
+                    right_deg_expr = None if deg_right_gen is None else deg_right_gen(change)
+                    both_deg_expr = None if deg_both_gen is None else deg_both_gen(change)
+                    neither_deg_expr = None if deg_neither_gen is None else deg_neither_gen(change)
+                    gen_corrs = None
                     with logger.block(tag="evaluating..."):
                         start = time.time()
-                        gen_corrs = expr.evaluate(
+                        eval_args = (
                             state_perms,
                             expansions,
-                            freqs,
-                            # perms=perms,
+                            freqs
+                        )
+                        eval_kwargs = dict(
                             degenerate_changes=degenerate_changes,
-                            only_degenerate_terms=only_degenerate_terms,
                             verbose=verbose,
                             zero_cutoff=zero_cutoff,
                             log_scaled=log_scaled
                         )
+                        if expr is not None:
+                            gen_corrs = cls._compute_corr(
+                                gen_corrs, only_degenerate_terms,
+                                "!", main_gen, expr,
+                                *eval_args,
+                                only_degenerate_terms=only_degenerate_terms,
+                                **eval_kwargs
+                            )
+                        if left_deg_expr is not None:
+                            gen_corrs = cls._compute_corr(
+                                gen_corrs, only_degenerate_terms,
+                                "L", deg_left_gen, left_deg_expr,
+                                *eval_args,
+                                only_degenerate_terms=[True, False],
+                                **eval_kwargs
+                            )
+                        if right_deg_expr is not None:
+                            gen_corrs = cls._compute_corr(
+                                gen_corrs, only_degenerate_terms,
+                                "R", deg_right_gen, right_deg_expr,
+                                *eval_args,
+                                only_degenerate_terms=[False, True],
+                                **eval_kwargs
+                            )
+                        if both_deg_expr is not None:
+                            gen_corrs = cls._compute_corr(
+                                gen_corrs, only_degenerate_terms,
+                                "B", deg_both_gen, both_deg_expr,
+                                *eval_args,
+                                only_degenerate_terms=[True, True],
+                                **eval_kwargs
+                            )
+                        if neither_deg_expr is not None:
+                            gen_corrs = cls._compute_corr(
+                                gen_corrs, only_degenerate_terms,
+                                "N", deg_neither_gen, neither_deg_expr,
+                                *eval_args,
+                                only_degenerate_terms=[False, False],
+                                **eval_kwargs
+                            )
                         end = time.time()
                         logger.log_print('took {e:.3f}s', e=end - start)
                 corr_block.append(gen_corrs)
@@ -5861,7 +6216,7 @@ class PerturbationTheoryEvaluator:
 
         finals = []
         for start,end in degenerate_pairs:
-            for e,s in [[end, start], [start, end]]:
+            for e,s in [[start, end], [end, start]]:
                 diff = np.subtract(e, s)
                 nzp = np.nonzero(diff)
                 if len(nzp) > 0: nzp = nzp[0]
@@ -5872,9 +6227,6 @@ class PerturbationTheoryEvaluator:
         return finals
 
     def _sort_corrections(self, corrs:BasicAPTCorrections, state_pairs):
-        # print(corrs)
-        # print(corrs.initial_states)
-        # print(corrs.final_states)
         basis = corrs.initial_states.basis
         initial_basis = BasisStateSpace(basis, [s[0] for s in state_pairs])
         corr_sorting = np.argsort(initial_basis.find(corrs.initial_states))
@@ -5896,6 +6248,8 @@ class PerturbationTheoryEvaluator:
                                        expansions=None, freqs=None, verbose=False,
                                        allowed_coefficients=None, disallowed_coefficients=None,
                                        degenerate_states=None, only_degenerate_terms=False,
+                                       degenerate_correction_generator=None,
+                                       include_degenerate_correction_terms=True,
                                        log_scaled=False,
                                        zero_cutoff=None,
                                        return_sorted=False,
@@ -5920,9 +6274,10 @@ class PerturbationTheoryEvaluator:
 
         degenerate_changes = self.get_degenerate_changes(degenerate_states)
 
-        corrs = self._build_corrections(generator, expansions, order,
+        corrs = self._build_corrections(generator, degenerate_correction_generator, expansions, order,
                                         terms, allowed_coefficients, disallowed_coefficients,
                                         epaths, change_map, degenerate_changes, only_degenerate_terms,
+                                        include_degenerate_correction_terms,
                                         freqs, verbose, logger, zero_cutoff, log_scaled)
         new_corrs = self._reformat_corrections(order, corrs, change_map, None if spex else len(expansions))
         if return_sorted:
@@ -5940,15 +6295,21 @@ class PerturbationTheoryEvaluator:
     def get_full_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None,
                                           zero_cutoff=None, degenerate_states=None, verbose=False):
         return self.get_state_by_state_corrections(self.solver.full_wavefunction_correction, states, degenerate_states=degenerate_states,
-                                                   order=order, expansions=expansions, freqs=freqs, zero_cutoff=zero_cutoff, verbose=verbose)
+                                                   order=order, expansions=expansions, freqs=freqs, zero_cutoff=zero_cutoff,
+                                                   degenerate_correction_generator=lambda *args,**kwargs:{
+                                                       'neither':self.solver.overlap_correction(*args,**kwargs)
+                                                   },
+                                                   verbose=verbose
+                                                   )
     def get_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None,
                                           zero_cutoff=None, degenerate_states=None, verbose=False):
         return self.get_state_by_state_corrections(self.solver.wavefunction_correction, states, degenerate_states=degenerate_states,
                                                    order=order, expansions=expansions, freqs=freqs, zero_cutoff=zero_cutoff, verbose=verbose)
 
     def get_reexpressed_hamiltonian(self, states, order=None, expansions=None, freqs=None,
-                                    degenerate_states=None, only_degenerate_terms=True,
-                                    verbose=False, include_diagonal=False, **opts):
+                                    degenerate_states=None, only_degenerate_terms=False,
+                                    verbose=False, include_diagonal=False,
+                                    **opts):
         if freqs is None: freqs = self.freqs
         diag_ham = [np.diag(freqs)]
         if expansions is None:
@@ -5963,9 +6324,6 @@ class PerturbationTheoryEvaluator:
                 for exp in expansions
             ]
 
-        # for _ in exps: print(_)
-        # raise Exception(...)
-
         utri_block = nput.is_numeric(states[0][0])
         if utri_block:
             states = [
@@ -5976,6 +6334,7 @@ class PerturbationTheoryEvaluator:
         return self.get_state_by_state_corrections(self.solver.reexpressed_hamiltonian, states,
                                                    degenerate_states=degenerate_states,
                                                    only_degenerate_terms=only_degenerate_terms,
+                                                   degenerate_correction_generator=self.solver.reexpressed_hamiltonian_degenerate_correction,
                                                    order=order, expansions=exps, freqs=freqs, verbose=verbose,
                                                    log_scaled=True,
                                                    **opts)
@@ -6017,8 +6376,10 @@ class PerturbationTheoryEvaluator:
             ]
 
         return self.get_state_by_state_corrections(
-            lambda *a, **kw: self.solver.operator_correction(*a, operator_type=min_order, **kw), states, order=order,
+            lambda *a, **kw: self.solver.operator_correction(*a, operator_type=min_order, **kw),
+            states, order=order,
             expansions=exps, freqs=freqs, terms=terms, degenerate_states=degenerate_states,
+            degenerate_correction_generator=lambda *a, **kw: self.solver.operator_degenerate_correction(*a, operator_type=min_order, **kw),
             verbose=verbose, **opts)
 
     def evaluate_expressions(self, states, exprs, expansions=None, operator_expansions=None,

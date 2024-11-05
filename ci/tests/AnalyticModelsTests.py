@@ -91,6 +91,13 @@ class AnalyticModelsTests(TestCase):
         #     )(mol.atomic_masses, mol.coords)
         # )
 
+        raise Exception(
+            AnalyticKineticEnergyConstructor.g(
+                    (1, 3), (1, 2, 3),
+                    method='direct'
+                )
+        )
+
         # raise Exception(
         #     (lambda b:b@M@M@b.T)(np.array([
         #         nput.angle_vec(mol.coords, 0, 3, 1),
