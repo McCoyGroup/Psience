@@ -2756,7 +2756,7 @@ class AnalyticVPTRunner:
                                 order=None, degeneracy_specs=None,
                                 zero_cutoff=None, verbose=False
                                 ):
-        states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
+        states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
         return self.eval.get_overlap_corrections(
             states.flat_space.state_list,
             order=order,

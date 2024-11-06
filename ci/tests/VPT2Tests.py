@@ -89,11 +89,24 @@ class VPT2Tests(TestCase):
     def test_HOHAnalytic(self):
 
         file_name = "HOH_freq.fchk"
-        AnalyticVPTRunner.run_simple(
+        runner, states = AnalyticVPTRunner.construct(
             TestManager.test_data(file_name),
-            2,
-            expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5")
+            [[
+                0,
+                [[0, 0, 1]]
+            ]],
+            # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5")
         )
+        classic, _ = runner.construct_classic_runner(states)
+        classic.print_tables()
+        # corrs_a = runner.get_transition_moment_corrections(
+        #     states,
+        #     # axes=[2],
+        #     # dipole_expansion=dips,
+        #     # terms=[(0, 0, 0)]
+        # )  # .corrections[0]
+        # print(corrs_a)
+        runner.run_VPT(states)
 
     @validationTest
     def test_AnalyticWFC(self):
@@ -220,7 +233,7 @@ class VPT2Tests(TestCase):
                 [
                     0,
                     [
-                        [0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, 1],
                         # [0, 0, 0, 0, 1, 0],
                         # [0, 0, 0, 2, 0, 0]
                     ],
@@ -235,19 +248,45 @@ class VPT2Tests(TestCase):
                 #     ],
                 # ]
             ],
+            mode_selection=[0, 2, 3, 4]
             # degeneracy_specs='auto',
-            mixed_derivative_handling_mode='analytical'
+            # mixed_derivative_handling_mode='analytical'
         )
         classic, _ = runner.construct_classic_runner(states)
+
+        # wfns, solver = classic.get_wavefunctions(return_solver=True)
+        # # corrs = runner.get_full_wavefunction_corrections(
+        # #     states
+        # # ).corrections
+        # corrs = runner.get_overlap_corrections(states, order=2)
+        #
+        # # # # print(wfns.corrs.wfn_corrections[1].todense())#[:, :7])
+        # target_rows = wfns.corrs.states.find([[0, 0, 0, 0], [0, 0, 0, 1]])
+        # target_cols = wfns.corrs.total_basis.find([[0, 0, 0, 0], [0, 0, 0, 1]])
+        # print(wfns.corrs.wfn_corrections[2].todense()[np.ix_(target_rows, target_cols)])
+        # with np.printoptions(precision=None):
+        #     print([c[2] for c in corrs])
+        # raise Exception(...)
+
         # classic.print_tables()
+        # runner.run_VPT(states)
 
         corrs_a = runner.get_transition_moment_corrections(
             states,
             # axes=[2],
             # dipole_expansion=dips,
-            terms=[(2, 0, 0)]
-        )#.corrections[0]
-        print([a[0][2] for a in corrs_a])
+            # terms=[
+            #     (0, 2, 0),
+            #     (0, 1, 1),
+            #     (0, 0, 2),
+            #     (1, 1, 0),
+            #     (1, 0, 1),
+            #     (2, 0, 0)
+            # ],
+            # verbose=True
+        )
+        print([a[0][0][0,0] for a in corrs_a])
+        print([a[0][2][0,0] for a in corrs_a])
 
     @validationTest
     def test_AnalyticOCHH(self):
