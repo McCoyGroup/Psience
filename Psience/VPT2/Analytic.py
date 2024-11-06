@@ -4144,7 +4144,7 @@ class OperatorCorrection(PerturbationTheoryTerm):
 
     def get_serializer_key(self):  # to be overridden
         return self.__repr__()
-    repr_key = "H"
+    repr_key = "M"
     def __repr__(self):
         return "<n|{}|m>({})".format(self.repr_key, self.order)
 
@@ -6060,7 +6060,7 @@ class PerturbationTheoryEvaluator:
         other_degs = only_degenerate_terms[0] is only_degenerate_terms[1]
         if other_degs and not only_degs:
             new_corrs = [-c for c in new_corrs]
-        # print(f"|{key}", gen, "->", new_corrs)
+        print(f"|{key}", gen, "->", new_corrs)
         if gen_corrs is None:
             gen_corrs = new_corrs
         else:

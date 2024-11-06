@@ -585,14 +585,16 @@ class PolyadDegeneracySpec(DegeneracySpec):
                  require_converged=False,
                  extra_groups=None,
                  extra_polyads=None,
+                 full_group_polyads=True,
                  **opts
                  ):
         super().__init__(**opts)
         self.polyads = polyads
         self.max_quanta = max_quanta
         self.iterations = iterations
-        self.require_converged= require_converged
+        self.require_converged = require_converged
         self.extra_groups = extra_groups
+        self.full_group_polyads = full_group_polyads
 
     @staticmethod
     def _validate_rule(pair):
@@ -691,8 +693,13 @@ class PolyadDegeneracySpec(DegeneracySpec):
 
 
 
-    def get_polyad_pairs(self, input_states, solver=None, **kwargs):
-        return self.get_polyad_pairs_from_polyad_specs(self.polyads)
+    def get_polyad_pairs(self, input_states, solver=None, full_group_polyads=None, **kwargs):
+        if full_group_polyads is None:
+            full_group_polyads = self.full_group_polyads
+        if full_group_polyads:
+            return super().get_polyad_pairs(input_states, solver=solver, **kwargs)
+        else:
+            return self.get_polyad_pairs_from_polyad_specs(self.polyads)
 
     @staticmethod
     def _is_polyad_rule(d, n_modes):

@@ -2358,11 +2358,13 @@ class MultiVPTStateSpace:
         elif len(flat_deg_blocks) == 1:
             flat_deg_blocks = flat_deg_blocks[0]
         else:
-            flat_deg_blocks = DegeneracySpec.merge_state_blocks([
+            blocks_to_merge = [
                 f
                 for block in flat_deg_blocks
                 for f in (block if block is not None else [])
-            ])
+                if len(f) > 1
+            ]
+            flat_deg_blocks = DegeneracySpec.merge_state_blocks(blocks_to_merge)
 
             basis = self.space_pairs[0][0].states.basis
             all_friends = [
