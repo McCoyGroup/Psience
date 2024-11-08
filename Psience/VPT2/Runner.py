@@ -2459,6 +2459,7 @@ class AnalyticVPTRunner:
                          allowed_energy_changes=None,
                          take_diagonal_v4_terms=True,
                          intermediate_normalization=None,
+                         corrected_fundamental_frequencies=None,
                          **opts):
         """
         A driver powered by a classic PerturbationTheoryHamiltonian object
@@ -2475,9 +2476,13 @@ class AnalyticVPTRunner:
         _ = []
         for n,e in enumerate(exps):
             if n == 0:
-                V, G = e
-                V = np.diag(np.diag(V)) # zero out small off diags
-                G = np.diag(np.diag(G)) # zero out small off diags
+                if corrected_fundamental_frequencies is not None:
+                    V = np.diag(corrected_fundamental_frequencies) / 2
+                    G = np.diag(corrected_fundamental_frequencies) / 2
+                else:
+                    V, G = e
+                    V = np.diag(np.diag(V)) # zero out small off diags
+                    G = np.diag(np.diag(G)) # zero out small off diags
                 e = [V, G]
             if n > 1:
                 if not internals:
@@ -2535,6 +2540,7 @@ class AnalyticVPTRunner:
                   allowed_energy_changes=None,
                   mixed_derivative_handling_mode='analytical',
                   degeneracy_specs=None,
+                  corrected_fundamental_frequencies=None,
                   **settings
                   ):
 
@@ -2558,7 +2564,8 @@ class AnalyticVPTRunner:
                 allowed_coefficients=allowed_coefficients,
                 disallowed_coefficients=disallowed_coefficients,
                 allowed_energy_changes=allowed_energy_changes,
-                intermediate_normalization=opts.get('intermediate_normalization', None)
+                intermediate_normalization=opts.get('intermediate_normalization', None),
+                corrected_fundamental_frequencies=corrected_fundamental_frequencies
             )
 
 

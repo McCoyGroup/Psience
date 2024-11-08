@@ -197,36 +197,16 @@ class VPT2Tests(TestCase):
     @debugTest
     def test_AnalyticOCHHMultiple(self):
 
-        file_name = "OCHH_freq.fchk"
-        # VPTRunner.run_simple(
-        #     TestManager.test_data(file_name),
-        #     [
-        #         [0, 0, 0, 0, 0, 0],
-        #         [0, 0, 0, 0, 0, 1],
-        #         [0, 0, 0, 0, 1, 0],
-        #         [0, 0, 0, 1, 0, 0],
-        #         [0, 1, 0, 1, 0, 0],
-        #     ],
-        #     mixed_derivative_handling_mode='analytical',
-        #     calculate_intensities=False,
-        #     degeneracy_specs = {
-        #         'polyads': [
-        #             # [
-        #             #     [0, 0, 0, 0, 0, 1],
-        #             #     [0, 1, 0, 1, 0, 0]
-        #             # ]
-        #             [
-        #                 [0, 0, 1, 0, 0, 0],
-        #                 [0, 0, 0, 1, 0, 0],
-        #             ]
-        #         ]
-        #     }
-        # )
+        """
 
-        try:
-            os.remove(os.path.expanduser("~/Desktop/woof.txt"))
-        except OSError:
-            ...
+::       1(1) | 2908.616 | 90.480 | 2689.933 | 68.349 | 2732.141 | 105.713
+::       2(1) | 2828.758 | 65.833 | 2660.651 | 60.476 | 2660.651 |  60.476
+::       3(2) | 3281.457 |  0.000 | 3193.397 |  5.802 | 3193.397 |   5.802
+::   3(1)5(1) | 2830.284 |  0.000 | 2811.622 | 37.349 | 2769.415 |   0.001
+        :return:
+        """
+
+        file_name = "OCHH_freq.fchk"
         runner, states = AnalyticVPTRunner.construct(
             TestManager.test_data(file_name),
             [
@@ -248,39 +228,23 @@ class VPT2Tests(TestCase):
                     ],
                 ]
             ],
-            # degeneracy_specs='auto'
-            degeneracy_specs={
-                'polyads': [
-                    [
-                        [0, 0, 0, 0, 0, 1],
-                        [0, 0, 0, 0, 1, 0]
-                    ],
-                    [
-                        [0, 0, 0, 0, 0, 1],
-                        [0, 1, 0, 1, 0, 0]
-                    ]
-                ]
-            },
-
+            degeneracy_specs='auto'
+            # degeneracy_specs={
+            #     'polyads': [
+            #         [
+            #             [0, 0, 0, 0, 0, 1],
+            #             [0, 0, 0, 0, 1, 0]
+            #         ],
+            #         [
+            #             [0, 0, 0, 0, 0, 1],
+            #             [0, 1, 0, 1, 0, 0]
+            #         ]
+            #     ]
+            # }
         )
-
         classic, _ = runner.construct_classic_runner(states,
                                                      zero_element_warning=False
                                                      )
-
-        wfns, solver = classic.get_wavefunctions(return_solver=True)
-
-        sum_ham, hams = runner.get_reexpressed_hamiltonian(
-            states,
-            order=2,
-            verbose=False,
-            only_degenerate_terms=True,
-            include_diagonal=False
-        )
-        print(sum_ham[0] * 219475.6)
-        raise Exception(...)
-
-
         classic.print_tables()
         runner.run_VPT(states)
         raise Exception(...)
