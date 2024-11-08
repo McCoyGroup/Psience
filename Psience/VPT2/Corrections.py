@@ -1013,8 +1013,8 @@ class AnalyticPerturbationTheoryCorrections:
             #                               s=self.format_matrix(kw['s'])
             #                           ))
             e_pos = basis.find(group)
-            # if self.only_degenerate_terms:
-            #     ham = -ham  # only deg terms
+            if not self.only_degenerate_terms:
+                ham = -ham  # only deg terms
             engs = energies[e_pos,]
             ham[np.diag_indices_from(ham)] = engs
             deg_engs, deg_mixing = self.handle_degenerate_transformation(ham)

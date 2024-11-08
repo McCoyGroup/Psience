@@ -248,58 +248,38 @@ class VPT2Tests(TestCase):
                     ],
                 ]
             ],
-            degeneracy_specs='auto'
-        )
+            # degeneracy_specs='auto'
+            degeneracy_specs={
+                'polyads': [
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, 0, 1, 0]
+                    ],
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 1, 0, 1, 0, 0]
+                    ]
+                ]
+            },
 
-        # nmodes = len(modes) if modes is not None else 6
-        # for c in itertools.combinations(range(nmodes), 1):
-        #     for i in itertools.permutations(c):
-        #         for p in itertools.permutations([i, i, i]):
-        #             runner.eval.expansions[1][0][p] = 0
-        #             for ax in range(3):
-        #                 runner.dipole_expansion[ax][1][i] = 0
-        #                 runner.dipole_expansion[ax][2][i,i] = 0
-        #                 runner.dipole_expansion[ax][3][i,i,i] = 0
-        # for c in itertools.combinations(range(nmodes), 2):
-        #     for i,j in itertools.permutations(c):
-        #         if (i, j) not in {}:
-        #             for p in itertools.permutations([i, i, j]):
-        #                 runner.eval.expansions[1][0][p] = 0
-        #                 for ax in range(3):
-        #                     if c not in {(0,1)}:
-        #                         runner.dipole_expansion[ax][2][i,j] = 0
-        #                     runner.dipole_expansion[ax][3][p] = 0
-        #         # if (i, j) not in {(0, 1)}:
-        # for i,j,k in itertools.combinations(range(nmodes), 3):
-        #     if (i, j, k) not in {(0,1,2)}:
-        #         for p in itertools.permutations([i, j, k]):
-        #             runner.eval.expansions[1][0][p] = 0
-        #             for ax in range(3):
-        #                 runner.dipole_expansion[ax][3][p] = 0
-        # # raise Exception(runner.dipole_expansion[1][2])
-        # prefac = runner.dipole_expansion[1][2][0,1]*runner.eval.expansions[1][0][0,1,2]/2
-        # raise Exception(
-        #     f"{prefac:.16e}",
-        #     "["+",".join(f"{freq:.16e}" for freq in runner.eval.freqs)+"]"
-        # )
+        )
 
         classic, _ = runner.construct_classic_runner(states,
                                                      zero_element_warning=False
                                                      )
 
-        # wfns, solver = classic.get_wavefunctions(return_solver=True)
-        # # corrs = runner.get_full_wavefunction_corrections(
-        # #     states
-        # # ).corrections
-        # corrs = runner.get_overlap_corrections(states, order=2)
-        #
-        # # # # print(wfns.corrs.wfn_corrections[1].todense())#[:, :7])
-        # target_rows = wfns.corrs.states.find([[0, 0, 0, 0], [0, 0, 0, 1]])
-        # target_cols = wfns.corrs.total_basis.find([[0, 0, 0, 0], [0, 0, 0, 1]])
-        # print(wfns.corrs.wfn_corrections[2].todense()[np.ix_(target_rows, target_cols)])
-        # with np.printoptions(precision=None):
-        #     print([c[2] for c in corrs])
-        # raise Exception(...)
+        wfns, solver = classic.get_wavefunctions(return_solver=True)
+
+        sum_ham, hams = runner.get_reexpressed_hamiltonian(
+            states,
+            order=2,
+            verbose=False,
+            only_degenerate_terms=True,
+            include_diagonal=False
+        )
+        print(sum_ham[0] * 219475.6)
+        raise Exception(...)
+
 
         classic.print_tables()
         runner.run_VPT(states)

@@ -209,16 +209,19 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         :rtype:
         """
         groups = self.get_groups(input_states, solver=solver, **kwargs)
-        base_polyads = np.unique(
-            np.concatenate(
-                [
-                    self.get_group_polyad_relation(g)
-                    for g in groups
-                ],
+        if len(groups) == 0:
+            base_polyads = []
+        else:
+            base_polyads = np.unique(
+                np.concatenate(
+                    [
+                        self.get_group_polyad_relation(g)
+                        for g in groups
+                    ],
+                    axis=0
+                ),
                 axis=0
-            ),
-            axis=0
-        )
+            )
 
         # filter out anything that just adds one quantum
         base_polyads = [
