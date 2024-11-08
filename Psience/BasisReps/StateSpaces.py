@@ -647,59 +647,87 @@ class BasisStateSpace(AbstractStateSpace):
 
         return cls(basis, states, mode=cls.StateSpaceSpec.Excitations)
 
-    @classmethod
-    def states_under_freq_threshold(cls, freqs, thresh, min_freq=None,
-                                    max_state=None,
-                                    min_quanta=None, max_quanta=None, basis=None):
+    @classmethod #TODO: numba-ify this
+    def states_in_windows(cls, freqs, windows:'list[[int,int]]',
+                          max_state=None,
+                          min_quantas=None, max_quantas=None,
+                          basis=None # we'll use this some day probably...
+                          ):
+        # walk the state tree to find anything within a given frequency window
         ndim = len(freqs)
         # if basis is None:
         #     from .HarmonicOscillator import HarmonicOscillatorProductBasis
         #     basis = HarmonicOscillatorProductBasis(ndim)
 
+        window_states = [[] for _ in windows]
+        if min_quantas is None or nput.is_numeric(min_quantas):
+            min_quantas = [min_quantas] * len(windows)
+        if max_quantas is None or nput.is_numeric(max_quantas):
+            max_quantas = [max_quantas] * len(windows)
+
         base_state = np.zeros(ndim, dtype=int)
         queue = collections.deque()
-        states = []
 
-        if (
-                (min_freq is None or 0 >= min_freq)
-            and (min_quanta is None or 0 >= min_quanta)
-        ):
-            states.append(base_state)
+        for states,min_quanta,(min_freq, max_freq) in zip(window_states, max_quantas, windows):
+            if (
+                    (0 >= min_freq)
+                    and (min_quanta is None or 0 >= min_quanta)
+            ):
+                states.append(base_state)
         queue.append([0, 0, 0, base_state])
         # indices.append(basis.ravel_state_inds(base_state)[0])
 
         # alternate indexing method, in case individual ravels are too slow
         indices = set()
         indices.add(tuple(base_state))
+        q_thresh = max([-1] + [max_quanta for max_quanta in max_quantas if max_quantas is not None])
+        if q_thresh < 9:
+            q_thresh = None
 
         while queue:
             e, mod_ind, q, s = queue.popleft()
             q = q + 1
-            for n,ee in enumerate(freqs[mod_ind:]):
+            for n, ee in enumerate(freqs[mod_ind:]):
                 n = mod_ind + n
                 if max_state is not None and s[n] >= max_state[n]: continue
 
                 enew = e + ee
-                if enew > thresh: # assume freqs is sorted
+                if all(enew > max_freq for _,max_freq in windows):  # assume freqs is sorted
                     break
 
-                enqueue = max_quanta is None or q < max_quanta
-                reap = (
-                        (min_freq is None or enew >= min_freq)
-                    and (min_quanta is None or q >= min_quanta)
-                )
-                if reap or enqueue:
+                enqueue = q_thresh is None or q < q_thresh
+                ss = None
+                if enqueue:
                     ss = s.copy()
                     ss[n] += 1
-
-                    if reap:
+                for states,min_quanta,max_quanta,(min_freq, max_freq) in zip(window_states, min_quantas, max_quantas, windows):
+                    if (# could preoptimize this with an initial dispatch over tests that we store
+                        (enew <= max_freq and enew >= min_freq)
+                        and (min_quanta is None or q >= min_quanta)
+                        and (max_quanta is None or q < max_quanta)
+                    ):
+                        if ss is None:
+                            ss = s.copy()
+                            ss[n] += 1
                         states.append(ss)
-                    if enqueue:
-                        queue.append([enew, n, q, ss])
+                if enqueue:
+                    queue.append([enew, n, q, ss])
 
-        return np.array(states) #np.array(indices)
+        return [np.array(states) for states in window_states]
 
-
+    @classmethod
+    def states_under_freq_threshold(cls, freqs, thresh, min_freq=None,
+                                    max_state=None,
+                                    min_quanta=None, max_quanta=None, basis=None):
+        if min_freq is None:
+            min_freq = 0
+        return cls.states_in_windows(freqs,
+                                     [[min_freq, thresh]],
+                                     max_state=max_state,
+                                     min_quantas=[min_quanta],
+                                     max_quantas=[max_quanta],
+                                     basis=basis
+                                     )[0]
 
 
     def get_mode(self):

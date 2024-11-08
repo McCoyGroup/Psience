@@ -191,6 +191,14 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         a[negs] = 0
         return np.moveaxis(np.array([a, b]), 0, 1)
 
+    @classmethod
+    def get_polyad_pairs_from_polyad_specs(cls, polyads):
+        return [
+            [p1, p2]
+            for polyad in polyads
+            for i,p1 in enumerate(polyad)
+            for p2 in polyad[i+1:]
+        ]
     def get_polyad_pairs(self, input_states, solver=None, **kwargs):
         """
         :param solver:
@@ -201,23 +209,27 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         :rtype:
         """
         groups = self.get_groups(input_states, solver=solver, **kwargs)
-        base_polyads = np.unique(
-            np.concatenate(
-                [
-                    self.get_group_polyad_relation(g)
-                    for g in groups
-                ],
+        if len(groups) == 0:
+            base_polyads = []
+        else:
+            base_polyads = np.unique(
+                np.concatenate(
+                    [
+                        self.get_group_polyad_relation(g)
+                        for g in groups
+                    ],
+                    axis=0
+                ),
                 axis=0
-            ),
-            axis=0
-        )
+            )
 
         # filter out anything that just adds one quantum
         base_polyads = [
             b for b in base_polyads
             if (np.sum(np.abs(b[0])) > 0 and np.sum(np.abs(b[1])) > 0)
         ]
-        return base_polyads
+
+        return self.get_polyad_pairs_from_polyad_specs(base_polyads)
 
     @classmethod
     @abc.abstractmethod
@@ -407,6 +419,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
                  evaluator=None,
                  **opts):
         self.evaluator = evaluator
+        self._couplings = {}
         super().__init__(**opts)
         if wfc_threshold is None or isinstance(wfc_threshold, str) and wfc_threshold == 'auto':
             wfc_threshold = self.default_threshold
@@ -447,6 +460,30 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         sc = corrs.find_strong_couplings(threshold=degenerate_correction_threshold, state_filter=state_filter)
         return sc
 
+    def get_input_state_couplings(self, input_states):
+        inds = input_states.indices
+        needs_couplings = [
+            n for n,i in enumerate(inds)
+            if i not in self._couplings
+        ]
+        if len(needs_couplings) > 0:
+            needs_coupling_states = input_states.take_subspace(needs_couplings)
+            wfcs = self.evaluator.get_test_wfn_corrs(needs_coupling_states, self.energy_cutoff)
+            if wfcs is not None:
+                for input_state, final_state, corrs in zip(wfcs.initial_states.indices, wfcs.final_states, wfcs.corrections):
+                    coupling_pos = np.where(np.abs(corrs) > self.wfc_threshold)
+                    if len(coupling_pos) > 0 and len(coupling_pos[0]) > 0:
+                        coupling_pos = coupling_pos[1]
+                        self._couplings[input_state] = final_state.take_subspace(coupling_pos)
+            for i in inds:
+                if i not in self._couplings:
+                    self._couplings[i] = None
+        return {
+            i:self._couplings[i]
+            for i in inds
+            if self._couplings[i] is not None
+        }
+
     def get_groups(self, input_states, couplings=None, solver=None, extra_groups=None, **kwargs):
         """
         :param input_states:
@@ -457,13 +494,15 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         :rtype:
         """
         if self.evaluator is not None:
-            wfcs = self.evaluator.get_test_wfn_corrs(input_states, self.wfc_threshold)
+            couplings = self.get_input_state_couplings(input_states)
+            # if len(couplings) == 0:
+            #     return None
         else:
             if couplings is None:
                 raise ValueError("need couplings")
-            if extra_groups is None:
-                extra_groups = self.extra_groups
-            return self.get_strong_coupling_space(input_states, couplings, extra_groups=extra_groups)
+        if extra_groups is None:
+            extra_groups = self.extra_groups
+        return self.get_strong_coupling_space(input_states, couplings, extra_groups=extra_groups)
 
     @classmethod
     def canonicalize(cls, spec):
@@ -549,14 +588,16 @@ class PolyadDegeneracySpec(DegeneracySpec):
                  require_converged=False,
                  extra_groups=None,
                  extra_polyads=None,
+                 full_group_polyads=True,
                  **opts
                  ):
         super().__init__(**opts)
         self.polyads = polyads
         self.max_quanta = max_quanta
         self.iterations = iterations
-        self.require_converged= require_converged
+        self.require_converged = require_converged
         self.extra_groups = extra_groups
+        self.full_group_polyads = full_group_polyads
 
     @staticmethod
     def _validate_rule(pair):
@@ -655,13 +696,13 @@ class PolyadDegeneracySpec(DegeneracySpec):
 
 
 
-    def get_polyad_pairs(self, input_states, solver=None, **kwargs):
-        return [
-            [p1, p2]
-            for polyad in self.polyads
-            for i,p1 in enumerate(polyad)
-            for p2 in polyad[i+1:]
-        ]
+    def get_polyad_pairs(self, input_states, solver=None, full_group_polyads=None, **kwargs):
+        if full_group_polyads is None:
+            full_group_polyads = self.full_group_polyads
+        if full_group_polyads:
+            return super().get_polyad_pairs(input_states, solver=solver, **kwargs)
+        else:
+            return self.get_polyad_pairs_from_polyad_specs(self.polyads)
 
     @staticmethod
     def _is_polyad_rule(d, n_modes):
@@ -1144,8 +1185,6 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                 if isinstance(g, BasisStateSpace):
                     ugh.append(g)
                 else:
-                    # for gg in g:
-                    #     print(gg.excitations, gg)
                     ugh.extend(g)
             else:
                 ugh.append(g)

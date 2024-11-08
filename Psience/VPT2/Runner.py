@@ -329,7 +329,7 @@ class VPTStateSpace:
                     deg_state_blocks.extend(deg_states)
                     if deg_spec.application_order == 'pre':
                         deg_pair_blocks.append(
-                            deg_spec.get_polyad_pairs(self.state_list)
+                            deg_spec.get_polyad_pairs(BasisStateSpace(self.states.basis, self.state_list))
                         )
 
         if all(ds is None for ds in self.degeneracy_specs):
@@ -432,18 +432,18 @@ class VPTStateSpace:
         """
 
         spec = DegeneracySpec.from_spec(degeneracy_specs)
-        if hasattr(spec, 'evalutor') and spec.evalutor is None:
-            spec.evalutor = evaluator
+        if hasattr(spec, 'evaluator') and spec.evaluator is None:
+            spec.evaluator = evaluator
         if hasattr(spec, 'frequencies') and spec.frequencies is None:
             if freqs is None:
                 freqs = system.mol.normal_modes.modes.freqs
             spec.frequencies = freqs
         if spec is None:
             return None, None
-        elif hasattr(spec, 'prep_states'):
-            return (spec, spec.prep_states(states))
-        else:
+        elif spec.application_order == "pre":
             return spec, spec.get_groups(states)
+        else:# hasattr(spec, 'prep_states'):
+            return (spec, spec.prep_states(states))
 
         # elif isinstance(degeneracy_specs, dict):
         #     # dispatch on mode
@@ -2314,10 +2314,12 @@ class MultiVPTStateSpace:
                                                         if not nput.is_numeric(initial_space) and nput.is_numeric(initial_space[0]) else
                                                    initial_space,
                                                    degeneracy_specs=degeneracy_specs,
+                                                   evaluator=evaluator,
                                                    **opts),
                 VPTStateSpace.from_system_and_spec(system,
                                                    target_space,
                                                    degeneracy_specs=degeneracy_specs,
+                                                   evaluator=evaluator,
                                                    **opts
                                                    )
             ]
@@ -2356,11 +2358,13 @@ class MultiVPTStateSpace:
         elif len(flat_deg_blocks) == 1:
             flat_deg_blocks = flat_deg_blocks[0]
         else:
-            flat_deg_blocks = DegeneracySpec.merge_state_blocks([
+            blocks_to_merge = [
                 f
                 for block in flat_deg_blocks
                 for f in (block if block is not None else [])
-            ])
+                if len(f) > 1
+            ]
+            flat_deg_blocks = DegeneracySpec.merge_state_blocks(blocks_to_merge)
 
             basis = self.space_pairs[0][0].states.basis
             all_friends = [
@@ -2410,6 +2414,7 @@ class MultiVPTStateSpace:
 class AnalyticVPTRunner:
     def __init__(self, expansions, order=None, expansion_order=None, freqs=None, internals=True, logger=None,
                  hamiltonian=None, checkpoint=None,
+                 dipole_expansion=None,
                  allowed_terms=None,
                  allowed_coefficients=None,
                  disallowed_coefficients=None,
@@ -2438,6 +2443,12 @@ class AnalyticVPTRunner:
             expansions,
             freqs=freqs
         )
+        if dipole_expansion is None and self.ham is not None:
+            if expansion_order is None:
+                expansion_order = {}
+            expansion_order = expansion_order.get('dipole', len(self.eval.expansions) - 1)
+            dipole_expansion = self.ham.dipole_terms.get_terms(expansion_order)
+        self.dipole_expansion = dipole_expansion
         self.logger = self.eval.solver.logger
 
     @classmethod
@@ -2448,6 +2459,7 @@ class AnalyticVPTRunner:
                          allowed_energy_changes=None,
                          take_diagonal_v4_terms=True,
                          intermediate_normalization=None,
+                         corrected_fundamental_frequencies=None,
                          **opts):
         """
         A driver powered by a classic PerturbationTheoryHamiltonian object
@@ -2464,9 +2476,13 @@ class AnalyticVPTRunner:
         _ = []
         for n,e in enumerate(exps):
             if n == 0:
-                V, G = e
-                V = np.diag(np.diag(V)) # zero out small off diags
-                G = np.diag(np.diag(G)) # zero out small off diags
+                if corrected_fundamental_frequencies is not None:
+                    V = np.diag(corrected_fundamental_frequencies) / 2
+                    G = np.diag(corrected_fundamental_frequencies) / 2
+                else:
+                    V, G = e
+                    V = np.diag(np.diag(V)) # zero out small off diags
+                    G = np.diag(np.diag(G)) # zero out small off diags
                 e = [V, G]
             if n > 1:
                 if not internals:
@@ -2524,6 +2540,7 @@ class AnalyticVPTRunner:
                   allowed_energy_changes=None,
                   mixed_derivative_handling_mode='analytical',
                   degeneracy_specs=None,
+                  corrected_fundamental_frequencies=None,
                   **settings
                   ):
 
@@ -2537,19 +2554,6 @@ class AnalyticVPTRunner:
             if isinstance(degeneracy_specs, (list, tuple)) and len(degeneracy_specs) == 0:
                 degeneracy_specs = None
 
-            if states is not None and not isinstance(states, MultiVPTStateSpace):
-                if (
-                        isinstance(degeneracy_specs, (list, tuple, np.ndarray))
-                        and all(len(d) == 2 for d in degeneracy_specs)
-                        and nput.is_numeric(degeneracy_specs[0][0][0])
-                ):
-                    degeneracy_specs = {'polyads': degeneracy_specs}
-                states = MultiVPTStateSpace(
-                    states,
-                    runner.system,
-                    degeneracy_specs=degeneracy_specs
-                )
-
             opts = runner.pt_opts.opts
             new = cls.from_hamiltonian(
                 runner.hamiltonian,
@@ -2560,8 +2564,25 @@ class AnalyticVPTRunner:
                 allowed_coefficients=allowed_coefficients,
                 disallowed_coefficients=disallowed_coefficients,
                 allowed_energy_changes=allowed_energy_changes,
-                intermediate_normalization=opts.get('intermediate_normalization', None)
+                intermediate_normalization=opts.get('intermediate_normalization', None),
+                corrected_fundamental_frequencies=corrected_fundamental_frequencies
             )
+
+
+
+            if states is not None and not isinstance(states, MultiVPTStateSpace):
+                if (
+                        isinstance(degeneracy_specs, (list, tuple, np.ndarray))
+                        and all(len(d) == 2 for d in degeneracy_specs)
+                        and nput.is_numeric(degeneracy_specs[0][0][0])
+                ):
+                    degeneracy_specs = {'polyads': degeneracy_specs}
+                states = MultiVPTStateSpace(
+                    states,
+                    runner.system,
+                    degeneracy_specs=degeneracy_specs,
+                    evaluator=new
+                )
             if states is not None:
                 return new, states
             else:
@@ -2675,7 +2696,7 @@ class AnalyticVPTRunner:
                 pseudopotential_terms
             ),
             dipole_terms=(
-                self.ham.dipole_terms.get_terms(len(self.eval.expansions) - 1)
+                self.dipole_expansion
                     if dipole_terms is None else
                 dipole_terms
             ),
@@ -2749,13 +2770,20 @@ class AnalyticVPTRunner:
                                 order=None, degeneracy_specs=None,
                                 zero_cutoff=None, verbose=False
                                 ):
-        states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
+        states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
         return self.eval.get_overlap_corrections(
             states.flat_space.state_list,
             order=order,
             degenerate_states=states.degenerate_pairs, verbose=verbose,
             zero_cutoff=zero_cutoff
         )
+    @classmethod
+    def prep_eval_state_pairs(cls, states):
+        return [
+            [s, finals]
+            for initials, finals in states.state_list_pairs
+            for s in initials
+        ]
     def get_full_wavefunction_corrections(self,
                                           states,
                                           order=None, degeneracy_specs=None,
@@ -2763,9 +2791,10 @@ class AnalyticVPTRunner:
                                           ):
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
         return self.eval.get_full_wavefunction_corrections(
-            states.state_list_pairs,
+            self.prep_eval_state_pairs(states),
             order=order,
-            degenerate_states=states.degenerate_pairs, verbose=verbose,
+            degenerate_states=states.degenerate_pairs,
+            verbose=verbose,
             zero_cutoff=zero_cutoff
         )
     def get_wavefunction_corrections(self,
@@ -2774,8 +2803,9 @@ class AnalyticVPTRunner:
                                      zero_cutoff=None, verbose=False
                                      ):
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
+        # raise Exception(states.state_list_pairs)
         return self.eval.get_wavefunction_corrections(
-            states.state_list_pairs,
+            self.prep_eval_state_pairs(states),
             order=order,
             degenerate_states=states.degenerate_pairs, verbose=verbose,
             zero_cutoff=zero_cutoff
@@ -2809,8 +2839,6 @@ class AnalyticVPTRunner:
             corr_blocks.append(subcorr)
 
         return corr_blocks
-
-
     def get_operator_corrections(self,
                                  operator_expansion, states,
                                  order=None, terms=None, degeneracy_specs=None, verbose=False,
@@ -2820,11 +2848,7 @@ class AnalyticVPTRunner:
 
         base_corrs = self.eval.get_operator_corrections(
             operator_expansion,
-            [
-                [s, finals]
-                for initials, finals in states.state_list_pairs
-                for s in initials
-            ],
+            self.prep_eval_state_pairs(states),
             order=order, terms=terms,
             verbose=verbose,
             degenerate_states=states.degenerate_pairs,
@@ -2903,16 +2927,21 @@ class AnalyticVPTRunner:
             if order is None:
                 if self.expansion_order is not None:
                     order = self.expansion_order.get('dipole', None)
-            dipole_expansion = self.ham.dipole_terms.get_terms(order)
+            dipole_expansion = self.dipole_expansion
+            if order is not None:
+                dipole_expansion = [d[:order+1] for d in dipole_expansion]
 
+        if order is None:
+            order = len(dipole_expansion[0]) - 2
         if axes is None: axes = [0, 1, 2]
         corrs = self.get_operator_corrections(
             [
-                [x/math.factorial(i+1) for i,x in enumerate(dipole_expansion[x][1:])]
+                [x/math.factorial(i) for i,x in enumerate(dipole_expansion[x])]
                 for x in axes
             ],
             states,
             order=order,
+            operator_type='transition_moment',
             **opts
         )
 
@@ -2938,6 +2967,7 @@ class AnalyticVPTRunner:
         # TODO: break these degenerate states down into directly connected blocks again
         #       for efficiency sake in the case that we got pairs for our polyads
         deg_groups = states.flat_space.degenerate_states
+        # raise Exception(deg_groups, degs)
         all_corrs = []
         all_mats = []
         for group in deg_groups:
@@ -2953,6 +2983,33 @@ class AnalyticVPTRunner:
             all_mats.append(sum(corr_mats))
         return all_mats, all_corrs
 
+    def get_wfc_test_states(self, input_states:BasisStateSpace, energy_window):
+        exc = input_states.excitations
+        freqs = self.eval.freqs
+
+        engs = np.dot(exc, freqs)
+        quanta = np.sum(exc, axis=1)
+        windows = [
+            [max(e - energy_window, 0), e + energy_window]
+            for e in engs
+        ]
+        max_state = np.sum(exc, axis=0)
+        max_change = max([
+            len(h.terms) if h.order > 0 else 0
+            for h in self.eval.solver.hamiltonian_expansion
+            ])
+        max_state = max_state + max_change
+        min_quanta = quanta - max_change
+        max_quanta = quanta + max_change
+
+        return BasisStateSpace.states_in_windows(
+            freqs,
+            windows,
+            max_state=max_state,
+            min_quantas=min_quanta,
+            max_quantas=max_quanta
+        )
+
     def get_test_wfn_corrs(self, input_states:BasisStateSpace, energy_window):
         """
         We take the expansions and frequencies that we have and at find the possible terms
@@ -2960,24 +3017,15 @@ class AnalyticVPTRunner:
         To do this, we first determine from the expansions what magnitude of energy difference
         could possible lead to terms above this threshold
         """
-        exc = input_states.excitations
-        freqs = self.eval.freqs
-        expansions = self.eval.expansions
-        threshold_cutoffs = [
-            sum(np.max(np.abs(e)) for e in exp)
-            for exp in expansions[1:]
-        ]
-        freq_sums = []
-
-        for ord in range(3, 3+len(threshold_cutoffs)):
-            freq_sums = ...
-
-        for subexp in expansions[1:]:
-            # We'd like to consider the space of different number of quanta changes
-            # and find the corresponding
-            ...
-
-
+        state_pairs = [
+                [input, tests] for input, tests in
+                zip(input_states.excitations, self.get_wfc_test_states(input_states, energy_window))
+                if len(tests) > 0
+            ]
+        if len(state_pairs) == 0:
+            return None
+        else:
+            return self.get_wavefunction_corrections(state_pairs)
 
     def format_energies_table(self, states, energies, energy_corrections, zpe_pos, number_format=".3f"):
 
@@ -3198,7 +3246,7 @@ class AnalyticVPTRunner:
             h2w = UnitsData.convert("Hartrees", "Wavenumbers")
             if handle_degeneracies and states.flat_space.degenerate_states is not None:
                 corrs.degenerate_states = states.flat_space.degenerate_states
-                only_degenerate_terms = False
+                only_degenerate_terms = True
                 with self.logger.block(tag="Handling degeneracies"):
                     with self.logger.block(tag="Calculating effective Hamiltonians..."):
                         _, degenerate_corrs = self.get_reexpressed_hamiltonian(

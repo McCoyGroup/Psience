@@ -49,6 +49,7 @@ class PerturbationTheorySolver:
                  gaussian_resonance_handling=False,
                  ignore_odd_order_energies=False,
                  intermediate_normalization=False,
+                 reorthogonalize_degenerate_states=None,
                  check_overlap=True,
                  zero_element_warning=True,
                  degenerate_states=None,
@@ -183,6 +184,9 @@ class PerturbationTheorySolver:
         self.ignore_odd_orders = ignore_odd_order_energies
         self.drop_perturbation_degs = modify_degenerate_perturbations
         self.intermediate_normalization = intermediate_normalization
+        if reorthogonalize_degenerate_states is None:
+            reorthogonalize_degenerate_states = not intermediate_normalization
+        self.reorthogonalize_degenerate_states = reorthogonalize_degenerate_states
         self.check_overlap = check_overlap
         self.gaussian_resonance_handling = gaussian_resonance_handling
         self.zero_element_warning = zero_element_warning
@@ -1672,16 +1676,16 @@ class PerturbationTheorySolver:
                                 all_overlaps[res_index] = overlaps
 
                         # now we reorthogonalize degenerate states
-                        if not self.intermediate_normalization:
+                        if self.reorthogonalize_degenerate_states:
                             for k in range(1, order+1):
                                 for i, (n, x) in enumerate(zip(res_inds, deg_inds)):
                                     for m, y in zip(res_inds[i + 1:], deg_inds[i+1:]):
-                                        onn = -1 / 2 * np.sum(np.dot(all_corrs[n][i], all_corrs[n][k - i]) for i in range(1, k))
                                         onm = -1 / 2 * np.sum(np.dot(all_corrs[n][i], all_corrs[m][k - i]) for i in range(1, k))
+                                        onn = -1 / 2 * np.sum(np.dot(all_corrs[n][i], all_corrs[n][k - i]) for i in range(1, k))
                                         omm = -1 / 2 * np.sum(np.dot(all_corrs[m][i], all_corrs[m][k - i]) for i in range(1, k))
-                                        all_corrs[n][k][x] = onn
                                         all_corrs[n][k][y] = onm
                                         all_corrs[m][k][x] = onm
+                                        all_corrs[n][k][x] = onn
                                         all_corrs[m][k][y] = omm
 
                 end = time.time()
@@ -2017,7 +2021,7 @@ class PerturbationTheorySolver:
 
                 if check_overlap:
                     should_be_zero = corrs[k][deg_inds]
-                    if (should_be_zero > 0).any():
+                    if (np.abs(should_be_zero) > 0).any():
                         raise ValueError("Perturbation operator should have made overlap of state {} with {} zero...got {} instead".format(
                             n, D, should_be_zero
                         ))
