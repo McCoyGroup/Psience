@@ -2414,6 +2414,7 @@ class MultiVPTStateSpace:
 class AnalyticVPTRunner:
     def __init__(self, expansions, order=None, expansion_order=None, freqs=None, internals=True, logger=None,
                  hamiltonian=None, checkpoint=None,
+                 dipole_expansion=None,
                  allowed_terms=None,
                  allowed_coefficients=None,
                  disallowed_coefficients=None,
@@ -2442,6 +2443,12 @@ class AnalyticVPTRunner:
             expansions,
             freqs=freqs
         )
+        if dipole_expansion is None and self.ham is not None:
+            if expansion_order is None:
+                expansion_order = {}
+            expansion_order = expansion_order.get('dipole', len(self.eval.expansions) - 1)
+            dipole_expansion = self.ham.dipole_terms.get_terms(expansion_order)
+        self.dipole_expansion = dipole_expansion
         self.logger = self.eval.solver.logger
 
     @classmethod
@@ -2682,7 +2689,7 @@ class AnalyticVPTRunner:
                 pseudopotential_terms
             ),
             dipole_terms=(
-                self.ham.dipole_terms.get_terms(len(self.eval.expansions) - 1)
+                self.dipole_expansion
                     if dipole_terms is None else
                 dipole_terms
             ),
@@ -2913,16 +2920,21 @@ class AnalyticVPTRunner:
             if order is None:
                 if self.expansion_order is not None:
                     order = self.expansion_order.get('dipole', None)
-            dipole_expansion = self.ham.dipole_terms.get_terms(order)
+            dipole_expansion = self.dipole_expansion
+            if order is not None:
+                dipole_expansion = [d[:order+1] for d in dipole_expansion]
 
+        if order is None:
+            order = len(dipole_expansion[0]) - 2
         if axes is None: axes = [0, 1, 2]
         corrs = self.get_operator_corrections(
             [
-                [x/math.factorial(i+1) for i,x in enumerate(dipole_expansion[x][1:])]
+                [x/math.factorial(i) for i,x in enumerate(dipole_expansion[x])]
                 for x in axes
             ],
             states,
             order=order,
+            operator_type='transition_moment',
             **opts
         )
 
@@ -3227,7 +3239,7 @@ class AnalyticVPTRunner:
             h2w = UnitsData.convert("Hartrees", "Wavenumbers")
             if handle_degeneracies and states.flat_space.degenerate_states is not None:
                 corrs.degenerate_states = states.flat_space.degenerate_states
-                only_degenerate_terms = False
+                only_degenerate_terms = True
                 with self.logger.block(tag="Handling degeneracies"):
                     with self.logger.block(tag="Calculating effective Hamiltonians..."):
                         _, degenerate_corrs = self.get_reexpressed_hamiltonian(

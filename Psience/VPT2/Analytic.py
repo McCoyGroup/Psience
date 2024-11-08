@@ -179,22 +179,52 @@ class AnalyticPerturbationTheorySolver:
     @classmethod
     def operator_expansion_terms(cls, order, logger=None, operator_type=None):
 
+        base_terms = []
+        padding = 0
+        index_padding = 0
         if operator_type is None:
             padding = 1
         elif nput.is_numeric(operator_type):
             padding = operator_type
+        elif isinstance(operator_type, str):
+            if operator_type == 'transition_moment':
+                padding = 1
+                index_padding = 1
+                base_terms.append(
+                    OperatorExpansionTerm(
+                        [],
+                        order=0,
+                        index=0,
+                        identities=[5],
+                        logger=logger
+                    )
+                )
+            else:
+                raise ValueError("unknown operator type {}".format(operator_type))
         else:
-            raise NotImplementedError("only one type of expansion currently supported")
+            raise ValueError("unknown operator type {}".format(operator_type))
 
-        return [
+        shift_order = len(base_terms)
+        expansion_terms = [
             OperatorExpansionTerm(
                 [['x'] * (o + padding)],
                 order=o,
+                index=index_padding+o,
                 identities=[5],
                 logger=logger
             )
             for o in range(order+1)
         ]
+
+        final_terms = [
+            PerturbationTheoryTermSum(b,e)
+            for b,e in zip(base_terms, expansion_terms)
+        ] + expansion_terms[shift_order:]
+
+        # raise Exception(final_terms, min_order, expansion_terms, shift_order)
+
+        return final_terms
+
 
 
 
@@ -3344,7 +3374,7 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
         self.allowed_coefficients=allowed_coefficients
         self.disallowed_coefficients=disallowed_coefficients
 
-    def get_subexpresions(self) -> 'Iterable[PerturbationTheoryTerm]':
+    def get_subexpressions(self) -> 'Iterable[PerturbationTheoryTerm]':
         raise NotImplementedError("just here to be overloaded")
     def __mul__(self, other):
         if isinstance(other, PerturbationTheoryTerm):
@@ -3361,7 +3391,7 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
     @property
     def expressions(self):
         if self._exprs is None:
-            self._exprs = self.get_subexpresions()
+            self._exprs = self.get_subexpressions()
         return self._exprs
 
     @staticmethod
@@ -3568,11 +3598,14 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                     return terms
 
 class OperatorExpansionTerm(PerturbationTheoryTerm):
-    def __init__(self, terms, order=None, identities=None, symmetrizers=None, allowed_terms=None, **opts):
+    def __init__(self, terms, order=None, identities=None, symmetrizers=None, index=None, allowed_terms=None, **opts):
         super().__init__(allowed_terms=allowed_terms, **opts)
 
         self.terms = terms
         self.order = order
+        if index is None:
+            index = order
+        self.index = index
         self.identities = np.arange(len(self.terms)) if identities is None else identities
         if symmetrizers is None:
             symmetrizers = [PTTensorCoeffProductSum._potential_symmetrizer] * (max(self.identities) + 1)
@@ -3637,7 +3670,7 @@ class OperatorExpansionTerm(PerturbationTheoryTerm):
                                 changes[tuple(subp)] = None
         return changes
 
-    def get_subexpresions(self) -> 'Iterable[PerturbationTheoryTerm]':
+    def get_subexpressions(self) -> 'Iterable[PerturbationTheoryTerm]':
         raise NotImplementedError("shouldn't need this here...")
 
     def get_core_poly(self, changes, shift=None) -> 'SqrtChangePoly':  # TODO: CACHE THIS SHIT
@@ -3663,7 +3696,7 @@ class OperatorExpansionTerm(PerturbationTheoryTerm):
                     subpolys = [
                         ProductPTPolynomial([np.array([1])], steps=0)
                     ]
-                    prefactor = (self.order, self.identities[term_index])  # type: tuple[int]
+                    prefactor = (self.index, self.identities[term_index])  # type: tuple[int]
                     poly_contribs[(prefactor,)] = poly_contribs.get((prefactor,), 0) + ProductPTPolynomialSum(subpolys)
                 continue
 
@@ -3732,7 +3765,7 @@ class OperatorExpansionTerm(PerturbationTheoryTerm):
 
                         if isinstance(base_poly, SqrtChangePoly):
                             base_poly = base_poly.poly_obj
-                        prefactor = (self.order, term_id) + symm_idx #type: tuple[int]
+                        prefactor = (self.index, term_id) + symm_idx #type: tuple[int]
                         poly_contribs[(prefactor,)] = poly_contribs.get((prefactor,), 0) + base_poly
 
         new = PTTensorCoeffProductSum(poly_contribs, canonicalize=False)
@@ -3955,7 +3988,7 @@ class ShiftedHamiltonianCorrection(PerturbationTheoryTerm):
         base_changes[()] = None  # also the constant term
         return base_changes
 
-    def get_subexpresions(self) -> 'Iterable[PerturbationTheoryTerm]':
+    def get_subexpressions(self) -> 'Iterable[PerturbationTheoryTerm]':
         H = self.parent.hamiltonian_expansion
         E = self.parent.energy_correction
         k = self.order
@@ -3993,7 +4026,7 @@ class WavefunctionCorrection(PerturbationTheoryTerm):
         # base_changes[()] = None # also the constant term
         return base_changes
 
-    def get_subexpresions(self):
+    def get_subexpressions(self):
         H = self.parent.shifted_hamiltonian_correction
         E = self.parent.energy_correction
         W = self.parent.wavefunction_correction
@@ -4025,7 +4058,7 @@ class EnergyCorrection(PerturbationTheoryTerm):
     def get_changes(self) -> 'dict[tuple[int], Any]':
         return {():None}
 
-    def get_subexpresions(self) -> 'Iterable[PerturbationTheoryTerm]':
+    def get_subexpressions(self) -> 'Iterable[PerturbationTheoryTerm]':
         H = self.parent.hamiltonian_expansion
         J = self.parent.shifted_hamiltonian_correction
         W = self.parent.full_wavefunction_correction
@@ -4085,7 +4118,7 @@ class WavefunctionOverlapCorrection(PerturbationTheoryTerm):
             changes = [()]
         return {ch:None for ch in changes}
 
-    def get_subexpresions(self) -> 'Iterable[PerturbationTheoryTerm]':
+    def get_subexpressions(self) -> 'Iterable[PerturbationTheoryTerm]':
         W = self.parent.full_wavefunction_correction
         k = self.order
         L = lambda o:ShiftedEnergyBaseline(W(o))
@@ -4123,7 +4156,7 @@ class FullWavefunctionCorrection(PerturbationTheoryTerm):
         base_changes[()] = None  # also the constant term
         return base_changes
 
-    def get_subexpresions(self) -> 'Iterable[PerturbationTheoryTerm]':
+    def get_subexpressions(self) -> 'Iterable[PerturbationTheoryTerm]':
         W = self.parent.wavefunction_correction
         O = self.parent.overlap_correction
         k = self.order
@@ -4164,7 +4197,7 @@ class OperatorCorrection(PerturbationTheoryTerm):
         else:
             return self._wavefunction_generator(o)
 
-    def get_subexpresions(self,
+    def get_subexpressions(self,
                           bra_wavefunction_generator=None,
                           ket_wavefunction_generator=None,
                           bounds=None,
@@ -4233,7 +4266,7 @@ class OperatorDegenerateCorrection(OperatorCorrection):
             self.op = real_parent
         def __repr__(self):
             return "<n||{}|m>({},{})".format(self.op.repr_key, self.op.degenerate_changes, self.order)
-        def get_subexpresions(self):
+        def get_subexpressions(self):
             woof = self.op.get_left_degenerate_expressions()
             return woof
     class Right(OperatorCorrection):
@@ -4242,7 +4275,7 @@ class OperatorDegenerateCorrection(OperatorCorrection):
             self.op = real_parent
         def __repr__(self):
             return "<n|{}||m>({},{})".format(self.op.repr_key,self.op.degenerate_changes,self.order)
-        def get_subexpresions(self):
+        def get_subexpressions(self):
             return self.op.get_right_degenerate_expressions()
     class Both(OperatorCorrection):
         def __init__(self, parent, order, real_parent):
@@ -4250,9 +4283,9 @@ class OperatorDegenerateCorrection(OperatorCorrection):
             self.op = real_parent
         def __repr__(self):
             return "<n||{}||m>({},{})".format(self.op.repr_key,self.op.degenerate_changes,self.order)
-        def get_subexpresions(self):
+        def get_subexpressions(self):
             return self.op.get_both_degenerate_expressions()
-    def get_subexpresions(self,
+    def get_subexpressions(self,
                           bra_wavefunction_generator=None,
                           ket_wavefunction_generator=None
                           ) -> 'Iterable[PerturbationTheoryTerm]':
@@ -4262,15 +4295,15 @@ class OperatorDegenerateCorrection(OperatorCorrection):
         W2 = lambda o: self.parent.overlap_correction(o, degenerate_changes=self.degenerate_changes)
         L2 = lambda o: ShiftedEnergyBaseline(W2(o))
         return (
-                super().get_subexpresions(
+                super().get_subexpressions(
                     bra_wavefunction_generator=L1,
                     ket_wavefunction_generator=W2
                 )
-                + super().get_subexpresions(
+                + super().get_subexpressions(
                     bra_wavefunction_generator=L2,
                     ket_wavefunction_generator=W1
                 )
-                + super().get_subexpresions(
+                + super().get_subexpressions(
                     bra_wavefunction_generator=L2,
                     ket_wavefunction_generator=W2
                 )
@@ -4284,7 +4317,7 @@ class OperatorDegenerateCorrection(OperatorCorrection):
         # L1 = lambda o: ShiftedEnergyBaseline(W1(o))
         W2 = lambda o: self.parent.overlap_correction(o, degenerate_changes=self.degenerate_changes)
         L2 = lambda o: ShiftedEnergyBaseline(W2(o))
-        return super().get_subexpresions(
+        return super().get_subexpressions(
             bra_wavefunction_generator=L2,
             ket_wavefunction_generator=None,
             # const_zeros=[True, False]
@@ -4298,7 +4331,7 @@ class OperatorDegenerateCorrection(OperatorCorrection):
         # L1 = lambda o: ShiftedEnergyBaseline(W1(o))
         W2 = lambda o: self.parent.overlap_correction(o, degenerate_changes=self.degenerate_changes)
         L2 = lambda o: ShiftedEnergyBaseline(W2(o))
-        return super().get_subexpresions(
+        return super().get_subexpressions(
             bra_wavefunction_generator=None,
             ket_wavefunction_generator=W2,
             # const_zeros=[False, True]
@@ -4310,7 +4343,7 @@ class OperatorDegenerateCorrection(OperatorCorrection):
                                         ) -> 'Iterable[PerturbationTheoryTerm]':
         W2 = lambda o: self.parent.overlap_correction(o, degenerate_changes=self.degenerate_changes)
         L2 = lambda o: ShiftedEnergyBaseline(W2(o))
-        return super().get_subexpresions(
+        return super().get_subexpressions(
             bra_wavefunction_generator=L2,
             ket_wavefunction_generator=W2,
             bounds=[1, self.order],
@@ -4375,6 +4408,25 @@ class ScaledPerturbationTheoryTerm(PerturbationTheoryTerm):
         else:
             new = SqrtChangePoly(self.prefactor * base, changes, shift)
         return new
+
+class PerturbationTheoryTermSum(PerturbationTheoryTerm):
+
+    def __init__(self, *terms):
+        super().__init__(logger=terms[0].logger)
+        self.terms = terms
+    def __repr__(self):
+        return "+".join("{}".format(t) for t in self.terms)
+    def get_changes(self):
+        base_changes = {}
+        for expr in self.expressions:
+            for subchange in expr.changes:
+                base_changes[subchange] = base_changes.get(subchange, [])
+                base_changes[subchange].append(expr) # just track which exprs generate the change
+        base_changes[()] = None # also the constant term
+        return base_changes
+
+    def get_subexpressions(self):
+        return self.terms
 
 class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
 
@@ -4522,7 +4574,6 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
 
             for i2, ch2 in enumerate(self.gen2.changes):
                 if len(ch2) == 2 and isinstance(ch2[0], tuple): continue
-
 
                 # we're back to one change at a time, since most of the manipulations scale only across the
                 # same number of terms and the same number of unique classes
@@ -6060,7 +6111,7 @@ class PerturbationTheoryEvaluator:
         other_degs = only_degenerate_terms[0] is only_degenerate_terms[1]
         if other_degs and not only_degs:
             new_corrs = [-c for c in new_corrs]
-        print(f"|{key}", gen, "->", new_corrs)
+        # print(f"|{key}", gen, "->", new_corrs)
         if gen_corrs is None:
             gen_corrs = new_corrs
         else:
@@ -6364,6 +6415,7 @@ class PerturbationTheoryEvaluator:
     def get_operator_corrections(self, operator_expansion, states,
                                  order=None, expansions=None, freqs=None,
                                  degenerate_states=None,
+                                 operator_type=None,
                                  terms=None, min_order=1, verbose=False, **opts):
         if self.is_single_expansion(operator_expansion, min_order=min_order):
             exps = self._prep_operator_expansion(expansions, operator_expansion)
@@ -6374,12 +6426,13 @@ class PerturbationTheoryEvaluator:
                 self._prep_operator_expansion(expansions, o)
                 for o in operator_expansion
             ]
-
+        if operator_type is None:
+            operator_type = min_order
         return self.get_state_by_state_corrections(
-            lambda *a, **kw: self.solver.operator_correction(*a, operator_type=min_order, **kw),
+            lambda *a, **kw: self.solver.operator_correction(*a, operator_type=operator_type, **kw),
             states, order=order,
             expansions=exps, freqs=freqs, terms=terms, degenerate_states=degenerate_states,
-            degenerate_correction_generator=lambda *a, **kw: self.solver.operator_degenerate_correction(*a, operator_type=min_order, **kw),
+            degenerate_correction_generator=lambda *a, **kw: self.solver.operator_degenerate_correction(*a, operator_type=operator_type, **kw),
             verbose=verbose, **opts)
 
     def evaluate_expressions(self, states, exprs, expansions=None, operator_expansions=None,

@@ -233,26 +233,59 @@ class VPT2Tests(TestCase):
                 [
                     0,
                     [
-                        [0, 0, 0, 1],
-                        # [0, 0, 0, 0, 1, 0],
-                        # [0, 0, 0, 2, 0, 0]
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, 0, 1, 0],
+                        [0, 0, 0, 2, 0, 0]
                     ],
                 ],
-                # [
-                #     [
-                #         [0, 0, 0, 0, 0, 1],
-                #     ],
-                #     [
-                #         [0, 0, 0, 0, 1, 0],
-                #         [0, 0, 0, 2, 0, 0]
-                #     ],
-                # ]
+                [
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                    ],
+                    [
+                        [0, 0, 0, 0, 1, 0],
+                        [0, 0, 0, 2, 0, 0]
+                    ],
+                ]
             ],
-            mode_selection=[0, 2, 3, 4]
-            # degeneracy_specs='auto',
-            # mixed_derivative_handling_mode='analytical'
+            degeneracy_specs='auto'
         )
-        classic, _ = runner.construct_classic_runner(states)
+
+        # nmodes = len(modes) if modes is not None else 6
+        # for c in itertools.combinations(range(nmodes), 1):
+        #     for i in itertools.permutations(c):
+        #         for p in itertools.permutations([i, i, i]):
+        #             runner.eval.expansions[1][0][p] = 0
+        #             for ax in range(3):
+        #                 runner.dipole_expansion[ax][1][i] = 0
+        #                 runner.dipole_expansion[ax][2][i,i] = 0
+        #                 runner.dipole_expansion[ax][3][i,i,i] = 0
+        # for c in itertools.combinations(range(nmodes), 2):
+        #     for i,j in itertools.permutations(c):
+        #         if (i, j) not in {}:
+        #             for p in itertools.permutations([i, i, j]):
+        #                 runner.eval.expansions[1][0][p] = 0
+        #                 for ax in range(3):
+        #                     if c not in {(0,1)}:
+        #                         runner.dipole_expansion[ax][2][i,j] = 0
+        #                     runner.dipole_expansion[ax][3][p] = 0
+        #         # if (i, j) not in {(0, 1)}:
+        # for i,j,k in itertools.combinations(range(nmodes), 3):
+        #     if (i, j, k) not in {(0,1,2)}:
+        #         for p in itertools.permutations([i, j, k]):
+        #             runner.eval.expansions[1][0][p] = 0
+        #             for ax in range(3):
+        #                 runner.dipole_expansion[ax][3][p] = 0
+        # # raise Exception(runner.dipole_expansion[1][2])
+        # prefac = runner.dipole_expansion[1][2][0,1]*runner.eval.expansions[1][0][0,1,2]/2
+        # raise Exception(
+        #     f"{prefac:.16e}",
+        #     "["+",".join(f"{freq:.16e}" for freq in runner.eval.freqs)+"]"
+        # )
+
+        classic, _ = runner.construct_classic_runner(states,
+                                                     zero_element_warning=False
+                                                     )
 
         # wfns, solver = classic.get_wavefunctions(return_solver=True)
         # # corrs = runner.get_full_wavefunction_corrections(
@@ -268,25 +301,9 @@ class VPT2Tests(TestCase):
         #     print([c[2] for c in corrs])
         # raise Exception(...)
 
-        # classic.print_tables()
-        # runner.run_VPT(states)
-
-        corrs_a = runner.get_transition_moment_corrections(
-            states,
-            # axes=[2],
-            # dipole_expansion=dips,
-            # terms=[
-            #     (0, 2, 0),
-            #     (0, 1, 1),
-            #     (0, 0, 2),
-            #     (1, 1, 0),
-            #     (1, 0, 1),
-            #     (2, 0, 0)
-            # ],
-            # verbose=True
-        )
-        print([a[0][0][0,0] for a in corrs_a])
-        print([a[0][2][0,0] for a in corrs_a])
+        classic.print_tables()
+        runner.run_VPT(states)
+        raise Exception(...)
 
     @validationTest
     def test_AnalyticOCHH(self):

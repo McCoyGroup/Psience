@@ -988,6 +988,7 @@ class AnalyticPerturbationTheoryCorrections:
             o = np.argmax(sort_transf[i, :])
             sorting[i] = o
             sort_transf[:, o] = 0.  # np.zeros(len(sort_transf))
+        # print(">>>>", sorting)
 
         # self.logger.log_print('sorting: {s}', s=sorting)
 
@@ -1011,10 +1012,9 @@ class AnalyticPerturbationTheoryCorrections:
             #                               kw,
             #                               s=self.format_matrix(kw['s'])
             #                           ))
-            print(ham * 219475.6)
             e_pos = basis.find(group)
-            if self.only_degenerate_terms:
-                ham = -ham  # only deg terms
+            # if self.only_degenerate_terms:
+            #     ham = -ham  # only deg terms
             engs = energies[e_pos,]
             ham[np.diag_indices_from(ham)] = engs
             deg_engs, deg_mixing = self.handle_degenerate_transformation(ham)
@@ -1034,62 +1034,6 @@ class AnalyticPerturbationTheoryCorrections:
             hams.append(ham)
 
         return energies, (hams, transf)
-
-    def _apply_degenerate_transformations(self,
-                                         initial_states, final_states, subcorr,
-                                         initial_space=None, final_space=None,
-                                         all_degs=None,
-                                         degenerate_mapping=None
-                                         ):
-        if initial_space is None:
-            initial_space = BasisStateSpace(
-                    HarmonicOscillatorProductBasis(len(initial_states[0])),
-                    initial_states
-                )
-        if final_space is None:
-            final_space = BasisStateSpace(
-                    HarmonicOscillatorProductBasis(len(initial_states[0])),
-                    final_states
-                )
-        if all_degs is None:
-            all_degs = BasisStateSpace(
-                HarmonicOscillatorProductBasis(len(initial_states[0])),
-                np.concatenate(self.degenerate_states, axis=0)
-            )
-        if degenerate_mapping is None:
-            deg_map_row = np.concatenate([
-                [i] * len(g) for i,g in enumerate(self.degenerate_states)
-            ])
-            deg_map_col = np.concatenate([
-                np.arange(len(g)) for i, g in enumerate(self.degenerate_states)
-            ])
-        else:
-            deg_map_row, deg_map_col = degenerate_mapping
-        init_pos = all_degs.find(initial_states, missing_val=-1)
-        final_pos = all_degs.find(final_states, missing_val=-1)
-
-        # subcorr is a n_init x n_final object, but we need to figure out the transformation to apply to each axis
-        # to do so we find the appropriate transformation and insert it
-        col_tf = np.eye(len(final_states))
-        for i in final_pos:
-            if i != -1:
-                col_pos = deg_map_row[i]
-                deg_block = self.degenerate_coefficients[col_pos]
-                block_idx = final_space.find(self.degenerate_states[col_pos])
-                row_pos = deg_map_col[i]
-                # print(row_pos, col_pos, col_tf.shape)
-                col_tf[row_pos, block_idx] = deg_block[row_pos]
-        row_tf = np.eye(len(initial_states))
-        for i in init_pos:
-            if i != -1:
-                col_pos = deg_map_row[i]
-                deg_block = self.degenerate_coefficients[col_pos]
-                block_idx = initial_space.find(self.degenerate_states[col_pos])
-                row_pos = deg_map_col[i]
-                # print(row_pos, col_pos, col_tf.shape)
-                row_tf[row_pos, block_idx] = deg_block[row_pos]
-
-        return row_tf @ subcorr @ col_tf.T
 
     @property
     def degenerate_hamiltonians(self):
@@ -1165,7 +1109,7 @@ class AnalyticPerturbationTheoryCorrections:
                     deg_block = self.degenerate_coefficients[col_pos]
                     block_idx = initial_space.find(self.degenerate_states[col_pos])
                     # print(row_pos, col_pos, col_tf.shape)
-                    row_tf[n, block_idx] = deg_block[row_pos]
+                    row_tf[block_idx, n] = deg_block[:, row_pos]
 
             nz_init_pos = [i for i in init_pos if i > -1]
             nz_init = [s for i, s in zip(init_pos, init_states) if i > -1]
@@ -1195,8 +1139,7 @@ class AnalyticPerturbationTheoryCorrections:
                     deg_block = self.degenerate_coefficients[col_pos]
                     block_idx = final_space.find(self.degenerate_states[col_pos])
                     row_pos = deg_map_col[i]
-                    # print(row_pos, col_pos, col_tf.shape)
-                    col_tf[n, block_idx] = deg_block[row_pos]
+                    col_tf[block_idx, n] = deg_block[:, row_pos]
             nz_final_pos = [i for i in final_pos if i > -1]
             nz_final = [s for i, s in zip(final_pos, final_states) if i > -1]
             if len(nz_final_pos) > 0:
@@ -1237,11 +1180,10 @@ class AnalyticPerturbationTheoryCorrections:
 
             if has_subcorrs:
                 for a, (storage, axis_moms) in enumerate(zip(all_tms, corrs)):
-                    storage.append(
-                        row_tf @ axis_moms[block_idx] @ col_tf.T
-                    )
+                    tf_corr = row_tf.T @ axis_moms[block_idx] @ col_tf
+                    storage.append(tf_corr)
             else:
-                all_tms.append(row_tf @ corrs[block_idx] @ col_tf.T)
+                all_tms.append(row_tf.T @ corrs[block_idx] @ col_tf)
 
         return all_tms
 
