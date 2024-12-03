@@ -244,6 +244,8 @@ class VibronicTests(TestCase):
                 ),
                 2
             )
+        # print(uuugh / uuugh[0] * (0.2633e-2))
+        # raise Exception(...)
 
         from Psience.BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis as HO
         # from McUtils.Formatters import TableFormatter
@@ -280,7 +282,9 @@ class VibronicTests(TestCase):
         with GaussianLogReader(woof) as reader:
             nm_data = reader.parse(['InputCartesianCoordinates', 'NormalModes'])
             carts = nm_data['InputCartesianCoordinates'][1][-1]
-            freqs, matrix = nm_data['NormalModes'][0]
+            freqs, masses, matrix = nm_data['NormalModes'][0]
+            renorm = np.diag(1 / np.sqrt(masses))
+            matrix = matrix @ renorm
             gvals, gvecs = np.linalg.eigh(matrix.T @ matrix)
             g12 = gvecs @ np.diag(1/np.sqrt(gvals)) @ gvecs.T
             matrix = matrix @ g12
@@ -310,47 +314,54 @@ class VibronicTests(TestCase):
     @debugTest
     def test_FCFsBig(self):
 
-        root = os.path.expanduser('~/Documents/Postdoc/FCFs/')
+        root = os.path.expanduser('~/Documents/Postdoc/Projects/Tim-Ned-FCFs/FCFs')
         path = lambda *p:os.path.join(root, *p)
 
-        s = 6
-        s = f"Na{s}"
-        # s = "K_low"
-        # s = "K_min"
+        for s in [2, 4, 6]:
 
-        # fc_model = FranckCondonModel.from_mols(
-        #     *reversed(
-        #         self.load_log_mol(
-        #         path(f'{s}_m0_ex_freq.log'),
-        #         path(f'{s}_m0_s0.fchk'))
-        #     ),
-        #     logger=True
-        # )
+        # s = 6
+            # s = "K_min"
+            # fc_model = FranckCondonModel.from_mols(
+            #     *reversed(
+            #         self.load_log_mol(
+            #             path(f'{s}_m0_ex_freq.log'),
+            #             path(f'{s}_m0_s0.fchk')
+            #         )
+            #     ),
+            #     logger=False
+            # )
 
-        # gs, exc = self.load_log_mol(path(f'{s}_m0_freq.log'), path(f'{s}_m0_s1.fchk'))
-        # fc_model = FranckCondonModel.from_mols(
-        #     gs, exc,
-        #     logger=True
-        # )
+            # s = "K_low"
+            # gs, exc = self.load_log_mol(path(f'{s}_m0_freq.log'), path(f'{s}_m0_s1.fchk'))
+            # fc_model = FranckCondonModel.from_mols(
+            #     gs, exc,
+            #     logger=True
+            # )
 
-        fc_model = FranckCondonModel.from_files(
-            path(f'{s}_m0_s0.fchk'),
-            path(f'{s}_m0_s1.fchk'),
-            logger=False,
-            mode_selection=np.arange(50, dtype=int)
-        )
+            s = f"Na{s}"
+            fc_model = FranckCondonModel.from_files(
+                path(f'{s}_m0_s0.fchk'),
+                path(f'{s}_m0_s1.fchk'),
+                logger=False,
+                mode_selection=np.arange(80, dtype=int)
+            )
 
-        main_modes = [1, 4, 7]
-        aux_modes = [0, 2, 5, 8,  9, 10, 12, 13, 15, 20, 24, 25, 27, 28,
-                     33, 37, 41, 44, 46, 47, 51, 55, 56, 59, 60]
-        # nz_modes = [ 0,  1,  2,  4,  5,  7,  8,  9, 10, 12, 13, 15, 20, 24, 25, 27, 28,
-        #              33, 37, 41, 44, 46, 47, 51, 55, 56, 59, 60 ]
+            # raise Exception(
+            #     np.sum(fc_model.gs_nms.freqs * 219475.6 < 1000),
+            #     np.sum(fc_model.es_nms.freqs * 219475.6 < 1000)
+            # )
+
+            main_modes = [1, 4, 7]
+            aux_modes = [0, 2, 5, 8,  9, 10, 12, 13, 15, 20, 24, 25, 27, 28,
+                         33, 37, 41, 44, 46, 47, 51, 55, 56, 59, 60]
+            # nz_modes = [ 0,  1,  2,  4,  5,  7,  8,  9, 10, 12, 13, 15, 20, 24, 25, 27, 28,
+            #              33, 37, 41, 44, 46, 47, 51, 55, 56, 59, 60 ]
 
 
-        q = 4
-        # t0 = 0000
-        t = 2000
-        with BlockProfiler('FCFs'):
+            q = 3
+            # t0 = 0000
+            t = 1000
+            # with BlockProfiler('FCFs'):
             oof, (_, excitations) = fc_model.get_spectrum(
                 {
                     'threshold': t / UnitsData.hartrees_to_wavenumbers,
@@ -369,16 +380,16 @@ class VibronicTests(TestCase):
                     # ]
                 },
                 return_states=True,
-                duschinsky_cutoff=1e-10
+                # duschinsky_cutoff=1e-10
             )
-        # oof.plot().savefig(path(f'{s}_m0_{t}_{q}_quanta.png'))
-        # np.savez(path(f'{s}_m0_{t}_{q}_spec.npz'),
-        #          freqs=oof.frequencies,
-        #          fcfs=oof.intensities,
-        #          excitations=excitations)
-        # with open(path(f'Na2_m0_{t}_{q}_quanta.txt'), 'w+') as out:
-        #     print('Freqs:', oof.frequencies, file=out)
-        #     print('FCFs:', oof.intensities, file=out)
+            np.savez(path(f'{s}_m0_{t}_{q}_spec.npz'),
+                     freqs=oof.frequencies,
+                     fcfs=oof.intensities,
+                     excitations=excitations)
+            with open(path(f'Na2_m0_{t}_{q}_quanta.txt'), 'w+') as out:
+                print('Freqs:', oof.frequencies, file=out)
+                print('FCFs:', oof.intensities, file=out)
+            oof.plot().savefig(path(f'{s}_m0_{t}_{q}_quanta.png'))
 
-        with np.printoptions(linewidth=1e8, threshold=None):
-            print(oof.intensities[:1500])
+            with np.printoptions(linewidth=1e8, threshold=None):
+                print(oof.intensities[:1500])

@@ -1,5 +1,5 @@
 
-import numpy as np, scipy as sp, itertools as it, collections, math, time
+import numpy as np, scipy as sp, itertools as it, collections, math, time, enum
 from McUtils.Scaffolding import Logger
 from McUtils.Formatters import TableFormatter
 from McUtils.Zachary import DensePolynomial
@@ -11,6 +11,10 @@ from ..Modes import NormalModes
 __all__ = [
     'FranckCondonModel'
 ]
+
+class State(enum.Enum):
+    GroundState = 'gs'
+    ExcitedState = 'es'
 
 class FranckCondonModel:
 
@@ -393,40 +397,55 @@ class FranckCondonModel:
         weights[inds] = double_fac
         return weights
 
+    default_rotation_method = 'default'
+    default_rotation_order = State.GroundState
+    default_include_rotation = True
     @classmethod
     def get_overlap_gaussian_data(self,
                                   freqs_gs, modes_gs, inv_gs, center_gs,
                                   freqs_es, modes_es, inv_es, center_es,
-                                  rotation_method='default',
-                                  order='gs'
+                                  rotation_method=None,
+                                  order=None,
+                                  include_rotation=None
                                   ):
 
-        gs_order = order == 'gs'
-        if rotation_method == 'least-squares':
-            # use least squares to express ground state modes as LCs of excited state modes
-            if gs_order:
-                m1 = modes_es
-                m2 = modes_gs
+        if include_rotation is None:
+            include_rotation = self.default_include_rotation
+        if order is None:
+            order = self.default_rotation_order
+        if rotation_method is None:
+            rotation_method = self.default_rotation_method
+
+        gs_order = State(order) == State.GroundState
+        if include_rotation:
+            if rotation_method == 'least-squares':
+                # use least squares to express ground state modes as LCs of excited state modes
+                if gs_order:
+                    m1 = modes_es
+                    m2 = modes_gs
+                else:
+                    m1 = modes_gs
+                    m2 = modes_es
+                ls_tf = np.linalg.inv(m1.T @ m1) @ m1.T @ m2
+                U, s, V = np.linalg.svd(ls_tf)
+                L = U @ V  # Unitary version of a Duschinsky matrix
+                L = L.T
+                if gs_order:
+                    L_g = L
+                    L_e = np.eye(L_g.shape[0])
+                else:
+                    L_e = L
+                    L_g = np.eye(L_e.shape[0])
             else:
-                m1 = modes_gs
-                m2 = modes_es
-            ls_tf = np.linalg.inv(m1.T @ m1) @ m1.T @ m2
-            U, s, V = np.linalg.svd(ls_tf)
-            L = U @ V  # Unitary version of a Duschinsky matrix
-            L = L.T
-            if gs_order:
-                L_g = L
-                L_e = np.eye(L_g.shape[0])
-            else:
-                L_e = L
-                L_g = np.eye(L_e.shape[0])
+                if gs_order:
+                    L_g = inv_es @ modes_gs
+                    L_e = np.eye(L_g.shape[0])
+                else:
+                    L_e = inv_gs @ modes_es
+                    L_g = np.eye(L_e.shape[0])
         else:
-            if gs_order:
-                L_g = inv_es @ modes_gs
-                L_e = np.eye(L_g.shape[0])
-            else:
-                L_e = inv_gs @ modes_es
-                L_g = np.eye(L_e.shape[0])
+            L_e = np.eye(inv_gs.shape[0])
+            L_g = np.eye(inv_gs.shape[0])
 
 
         # find displacement vector (center of gs ground state in this new basis)
@@ -523,6 +542,10 @@ class FranckCondonModel:
                 L_gs,
                 message_prepper=logger.prep_array
             )
+            logger.log_print(
+                "disp: {av}",
+                av=c_es-c_gs
+            )
 
         # We now have the space to define the parameters that go into the overlap calculation
         shift_gs = center - c_gs #- L_gs @ modes_c.T @ center
@@ -612,8 +635,9 @@ class FranckCondonModel:
 
         return overlaps
 
+    embedding_ref = State.ExcitedState
     @classmethod
-    def embed_modes(cls, gs_nms: 'NormalModes', es_nms, masses=None):
+    def embed_modes(cls, gs_nms: 'NormalModes', es_nms, ref=None, masses=None):
         from ..Molecools import Molecule
 
         if masses is None:
@@ -622,6 +646,13 @@ class FranckCondonModel:
             masses = es_nms.masses
         if masses is None:
             raise ValueError("need masses to reembed normal modes")
+        if ref is None:
+            ref = cls.embedding_ref
+
+        gs_embedding = State(ref) == State.GroundState
+
+        if not gs_embedding:
+            es_nms, gs_nms = gs_nms, es_nms
 
         gs = Molecule(['H'] * len(masses), gs_nms.origin, masses=masses)
 
@@ -664,6 +695,9 @@ class FranckCondonModel:
             freqs=es_nms.freqs,
             masses=es_nms.masses
         )
+
+        if not gs_embedding:
+            gs_modes, es_modes = es_modes, gs_modes
 
         return gs_modes, es_modes
 

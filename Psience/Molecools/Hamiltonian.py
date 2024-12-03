@@ -396,7 +396,7 @@ class ModeEmbedding:
                 raise NotImplementedError("not sure what's most consistent for just...plain Cartesians")
             return [self.modes.inverse]
         else:
-            if self.modes is not None: strip_embedding = False
+            if self.modes is not None: strip_embedding = True
             RY = self.get_mw_cartesians_by_internals(
                 order=order,
                 strip_embedding=strip_embedding

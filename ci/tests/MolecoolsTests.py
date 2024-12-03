@@ -781,7 +781,7 @@ class MolecoolsTests(TestCase):
         self.assertAlmostEquals(meh22[1, 1, 0, 0], .009235, places=6)
         self.assertTrue(np.allclose(meh12, meh22))
 
-    @debugTest
+    @validationTest
     def test_CompositeCoordinates(self):
         def conv(r, t, f, **kwargs):
             return [r**2, np.cos(t), np.sin(f)]
@@ -821,3 +821,58 @@ class MolecoolsTests(TestCase):
         ic2 = mol2.internal_coordinates
 
         self.assertAlmostEquals(np.sum(ic1.convert(ic2.system)-ic2)[()], 0.)
+
+    @debugTest
+    def test_FastInternals(self):
+
+        # sys = 'HOONO_freq.fchk'
+        # internals = [
+        #             [1, -1, -1, -1],
+        #             [2, 1, -1, -1],
+        #             [3, 2, 1, -1],
+        #             [0, 1, 2, 3],
+        #             [4, 3, 2, 1]
+        #         ]
+        sys = 'nh3.fchk'
+        internals = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  0,  1, -1],
+            [3,  0,  1,  2]
+        ]
+        mol2 = Molecule.from_file(
+            TestManager.test_data(sys),
+            internals={
+                'zmatrix': internals
+            }
+        )
+        mol2.embedding.cartesian_by_internals_method = 'fast'
+        mol3 = Molecule.from_file(
+            TestManager.test_data(sys),
+            internals={
+                'zmatrix': internals
+            }
+        )
+        mol3.embedding.cartesian_by_internals_method = 'numerical'
+        # print(mol2.hamiltonian.potential_expansion(3)[2][0])
+        # print(mol3.hamiltonian.potential_expansion(3)[2][0])
+        # raise Exception(...)
+        L_base = mol2.embedding.get_translation_rotation_invariant_transformation(mass_weighted=False)
+        jacs_1 = mol2.get_internals_by_cartesians(2, strip_embedding=True)
+        new_tf = nput.tensor_reexpand([L_base.T], jacs_1, 2)
+        inverse_tf = nput.inverse_transformation(new_tf, 2)
+        jacs_2_test = [
+            np.tensordot(j, L_base, axes=[-1, -1])
+            for j in inverse_tf
+        ]
+        jacs_2 = mol2.embedding.get_cartesians_by_internals(2, reembed=True, strip_embedding=True, method='og')
+        i,j = [0, 2]
+        print(np.round(jacs_2[1][i, j], 8))
+        print(np.round(jacs_2_test[1][i, j], 8))
+        print(np.round(jacs_2[1][i, j] - jacs_2_test[1][i, j], 8))
+        # print(jacs_2[1].shape)
+        woof = np.array(np.where(np.abs(jacs_2[1] - jacs_2_test[1]) > 1e-7)).T
+        print(np.unique(woof[:, :2], axis=0))
+        # print(len(woof[0]))
+        raise Exception(...)
+

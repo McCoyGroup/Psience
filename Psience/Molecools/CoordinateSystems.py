@@ -44,6 +44,7 @@ class MolecularEmbedding:
         }
         # self._int_spec = internals
         self._frame = None
+        self._tr_modes = None
 
     @property
     def coords(self):
@@ -321,8 +322,20 @@ class MolecularEmbedding:
                 embedding = None
         return embedding
 
-    def get_cartesians_by_internals(self, order=None, strip_embedding=False, reembed=True):
-        if not reembed:
+    cartesian_by_internals_method = 'fast'
+    def get_cartesians_by_internals(self, order=None, strip_embedding=False, reembed=True, method=None):
+        if method is None:
+            method = self.cartesian_by_internals_method
+        if reembed and method == 'fast':
+            L_base = self.get_translation_rotation_invariant_transformation(strip_embedding=strip_embedding, mass_weighted=False)
+            jacs_1 = self.get_internals_by_cartesians(order, strip_embedding=strip_embedding)
+            new_tf = nput.tensor_reexpand([L_base.T], jacs_1, 2)
+            inverse_tf = nput.inverse_transformation(new_tf, 2)
+            return [
+                np.tensordot(j, L_base, axes=[-1, -1])
+                for j in inverse_tf
+            ]
+        elif not reembed and method == 'fast':
             wtf = self.get_internals_by_cartesians(order, strip_embedding=False) # faster to just do these derivs.
             base = nput.inverse_transformation(wtf, order-1)
             # print(order, len(wtf), len(base))
@@ -418,41 +431,39 @@ class MolecularEmbedding:
 
     def inertial_frame_derivatives(self):
 
-        real_pos = self.masses > 0
-        mass = self.masses[real_pos]
-        crds = self.coords[real_pos, :]
+        return StructuralProperties.get_prop_inertial_frame_derivatives(
+                self.coords,
+                self.masses
+            )
 
-        mass = np.sqrt(mass)
-        carts = mass[:, np.newaxis] * crds  # mass-weighted Cartesian coordinates
+    @property
+    def translation_rotation_modes(self):
+        if self._tr_modes is None:
+            self._tr_modes = StructuralProperties.get_prop_translation_rotation_eigenvectors(
+                self.coords,
+                self.masses
+            )
 
-        ### compute basic inertia tensor derivatives
-        # first derivs are computed as a full (nAt, 3, I_rows (3), I_cols (3)) tensor
-        # and then reshaped to (nAt * 3, I_rows, I_cols)
-        eyeXeye = np.eye(9).reshape(3, 3, 3, 3).transpose((2, 0, 1, 3))
-        I0Y_1 = np.tensordot(carts, eyeXeye, axes=[1, 0])
+        return self._tr_modes
 
-        nAt = carts.shape[0]
-        nY = nAt * 3
-        I0Y_21 = (
-                np.reshape(np.eye(3), (9,))[np.newaxis, :, np.newaxis]
-                * carts[:, np.newaxis, :]
-        )  # a flavor of outer product
-        I0Y_21 = I0Y_21.reshape((nAt, 3, 3, 3))
-        I0Y_2 = (I0Y_21 + I0Y_21.transpose((0, 1, 3, 2)))
-        I0Y = 2 * I0Y_1 - I0Y_2
-        I0Y = I0Y.reshape((nY, 3, 3))
 
-        # second derivatives are 100% independent of coorinates
-        # only the diagonal blocks are non-zero, so we compute that block
-        # and then tile appropriately
-        keyXey = np.eye(9).reshape(3, 3, 3, 3)
-        I0YY_nn = 2 * eyeXeye - (keyXey + keyXey.transpose((0, 1, 3, 2)))
-        I0YY = np.zeros((nAt, 3, nAt, 3, 3, 3))
-        for n in range(nAt):
-            I0YY[n, :, n, :, :, :] = I0YY_nn
-        I0YY = I0YY.reshape((nY, nY, 3, 3))
+    def get_translation_rotation_invariant_transformation(self,
+                                                          order=0,
+                                                          mass_weighted=True,
+                                                          strip_embedding=True):
+        L_tr = self.translation_rotation_modes[1]
+        A = np.eye(L_tr.shape[0]) - (L_tr @ L_tr.T)
+        evals, tf = np.linalg.eigh(A)
+        zero_pos = np.abs(evals) < 1e-4 # the rest should be 1
+        tf[:, zero_pos] = L_tr
+        if strip_embedding:
+            nzpos = np.abs(evals) > 1e-4
+            tf = tf[:, nzpos]
 
-        return [I0Y, I0YY]
+        if not mass_weighted:
+            tf = np.diag(np.repeat(1/np.sqrt(self.masses), 3)) @ tf
+
+        return tf
 
 
 def _get_best_axes(first_pos, axes):
