@@ -7,7 +7,9 @@ import numpy as np
 import McUtils.Numputils as nput
 from McUtils.Coordinerds import (
     ZMatrixCoordinateSystem, CartesianCoordinateSystem, CoordinateSystemConverter,
-    ZMatrixCoordinates, CartesianCoordinates3D, CoordinateSet, CompositeCoordinateSystem
+    ZMatrixCoordinates, CartesianCoordinates3D, CoordinateSet, CompositeCoordinateSystem,
+    GenericInternalCoordinateSystem, GenericInternalCoordinates,
+    CartesianToGICSystemConverter, GICSystemToCartesianConverter
 )
 from .Properties import StructuralProperties
 from McUtils.Parallelizers import Parallelizer
@@ -89,49 +91,46 @@ class MolecularEmbedding:
     def canonicalize_internal_coordinate_spec(cls, spec):
         if spec is not None:
             if hasattr(spec, 'items'):
-                try:
-                    zmatrix = spec['zmatrix']
-                except KeyError:
-                    zmatrix = None
-                else:
-                    zmatrix = np.asanyarray(zmatrix).astype(int)
-                    if zmatrix.shape[1] != 4:
-                        raise ValueError("can't understand Z-matrix {}".format(zmatrix))
-                spec['zmatrix'] = zmatrix
-                try:
-                    conversion = spec['conversion']
-                except KeyError:
-                    conversion = None
-                spec['conversion'] = cls._wrap_conv(conversion)
-                try:
-                    inverse = spec['inverse']
-                except KeyError:
-                    inverse = None
-                spec['inverse'] = cls._wrap_conv(inverse)
-                try:
-                    converter_options = spec['converter_options']
-                except KeyError:
-                    converter_options = {}
-                else:
+                specs = spec.get('specs')
+                if specs is None:
+                    try:
+                        zmatrix = spec['zmatrix']
+                    except KeyError:
+                        zmatrix = None
+                    else:
+                        zmatrix = np.asanyarray(zmatrix).astype(int)
+                        if zmatrix.shape[1] != 4:
+                            raise ValueError("can't understand Z-matrix {}".format(zmatrix))
+                    spec['zmatrix'] = zmatrix
+                    spec['conversion'] = cls._wrap_conv(spec.get('conversion'))
+                    spec['inverse'] = cls._wrap_conv(spec.get('inverse'))
+                    converter_options = spec.get('converter_options')
                     if converter_options is None:
                         converter_options = {}
-                if 'embedding_coords' not in converter_options:
-                    if spec['zmatrix'] is not None:
-                        converter_options['embedding_coords'] = MolecularZMatrixCoordinateSystem.embedding_coords
-                if 'jacobian_prep' not in converter_options:
-                    if spec['zmatrix'] is not None:
-                        converter_options['jacobian_prep'] = ZMatrixCoordinates.jacobian_prep_coordinates
-                spec['converter_options'] = converter_options
+                    if 'embedding_coords' not in converter_options:
+                        if spec['zmatrix'] is not None:
+                            converter_options['embedding_coords'] = MolecularZMatrixCoordinateSystem.embedding_coords
+                    if 'jacobian_prep' not in converter_options:
+                        if spec['zmatrix'] is not None:
+                            converter_options['jacobian_prep'] = ZMatrixCoordinates.jacobian_prep_coordinates
+                    spec['converter_options'] = converter_options
             elif callable(spec):
                 zmatrix = None
+                specs = None
                 conversion = cls._wrap_conv(spec)
-                spec = {'zmatrix': zmatrix, 'conversion': conversion, 'inverse': None, 'converter_options': {}}
+                spec = {'specs': specs, 'zmatrix': zmatrix, 'conversion': conversion, 'inverse': None, 'converter_options': {}}
             else:
-                conversion = None
-                zmatrix = np.asanyarray(spec).astype(int)
-                if zmatrix.shape[1] != 4:
-                    raise ValueError("can't understand Z-matrix {}".format(zmatrix))
-                spec = {'zmatrix': zmatrix, 'conversion': conversion, 'inverse': None, 'converter_options': {}}
+                if any(len(s) < 4 or hasattr(s, 'items') for s in spec):
+                    conversion = None
+                    specs = spec
+                    zmatrix = None
+                else:
+                    conversion = None
+                    specs = None
+                    zmatrix = np.asanyarray(spec).astype(int)
+                    if zmatrix.shape[1] != 4:
+                        raise ValueError("can't understand Z-matrix {}".format(zmatrix))
+                spec = {'specs': specs, 'zmatrix': zmatrix, 'conversion': conversion, 'inverse': None, 'converter_options': {}}
         return spec
 
     @property
@@ -165,10 +164,15 @@ class MolecularEmbedding:
     def internal_coordinates(self):
         if self._ints is None and (
                 self._int_spec is not None
-                and (self._int_spec['zmatrix'] is not None or self._int_spec['conversion'] is not None)
+                and any(self._int_spec[k] is not None for k in {'zmatrix', 'conversion', 'specs'})
         ):
             coords = self.coords
-            if self._int_spec['zmatrix'] is not None:
+            if self._int_spec['specs'] is not None:
+                ints = MolecularGenericInternalCoordinateSystem(self.masses, coords, specs=self._int_spec['specs'])
+                MolecularCartesianToGICConverter(coords.system, ints).register()
+                MolecularGICToCartesianConverter(ints, coords.system).register()
+                coords = coords.convert(ints)
+            elif self._int_spec['zmatrix'] is not None:
                 zms = MolecularZMatrixCoordinateSystem(self.masses, coords, ordering=self._int_spec['zmatrix'])
                 MolecularCartesianToZMatrixConverter(coords.system, zms).register()
                 MolecularZMatrixToCartesianConverter(zms, coords.system).register()
@@ -210,7 +214,7 @@ class MolecularEmbedding:
                         jacs,
                         strip_dummies=False,
                         stencil=None, mesh_spacing=1.0e-3,
-                        all_numerical=True, reembed=True,
+                        all_numerical=None, reembed=True,
                         planar_ref_tolerance=None,
                         parallelizer=None
                         ):
@@ -226,6 +230,22 @@ class MolecularEmbedding:
         ccoords = self.coords
         carts = ccoords.system
         internals = intcds.system
+
+        generics = 'GenericInternals' not in internals.name
+        zmatrix = 'ZMatrix' in internals.name
+
+        if all_numerical is None:
+            all_numerical = zmatrix
+
+        converter_options = (
+            dict(
+                reembed=reembed,
+                planar_ref_tolerance=planar_ref_tolerance,
+                strip_dummies=strip_dummies
+            )
+                if zmatrix else
+            {}
+        )
 
         if isinstance(jacs, int):
             jacs = list(range(1, jacs + 1))
@@ -244,11 +264,7 @@ class MolecularEmbedding:
                                              mesh_spacing=mesh_spacing,
                                              stencil=stencil,
                                              all_numerical=all_numerical,
-                                             converter_options=dict(
-                                                 reembed=reembed,
-                                                 planar_ref_tolerance=planar_ref_tolerance,
-                                                 strip_dummies=strip_dummies
-                                             ),
+                                             converter_options=converter_options,
                                              parallelizer=par
                                              )
                 ]
@@ -265,7 +281,7 @@ class MolecularEmbedding:
     def _get_cart_jacobs(self, jacs,
                          strip_dummies=False,
                          stencil=None, mesh_spacing=1.0e-3,
-                         all_numerical=True,
+                         all_numerical=None,
                          parallelizer=None
                          ):
         """
@@ -280,6 +296,17 @@ class MolecularEmbedding:
         ccoords = self.coords
         carts = ccoords.system
         internals = intcds.system
+        generics = 'GenericInternals' not in internals.name
+        zmatrix = 'ZMatrix' in internals.name
+
+        if all_numerical is None:
+            all_numerical = zmatrix
+
+        converter_options = (
+            dict(strip_dummies=strip_dummies)
+                if zmatrix else
+            {}
+        )
 
         if isinstance(jacs, int):
             jacs = list(range(1, jacs + 1))
@@ -297,7 +324,7 @@ class MolecularEmbedding:
                                               mesh_spacing=mesh_spacing,
                                               stencil=stencil,
                                               all_numerical=all_numerical,
-                                              converter_options=dict(strip_dummies=strip_dummies),
+                                              converter_options=converter_options,
                                               parallelizer=par
                                               )
                 ]
@@ -325,19 +352,24 @@ class MolecularEmbedding:
     cartesian_by_internals_method = 'fast'
     def get_cartesians_by_internals(self, order=None, strip_embedding=False, reembed=True, method=None):
         if method is None:
-            method = self.cartesian_by_internals_method
+            int_sys = self.internal_coordinates.system
+            if "GenericInternals" in int_sys.name:
+                method = 'classic'
+            else:
+                method = self.cartesian_by_internals_method
+
         if reembed and method == 'fast':
             L_base = self.get_translation_rotation_invariant_transformation(strip_embedding=strip_embedding, mass_weighted=False)
             jacs_1 = self.get_internals_by_cartesians(order, strip_embedding=strip_embedding)
             new_tf = nput.tensor_reexpand([L_base.T], jacs_1, 2)
-            inverse_tf = nput.inverse_transformation(new_tf, 2)
+            inverse_tf = nput.inverse_transformation(new_tf, 2, allow_pseudoinverse=True)
             return [
                 np.tensordot(j, L_base, axes=[-1, -1])
                 for j in inverse_tf
             ]
         elif not reembed and method == 'fast':
             wtf = self.get_internals_by_cartesians(order, strip_embedding=False) # faster to just do these derivs.
-            base = nput.inverse_transformation(wtf, order-1)
+            base = nput.inverse_transformation(wtf, order-1, allow_pseudoinverse=True)
             # print(order, len(wtf), len(base))
         else:
             base = self._get_int_jacobs(order, reembed=reembed) if order is not None else self._jacobians['internals']
@@ -353,8 +385,10 @@ class MolecularEmbedding:
             _ = []
             sh = self.coords.shape[:-2]
             nc = 3 * len(self.masses)
+            nr = len(sh)
             for i, b in enumerate(base):
-                b = b.reshape(sh + (nc,) * (i + 2))
+                rem = np.sum(b.shape[nr:-1], dtype=int) // (i+1)
+                b = b.reshape(sh + (rem,) * (i+1) + (nc,))
                 _.append(b)
             base = _
 
@@ -379,7 +413,7 @@ class MolecularEmbedding:
         sh = self.coords.shape[:-2]
         nc = 3 * len(self.masses)
         for i, b in enumerate(base):
-            b = b.reshape(sh + (nc,) * (i + 2))
+            b = b.reshape(sh + (nc,) * (i + 1) + (b.shape[-1],))
             _.append(b)
         base = _
 
@@ -520,6 +554,29 @@ def _get_best_axes(first_pos, axes):
             ax_names = ["A", "B"]
         axes = axes[ax_choice,]
     return axes, ax_names, ax_choice
+
+class MolecularGenericInternalCoordinateSystem(GenericInternalCoordinateSystem):
+    """
+    Mirrors the standard ZMatrix coordinate system in _almost_ all regards, but forces an embedding
+    """
+    name = "MolecularGenericInternals"
+    def __init__(self, masses, coords, converter_options=None, specs=None, **opts):
+        """
+
+        :param molecule:
+        :type molecule: AbstractMolecule
+        :param converter_options:
+        :type converter_options:
+        :param opts:
+        :type opts:
+        """
+        self.masses = masses
+        self.coords = coords
+        if converter_options is None:
+            converter_options = dict(opts, reference_coordinates=coords, masses=masses, specs=specs)
+            opts = {}
+        nats = len(specs)
+        super().__init__(converter_options=converter_options, dimension=(nats,), coordinate_shape=(nats,), opts=opts)
 
 class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
     """
@@ -683,7 +740,8 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
 
     def pre_convert(self, system):
         self.converter_options['masses'] = self.masses
-        self.set_embedding()
+        if 'ZMatrix' in system.name:
+            self.set_embedding()
 
     def set_embedding(self):
         """
@@ -719,11 +777,14 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
     def jacobian(self,
                  coords,
                  system,
+                 return_derivs=None,
                  strip_dummies=None,
                  converter_options=None,
                  analytic_deriv_order=None,
                  **kwargs
                  ):
+
+        zmat_conv = 'ZMatrix' in system.name
 
         if converter_options is None:
             converter_options = {}
@@ -736,7 +797,10 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         try:
             analytic_deriv_order = merged_convert_options['analytic_deriv_order'] if analytic_deriv_order is None else analytic_deriv_order
         except KeyError:
-            analytic_deriv_order = 0
+            if zmat_conv:
+                analytic_deriv_order = 0
+            else:
+                analytic_deriv_order = return_derivs if nput.is_numeric(return_derivs) else max(return_derivs)
 
         if strip_dummies:
             dummies = self.dummy_positions
@@ -753,29 +817,34 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         else:
             main_excludes = None
 
-        jacs = super().jacobian(coords, system, analytic_deriv_order=analytic_deriv_order, converter_options=converter_options, **kwargs)
+        jacs = super().jacobian(coords, system,
+                                analytic_deriv_order=analytic_deriv_order,
+                                converter_options=converter_options,
+                                **kwargs)
         if isinstance(jacs, np.ndarray):
             jacs = [jacs]
-        raw_jacs = []
-        for n,j in enumerate(jacs): # this expects a full filling of the jacobians which maybe I need to not expect...
-            baseline = 2*analytic_deriv_order + len(coords.shape)
-            ext_dim = j.ndim - baseline
-            shp = sum(
-                ((j.shape[i] // 3, 3) for i in range(ext_dim)),
-                ()
-            ) + j.shape[-baseline:]
-            j = j.reshape(shp)
-            if dummies is not None:
-                for i in range(ext_dim):
-                    j = np.take(j, main_excludes, axis=2*i)
-                for i in range(analytic_deriv_order):
-                    j = np.take(j, main_excludes, axis=-2*(i+2))
 
-            if len(coords.shape) > 2:
-                j = np.moveaxis(j, -3, 0)
+        if zmat_conv:
+            raw_jacs = []
+            for n,j in enumerate(jacs): # this expects a full filling of the jacobians which maybe I need to not expect...
+                baseline = 2*analytic_deriv_order + len(coords.shape)
+                ext_dim = j.ndim - baseline
+                shp = sum(
+                    ((j.shape[i] // 3, 3) for i in range(ext_dim)),
+                    ()
+                ) + j.shape[-baseline:]
+                j = j.reshape(shp)
+                if dummies is not None:
+                    for i in range(ext_dim):
+                        j = np.take(j, main_excludes, axis=2*i)
+                    for i in range(analytic_deriv_order):
+                        j = np.take(j, main_excludes, axis=-2*(i+2))
 
-            raw_jacs.append(j)
-        jacs = raw_jacs
+                if len(coords.shape) > 2:
+                    j = np.moveaxis(j, -3, 0)
+
+                raw_jacs.append(j)
+            jacs = raw_jacs
         return jacs
 
 class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
@@ -1188,6 +1257,70 @@ class RegularZMatrixToMolecularZMatrixConverter(CoordinateSystemConverter):
 
     def __init__(self, zmat_system, **opts):
         self._types = (ZMatrixCoordinateSystem, zmat_system)
+        super().__init__(**opts)
+    @property
+    def types(self):
+        return self._types
+
+    def convert(self, coords, **kw):
+        return coords, kw
+
+    def convert_many(self, coords, **kwargs):
+        return coords, kwargs
+# MolecularZMatrixToRegularZMatrixConverter = MolecularZMatrixToRegularZMatrixConverter()
+# MolecularZMatrixToRegularZMatrixConverter.register()
+
+class MolecularCartesianToGICConverter(CartesianToGICSystemConverter):
+    """
+    ...
+    """
+    def __init__(self, cart_system, zmat_system, **opts):
+        self._types = (cart_system, zmat_system)
+        super().__init__(**opts)
+    @property
+    def types(self):
+        return self._types
+# MolecularCartesianToZMatrixConverter = MolecularCartesianToZMatrixConverter()
+# MolecularCartesianToZMatrixConverter.register(CoordinateSystemConverters)
+
+class MolecularGICToCartesianConverter(GICSystemToCartesianConverter):
+    """
+    ...
+    """
+    def __init__(self, cart_system, zmat_system, **opts):
+        self._types = (cart_system, zmat_system)
+        super().__init__(**opts)
+    @property
+    def types(self):
+        return self._types
+
+class RegularGICToMolecularGICConverter(CoordinateSystemConverter):
+    """
+    ...
+    """
+
+    def __init__(self, **opts):
+        self._types = (GenericInternalCoordinates, MolecularGenericInternalCoordinateSystem)
+        super().__init__(**opts)
+    @property
+    def types(self):
+        return self._types
+
+    def convert(self, coords, **kw):
+        return coords, kw
+
+    def convert_many(self, coords, **kwargs):
+        return coords, kwargs
+# MolecularZMatrixToRegularZMatrixConverter = MolecularZMatrixToRegularZMatrixConverter()
+# MolecularZMatrixToRegularZMatrixConverter.register()
+
+class MolecularGICConverterToRegularGIC(CoordinateSystemConverter):
+    """
+    ...
+    """
+
+    def __init__(self, **opts):
+        self._types = (MolecularGenericInternalCoordinateSystem, GenericInternalCoordinates)
         super().__init__(**opts)
     @property
     def types(self):
