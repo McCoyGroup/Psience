@@ -831,20 +831,71 @@ class MolecoolsTests(TestCase):
             internals=[
                 (0, 1),
                 (0, 2),
-                (0, 3),
                 (0, 1, 2),
+                (0, 3),
                 (0, 1, 3),
-                (0, 2, 3)
+                (3, 0, 1, 2)
             ]
         )
 
-        disp_carts = mol.get_displaced_coordinates([.2], [3], use_internals=True).convert(
-            mol.coords.system
+        mol2 = Molecule.from_file(
+            TestManager.test_data(sys),
+            internals=[
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  0,  1, -1],
+                [3,  0,  1,  2]
+            ]
         )
+
+        # disp_carts = mol.get_displaced_coordinates([.2], [3], use_internals=True).convert(
+        #     mol.coords.system
+        # )
+        # raise Exception([
+        #     s.shape for s in mol.get_cartesians_by_internals(2)
+        # ])
+
+        # raise Exception([
+        #     s.shape for s in mol2.get_cartesians_by_internals(2, strip_embedding=True)
+        # ])
+
+        # with ...:
+        #     mol.get_cartesians_by_internals(1)
+        # int = mol.get_internals_by_cartesians(2)
+        # int2 = mol2.get_internals_by_cartesians(2, strip_embedding=True)
+        #
+        # print(int[0][0])
+        # print("-"*10)
+        # print(int2[0][0])
+        #
+        # print("="*10)
+        #
+        # print(int[1][0, 0])
+        # print("-"*10)
+        # print(int2[1][0, 0])
+        # raise Exception(...)
+
+        cart = mol.get_cartesians_by_internals(1)[0][0]
+        # cart2 = mol.get_cartesians_by_internals(1, method='og')[0][0]
+        # print(cart2 / np.linalg.norm(cart2))
+        cart3 = mol2.get_cartesians_by_internals(1, strip_embedding=True)[0][0]
+
+        # print()
+        # print(cart / np.linalg.norm(cart))
+        # print(cart3 / np.linalg.norm(cart3))
+        # print(
+        #     (np.abs(cart) > 1e-14) * (cart) / (cart3)
+        # )
+        #
+        # raise Exception(...)
 
         raise Exception(
             [
-                s.shape for s in mol.get_cartesians_by_internals(2)
+                np.round(s1 - s2, 6) for s1, s2 in zip(
+                    mol.get_cartesians_by_internals(2),
+                    # mol2.get_cartesians_by_internals(2, method='og', strip_embedding=True),
+                    mol2.get_cartesians_by_internals(2, strip_embedding=True)
+                )
             ]
         )
 

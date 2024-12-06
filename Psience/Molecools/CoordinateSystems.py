@@ -231,7 +231,7 @@ class MolecularEmbedding:
         carts = ccoords.system
         internals = intcds.system
 
-        generics = 'GenericInternals' not in internals.name
+        generics = 'GenericInternals' in internals.name
         zmatrix = 'ZMatrix' in internals.name
 
         if all_numerical is None:
@@ -254,27 +254,39 @@ class MolecularEmbedding:
         max_jac = max(jacs)
         need_jacs = [x + 1 for x in range(0, max_jac) if x >= len(exist_jacs) or exist_jacs[x] is None]
         if len(need_jacs) > 0:
-            stencil = (max(need_jacs) + 2 + (1 + max(need_jacs)) % 2) if stencil is None else stencil
-            # odd behaves better
-            with Parallelizer.lookup(parallelizer) as par:
-                new_jacs = [
-                    x.squeeze() if isinstance(x, np.ndarray) else x
-                    for x in intcds.jacobian(carts, need_jacs,
-                                             # odd behaves better
-                                             mesh_spacing=mesh_spacing,
-                                             stencil=stencil,
-                                             all_numerical=all_numerical,
-                                             converter_options=converter_options,
-                                             parallelizer=par
-                                             )
+            if generics:
+                exist_jacs = [
+                    x.squeeze() for x in
+                    intcds.jacobian(carts, jacs,
+                                    # odd behaves better
+                                    mesh_spacing=mesh_spacing,
+                                    stencil=stencil,
+                                    all_numerical=all_numerical,
+                                    converter_options=converter_options
+                                    )
                 ]
-                # np.set_printoptions
-                # with np.printoptions(linewidth=1e8, threshold=1e8, floatmode='fixed', precision=10):
-                #     raise Exception(str(np.round(new_jacs[0].reshape(9, 9)[(3, 6, 7), :], 12)))
-            for j, v in zip(need_jacs, new_jacs):
-                for d in range(j - len(exist_jacs)):
-                    exist_jacs.append(None)
-                exist_jacs[j - 1] = v
+            else:
+                stencil = (max(need_jacs) + 2 + (1 + max(need_jacs)) % 2) if stencil is None else stencil
+                # odd behaves better
+                with Parallelizer.lookup(parallelizer) as par:
+                    new_jacs = [
+                        x.squeeze() if isinstance(x, np.ndarray) else x
+                        for x in intcds.jacobian(carts, need_jacs,
+                                                 # odd behaves better
+                                                 mesh_spacing=mesh_spacing,
+                                                 stencil=stencil,
+                                                 all_numerical=all_numerical,
+                                                 converter_options=converter_options,
+                                                 parallelizer=par
+                                                 )
+                    ]
+                    # np.set_printoptions
+                    # with np.printoptions(linewidth=1e8, threshold=1e8, floatmode='fixed', precision=10):
+                    #     raise Exception(str(np.round(new_jacs[0].reshape(9, 9)[(3, 6, 7), :], 12)))
+                for j, v in zip(need_jacs, new_jacs):
+                    for d in range(j - len(exist_jacs)):
+                        exist_jacs.append(None)
+                    exist_jacs[j - 1] = v
 
         return [exist_jacs[j - 1] for j in jacs]
 
@@ -296,7 +308,7 @@ class MolecularEmbedding:
         ccoords = self.coords
         carts = ccoords.system
         internals = intcds.system
-        generics = 'GenericInternals' not in internals.name
+        generics = 'GenericInternals' in internals.name
         zmatrix = 'ZMatrix' in internals.name
 
         if all_numerical is None:
@@ -315,24 +327,39 @@ class MolecularEmbedding:
         max_jac = max(jacs)
         need_jacs = [x + 1 for x in range(0, max_jac) if x >= len(exist_jacs) or exist_jacs[x] is None]
         if len(need_jacs) > 0:
-            stencil = (max(need_jacs) + 2 + (1 + max(need_jacs)) % 2) if stencil is None else stencil
-            # odd behaves better
-            with Parallelizer.lookup(parallelizer) as par:
-                new_jacs = [
-                    x.squeeze() if isinstance(x, np.ndarray) else x
-                    for x in ccoords.jacobian(internals, need_jacs,
-                                              mesh_spacing=mesh_spacing,
-                                              stencil=stencil,
-                                              all_numerical=all_numerical,
-                                              converter_options=converter_options,
-                                              parallelizer=par
-                                              )
+            if generics:
+                exist_jacs = [
+                    x.squeeze() for x in
+                    ccoords.jacobian(internals, list(range(1, max_jac+1)),
+                                     mesh_spacing=mesh_spacing,
+                                     stencil=stencil,
+                                     all_numerical=all_numerical,
+                                     converter_options=converter_options
+                                     )
                 ]
-
-                for j, v in zip(need_jacs, new_jacs):
-                    for d in range(j - len(exist_jacs)):
-                        exist_jacs.append(None)
-                    exist_jacs[j - 1] = v
+            else:
+                stencil = (max(need_jacs) + 2 + (1 + max(need_jacs)) % 2) if stencil is None else stencil
+                # odd behaves better
+                with Parallelizer.lookup(parallelizer) as par:
+                    exist_jacs = [
+                        x.squeeze() if isinstance(x, np.ndarray) else x
+                        for x in ccoords.jacobian(internals,
+                                                  order=list(range(1, max_jac+1)),
+                                                  mesh_spacing=mesh_spacing,
+                                                  stencil=stencil,
+                                                  all_numerical=all_numerical,
+                                                  converter_options=converter_options,
+                                                  parallelizer=par
+                                                  )
+                    ]
+                    # # print(";_;_;_;", need_jacs, [n.shape for n in new_jacs])
+                    # if len(exist_jacs) < max_jac:
+                    #     raise Exception(
+                    #         (max_jac - len(exist_jacs))
+                    #     )
+                    #     exist_jacs = exist_jacs + [None] * (max_jac - len(exist_jacs))
+                    # for i, v in enumerate(new_jacs):
+                    #     exist_jacs[i] = v
 
         return [exist_jacs[j - 1] for j in jacs]
 
@@ -361,8 +388,8 @@ class MolecularEmbedding:
         if reembed and method == 'fast':
             L_base = self.get_translation_rotation_invariant_transformation(strip_embedding=strip_embedding, mass_weighted=False)
             jacs_1 = self.get_internals_by_cartesians(order, strip_embedding=strip_embedding)
-            new_tf = nput.tensor_reexpand([L_base.T], jacs_1, 2)
-            inverse_tf = nput.inverse_transformation(new_tf, 2, allow_pseudoinverse=True)
+            new_tf = nput.tensor_reexpand([L_base.T], jacs_1, order)
+            inverse_tf = nput.inverse_transformation(new_tf, order, allow_pseudoinverse=True)
             return [
                 np.tensordot(j, L_base, axes=[-1, -1])
                 for j in inverse_tf
@@ -386,14 +413,15 @@ class MolecularEmbedding:
             sh = self.coords.shape[:-2]
             nc = 3 * len(self.masses)
             nr = len(sh)
+            n = -2 if base[0].shape[-2:] == (len(self.masses), 3) else -1
             for i, b in enumerate(base):
-                rem = np.sum(b.shape[nr:-1], dtype=int) // (i+1)
+                rem = int(np.power(np.prod(b.shape[nr:n], dtype=int), 1 / (i+1)))
                 b = b.reshape(sh + (rem,) * (i+1) + (nc,))
                 _.append(b)
             base = _
 
         embedding_coords = self._get_embedding_coords() if strip_embedding else None
-        if embedding_coords is not None and strip_embedding:
+        if embedding_coords is not None and strip_embedding and base[0].shape[-2] == (3 * len(self.masses)):
             good_coords = np.setdiff1d(np.arange(3 * len(self.masses)), embedding_coords)
             base = [t[np.ix_(*((good_coords,) * (t.ndim - 1)))] for t in base]
         return base
@@ -413,11 +441,11 @@ class MolecularEmbedding:
         sh = self.coords.shape[:-2]
         nc = 3 * len(self.masses)
         for i, b in enumerate(base):
-            b = b.reshape(sh + (nc,) * (i + 1) + (b.shape[-1],))
+            b = b.reshape(sh + (nc,) * (i + 1) + (-1,))
             _.append(b)
         base = _
 
-        if strip_embedding:
+        if strip_embedding and base[0].shape[-1] == nc:
             embedding_coords = self._get_embedding_coords()
             if embedding_coords is not None:
                 good_coords = np.setdiff1d(np.arange(3 * len(self.masses)), embedding_coords)
@@ -777,6 +805,7 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
     def jacobian(self,
                  coords,
                  system,
+                 order=None,
                  return_derivs=None,
                  strip_dummies=None,
                  converter_options=None,
@@ -800,6 +829,8 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
             if zmat_conv:
                 analytic_deriv_order = 0
             else:
+                if return_derivs is None:
+                    return_derivs = order
                 analytic_deriv_order = return_derivs if nput.is_numeric(return_derivs) else max(return_derivs)
 
         if strip_dummies:
@@ -818,6 +849,7 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
             main_excludes = None
 
         jacs = super().jacobian(coords, system,
+                                order=order,
                                 analytic_deriv_order=analytic_deriv_order,
                                 converter_options=converter_options,
                                 **kwargs)
