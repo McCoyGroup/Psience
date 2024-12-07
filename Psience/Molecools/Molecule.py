@@ -144,11 +144,11 @@ class Molecule(AbstractMolecule):
     def get_internals(self, strip_embedding=True):
         return self.embedding.get_internals(strip_embedding=strip_embedding)
 
-    def get_cartesians_by_internals(self, order=None, strip_embedding=False):
-        return self.embedding.get_cartesians_by_internals(order=order, strip_embedding=strip_embedding)
+    def get_cartesians_by_internals(self, order=None, strip_embedding=False, **kw):
+        return self.embedding.get_cartesians_by_internals(order=order, strip_embedding=strip_embedding, **kw)
 
-    def get_internals_by_cartesians(self, order=None, strip_embedding=False):
-        return self.embedding.get_internals_by_cartesians(order=order, strip_embedding=strip_embedding)
+    def get_internals_by_cartesians(self, order=None, strip_embedding=False, **kw):
+        return self.embedding.get_internals_by_cartesians(order=order, strip_embedding=strip_embedding, **kw)
 
     #endregion
 

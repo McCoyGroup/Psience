@@ -105,6 +105,65 @@ class StructuralProperties:
         return tens
 
     @classmethod
+    def get_prop_inertial_frame_derivatives(cls, crds, mass, sel=None):
+        mass = np.asanyarray(mass)
+        crds = np.asanyarray(crds)
+        real_pos = mass > 0
+        if sel is not None:
+            real_pos = np.intersect1d(sel, real_pos)
+
+        smol = crds.ndim == 2
+        if smol:
+            crds = crds[np.newaxis]
+        base_shape = crds.shape[:-2]
+        crds = crds.reshape((-1,) + crds.shape[-2:])
+        if mass.ndim == 1:
+            mass = mass[np.newaxis]
+        else:
+            mass = np.reshape(mass, (-1, mass.shape[-1]))
+
+        mass = mass[..., real_pos]
+        crds = crds[..., real_pos, :]
+
+        mass = np.sqrt(mass)
+        carts = mass[..., :, np.newaxis] * crds  # mass-weighted Cartesian coordinates
+
+        ### compute basic inertia tensor derivatives
+        # first derivs are computed as a full (nAt, 3, I_rows (3), I_cols (3)) tensor
+        # and then reshaped to (nAt * 3, I_rows, I_cols)
+        eyeXeye = np.eye(9).reshape(3, 3, 3, 3).transpose((2, 0, 1, 3))
+        I0Y_1 = np.tensordot(carts, eyeXeye, axes=[2, 0])
+
+        nAt = carts.shape[1]
+        nY = nAt * 3
+        I0Y_21 = (
+                np.reshape(np.eye(3), (9,))[np.newaxis, :, np.newaxis]
+                * carts[:, :, np.newaxis, :]
+        )  # a flavor of outer product
+        I0Y_21 = I0Y_21.reshape((-1, nAt, 3, 3, 3))
+        I0Y_2 = (I0Y_21 + I0Y_21.transpose((0, 1, 2, 4, 3)))
+        I0Y = 2 * I0Y_1 - I0Y_2
+        I0Y = I0Y.reshape(base_shape + (nY, 3, 3))
+
+        # second derivatives are 100% independent of coorinates
+        # only the diagonal blocks are non-zero, so we compute that block
+        # and then tile appropriately
+        keyXey = np.eye(9).reshape(3, 3, 3, 3)
+        I0YY_nn = 2 * eyeXeye - (keyXey + keyXey.transpose((0, 1, 3, 2)))
+        I0YY = np.zeros((nAt, 3, nAt, 3, 3, 3))
+        for n in range(nAt):
+            I0YY[n, :, n, :, :, :] = I0YY_nn
+        I0YY = I0YY.reshape((nY, nY, 3, 3))
+        I0YY = np.broadcast_to(I0YY[np.newaxis, :, :, :, :], (carts.shape[0],) + I0YY.shape)
+        I0YY = np.reshape(I0YY, base_shape + (nY, nY, 3, 3))
+
+        if smol:
+            I0Y = I0Y[0]
+            I0YY = I0YY[0]
+
+        return [I0Y, I0YY]
+
+    @classmethod
     def get_prop_moments_of_inertia(cls, coords, masses):
         """
         Computes the moment of inertia tensor for the walkers with coordinates coords (assumes all have the same masses)
@@ -225,6 +284,132 @@ class StructuralProperties:
 
         coords, com, axes = cls.get_principle_axis_embedded_coords(coords, masses)
         return coords, com, axes
+
+    @classmethod
+    def get_prop_translation_rotation_eigenvectors(cls, coords, masses):
+        """
+        Returns the eigenvectors corresponding to translations and rotations
+        in the system
+
+        :param coords:
+        :type coords:
+        :param masses:
+        :type masses:
+        :return:
+        :rtype:
+        """
+
+        n = len(masses)
+        # explicitly put masses in m_e from AMU
+        # masses = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass") * masses
+        mT = np.sqrt(np.sum(masses))
+        mvec = np.sqrt(masses)
+
+        # no_derivs = order is None
+        # if no_derivs:
+        #     order = 0
+
+        smol = coords.ndim == 2
+        if smol:
+            coords = coords[np.newaxis]
+        # base_shape = None
+        # if coords.ndim > 3:
+        base_shape = coords.shape[:-2]
+        coords = coords.reshape((-1,) + coords.shape[-2:])
+
+        M = np.kron(mvec / mT, np.eye(3)).T  # translation eigenvectors
+        mom_rot, ax_rot = cls.get_prop_moments_of_inertia(coords, masses)
+        # if order > 0:
+        #     base_tensor = StructuralProperties.get_prop_inertia_tensors(coords, masses)
+        #     mom_expansion = StructuralProperties.get_prop_inertial_frame_derivatives(coords, masses)
+        #     inertia_expansion = [base_tensor] + mom_expansion
+        #     sqrt_expansion = nput.matsqrt_deriv(inertia_expansion, order)
+        #     inv_rot_expansion = nput.matinv_deriv(sqrt_expansion, order=order)
+        #     inv_rot_2 = inv_rot_expansion[0]
+        # else:
+        inv_mom_2 = nput.vec_tensordiag(1 / np.sqrt(mom_rot))
+        inv_rot_2 = nput.vec_tensordot(
+            ax_rot,
+            nput.vec_tensordot(
+                ax_rot,
+                inv_mom_2,
+                shared=1,
+                axes=[-1, -1]
+            ),
+            shared=1,
+            axes=[-1, -1]
+        )
+        # inv_rot_expansion = [inv_rot_2]
+        com = cls.get_prop_center_of_mass(coords, masses)
+        com = np.expand_dims(com, 1) # ???
+        shift_crds = mvec[np.newaxis, :, np.newaxis] * (coords - com[: np.newaxis, :])
+        # if order > 0:
+        #     # could be more efficient but oh well...
+        #     e = np.broadcast_to(nput.levi_cevita3[np.newaxis], (shift_crds.shape[0], 3, 3, 3))
+        #     n = shift_crds.shape[-2]
+        #     shift_crd_deriv = np.broadcast_to(
+        #         np.eye(3*n).reshape(3*n, n, 3)[np.newaxis],
+        #         (shift_crds.shape[0], 3*n, n, 3)
+        #     )
+        #     shift_crd_expansion = [shift_crds]
+        #     R_expansion = nput.tensorops_deriv(
+        #         shift_crd_expansion,
+        #             [-1, -1],
+        #         [e],
+        #             [-1, -2],
+        #         inv_rot_expansion,
+        #         order=order,
+        #         shared=1
+        #     )
+        #     with np.printoptions(linewidth=1e8):
+        #         print()
+        #         # print(R_expansion[0][0])
+        #         print(R_expansion[1][0].reshape(3*n, 3*n, 3)[:, :, 0])
+        #         print(
+        #             np.moveaxis(
+        #                 np.tensordot(
+        #                     np.tensordot(shift_crds[0], e[0], axes=[-1, 1]),
+        #                     inv_rot_expansion[1][0],
+        #                     axes=[1, -1]
+        #                 ),
+        #                 -2,
+        #                 0
+        #             ).reshape(15, 15, 3)[:, :, 0]
+        #         )
+        #     raise Exception(...)
+        #     R_expansion = [
+        #         r.reshape(r.shape[:-3] + (r.shape[-3]*r.shape[-2], r.shape[-1]))
+        #         for r in R_expansion
+        #     ]
+        #     R = R_expansion[0]
+        #     raise Exception(R_expansion[1][0] - np.moveaxis(R_expansion[1][0], 1, 0))
+        #
+        # else:
+        cos_rot = nput.levi_cevita_dot(3, inv_rot_2, axes=[0, -1], shared=1) # kx3bx3cx3j
+        R = nput.vec_tensordot(
+            shift_crds, cos_rot,
+            shared=1,
+            axes=[-1, 1]
+        ).reshape((coords.shape[0], 3 * n, 3))  # rotations
+            # raise Exception(R)
+
+        freqs = np.concatenate([
+            np.broadcast_to([[1e-14, 1e-14, 1e-14]], mom_rot.shape),
+            (1 / (2 * mom_rot))
+            # this isn't right, I'm totally aware, but I think the frequency is supposed to be zero anyway and this
+            # will be tiny
+        ], axis=-1)
+        M = np.broadcast_to(M[np.newaxis], R.shape)
+        eigs = np.concatenate([M, R], axis=2)
+
+        if smol:
+            eigs = eigs[0]
+            freqs = freqs[0]
+        else:
+            eigs = eigs.reshape(base_shape + eigs.shape[1:])
+            freqs = freqs.reshape(base_shape + freqs.shape[1:])
+
+        return freqs, eigs
 
     planar_ref_tolerance=1e-6
     @classmethod
@@ -452,76 +637,6 @@ class StructuralProperties:
             crd = crd[0]
 
         return crd
-
-    @classmethod
-    def get_prop_translation_rotation_eigenvectors(cls, coords, masses):
-        """
-        Returns the eigenvectors corresponding to translations and rotations
-        in the system
-
-        :param coords:
-        :type coords:
-        :param masses:
-        :type masses:
-        :return:
-        :rtype:
-        """
-
-        n = len(masses)
-        # explicitly put masses in m_e from AMU
-        # masses = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass") * masses
-        mT = np.sqrt(np.sum(masses))
-        mvec = np.sqrt(masses)
-
-        smol = coords.ndim == 2
-        if smol:
-            coords = coords[np.newaxis]
-        base_shape = None
-        if coords.ndim > 3:
-            base_shape = coords.shape[:-2]
-            coords = coords.reshape((-1,) + coords.shape[-2:])
-
-        M = np.kron(mvec / mT, np.eye(3)).T  # translation eigenvectors
-        mom_rot, ax_rot = cls.get_prop_moments_of_inertia(coords, masses)
-        inv_mom_2 = np.zeros(ax_rot.shape)
-        diag_inds = np.diag_indices(3)
-        idx = (slice(None, None, None),) + diag_inds
-        inv_mom_2[idx] = 1/np.sqrt(mom_rot)
-        inv_rot_2 = nput.vec_tensordot(
-            ax_rot,
-            nput.vec_tensordot(
-                ax_rot,
-                inv_mom_2,
-                shared=1,
-                axes=[-1, -1]
-            ),
-            shared=1,
-            axes=[-1, -1]
-        )
-        com = cls.get_prop_center_of_mass(coords, masses)
-        com = np.expand_dims(com, 1)
-        shift_crds = mvec[np.newaxis, :, np.newaxis] * (coords - com[: np.newaxis, :])
-        e = nput.levi_cevita3
-        R = nput.vec_tensordot(
-            shift_crds,
-            np.moveaxis(np.tensordot(e, inv_rot_2, axes=[0, -1]), -2, 0),
-            shared=1,
-            axes=[-1, 1]
-        ).reshape((coords.shape[0], 3 * n, 3))  # rotations
-        freqs = np.concatenate([
-            np.broadcast_to([[1e-14, 1e-14, 1e-14]], mom_rot.shape),
-            (1 / (2 * mom_rot))
-            # this isn't right, I'm totally aware, but I think the frequency is supposed to be zero anyway and this
-            # will be tiny
-        ], axis=-1)
-        M = np.broadcast_to(M[np.newaxis], R.shape)
-        eigs = np.concatenate([M, R], axis=2)
-
-        # import McUtils.Plots as plt
-        # print(np.round(eigs, 10))
-        # plt.ArrayPlot(eigs).show()
-        # raise Exception([M, R])
-        return freqs, eigs
 
     @classmethod
     def get_prop_g_matrix(cls, masses, coords, internal_coords):
