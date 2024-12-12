@@ -1144,11 +1144,14 @@ class Molecule(AbstractMolecule):
              atom_radius_scaling=.25,
              atom_style=None,
              bond_style=None,
-             mode='fast',
+             mode='quality',
+             backend='x3d',
              objects=False,
              graphics_class=None,
              cylinder_class=None,
              sphere_class=None,
+             animate=None,
+             animation_options=None,
              **plot_ops
              ):
 
@@ -1162,22 +1165,24 @@ class Molecule(AbstractMolecule):
         if cylinder_class is None:
             cylinder_class = Line if mode == 'fast' else Cylinder
         if sphere_class is None:
-            sphere_class = Sphere if mode == 'fast' else Disk
-
+            sphere_class = Disk if mode == 'fast' else Sphere
 
         if len(geometries) == 0:
             geometries = self.coords
         elif len(geometries) == 1:
-            geometries = np.asanyarray(geometries[0])
+            geometries = CoordinateSet(np.asanyarray(geometries[0]), self.coords.system)
         else:
             geometries = CoordinateSet([np.asanyarray(g) for g in geometries], self.coords.system)
+
         if geometries.ndim == 2:
             geometries = geometries[np.newaxis]
+        if animate is None:
+            animate = geometries.shape[0] > 1
 
         geometries = geometries.convert(CartesianCoordinates3D)
 
         if figure is None:
-            figure = graphics_class(**plot_ops)
+            figure = graphics_class(backend=backend, **plot_ops)
 
         colors = [ at["IconColor"] for at in self._ats ]
         radii = [ atom_radius_scaling * at["IconRadius"] for at in self._ats ]
@@ -1190,10 +1195,10 @@ class Molecule(AbstractMolecule):
         if bond_style is None:
             bond_style = {}
 
+
         for i, geom in enumerate(geometries):
             bond_list = self.bonds
             if bond_style is not False and bond_list is not None:
-
                 bonds[i] = [None] * len(bond_list)
                 for j, b in enumerate(bond_list):
                     atom1 = b[0]
@@ -1224,7 +1229,13 @@ class Molecule(AbstractMolecule):
                     if objects:
                         bonds[i][j] = (( cc1, cc2 ))
                     else:
-                        bonds[i][j] = (( cc1.plot(figure)[0], cc2.plot(figure)[0] ))
+                        cyl_1 = cc1.plot(figure)
+                        cyl_2 = cc2.plot(figure)
+                        if isinstance(cyl_1, (list, tuple)):
+                            cyl_1 = cyl_1[0]
+                        if isinstance(cyl_2, (list, tuple)):
+                            cyl_2 = cyl_2[0]
+                        bonds[i][j] = (( cyl_1, cyl_2 ))
 
             if atom_style is not False:
                 atoms[i] = [None] * len(geom)
@@ -1244,6 +1255,16 @@ class Molecule(AbstractMolecule):
                             atoms[i][j] = plops[0]
                         else:
                             atoms[i][j] = plops
+
+        if animate:
+            if animation_options is None: animation_options = {}
+            figure = figure.animate_frames(
+                [
+                    a + sum([list(b) for b in bl], [])
+                    for a,bl in zip(atoms, bonds)
+                ],
+                **animation_options
+            )
 
         return figure, atoms, bonds
 

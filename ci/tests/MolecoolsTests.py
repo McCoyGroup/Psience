@@ -829,14 +829,18 @@ class MolecoolsTests(TestCase):
         mol = Molecule.from_file(
             TestManager.test_data(sys),
             internals=[
-                (0, 1),
-                (0, 2),
+                (1, 0),
+                (2, 0),
                 (0, 1, 2),
                 (0, 3),
                 (0, 1, 3),
                 (3, 0, 1, 2)
             ]
         )
+        # plt, _, _ = mol.plot(backend='vpython')
+        # plt.show()
+        #
+        # raise Exception(...)
 
         mol2 = Molecule.from_file(
             TestManager.test_data(sys),
@@ -893,8 +897,8 @@ class MolecoolsTests(TestCase):
             [
                 np.round(s1 - s2, 6) for s1, s2 in zip(
                     mol.get_cartesians_by_internals(2),
-                    # mol2.get_cartesians_by_internals(2, method='og', strip_embedding=True),
-                    mol2.get_cartesians_by_internals(2, strip_embedding=True)
+                    mol2.get_cartesians_by_internals(2, method='classic', strip_embedding=True),
+                    # mol2.get_cartesians_by_internals(2, strip_embedding=True)
                 )
             ]
         )
