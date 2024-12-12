@@ -24,7 +24,7 @@ __all__ = [
     "MolecoolException"
 ]
 
-__reload_hook__ = [".MoleculeInterface", '.Properties']
+__reload_hook__ = [".MoleculeInterface", '.Hamiltonian', '.Evaluator', '.Properties']
 
 class Molecule(AbstractMolecule):
     """
@@ -448,8 +448,10 @@ class Molecule(AbstractMolecule):
             strip_embedding=strip_embedding
         )
 
-    def get_displaced_coordinates(self, displacements, which=None, sel=None, axes=None,
+    def get_displaced_coordinates(self, displacements,
+                                  which=None, sel=None, axes=None,
                                   use_internals=False,
+                                  coordinate_expansion=None,
                                   strip_embedding=False,
                                   shift=True
                                   ):
@@ -458,6 +460,7 @@ class Molecule(AbstractMolecule):
             which=which, sel=sel, axes=axes,
             use_internals=use_internals,
             strip_embedding=strip_embedding,
+            coordinate_expansion=coordinate_expansion,
             shift=shift
         )
 
