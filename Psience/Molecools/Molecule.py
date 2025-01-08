@@ -5,12 +5,16 @@ Uses AtomData to get properties and whatnot
 """
 
 import os, numpy as np
+import tempfile
 
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D
 import McUtils.Numputils as nput
 from McUtils.Zachary import Mesh
 import McUtils.Plots as plt
+from McUtils.ExternalPrograms import RDMolecule
+
+from ..Modes import PrimitiveCoordinatePicker
 
 from .MoleculeInterface import *
 
@@ -24,7 +28,7 @@ __all__ = [
     "MolecoolException"
 ]
 
-__reload_hook__ = [".MoleculeInterface", '.Hamiltonian', '.Evaluator', '.Properties']
+__reload_hook__ = ["..Modes", ".MoleculeInterface", '.CoordinateSystems', '.Hamiltonian', '.Evaluator', '.Properties']
 
 class Molecule(AbstractMolecule):
     """
@@ -38,7 +42,7 @@ class Molecule(AbstractMolecule):
                  masses=None,
                  name=None,
                  internals=None,
-                 obmol=None,
+                 rdmol=None,
                  dipole_surface=None,
                  dipole_derivatives=None,
                  potential_surface=None,
@@ -83,6 +87,8 @@ class Molecule(AbstractMolecule):
         self._ats = [AtomData[atom] if isinstance(atom, (int, np.integer, str)) else atom for atom in atoms]
         self._mass = np.array([a["Mass"] for a in self._ats]) if masses is None else masses
         coords = CoordinateSet(coords, CartesianCoordinates3D)
+
+        internals = self.canonicalize_internals(internals, atoms, coords, bonds)
         self.embedding = MolecularEmbedding(self.atomic_masses, coords, internals)
 
         self._name = name
@@ -90,10 +96,11 @@ class Molecule(AbstractMolecule):
         # properties to be returned
 
         self._bonds = bonds
+        self.guess_bonds = guess_bonds
 
         self._src = source_file
 
-        self.ext_mol = OpenBabelMolManager(self, obmol)
+        self._rdmol = rdmol
         self._dips = DipoleSurfaceManager(self,
                                           surface=dipole_surface,
                                           derivatives=dipole_derivatives
@@ -115,7 +122,62 @@ class Molecule(AbstractMolecule):
         metadata['charge'] = charge
         self._meta = metadata
 
-        self.guess_bonds=guess_bonds
+    @classmethod
+    def _auto_spec(cls, atoms, coords, bonds, redundant=False, base_coords=None, nonredundant_coordinates=None, **opts):
+        if bonds is None:
+            bonds = RDMolecule.from_coords(
+                                           atoms,
+                                           coords * UnitsData.convert("BohrRadius", "Angstroms"),
+                                           bonds,
+                                           guess_bonds=True
+                                           ).bonds
+        if redundant and nonredundant_coordinates is None:
+            nonredundant_coordinates = base_coords
+            base_coords = None
+        if redundant and nonredundant_coordinates is not None:
+            nonredundant_coordinates = list(nonredundant_coordinates)
+            base_coords = nonredundant_coordinates + ([] if base_coords is None else list(base_coords))
+        spec = {
+            'specs': PrimitiveCoordinatePicker(
+                atoms,
+                [b[:2] for b in bonds],
+                base_coords=base_coords,
+                **opts
+            ).coords
+        }
+        if redundant:
+            spec['redundant'] = True
+            if nonredundant_coordinates is not None:
+                spec['untransformed_coordinates'] = np.arange(len(nonredundant_coordinates))
+        return spec
+    @classmethod
+    def canonicalize_internals(cls, spec, atoms, coords, bonds):
+        if isinstance(spec, str) and spec.lower() == 'auto':
+            spec = {
+                'primitives': 'auto'
+            }
+
+        if isinstance(spec, str):
+            # if spec.lower() == 'auto':
+            #     spec = cls._auto_spec(atoms, coords, bonds)
+            # else:
+            raise ValueError(f"can't understand internal spec '{spec}'")
+        elif isinstance(spec, dict):
+            prims = spec.get('primitives')
+            if prims is not None:
+                spec = spec.copy()
+                spec['specs'] = prims
+                spec['redundant'] = True
+                del spec['primitives']
+            subspec = spec.get('specs', '')
+            if isinstance(subspec, str):
+                if subspec.lower() == 'auto':
+                    opts = spec.copy()
+                    del opts['specs']
+                    spec = cls._auto_spec(atoms, coords, bonds, **opts)
+                else:
+                    raise ValueError(f"can't understand internal spec '{spec}'")
+        return spec
 
     #region Base Coords
     @property
@@ -127,9 +189,19 @@ class Molecule(AbstractMolecule):
     @property
     def masses(self):
         return self._mass
+    @masses.setter
+    def masses(self, masses):
+        self._mass = masses
+        self.embedding.masses = self.atomic_masses
     @property
     def internals(self):
         return self.embedding.internals
+    @property
+    def charge(self):
+        return self._meta.get('charge', 0)
+    @charge.setter
+    def charge(self, c):
+        self._meta['charge'] = c
     @internals.setter
     def internals(self, spec):
         self.embedding = MolecularEmbedding(
@@ -291,8 +363,17 @@ class Molecule(AbstractMolecule):
     @property
     def bonds(self):
         if self._bonds is None and self.guess_bonds:
-            self._bonds = self.prop("guessed_bonds", tol=1.05, guess_type=True)
+            self._bonds = RDMolecule.from_coords(
+                                           self.atoms,
+                                           self.coords * UnitsData.convert("BohrRadius", "Angstroms"),
+                                           None,
+                                           guess_bonds=True
+                                           ).bonds
+            # self._bonds = self.prop("guessed_bonds", tol=1.05, guess_type=True)
         return self._bonds
+    @bonds.setter
+    def bonds(self, b):
+        self._bonds = b
     @property
     def formula(self):
         return self.prop('chemical_formula')
@@ -468,13 +549,16 @@ class Molecule(AbstractMolecule):
                              domains,
                              internals=False,
                              which=None, sel=None, axes=None,
-                             shift=True
+                             shift=True,
+                             coordinate_expansion=None,
+                             strip_embedding=False
                              ):
         return self.evaluator.get_scan_coordinates(
             domains,
             internals=internals,
             which=which, sel=sel, axes=axes,
-            shift=shift
+            shift=shift, coordinate_expansion=coordinate_expansion,
+            strip_embedding=strip_embedding
         )
 
     def get_nearest_displacement_atoms(self,
@@ -988,6 +1072,12 @@ class Molecule(AbstractMolecule):
     #endregion
 
     #region Input Formats
+    @property
+    def rdmol(self):
+        from McUtils.ExternalPrograms import RDMolecule
+
+        return RDMolecule.from_mol(self, coord_unit="BohrRadius")
+
     @classmethod
     def from_zmat(cls, zmat, **opts):
         """Little z-matrix importer
@@ -1054,6 +1144,48 @@ class Molecule(AbstractMolecule):
         )
         return mol
     @classmethod
+    def from_rdmol(cls, rdmol, **opts):
+        return cls(
+            rdmol.atoms,
+            rdmol.coords * UnitsData.convert("Angstroms", "BohrRadius"),
+            bonds=rdmol.bonds,
+            **opts
+        )
+
+    @classmethod
+    def _from_smiles(cls, smi, add_implicit_hydrogens=False, **opts):
+        from McUtils.ExternalPrograms import RDMolecule
+
+        return cls.from_rdmol(RDMolecule.from_smiles(smi, add_implicit_hydrogens=add_implicit_hydrogens), **opts)
+    @classmethod
+    def _from_sdf(cls, sdf, **opts):
+        from McUtils.ExternalPrograms import RDMolecule
+
+        return cls.from_rdmol(RDMolecule.from_sdf(sdf), **opts)
+    @classmethod
+    def _from_molblock(cls, sdf, **opts):
+        from McUtils.ExternalPrograms import RDMolecule
+
+        return cls.from_rdmol(RDMolecule.from_molblock(sdf), **opts)
+
+    @classmethod
+    def from_string(cls, string, fmt, **opts):
+        format_dispatcher = {
+            "smi": cls._from_smiles,
+            "mol": cls._from_molblock,
+            "sdf": cls._from_sdf
+        }
+
+        if fmt in format_dispatcher:
+            return format_dispatcher[fmt](string, **opts)
+        else:
+            with tempfile.NamedTemporaryFile("w+") as tf:
+                tf.write(string)
+                new = cls.from_file(tf.name, mode=fmt, **opts)
+            new.source_file = None # don't want to keep this lying around...
+        return new
+
+    @classmethod
     def from_file(cls, file, mode=None, **opts):
         """In general we'll delegate to pybel except for like Fchk and Log files
 
@@ -1067,7 +1199,10 @@ class Molecule(AbstractMolecule):
         opts['source_file'] = file
         format_dispatcher = {
             "log": cls._from_log_file,
-            "fchk": cls._from_fchk_file
+            "fchk": cls._from_fchk_file,
+            "smi": cls._from_smiles,
+            "mol":cls._from_molblock,
+            "sdf":cls._from_sdf
         }
 
         if mode == None:
@@ -1140,13 +1275,22 @@ class Molecule(AbstractMolecule):
     #endregion
 
     #region Visualization
+    highlight_styles = {
+        "glow":"green",
+        "color":"white"
+    }
     def plot(self,
              *geometries,
              figure=None,
+             return_objects=True,
              bond_radius=.1,
              atom_radius_scaling=.25,
              atom_style=None,
              bond_style=None,
+             highlight_atoms=None,
+             highlight_bonds=None,
+             highlight_rings=None,
+             highlight_styles=None,
              mode='quality',
              backend='x3d',
              objects=False,
@@ -1162,6 +1306,10 @@ class Molecule(AbstractMolecule):
             return self.jupyter_viz()
 
         from McUtils.Plots import Graphics3D, Sphere, Cylinder, Line, Disk
+
+        graphics_keys = Graphics3D.known_keys | Graphics3D.opt_keys | Graphics3D.figure_keys
+        graphics_opts = {k:plot_ops[k] for k in plot_ops.keys() & graphics_keys}
+        plot_ops = {k:plot_ops[k] for k in plot_ops.keys() - graphics_keys}
 
         if graphics_class is None:
             graphics_class = Graphics3D
@@ -1185,7 +1333,7 @@ class Molecule(AbstractMolecule):
         geometries = geometries.convert(CartesianCoordinates3D)
 
         if figure is None:
-            figure = graphics_class(backend=backend, **plot_ops)
+            figure = graphics_class(backend=backend, **graphics_opts)
 
         colors = [ at["IconColor"] for at in self._ats ]
         radii = [ atom_radius_scaling * at["IconRadius"] for at in self._ats ]
@@ -1195,9 +1343,63 @@ class Molecule(AbstractMolecule):
 
         if atom_style is None:
             atom_style = {}
+        elif not isinstance(atom_style, dict):
+            atom_style = {i:a for i,a in enumerate(atom_style)}
+        base_atom_style = {}
+        _atom_style = {}
+        for k,v in atom_style.items():
+            if isinstance(k, str):
+                base_atom_style[k] = v
+            else:
+                _atom_style[k] = v
+        for k,v in _atom_style.items():
+            _atom_style[k] = dict(base_atom_style, **v)
+        atom_style = _atom_style
+
+
+
+        if highlight_styles is None:
+            highlight_styles = self.highlight_styles
+
+        if highlight_rings is not None:
+            if highlight_atoms is None:
+                highlight_atoms = []
+            if highlight_bonds is None:
+                highlight_bonds = []
+            highlight_atoms = list(highlight_atoms)
+            highlight_bonds = list(highlight_bonds)
+            for r in highlight_rings:
+                highlight_atoms.extend(r)
+                highlight_bonds.extend(zip(
+                    r, r[1:] + r[:1]
+                ))
+
+        if highlight_atoms is not None:
+            for k in highlight_atoms:
+                if k not in atom_style: atom_style[k] = {}
+                atom_style[k].update(highlight_styles)
+
         if bond_style is None:
             bond_style = {}
-
+        elif not isinstance(bond_style, dict):
+            bond_style = {i:a for i,a in enumerate(bond_style)}
+        base_bond_style = {}
+        _bond_style = {}
+        for k,v in bond_style.items():
+            if isinstance(k, str):
+                base_bond_style[k] = v
+            else:
+                _bond_style[k] = v
+        for k,v in _bond_style.items():
+            _bond_style[k] = dict(base_bond_style, **v)
+        bond_style = _bond_style
+        if highlight_bonds is None and highlight_atoms is not None:
+            highlight_bonds = highlight_atoms
+        if highlight_bonds is not None:
+            for k in highlight_bonds:
+                if not nput.is_numeric(k): k = tuple(k)
+                if k not in bond_style: bond_style[k] = {}
+                bond_style[k].update(highlight_styles)
 
         for i, geom in enumerate(geometries):
             bond_list = self.bonds
@@ -1215,19 +1417,36 @@ class Molecule(AbstractMolecule):
                     c1 = colors[atom1]
                     c2 = colors[atom2]
 
+                    base_bstyle = dict(
+                        bond_style.get((atom2, atom1), {}),
+                        **bond_style.get((atom1, atom2), {})
+                    )
+                    b_sty_1 = dict(
+                        bond_style.get(atom1, {}),
+                        **base_bstyle
+                    )
+                    if b_sty_1.get('color') is None:
+                        b_sty_1['color'] = c1
                     cc1 = cylinder_class(
                         p1,
                         midpoint,
                         bond_radius,
-                        color = c1,
-                        **bond_style
+                        **plot_ops,
+                        **b_sty_1
                     )
+
+                    b_sty_2 = dict(
+                        bond_style.get(atom2, {}),
+                        **base_bstyle
+                    )
+                    if b_sty_2.get('color') is None:
+                        b_sty_2['color'] = c2
                     cc2 = cylinder_class(
                         midpoint,
                         p2,
                         bond_radius,
-                        color = c2,
-                        **bond_style
+                        **plot_ops,
+                        **b_sty_2
                     )
                     if objects:
                         bonds[i][j] = (( cc1, cc2 ))
@@ -1244,12 +1463,11 @@ class Molecule(AbstractMolecule):
                 atoms[i] = [None] * len(geom)
                 for j, stuff in enumerate(zip(colors, radii, geom)):
                     color, radius, coord = stuff
-                    if 'color' not in atom_style:
-                        a_sty = atom_style.copy()
+                    a_sty = atom_style.get(j, {})
+                    if a_sty.get('color') is None:
                         a_sty['color'] = color
-                    else:
-                        a_sty = atom_style
-                    sphere = sphere_class(coord, radius, **a_sty)
+
+                    sphere = sphere_class(coord, radius, **plot_ops, **a_sty)
                     if objects:
                         atoms[i][j] = sphere
                     else:
@@ -1269,8 +1487,28 @@ class Molecule(AbstractMolecule):
                 **animation_options
             )
 
-        return figure, atoms, bonds
+        if return_objects:
+            return figure, atoms, bonds
+        else:
+            return figure
 
+    def animate_coordinate(self, which, extent=.35, steps=8, return_objects=False, strip_embedding=True, **plot_opts):
+        if isinstance(which, int):
+            coord_expansion = self.get_cartesians_by_internals(2, strip_embedding=strip_embedding)
+        else:
+            if isinstance(which, np.ndarray):
+                if which.ndim == 1:
+                    which = which[np.newaxis]
+                which = [which]
+            coord_expansion = which
+            which = 0
+        geoms = self.get_scan_coordinates(
+            [[-extent, extent, steps]],
+            which=[which],
+            coordinate_expansion=coord_expansion
+        )
+        geoms = np.concatenate([geoms, np.flip(geoms, axis=0)], axis=0)
+        return self.plot(geoms, return_objects=return_objects, **plot_opts)
 
 
     def jupyter_viz(self):
@@ -1281,10 +1519,10 @@ class Molecule(AbstractMolecule):
                                 bonds=self.bonds
                                 )
 
-
     def to_widget(self):
         return self.jupyter_viz().to_widget()
     def _ipython_display_(self):
+        return self.plot(backend='x3d')[0]._ipython_display_()
         return self.jupyter_viz()._ipython_display_()
     #endregion
 

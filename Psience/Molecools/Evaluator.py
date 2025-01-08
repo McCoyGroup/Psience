@@ -1,3 +1,4 @@
+import math
 
 import numpy as np
 from .CoordinateSystems import MolecularEmbedding
@@ -126,6 +127,7 @@ class MolecularEvaluator:
             new_disps = 0
             shared = displacements.ndim-1
             for n,disp in enumerate(coordinate_expansion):
+                disp = disp / math.factorial(n+1)
                 for i in range(n+1):
                     if i == 0:
                         disp = np.tensordot(displacements, disp, axes=[-1, i])
@@ -205,6 +207,8 @@ class MolecularEvaluator:
                              domains,
                              internals=False,
                              which=None, sel=None, axes=None,
+                             coordinate_expansion=None,
+                             strip_embedding=False,
                              shift=True
                              ):
 
@@ -215,7 +219,10 @@ class MolecularEvaluator:
             0, -1
         )
         return self.get_displaced_coordinates(displacement_mesh, shift=shift,
-                                              use_internals=internals, which=which, sel=sel, axes=axes)
+                                              use_internals=internals, which=which, sel=sel, axes=axes,
+                                              coordinate_expansion=coordinate_expansion,
+                                              strip_embedding=strip_embedding
+                                              )
 
     def get_nearest_displacement_atoms(self,
                                        points,
