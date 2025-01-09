@@ -227,6 +227,8 @@ class PrimitiveCoordinatePicker:
 
     @classmethod
     def canonicalize_coord(cls, coord):
+        dupes = len(np.unique(coord)) < len(coord)
+        if dupes: return None
         if len(coord) == 2:
             i,j = coord
             if i > j:
@@ -247,6 +249,7 @@ class PrimitiveCoordinatePicker:
     def prune_excess_coords(cls, coord_set, canonicalized=False):
         if not canonicalized:
             coord_set = [cls.canonicalize_coord(c) for c in coord_set]
+            coord_set = [c for c in coord_set if c is not None]
         dupe_set = set()
         coords = []
         coord_counts = {}
@@ -295,11 +298,30 @@ class PrimitiveCoordinatePicker:
     def _fused_dispatch(cls):
         return dict({
             0:cls.unfused_ring_coordinates,
+            1:cls.pivot_fused_ring_coordinates,
             2:cls.simple_fused_ring_coordinates
         }, **cls.fused_ring_dispatch_table)
     @classmethod
     def unfused_ring_coordinates(cls, ring_atoms1, ring_atoms2, shared_atoms, shared_indices1, shared_indices2):
         return []
+    @classmethod
+    def pivot_fused_ring_coordinates(cls, ring_atoms1, ring_atoms2, shared_atoms, shared_indices1, shared_indices2):
+        p = shared_atoms[0]
+        i = shared_indices1[0]
+        n = len(ring_atoms1)
+        j = shared_indices2[0]
+        m = len(ring_atoms2)
+
+        # add in all relative angles
+        ip1 = (i+1) % n
+        jp1 = (j+1) % m
+        return [
+            (ring_atoms1[i-1], p, ring_atoms2[j-1]),
+            (ring_atoms1[ip1], p, ring_atoms2[j-1]),
+            (ring_atoms1[i-1], p, ring_atoms2[jp1]),
+            (ring_atoms1[ip1], p, ring_atoms2[jp1])
+        ]
+
     @classmethod
     def simple_fused_ring_coordinates(cls, ring_atoms1, ring_atoms2, shared_atoms, shared_indices1, shared_indices2):
         j, k = shared_atoms
@@ -358,6 +380,7 @@ class PrimitiveCoordinatePicker:
             for i, j in itertools.combinations(range(3), 2)
         )
         if len(R) > 0:
+            coords.append((R[-1], y))
             # add in RYX angles
             coords.extend(
                 (R[-1], y, x)
@@ -384,6 +407,7 @@ class PrimitiveCoordinatePicker:
             for i, j in itertools.combinations(range(3), 2)
         )
         if len(R) > 0:
+            coords.append((R[-1], y))
             # add in RYX angles
             coords.extend(
                 (R[-1], y, x) for x in X
@@ -401,41 +425,55 @@ class PrimitiveCoordinatePicker:
 
         return coords
 
-    def get_precedent_chain(self, atom, num_precs=2, ring_atoms=None, light_atoms=None, ignored=None, backbone=None):
-        chain = []
+    def get_precedent_chains(self, atom, num_precs=2, ring_atoms=None, light_atoms=None, ignored=None, backbone=None):
+        chains = []
         visited = set([] if ignored is None else ignored)
         ring_atoms = set(self.ring_atoms if ring_atoms is None else ring_atoms)
         light_atoms = set(self.light_atoms if light_atoms is None else light_atoms)
         if backbone is not None:
             backbone = set(backbone)
 
-        queue = collections.deque()
-        for n in range(num_precs):
-            neighbors = self.graph.map[atom]
-            visited.add(atom)
-            rem = neighbors - visited - ring_atoms - light_atoms
-            queue.extend(rem)
-            while len(rem) == 0 and queue:
-                # walk up dfs tree until we find a branch with nodes that work
-                root = queue.pop()
-                if root not in visited:
-                    rem = self.graph.map[root] - visited - ring_atoms - light_atoms
+        visited = visited #| ring_atoms # | light_atoms
+
+        # do a dfs exploration up to the given depth over non-ring, heavy atoms
+        queue = collections.deque([[[], 0, atom]])
+        while queue:
+            chain, depth, root = queue.pop()
+            neighbors = self.graph.map[root]
+            visited.add(root)
+            branches = neighbors - visited
+            if len(branches) == 0:
+                chains.append(chain)
+            elif depth == num_precs - 1:
+                chains.extend(chain + [n] for n in branches)
             else:
-                if len(rem) == 0: rem = neighbors - visited - light_atoms
-                if len(rem) == 0: rem = neighbors - visited
-                if len(rem) == 0: break
+                queue.extend([chain + [n], depth+1, n] for n in branches)
 
-                if backbone is not None:
-                    bb_chain = rem & backbone
-                else:
-                    bb_chain = []
-                if len(bb_chain) > 0:
-                    atom = min(bb_chain)
-                else:
-                    atom = min(rem)
-                chain.append(atom)
+            #
+            # queue.extend(rem)
+            # while len(rem) == 0 and queue:
+            #     # walk up dfs tree until we find a branch with nodes that work
+            #     root = queue.pop()
+            #     if root not in visited:
+            #         rem = {root}
+            # else:
+            #     if len(rem) == 0: rem = neighbors - visited - light_atoms
+            #     # if len(rem) == 0: rem = neighbors - visited
+            #     if len(rem) == 0: break
+            #
+            #     if backbone is not None:
+            #         bb_chain = rem & backbone
+            #     else:
+            #         bb_chain = []
+            #     if len(bb_chain) > 0:
+            #         atom = min(bb_chain)
+            #     else:
+            #         atom = min(rem)
+            #     chain.append(atom)
 
-        return list(reversed(chain))
+        # chain = list(reversed(chain))
+
+        return [list(reversed(c)) for c in chains]
 
     symmetry_type_dispatch = {}
     def _symmetry_dispatch(self):
@@ -444,18 +482,33 @@ class PrimitiveCoordinatePicker:
             (2,1):self._2_1_coords,
             (3,1):self._3_1_coords
         })
-
     def _2_1_coords(self, atom, neighbors, X, R, backbone=None):
+        coords = []
         R = R[0]
-        R = self.get_precedent_chain(R, 1, ignored=[atom] + neighbors, backbone=backbone) + [R]
-        return self.RYX2_coords(R, atom, X)
+        chains = self.get_precedent_chains(R, 1, ignored=[atom] + neighbors, backbone=backbone)
+        if len(chains) == 0: chains = [[]]
+        for c in chains:
+            coords.extend(self.RYX2_coords(c + [R], atom, X))
+        return coords
     def _3_coords(self, atom, neighbors, X, backbone=None):
         return self.RYX3_coords([], atom, X)
     def _3_1_coords(self, atom, neighbors, X, R, backbone=None):
+        coords = []
         R = R[0]
-        R = self.get_precedent_chain(R, 1, ignored=[atom] + neighbors, backbone=backbone) + [R]
-        crds = self.RYX3_coords(R, atom, X)
-        return crds
+        chains = self.get_precedent_chains(R, 1, ignored=[atom] + neighbors, backbone=backbone)
+        if len(chains) == 0: chains = [[]]
+        for c in chains:
+            coords.extend(self.RYX3_coords(c + [R], atom, X))
+        return coords
+
+    def _2_2_coords(self, atom, neighbors, X, R, backbone=None):
+        coords = []
+        R = R[0]
+        # chains = self.get_precedent_chains(R, 1, ignored=[atom] + neighbors, backbone=backbone)
+        if len(chains) == 0: chains = [[]]
+        for c in chains:
+            coords.extend(self.R2YX2_coords(c + [R], atom, X))
+        return coords
 
 
     @classmethod
@@ -480,31 +533,37 @@ class PrimitiveCoordinatePicker:
         ]
 
     def symmetry_coords(self, atom, neighborhood=3, backbone=None):
-        neighbors = list(self.graph.map[atom])
-        coords = None
-        dispatch = self._symmetry_dispatch()
-        neighbor_counts = {sum(k) for k in dispatch.keys()}
-        if len(neighbors) in neighbor_counts:
-            symms = self.get_neighborhood_symmetries(neighbors, ignored=[atom], neighborhood=neighborhood)
-            groups = self.get_symmetry_groups(neighbors, symms)
-            key = tuple(len(g) for g in groups)
-            dfunc = dispatch.get(key)
-            if dfunc is not None:
-                coords = dfunc(atom, neighbors, *groups, backbone=backbone)
+        # neighbors = list(self.graph.map[atom])
+        coords = []
+        # dispatch = self._symmetry_dispatch()
+        # neighbor_counts = {sum(k) for k in dispatch.keys()}
+        # if len(neighbors) in neighbor_counts:
+        #     symms = self.get_neighborhood_symmetries(neighbors, ignored=[atom], neighborhood=neighborhood)
+        #     groups = self.get_symmetry_groups(neighbors, symms)
+        #     key = tuple(len(g) for g in groups)
+        #     dfunc = dispatch.get(key)
+        #     if dfunc is not None:
+        #         coords = dfunc(atom, neighbors, *groups, backbone=backbone)
+        chains = self.get_precedent_chains(atom, 3, backbone=backbone)
+        if len(chains) == 0: chains = [[]]
+        for R in chains:
+            coords.extend(self.chain_coords(R, atom))
 
-
-        if coords is None:
-            R = self.get_precedent_chain(atom, 3, backbone=backbone)
-            coords = self.chain_coords(R, atom)
+        # if coords is None:
+        #     R = self.get_precedent_chain(atom, 3, backbone=backbone)
+        #     coords = self.chain_coords(R, atom)
 
         return coords
 
 
 class RedundantCoordinateGenerator:
 
-    def __init__(self, coordinate_specs, angle_ordering='ijk', untransformed_coordinates=None, masses=None, **opts):
+    def __init__(self, coordinate_specs, angle_ordering='ijk', untransformed_coordinates=None, masses=None,
+                 relocalize=False,
+                 **opts):
         self.specs = coordinate_specs
         self.untransformed_coordinates = untransformed_coordinates
+        self.relocalize = relocalize
         self.masses = masses
         self.opts = dict(
             opts,
@@ -517,15 +576,31 @@ class RedundantCoordinateGenerator:
         eye = nput.identity_tensors(redund_tf.shape[:-2], n)
         return np.concatenate(
             [
-                np.pad(eye, ([[0, 0]] * ndim) + [[0, redund_tf.shape[0]], [0, 0]]),
+                np.pad(eye, ([[0, 0]] * ndim) + [[0, redund_tf.shape[-2]], [0, 0]]),
                 np.pad(redund_tf, ([[0, 0]] * ndim) + [[n, 0], [0, 0]])
             ],
             axis=-1
         )
 
+    @classmethod
+    def _relocalize_tf(cls, redund_tf):
+        n = redund_tf.shape[-1]
+        # target = np.pad(np.eye(n), [[0, 173 - 108], [0, 0]])
+        ndim = redund_tf.ndim - 2
+        eye = nput.identity_tensors(redund_tf.shape[:-2], n)
+        target = np.pad(eye, ([[0, 0]] * ndim) + [[0, redund_tf.shape[-2] - n], [0, 0]])
+        loc = np.linalg.lstsq(redund_tf, target, rcond=None)
+        U, s, V = np.linalg.svd(loc[0])
+        R = U @ V
+        return redund_tf @ R
+
 
     @classmethod
-    def base_redundant_transformation(cls, expansion, untransformed_coordinates=None, masses=None):
+    def base_redundant_transformation(cls, expansion,
+                                      untransformed_coordinates=None,
+                                      masses=None,
+                                      relocalize=False
+                                      ):
         conv = np.asanyarray(expansion[0])
         if untransformed_coordinates is not None:
             transformed_coords = np.setdiff1d(np.arange(conv.shape[-1]), untransformed_coordinates)
@@ -539,10 +614,9 @@ class RedundantCoordinateGenerator:
             proj = nput.identity_tensors(proj.shape[:-2], proj.shape[-1]) - proj
 
             conv = proj @ conv
-
-
         else:
             transformed_coords = None
+
         if masses is None:
             G_internal = np.moveaxis(conv, -1, -2) @ conv
         else:
@@ -581,17 +655,31 @@ class RedundantCoordinateGenerator:
                     for tf in redund_tf
                 ]
 
+        if relocalize:
+            # provide some facility for rearranging coords?
+            if isinstance(redund_tf, np.ndarray):
+                redund_tf = cls._relocalize_tf(redund_tf)
+            else:
+                redund_tf = [
+                    cls._relocalize_tf(tf)
+                    for tf in redund_tf
+                ]
+
+
+
         return redund_tf
 
 
     @classmethod
-    def get_redundant_transformation(cls, base_expansions, untransformed_coordinates=None, masses=None):
+    def get_redundant_transformation(cls, base_expansions, untransformed_coordinates=None, masses=None,
+                                     relocalize=False):
         if isinstance(base_expansions, np.ndarray) and base_expansions.ndim == 2:
             base_expansions = [base_expansions]
         redund_tf = cls.base_redundant_transformation(base_expansions,
-                                                       untransformed_coordinates=untransformed_coordinates,
-                                                       masses=masses
-                                                       )
+                                                      untransformed_coordinates=untransformed_coordinates,
+                                                      masses=masses,
+                                                      relocalize=relocalize
+                                                      )
 
         # dQ/dR, which we can transform with dR/dX to get dQ/dX
         if isinstance(redund_tf, np.ndarray):
@@ -604,7 +692,8 @@ class RedundantCoordinateGenerator:
 
         return redund_tf, redund_expansions
 
-    def compute_redundant_expansions(self, coords, order=None, untransformed_coordinates=None):
+    def compute_redundant_expansions(self, coords, order=None, untransformed_coordinates=None,
+                                     relocalize=None):
         coords = np.asanyarray(coords)
         if order is None:
             opts = dict(dict(order=1), **self.opts)
@@ -612,8 +701,60 @@ class RedundantCoordinateGenerator:
             opts = dict(self.opts, order=order)
         if untransformed_coordinates is None:
             untransformed_coordinates = self.untransformed_coordinates
+        if relocalize is None:
+            relocalize = self.relocalize
         base_expansions = nput.internal_coordinate_tensors(coords, self.specs, **opts)
         return self.get_redundant_transformation(base_expansions,
                                                  untransformed_coordinates=untransformed_coordinates,
-                                                 masses=self.masses
+                                                 masses=self.masses,
+                                                 relocalize=relocalize
                                                  )
+
+    @classmethod
+    def _prune_coords_svd(cls, b_mat, svd_cutoff=5e-2):
+        _, s, Q = np.linalg.svd(b_mat)
+        pos = np.where(s > 1e-8)
+        return np.where(np.max(Q[pos]**2, axis=0) > svd_cutoff)[0]
+
+    @classmethod
+    def _prune_coords_gs(cls, b_mat, fixed_vecs=None, core_scaling=1e3, max_condition_number=1e8):
+        if fixed_vecs is None:
+            _, s, Q = np.linalg.svd(b_mat)
+            pos = np.where(s > 0)
+            fixed_vecs = np.where(np.linalg.norm(Q[pos], axis=0) > .9)[0]
+        fixed_vecs = np.array(fixed_vecs)
+        core_mask = np.full(b_mat.shape[1], False)
+        core_mask[fixed_vecs] = True
+        all_mask = core_mask.copy()
+        rem_pos = np.setdiff1d(np.arange(b_mat.shape[1]), fixed_vecs)
+        base_evals = np.linalg.eigvalsh(b_mat[:, core_mask].T @ b_mat[:, core_mask])
+        base_cond = base_evals[-1] / base_evals[0] * core_scaling
+        for r in rem_pos:
+            core_mask[r] = True
+            evals = np.linalg.eigvalsh(b_mat[:, core_mask].T @ b_mat[:, core_mask])
+            new_cond = abs(evals[-1] / evals[0])
+            if new_cond < max_condition_number:
+                all_mask[r] = True
+                if new_cond > base_cond:
+                    core_mask[r] = False
+            else:
+                core_mask[r] = False
+
+        return np.where(all_mask)[0]
+
+    @classmethod
+    def prune_coordinate_specs(cls, expansion, masses=None, untransformed_coordinates=None,
+                               pruning_mode='svd'):
+        conv = np.asanyarray(expansion[0])
+        masses = np.asanyarray(masses)
+        if len(masses) == conv.shape[-2] // 3:
+            masses = np.repeat(masses, 3)
+        masses = np.diag(1 / np.sqrt(masses))
+        b_mat = masses @ conv
+
+        if pruning_mode == 'svd':
+            return cls._prune_coords_svd(b_mat)
+        elif pruning_mode == 'gs':
+            return cls._prune_coords_gs(b_mat, fixed_vecs=untransformed_coordinates)
+        else:
+            raise ValueError(f"don't understand pruning mode {pruning_mode}")

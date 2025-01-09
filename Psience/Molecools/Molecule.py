@@ -14,7 +14,7 @@ from McUtils.Zachary import Mesh
 import McUtils.Plots as plt
 from McUtils.ExternalPrograms import RDMolecule
 
-from ..Modes import PrimitiveCoordinatePicker
+from ..Modes import PrimitiveCoordinatePicker, RedundantCoordinateGenerator
 
 from .MoleculeInterface import *
 
@@ -88,7 +88,7 @@ class Molecule(AbstractMolecule):
         self._mass = np.array([a["Mass"] for a in self._ats]) if masses is None else masses
         coords = CoordinateSet(coords, CartesianCoordinates3D)
 
-        internals = self.canonicalize_internals(internals, atoms, coords, bonds)
+        internals = self.canonicalize_internals(internals, self.atoms, coords, bonds, masses=self._mass)
         self.embedding = MolecularEmbedding(self.atomic_masses, coords, internals)
 
         self._name = name
@@ -123,7 +123,12 @@ class Molecule(AbstractMolecule):
         self._meta = metadata
 
     @classmethod
-    def _auto_spec(cls, atoms, coords, bonds, redundant=False, base_coords=None, nonredundant_coordinates=None, **opts):
+    def _auto_spec(cls, atoms, coords, bonds, redundant=False, base_coords=None,
+                   masses=None,
+                   nonredundant_coordinates=None,
+                   prune_coordinates=True,
+                   pruning_options=None,
+                   **opts):
         if bonds is None:
             bonds = RDMolecule.from_coords(
                                            atoms,
@@ -137,21 +142,33 @@ class Molecule(AbstractMolecule):
         if redundant and nonredundant_coordinates is not None:
             nonredundant_coordinates = list(nonredundant_coordinates)
             base_coords = nonredundant_coordinates + ([] if base_coords is None else list(base_coords))
-        spec = {
-            'specs': PrimitiveCoordinatePicker(
+        specs = PrimitiveCoordinatePicker(
                 atoms,
                 [b[:2] for b in bonds],
                 base_coords=base_coords,
                 **opts
             ).coords
-        }
+        if prune_coordinates:
+            if pruning_options is None:
+                pruning_options = {}
+            expansion = nput.internal_coordinate_tensors(coords, specs, order=1)[1:]
+            if masses is None:
+                ats = [AtomData[atom] if isinstance(atom, (int, np.integer, str)) else atom for atom in atoms]
+                masses = np.array([a["Mass"] for a in ats])
+            prune_pos = RedundantCoordinateGenerator.prune_coordinate_specs(
+                expansion,
+                masses=masses,
+                **pruning_options
+            )
+            specs = [specs[i] for i in prune_pos]
+        spec = {'specs':specs}
         if redundant:
             spec['redundant'] = True
             if nonredundant_coordinates is not None:
                 spec['untransformed_coordinates'] = np.arange(len(nonredundant_coordinates))
         return spec
     @classmethod
-    def canonicalize_internals(cls, spec, atoms, coords, bonds):
+    def canonicalize_internals(cls, spec, atoms, coords, bonds, relocalize=True, masses=None):
         if isinstance(spec, str) and spec.lower() == 'auto':
             spec = {
                 'primitives': 'auto'
@@ -174,9 +191,11 @@ class Molecule(AbstractMolecule):
                 if subspec.lower() == 'auto':
                     opts = spec.copy()
                     del opts['specs']
-                    spec = cls._auto_spec(atoms, coords, bonds, **opts)
+                    spec = cls._auto_spec(atoms, coords, bonds, masses=masses, **opts)
                 else:
                     raise ValueError(f"can't understand internal spec '{spec}'")
+            if spec.get('redundant'):
+                spec['relocalize'] = spec.get('relocalize', relocalize)
         return spec
 
     #region Base Coords

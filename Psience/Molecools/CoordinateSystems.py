@@ -178,7 +178,8 @@ class MolecularEmbedding:
                 ints = MolecularGenericInternalCoordinateSystem(self.masses, coords,
                                                                 specs=self._int_spec['specs'],
                                                                 redundant=self._int_spec.get('redundant', False),
-                                                                untransformed_coordinates=self._int_spec.get('untransformed_coordinates')
+                                                                untransformed_coordinates=self._int_spec.get('untransformed_coordinates'),
+                                                                relocalize=self._int_spec.get('relocalize', False)
                                                                 )
                 MolecularCartesianToGICConverter(coords.system, ints).register()
                 MolecularGICToCartesianConverter(ints, coords.system).register()
@@ -588,7 +589,10 @@ class MolecularGenericInternalCoordinateSystem(GenericInternalCoordinateSystem):
     Mirrors the standard ZMatrix coordinate system in _almost_ all regards, but forces an embedding
     """
     name = "MolecularGenericInternals"
-    def __init__(self, masses, coords, /, specs, converter_options=None, redundant=False, untransformed_coordinates=None,
+    def __init__(self, masses, coords, /, specs, converter_options=None,
+                 redundant=False,
+                 relocalize=False,
+                 untransformed_coordinates=None,
                  angle_ordering='ijk',
                  **opts):
         """
@@ -610,7 +614,8 @@ class MolecularGenericInternalCoordinateSystem(GenericInternalCoordinateSystem):
                 specs,
                 masses=self.masses,
                 untransformed_coordinates=untransformed_coordinates,
-                angle_ordering=angle_ordering
+                angle_ordering=angle_ordering,
+                relocalize=relocalize
             )
             converter_options['redundant_generator'] = converter_options.get('redundant_generator', redundant_generator)
         nats = None#len(specs)
@@ -1333,7 +1338,8 @@ class MolecularCartesianToGICConverter(CartesianToGICSystemConverter):
             red_tf, red_exp = redundant_generator.get_redundant_transformation(
                 opts['derivs'],
                 untransformed_coordinates=redundant_generator.untransformed_coordinates,
-                masses=redundant_generator.masses
+                masses=redundant_generator.masses,
+                relocalize=redundant_generator.relocalize
             )
             opts['reference_internals'] = internals
             internals = np.zeros(internals.shape[:-1] + red_tf.shape[-1:], dtype=internals.dtype)
