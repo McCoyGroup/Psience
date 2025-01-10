@@ -711,10 +711,74 @@ class RedundantCoordinateGenerator:
                                                  )
 
     @classmethod
-    def _prune_coords_svd(cls, b_mat, svd_cutoff=5e-2):
+    def _prune_coords_svd(cls, b_mat, svd_cutoff=5e-2, sort=True, fixed_vecs=None):
+        # turns out, equivalent to finding maximimum loc in eigenvectors of G
+        if fixed_vecs is not None:
+            transformed_coords = np.delete(np.arange(b_mat.shape[-1]), fixed_vecs)
+            ut_conv = b_mat[..., fixed_vecs]
+            conv = b_mat[..., transformed_coords]
+
+            # project out contributions along untransformed coordinates to ensure
+            # dimension of space remains unchanged
+            ut_conv = nput.vec_normalize(ut_conv)
+            proj = ut_conv @ np.moveaxis(ut_conv, -1, -2)
+            proj = nput.identity_tensors(proj.shape[:-2], proj.shape[-1]) - proj
+
+            b_mat = proj @ conv
+
         _, s, Q = np.linalg.svd(b_mat)
         pos = np.where(s > 1e-8)
-        return np.where(np.max(Q[pos]**2, axis=0) > svd_cutoff)[0]
+        loc_val = np.max(Q[pos]**2, axis=0)
+        coords = np.where(loc_val > svd_cutoff)[0]
+        if sort:
+            coords = coords[np.argsort(-loc_val[coords,],)]
+        if fixed_vecs is not None:
+            coords = transformed_coords[coords,]
+            coords = np.concatenate([fixed_vecs, coords])
+        return coords
+
+    @classmethod
+    def _prune_coords_loc(cls, b_mat, loc_cutoff=.33, sort=True, fixed_vecs=None):
+        # if fixed_vecs is not None:
+        #     transformed_coords = np.delete(np.arange(b_mat.shape[-1]), fixed_vecs)
+        #     ut_conv = b_mat[..., fixed_vecs]
+        #     b_mat = b_mat[..., transformed_coords]
+        #
+        #     # # project out contributions along untransformed coordinates to ensure
+        #     # # dimension of space remains unchanged
+        #     # ut_conv = nput.vec_normalize(ut_conv)
+        #     # proj = ut_conv @ np.moveaxis(ut_conv, -1, -2)
+        #     # proj = nput.identity_tensors(proj.shape[:-2], proj.shape[-1]) - proj
+        #     #
+        #     # b_mat = proj @ conv
+
+        s, Q = np.linalg.eigh(b_mat.T @ b_mat)
+        pos = np.where(s > 1e-8)[0]
+        Q = Q[:, pos]
+        loc_mat = np.linalg.lstsq(Q, np.eye(Q.shape[-2]), rcond=None)
+        loc_val = np.diag(Q @ loc_mat[0])
+        coords = np.where(loc_val > loc_cutoff)[0]
+        if fixed_vecs is not None:
+            coords = np.setdiff1d(coords, fixed_vecs)
+        if sort:
+            coords = coords[np.argsort(-loc_val[coords,], )]
+        if fixed_vecs is not None:
+            coords = np.concatenate([fixed_vecs, coords])
+
+            # have to run this back again in case these added coords break the localization
+            # a third run back isn't work it since that will just repeat what's found here
+            b_mat = b_mat[:, coords]
+            s, Q = np.linalg.eigh(b_mat.T @ b_mat)
+            pos = np.where(s > 1e-8)[0]
+            Q = Q[:, pos]
+            loc_mat = np.linalg.lstsq(Q, np.eye(Q.shape[-2]), rcond=None)
+            loc_val = np.diag(Q @ loc_mat[0])
+            subcoords = np.setdiff1d(np.where(loc_val > loc_cutoff)[0], np.arange(len(fixed_vecs)))
+            if sort:
+                subcoords = subcoords[np.argsort(-loc_val[subcoords,], )]
+            coords = np.concatenate([coords[:len(fixed_vecs)], coords[subcoords])
+
+        return coords
 
     @classmethod
     def _prune_coords_gs(cls, b_mat, fixed_vecs=None, core_scaling=1e3, max_condition_number=1e8):
@@ -743,8 +807,12 @@ class RedundantCoordinateGenerator:
         return np.where(all_mask)[0]
 
     @classmethod
-    def prune_coordinate_specs(cls, expansion, masses=None, untransformed_coordinates=None,
-                               pruning_mode='svd'):
+    def prune_coordinate_specs(cls, expansion,
+                               masses=None,
+                               untransformed_coordinates=None,
+                               pruning_mode='loc',
+                               **opts
+                               ):
         conv = np.asanyarray(expansion[0])
         masses = np.asanyarray(masses)
         if len(masses) == conv.shape[-2] // 3:
@@ -753,8 +821,10 @@ class RedundantCoordinateGenerator:
         b_mat = masses @ conv
 
         if pruning_mode == 'svd':
-            return cls._prune_coords_svd(b_mat)
+            return cls._prune_coords_svd(b_mat, fixed_vecs=untransformed_coordinates, **opts)
+        elif pruning_mode == 'loc':
+            return cls._prune_coords_loc(b_mat, fixed_vecs=untransformed_coordinates, **opts)
         elif pruning_mode == 'gs':
-            return cls._prune_coords_gs(b_mat, fixed_vecs=untransformed_coordinates)
+            return cls._prune_coords_gs(b_mat, fixed_vecs=untransformed_coordinates, **opts)
         else:
             raise ValueError(f"don't understand pruning mode {pruning_mode}")

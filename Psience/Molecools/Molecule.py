@@ -158,6 +158,7 @@ class Molecule(AbstractMolecule):
             prune_pos = RedundantCoordinateGenerator.prune_coordinate_specs(
                 expansion,
                 masses=masses,
+                untransformed_coordinates=np.arange(len(base_coords)) if base_coords is not None else None,
                 **pruning_options
             )
             specs = [specs[i] for i in prune_pos]
