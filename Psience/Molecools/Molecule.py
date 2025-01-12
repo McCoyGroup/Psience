@@ -165,6 +165,7 @@ class Molecule(AbstractMolecule):
         spec = {'specs':specs}
         if redundant:
             spec['redundant'] = True
+
             if nonredundant_coordinates is not None:
                 spec['untransformed_coordinates'] = np.arange(len(nonredundant_coordinates))
         return spec
@@ -192,6 +193,9 @@ class Molecule(AbstractMolecule):
                 if subspec.lower() == 'auto':
                     opts = spec.copy()
                     del opts['specs']
+                    if 'relocalize' in opts:
+                        relocalize = spec.get('relocalize', relocalize)
+                        del opts['relocalize']
                     spec = cls._auto_spec(atoms, coords, bonds, masses=masses, **opts)
                 else:
                     raise ValueError(f"can't understand internal spec '{spec}'")
@@ -434,8 +438,8 @@ class Molecule(AbstractMolecule):
         new.potential_surface.set_molecule(new)
         new.dipole_surface = new.dipole_surface.copy()
         new.dipole_surface.set_molecule(new)
-        new.ext_mol = new.ext_mol.copy()
-        new.ext_mol.set_molecule(new)
+        # new._rdmol = new.rdmol.copy()
+        # new.rdmol.set_molecule(new)
         return new
 
     def prop(self, name, *args, **kwargs):
@@ -1169,7 +1173,10 @@ class Molecule(AbstractMolecule):
             rdmol.atoms,
             rdmol.coords * UnitsData.convert("Angstroms", "BohrRadius"),
             bonds=rdmol.bonds,
-            **opts
+            **dict(
+                rdmol.meta,
+                **opts
+            )
         )
 
     @classmethod
@@ -1324,6 +1331,8 @@ class Molecule(AbstractMolecule):
 
         if mode == 'jupyter':
             return self.jupyter_viz()
+        elif mode == 'jsmol':
+            return self.jsmol_viz()
 
         from McUtils.Plots import Graphics3D, Sphere, Cylinder, Line, Disk
 
@@ -1512,7 +1521,7 @@ class Molecule(AbstractMolecule):
         else:
             return figure
 
-    def animate_coordinate(self, which, extent=.35, steps=8, return_objects=False, strip_embedding=True, **plot_opts):
+    def get_animation_geoms(self, which, extent=.35, steps=8, strip_embedding=True, units=None):
         if isinstance(which, int):
             coord_expansion = self.get_cartesians_by_internals(2, strip_embedding=strip_embedding)
         else:
@@ -1528,8 +1537,82 @@ class Molecule(AbstractMolecule):
             coordinate_expansion=coord_expansion
         )
         geoms = np.concatenate([geoms, np.flip(geoms, axis=0)], axis=0)
-        return self.plot(geoms, return_objects=return_objects, **plot_opts)
+        if units is not None:
+            geoms = geoms * UnitsData.convert("BohrRadius", units)
+        return geoms
+    def animate_coordinate(self, which, extent=.35, steps=8, return_objects=False, strip_embedding=True,
+                           units=None,
+                           mode='x3d',
+                           **plot_opts
+                           ):
+        if mode == 'jsmol':
+            disps = self.format_animation_file(which, format="jmol",
+                                               extent=extent, steps=steps, strip_embedding=strip_embedding,
+                                               units="Angstroms" if units is None else units)
+            return self.jsmol_viz(disps, vibrate=True)
+        else:
+            geoms = self.get_animation_geoms(which, extent=extent, steps=steps, strip_embedding=strip_embedding, units=units)
+            return self.plot(geoms, return_objects=return_objects, **plot_opts)
 
+    def _format_xyz(self, which, nat, atoms, geom, float_format='10.3f'):
+        xyz_elems = len(geom[0])
+        template = "{atom} " + " ".join(f"{{xyz[{i}]:{float_format}}}" for i in range(xyz_elems))
+        body = "\n".join(template.format(atom=atom, xyz=xyz) for atom, xyz in zip(atoms, geom))
+        return f"{nat}\nstruct {which}\n{body}"
+
+    def format_structs(self,
+                      geoms,
+                      format='xyz'
+                    ):
+        geom_data = np.reshape(np.asanyarray(geoms), (-1, len(self.atoms), 3))
+        atoms = self.atoms
+        if format == 'xyz':
+            nat = len(atoms)
+            return "\n".join(
+                self._format_xyz(which + 1, nat, atoms, geom)
+                for which, geom in enumerate(geom_data)
+            )
+        else:
+            raise NotImplementedError(format)
+    def _format_jmol_displacements_files(self, coords, expansion, units='Angstroms'):
+        atoms = self.atoms
+        nat = len(atoms)
+        disps = expansion[0].reshape(-1, nat, 3)
+        if units is not None:
+            coords = coords * UnitsData.convert("BohrRadius", units)
+            disps = disps / UnitsData.convert("BohrRadius", units)
+        # raise Exception(coords.shape, disp[0].shape)
+        return [
+            self._format_xyz(
+                i + 1,
+                nat,
+                atoms,
+                np.concatenate([coords, np.zeros((nat, 1)), disp], axis=1)
+            )
+            for i,disp in enumerate(disps)
+        ]
+
+    def format_animation_file(self, which, format='xyz', extent=.35, steps=8, strip_embedding=True, units='Angstroms'):
+        if format == 'jmol':
+            coord_expansion = self.get_cartesians_by_internals(1, strip_embedding=strip_embedding)[0]
+            return self._format_jmol_displacements_files(
+                self.coords,
+                [coord_expansion[(which,), :] * extent],
+                units
+            )[0]
+        else:
+            geoms = self.get_animation_geoms(which, extent=extent, steps=steps, strip_embedding=strip_embedding, units=units)
+            return self.format_structs(geoms, format)
+
+    def jsmol_viz(self, xyz=None, animate=False, vibrate=False):
+        from McUtils.Jupyter import JSMol
+        if xyz is None:
+            xyz = self._format_xyz(0,
+                                   len(self.atoms),
+                                   self.atoms,
+                                   self.coords * UnitsData.convert("BohrRadius", "Angstroms")
+                                   )
+        return JSMol.Applet(xyz, animate=animate, vibrate=vibrate)
 
     def jupyter_viz(self):
         from McUtils.Jupyter import MoleculeGraphics

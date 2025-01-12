@@ -823,6 +823,23 @@ class MolecoolsTests(TestCase):
         self.assertAlmostEquals(np.sum(ic1.convert(ic2.system)-ic2)[()], 0.)
 
     @debugTest
+    def test_AutomaticConversion(self):
+        sys = 'benzene.sdf'
+        mol = Molecule.from_file(
+            TestManager.test_data(sys),
+            internals='auto'
+        )
+
+        with BlockProfiler():
+            disps = mol.get_displaced_coordinates(
+                np.linspace(-1, 1, 25)[:, np.newaxis],
+                which=[0],
+                use_internals=True
+            )
+
+
+
+    @validationTest
     def test_FastInternals(self):
 
         sys = 'nh3.fchk'

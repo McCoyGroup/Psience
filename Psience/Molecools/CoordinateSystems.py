@@ -43,10 +43,7 @@ class MolecularEmbedding:
         else:
             self._int_spec = self.canonicalize_internal_coordinate_spec(internals)
             self._ints = None
-        self._jacobians = {
-            'internals': [],
-            'cartesian': []
-        }
+        self._jacobians = self._get_jacobian_storage()
         # self._int_spec = internals
         self._frame = None
         self._tr_modes = None
@@ -64,10 +61,7 @@ class MolecularEmbedding:
         if sys is not self.coords.system:
             MolecularCartesianToRegularCartesianConverter(sys).register()
             RegularCartesianToMolecularCartesianConverter(sys).register()
-        self._jacobians = {
-            'internals': [],
-            'cartesian': []
-        }
+        self._jacobians = self._get_jacobian_storage()
         self._frame = None
         self._coords = coords
     @property
@@ -222,6 +216,12 @@ class MolecularEmbedding:
             ics = ics.flatten()[good_coords]
         return ics
 
+    @classmethod
+    def _get_jacobian_storage(cls):
+        return {
+            'internals': [], #{"default":[], "fast":[], "generic":[]},
+            'cartesian': []
+        }
     def _get_int_jacobs(self,
                         jacs,
                         strip_dummies=False,
@@ -277,6 +277,7 @@ class MolecularEmbedding:
                                     converter_options=converter_options
                                     )
                 ]
+                self._jacobians['internals'] = exist_jacs
             else:
                 stencil = (max(need_jacs) + 2 + (1 + max(need_jacs)) % 2) if stencil is None else stencil
                 # odd behaves better

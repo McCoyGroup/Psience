@@ -501,14 +501,14 @@ class PrimitiveCoordinatePicker:
             coords.extend(self.RYX3_coords(c + [R], atom, X))
         return coords
 
-    def _2_2_coords(self, atom, neighbors, X, R, backbone=None):
-        coords = []
-        R = R[0]
-        # chains = self.get_precedent_chains(R, 1, ignored=[atom] + neighbors, backbone=backbone)
-        if len(chains) == 0: chains = [[]]
-        for c in chains:
-            coords.extend(self.R2YX2_coords(c + [R], atom, X))
-        return coords
+    # def _2_2_coords(self, atom, neighbors, X, R, backbone=None):
+    #     coords = []
+    #     R = R[0]
+    #     # chains = self.get_precedent_chains(R, 1, ignored=[atom] + neighbors, backbone=backbone)
+    #     if len(chains) == 0: chains = [[]]
+    #     for c in chains:
+    #         coords.extend(self.R2YX2_coords(c + [R], atom, X))
+    #     return coords
 
 
     @classmethod
@@ -776,7 +776,7 @@ class RedundantCoordinateGenerator:
             subcoords = np.setdiff1d(np.where(loc_val > loc_cutoff)[0], np.arange(len(fixed_vecs)))
             if sort:
                 subcoords = subcoords[np.argsort(-loc_val[subcoords,], )]
-            coords = np.concatenate([coords[:len(fixed_vecs)], coords[subcoords])
+            coords = np.concatenate([coords[:len(fixed_vecs)], coords[subcoords]])
 
         return coords
 
