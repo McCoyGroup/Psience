@@ -85,7 +85,7 @@ class VPT2Tests(TestCase):
 
         raise Exception(...)
 
-    @validationTest
+    @debugTest
     def test_HOHAnalytic(self):
 
         file_name = "HOH_freq.fchk"
@@ -194,7 +194,7 @@ class VPT2Tests(TestCase):
             expressions_file=os.path.expanduser("exprs.hdf5")
         )
 
-    @debugTest
+    @validationTest
     def test_AnalyticOCHHMultiple(self):
 
         """
@@ -251,6 +251,10 @@ class VPT2Tests(TestCase):
 
     @validationTest
     def test_AnalyticOCHH(self):
+        """
+        Run OCHH, add in the single degeneracy by hand
+        :return:
+        """
 
         file_name = "OCHH_freq.fchk"
         AnalyticVPTRunner.run_simple(

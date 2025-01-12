@@ -1,8 +1,10 @@
+import math
 
 import numpy as np
 from .CoordinateSystems import MolecularEmbedding
 from .Properties import NormalModesManager
 from McUtils.Zachary import TensorDerivativeConverter
+import McUtils.Numputils as nput
 
 __all__ = [
     "MolecularEvaluator"
@@ -94,6 +96,7 @@ class MolecularEvaluator:
 
     def get_displaced_coordinates(self, displacements, which=None, sel=None, axes=None,
                                   use_internals=False,
+                                  coordinate_expansion=None,
                                   strip_embedding=False,
                                   shift=True
                                   ):
@@ -114,6 +117,28 @@ class MolecularEvaluator:
             ecs = self.embedding.embedding_coords
             all_coords = np.arange(len(self.embedding.masses) * 3)
             which = np.setdiff1d(all_coords, ecs)[which,]
+
+        if coordinate_expansion is not None:
+            if which is not None:
+                base_disps = np.zeros(displacements.shape[:-1] + coordinate_expansion[0].shape[:1])
+                base_disps[..., which] = displacements
+                displacements = base_disps
+            _ = []
+            new_disps = 0
+            shared = displacements.ndim-1
+            for n,disp in enumerate(coordinate_expansion):
+                disp = disp / math.factorial(n+1)
+                for i in range(n+1):
+                    if i == 0:
+                        disp = np.tensordot(displacements, disp, axes=[-1, i])
+                    else:
+                        disp = nput.vec_tensordot(displacements, disp, axes=[-1, shared], shared=shared)
+                new_disps = new_disps + disp
+            if use_internals:
+                displacements = new_disps.reshape(new_disps.shape[:-1] + (-1,))
+            else:
+                displacements = new_disps.reshape(new_disps.shape[:-1] + (-1, 3))
+            which = None
 
         if which is not None:
             if displacements.shape[-1] != len(which):  # displacements provided in atom coordinates
@@ -160,7 +185,11 @@ class MolecularEvaluator:
                     displacements.shape,
                     base_coords.shape
                 ))
-            base_coords = displacements
+            if shift:
+                base_coords = np.expand_dims(base_coords, list(range(displacements.ndim - 2)))
+                base_coords = base_coords + displacements
+            else:
+                base_coords = displacements
 
         if use_internals:
             # track the embedding info...
@@ -178,6 +207,8 @@ class MolecularEvaluator:
                              domains,
                              internals=False,
                              which=None, sel=None, axes=None,
+                             coordinate_expansion=None,
+                             strip_embedding=False,
                              shift=True
                              ):
 
@@ -188,7 +219,10 @@ class MolecularEvaluator:
             0, -1
         )
         return self.get_displaced_coordinates(displacement_mesh, shift=shift,
-                                              use_internals=internals, which=which, sel=sel, axes=axes)
+                                              use_internals=internals, which=which, sel=sel, axes=axes,
+                                              coordinate_expansion=coordinate_expansion,
+                                              strip_embedding=strip_embedding
+                                              )
 
     def get_nearest_displacement_atoms(self,
                                        points,

@@ -1792,13 +1792,21 @@ class PotentialSurfaceManager(PropertyManager):
     def __init__(self, mol, surface=None, derivatives=None):
         super().__init__(mol)
         self._surf = surface
+        self._surface_coords = None
         self._derivs = derivatives
 
     @property
     def surface(self):
         if self._surf is None:
-            self._surf = self.load_potential_surface()
+            self._surf = self.load_potential_surface(self.surface_coords)
         return self._surf
+    @property
+    def surface_coords(self):
+        return self._surface_coords
+    @surface_coords.setter
+    def surface_coords(self, coords):
+        self._surface_coords = coords
+
 
     @property
     def derivatives(self):

@@ -15,6 +15,8 @@ __all__ = [
     "WavefunctionException"
 ]
 
+__reload_hook__ = ["..Spectra"]
+
 class WavefunctionException(Exception):
     pass
 
@@ -62,6 +64,7 @@ class Wavefunction:
 
     def plot(self,
              figure=None, domain=None, *, domain_padding=None, grid=None, values=None, plot_points=100,
+             which=None,
              index=0, scaling=1, shift='auto', plotter=None, plot_density=False,
              zero_tol=1e-8, contour_levels=None,
              **opts
@@ -84,6 +87,8 @@ class Wavefunction:
         :return:
         :rtype:
         """
+        if which is None:
+            which = index
 
         if grid is None and domain is None:
             raise ValueError("can't plot a wave function without a specified domain")
@@ -103,12 +108,12 @@ class Wavefunction:
 
         # allows us to scale wave functions independently
         if not isinstance(scaling, (int, float, np.integer, np.floating)):
-            scaling = scaling[index]
+            scaling = scaling[which]
         if shift is None: shift = 0
         if isinstance(shift, str) and shift == 'auto':
             shift = self.energy
         if not isinstance(shift, (int, float, np.integer, np.floating, str)):
-            shift = shift[index]
+            shift = shift[which]
 
         if values is None:
             if plot_density:
@@ -246,10 +251,10 @@ class Wavefunctions:
             inds = np.arange(len(self.wavefunctions))
         if not isinstance(which, (int, np.integer)):
             return type(self)(
-                energies=self.energies[which],
+                energies=self.energies[which,],
                 wavefunctions=self.wavefunctions[:, which],
                 wavefunction_class=self.wavefunction_class,
-                indices=inds[which],
+                indices=inds[which,],
                 dipole_function=self.dipole_function,
                 **self.opts
             )
@@ -328,7 +333,7 @@ class Wavefunctions:
             ind = wfn.index
             if ind is None:
                 ind = i
-            wfn.plot(figure, index=ind, **opts)
+            wfn.plot(figure, which=i, index=ind, **opts)
 
         return figure
 
