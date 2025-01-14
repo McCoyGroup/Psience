@@ -291,6 +291,7 @@ class Molecule(AbstractMolecule):
         self.potential_surface.derivatives = derivs
 
     def get_internal_potential_derivatives(self, order=None):
+        raise NotImplementedError("use Numputils tensor reexpand instead")
         if self.potential_derivatives is None:
             raise ValueError("no potential derivatives")
         if order is None:
