@@ -225,7 +225,13 @@ class AnalyticPerturbationTheorySolver:
 
         return final_terms
 
-
+    @classmethod
+    def clear_caches(cls):
+        cls._op_maps.clear()
+        ProductPTPolynomial._cache.clear()
+        PerturbationTheoryTermProduct._cache.clear()
+        ShiftedEnergyBaseline._cache.clear()
+        PerturbationOperator._cache.clear()
 
 
 class PolynomialInterface(metaclass=abc.ABCMeta):

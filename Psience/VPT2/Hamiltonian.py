@@ -181,7 +181,6 @@ class PerturbationTheoryHamiltonian:
         else:
             U_terms = None
         self.pseudopotential_term = self.TermGetter(U_terms, pseudopotential_terms, mode_selection=mode_selection)
-
         self._dipole_terms = None
 
         self._expansions = []

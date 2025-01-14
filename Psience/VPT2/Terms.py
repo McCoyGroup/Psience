@@ -574,7 +574,10 @@ class ExpansionTerms:
             #  I've got moments of inertia in amu * bohr^2 at the moment
             #  So we convert (amu * bohr^2) to (m_e * bohr^2) since hb^2/(m_e bohr^2) == E_h
             mom_i, eigs = self.molecule.inertial_eigensystem
-            B_e = 1 / (2 * mom_i)# * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass"))
+            # bad_moms = np.where(mom_i <= 1)
+            # mom_i[bad_moms] = 1
+            B_e = 1 / (2 * mom_i)  # * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass"))
+            # B_e[bad_moms] = 0
             self._inert_frame = B_e, eigs
 
         return self._inert_frame
