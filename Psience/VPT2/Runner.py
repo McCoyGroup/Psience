@@ -2640,18 +2640,20 @@ class AnalyticVPTRunner:
             states = states.flat_space
             # system = states.system
         if system is None:
-            # system = self.ham.molecule
-            ndim = len(freqs)
-            nats = ((ndim + 6)//3)
-            system = Molecule(
-                ['H']*nats, # doesn't need to make sense
-                np.zeros((nats, 3)),
-                normal_modes={
-                    'freqs':freqs,
-                    'matrix':np.zeros((nats*3, ndim)),
-                    'inverse':np.zeros((ndim, nats*3)),
-                }
-            )
+            if hasattr(self.ham, 'molecule'):
+                system = self.ham.molecule
+            else:
+                ndim = len(freqs)
+                nats = ((ndim + 6)//3)
+                system = Molecule(
+                    ['H']*nats, # doesn't need to make sense
+                    np.zeros((nats, 3)),
+                    normal_modes={
+                        'freqs':freqs,
+                        'matrix':np.zeros((nats*3, ndim)),
+                        'inverse':np.zeros((ndim, nats*3)),
+                    }
+                )
         return VPTRunner.construct(
             system, states,
             initial_states=initial_states,
@@ -2705,6 +2707,10 @@ class AnalyticVPTRunner:
             # dipole_terms=dips,
             # intermediate_normalization=False
         )
+
+    @classmethod
+    def clear_caches(cls):
+        AnalyticPerturbationTheorySolver.clear_caches()
 
     @classmethod
     def prep_multispace(self, states, freqs, system=None, degeneracy_specs=None):
