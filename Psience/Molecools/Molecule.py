@@ -1327,13 +1327,14 @@ class Molecule(AbstractMolecule):
              sphere_class=None,
              animate=None,
              animation_options=None,
+             jsmol_load_script=None,
              **plot_ops
              ):
 
         if mode == 'jupyter':
             return self.jupyter_viz()
         elif mode == 'jsmol':
-            return self.jsmol_viz()
+            return self.jsmol_viz(script=jsmol_load_script)
 
         from McUtils.Plots import Graphics3D, Sphere, Cylinder, Line, Disk
 
@@ -1544,13 +1545,14 @@ class Molecule(AbstractMolecule):
     def animate_coordinate(self, which, extent=.35, steps=8, return_objects=False, strip_embedding=True,
                            units=None,
                            mode='x3d',
+                           jsmol_load_script=None,
                            **plot_opts
                            ):
         if mode == 'jsmol':
             disps = self.format_animation_file(which, format="jmol",
                                                extent=extent, steps=steps, strip_embedding=strip_embedding,
                                                units="Angstroms" if units is None else units)
-            return self.jsmol_viz(disps, vibrate=True)
+            return self.jsmol_viz(disps, vibrate=True, script=jsmol_load_script)
         else:
             geoms = self.get_animation_geoms(which, extent=extent, steps=steps, strip_embedding=strip_embedding, units=units)
             return self.plot(geoms, return_objects=return_objects, **plot_opts)
@@ -1605,7 +1607,7 @@ class Molecule(AbstractMolecule):
             geoms = self.get_animation_geoms(which, extent=extent, steps=steps, strip_embedding=strip_embedding, units=units)
             return self.format_structs(geoms, format)
 
-    def jsmol_viz(self, xyz=None, animate=False, vibrate=False):
+    def jsmol_viz(self, xyz=None, animate=False, vibrate=False, script=None):
         from McUtils.Jupyter import JSMol
         if xyz is None:
             xyz = self._format_xyz(0,
@@ -1613,7 +1615,7 @@ class Molecule(AbstractMolecule):
                                    self.atoms,
                                    self.coords * UnitsData.convert("BohrRadius", "Angstroms")
                                    )
-        return JSMol.Applet(xyz, animate=animate, vibrate=vibrate)
+        return JSMol.Applet(xyz, animate=animate, vibrate=vibrate, load_script=script)
 
     def jupyter_viz(self):
         from McUtils.Jupyter import MoleculeGraphics
@@ -1625,9 +1627,15 @@ class Molecule(AbstractMolecule):
 
     def to_widget(self):
         return self.jupyter_viz().to_widget()
+
+    display_jsmol = True
     def _ipython_display_(self):
-        return self.plot(backend='x3d')[0]._ipython_display_()
-        return self.jupyter_viz()._ipython_display_()
+        if self.display_jsmol:
+            obj = self.plot(mode='jsmol')
+        else:
+            obj = self.plot(backend='x3d', return_objects=False)
+        return obj._ipython_display_()
+        # return self.jupyter_viz()._ipython_display_()
     #endregion
 
     #region External Program Properties
