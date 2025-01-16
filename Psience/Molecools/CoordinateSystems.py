@@ -219,7 +219,8 @@ class MolecularEmbedding:
     @classmethod
     def _get_jacobian_storage(cls):
         return {
-            'internals': [], #{"default":[], "fast":[], "generic":[]},
+            'internals': {"default":[], "reembed":[]},
+            'fast-internals': {"default":[], "reembed":[]},
             'cartesian': []
         }
     def _get_int_jacobs(self,
@@ -263,11 +264,16 @@ class MolecularEmbedding:
             jacs = list(range(1, jacs + 1))
 
         exist_jacs = self._jacobians['internals']
+        if reembed:
+            exist_jacs = exist_jacs["reembed"]
+        else:
+            exist_jacs = exist_jacs["default"]
+        # {"default": [], "reembed": [], "fast": [], "generic": []}
         max_jac = max(jacs)
         need_jacs = [x + 1 for x in range(0, max_jac) if x >= len(exist_jacs) or exist_jacs[x] is None]
         if len(need_jacs) > 0:
             if generics:
-                exist_jacs = [
+                exist_jacs[:] = [
                     x.squeeze() for x in
                     intcds.jacobian(carts, jacs,
                                     # odd behaves better
@@ -277,7 +283,7 @@ class MolecularEmbedding:
                                     converter_options=converter_options
                                     )
                 ]
-                self._jacobians['internals'] = exist_jacs
+                # self._jacobians['internals'] = exist_jacs
             else:
                 stencil = (max(need_jacs) + 2 + (1 + max(need_jacs)) % 2) if stencil is None else stencil
                 # odd behaves better
@@ -338,12 +344,13 @@ class MolecularEmbedding:
         need_jacs = [x + 1 for x in range(0, max_jac) if x >= len(exist_jacs) or exist_jacs[x] is None]
         if len(need_jacs) > 0:
             if generics:
-                exist_jacs = [
+                exist_jacs[:] = [
                     x.squeeze() for x in
-                    ccoords.jacobian(internals, list(range(1, max_jac+1)),
-                                     mesh_spacing=mesh_spacing,
-                                     stencil=stencil,
-                                     all_numerical=all_numerical,
+                    ccoords.jacobian(internals,
+                                     list(range(1, max_jac+1)),
+                                     # mesh_spacing=mesh_spacing,
+                                     # stencil=stencil,
+                                     # all_numerical=all_numerical,
                                      converter_options=converter_options
                                      )
                 ]
@@ -388,20 +395,27 @@ class MolecularEmbedding:
                 method = self.cartesian_by_internals_method
 
         if reembed and method == 'fast':
-            L_base = self.get_translation_rotation_invariant_transformation(strip_embedding=strip_embedding, mass_weighted=False)
-            jacs_1 = self.get_internals_by_cartesians(order, strip_embedding=strip_embedding)
-            new_tf = nput.tensor_reexpand([L_base.T], jacs_1, order)
-            inverse_tf = nput.inverse_transformation(new_tf, order, allow_pseudoinverse=True)
-            return [
-                np.tensordot(j, L_base, axes=[-1, -1])
-                for j in inverse_tf
-            ]
+            fast_ints = self._jacobians['fast-internals']["reembed"]
+            if len(fast_ints) < order:
+                L_base = self.get_translation_rotation_invariant_transformation(strip_embedding=strip_embedding, mass_weighted=False)
+                jacs_1 = self.get_internals_by_cartesians(order, strip_embedding=strip_embedding)
+                new_tf = nput.tensor_reexpand([L_base.T], jacs_1, order)
+                inverse_tf = nput.inverse_transformation(new_tf, order, allow_pseudoinverse=True)
+                fast_ints[:] = [
+                    np.tensordot(j, L_base, axes=[-1, -1])
+                    for j in inverse_tf
+                ]
+            return fast_ints
         elif not reembed and method == 'fast':
+            # fast_ints = self._jacobians['fast-internals']["reembed"]
             wtf = self.get_internals_by_cartesians(order, strip_embedding=False) # faster to just do these derivs.
             base = nput.inverse_transformation(wtf, order-1, allow_pseudoinverse=True)
-            # print(order, len(wtf), len(base))
         else:
-            base = self._get_int_jacobs(order, reembed=reembed) if order is not None else self._jacobians['internals']
+            base = (
+                self._get_int_jacobs(order, reembed=reembed)
+                    if order is not None else
+                self._jacobians['internals']["default" if not reembed else "reembed"]
+            )
             if order is not None:
                 if len(base) < order:
                     raise ValueError("insufficient {} (have {} but expected {})".format(
@@ -822,7 +836,6 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
                  coords,
                  system,
                  order=None,
-                 return_derivs=None,
                  strip_dummies=None,
                  converter_options=None,
                  analytic_deriv_order=None,
@@ -845,9 +858,9 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
             if zmat_conv:
                 analytic_deriv_order = 0
             else:
-                if return_derivs is None:
-                    return_derivs = order
-                analytic_deriv_order = return_derivs if nput.is_numeric(return_derivs) else max(return_derivs)
+                # if return_derivs is None:
+                #     return_derivs = order
+                analytic_deriv_order = None #return_derivs if nput.is_numeric(return_derivs) else max(return_derivs)
 
         if strip_dummies:
             dummies = self.dummy_positions

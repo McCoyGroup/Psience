@@ -3,6 +3,8 @@ import itertools
 import numpy as np
 import collections
 import enum
+
+import scipy
 import scipy.sparse as sparse
 import McUtils.Numputils as nput
 from McUtils.ExternalPrograms import RDMolecule
@@ -185,15 +187,24 @@ class EdgeGraph:
             bonds=[[int(i), int(j), 1] for i,j in self.edges]
         ).rings
 
+    def get_fragments(self):
+        from scipy.sparse import csgraph
+        _, labels = csgraph.connected_components(self.graph, directed=False, return_labels=True)
+        _, groups = nput.group_by(np.arange(len(labels)), labels)[0]
+        return groups
+
 class PrimitiveCoordinatePicker:
 
     light_atom_types = {"H", "D"}
-    def __init__(self, atoms, bonds, base_coords=None, rings=None, light_atoms=None, backbone=None, neighbor_count=3):
+    def __init__(self, atoms, bonds, base_coords=None, rings=None, fragments=None, light_atoms=None, backbone=None, neighbor_count=3):
         self.graph = EdgeGraph(atoms, bonds)
         if rings is None:
             rings = self.graph.get_rings()
         self.rings = rings
         self.ring_atoms = {k:n for n,rats in enumerate(rings) for k in rats}
+        if fragments is None:
+            fragments = self.graph.get_fragments()
+        self.fragments = fragments
         self.backbone = backbone
         self.light_atoms = (
             [
@@ -218,6 +229,9 @@ class PrimitiveCoordinatePicker:
         for i,r1 in enumerate(self.rings):
             for r2 in self.rings[i+1:]:
                 coords.extend(self.fused_ring_coordinates(r1, r2))
+        for i,r1 in enumerate(self.fragments):
+            for r2 in self.fragments[i+1:]:
+                coords.extend(self.fragment_connection_coords(r1, r2))
         for a in range(len(self.graph.labels)):
             if a not in self.ring_atoms:
                 symm_c = self.symmetry_coords(a, neighborhood=self.neighbors, backbone=self.backbone)
@@ -244,6 +258,17 @@ class PrimitiveCoordinatePicker:
         elif coord[0] > coord[-1]:
             coord = tuple(reversed(coord))
         return coord
+
+    @classmethod
+    def prep_unique_coords(cls, coords):
+        _coords = []
+        _cache = set()
+        for x in coords:
+            x = cls.canonicalize_coord(x)
+            if x not in _cache:
+                _coords.append(x)
+                _cache.add(x)
+        return coords
 
     @classmethod
     def prune_excess_coords(cls, coord_set, canonicalized=False):
@@ -353,6 +378,28 @@ class PrimitiveCoordinatePicker:
                 raise ValueError(f"can't deal with fused rings with {n} shared atoms")
             return coord_func(ring_atoms1, ring_atoms2, shared_atoms, r1_indices, r2_indices)
 
+    def fragment_connection_coords(self, frag_1, frag_2):
+        heavy_frag1 = set(frag_1) - set(self.light_atoms)
+        if len(heavy_frag1) > 2:
+            frag_1 = list(sorted(heavy_frag1))
+        heavy_frag2 = set(frag_2) - set(self.light_atoms)
+        if len(heavy_frag2) > 2:
+            frag_2 = list(sorted(heavy_frag2))
+
+        coords = []
+        coords.append((frag_1[0], frag_2[0]))
+        if len(frag_2) > 1:
+            coords.append((frag_1[0], frag_2[0], frag_2[1]))
+        if len(frag_1) > 1:
+            coords.append((frag_1[1], frag_1[0], frag_2[0]))
+        if len(frag_2) > 1 and len(frag_1) > 1:
+            coords.append((frag_1[1], frag_1[0], frag_2[0], frag_2[1]))
+        if len(frag_1) > 2:
+            coords.append((frag_1[2], frag_1[1], frag_1[0], frag_2[0]))
+        if len(frag_2) > 2:
+            coords.append((frag_1[0], frag_2[0], frag_2[1], frag_2[2]))
+
+        return coords
 
     def get_neighborhood_symmetries(self, atoms, ignored=None, neighborhood=3):
         graphs = [
@@ -583,12 +630,23 @@ class RedundantCoordinateGenerator:
         )
 
     @classmethod
-    def _relocalize_tf(cls, redund_tf):
+    def _relocalize_tf(cls, redund_tf, untransformed_coordinates=None):
         n = redund_tf.shape[-1]
-        # target = np.pad(np.eye(n), [[0, 173 - 108], [0, 0]])
-        ndim = redund_tf.ndim - 2
-        eye = nput.identity_tensors(redund_tf.shape[:-2], n)
-        target = np.pad(eye, ([[0, 0]] * ndim) + [[0, redund_tf.shape[-2] - n], [0, 0]])
+        if untransformed_coordinates is None:
+            # target = np.pad(np.eye(n), [[0, 173 - 108], [0, 0]])
+            ndim = redund_tf.ndim - 2
+            eye = nput.identity_tensors(redund_tf.shape[:-2], n)
+            target = np.pad(eye, ([[0, 0]] * ndim) + [[0, redund_tf.shape[-2] - n], [0, 0]])
+        else:
+            untransformed_coordinates = np.asanyarray(untransformed_coordinates)
+            coords = np.concatenate([
+                untransformed_coordinates,
+                np.delete(np.arange(redund_tf.shape[-2]), untransformed_coordinates)
+                ])[:n]
+            target = np.moveaxis(np.zeros(redund_tf.shape), -1, -2)
+            idx = nput.vector_ix(target.shape[:-1], coords[:, np.newaxis])
+            target[idx] = 1
+            target = np.moveaxis(target, -1, -2)
         loc = np.linalg.lstsq(redund_tf, target, rcond=None)
         U, s, V = np.linalg.svd(loc[0])
         R = U @ V
@@ -602,6 +660,18 @@ class RedundantCoordinateGenerator:
                                       relocalize=False
                                       ):
         conv = np.asanyarray(expansion[0])
+        if masses is not None:
+            masses = np.asanyarray(masses)
+            if len(masses) == conv.shape[-2] // 3:
+                masses = np.repeat(masses, 3)
+            masses = np.diag(1 / np.sqrt(masses))
+            if conv.ndim > 2:
+                masses = np.broadcast_to(
+                    np.expand_dims(masses, list(range(conv.ndim - 2))),
+                    conv.shape[:-2] + masses.shape
+                )
+            conv = masses @ conv
+
         if untransformed_coordinates is not None:
             transformed_coords = np.setdiff1d(np.arange(conv.shape[-1]), untransformed_coordinates)
             ut_conv = conv[..., untransformed_coordinates]
@@ -609,29 +679,13 @@ class RedundantCoordinateGenerator:
 
             # project out contributions along untransformed coordinates to ensure
             # dimension of space remains unchanged
-            ut_conv = nput.vec_normalize(ut_conv)
-            proj = ut_conv @ np.moveaxis(ut_conv, -1, -2)
+            ut_conv_norm = nput.vec_normalize(np.moveaxis(ut_conv, -1, -2))
+            proj = np.moveaxis(ut_conv_norm, -1, -2) @ ut_conv_norm
             proj = nput.identity_tensors(proj.shape[:-2], proj.shape[-1]) - proj
 
-            conv = proj @ conv
-        else:
-            transformed_coords = None
+            conv = np.concatenate([ut_conv, proj @ conv], axis=-1)
 
-        if masses is None:
-            G_internal = np.moveaxis(conv, -1, -2) @ conv
-        else:
-            masses = np.asanyarray(masses)
-            if len(masses) == conv.shape[-2] // 3:
-                masses = np.repeat(masses, 3)
-            masses = np.diag(1 / masses)
-            if conv.ndim > 2:
-                masses = np.broadcast_to(
-                    np.expand_dims(masses, list(range(conv.ndim - 2))),
-                    conv.shape[:-2] + masses.shape
-                )
-            G_internal = np.moveaxis(conv, -1, -2)  @ masses @ conv
-
-
+        G_internal = np.moveaxis(conv, -1, -2) @ conv
         redund_vals, redund_tf = np.linalg.eigh(G_internal)
         redund_pos = np.where(np.abs(redund_vals) > 1e-10)
         if redund_vals.ndim > 1:
@@ -645,23 +699,36 @@ class RedundantCoordinateGenerator:
                 np.flip(tf, axis=-1)
                 for tf in redund_tf
             ]
-        if transformed_coords is not None:
-            n = len(untransformed_coordinates)
-            if isinstance(redund_tf, np.ndarray):
-                redund_tf = cls._pad_redund_tf(redund_tf, n)
-            else:
-                redund_tf = [
-                    cls._pad_redund_tf(tf, n)
-                    for tf in redund_tf
-                ]
+
+        # if transformed_coords is not None:
+        #     n = len(untransformed_coordinates)
+        #     if isinstance(redund_tf, np.ndarray):
+        #         redund_tf = cls._pad_redund_tf(redund_tf, n)
+        #     else:
+        #         redund_tf = [
+        #             cls._pad_redund_tf(tf, n)
+        #             for tf in redund_tf
+        #         ]
 
         if relocalize:
+            if untransformed_coordinates is not None:
+                perm = np.concatenate([untransformed_coordinates,
+                                       np.delete(np.arange(redund_tf.shape[-2]), untransformed_coordinates)
+                                       ])
+                perm = np.argsort(perm)
+                if isinstance(redund_tf, np.ndarray):
+                    redund_tf = redund_tf[..., perm, :]
+                else:
+                    redund_tf = [
+                        redund_tf[..., perm, :]
+                        for tf in redund_tf
+                    ]
             # provide some facility for rearranging coords?
             if isinstance(redund_tf, np.ndarray):
-                redund_tf = cls._relocalize_tf(redund_tf)
+                redund_tf = cls._relocalize_tf(redund_tf, untransformed_coordinates=untransformed_coordinates)
             else:
                 redund_tf = [
-                    cls._relocalize_tf(tf)
+                    cls._relocalize_tf(tf, untransformed_coordinates=untransformed_coordinates)
                     for tf in redund_tf
                 ]
 
@@ -683,10 +750,10 @@ class RedundantCoordinateGenerator:
 
         # dQ/dR, which we can transform with dR/dX to get dQ/dX
         if isinstance(redund_tf, np.ndarray):
-            redund_expansions = nput.tensor_reexpand(base_expansions, [redund_tf])
+            redund_expansions = nput.tensor_reexpand(base_expansions, [redund_tf], order=len(base_expansions))
         else:
             redund_expansions = [
-                nput.tensor_reexpand(base_expansions, [tf])
+                nput.tensor_reexpand(base_expansions, [tf], order=len(base_expansions))
                 for tf in redund_tf
             ]
 

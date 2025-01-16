@@ -123,12 +123,13 @@ class Molecule(AbstractMolecule):
         self._meta = metadata
 
     @classmethod
-    def _auto_spec(cls, atoms, coords, bonds, redundant=False, base_coords=None,
+    def _auto_spec(cls, atoms, coords, bonds, redundant=False, base_coordinates=None,
                    masses=None,
                    nonredundant_coordinates=None,
                    prune_coordinates=True,
                    pruning_options=None,
                    **opts):
+        base_coords = base_coordinates
         if bonds is None:
             bonds = RDMolecule.from_coords(
                                            atoms,
@@ -140,8 +141,10 @@ class Molecule(AbstractMolecule):
             nonredundant_coordinates = base_coords
             base_coords = None
         if redundant and nonredundant_coordinates is not None:
-            nonredundant_coordinates = list(nonredundant_coordinates)
+            nonredundant_coordinates = PrimitiveCoordinatePicker.prep_unique_coords(nonredundant_coordinates)
             base_coords = nonredundant_coordinates + ([] if base_coords is None else list(base_coords))
+        if base_coords is not None:
+            base_coords = PrimitiveCoordinatePicker.prep_unique_coords(base_coords)
         specs = PrimitiveCoordinatePicker(
                 atoms,
                 [b[:2] for b in bonds],
@@ -165,7 +168,6 @@ class Molecule(AbstractMolecule):
         spec = {'specs':specs}
         if redundant:
             spec['redundant'] = True
-
             if nonredundant_coordinates is not None:
                 spec['untransformed_coordinates'] = np.arange(len(nonredundant_coordinates))
         return spec
@@ -506,6 +508,26 @@ class Molecule(AbstractMolecule):
         :rtype: np.ndarray
         """
         return self.prop('translation_rotation_eigenvectors')
+
+    def get_translation_rotation_projector(self, mass_weighted=False):
+        L_tr = self.translation_rotation_modes[1]
+        A = np.eye(L_tr.shape[0]) - (L_tr @ L_tr.T)
+        if not mass_weighted:
+            M = np.diag(np.repeat(1 / np.sqrt(self.masses), 3))
+            A = M @ A @ M
+        return A
+
+    def get_translation_rotation_invariant_transformation(self,
+                                           mass_weighted=False,
+                                           strip_embedding=True
+                                           ):
+        return nput.translation_rotation_invariant_transformation(
+            self.coords,
+            self.atomic_masses,
+            mass_weighted=mass_weighted,
+            strip_embedding=strip_embedding
+        )
+
 
     # @property
     # def zmatrix(self):
@@ -935,6 +957,17 @@ class Molecule(AbstractMolecule):
                 **opts
             )
 
+    def get_gmatrix(self, use_internals=None):
+        if use_internals is None:
+            use_internals = self.internal_coordinates is not None
+
+        if not use_internals:
+            atma = self._atomic_masses()
+            mass_spec = np.broadcast_to(atma[:, np.newaxis], (len(atma), 3)).flatten()
+            return np.diag(1 / mass_spec)
+            # raise ValueError("need internal coordinates to calculate the G-matrix")
+        else:
+            return self.hamiltonian.gmatrix_expansion(0, modes=None)[0]
     @property
     def g_matrix(self):
         """
@@ -942,13 +975,7 @@ class Molecule(AbstractMolecule):
         :return:
         :rtype:
         """
-        if self.internal_coordinates is None:
-            atma = self._atomic_masses()
-            mass_spec = np.broadcast_to(atma[:, np.newaxis], (len(atma), 3)).flatten()
-            return np.diag(1 / mass_spec)
-            # raise ValueError("need internal coordinates to calculate the G-matrix")
-        return self.hamiltonian.gmatrix_expansion(0, modes=None)
-        return self.prop('g_matrix')
+        return self.get_gmatrix()
 
     @property
     def coriolis_constants(self):
@@ -1328,6 +1355,7 @@ class Molecule(AbstractMolecule):
              animate=None,
              animation_options=None,
              jsmol_load_script=None,
+             units="Angstroms",
              **plot_ops
              ):
 
@@ -1355,6 +1383,9 @@ class Molecule(AbstractMolecule):
             geometries = CoordinateSet(np.asanyarray(geometries[0]), self.coords.system)
         else:
             geometries = CoordinateSet([np.asanyarray(g) for g in geometries], self.coords.system)
+
+        if units is not None:
+            geometries = geometries * UnitsData.convert("BohrRadius", units)
 
         if geometries.ndim == 2:
             geometries = geometries[np.newaxis]
@@ -1523,39 +1554,46 @@ class Molecule(AbstractMolecule):
         else:
             return figure
 
-    def get_animation_geoms(self, which, extent=.35, steps=8, strip_embedding=True, units=None):
+    def get_animation_geoms(self, which, extent=.35, steps=8, strip_embedding=True, units=None,
+                            coordinate_expansion=None
+                            ):
         if isinstance(which, int):
-            coord_expansion = self.get_cartesians_by_internals(2, strip_embedding=strip_embedding)
+            if coordinate_expansion is None:
+                coordinate_expansion = self.get_cartesians_by_internals(2, strip_embedding=strip_embedding)
         else:
             if isinstance(which, np.ndarray):
                 if which.ndim == 1:
                     which = which[np.newaxis]
                 which = [which]
-            coord_expansion = which
+            coordinate_expansion = which
             which = 0
         geoms = self.get_scan_coordinates(
             [[-extent, extent, steps]],
             which=[which],
-            coordinate_expansion=coord_expansion
+            coordinate_expansion=coordinate_expansion
         )
         geoms = np.concatenate([geoms, np.flip(geoms, axis=0)], axis=0)
         if units is not None:
             geoms = geoms * UnitsData.convert("BohrRadius", units)
         return geoms
     def animate_coordinate(self, which, extent=.35, steps=8, return_objects=False, strip_embedding=True,
-                           units=None,
+                           units="Angstroms",
                            mode='x3d',
                            jsmol_load_script=None,
+                           coordinate_expansion=None,
                            **plot_opts
                            ):
         if mode == 'jsmol':
             disps = self.format_animation_file(which, format="jmol",
                                                extent=extent, steps=steps, strip_embedding=strip_embedding,
-                                               units="Angstroms" if units is None else units)
+                                               units="Angstroms" if units is None else units,
+                                               coordinate_expansion=coordinate_expansion
+                                               )
             return self.jsmol_viz(disps, vibrate=True, script=jsmol_load_script)
         else:
-            geoms = self.get_animation_geoms(which, extent=extent, steps=steps, strip_embedding=strip_embedding, units=units)
-            return self.plot(geoms, return_objects=return_objects, **plot_opts)
+            geoms = self.get_animation_geoms(which, extent=extent, steps=steps, strip_embedding=strip_embedding, units=units,
+                                             coordinate_expansion=coordinate_expansion)
+            return self.plot(geoms, return_objects=return_objects, units=None, **plot_opts)
 
     def _format_xyz(self, which, nat, atoms, geom, float_format='10.3f'):
         xyz_elems = len(geom[0])
@@ -1595,16 +1633,21 @@ class Molecule(AbstractMolecule):
             for i,disp in enumerate(disps)
         ]
 
-    def format_animation_file(self, which, format='xyz', extent=.35, steps=8, strip_embedding=True, units='Angstroms'):
+    def format_animation_file(self, which, format='xyz', extent=.35, steps=8, strip_embedding=True, units='Angstroms',
+                              coordinate_expansion=None
+                              ):
         if format == 'jmol':
-            coord_expansion = self.get_cartesians_by_internals(1, strip_embedding=strip_embedding)[0]
+            if coordinate_expansion is None:
+                coordinate_expansion = self.get_cartesians_by_internals(1, strip_embedding=strip_embedding)
+            coordinate_expansion = coordinate_expansion[0]
             return self._format_jmol_displacements_files(
                 self.coords,
-                [coord_expansion[(which,), :] * extent],
+                [coordinate_expansion[(which,), :] * extent],
                 units
             )[0]
         else:
-            geoms = self.get_animation_geoms(which, extent=extent, steps=steps, strip_embedding=strip_embedding, units=units)
+            geoms = self.get_animation_geoms(which, extent=extent, steps=steps, strip_embedding=strip_embedding, units=units,
+                                             coordinate_expansion=coordinate_expansion)
             return self.format_structs(geoms, format)
 
     def jsmol_viz(self, xyz=None, animate=False, vibrate=False, script=None):
