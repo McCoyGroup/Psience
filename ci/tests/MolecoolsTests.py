@@ -10,7 +10,7 @@ from McUtils.GaussianInterface import GaussianFChkReader, GaussianLogReader
 from McUtils.Plots import *
 from McUtils.Coordinerds import cartesian_to_zmatrix
 from McUtils.Data import UnitsData
-import numpy as np
+import numpy as np, scipy
 import McUtils.Numputils as nput
 
 class MolecoolsTests(TestCase):
@@ -823,6 +823,99 @@ class MolecoolsTests(TestCase):
         self.assertAlmostEquals(np.sum(ic1.convert(ic2.system)-ic2)[()], 0.)
 
     @debugTest
+    def test_InternalConv(self):
+
+        gggg = Molecule(
+            ['C', 'C', 'H', 'H', 'H', 'C', 'C', 'H', 'H', 'H', 'C', 'C', 'H', 'H', 'H', 'C', 'H', 'H', 'H'],
+            [[0., 0., 0.],
+             [2.5221177, 0., 0.],
+             [-1.074814, 1.74867225, 0.],
+             [-1.06173943, -1.75324789, -0.02644452],
+             [3.50660496, -1.80459232, -0.09993741],
+             [4.12940149, 2.25082363, 0.07118096],
+             [3.53603628, 4.43884306, 1.1781188],
+             [5.96989258, 2.06662578, -0.83065536],
+             [4.82076346, 6.03519987, 1.12058693],
+             [1.77236274, 4.68977978, 2.19737026],
+             [0.05431618, 1.81919915, 6.66571583],
+             [0.10361848, 4.11457325, 7.68790077],
+             [1.66160335, 1.19828653, 5.53987418],
+             [-1.46076767, 4.82280651, 8.81630128],
+             [1.71219257, 5.36239542, 7.43802933],
+             [-2.06783807, -0.02189412, 6.91272006],
+             [-2.80613635, -0.54136474, 5.04934629],
+             [-1.42168595, -1.77751975, 7.80094268],
+             [-3.61859877, 0.74452369, 8.04209746]],
+            internals={
+                'primitives': 'auto',
+                'nonredundant_coordinates': [(15, 10, 11, 13)]
+            }
+        )
+
+        raise Exception(gggg.internal_coordinates.shape)
+
+
+        nh3 = Molecule.from_file(
+            TestManager.test_data("nh3.fchk"),
+            internals=[
+                [0, -1, -1, -1],
+                [1, 0, -1, -1],
+                [2, 0, 1, -1],
+                [3, 0, 1, 2]
+            ]
+        )
+        emb_nh3 = nh3.get_embedded_molecule()
+        emb_test = emb_nh3.internal_coordinates.convert(emb_nh3.coords.system)
+        # conv_1 = nh3.internal_coordinates.convert(nh3.coords.system)
+        # print(emb_nh3.internal_coordinates)
+        # print(emb_nh3.internal_coordinates.converter_options)
+        # print(np.round(emb_nh3.coords, 8))
+        # print(np.round(emb_test, 8))
+        # raise Exception(...)
+        # conv_2 = ...
+
+        nh3 = Molecule.from_file(
+            TestManager.test_data("nh3.fchk"),
+            internals=[
+                [0, -1, -1, -1],
+                [1, 0, -1, -1],
+                [2, 0, 1, -1],
+                [3, 0, 1, 2]
+            ]
+        )
+        ders1 = nh3.get_cartesians_by_internals(1, strip_embedding=True, reembed=True)[0]
+        ders_inv1 = nh3.get_internals_by_cartesians(1, strip_embedding=True)[0]
+
+        # nh3 = Molecule.from_file(
+        #     TestManager.test_data("nh3.fchk"),
+        #     internals=[
+        #         [0, -1, -1, -1],
+        #         [1,  0, -1, -1],
+        #         [2,  0,  1, -1],
+        #         [3,  0,  1,  2]
+        #     ]
+        # )
+        ders2 = nh3.get_cartesians_by_internals(1, method='classic', strip_embedding=True, reembed=True)[0]
+        # print(np.round(ders1, 7)[0])
+        # print(np.round(ders2, 7)[0])
+
+        # print(np.round(ders2 @ ders_inv1, 6))
+        # print(np.round(ders1 @ ders_inv1, 8))
+
+        nh3_derivs_internal = nput.tensor_reexpand(
+            nh3.get_cartesians_by_internals(2, strip_embedding=True, reembed=True),
+            [0, nh3.potential_derivatives[1]]
+        )
+
+        nh3_gmatrix = nh3.g_matrix
+
+        freqs_int, _ = scipy.linalg.eigh(nh3_derivs_internal[1], nh3_gmatrix, type=2)
+        freqs_cart, _ = scipy.linalg.eigh(nh3.potential_derivatives[1], nh3.get_gmatrix(use_internals=False), type=2)
+
+        print(np.sqrt(freqs_int) * UnitsData.convert("Hartrees", "Wavenumbers"))
+        print(np.sqrt(freqs_cart[6:]) * UnitsData.convert("Hartrees", "Wavenumbers"))
+
+    @validationTest
     def test_AutomaticConversion(self):
         sys = 'benzene.sdf'
         mol = Molecule.from_file(
