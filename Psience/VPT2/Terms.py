@@ -337,7 +337,7 @@ class ExpansionTerms:
             return self.use_internal_modes
         if modes is None:
             modes = self._modes
-        mat = modes.matrix
+        mat = modes.modes_by_coords
         is_internal = mat.shape[0] == self.coords.shape[0] * self.coords.shape[1] - 6
         self.use_internal_modes = is_internal
         if clean and is_internal:
@@ -345,7 +345,8 @@ class ExpansionTerms:
         return is_internal
 
     def _reshape_internal_modes(self):
-        QR = self._modes.matrix  # derivatives of Q with respect to the internals
+        raise NotImplementedError("ordering has shifted")
+        QR = self._modes.modes_by_coords  # derivatives of Q with respect to the internals
         # we need to add zeros for the orientation coordinates
         if not self.strip_embedding and QR.shape[0] != 3 * self.num_atoms:
             _QR = QR
@@ -354,9 +355,9 @@ class ExpansionTerms:
                 embedding_coords = self.internal_coordinates.system.embedding_coords
                 good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
                 QR[good_coords, :] = _QR
-                self._modes.matrix = QR
+                self._modes.modes_by_coords = QR
 
-        RQ = self._modes.inverse  # derivatives of internals with respect to Q
+        RQ = self._modes.coords_by_modes  # derivatives of internals with respect to Q
         if not self.strip_embedding and RQ.shape[1] != 3 * self.num_atoms:
             _RQ = RQ
             # we need to add zeros for the orientation coordinates
@@ -365,7 +366,7 @@ class ExpansionTerms:
                 embedding_coords = self.internal_coordinates.system.embedding_coords
                 good_coords = np.setdiff1d(np.arange(3 * self.num_atoms), embedding_coords)
                 RQ[:, good_coords] = _RQ
-                self._modes.inverse = RQ
+                self._modes.coords_by_modes = RQ
 
     @property
     def modes(self):
@@ -387,8 +388,8 @@ class ExpansionTerms:
     #     :return:
     #     :rtype:
     #     """
-    #     L = modes.matrix.T
-    #     Linv = modes.inverse
+    #     L = modes.modes_by_coords.T
+    #     Linv = modes.coords_by_modes
     #
     #     freqs = modes.freqs
     #     freq_conv = np.sqrt(np.broadcast_to(freqs[:, np.newaxis], L.shape))
@@ -627,7 +628,7 @@ class ExpansionTerms:
     def moment_of_inertia_derivs(self, order):
 
         B_e, _ = self.inertial_frame
-        YQ = self.modes.inverse  # derivatives of Q with respect to the Cartesians
+        YQ = self.modes.coords_by_modes  # derivatives of Q with respect to the Cartesians
         u_0 = 2 * np.diag(B_e) # reconstruct inertia tensor
 
         if order > 0:
@@ -860,7 +861,7 @@ class ExpansionTerms:
             if self._check_internal_modes():
                 self.use_internal_modes = True
 
-                QR = self.modes.matrix  # derivatives of Q with respect to the internals
+                QR = self.modes.modes_by_coords  # derivatives of Q with respect to the internals
                 # we need to add zeros for the orientation coordinates
                 if not self.strip_embedding and QR.shape[0] != 3*self.num_atoms:
                     _QR = QR
@@ -869,9 +870,9 @@ class ExpansionTerms:
                         embedding_coords = self.internal_coordinates.system.embedding_coords
                         good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
                         QR[good_coords, :] = _QR
-                        self.modes.matrix = QR
+                        self.modes.modes_by_coords = QR
 
-                RQ = self.modes.inverse # derivatives of internals with respect to Q
+                RQ = self.modes.coords_by_modes # derivatives of internals with respect to Q
                 if not self.strip_embedding and RQ.shape[1] != 3 * self.num_atoms:
                     _RQ = RQ
                     # we need to add zeros for the orientation coordinates
@@ -880,7 +881,7 @@ class ExpansionTerms:
                         embedding_coords = self.internal_coordinates.system.embedding_coords
                         good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
                         RQ[:, good_coords] = _RQ
-                        self.modes.inverse = RQ
+                        self.modes.coords_by_modes = RQ
 
                 if (
                         JacobianKeys.CartesiansByInternalModes not in current_cache
@@ -905,8 +906,8 @@ class ExpansionTerms:
                     current_cache[JacobianKeys.InternalModesByCartesians] = QY_derivs
             else:
                 # tr_modes = self.molecule.translation_rotation_modes[1].T
-                QY = self.modes.matrix  # derivatives of Q with respect to the Cartesians
-                YQ = self.modes.inverse # derivatives of Cartesians with respect to Q
+                QY = self.modes.modes_by_coords  # derivatives of Q with respect to the Cartesians
+                YQ = self.modes.coords_by_modes # derivatives of Cartesians with respect to Q
                 # YQ = np.concatenate([
                 #     tr_modes,
                 #     YQ  # derivatives of Cartesians with respect to Q
@@ -966,11 +967,11 @@ class ExpansionTerms:
                     # #     modes @ modes.T,
                     # #     modes.T @ modes,
                     # #     self.molecule.translation_rotation_modes[1].shape,
-                    # #     self.modes.inverse.shape
+                    # #     self.modes.coords_by_modes.shape
                     # # )
                     # YQ2 = np.concatenate([
                     #     modes,
-                    #     self.modes.inverse  # derivatives of Cartesians with respect to Q
+                    #     self.modes.coords_by_modes  # derivatives of Cartesians with respect to Q
                     # ], axis=0)
 
                     YQ_derivs = current_cache[JacobianKeys.CartesiansByInternalModes]
@@ -1009,12 +1010,12 @@ class ExpansionTerms:
                         JacobianKeys.CartesianModesByCartesians not in current_cache
                         or len(current_cache[JacobianKeys.CartesianModesByCartesians]) < len(cart_by_internal_jacobs)
                 ):
-                    current_cache[JacobianKeys.CartesianModesByCartesians] = [self.modes.matrix] + [0]*(len(cart_by_internal_jacobs)-1)
+                    current_cache[JacobianKeys.CartesianModesByCartesians] = [self.modes.modes_by_coords] + [0]*(len(cart_by_internal_jacobs)-1)
                 if (
                         JacobianKeys.CartesiansByCartesianModes not in current_cache
                         or len(current_cache[JacobianKeys.CartesiansByCartesianModes]) < len(cart_by_internal_jacobs)
                 ):
-                    current_cache[JacobianKeys.CartesiansByCartesianModes] = [self.modes.inverse] + [0] * (len(cart_by_internal_jacobs) - 1)
+                    current_cache[JacobianKeys.CartesiansByCartesianModes] = [self.modes.coords_by_modes] + [0] * (len(cart_by_internal_jacobs) - 1)
 
                 if (
                         JacobianKeys.InternalModesByInternals not in current_cache
@@ -1471,7 +1472,7 @@ class PotentialTerms(ExpansionTerms):
             fcs = fcs * (1 / undimension_2)
 
             if self.freq_tolerance is not None and self.check_input_force_constants:
-                xQ2 = self.modes.inverse
+                xQ2 = self.modes.coords_by_modes
                 _, v2x = TensorDerivativeConverter((xQ2, 0), (grad, fcs)).convert(order=2)
 
                 real_freqs = np.diag(v2x)
@@ -1696,7 +1697,7 @@ class PotentialTerms(ExpansionTerms):
             if intcds is None or direct_prop:
                 logger.log_print("Cartesian transformation...")
                 # this is nice because it eliminates most of the terms in the expansion
-                xQ = self.modes.inverse
+                xQ = self.modes.coords_by_modes
                 x_derivs = [xQ] + [0] * (order-1)
                 # terms = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=False, mixed_XQ=self.mixed_derivs)
                 if mixed_derivs:
@@ -1723,7 +1724,7 @@ class PotentialTerms(ExpansionTerms):
                 raise NotImplementedError("...")
                 # It should be very rare that we are actually able to make it here
                 terms = []
-                RQ = self.modes.inverse
+                RQ = self.modes.coords_by_modes
                 for v in V_derivs:
                     for j in range(v.ndim):
                         v = np.tensordot(RQ, v, axes=[1, -1])
@@ -1738,8 +1739,8 @@ class PotentialTerms(ExpansionTerms):
                     # raise NotImplementedError("haven't included translation/rotation modes needed to make this work correctly")
 
                     # raise NotImplementedError("different methods for handling mixed derivatives need patching")
-                    xQ = self.modes.inverse
-                    x_derivs = [xQ] + [0] * (order - 1)
+                    QX = self.modes.coords_by_modes
+                    x_derivs = [QX] + [0] * (order - 1)
                     cart_terms = TensorDerivativeConverter(x_derivs, V_derivs, mixed_terms=[
                         [None, v] for v in V_derivs[2:]
                     ]).convert(order=order)
@@ -1811,7 +1812,7 @@ class PotentialTerms(ExpansionTerms):
                         terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order)#, check_arrays=True)
 
                 if self.hessian_tolerance is not None:
-                        xQ2 = self.modes.inverse
+                        xQ2 = self.modes.coords_by_modes
                         _, v2x, = TensorDerivativeConverter((xQ2, 0), V_derivs).convert(order=2)
                         v2 = terms[1]
                         v2_diff = v2 - v2x
@@ -1869,7 +1870,7 @@ class PotentialTerms(ExpansionTerms):
                 ).convert(order=order)
 
                 if self.hessian_tolerance is not None:
-                    xQ2 = self.modes.inverse
+                    xQ2 = self.modes.coords_by_modes
                     _, v2x, = TensorDerivativeConverter((xQ2, 0), V_derivs).convert(order=2)
                     v2 = terms[1]
                     v2_diff = v2 - v2x
@@ -2009,7 +2010,7 @@ class KineticTerms(ExpansionTerms):
             intcds = self.internal_coordinates
             if self.use_cartesian_kinetic_energy or intcds is None or self.backpropagate_internals:
                 # this is nice because it eliminates a lot of terms in the expansion
-                J = self.modes.matrix
+                J = self.modes.modes_by_coords
                 G = dot(J, J, axes=[[0, 0]])
                 if order == 0:
                     terms = [G]
@@ -2064,8 +2065,8 @@ class KineticTerms(ExpansionTerms):
                 # print(terms[0])
 
                 if uses_internal_modes:
-                    QR = self.modes.matrix
-                    RQ = self.modes.inverse
+                    QR = self.modes.modes_by_coords
+                    RQ = self.modes.coords_by_modes
                     for i,g in enumerate(terms):
                         for j in range(2):
                             g = np.tensordot(QR, g, axes=[0, -1])
@@ -2322,7 +2323,7 @@ class CoriolisTerm(ExpansionTerms):
     def get_zetas_and_momi(self):
         # mass-weighted mode matrix
         # (note that we want the transpose not the inverse for unit reasons)
-        xQ = self.modes.matrix.T
+        xQ = self.modes.modes_by_coords.T
         # remove the frequency dimensioning? -> this step makes me super uncomfortable but agrees with Gaussian
         freqs = self.freqs
         xQ = xQ / np.sqrt(freqs[:, np.newaxis])
@@ -2842,7 +2843,7 @@ class DipoleTerms(ExpansionTerms):
             mixed_derivs = self.mixed_derivs
             if intcds is None or direct_prop:# or not self.non_degenerate:
                 # this is nice because it eliminates most of terms in the expansion
-                xQ = self.modes.inverse
+                xQ = self.modes.coords_by_modes
                 x_derivs = [xQ] + [0] * (order-1)
                 mu_derivs = self.derivs[1:]
             else:
@@ -2871,7 +2872,7 @@ class DipoleTerms(ExpansionTerms):
                                 and order > 1
                         ):
                             # d^2X/dQ^2@dU/dX + dX/dQ@dU/dQdX
-                            xQ = self.modes.inverse
+                            xQ = self.modes.coords_by_modes
                             v1, v2, v3 = TensorDerivativeConverter(
                                 [xQ] + [0] * (order-1),
                                 u_derivs,
@@ -2889,7 +2890,7 @@ class DipoleTerms(ExpansionTerms):
                                                                               self.mixed_derivative_handling_mode, 2,
                                                                               term_id='u3_cart')
 
-                            Qx = self.modes.matrix
+                            Qx = self.modes.modes_by_coords
                             v1, v2, v3 = TensorDerivativeConverter(
                                 [Qx] + [0] * (order - 1),
                                 [v1, v2, v3],
@@ -3072,14 +3073,14 @@ class OperatorTerms(ExpansionTerms):
         )
         if intcds is None or direct_prop:
             # this is nice because it eliminates most of the terms in the expansion
-            xQ = self.modes.inverse
+            xQ = self.modes.coords_by_modes
             x_derivs = [xQ] + [0] * (order-1)
             terms = TensorDerivativeConverter(x_derivs, self.derivs).convert(order=order)#, check_arrays=True)
         elif self._check_internal_modes() and not self._check_mode_terms():
             raise NotImplementedError("...")
             # It should be very rare that we are actually able to make it here
             terms = []
-            RQ = self.modes.inverse
+            RQ = self.modes.coords_by_modes
             for v in V_derivs:
                 for j in range(v.ndim):
                     v = np.tensordot(RQ, v, axes=[1, -1])

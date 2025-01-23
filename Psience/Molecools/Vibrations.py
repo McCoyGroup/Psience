@@ -370,8 +370,16 @@ class MolecularNormalModes(CoordinateSystem):
         self.basis.molecule = mol
         self._molecule = mol
 
+    @property
+    def coords_by_modes(self):
+        return self.inverse
+    @property
+    def modes_by_coords(self):
+        return self.matrix
+
     # also need a Cartesian equivalent of this
     def to_internals(self, intcrds=None, dYdR=None, dRdY=None):
+        raise NotImplementedError("use new `NormalModes` object")
         if self.in_internals:
             return self
         else:
@@ -542,8 +550,8 @@ class MolecularNormalModes(CoordinateSystem):
             basis = self.molecule.coords.system
         return NormalModes(
             basis,
-            self.matrix,
-            inverse=self.inverse,
+            self.inverse.T,
+            inverse=self.matrix.T,
             freqs=self.freqs,
             origin=self.origin,
             masses=self.molecule.atomic_masses

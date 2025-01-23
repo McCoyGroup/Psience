@@ -668,7 +668,7 @@ class BasisStateSpace(AbstractStateSpace):
         base_state = np.zeros(ndim, dtype=int)
         queue = collections.deque()
 
-        for states,min_quanta,(min_freq, max_freq) in zip(window_states, max_quantas, windows):
+        for states,min_quanta,(min_freq, max_freq) in zip(window_states, min_quantas, windows):
             if (
                     (0 >= min_freq)
                     and (min_quanta is None or 0 >= min_quanta)
@@ -681,7 +681,7 @@ class BasisStateSpace(AbstractStateSpace):
         indices = set()
         indices.add(tuple(base_state))
         q_thresh = max([-1] + [max_quanta for max_quanta in max_quantas if max_quantas is not None])
-        if q_thresh < 9:
+        if q_thresh < 0:
             q_thresh = None
 
         while queue:

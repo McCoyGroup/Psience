@@ -128,9 +128,10 @@ class MolecularEvaluator:
             shared = displacements.ndim-1
             for n,disp in enumerate(coordinate_expansion):
                 disp = disp / math.factorial(n+1)
+                if nput.is_numeric(disp) and disp == 0: continue
                 for i in range(n+1):
                     if i == 0:
-                        disp = np.tensordot(displacements, disp, axes=[-1, i])
+                        disp = np.tensordot(displacements, disp, axes=[-1, 0])
                     else:
                         disp = nput.vec_tensordot(displacements, disp, axes=[-1, shared], shared=shared)
                 new_disps = new_disps + disp

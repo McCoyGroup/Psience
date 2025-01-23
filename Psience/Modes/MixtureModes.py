@@ -4,7 +4,7 @@ Provides support for handling modes that arise from
 
 import numpy as np
 import McUtils.Numputils as nput
-from McUtils.Coordinerds import CoordinateSystem
+from McUtils.Coordinerds import CoordinateSystem, CartesianCoordinateSystem3D, InternalCoordinateSystem
 
 # from .MoleculeInterface import AbstractMolecule
 # from .Transformations import MolecularTransformation
@@ -49,6 +49,47 @@ class MixtureModes(CoordinateSystem):
         self._extended_coeffs = full_coeffs
         self._inverse_coeffs = None
 
+    @classmethod
+    def prep_modes(cls, modes):
+        if isinstance(modes, cls):
+            return modes
+
+        matrix = None
+        inverse = None
+        basis = None
+        if isinstance(modes, dict):
+            opts = modes.copy()
+            for k in ["matrix", "modes"]:
+                if k in opts:
+                    matrix = opts[k]
+                    del opts[k]
+        else:
+            matrix = np.asanyarray(modes)
+            opts = {}
+
+        if 'inverse' in opts:
+            inverse = opts['inverse']
+            del opts['inverse']
+        if 'basis' in opts:
+            basis = opts['basis']
+            del opts['basis']
+
+        if matrix is None and inverse is None:
+            raise ValueError(f"can't prep {cls.__name__} without matrix or inverse")
+
+        if basis is None:
+            if matrix.shape[0] % 3 == 0:
+                basis = CartesianCoordinateSystem3D
+            else:
+                basis = InternalCoordinateSystem(dimension=(None, matrix.shape[0]))
+
+        cls(
+            basis,
+            matrix,
+            inverse=inverse,
+            **opts
+        )
+
     def __getitem__(self, item):
         """
         Takes a slice of the modes
@@ -81,7 +122,8 @@ class MixtureModes(CoordinateSystem):
     def rotate(self, rot, in_place=False):
         raise NotImplementedError("too confusing...")
 
-    def transform(self, tf, inv=None):
+    def transform(self, tf, inv=None, origin=None):
+        raise NotImplementedError("ambiguous...")
         #TODO: handle Cartesian variant where tf gets broadcasted
 
         if inv is None:
@@ -91,19 +133,21 @@ class MixtureModes(CoordinateSystem):
                 inv = np.linalg.inv(tf)
         base_inv = self.inverse
         base_mat = self.matrix
-        new_mat = tf@base_mat@inv
-        new_inv = inv@base_inv@tf
+        raise Exception(base_inv @ base_mat, base_mat.shape, base_inv.shape)
+        new_mat = tf@base_mat
+        new_inv = base_inv@inv
 
-        orig = self.origin
-        if orig is not None:
-            orig = tf@orig
+        if origin is None:
+            origin = self.origin
+            if origin is not None:
+                origin = tf@origin.flatten()
 
         return type(self)(
             self.basis,
             new_mat,
             freqs=self.freqs,
             masses=self.masses,
-            origin=orig,
+            origin=origin,
             inverse=new_inv
         )
 

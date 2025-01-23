@@ -362,14 +362,14 @@ class ModeEmbedding:
         if self.embedding.internals is None:
             if self.modes is None:
                 raise NotImplementedError("not sure what's most consistent for just...plain Cartesians")
-            return [self.modes.inverse]
+            return [self.modes.modes_by_coords]
         else:
             YR = self.get_internals_by_mw_cartesians(
                 order=order,
                 strip_embedding=strip_embedding
             )
             if self.modes is not None:
-                YQ = self.modes.matrix
+                YQ = self.modes.modes_by_coords
                 RY = self.get_mw_cartesians_by_internals(
                     order=1,
                     strip_embedding=strip_embedding
@@ -394,7 +394,7 @@ class ModeEmbedding:
         if self.embedding.internals is None:
             if self.modes is None:
                 raise NotImplementedError("not sure what's most consistent for just...plain Cartesians")
-            return [self.modes.inverse]
+            return [self.modes.coords_by_modes]
         else:
             if self.modes is not None: strip_embedding = True
             RY = self.get_mw_cartesians_by_internals(
@@ -402,7 +402,7 @@ class ModeEmbedding:
                 strip_embedding=strip_embedding
             )
             if self.modes is not None:
-                QY = self.modes.inverse
+                QY = self.modes.coords_by_modes
                 YR = self.get_internals_by_mw_cartesians(
                     order=1,
                     strip_embedding=strip_embedding
@@ -445,7 +445,7 @@ class ScalarExpansion:
                 if in_modes: break
         YX = self.embedding.mw_inverse()
         if in_modes:
-            QX = self.embedding.modes.inverse @ YX
+            QX = self.embedding.modes.coords_by_modes @ YX
             Qq = np.diag(1/np.sqrt(self.embedding.modes.freqs))
             _ = []
             for d in derivs:
@@ -495,9 +495,9 @@ class ScalarExpansion:
         QX = self.embedding.get_cartesians_by_internals(order=order - zero_derivs)
         real_ders = [d for d in derivs if not nput.is_zero(d)]
         if self.embedding.modes is not None and (
-                real_ders[0].shape[0] == self.embedding.modes.matrix.shape[1]
+                real_ders[0].shape[0] == self.embedding.modes.modes_by_coords.shape[1]
         ):
-            XQ = self.embedding.modes.matrix
+            XQ = self.embedding.modes.modes_by_coords
             QX = nput.tensor_reexpand(QX, [XQ], order - zero_derivs, axes=[-1, 0])
         else:
             YX = self.embedding.mw_inverse()

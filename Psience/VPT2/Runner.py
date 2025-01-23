@@ -3210,6 +3210,12 @@ class AnalyticVPTRunner:
 
             states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
             basis = states.flat_space.state_space
+            if states.flat_space.degenerate_pairs is not None:
+                with self.logger.block(tag="Using degenerate pairs:"):
+                    for pair in states.flat_space.degenerate_pairs:
+                        self.logger.log_print(
+                            str(pair).splitlines()
+                        )
 
             try:
                 zpe_pos = basis.find([[0] * basis.ndim])
@@ -3232,7 +3238,7 @@ class AnalyticVPTRunner:
                 #     return "{.3f}".format(e) if e != 0 else "-"
 
                 if states.flat_space.degenerate_pairs is not None:
-                    tag = ["Depertubed"]
+                    tag = ["Deperturbed"]
                 else:
                     tag = []
                 self.logger.log_print(

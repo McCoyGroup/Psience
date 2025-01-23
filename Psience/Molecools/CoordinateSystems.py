@@ -169,15 +169,39 @@ class MolecularEmbedding:
         ):
             coords = self.coords
             if self._int_spec['specs'] is not None:
-                ints = MolecularGenericInternalCoordinateSystem(self.masses, coords,
-                                                                specs=self._int_spec['specs'],
-                                                                redundant=self._int_spec.get('redundant', False),
-                                                                untransformed_coordinates=self._int_spec.get('untransformed_coordinates'),
-                                                                relocalize=self._int_spec.get('relocalize', False)
+
+                opts = {
+                    k:self._int_spec[k]
+                    for k in [
+                        'specs',
+                        'redundant',
+                        'untransformed_coordinates',
+                        'relocalize',
+                        'redundant_transformation',
+                        'redundant_inverse',
+                        'reference_internals',
+                        'reference_coordinates'
+                    ]
+                    if k in self._int_spec
+                }
+                ints = MolecularGenericInternalCoordinateSystem(self.masses, coords, **opts
+                                                                # specs=self._int_spec['specs'],
+                                                                # redundant=self._int_spec.get('redundant', False),
+                                                                # untransformed_coordinates=self._int_spec.get('untransformed_coordinates'),
+                                                                # relocalize=self._int_spec.get('relocalize', False),
                                                                 )
                 MolecularCartesianToGICConverter(coords.system, ints).register()
                 MolecularGICToCartesianConverter(ints, coords.system).register()
-                coords = coords.convert(ints)
+                coords = coords.convert(ints, reference_internals=opts.get('reference_internals'))
+                cops = coords.converter_options
+                for k in [
+                    'redundant_transformation',
+                    'redundant_inverse',
+                    'reference_internals',
+                    'reference_coordinates'
+                ]:
+                    if k in cops:
+                        self._int_spec[k] = cops[k]
             elif self._int_spec['zmatrix'] is not None:
                 zms = MolecularZMatrixCoordinateSystem(self.masses, coords, ordering=self._int_spec['zmatrix'])
                 MolecularCartesianToZMatrixConverter(coords.system, zms).register()
@@ -215,6 +239,10 @@ class MolecularEmbedding:
             good_coords = np.setdiff1d(np.arange(3 * len(self.masses)), embedding_coords)
             ics = ics.flatten()[good_coords]
         return ics
+
+    @property
+    def redundant_internal_transformation(self):
+        return self.internal_coordinates.converter_options.get('redundant_transformation')
 
     @classmethod
     def _get_jacobian_storage(cls):
@@ -604,10 +632,30 @@ class MolecularGenericInternalCoordinateSystem(GenericInternalCoordinateSystem):
     Mirrors the standard ZMatrix coordinate system in _almost_ all regards, but forces an embedding
     """
     name = "MolecularGenericInternals"
+    class PassThroughRedundantGenerator:
+        def __init__(self, redundant_transformation, redundant_inverse=None,
+                     masses=None,
+                     untransformed_coordinates=None,
+                     relocalize=False,
+                     **opts
+                     ):
+            self.tf = redundant_transformation
+            self.inv = redundant_inverse
+            self.masses = masses,
+            self.untransformed_coordinates = untransformed_coordinates
+            self.relocalize = relocalize
+            self.opts = opts
+        def get_redundant_transformation(self, base_expansions, **ignored):
+            return self.tf, nput.tensor_reexpand(base_expansions,
+                                                 [self.tf],
+                                                 order=len(base_expansions)
+                                                 )
     def __init__(self, masses, coords, /, specs, converter_options=None,
                  redundant=False,
                  relocalize=False,
                  untransformed_coordinates=None,
+                 redundant_transformation=None,
+                 redundant_inverse=None,
                  angle_ordering='ijk',
                  **opts):
         """
@@ -624,14 +672,24 @@ class MolecularGenericInternalCoordinateSystem(GenericInternalCoordinateSystem):
         if converter_options is None:
             converter_options = dict(opts, reference_coordinates=coords, masses=masses, angle_ordering=angle_ordering, specs=specs)
             opts = {}
-        if redundant:
-            redundant_generator = RedundantCoordinateGenerator(
-                specs,
-                masses=self.masses,
-                untransformed_coordinates=untransformed_coordinates,
-                angle_ordering=angle_ordering,
-                relocalize=relocalize
-            )
+        if redundant and 'redundant_generator' not in converter_options:
+            if redundant_transformation is not None:
+                redundant_generator = self.PassThroughRedundantGenerator(
+                    redundant_transformation,
+                    redundant_inverse=redundant_inverse,
+                    masses=self.masses,
+                    untransformed_coordinates=untransformed_coordinates,
+                    angle_ordering=angle_ordering,
+                    relocalize=relocalize
+                )
+            else:
+                redundant_generator = RedundantCoordinateGenerator(
+                    specs,
+                    masses=self.masses,
+                    untransformed_coordinates=untransformed_coordinates,
+                    angle_ordering=angle_ordering,
+                    relocalize=relocalize
+                )
             converter_options['redundant_generator'] = converter_options.get('redundant_generator', redundant_generator)
         nats = None#len(specs)
         super().__init__(converter_options=converter_options, dimension=(nats,), coordinate_shape=(nats,), opts=opts)
@@ -1343,6 +1401,7 @@ class MolecularCartesianToGICConverter(CartesianToGICSystemConverter):
                      order=0,
                      return_derivs=None,
                      redundant_generator:RedundantCoordinateGenerator=None,
+                     reference_internals=None,
                      **kw):
         """
         We'll implement this by having the ordering arg wrap around in coords?
@@ -1355,8 +1414,15 @@ class MolecularCartesianToGICConverter(CartesianToGICSystemConverter):
                 masses=redundant_generator.masses,
                 relocalize=redundant_generator.relocalize
             )
-            opts['reference_internals'] = internals
-            internals = np.zeros(internals.shape[:-1] + red_tf.shape[-1:], dtype=internals.dtype)
+            if reference_internals is None:
+                opts['reference_internals'] = internals
+                internals = np.zeros(internals.shape[:-1] + red_tf.shape[-1:], dtype=internals.dtype)
+            else:
+                internals = nput.vec_tensordot(
+                    red_tf,
+                    internals - reference_internals,
+                    axes=[-2, 0]
+                )
             # internals = internals @ red_tf
             opts['derivs'] = red_exp
             opts['redundant_transformation'] = red_tf
@@ -1383,12 +1449,18 @@ class MolecularGICToCartesianConverter(GICSystemToCartesianConverter):
                      redundant_generator=None,
                      reference_internals=None,
                      **kw):
-
-        if redundant_inverse is not None:
-            coords = coords @ redundant_inverse + reference_internals
-        carts, opts = super().convert_many(coords, **kw)
-        if redundant_transformation is not None and 'derivs' in opts:
-            opts['derivs'] = nput.tensor_reexpand([redundant_inverse], opts['derivs'])
+        # if redundant_inverse is None and redundant_transformation is not None:
+        #     redundant_inverse = np.moveaxis(redundant_transformation, -1, -2)
+        carts, opts = super().convert_many(coords,
+                                           base_transformation=(
+                                               [redundant_transformation]
+                                               if redundant_transformation is not None else
+                                               None
+                                           ),
+                                           reference_internals=reference_internals,
+                                           **kw)
+        # if redundant_transformation is not None and 'derivs' in opts:
+        #     opts['derivs'] = nput.tensor_reexpand([redundant_inverse], opts['derivs'])
 
         return carts, opts
 
