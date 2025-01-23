@@ -85,7 +85,7 @@ class VPT2Tests(TestCase):
 
         raise Exception(...)
 
-    @debugTest
+    @validationTest
     def test_HOHAnalytic(self):
         """
         State       Frequency    Intensity       Frequency    Intensity
@@ -277,8 +277,64 @@ State       Frequency    Intensity       Frequency    Intensity
         """
 
         file_name = "OCHH_freq.fchk"
-        runner, states = AnalyticVPTRunner.construct(
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     degeneracy_specs='auto',
+        #     mixed_derivative_handling_mode='analytical'
+        # )
+        # raise Exception("???")
+        # runner, states = AnalyticVPTRunner.construct(
+        #     TestManager.test_data(file_name),
+        #     # 2,
+        #     [
+        #         [
+        #             0,
+        #             [
+        #                 # [0, 0, 0, 0, 0, 1],
+        #                 [0, 0, 0, 0, 1, 0],
+        #                 # [0, 0, 0, 2, 0, 0],
+        #
+        #                 # [0, 0, 0, 0, 0, 2],
+        #                 [0, 0, 0, 0, 2, 0],
+        #
+        #                 # [0, 0, 0, 0, 1, 1],
+        #                 # [0, 0, 0, 1, 1, 0],
+        #                 # [0, 0, 0, 1, 0, 1],
+        #                 # [0, 1, 0, 1, 0, 0],
+        #                 # [0, 0, 1, 1, 0, 0],
+        #             ],
+        #         ]
+        #     ],
+        #
+        #     mixed_derivative_handling_mode='analytical',
+        #     # handle_strong_couplings=True,  # mixed_derivative_handling_mode="numerical",
+        #     order=2, expansion_order=2
+        # )
+
+        file_name = "OCHH_freq.fchk"
+        runner = AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
+            # 2,
+            # [
+            #     [
+            #         0,
+            #         [
+            #             # [0, 0, 0, 0, 0, 1],
+            #             [0, 0, 0, 0, 1, 0],
+            #             # [0, 0, 0, 2, 0, 0],
+            #
+            #             # [0, 0, 0, 0, 0, 2],
+            #             [0, 0, 0, 0, 2, 0],
+            #
+            #             # [0, 0, 0, 0, 1, 1],
+            #             # [0, 0, 0, 1, 1, 0],
+            #             # [0, 0, 0, 1, 0, 1],
+            #             # [0, 1, 0, 1, 0, 0],
+            #             # [0, 0, 1, 1, 0, 0],
+            #         ],
+            #     ]
+            # ],
             [
                 [
                     0,
@@ -298,24 +354,37 @@ State       Frequency    Intensity       Frequency    Intensity
                     ],
                 ]
             ],
-            degeneracy_specs='auto'
-            # degeneracy_specs={
+            # degeneracy_specs='auto'
+            mixed_derivative_handling_mode='analytical',
+            # handle_strong_couplings=True,  # mixed_derivative_handling_mode="numerical",
+            order=2, expansion_order=2
+            # , degeneracy_specs={'wfc_threshold': .3}
+            # , degeneracy_specs={
             #     'polyads': [
             #         [
-            #             [0, 0, 0, 0, 0, 1],
+            #             [0, 0, 2, 0, 0, 0],
             #             [0, 0, 0, 0, 1, 0]
-            #         ],
-            #         [
-            #             [0, 0, 0, 0, 0, 1],
-            #             [0, 1, 0, 1, 0, 0]
             #         ]
             #     ]
             # }
+            , degeneracy_specs={
+                'polyads': [
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, 0, 1, 0]
+                    ],
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 1, 0, 1, 0, 0]
+                    ]
+                ]
+            }
         )
+        raise Exception(...)
         classic, _ = runner.construct_classic_runner(states,
                                                      zero_element_warning=False
                                                      )
-        classic.print_tables()
+        # classic.print_tables()
         runner.run_VPT(states)
         raise Exception(...)
 
@@ -1142,7 +1211,7 @@ State       Frequency    Intensity       Frequency    Intensity
         #     logger=True
         # )
 
-    @validationTest
+    @debugTest
     def test_HOHVPTRunner(self):
 
         file_name = "HOH_freq.fchk"
@@ -1150,7 +1219,8 @@ State       Frequency    Intensity       Frequency    Intensity
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
             3,
-            degeneracy_specs='auto'
+            degeneracy_specs='auto',
+            # internals=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
         )
 
     @validationTest

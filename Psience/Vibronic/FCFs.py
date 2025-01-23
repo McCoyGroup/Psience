@@ -16,6 +16,40 @@ class State(enum.Enum):
     GroundState = 'gs'
     ExcitedState = 'es'
 
+    @classmethod
+    def get_aliases(cls):
+        return {
+            'ground-state': 'gs',
+            'excited-state': 'es'
+        }
+
+    @classmethod
+    def resolve(cls, method_name):
+        if isinstance(method_name, State):
+            return method_name
+        method_name = method_name.lower()
+        method_name = cls.get_aliases().get(method_name, method_name)
+        return cls(method_name)
+
+class RotationMethods(enum.Enum):
+    LeastSquares = 'least-squares'
+    Duschinsky = 'duschinsky'
+
+    @classmethod
+    def get_aliases(cls):
+        return {
+            'default': 'duschinsky',
+            'lstsq': 'least-squares'
+        }
+    @classmethod
+    def resolve(cls, method_name):
+        if isinstance(method_name, RotationMethods):
+            return method_name
+        method_name = method_name.lower()
+        method_name = cls.get_aliases().get(method_name, method_name)
+        return cls(method_name)
+
+
 class FranckCondonModel:
 
     # @classmethod
@@ -29,11 +63,24 @@ class FranckCondonModel:
     #     """
     #
 
+    default_rotation_method = 'default'
+    default_rotation_order = State.GroundState
+    default_rotation_center = State.ExcitedState
+    default_embedding_ref = State.ExcitedState
+    default_include_rotation = True
     def __init__(self, gs_nms:NormalModes, es_nms, embed=True, masses=None, mass_weight=True,
-                 logger=None, mode_selection=None
+                 logger=None, mode_selection=None,
+                 rotation_method=None,
+                 rotation_order=None,
+                 rotation_center=None,
+                 embedding_ref=None,
+                 include_rotation=None,
+                 rotation_blocks = None
                  ):
         if embed:
-            gs_nms, es_nms = self.embed_modes(gs_nms, es_nms, masses=masses)
+            if embedding_ref is None:
+                embedding_ref = self.default_embedding_ref
+            gs_nms, es_nms = self.embed_modes(gs_nms, es_nms, masses=masses, ref=embedding_ref)
 
         if mass_weight:
             gs_nms = self.mass_weight_nms(gs_nms, masses=masses)
@@ -45,48 +92,113 @@ class FranckCondonModel:
         self.gs_nms = gs_nms
         self.es_nms = es_nms
 
+        self.rotation_method = rotation_method
+        self.rotation_order = rotation_order
+        self.rotation_center = rotation_center
+        self.include_rotation = include_rotation
+        self.rotation_blocks = rotation_blocks
+
         self.logger = Logger.lookup(logger)
 
     @classmethod
-    def from_files(cls, gs_file, es_file, embed=True, mass_weight=True, logger=None, mode_selection=None):
+    def from_files(cls, gs_file, es_file,
+                   embed=True, mass_weight=True, logger=None, mode_selection=None,
+                   internals=None, internals_ref='gs',
+                   **opts):
         from ..Molecools import Molecule
+        internals_ref = State.resolve(internals_ref)
+        if internals_ref == State.GroundState:
+            gs_mol = Molecule.from_file(gs_file, internals=internals)
+            es_mol = Molecule.from_file(es_file, internals=gs_mol.internals)
+        else:
+            es_mol = Molecule.from_file(es_file, internals=internals)
+            gs_mol = Molecule.from_file(gs_file, internals=es_mol.internals)
         return cls.from_mols(
-            Molecule.from_file(gs_file),
-            Molecule.from_file(es_file),
+            gs_mol,
+            es_mol,
             embed=embed,
             mass_weight=mass_weight,
             logger=logger,
-            mode_selection=mode_selection
+            mode_selection=mode_selection,
+            **opts
         )
 
     @classmethod
-    def from_mols(cls, gs, es, embed=True, mass_weight=True, logger=None, mode_selection=None):
-        gg = gs.normal_modes.modes.basis.to_new_modes()
-        ee = es.normal_modes.modes.basis.to_new_modes()
+    def convert_internal_modes(cls, mol, nms):
+        RX = mol.get_cartesians_by_internals(1, strip_embedding=True, reembed=True)[0]
+        XR = mol.get_internals_by_cartesians(1, strip_embedding=True)[0]
+
+        mat = RX @ nms.matrix # RX @ XQ
+        inv = nms.inverse @ XR # QX @ XR
+
+        # print(inv @ mat) #, nms.matrix @ nms.inverse)
+        # raise Exception(...)
+        freqs = nms.freqs
+
+        return NormalModes(
+            mol.internal_coordinates.system,
+            mat,
+            inverse=inv,
+            freqs=freqs,
+            origin=mol.internal_coordinates
+        )
+
+    @classmethod
+    def from_mols(cls, gs, es,
+                  embed=True, mass_weight=True, logger=None, mode_selection=None,
+                  remove_transrot=True,
+                  use_internals=True,
+                  **opts):
+        use_internals = use_internals and (gs.internals is not None)
+        if use_internals:
+            gg = NormalModes.from_molecule(gs, use_internals=True)
+            ee = NormalModes.from_molecule(es, use_internals=True)
+        elif remove_transrot:
+            gg = NormalModes.from_molecule(gs, project_transrot=True, use_internals=False)
+            ee = NormalModes.from_molecule(es, project_transrot=True, use_internals=False)
+        else:
+            gg = gs.normal_modes.modes.basis.to_new_modes()
+            ee = es.normal_modes.modes.basis.to_new_modes()
+        # if use_internals:
+        #     # es = gs.get_embedded_molecule(ref=gs)
+        #     # gg, ee = cls.embed_modes(gg, ee, masses=gs.atomic_masses, ref='gs')
+        #     gg = cls.convert_internal_modes(gs, gg)
+        #     ee = cls.convert_internal_modes(es, ee)
+        #
+        #     raise Exception(gg.inverse @ gg.matrix)
 
         return cls(
             gg, ee,
-            embed=embed,
-            mass_weight=mass_weight,
+            embed=not use_internals and embed,
+            mass_weight=not use_internals and mass_weight,
             logger=logger,
-            mode_selection=mode_selection
+            mode_selection=mode_selection,
+            **opts
         )
 
-    def get_overlaps(self, excitations, *, duschinsky_cutoff=None, ground_states=None):
+    def get_overlaps(self, excitations, *, duschinsky_cutoff=None, ground_states=None,
+                     **rotation_opts
+                     ):
         return self.get_fcfs(
             self.gs_nms, self.es_nms,
             excitations,
-            ground_states=ground_states,
-            embed=True,
-            duschinsky_cutoff=duschinsky_cutoff,
-            mass_weight=False,
-            logger=self.logger
+            **self.prep_opts(
+                ground_states=ground_states,
+                duschinsky_cutoff=duschinsky_cutoff,
+                **rotation_opts
+            )
         )
 
 
     OverlapData = collections.namedtuple('OverlapData', ['alphas', 'scaling', 'center', 'gs', 'es'])
     Embedding = collections.namedtuple('Embedding', ['modes', 'center'])
-    def get_overlap_data(self) -> OverlapData:
+    def get_overlap_data(self,
+                         rotation_method=None,
+                         rotation_order=None,
+                         rotation_center=None,
+                         include_rotation=None,
+                         rotation_blocks=None
+                         ) -> OverlapData:
 
         freqs_gs = np.asanyarray(self.gs_nms.freqs)
         freqs_es = np.asanyarray(self.es_nms.freqs)
@@ -97,9 +209,25 @@ class FranckCondonModel:
         center_gs = np.asanyarray(self.gs_nms.origin).flatten()
         center_es = np.asanyarray(self.es_nms.origin).flatten()
 
+        if rotation_method is None:
+            rotation_method = self.rotation_method
+        if rotation_order is None:
+            rotation_order = self.rotation_order
+        if rotation_center is None:
+            rotation_center = self.rotation_center
+        if include_rotation is None:
+            include_rotation = self.include_rotation
+        if rotation_blocks is None:
+            rotation_blocks = self.rotation_blocks
+
         (alphas, modes_c, center, scaling), (L_gs, c_gs), (L_es, c_es) = self.get_overlap_gaussian_data(
             freqs_gs, modes_gs, inv_gs, center_gs,
-            freqs_es, modes_es, inv_es, center_es
+            freqs_es, modes_es, inv_es, center_es,
+            rotation_method=rotation_method,
+            rotation_order=rotation_order,
+            rotation_center=rotation_center,
+            include_rotation=include_rotation,
+            rotation_blocks=rotation_blocks
         )
 
         return self.OverlapData(
@@ -397,86 +525,99 @@ class FranckCondonModel:
         weights[inds] = double_fac
         return weights
 
-    default_rotation_method = 'default'
-    default_rotation_order = State.GroundState
-    default_include_rotation = True
     @classmethod
-    def get_overlap_gaussian_data(self,
+    def get_overlap_gaussian_data(cls,
                                   freqs_gs, modes_gs, inv_gs, center_gs,
                                   freqs_es, modes_es, inv_es, center_es,
                                   rotation_method=None,
-                                  order=None,
-                                  include_rotation=None
+                                  rotation_order=None,
+                                  rotation_center=None,
+                                  include_rotation=None,
+                                  rotation_blocks=None
                                   ):
 
         if include_rotation is None:
-            include_rotation = self.default_include_rotation
-        if order is None:
-            order = self.default_rotation_order
+            include_rotation = cls.default_include_rotation
+        if rotation_order is None:
+            rotation_order = cls.default_rotation_order
         if rotation_method is None:
-            rotation_method = self.default_rotation_method
+            rotation_method = cls.default_rotation_method
+        if rotation_center is None:
+            rotation_center = cls.default_rotation_center
 
-        gs_order = State(order) == State.GroundState
+        gs_order = State(rotation_order) == State.GroundState
+        L_e = np.eye(inv_gs.shape[0])
+        L_g = np.eye(inv_gs.shape[0])
         if include_rotation:
-            if rotation_method == 'least-squares':
-                # use least squares to express ground state modes as LCs of excited state modes
-                if gs_order:
-                    m1 = modes_es
-                    m2 = modes_gs
+            if rotation_blocks is None:
+                rotation_blocks = [np.arange(L_e.shape[0])]
+            rotation_method = RotationMethods.resolve(rotation_method)
+            for block in rotation_blocks:
+                if rotation_method == RotationMethods.LeastSquares:
+                    # use least squares to express ground state modes as LCs of excited state modes
+                    if gs_order:
+                        m1 = modes_es[:, block]
+                        m2 = modes_gs[:, block]
+                    else:
+                        m1 = modes_gs[:, block]
+                        m2 = modes_es[:, block]
+                    ls_tf = np.linalg.inv(m1.T @ m1) @ m1.T @ m2
+                    U, s, V = np.linalg.svd(ls_tf)
+                    L = U @ V  # Unitary version of a Duschinsky matrix
+                    L = L.T
+                    if gs_order:
+                        l_g = L
+                        l_e = np.eye(L.shape[0])
+                    else:
+                        l_e = L
+                        l_g = np.eye(L.shape[0])
+                elif rotation_method == RotationMethods.Duschinsky:
+                    if gs_order:
+                        # del_G E
+                        l_g = inv_gs[block, :] @ modes_es[:, block]
+                        # l_g = (inv_gs[block, :] @ modes_es[:, block]).T
+                        l_e = np.eye(l_g.shape[0])
+                    else:
+                        # del_E G
+                        l_e = inv_es[block, :] @ modes_gs[:, block]
+                        # l_e = (inv_gs[block, :] @ modes_es[:, block]).T
+                        l_g = np.eye(l_e.shape[0])
                 else:
-                    m1 = modes_gs
-                    m2 = modes_es
-                ls_tf = np.linalg.inv(m1.T @ m1) @ m1.T @ m2
-                U, s, V = np.linalg.svd(ls_tf)
-                L = U @ V  # Unitary version of a Duschinsky matrix
-                L = L.T
-                if gs_order:
-                    L_g = L
-                    L_e = np.eye(L_g.shape[0])
-                else:
-                    L_e = L
-                    L_g = np.eye(L_e.shape[0])
-            else:
-                if gs_order:
-                    L_g = inv_es @ modes_gs
-                    L_e = np.eye(L_g.shape[0])
-                else:
-                    L_e = inv_gs @ modes_es
-                    L_g = np.eye(L_e.shape[0])
-        else:
-            L_e = np.eye(inv_gs.shape[0])
-            L_g = np.eye(inv_gs.shape[0])
+                    raise ValueError(f"don't understand rotation method {rotation_method}")
+                L_e[np.ix_(block, block)] = l_e
+                L_g[np.ix_(block, block)] = l_g
 
 
         # find displacement vector (center of gs ground state in this new basis)
         # modes_gs = modes_es @ L
 
+        es_center = State(rotation_center) == State.ExcitedState
         if gs_order:
-            dx_g = (center_gs - center_es) @ modes_es
+            tf = modes_es
+        else:
+            tf = modes_gs
+        if es_center:
+            dx_g = (center_gs - center_es) @ tf
             dx_e = np.zeros(dx_g.shape)
         else:
-            dx_g = (center_es - center_gs) @ modes_gs
-            dx_e = np.zeros(dx_g.shape)
+            dx_e = (center_es - center_gs) @ tf
+            dx_g = np.zeros(dx_e.shape)
+
         # c_gs = inv_es @ (center_gs - center_es)
 
-        # raise Exception(c_gs)
-
-        # print(L)
-        # raise Exception(c_gs)
-
-        # print(center_es)
-        # print(center_gs)
-        # print(c_gs)
-        #
-        # raise Exception(c_gs)
-
+        # L_g = L_g.T
+        # L_e = L_e.T
         # inverse covariance matrices in this coordinate system
+
+        # del_E G or del_G E
         Z_gs = (L_g @ np.diag(freqs_gs) @ L_g.T)
         Z_es = (L_e @ np.diag(freqs_es) @ L_e.T)
         Z_c = Z_gs + Z_es
 
-        S_gs = (L_g @ np.diag(1/freqs_gs) @ L_g.T)
-        S_es = (L_e @ np.diag(1/freqs_es) @ L_e.T)
+        X_g = np.linalg.inv(L_g)
+        X_e = np.linalg.inv(L_e)
+        S_gs = (X_g @ np.diag(1/freqs_gs) @ X_g.T)
+        S_es = (X_e @ np.diag(1/freqs_es) @ X_e.T)
         S_c = S_gs + S_es
 
         norm_gs = np.power(freqs_gs, 1/4)
@@ -505,7 +646,8 @@ class FranckCondonModel:
                           excitations_gs, freqs_gs, modes_gs, inv_gs, center_gs,
                           excitations_es, freqs_es, modes_es, inv_es, center_es,
                           duschinsky_cutoff=None,
-                          logger=None
+                          logger=None,
+                          **rotation_opts
                           ):
         """
         Evaluates the Gaussian overlaps between two H.O. wave functions defined by
@@ -534,7 +676,8 @@ class FranckCondonModel:
 
         (alphas, modes_c, center, zpe_prod), (L_gs, c_gs), (L_es, c_es) = self.get_overlap_gaussian_data(
             freqs_gs, modes_gs, inv_gs, center_gs,
-            freqs_es, modes_es, inv_es, center_es
+            freqs_es, modes_es, inv_es, center_es,
+            **rotation_opts
         )
 
         with logger.block(tag='Duschinksy Transformation'):
@@ -550,8 +693,6 @@ class FranckCondonModel:
         # We now have the space to define the parameters that go into the overlap calculation
         shift_gs = center - c_gs #- L_gs @ modes_c.T @ center
         shift_es = center - c_es #- modes_c.T @ center
-
-        # raise Exception(shift_es, shift_gs, c_gs)
 
         Q_gs = (modes_c @ L_gs)
         Q_es = (modes_c @ L_es)
@@ -635,7 +776,6 @@ class FranckCondonModel:
 
         return overlaps
 
-    embedding_ref = State.ExcitedState
     @classmethod
     def embed_modes(cls, gs_nms: 'NormalModes', es_nms, ref=None, masses=None):
         from ..Molecools import Molecule
@@ -647,7 +787,7 @@ class FranckCondonModel:
         if masses is None:
             raise ValueError("need masses to reembed normal modes")
         if ref is None:
-            ref = cls.embedding_ref
+            ref = cls.default_embedding_ref
 
         gs_embedding = State(ref) == State.GroundState
 
@@ -815,7 +955,8 @@ class FranckCondonModel:
                  excitations, ground_states=None,
                  embed=True, masses=None, mass_weight=True,
                  duschinsky_cutoff=None,
-                 logger=None
+                 logger=None,
+                 **rotation_opts
                  ):
 
         if embed:
@@ -835,11 +976,13 @@ class FranckCondonModel:
         es_freqs = es_nms.freqs
         es_center = es_nms.origin.flatten()
         es_basis = es_nms.matrix
+
         return self.eval_fcf_overlaps(
             ground_states, gs_freqs, gs_basis, gs_nms.inverse, gs_center,
             excitations, es_freqs, es_basis, es_nms.inverse, es_center,
             duschinsky_cutoff=duschinsky_cutoff,
-            logger=logger
+            logger=logger,
+            **rotation_opts
         )
     @classmethod
     def format_overlap_tables(cls, es, overlaps, include_headers=True):
@@ -859,7 +1002,8 @@ class FranckCondonModel:
                          embed=True, masses=None, mass_weight=True,
                          logger=None,
                          duschinsky_cutoff=None,
-                         return_states=False
+                         return_states=False,
+                         **rotation_opts
                          ):
         from ..Spectra import DiscreteSpectrum
         from McUtils.Data import UnitsData
@@ -880,7 +1024,8 @@ class FranckCondonModel:
             excitations, ground_states=ground_states,
             embed=False, masses=None, mass_weight=False,
             duschinsky_cutoff=duschinsky_cutoff,
-            logger=logger
+            logger=logger,
+            **rotation_opts
         )
 
         freqs = np.dot(np.asanyarray(excitations), es_nms.freqs) * UnitsData.convert("Hartrees", "Wavenumbers")
@@ -901,20 +1046,38 @@ class FranckCondonModel:
 
         return ret
 
+    def prep_opts(self, **opts):
+        return dict(
+            dict(
+                dict(
+                    logger=self.logger,
+                    rotation_order=self.rotation_order,
+                    rotation_center=self.rotation_center,
+                    rotation_method=self.rotation_method,
+                    rotation_blocks=self.rotation_blocks,
+                    include_rotation=self.include_rotation
+                ),
+                **opts,
+            ),
+            embed=False,
+            mass_weight=False,
+        )
+
     def get_spectrum(self,
                      excitations, *, ground_states=None,
                      return_states=False,
-                     duschinsky_cutoff=None
+                     duschinsky_cutoff=None,
+                     **rotation_opts
                      ):
         return self.get_fcf_spectrum(
             self.gs_nms, self.es_nms,
             excitations,
-            ground_states=ground_states,
-            embed=False,
-            mass_weight=False,
-            return_states=return_states,
-            duschinsky_cutoff=duschinsky_cutoff,
-            logger=self.logger
+            **self.prep_opts(
+                return_states=return_states,
+                ground_states=ground_states,
+                duschinsky_cutoff=duschinsky_cutoff,
+                **rotation_opts
+            )
         )
 
 

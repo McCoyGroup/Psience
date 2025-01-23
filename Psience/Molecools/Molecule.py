@@ -238,6 +238,9 @@ class Molecule(AbstractMolecule):
     @property
     def internal_coordinates(self):
         return self.embedding.internal_coordinates
+    @property
+    def redundant_internal_transformation(self):
+        return self.embedding.redundant_internal_transformation
 
     def get_internals(self, strip_embedding=True):
         return self.embedding.get_internals(strip_embedding=strip_embedding)
@@ -287,29 +290,33 @@ class Molecule(AbstractMolecule):
         self._pes = val
     @property
     def potential_derivatives(self):
-        return self.potential_surface.derivatives
+        base_derivs = [
+            (
+                (0 if nput.is_numeric(p) else np.asanyarray(p))
+                if p is not None else 0
+            )
+            for p in self.potential_surface.derivatives
+        ]
+        n = len(base_derivs)
+        for i in range(n): # remove 0 padding
+            if isinstance(base_derivs[n - (i+1)], np.ndarray):
+                n = n - i
+                break
+        else:
+            n = 0
+        return base_derivs[:n]
     @potential_derivatives.setter
     def potential_derivatives(self, derivs):
         self.potential_surface.derivatives = derivs
 
-    def get_internal_potential_derivatives(self, order=None):
-        raise NotImplementedError("use Numputils tensor reexpand instead")
-        if self.potential_derivatives is None:
-            raise ValueError("no potential derivatives")
+    def get_internal_potential_derivatives(self, order=None, reembed=True, strip_embedding=True):
+        derivs = self.potential_derivatives
         if order is None:
-            order = len(self.potential_derivatives)
-        derivs = self.potential_surface.apply_transformation(
-            self.embedding.get_cartesians_by_internals(order)
-        ).derivatives
-        ecs = self.embedding.embedding_coords
-        comp_coords = np.setdiff1d(np.arange(derivs[0].shape[0]), ecs)
-        _ = []
-        for d in derivs:
-            for i in range(d.ndim):
-                d = np.take(d, comp_coords, axis=i)
-            _.append(d)
-        derivs = _
-        return derivs
+            order = len(derivs)
+        return nput.tensor_reexpand(
+            self.get_cartesians_by_internals(order, reembed=reembed, strip_embedding=strip_embedding),
+            derivs
+        )
 
     @property
     def normal_modes(self):
@@ -1576,9 +1583,9 @@ class Molecule(AbstractMolecule):
         if units is not None:
             geoms = geoms * UnitsData.convert("BohrRadius", units)
         return geoms
-    def animate_coordinate(self, which, extent=.35, steps=8, return_objects=False, strip_embedding=True,
+    def animate_coordinate(self, which, extent=.5, steps=8, return_objects=False, strip_embedding=True,
                            units="Angstroms",
-                           mode='x3d',
+                           mode='jsmol',
                            jsmol_load_script=None,
                            coordinate_expansion=None,
                            **plot_opts
@@ -1594,6 +1601,37 @@ class Molecule(AbstractMolecule):
             geoms = self.get_animation_geoms(which, extent=extent, steps=steps, strip_embedding=strip_embedding, units=units,
                                              coordinate_expansion=coordinate_expansion)
             return self.plot(geoms, return_objects=return_objects, units=None, **plot_opts)
+
+    def animate_mode(self, which,
+                     extent=.1, steps=8,
+                     modes=None,
+                     coordinate_expansion=None,
+                     mass_weight=False,
+                     mass_scale=True,
+                     frequency_scale=True,
+                     **opts
+                     ):
+        from ..Modes import NormalModes
+
+        if modes is None:
+            modes = self.normal_modes.modes.basis.to_new_modes()
+        modes = NormalModes.prep_modes(modes)
+        if mass_weight:
+            modes = modes.make_mass_weighted()
+        elif mass_scale:
+            extent *= np.sqrt(UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass"))
+        if frequency_scale:
+            freqs = modes.freqs
+            extent *= np.sqrt(np.max(freqs) / freqs[which])
+        base_expansion = [modes.matrix.T]
+        if coordinate_expansion is not None:
+            base_expansion = nput.tensor_reexpand(coordinate_expansion, base_expansion)
+        return self.animate_coordinate(which,
+                                       extent=extent, steps=steps,
+                                       coordinate_expansion=base_expansion,
+                                       **opts
+                                       )
+
 
     def _format_xyz(self, which, nat, atoms, geom, float_format='10.3f'):
         xyz_elems = len(geom[0])
@@ -1669,7 +1707,11 @@ class Molecule(AbstractMolecule):
                                 )
 
     def to_widget(self):
-        return self.jupyter_viz().to_widget()
+        if self.display_jsmol:
+            obj = self.plot(mode='jsmol', return_objects=False)
+        else:
+            obj = self.plot(backend='x3d', return_objects=False).figure.to_x3d()
+        return obj
 
     display_jsmol = True
     def _ipython_display_(self):
