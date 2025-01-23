@@ -85,7 +85,7 @@ class NormalModes(MixtureModes):
                          dimensionless=False,
                          mass_weighted=None,
                          zero_freq_cutoff=None,
-                         mode='default'
+                         return_gmatrix=False
                          ):
 
         f_matrix = np.asanyarray(f_matrix)
@@ -102,8 +102,8 @@ class NormalModes(MixtureModes):
             mass_spec = np.diag(1 / mass_spec)
         freq2, modes = slag.eigh(f_matrix, mass_spec, type=3)
 
-        gi12 = slag.fractional_matrix_power(mass_spec, -1 / 2)
-        g12 = slag.fractional_matrix_power(mass_spec, 1 / 2)
+        gi12 = nput.fractional_power(mass_spec, -1 / 2)
+        g12 = nput.fractional_power(mass_spec, 1 / 2)
         V = gi12 @ modes
         # modes = g12 @ V
         # therefore, inv = V.T @ gi12
@@ -150,7 +150,12 @@ class NormalModes(MixtureModes):
         modes = modes[:, sorting]
         inv = inv[sorting, :]
 
-        return cls.ModeData(freqs, inv.T, modes.T)
+        mode_data = cls.ModeData(freqs, inv.T, modes.T)
+        if return_gmatrix:
+            return mode_data, mass_spec
+        else:
+            return mode_data
+
     @classmethod
     def from_fg(cls,
                 basis,
@@ -174,15 +179,18 @@ class NormalModes(MixtureModes):
         :return:
         """
 
-        freqs, modes, inv = cls.get_normal_modes(f_matrix, mass_spec,
+        (freqs, modes, inv), g_matrix = cls.get_normal_modes(f_matrix, mass_spec,
                                                  remove_transrot=remove_transrot,
                                                  dimensionless=dimensionless,
                                                  zero_freq_cutoff=zero_freq_cutoff,
-                                                 mass_weighted=mass_weighted)
+                                                 mass_weighted=mass_weighted,
+                                                 return_gmatrix=True
+                                                 )
 
         return cls(basis, modes, inverse=inv, freqs=freqs,
                    mass_weighted=mass_weighted or dimensionless,
                    frequency_scaled=dimensionless,
+                   g_matrix=g_matrix,
                    **opts
                    )
 
@@ -200,7 +208,7 @@ class NormalModes(MixtureModes):
             use_internals = mol.internal_coordinates is not None
         if use_internals:
             hess = nput.tensor_reexpand(
-                mol.get_cartesians_by_internals(1),
+                mol.get_cartesians_by_internals(1, strip_embedding=True, reembed=True),
                 [0, mol.potential_derivatives[1]],
                 order=2
             )[1]
@@ -211,7 +219,7 @@ class NormalModes(MixtureModes):
                 hess,
                 mol.g_matrix,
                 dimensionless=dimensionless,
-                origin=mol.internal_coordinates,
+                origin=mol.get_internals(strip_embedding=True),
                 zero_freq_cutoff=zero_freq_cutoff,
                 **opts
             )
@@ -392,7 +400,8 @@ class NormalModes(MixtureModes):
         if 'Cartesians' not in self.basis.name:  # a hack
             if self.origin is None:
                 raise ValueError("can't get mass weighting matrix (G^-1/2) without structure")
-            raise NotImplementedError("will add at some point")
+            G = self.inverse.T @ self.inverse
+            # raise NotImplementedError("will add at some point")
         return G
 
     def _get_gmatrix(self, masses=None):
@@ -407,8 +416,8 @@ class NormalModes(MixtureModes):
             else:
                 G = self._eval_G(self.masses)
 
-        g12 = scipy.linalg.fractional_matrix_power(G, 1/2)
-        gi12 = scipy.linalg.fractional_matrix_power(G, -1/2)
+        g12 = nput.fractional_power(G, 1/2)
+        gi12 = nput.fractional_power(G, -1/2)
         return masses, g12, gi12
 
     def make_mass_weighted(self, masses=None):
@@ -416,10 +425,12 @@ class NormalModes(MixtureModes):
         masses, g12, gi12 = self._get_gmatrix(masses=masses)
         L = g12 @ self.matrix
         Linv = self.inverse @ gi12
+        origin = (self.origin.flatten()[np.newaxis, :] @ gi12).reshape(self.origin.shape)
 
         return self.modify(L,
                            inverse=Linv,
                            masses=masses,
+                           origin=origin,
                            mass_weighted=True
                            )
     def remove_mass_weighting(self, masses=None):
@@ -427,10 +438,12 @@ class NormalModes(MixtureModes):
         masses, g12, gi12 = self._get_gmatrix(masses=masses)
         L = gi12 @ self.matrix
         Linv = self.inverse @ g12
+        origin = (self.origin.flatten()[np.newaxis, :] @ g12).reshape(self.origin.shape)
 
         return self.modify(L,
                            inverse=Linv,
                            masses=masses,
+                           origin=origin,
                            mass_weighted=False
                            )
 

@@ -1606,6 +1606,7 @@ class Molecule(AbstractMolecule):
                      extent=.1, steps=8,
                      modes=None,
                      coordinate_expansion=None,
+                     order=None,
                      mass_weight=False,
                      mass_scale=True,
                      frequency_scale=True,
@@ -1623,7 +1624,16 @@ class Molecule(AbstractMolecule):
         if frequency_scale:
             freqs = modes.freqs
             extent *= np.sqrt(np.max(freqs) / freqs[which])
-        base_expansion = [modes.matrix.T]
+        base_expansion = [modes.coords_by_modes]
+        if order is not None:
+            q_expansion = nput.tensor_reexpand(
+                self.get_cartesians_by_internals(order),
+                [modes.modes_by_coords],
+                order=order
+            )
+            base_expansion = nput.tensor_reexpand(
+                q_expansion, [modes.coords_by_modes], order=order
+            )
         if coordinate_expansion is not None:
             base_expansion = nput.tensor_reexpand(coordinate_expansion, base_expansion)
         return self.animate_coordinate(which,
