@@ -58,7 +58,7 @@ class VibronicTests(TestCase):
             masses=modes.masses
         )
 
-    @validationTest
+    @debugTest
     def test_FCFsAnalytic(self):
         # print()
 
@@ -66,8 +66,7 @@ class VibronicTests(TestCase):
         gs = self.fake_mode_data(3)
         es = self.shift_modes(gs, [1, 0, 0])
 
-        self.assertTrue(np.allclose(
-            FranckCondonModel.get_fcfs(
+        test_fcfs = FranckCondonModel.get_fcfs(
                 gs,
                 es,
                 [
@@ -77,16 +76,20 @@ class VibronicTests(TestCase):
                     [0, 1, 0],
                     [0, 0, 1]
                 ],
-                embed=True,
-                mass_weight=False
-            ),
-            [0.7788007830714044, 0.5506953149031834, 0.27534765745159184, 0, 0]
-        ))
+                embed=False,
+                mass_weight=True,
+                rotation_order='es'
+                # include_rotation=False
+            )
+        test_vals = [0.7788007830714044, -0.5506953149031834, 0.27534765745159184, 0, 0]
+        self.assertTrue(
+            np.allclose(test_fcfs, test_vals),
+            msg=f"{test_fcfs} != {test_vals}"
+        )
 
         gs.freqs = np.array([1, 2, 2])
         es.freqs = np.array([1, 2, 2])
-        self.assertTrue(np.allclose(
-            FranckCondonModel.get_fcfs(
+        test_fcfs = FranckCondonModel.get_fcfs(
                 gs[[0, 1]],
                 es[[0, 1]],
                 [
@@ -97,28 +100,33 @@ class VibronicTests(TestCase):
                 ],
                 embed=False,
                 mass_weight=False
-            ),
-            [0.7788007830714044, 0.5506953149031834, 0.27534765745159184, 0]
-        ))
+            )
+        test_vals = [0.7788007830714044, -0.5506953149031834, 0.27534765745159184, 0]
+        self.assertTrue(
+            np.allclose(test_fcfs, test_vals),
+            msg=f"{test_fcfs} != {test_vals}"
+        )
 
         gs.freqs = np.array([2, 2, 2])
         es = self.shift_modes(gs, [1, 0, 0])
         gs.freqs = np.array([1, 2, 2])
-        self.assertTrue(np.allclose(
-            FranckCondonModel.get_fcfs(
-                gs[[0, 1]],
-                es[[0, 1]],
-                [
-                    [0, 0],
-                    [1, 0],
-                    [2, 0],
-                    [0, 1]
-                ],
-                embed=False,
-                mass_weight=False
-            ),
-            [0.6957401109084786, 0.46382674060565227, 0.3826375391742289, 0]
-        ))
+        test_fcfs = FranckCondonModel.get_fcfs(
+            gs[[0, 1]],
+            es[[0, 1]],
+            [
+                [0, 0],
+                [1, 0],
+                [2, 0],
+                [0, 1]
+            ],
+            embed=False,
+            mass_weight=False
+        )
+        test_vals = [0.6957401109084786, -0.46382674060565227, 0.3826375391742289, 0]
+        self.assertTrue(
+            np.allclose(test_fcfs, test_vals),
+            msg=f"{test_fcfs} != {test_vals}"
+        )
 
         gs.freqs = np.array([1, 2, 2])
         es = self.shift_modes(gs, [0, 0, 0])
@@ -128,29 +136,31 @@ class VibronicTests(TestCase):
             [c, -s, 0],
             [s,  c, 0],
             [0,  0, 1]
-        ])
+        ]).T
         es.matrix = es.matrix @ rot
         es.inverse = rot.T @ es.inverse
-        es = self.shift_modes(es, [1, 0, 0])
-        self.assertTrue(np.allclose(
-            FranckCondonModel.get_fcfs(
-                gs[[0, 1]],
-                es[[0, 1]],
-                [
-                    [0, 0],
-                    [1, 0],
-                    [2, 0],
-                    [0, 1],
-                    [0, 2],
-                    [1, 1],
-                    [3, 1],
-                    [4, 0]
-                ],
-                embed=False,
-                mass_weight=False
-            ),
-            [0.7496767974532862, 0.5782925969208352, 0.26724127584978014, 0.07869565469361299, 0.05403238910624021, -0.0505874828034262, -0.06072786570450098, 0.008309307609240951]
-        ))
+        es = self.shift_modes(es, [-1, 0, 0])
+        test_fcfs = FranckCondonModel.get_fcfs(
+            gs[[0, 1]],
+            es[[0, 1]],
+            [
+                [0, 0],
+                [1, 0],
+                [2, 0],
+                [0, 1],
+                [0, 2],
+                [1, 1],
+                [3, 1],
+                [4, 0]
+            ],
+            embed=False,
+            mass_weight=False
+        )
+        test_vals = [0.7496767974532862, 0.5782925969208352, 0.26724127584978014, 0.07869565469361299, 0.05403238910624021, -0.0505874828034262, -0.06072786570450098, 0.008309307609240951]
+        self.assertTrue(
+            np.allclose(test_fcfs, test_vals),
+            msg=f"{test_fcfs} != {test_vals}"
+        )
 
         gs.freqs = np.array([1, 1, 3])
         es = self.shift_modes(gs, [0, 0, 0])
@@ -175,27 +185,30 @@ class VibronicTests(TestCase):
                 #     [0,  s,  c]
                 # ])
         )
-        # rot = rot.T
+        rot = rot.T
         es.matrix = es.matrix @ rot
         es.inverse = rot.T @ es.inverse
-        es = self.shift_modes(es, [.5, 0, 0])
-        self.assertTrue(np.allclose(
-            FranckCondonModel.get_fcfs(
-                gs,
-                es,
-                [
-                    # [0, 0, 0],
-                    # [1, 0, 0],
-                    [2, 0, 0],
-                    [1, 1, 0],
-                    [1, 0, 1],
-                    # [1, 2, 1]
-                ],
-                embed=False,
-                mass_weight=False
-            ),
-            [0.16796089572281053, -1.0693197339113112e-16, -0.10980392299108514]
-        ))
+        es = self.shift_modes(es, [-.5, 0, 0])
+        test_fcfs = FranckCondonModel.get_fcfs(
+            gs,
+            es,
+            [
+                # [0, 0, 0],
+                # [1, 0, 0],
+                [2, 0, 0],
+                [1, 1, 0],
+                [1, 0, 1],
+                # [1, 2, 1]
+            ],
+            embed=False,
+            mass_weight=False,
+            rotation_order='gs'
+        )
+        test_vals = [0.16796089572281053, -1.0693197339113112e-16, -0.10980392299108514]
+        self.assertTrue(
+            np.allclose(test_fcfs, test_vals),
+            msg=f"{test_fcfs} != {test_vals}"
+        )
 
     @validationTest
     def test_FCFsNH3(self):
@@ -311,7 +324,7 @@ class VibronicTests(TestCase):
 
         return klow, klow_exc
         # raise Exception(...)
-    @debugTest
+    @inactiveTest
     def test_FCFsBig(self):
 
         root = os.path.expanduser('~/Documents/Postdoc/Projects/Tim-Ned-FCFs/FCFs')

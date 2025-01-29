@@ -68,6 +68,12 @@ class NormalModes(MixtureModes):
         )
 
     @property
+    def is_cartesian(self):
+        if self.masses is not None:
+            return self.matrix.shape[0] // 3 == len(self.masses)
+        else:
+            return 'Cartesian' in self.basis.name
+    @property
     def coords_by_modes(self):
         return self.inverse
     @property
@@ -75,7 +81,7 @@ class NormalModes(MixtureModes):
         return self.matrix
 
     ModeData = collections.namedtuple("ModeData", ['freqs', 'modes', 'inverse'])
-    default_zero_freq_cutoff = 2.5e-4 # 50 wavenumbers...
+    default_zero_freq_cutoff = 1.0e-4 # 20 wavenumbers...
     @classmethod
     def get_normal_modes(cls,
                          f_matrix,
@@ -165,6 +171,7 @@ class NormalModes(MixtureModes):
                 dimensionless=False,
                 zero_freq_cutoff=None,
                 mass_weighted=None,
+                origin=None,
                 **opts
                 ):
         """
@@ -187,10 +194,17 @@ class NormalModes(MixtureModes):
                                                  return_gmatrix=True
                                                  )
 
+        mass_weighted = mass_weighted or dimensionless
+
+        if mass_weighted and origin is not None:
+            origin = np.asanyarray(origin)
+            origin = (origin.flatten() @ nput.fractional_power(g_matrix, -1/2)).reshape(origin.shape)
+
         return cls(basis, modes, inverse=inv, freqs=freqs,
-                   mass_weighted=mass_weighted or dimensionless,
+                   mass_weighted=mass_weighted,
                    frequency_scaled=dimensionless,
                    g_matrix=g_matrix,
+                   origin=origin,
                    **opts
                    )
 
@@ -434,7 +448,7 @@ class NormalModes(MixtureModes):
                            mass_weighted=True
                            )
     def remove_mass_weighting(self, masses=None):
-        if self.mass_weighted: return self
+        if not self.mass_weighted: return self
         masses, g12, gi12 = self._get_gmatrix(masses=masses)
         L = gi12 @ self.matrix
         Linv = self.inverse @ g12

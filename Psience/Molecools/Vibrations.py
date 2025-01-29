@@ -554,7 +554,23 @@ class MolecularNormalModes(CoordinateSystem):
             inverse=self.matrix.T,
             freqs=self.freqs,
             origin=self.origin,
-            masses=self.molecule.atomic_masses
+            masses=self.molecule.atomic_masses,
+            mass_weighted=False
+        )
+    @classmethod
+    def from_new_modes(cls, mol, modes):
+        """
+        Converts to the new generalized normal modes
+
+        :return:
+        """
+        modes = modes.remove_mass_weighting()
+        return cls(
+            mol,
+            modes.inverse.T,
+            inverse=modes.matrix.T,
+            freqs=modes.freqs,
+            origin=modes.origin
         )
 
     @classmethod
@@ -568,6 +584,7 @@ class MolecularNormalModes(CoordinateSystem):
                              inverse_mass_matrix=False,
                              remove_transrot=True,
                              dimensionless=False,
+                             mass_weighted=False,
                              normalize=False,
                              **opts
                              ):
@@ -606,10 +623,11 @@ class MolecularNormalModes(CoordinateSystem):
             masses,
             # mass_units="AtomicMassUnits",
             remove_transrot=remove_transrot,
-            dimensionless=dimensionless
+            dimensionless=dimensionless,
+            mass_weighted=mass_weighted
         )
 
-        return cls(molecule, modes, inverse=inv, freqs=freqs, **opts)
+        return cls(molecule, inv.T, inverse=modes.T, freqs=freqs, **opts)
 
 
     def __getitem__(self, item):

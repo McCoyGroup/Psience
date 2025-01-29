@@ -109,14 +109,29 @@ class MixtureModes(CoordinateSystem):
         if inv is not None:
             inv = inv[item, :]
         freq = self.freqs[item,]
+        return self.modify(
+            matrix=sub_modes,
+            freqs=freq,
+            inverse=inv
+        )
+
+    def modify(self,
+               matrix=None,
+               *,
+               freqs=None,
+               origin=None,
+               masses=None,
+               inverse=None,
+               name=None
+               ):
         return type(self)(
             self.basis,
-            sub_modes,
-            name=self.name,
-            freqs=freq,
-            origin=self._origin,
-            masses=self.masses,
-            inverse=inv
+            self.matrix if matrix is None else matrix,
+            freqs=self.freqs if freqs is None else freqs,
+            origin=self.origin if origin is None else origin,
+            masses=self.masses if masses is None else masses,
+            inverse=self.inverse if inverse is None else inverse,
+            name=self.name if name is None else name
         )
 
     def rotate(self, rot, in_place=False):
