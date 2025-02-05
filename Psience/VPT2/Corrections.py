@@ -931,6 +931,7 @@ class AnalyticPerturbationTheoryCorrections:
     operator_corrections: 'Iterable[BasicAPTCorrections]' = None
     _deperturbed_operator_values: 'Iterable[np.ndarray]' = None
     _operator_values: 'Iterable[np.ndarray]' = None
+    operator_keys: 'Iterable[Any]' = None
     logger: 'Logger' = None
 
     _zpe_pos: int = None
@@ -1283,16 +1284,23 @@ class AnalyticPerturbationTheoryCorrections:
             if self.degenerate_states is None:
                 self._operator_values = self.deperturbed_operator_values
             else:
-                ops = self.deperturbed_operator_values
-                all_tms = [[] for _ in ops]  # num operators
-                for block_idx, (init_states, final_states) in enumerate(self.state_lists):
-                    for storage, axis_moms in zip(all_tms, ops):
-                        storage.append(
-                            self.apply_degenerate_transformations(
-                                init_states, final_states,
-                                axis_moms[block_idx]
-                            )
-                        )
-                self._operator_values = all_tms
+                tmoms = self.deperturbed_operator_values
+
+                self._operator_values = self._apply_degs_to_corrs(
+                    tmoms,
+                    logger=self.logger
+                )
+
+                # ops = self.deperturbed_operator_values
+                # all_tms = [[] for _ in ops]  # num operators
+                # for block_idx, (init_states, final_states) in enumerate(self.state_lists):
+                #     for storage, axis_moms in zip(all_tms, ops):
+                #         storage.append(
+                #             self.apply_degenerate_transformations(
+                #                 init_states, final_states,
+                #                 axis_moms[block_idx]
+                #             )
+                #         )
+                # self._operator_values = all_tms
 
         return self._operator_values

@@ -13,7 +13,7 @@ from ..Molecools import Molecule
 from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace, HarmonicOscillatorProductBasis
 
 from .Common import PerturbationTheoryException
-from .Terms import PotentialTerms, KineticTerms, CoriolisTerm, PotentialLikeTerm, DipoleTerms
+from .Terms import PotentialTerms, KineticTerms, CoriolisTerm, PotentialLikeTerm, DipoleTerms, OperatorTerms
 from .Solver import PerturbationTheorySolver, PerturbationTheoryCorrections
 from .Wavefunctions import PerturbationTheoryWavefunctions
 
@@ -479,6 +479,38 @@ class PerturbationTheoryHamiltonian:
                     self._expansions[o].name = "H({})".format(o)
 
         return self._expansions[o]
+
+    def prep_operator_terms(self, coeffs, order):
+        coeffs = [
+            float(x)
+                if nput.is_numeric(x) else
+            np.asanyarray(x)
+                for x in coeffs
+        ]
+        const = coeffs[0]
+
+        coeff_padding = 0
+        exp = list(coeffs[1:])
+        for i,x in enumerate(exp):
+            if not nput.is_numeric(x):
+                coeff_padding = x.ndim - (i + 1)
+                break
+        else:
+            raise ValueError("ambiguous what to do with all zeros...")
+
+        ndim = self.modes.basis.matrix.shape[0]
+        exp = [
+            np.zeros((ndim,)*(i+1))
+            for i in range(coeff_padding)
+        ] + exp
+
+        exp = OperatorTerms(self.molecule, modes=self.modes, mode_selection=self.mode_selection,
+                               operator_derivatives=exp,
+                               **ParameterManager(self.expansion_options).filter(OperatorTerms)
+                               ).get_terms(order + coeff_padding)
+
+        coeffs = [const] + exp[coeff_padding:]
+        return coeffs
 
     def get_perturbations(self, expansion_orders, return_reps=True, order=None):
         """

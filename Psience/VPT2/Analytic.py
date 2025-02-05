@@ -4178,14 +4178,30 @@ class OperatorCorrection(PerturbationTheoryTerm):
         super().__init__(allowed_terms=allowed_terms, **opts)
         self.parent = parent
         self.order = order
+        self.type = self.get_type_key(operator_type)
         self.expansion = parent.operator_expansion_terms(order, logger=self.logger, operator_type=operator_type)
         self._wavefunction_generator = wavefunction_generator
 
+    @classmethod
+    def get_type_key(cls, operator_type):
+        if operator_type is None:
+            return 1
+        elif isinstance(operator_type, str):
+            if operator_type == 'transition_moment':
+                operator_type = 'TM'
+        return operator_type
+
     def get_serializer_key(self):  # to be overridden
         return self.__repr__()
+
     repr_key = "M"
+    def get_repr_key(self):
+        if self.type == "TM":
+            return self.repr_key
+        else:
+            return '{}@{}'.format(self.repr_key, self.type)
     def __repr__(self):
-        return "<n|{}|m>({})".format(self.repr_key, self.order)
+        return "<n|{}|m>({})".format(self.get_repr_key(), self.order)
 
     def get_changes(self):
         base_changes = {}
@@ -4261,7 +4277,7 @@ class OperatorDegenerateCorrection(OperatorCorrection):
         self.both = self.Both(parent, order, self) # hack to minimize code necessary
 
     def __repr__(self):
-        return "<n||{}||m>({},{})".format(self.repr_key,self.degenerate_changes,self.order)
+        return "<n||{}||m>({},{})".format(self.get_repr_key(), self.degenerate_changes,self.order)
 
     def default_wavefunction_generator(self, o:int):
         return self.parent.overlap_correction(o, degenerate_changes=self.degenerate_changes)
@@ -4271,7 +4287,7 @@ class OperatorDegenerateCorrection(OperatorCorrection):
             super().__init__(parent, order, logger=real_parent.logger)
             self.op = real_parent
         def __repr__(self):
-            return "<n||{}|m>({},{})".format(self.op.repr_key, self.op.degenerate_changes, self.order)
+            return "<n||{}|m>({},{})".format(self.op.get_repr_key(), self.op.degenerate_changes, self.order)
         def get_subexpressions(self):
             woof = self.op.get_left_degenerate_expressions()
             return woof
@@ -4280,7 +4296,7 @@ class OperatorDegenerateCorrection(OperatorCorrection):
             super().__init__(parent, order, logger=real_parent.logger)
             self.op = real_parent
         def __repr__(self):
-            return "<n|{}||m>({},{})".format(self.op.repr_key,self.op.degenerate_changes,self.order)
+            return "<n|{}||m>({},{})".format(self.op.get_repr_key(), self.op.degenerate_changes,self.order)
         def get_subexpressions(self):
             return self.op.get_right_degenerate_expressions()
     class Both(OperatorCorrection):
@@ -4288,7 +4304,7 @@ class OperatorDegenerateCorrection(OperatorCorrection):
             super().__init__(parent, order, logger=real_parent.logger)
             self.op = real_parent
         def __repr__(self):
-            return "<n||{}||m>({},{})".format(self.op.repr_key,self.op.degenerate_changes,self.order)
+            return "<n||{}||m>({},{})".format(self.op.get_repr_key(), self.op.degenerate_changes,self.order)
         def get_subexpressions(self):
             return self.op.get_both_degenerate_expressions()
     def get_subexpressions(self,
