@@ -651,6 +651,8 @@ class BasisStateSpace(AbstractStateSpace):
     def states_in_windows(cls, freqs, windows:'list[[int,int]]',
                           max_state=None,
                           min_quantas=None, max_quantas=None,
+                          initial_state=None,
+                          fixed_modes=None,
                           basis=None # we'll use this some day probably...
                           ):
         # walk the state tree to find anything within a given frequency window
@@ -665,22 +667,31 @@ class BasisStateSpace(AbstractStateSpace):
         if max_quantas is None or nput.is_numeric(max_quantas):
             max_quantas = [max_quantas] * len(windows)
 
-        base_state = np.zeros(ndim, dtype=int)
+        if initial_state is None:
+            base_state = np.zeros(ndim, dtype=int)
+        else:
+            base_state = np.array(initial_state, dtype=int)
         queue = collections.deque()
+        base_freq = np.dot(freqs, base_state)
+        base_quant = np.sum(base_state)
+        if nput.is_numeric(fixed_modes): fixed_modes = [fixed_modes]
+        fixed_mask = np.full(len(freqs), True)
+        if fixed_modes is not None:
+            fixed_mask[fixed_modes,] = False
 
         for states,min_quanta,(min_freq, max_freq) in zip(window_states, min_quantas, windows):
             if (
-                    (0 >= min_freq)
-                    and (min_quanta is None or 0 >= min_quanta)
+                    (base_freq >= min_freq)
+                    and (min_quanta is None or 0 >= base_quant)
             ):
                 states.append(base_state)
-        queue.append([0, 0, 0, base_state])
+        queue.append([base_freq, 0, base_quant, base_state])
         # indices.append(basis.ravel_state_inds(base_state)[0])
 
         # alternate indexing method, in case individual ravels are too slow
         indices = set()
         indices.add(tuple(base_state))
-        q_thresh = max([-1] + [max_quanta for max_quanta in max_quantas if max_quantas is not None])
+        q_thresh = max([-1] + [max_quanta for max_quanta in max_quantas if max_quanta is not None])
         if q_thresh < 0:
             q_thresh = None
 
@@ -689,6 +700,7 @@ class BasisStateSpace(AbstractStateSpace):
             q = q + 1
             for n, ee in enumerate(freqs[mod_ind:]):
                 n = mod_ind + n
+                if not fixed_mask[n]: continue
                 if max_state is not None and s[n] >= max_state[n]: continue
 
                 enew = e + ee
@@ -718,7 +730,8 @@ class BasisStateSpace(AbstractStateSpace):
     @classmethod
     def states_under_freq_threshold(cls, freqs, thresh, min_freq=None,
                                     max_state=None,
-                                    min_quanta=None, max_quanta=None, basis=None):
+                                    min_quanta=None, max_quanta=None, basis=None,
+                                    fixed_modes=None):
         if min_freq is None:
             min_freq = 0
         return cls.states_in_windows(freqs,
@@ -726,7 +739,8 @@ class BasisStateSpace(AbstractStateSpace):
                                      max_state=max_state,
                                      min_quantas=[min_quanta],
                                      max_quantas=[max_quanta],
-                                     basis=basis
+                                     basis=basis,
+                                     fixed_modes=fixed_modes
                                      )[0]
 
 

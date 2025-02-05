@@ -8,7 +8,7 @@ import McUtils.Numputils as nput
 from McUtils.Combinatorics import UniquePermutations
 from McUtils.Zachary import TensorDerivativeConverter
 
-from .CoordinateSystems import MolecularEmbedding
+from .CoordinateSystems import MolecularEmbedding, ModeEmbedding
 from .Properties import PotentialSurfaceManager, DipoleSurfaceManager, NormalModesManager
 
 class MolecularHamiltonian:
@@ -84,12 +84,12 @@ class MolecularHamiltonian:
 
         return coordinate_transformation
 
-    def get_embedding(self, modes=True, dimensionless=False):
+    def get_embedding(self, masses=None, modes=True, mass_weight=True, dimensionless=False):
         if modes is True:
             modes = self.modes
         elif modes is False:
             modes = None
-        return ModeEmbedding(self.embedding, modes, dimensionless=dimensionless)
+        return ModeEmbedding(self.embedding, modes, masses=masses, mass_weight=mass_weight, dimensionless=dimensionless)
 
     def potential_expansion(self,
                             order=None,
@@ -131,12 +131,13 @@ class MolecularHamiltonian:
     def _get_ke_expansion(self, cls,
                           order=None,
                           *,
+                          masses=None,
                           dimensionless=False,
                           embedding=None,
-                            **embedding_opts
+                          **embedding_opts
                           ):
         if embedding is None:
-            embedding = self.get_embedding(dimensionless=dimensionless, **embedding_opts)
+            embedding = self.get_embedding(masses=masses, dimensionless=dimensionless, **embedding_opts)
 
         exp = cls(embedding)
         if order is not None:
@@ -281,149 +282,6 @@ class PotentialManager(ScalarOperatorManager):
             derivs = self.manager
         return self.canonicalize_derivs(derivs)
 
-class ModeEmbedding:
-    """
-    Provides a specialization on a `MoleculaEmbedding` to express all properties
-    in terms of the attendant normal modes
-    """
-    def __init__(self,
-                 embedding:MolecularEmbedding,
-                 modes:NormalModesManager,
-                 mass_weight=False,
-                 dimensionless=False
-                 ):
-        self.embedding = embedding
-        self.mass_weighted = mass_weight or dimensionless
-        if hasattr(modes, 'modes'):
-            modes = modes.modes
-        if modes is not None:
-            modes = modes.basis.to_new_modes()
-            if dimensionless:
-                modes = modes.make_dimensionless()
-            elif mass_weight:
-                modes = modes.make_mass_weighted()
-        self.modes = modes
-
-    def mw_conversion(self, strip_dummies=None):
-        masses = self.embedding.masses
-        if strip_dummies:
-            masses = masses[masses > 0]
-        mvec = np.broadcast_to(
-                np.asanyarray(masses)[:, np.newaxis],
-                (len(masses), 3)
-            ).flatten()
-        return np.diag(np.sign(mvec) * np.sqrt(np.abs(mvec)))
-    def mw_inverse(self, strip_dummies=None):
-        masses = self.embedding.masses
-        if strip_dummies:
-            masses = masses[masses > 0]
-        mvec = np.broadcast_to(
-                np.asanyarray(masses)[:, np.newaxis],
-                (len(masses), 3)
-            ).flatten()
-        return np.diag(np.sign(mvec) / np.sqrt(np.abs(mvec)))
-
-    def get_mw_cartesians_by_internals(self, order=None, strip_embedding=True):
-        RX = self.embedding.get_cartesians_by_internals(
-                order=order,
-                strip_embedding=strip_embedding
-            )
-        if self.mass_weighted:
-            XY = self.mw_conversion()
-            RX = [
-                np.tensordot(tf_X, XY, axes=[-1, 0])
-                for tf_X in RX
-            ]
-        return RX
-    def get_internals_by_mw_cartesians(self, order=None, strip_embedding=True):
-        XR = self.embedding.get_internals_by_cartesians(
-                order=order,
-                strip_embedding=strip_embedding
-            )
-        if not self.mass_weighted:
-            YX = self.mw_inverse()
-            YR = []
-            for X_tf in XR:
-                for d in range(X_tf.ndim-1):
-                    X_tf = np.tensordot(YX, X_tf, axes=[1, d])
-                YR.append(X_tf)
-        else:
-            YR = XR
-        return YR
-
-    def get_internals_by_cartesians(self, order=None, strip_embedding=True):
-        """
-        expresses raw internals or modes (internals or Cartesian) in terms of mass-weighted Cartesians
-
-        :param order:
-        :param strip_embedding:
-        :return:
-        """
-        if self.embedding.internals is None:
-            if self.modes is None:
-                raise NotImplementedError("not sure what's most consistent for just...plain Cartesians")
-            return [self.modes.modes_by_coords]
-        else:
-            YR = self.get_internals_by_mw_cartesians(
-                order=order,
-                strip_embedding=strip_embedding
-            )
-            if self.modes is not None:
-                YQ = self.modes.modes_by_coords
-                RY = self.get_mw_cartesians_by_internals(
-                    order=1,
-                    strip_embedding=strip_embedding
-                )[0]
-                RQ = RY @ YQ
-
-                _ = []
-                for Y_tf in YR:
-                    Y_tf = np.tensordot(Y_tf, RQ, axes=[-1, 0])
-                    _.append(Y_tf)
-                YR = _
-            return YR
-
-    def get_cartesians_by_internals(self, order=None, strip_embedding=True):
-        """
-        expresses raw internals or modes (internals or Cartesian) in terms of mass-weighted Cartesians
-
-        :param order:
-        :param strip_embedding:
-        :return:
-        """
-        if self.embedding.internals is None:
-            if self.modes is None:
-                raise NotImplementedError("not sure what's most consistent for just...plain Cartesians")
-            return [self.modes.coords_by_modes]
-        else:
-            if self.modes is not None: strip_embedding = True
-            RY = self.get_mw_cartesians_by_internals(
-                order=order,
-                strip_embedding=strip_embedding
-            )
-            if self.modes is not None:
-                QY = self.modes.coords_by_modes
-                YR = self.get_internals_by_mw_cartesians(
-                    order=1,
-                    strip_embedding=strip_embedding
-                )[0]
-                QR = QY @ YR
-
-                _ = []
-                for R_tf in RY:
-                    for d in range(R_tf.ndim - 1):
-                        R_tf = np.tensordot(QR, R_tf, axes=[1, d])
-                    _.append(R_tf)
-                RY = _
-            return RY
-
-    def get_inertia_tensor_expansion(self, order=None, strip_embedding=True):
-        YI0 = self.embedding.inertial_frame_derivatives()
-        QY = self.get_cartesians_by_internals(order=order, strip_embedding=strip_embedding)
-        return [self.embedding.inertia_tensor] + nput.tensor_reexpand(QY, YI0, order=order)
-
-    def get_inertial_frame(self):
-        return self.embedding.inertial_frame
 
 class ScalarExpansion:
     """

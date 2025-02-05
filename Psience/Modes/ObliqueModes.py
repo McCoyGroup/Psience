@@ -28,11 +28,13 @@ class ObliqueModeGenerator:
         self.g = g
         self.ndim = f.shape[0]
 
-        freqs, modes, inv = NormalModes.get_normal_modes(
+        freqs, inv, modes = NormalModes.get_normal_modes(
             f, g,
             remove_transrot=True,
             dimensionless=frequency_scaled
         )
+        inv = inv.T
+        modes = modes.T
 
         rU, a, rM = np.linalg.svd(modes)
         good_a = np.where(a > 1e-8)[0]

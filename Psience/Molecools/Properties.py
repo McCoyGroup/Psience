@@ -413,7 +413,9 @@ class StructuralProperties:
 
     planar_ref_tolerance=1e-6
     @classmethod
-    def get_eckart_rotations(cls, masses, ref, coords, sel=None, in_paf=False, planar_ref_tolerance=None):
+    def get_eckart_rotations(cls, masses, ref, coords, sel=None, in_paf=False, planar_ref_tolerance=None,
+                             proper_rotation=False
+                             ):
         """
         Generates the Eckart rotation that will align ref and coords, assuming initially that `ref` and `coords` are
         in the principle axis frame
@@ -442,6 +444,7 @@ class StructuralProperties:
             com = pax_axes = None
             ref_com = ref_axes = None
 
+        og_coords = coords
         if sel is not None:
             coords = coords[..., sel, :]
             masses = masses[sel]
@@ -449,7 +452,7 @@ class StructuralProperties:
 
         real_pos = masses > 0
         # print(real_pos)
-        og_coords = coords
+        # og_coords = coords
         coords = coords[..., real_pos, :]
         masses = masses[real_pos,]
         og_ref = ref
@@ -506,12 +509,13 @@ class StructuralProperties:
             rot = np.broadcast_to(np.eye(3, dtype=float), (len(coords), 3, 3)).copy()
             rot[..., :2, :2] = np.matmul(U, V)
 
-        a = rot[..., :, 0]
-        b = rot[..., :, 1]
-        c = nput.vec_crosses(a, b, normalize=True)  # force right-handedness because we can
-        rot[..., :, 2] = c  # ensure we have true rotation matrices
-        dets = np.linalg.det(rot)
-        rot[..., :, 2] /= dets[..., np.newaxis]  # ensure we have true rotation matrices
+        if proper_rotation:
+            a = rot[..., :, 0]
+            b = rot[..., :, 1]
+            c = nput.vec_crosses(a, b, normalize=True)  # force right-handedness because we can
+            rot[..., :, 2] = c  # ensure we have true rotation matrices
+            dets = np.linalg.det(rot)
+            rot[..., :, 2] /= dets[..., np.newaxis]  # ensure we have true rotation matrices
 
         # dets = np.linalg.det(rot)
         # raise ValueError(dets)
@@ -521,7 +525,9 @@ class StructuralProperties:
     EmbeddingData = namedtuple("PrincipleAxisData", ['coords', 'com', 'axes'])
     EckartData = namedtuple('EckartData', ['rotations', 'reference_data', 'coord_data'])
     @classmethod
-    def get_eckart_embedding_data(cls, masses, ref, coords, sel=None, in_paf=False, planar_ref_tolerance=None):
+    def get_eckart_embedding_data(cls, masses, ref, coords, sel=None, in_paf=False, planar_ref_tolerance=None,
+                                  proper_rotation=False
+                                  ):
         """
         Embeds a set of coordinates in the reference frame
 
@@ -536,7 +542,8 @@ class StructuralProperties:
         """
 
         rot, ref_data, embedded_data = cls.get_eckart_rotations(
-            masses, ref, coords, sel=sel, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance
+            masses, ref, coords, sel=sel, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance,
+            proper_rotation=proper_rotation
         )
         return cls.EckartData(rot, cls.EmbeddingData(*ref_data), cls.EmbeddingData(*embedded_data))
 
@@ -545,7 +552,8 @@ class StructuralProperties:
                                        sel=None,
                                        inverse=False,
                                        reset_com=False,
-                                       planar_ref_tolerance=None
+                                       planar_ref_tolerance=None,
+                                       proper_rotation=False
                                        ):
         """
         Computes Eckart transformations for a set of coordinates
@@ -567,7 +575,10 @@ class StructuralProperties:
         # else:
         #     coords = [coords]
 
-        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, sel=sel, in_paf=False, planar_ref_tolerance=planar_ref_tolerance)
+        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, sel=sel, in_paf=False,
+                                                                  planar_ref_tolerance=planar_ref_tolerance,
+                                                                  proper_rotation=proper_rotation
+                                                                  )
         ref, ref_com, ref_rot = ref_stuff
         crd, crd_com, crd_rot = coord_stuff
 
@@ -596,7 +607,8 @@ class StructuralProperties:
                                    reset_com=False,
                                    in_paf=False,
                                    sel=None,
-                                   planar_ref_tolerance=None
+                                   planar_ref_tolerance=None,
+                                   proper_rotation=False
                                    ):
         """
         Embeds a set of coordinates in the reference frame
@@ -612,14 +624,26 @@ class StructuralProperties:
         """
 
         smol = coords.ndim == 2
-        if sel is not None:
-            coords = coords[..., sel, :]
-            masses = masses[sel]
-            ref = ref[..., sel, :]
+        base_coords = coords
+        # if sel is not None:
+        #     coords = coords[..., sel, :]
+        #     masses = masses[sel]
+        #     ref = ref[..., sel, :]
 
-        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance)
+        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords,
+                                                                  sel=sel,
+                                                                  in_paf=in_paf,
+                                                                  planar_ref_tolerance=planar_ref_tolerance,
+                                                                  proper_rotation=proper_rotation
+                                                                  )
         ref, ref_com, ref_rot = ref_stuff
         crd, crd_com, crd_rot = coord_stuff
+
+        # if sel is not None:
+        #     if smol:
+        #         base_coords = base_coords[np.newaxis]
+        #     base_coords = base_coords - crd_com[..., np.newaxis, :]
+        #     crd = nput.vec_tensordot(base_coords, crd_rot, axes=[-1, -2])
 
         # crd is in _its_ principle axis frame, so now we transform it using ek_rot
         ek_rot = np.swapaxes(ek_rot, -2, -1)
@@ -627,7 +651,7 @@ class StructuralProperties:
         # now we rotate this back to the reference frame
         if ref_rot.ndim == 2:
             ref_rot = ref_rot[np.newaxis]
-        crd = crd @ ref_rot.transpose((0, 2, 1))
+        crd = crd @ np.swapaxes(ref_rot, -2, -1)
 
         if reset_com:
             # and then shift so the COM doesn't change
@@ -786,15 +810,10 @@ class BondingProperties:
         else:
             adj_mat = cls.get_prop_adjacency_matrix(atoms, bonds)
 
-        ngroups, labels = sp.csgraph.connected_components(adj_mat)
-
-        def pull(l, i):
-            w = np.where(labels == i)
-            if len(w) > 0:
-                w = w[0]
-            return w
-
-        return [pull(labels, i) for i in range(ngroups)]
+        _, labels = sp.csgraph.connected_components(adj_mat, directed=False)
+        # _, labels = csgraph.connected_components(self.graph, directed=False, return_labels=True)
+        _, groups = nput.group_by(np.arange(len(labels)), labels)[0]
+        return groups
 
     @classmethod
     def get_prop_zmat_ordering(cls, atoms, bonds):
@@ -1001,7 +1020,9 @@ class MolecularProperties:
         return StructuralProperties.get_prop_principle_axis_rotation(mol.coords, mol._atomic_masses(), sel=sel, inverse=inverse)
 
     @classmethod
-    def eckart_embedding_data(cls, mol, coords, sel=None, in_paf=False, planar_ref_tolerance=None):
+    def eckart_embedding_data(cls, mol, coords, sel=None, in_paf=False,
+                              planar_ref_tolerance=None,
+                              proper_rotation=False):
         """
 
         :param mol:
@@ -1016,10 +1037,14 @@ class MolecularProperties:
         masses = mol._atomic_masses()
         ref = mol.coords
         coords = CoordinateSet(coords)
-        return StructuralProperties.get_eckart_embedding_data(masses, ref, coords, in_paf=in_paf, sel=sel, planar_ref_tolerance=planar_ref_tolerance)
+        return StructuralProperties.get_eckart_embedding_data(masses, ref, coords, in_paf=in_paf, sel=sel,
+                                                              planar_ref_tolerance=planar_ref_tolerance,
+                                                              proper_rotation=proper_rotation)
 
     @classmethod
-    def eckart_transformation(cls, mol, ref_mol, sel=None, inverse=False, planar_ref_tolerance=None):
+    def eckart_transformation(cls, mol, ref_mol, sel=None, inverse=False,
+                              planar_ref_tolerance=None,
+                              proper_rotation=False):
         """
 
         :param ref_mol: reference geometry
@@ -1038,10 +1063,16 @@ class MolecularProperties:
                 m1,
                 m2
             ))
-        return StructuralProperties.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords, sel=sel, inverse=inverse, planar_ref_tolerance=planar_ref_tolerance)
+        return StructuralProperties.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords, sel=sel, inverse=inverse,
+                                                                   planar_ref_tolerance=planar_ref_tolerance,
+                                                                   proper_rotation=proper_rotation
+                                                                   )
 
     @classmethod
-    def eckart_embedded_coords(cls, mol, coords, sel=None, in_paf=False, planar_ref_tolerance=None):
+    def eckart_embedded_coords(cls, mol, coords, sel=None, in_paf=False, reset_com=True,
+                               planar_ref_tolerance=None,
+                               proper_rotation=False
+                               ):
         """
 
         :param mol:
@@ -1056,7 +1087,11 @@ class MolecularProperties:
         masses = mol._atomic_masses()
         ref = mol.coords
         coords = CoordinateSet(coords)
-        return StructuralProperties.get_eckart_embedded_coords(masses, ref, coords, sel=sel, in_paf=in_paf, planar_ref_tolerance=planar_ref_tolerance)
+        return StructuralProperties.get_eckart_embedded_coords(masses, ref, coords, sel=sel, in_paf=in_paf,
+                                                               reset_com=reset_com,
+                                                               planar_ref_tolerance=planar_ref_tolerance,
+                                                               proper_rotation=proper_rotation
+                                                               )
 
     @classmethod
     def coriolis_constants(cls, mol):
@@ -1091,33 +1126,69 @@ class MolecularProperties:
         :rtype:
         """
 
+        comps = cls.fragment_indices(mol)
+        return [
+            mol.take_submolecule(c) for c in comps
+        ]
+        # bond_map = {}
+        # for k in bonds:
+        #     if k[0] not in bond_map:
+        #         bond_map[k[0]] = [k]
+        #     else:
+        #         bond_map[k[0]].append(k)
+        # for i in range(len(ats)):
+        #     if i not in bond_map:
+        #         bond_map[i] = []
+        #
+        # frags = [None]*len(comps)
+        # for i,g in enumerate(comps):
+        #     frag_ats = [ats[x] for x in g]
+        #     frag_cds = cds[g] if not cds.multiconfig else cds[:, g]
+        #     frag_bonds = [bond_map[x] for x in g]
+        #     frags[i] = Molecule(
+        #         frag_ats,
+        #         frag_cds,
+        #         bonds=sum(frag_bonds, [])
+        #     )
+        return frags
+
+    @classmethod
+    def fragment_indices(cls, mol):
+        """
+
+        :param mol:
+        :type mol: AbstractMolecule
+        :return:
+        :rtype:
+        """
+
         from .Molecule import Molecule
 
         cds = mol.coords
         bonds = mol.bonds
         ats = mol.atoms
 
-        comps = BondingProperties.get_prop_fragments(ats, bonds)
-        bond_map = {}
-        for k in bonds:
-            if k[0] not in bond_map:
-                bond_map[k[0]] = [k]
-            else:
-                bond_map[k[0]].append(k)
-        for i in range(len(ats)):
-            if i not in bond_map:
-                bond_map[i] = []
-
-        frags = [None]*len(comps)
-        for i,g in enumerate(comps):
-            frag_ats = [ats[x] for x in g]
-            frag_cds = cds[g] if not cds.multiconfig else cds[:, g]
-            frag_bonds = [bond_map[x] for x in g]
-            frags[i] = Molecule(
-                frag_ats,
-                frag_cds,
-                bonds=sum(frag_bonds, [])
-            )
+        return BondingProperties.get_prop_fragments(ats, bonds)
+        # bond_map = {}
+        # for k in bonds:
+        #     if k[0] not in bond_map:
+        #         bond_map[k[0]] = [k]
+        #     else:
+        #         bond_map[k[0]].append(k)
+        # for i in range(len(ats)):
+        #     if i not in bond_map:
+        #         bond_map[i] = []
+        #
+        # frags = [None]*len(comps)
+        # for i,g in enumerate(comps):
+        #     frag_ats = [ats[x] for x in g]
+        #     frag_cds = cds[g] if not cds.multiconfig else cds[:, g]
+        #     frag_bonds = [bond_map[x] for x in g]
+        #     frags[i] = Molecule(
+        #         frag_ats,
+        #         frag_cds,
+        #         bonds=sum(frag_bonds, [])
+        #     )
         return frags
 
     @classmethod
@@ -1324,6 +1395,11 @@ class PropertyManager(metaclass=abc.ABCMeta):
 
     def set_molecule(self, mol):
         self.mol = mol
+
+    @classmethod
+    @abc.abstractmethod
+    def from_data(cls, mol, data):
+        raise NotImplementedError(...)
 
     @abc.abstractmethod
     def load(self):
@@ -1580,6 +1656,10 @@ class DipoleSurfaceManager(PropertyManager):
             self._derivs = derivatives
             self._analytic_derivatives = None
 
+    @classmethod
+    def from_data(cls, mol, data):
+        raise NotImplementedError(...)
+
     @property
     def surface(self):
         if self._surf is None:
@@ -1795,6 +1875,10 @@ class PotentialSurfaceManager(PropertyManager):
         self._surface_coords = None
         self._derivs = derivatives
 
+    @classmethod
+    def from_data(cls, mol, data):
+        raise NotImplementedError(...)
+
     @property
     def surface(self):
         if self._surf is None:
@@ -1980,6 +2064,30 @@ class NormalModesManager(PropertyManager):
             )
         self._modes = normal_modes
         self._freqs = None # implementation detail
+
+    @classmethod
+    def from_data(cls, mol, data):
+        if isinstance(data, MolecularVibrations):
+            modes = data
+        elif isinstance(data, dict):
+            modes = MolecularVibrations(
+                mol,
+                MolecularNormalModes(mol,
+                                     data['matrix'],
+                                     freqs=data['freqs'],
+                                     inverse=data.get('inverse', None),
+                                     origin=data.get('origin', None)
+                                     )
+            )
+        else:
+            from ..Modes import NormalModes
+
+            modes = MolecularNormalModes.from_new_modes(
+                mol,
+                NormalModes.prep_modes(data)
+            )
+            MolecularVibrations(mol, modes)
+        return cls(mol, normal_modes=modes)
 
     def set_molecule(self, mol):
         super().set_molecule(mol)
