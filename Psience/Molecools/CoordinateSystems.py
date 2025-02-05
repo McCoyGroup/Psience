@@ -578,21 +578,23 @@ class ModeEmbedding:
     in terms of the attendant normal modes
     """
     def __init__(self,
-                 embedding:MolecularEmbedding,
-                 modes,#:#NormalModesManager,
+                 embedding: MolecularEmbedding,
+                 modes,  #:#NormalModesManager,
                  mass_weight=None,
-                 dimensionless=None
+                 dimensionless=None,
+                 masses=None
                  ):
         self.embedding = embedding
+        self.masses = masses
         if hasattr(modes, 'modes'):
             modes = modes.modes
         if hasattr(modes, 'basis') and hasattr(modes.basis, 'to_new_modes'):
             modes = modes.basis.to_new_modes()
         if modes is not None:
             if dimensionless:
-                modes = modes.make_dimensionless()
+                modes = modes.make_dimensionless(masses=masses)
             elif mass_weight:
-                modes = modes.make_mass_weighted()
+                modes = modes.make_mass_weighted(masses=masses)
 
         if modes is not None:
             self.mass_weighted = modes.mass_weighted
@@ -601,7 +603,9 @@ class ModeEmbedding:
         self.modes = modes
 
     def mw_conversion(self, strip_dummies=None):
-        masses = self.embedding.masses
+        masses = self.masses
+        if masses is None:
+            masses = self.embedding.masses
         if strip_dummies:
             masses = masses[masses > 0]
         mvec = np.broadcast_to(
@@ -610,7 +614,9 @@ class ModeEmbedding:
             ).flatten()
         return np.diag(np.sign(mvec) * np.sqrt(np.abs(mvec)))
     def mw_inverse(self, strip_dummies=None):
-        masses = self.embedding.masses
+        masses = self.masses
+        if masses is None:
+            masses = self.embedding.masses
         if strip_dummies:
             masses = masses[masses > 0]
         mvec = np.broadcast_to(

@@ -326,6 +326,40 @@ class Molecule(AbstractMolecule):
     def potential_derivatives(self, derivs):
         self.potential_surface.derivatives = derivs
 
+    def rdkit_optimize(self, force_field_type='mmff', **etc):
+
+        rdmol = self.rdmol.copy()
+        rdmol.optimize_structure(force_field_type=force_field_type, **etc)
+
+        return type(self).from_rdmol(rdmol)
+
+    def get_rdkit_potential_expansion(self, order=2, *, optimize=False, force_field_type='mmff'):
+        if optimize:
+            self = self.rdkit_optimize(force_field_type=force_field_type)
+        rdmol = self.rdmol
+
+        ang2bohr = UnitsData.convert("Angstroms", "BohrRadius")
+        kcal_mol = UnitsData.convert("Kilocalories/Mole", "Hartrees")
+
+        if order > 2:
+            raise NotImplementedError("haven't bothered to add FD beyond the Hessian")
+
+        expansion = []
+        eng = rdmol.calculate_energy(force_field_type=force_field_type) * kcal_mol
+        expansion.append(eng)
+        if order > 0:
+            grad = rdmol.calculate_gradient(force_field_type=force_field_type) * kcal_mol / ang2bohr
+            expansion.append(grad)
+        if order > 1:
+            hess = rdmol.calculate_hessian(force_field_type=force_field_type) * kcal_mol / (ang2bohr**2)
+            expansion.append(hess)
+
+        if optimize:
+            return self, expansion
+        else:
+            return expansion
+
+
     def get_internal_potential_derivatives(self, order=None, reembed=True, strip_embedding=True):
         derivs = self.potential_derivatives
         if order is None:
@@ -350,6 +384,9 @@ class Molecule(AbstractMolecule):
             #     NormalModesManager.__name__
             # ))
         self._normal_modes = val
+    def get_normal_modes(self, masses=None, **opts):
+        from ..Modes import NormalModes
+        return NormalModes.from_molecule(self, masses=masses, **opts)
     @property
     def metadata(self):
         return self._meta
@@ -470,6 +507,26 @@ class Molecule(AbstractMolecule):
         # new.rdmol.set_molecule(new)
         return new
 
+    def take_submolecule(self, pos):
+        ats = self.atoms
+        atoms = [ats[i] for i in pos]
+        masses = self.masses[pos,]
+        coords = self.coords[..., pos, :]
+        pos = set(pos)
+        if self.bonds is not None:
+            bonds = [
+                b for b in self.bonds
+                if b[0] in pos and b[1] in pos
+            ]
+        else:
+            bonds = None
+        return type(self)(
+            atoms,
+            coords,
+            masses=masses,
+            bonds=bonds
+        )
+
     def prop(self, name, *args, **kwargs):
         from .Properties import MolecularProperties, MolecularPropertyError
         if hasattr(MolecularProperties, name):
@@ -481,6 +538,13 @@ class Molecule(AbstractMolecule):
                 name
             ))
 
+    @property
+    def fragment_indices(self):
+        return MolecularProperties.fragment_indices(self)
+
+    @property
+    def fragments(self):
+        return MolecularProperties.fragments(self)
     #region Coordinate Embeddings
 
     @property
@@ -489,7 +553,8 @@ class Molecule(AbstractMolecule):
         :return:
         :rtype: CoordinateSet
         """
-        return self.prop('mass_weighted_coords')
+        return MolecularProperties.mass_weighted_coords(self)
+        # return self.prop('mass_weighted_coords')
     @property
     def center_of_mass(self):
         """
@@ -535,12 +600,18 @@ class Molecule(AbstractMolecule):
         return self.prop('translation_rotation_eigenvectors')
 
     def get_translation_rotation_projector(self, mass_weighted=False):
-        L_tr = self.translation_rotation_modes[1]
-        A = np.eye(L_tr.shape[0]) - (L_tr @ L_tr.T)
-        if not mass_weighted:
-            M = np.diag(np.repeat(1 / np.sqrt(self.masses), 3))
-            A = M @ A @ M
-        return A
+        return nput.translation_rotation_projector(
+            self.coords,
+            self.atomic_masses,
+            mass_weighted=mass_weighted,
+            return_modes=False
+        )
+        # L_tr = self.translation_rotation_modes[1]
+        # A = np.eye(L_tr.shape[0]) - (L_tr @ L_tr.T)
+        # if not mass_weighted:
+        #     M = np.diag(np.repeat(1 / np.sqrt(self.masses), 3))
+        #     A = M @ A @ M
+        # return A
 
     def get_translation_rotation_invariant_transformation(self,
                                            mass_weighted=False,
@@ -999,17 +1070,20 @@ class Molecule(AbstractMolecule):
                 **opts
             )
 
-    def get_gmatrix(self, use_internals=None):
+    def get_gmatrix(self, masses=None, use_internals=None):
         if use_internals is None:
             use_internals = self.internal_coordinates is not None
 
         if not use_internals:
-            atma = self._atomic_masses()
-            mass_spec = np.broadcast_to(atma[:, np.newaxis], (len(atma), 3)).flatten()
+            if masses is None:
+                masses = self._atomic_masses()
+            else:
+                masses = np.asanyarray(masses)
+            mass_spec = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten()
             return np.diag(1 / mass_spec)
             # raise ValueError("need internal coordinates to calculate the G-matrix")
         else:
-            return self.hamiltonian.gmatrix_expansion(0, modes=None)[0]
+            return self.hamiltonian.gmatrix_expansion(0, masses=masses, modes=None)[0]
     @property
     def g_matrix(self):
         """
@@ -1265,6 +1339,20 @@ class Molecule(AbstractMolecule):
 
         return cls.from_rdmol(RDMolecule.from_smiles(smi, add_implicit_hydrogens=add_implicit_hydrogens), **opts)
     @classmethod
+    def _from_name(cls, name, api_key=None, add_implicit_hydrogens=True, **opts):
+        from McUtils.ExternalPrograms import ChemSpiderAPI
+
+        smiles = ChemSpiderAPI(api_key).get_compounds_by_name(name, fields="SMILES")
+        if len(smiles) == 1:
+            return cls._from_smiles(smiles[0]['smiles'], add_implicit_hydrogens=add_implicit_hydrogens, **opts)
+        elif len(smiles) > 0:
+            return [
+                cls._from_smiles(s['smiles'], add_implicit_hydrogens=add_implicit_hydrogens, **opts)
+                for s in smiles
+            ]
+        else:
+            raise ValueError(f"{name} didn't resolve to any known compounds with ChemSpider")
+    @classmethod
     def _from_sdf(cls, sdf, **opts):
         from McUtils.ExternalPrograms import RDMolecule
 
@@ -1294,9 +1382,14 @@ class Molecule(AbstractMolecule):
             return cls._from_xyz(xyz.read(), **opts)
 
     @classmethod
+    def from_name(cls, name, **opts):
+        return cls.from_string(name, 'name', **opts)
+
+    @classmethod
     def from_string(cls, string, fmt, **opts):
         format_dispatcher = {
             "smi": cls._from_smiles,
+            "name": cls._from_name,
             "mol": cls._from_molblock,
             "sdf": cls._from_sdf,
             "xyz": cls._from_xyz
@@ -1418,7 +1511,7 @@ class Molecule(AbstractMolecule):
              highlight_bonds=None,
              highlight_rings=None,
              highlight_styles=None,
-             mode='quality',
+             mode=None,#'quality',
              backend='x3d',
              objects=False,
              graphics_class=None,
@@ -1430,6 +1523,9 @@ class Molecule(AbstractMolecule):
              units="Angstroms",
              **plot_ops
              ):
+
+        if mode is None:
+            mode = 'backend'
 
         if mode == 'jupyter':
             return self.jupyter_viz()
@@ -1649,11 +1745,14 @@ class Molecule(AbstractMolecule):
         return geoms
     def animate_coordinate(self, which, extent=.5, steps=8, return_objects=False, strip_embedding=True,
                            units="Angstroms",
-                           mode='jsmol',
+                           backend='jsmol',
+                           mode=None,
                            jsmol_load_script=None,
                            coordinate_expansion=None,
                            **plot_opts
                            ):
+        if mode is None:
+            mode = backend
         if mode == 'jsmol':
             disps = self.format_animation_file(which, format="jmol",
                                                extent=extent, steps=steps, strip_embedding=strip_embedding,
@@ -1664,13 +1763,16 @@ class Molecule(AbstractMolecule):
         else:
             geoms = self.get_animation_geoms(which, extent=extent, steps=steps, strip_embedding=strip_embedding, units=units,
                                              coordinate_expansion=coordinate_expansion)
-            return self.plot(geoms, return_objects=return_objects, units=None, **plot_opts)
+            return self.plot(geoms, return_objects=return_objects, units=None, backend=backend, **plot_opts)
 
-    def animate_mode(self, which,
-                     extent=10, steps=8,
+    def animate_mode(self,
+                     which,
+                     extent=.5,
+                     steps=8,
                      modes=None,
                      coordinate_expansion=None,
                      order=None,
+                     normalize=True,
                      mass_weight=False,
                      mass_scale=True,
                      frequency_scale=True,
@@ -1681,16 +1783,21 @@ class Molecule(AbstractMolecule):
         if modes is None:
             modes = self.normal_modes.modes.basis.to_new_modes()
         modes = NormalModes.prep_modes(modes)
+        base_expansion = [modes.coords_by_modes]
+        if normalize:
+            base_expansion = [nput.vec_normalize(base_expansion[0])]
         if mass_weight:
             modes = modes.make_mass_weighted()
         else:
             modes = modes.remove_mass_weighting()
             if mass_scale:
-                extent *= np.sqrt(UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass"))
+                extent /= np.sqrt(
+                    np.dot(np.repeat(self.atomic_masses, 3), base_expansion[0][which]**2)
+                        * UnitsData.convert("ElectronMass", "AtomicMassUnits")
+                )
         if frequency_scale:
-            freqs = modes.freqs
-            extent *= np.sqrt(np.max(freqs) / freqs[which])
-        base_expansion = [modes.coords_by_modes]
+            freqs = np.abs(modes.freqs)
+            extent *= np.sqrt(np.min(freqs) / freqs[which])
         if order is not None:
             base_expansion = ModeEmbedding(self.embedding, modes).get_cartesians_by_internals(order=order)
         if coordinate_expansion is not None:

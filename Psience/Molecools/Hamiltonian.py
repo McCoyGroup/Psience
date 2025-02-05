@@ -84,12 +84,12 @@ class MolecularHamiltonian:
 
         return coordinate_transformation
 
-    def get_embedding(self, modes=True, mass_weight=True, dimensionless=False):
+    def get_embedding(self, masses=None, modes=True, mass_weight=True, dimensionless=False):
         if modes is True:
             modes = self.modes
         elif modes is False:
             modes = None
-        return ModeEmbedding(self.embedding, modes, mass_weight=mass_weight, dimensionless=dimensionless)
+        return ModeEmbedding(self.embedding, modes, masses=masses, mass_weight=mass_weight, dimensionless=dimensionless)
 
     def potential_expansion(self,
                             order=None,
@@ -131,12 +131,13 @@ class MolecularHamiltonian:
     def _get_ke_expansion(self, cls,
                           order=None,
                           *,
+                          masses=None,
                           dimensionless=False,
                           embedding=None,
                           **embedding_opts
                           ):
         if embedding is None:
-            embedding = self.get_embedding(dimensionless=dimensionless, **embedding_opts)
+            embedding = self.get_embedding(masses=masses, dimensionless=dimensionless, **embedding_opts)
 
         exp = cls(embedding)
         if order is not None:

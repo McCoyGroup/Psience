@@ -93,6 +93,14 @@ class AbstractMolecule(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def masses(self) -> np.ndarray:
         """
+        Provides the masses for the molecule
+        """
+        raise NotImplementedError('abstract class')
+
+    @property
+    @abc.abstractmethod
+    def atomic_masses(self) -> np.ndarray:
+        """
         Provides the atomic masses for the molecule
         """
         raise NotImplementedError('abstract class')
@@ -173,8 +181,15 @@ class AbstractMolecule(metaclass=abc.ABCMeta):
         raise NotImplementedError('abstract class')
 
     @abc.abstractmethod
-    def copy(self) -> 'AbstractMolecule':
+    def copy(self) -> 'typing.Self':
         """
         Copies the molecule
+        """
+        raise NotImplementedError('abstract class')
+
+    @abc.abstractmethod
+    def take_submolecule(self, pos) -> 'typing.Self':
+        """
+        Takes a submolecule
         """
         raise NotImplementedError('abstract class')

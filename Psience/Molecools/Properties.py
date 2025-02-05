@@ -810,15 +810,10 @@ class BondingProperties:
         else:
             adj_mat = cls.get_prop_adjacency_matrix(atoms, bonds)
 
-        ngroups, labels = sp.csgraph.connected_components(adj_mat)
-
-        def pull(l, i):
-            w = np.where(labels == i)
-            if len(w) > 0:
-                w = w[0]
-            return w
-
-        return [pull(labels, i) for i in range(ngroups)]
+        _, labels = sp.csgraph.connected_components(adj_mat, directed=False)
+        # _, labels = csgraph.connected_components(self.graph, directed=False, return_labels=True)
+        _, groups = nput.group_by(np.arange(len(labels)), labels)[0]
+        return groups
 
     @classmethod
     def get_prop_zmat_ordering(cls, atoms, bonds):
@@ -1131,33 +1126,69 @@ class MolecularProperties:
         :rtype:
         """
 
+        comps = cls.fragment_indices(mol)
+        return [
+            mol.take_submolecule(c) for c in comps
+        ]
+        # bond_map = {}
+        # for k in bonds:
+        #     if k[0] not in bond_map:
+        #         bond_map[k[0]] = [k]
+        #     else:
+        #         bond_map[k[0]].append(k)
+        # for i in range(len(ats)):
+        #     if i not in bond_map:
+        #         bond_map[i] = []
+        #
+        # frags = [None]*len(comps)
+        # for i,g in enumerate(comps):
+        #     frag_ats = [ats[x] for x in g]
+        #     frag_cds = cds[g] if not cds.multiconfig else cds[:, g]
+        #     frag_bonds = [bond_map[x] for x in g]
+        #     frags[i] = Molecule(
+        #         frag_ats,
+        #         frag_cds,
+        #         bonds=sum(frag_bonds, [])
+        #     )
+        return frags
+
+    @classmethod
+    def fragment_indices(cls, mol):
+        """
+
+        :param mol:
+        :type mol: AbstractMolecule
+        :return:
+        :rtype:
+        """
+
         from .Molecule import Molecule
 
         cds = mol.coords
         bonds = mol.bonds
         ats = mol.atoms
 
-        comps = BondingProperties.get_prop_fragments(ats, bonds)
-        bond_map = {}
-        for k in bonds:
-            if k[0] not in bond_map:
-                bond_map[k[0]] = [k]
-            else:
-                bond_map[k[0]].append(k)
-        for i in range(len(ats)):
-            if i not in bond_map:
-                bond_map[i] = []
-
-        frags = [None]*len(comps)
-        for i,g in enumerate(comps):
-            frag_ats = [ats[x] for x in g]
-            frag_cds = cds[g] if not cds.multiconfig else cds[:, g]
-            frag_bonds = [bond_map[x] for x in g]
-            frags[i] = Molecule(
-                frag_ats,
-                frag_cds,
-                bonds=sum(frag_bonds, [])
-            )
+        return BondingProperties.get_prop_fragments(ats, bonds)
+        # bond_map = {}
+        # for k in bonds:
+        #     if k[0] not in bond_map:
+        #         bond_map[k[0]] = [k]
+        #     else:
+        #         bond_map[k[0]].append(k)
+        # for i in range(len(ats)):
+        #     if i not in bond_map:
+        #         bond_map[i] = []
+        #
+        # frags = [None]*len(comps)
+        # for i,g in enumerate(comps):
+        #     frag_ats = [ats[x] for x in g]
+        #     frag_cds = cds[g] if not cds.multiconfig else cds[:, g]
+        #     frag_bonds = [bond_map[x] for x in g]
+        #     frags[i] = Molecule(
+        #         frag_ats,
+        #         frag_cds,
+        #         bonds=sum(frag_bonds, [])
+        #     )
         return frags
 
     @classmethod

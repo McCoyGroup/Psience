@@ -12,97 +12,109 @@ from .NormalModes import *
 __all__ = ['LocalizedModes']
 class LocalizedModes(MixtureModes):
 
-    @staticmethod
-    def _mass_mat(mass_spec):
-        return np.diag(np.repeat(mass_spec[:, np.newaxis], 3, axis=1).flatten())
-    @staticmethod
-    def _frac_mat_power(mat, power):
-        vals, vecs = np.linalg.eigh(mat)
-        new_vals = vals**power
-        return vecs @ np.diag(new_vals) @ vecs.T
-    @staticmethod
-    def _order_matrix(mat):
-        # finds the permutation that makes the diagonal of the matrix the most ordered
-        abs_mat = np.abs(mat)
-        sort_mat = np.argsort(abs_mat, axis=1)
-        # check if we have a clean permutation
-        max_inds = sort_mat[:, -1]
-        if np.all(np.sort(max_inds) == np.arange(len(max_inds))):
-            perm = np.argsort(max_inds)
-        else:
-            # kinda ill-defined, but in the case of collisions we choose
-            # the sorting to prefer the maximum value
-            sort_maxima = np.abs(nput.vector_take(abs_mat, sort_mat[:, -1:], shared=1)).flatten()
-            perm = np.lexsort([
-                -sort_maxima,
-                max_inds
-            ])
-        return perm, mat[perm,]
-        # perm_inds = []
-        # sort_maxima = np.flip(np.argsort(nput.vector_take(abs_mat, sort_mat[:, -1:], shared=1)))
+    def __init__(self,
+                 normal_modes: NormalModes,
+                 transformation,
+                 inverse=None,
+                 origin=None,
+                 masses=None,
+                 freqs=None,
+                 mass_weighted=None,
+                 frequency_scaled=None,
+                 **etc
+                 ):
+        mat = normal_modes.matrix @ transformation
+        if inverse is None:
+            inverse = transformation.T
+        self.localizing_transformation = (transformation, inverse)
+        self.base_modes = normal_modes
+        inverse = inverse @ normal_modes.inverse
+        if origin is None:
+            origin = normal_modes.origin
+        if masses is None:
+            masses = normal_modes.masses
+        if freqs is None:
+            freqs = normal_modes.freqs  # this preserves information, but could be confusing...
+        super().__init__(
+            normal_modes.basis,
+            mat,
+            inverse=inverse,
+            origin=origin,
+            masses=masses,
+            freqs=freqs,
+            mass_weighted=normal_modes.mass_weighted,
+            frequency_scaled=normal_modes.frequency_scaled,
+            **etc
+        )
 
-    @classmethod
-    def localize_by_masses(cls, modes:NormalModes, positions,
-                           scaling=None,
-                           min_scaling=1, max_scaling=10, steps=20,
-                           similarity_cutoff=.90):
-        base_tf = modes.make_mass_weighted().matrix
-        # base_inv = modes.make_mass_weighted().inverse
+    @property
+    def mass_weighted(self):
+        return self.base_modes.mass_weighted
+    @mass_weighted.setter
+    def mass_weighted(self, new):
+        if (
+                new and not self.base_modes.mass_weighted
+                or not new and self.base_modes.mass_weighted
+        ):
+            raise ValueError("can't set `mass_weighted` directly")
+    @property
+    def frequency_scaled(self):
+        return self.base_modes.frequency_scaled
+    @frequency_scaled.setter
+    def frequency_scaled(self, new):
+        if (
+                new and not self.base_modes.frequency_scaled
+                or not new and self.base_modes.frequency_scaled
+        ):
+            raise ValueError("can't set `frequency_scaled` directly")
+    @property
+    def g_matrix(self):
+        return self.matrix.T @ self.base_modes.g_matrix @ self.matrix
+    @g_matrix.setter
+    def g_matrix(self, g):
+        ...
 
-        mw_F = base_tf @ np.diag(modes.freqs**2) @ base_tf.T
-        g12i = cls._mass_mat(np.sqrt(modes.masses))
-        base_F = g12i @ mw_F @ g12i
-        # base_G = cls._mass_mat(1/modes.masses)
-        if scaling is not None:
+    def modify(self,
+               base_modes=None,
+               *,
+               transformation=None,
+               freqs=None,
+               origin=None,
+               masses=None,
+               inverse=None,
+               name=None,
+               mass_weighted=None,
+               frequency_scaled=None,
+               g_matrix=None
+               ):
+        return type(self)(
+            self.base_modes if base_modes is None else base_modes,
+            self.localizing_transformation[0] if transformation is None else transformation,
+            inverse=self.localizing_transformation[1] if inverse is None else inverse,
+            origin=origin,
+            masses=masses,
+            freqs=freqs,
+            g_matrix=g_matrix,
+            name=self.name if name is None else name
+        )
 
-            scaled_masses = modes.masses.copy()
-            scaled_masses[positions] *= scaling
-            # local_G = cls._mass_mat(1/scaled_masses)
-            new_modes = NormalModes.get_normal_modes(base_F, scaled_masses)
-        else:
-            # we find the minimum scaling factor that gives high similarity
-            # with the heavy-atom modes
+    def make_mass_weighted(self, **kwargs):
+        return self.modify(self.base_modes.make_mass_weighted(**kwargs))
+    def remove_mass_weighting(self, **kwargs):
+        return self.modify(self.base_modes.remove_mass_weighting(**kwargs))
+    def make_frequency_scaled(self, **kwargs):
+        return self.modify(self.base_modes.make_frequency_scaled(**kwargs))
+    def remove_frequency_scaling(self, **kwargs):
+        return self.modify(self.base_modes.remove_frequency_scaling(**kwargs))
 
-            localized_modes = []
-            scaling_factors = np.linspace(min_scaling, max_scaling, steps)
-            for s in scaling_factors:
-                scaled_masses = modes.masses.copy()
-                scaled_masses[positions] *= s
-                # local_G = cls._mass_mat(1/scaled_masses)
-                localized_modes.append(NormalModes.get_normal_modes(base_F, scaled_masses))
+    @property
+    def local_freqs(self):
+        return np.diag(self.local_hessian)
 
-            # g12 = cls._frac_mat_power(modes.matrix.T @ modes.matrix, -1/2)
-            # base_mode = modes.matrix.T
-            local_g12s = [
-                cls._frac_mat_power(l.modes.T @ l.modes, -1/2)
-                for l in localized_modes
-            ]
-            scaled_modes = [l.modes @ lg for l, lg in zip(localized_modes, local_g12s)]
-
-            row, col = np.triu_indices(len(localized_modes), k=1)
-            correlation_mats = [
-                # [
-                cls._order_matrix(m2.T @ m)
-                # ]
-                for i, m in enumerate(scaled_modes)
-                for m2 in scaled_modes[i+1:]
-            ] # flat upper triangle
-
-            correlations = np.array([
-                np.count_nonzero(np.abs(np.diag(m)) > similarity_cutoff)
-                for p,m in correlation_mats
-            ])
-
-
-            good_pos = np.where(correlations > modes.matrix.shape[1] - .1)
-            left_inds = row[good_pos[0]]
-            right_inds = col[good_pos[0]]
-
-            pos, counts = np.unique(np.concatenate([left_inds, right_inds]), return_counts=True)
-            max_count_pos = np.argsort(counts)
-
-
-            new_modes = localized_modes[max_count_pos[-1]]
-
-        return new_modes
-
+    @property
+    def local_hessian(self):
+        tf, inv = self.localizing_transformation
+        f = inv @ np.diag(self.freqs ** 2) @ inv.T
+        g = self.g_matrix
+        a = np.diag(np.power(np.diag(g) / np.diag(f), 1/4))
+        return a @ f @ a

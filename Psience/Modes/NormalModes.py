@@ -1,3 +1,5 @@
+import enum
+import functools
 
 import numpy as np, scipy.linalg as slag, itertools, collections
 import scipy.linalg
@@ -36,49 +38,11 @@ class NormalModes(MixtureModes):
             origin=origin,
             masses=masses,
             inverse=inverse,
+            mass_weighted=mass_weighted,
+            frequency_scaled=frequency_scaled,
+            g_matrix=g_matrix,
             name=name
         )
-        self.mass_weighted = mass_weighted
-        self.frequency_scaled = frequency_scaled
-        self.g_matrix = g_matrix
-
-    def modify(self,
-               matrix=None,
-               *,
-               freqs=None,
-               origin=None,
-               masses=None,
-               inverse=None,
-               name=None,
-               mass_weighted=None,
-               frequency_scaled=None,
-               g_matrix=None
-               ):
-        return type(self)(
-            self.basis,
-            self.matrix if matrix is None else matrix,
-            freqs=self.freqs if freqs is None else freqs,
-            origin=self.origin if origin is None else origin,
-            masses=self.masses if masses is None else masses,
-            inverse=self.inverse if inverse is None else inverse,
-            name=self.name if name is None else name,
-            mass_weighted=self.mass_weighted if mass_weighted is None else mass_weighted,
-            frequency_scaled=self.frequency_scaled if frequency_scaled is None else frequency_scaled,
-            g_matrix=self.g_matrix if g_matrix is None else g_matrix,
-        )
-
-    @property
-    def is_cartesian(self):
-        if self.masses is not None:
-            return self.matrix.shape[0] // 3 == len(self.masses)
-        else:
-            return 'Cartesian' in self.basis.name
-    @property
-    def coords_by_modes(self):
-        return self.inverse
-    @property
-    def modes_by_coords(self):
-        return self.matrix
 
     ModeData = collections.namedtuple("ModeData", ['freqs', 'modes', 'inverse'])
     default_zero_freq_cutoff = 1.0e-4 # 20 wavenumbers...
@@ -208,11 +172,13 @@ class NormalModes(MixtureModes):
                    **opts
                    )
 
-
+    default_projected_zero_freq_cutoff = None
     @classmethod
-    def from_molecule(cls, mol, dimensionless=False, use_internals=None,
+    def from_molecule(cls, mol,
+                      dimensionless=False, use_internals=None,
                       project_transrot=True,
                       zero_freq_cutoff=None,
+                      masses=None,
                       **opts
                       ):
         from ..Molecools import Molecule
@@ -227,284 +193,302 @@ class NormalModes(MixtureModes):
                 order=2
             )[1]
             if zero_freq_cutoff is None:
-                zero_freq_cutoff = 1e-8
+                zero_freq_cutoff = cls.default_projected_zero_freq_cutoff
+                if zero_freq_cutoff is None:
+                    zero_freq_cutoff = 1 * UnitsData.convert("Wavenumbers", "Hartrees")
             return cls.from_fg(
                 mol.internal_coordinates.system,
                 hess,
-                mol.g_matrix,
+                mol.get_gmatrix(masses=masses),
                 dimensionless=dimensionless,
                 origin=mol.get_internals(strip_embedding=True),
                 zero_freq_cutoff=zero_freq_cutoff,
                 **opts
             )
         else:
+            if masses is None:
+                masses = mol.atomic_masses
             hess = mol.potential_derivatives[1]
             if project_transrot:
                 proj = mol.get_translation_rotation_projector(mass_weighted=True)
-                mw = np.diag(np.repeat(1 / np.sqrt(mol.atomic_masses), 3))
-                mw_inv = np.diag(np.repeat(np.sqrt(mol.atomic_masses), 3))
+                mw = np.diag(np.repeat(1 / np.sqrt(masses), 3))
+                mw_inv = np.diag(np.repeat(np.sqrt(masses), 3))
                 proj = mw_inv @ proj @ mw
                 hess = proj @ hess @ proj.T
                 if zero_freq_cutoff is None:
-                    zero_freq_cutoff = 1e-8
+                    zero_freq_cutoff = cls.default_projected_zero_freq_cutoff
+                    if zero_freq_cutoff is None:
+                        zero_freq_cutoff = 1 * UnitsData.convert("Wavenumbers", "Hartrees")
 
             return cls.from_fg(
                 mol.coords.system,
                 hess,
-                mol.atomic_masses,
+                masses,
                 dimensionless=dimensionless,
-                masses=mol.atomic_masses,
+                masses=masses,
                 origin=mol.coords,
                 zero_freq_cutoff=zero_freq_cutoff,
                 **opts
             )
 
-    def get_nearest_mode_transform(self, alternate_modes, unitary=True):#, unitary_mode_cutoff=1e-6):
-        modes = self.matrix
-
-        ls_tf = np.linalg.inv(modes.T @ modes) @ modes.T @ alternate_modes
-
-        U, s, V = np.linalg.svd(ls_tf)
-        # good_s = np.where(s > unitary_mode_cutoff)[0]
-        if unitary:
-            R = U[:, :len(s)] @ V[:len(s), :]
-            # R = (U[:, :len(s)] @ V[good_s, ])
+    @classmethod
+    def _atom_projector(cls, n, i):
+        if nput.is_numeric(i):
+            i = [i]
+        z = np.zeros((3 * n, 3 * n))
+        for i in i:
+            x = np.arange(3 * i, 3 * (i + 1))
+            z[x, x] = 1
+        return z
+    def get_nearest_mode_transform(self,
+                                   alternate_modes:np.ndarray,
+                                   mass_weighted=False,
+                                   atoms=None,
+                                   maximum_similarity=True,
+                                   unitarize=True
+                                   ):
+        if not mass_weighted:
+            modes = self.remove_mass_weighting()
         else:
-            R = ls_tf
-            # R = (U[:, :len(s)] @ np.diag(s) @ V[:len(s), good_s])
+            modes = self.make_mass_weighted()
 
+        inv = modes.inverse
+        modes = modes.matrix
+        if atoms is not None:
+            proj = self._atom_projector(modes.shape[0], atoms)
+            modes = proj @ modes
+            alternate_modes = proj @ alternate_modes
 
-
-        return R
-
-    def get_localized_modes(self,
-                            target_coords:"Iterable[Iterable[int]|dict]",
-                            fixed_coords=None,
-                            mass_weight=True,
-                            symmetrizer=None,
-                            mode_selection=None,
-                            make_oblique=False,
-                            rediagonalize=False,
-                            unitary=True,
-                            return_target_modes=False
-                            ):
-        from .ObliqueModes import ObliqueModeGenerator
-
-        carts = self.origin
-        if carts.ndim != 2:
-            raise NotImplementedError("can't get local modes for non-Cartesian basis")
-
-        targets = []
-        coord_types = {
-            'dist': nput.dist_vec,
-            'bend': nput.angle_vec,
-            'rock': nput.rock_vec,
-            'dihed': nput.dihed_vec,
-            'oop': nput.oop_vec
-        }
-        coord_keys = list(coord_types.keys())
-        for idx in target_coords:
-            if isinstance(idx, dict):
-                for k in coord_keys:
-                    if k in idx:
-                        coord_type = k
-                        idx = idx[k]
-                        break
-                else:
-                    raise ValueError("can't parse coordinate spec {}".format(idx))
-            else:
-                nidx = len(idx)
-                if nidx == 2:
-                    coord_type = 'dist'
-                elif nidx == 3:
-                    coord_type = 'bend'
-                elif nidx == 4:
-                    coord_type = 'dihed'
-                else:
-                    raise ValueError("can't parse coordinate spec {}".format(idx))
-            targets.append(coord_types[coord_type](carts, *idx))
-
-        # if normalize:
-        #     targets = [
-        #         t/np.linalg.norm(t)
-        #         for t in targets
-        #     ]
-        if fixed_coords is not None:
-            targets = np.array(targets)
-            fixed_pos = np.array(fixed_coords) * 3
-            for p in fixed_pos:
-                targets[:, p:p + 3] = 0
-        target_modes = np.asanyarray(targets).T
-
-        if symmetrizer is not None:
-            if isinstance(symmetrizer, (np.ndarray, list)):
-                symmetrizer = np.asanyarray(symmetrizer)
-                target_modes = target_modes @ symmetrizer.T
-            else:
-                target_modes = symmetrizer(target_modes)
-
-        if mass_weight:
-            masses = self.masses
-            if masses is None: raise ValueError("modes have no associated masses")
-            trip_mass = np.broadcast_to(
-                np.sqrt(masses)[:, np.newaxis],
-                (len(masses), carts.shape[1])
-            ).flatten()
-            target_modes = target_modes / trip_mass[:, np.newaxis]
-            ltf = self.make_mass_weighted().get_nearest_mode_transform(target_modes, unitary=unitary)
+        if maximum_similarity:
+            tf = nput.maximum_similarity_transformation(modes, alternate_modes, apply_transformation=False)
+            return tf, tf.T
         else:
-            ltf = self.get_nearest_mode_transform(target_modes, unitary=unitary)
-        if unitary:
-            ltf_inv = ltf.T
-        else:
-            ltf_inv = np.linalg.pinv(ltf)
-
-        if make_oblique:
-            new_f = ltf_inv @ np.diag(self.freqs ** 2) @ ltf_inv.T
-            new_g = np.eye(len(new_f))
-            ob_f, ob_g, ob_u, ob_ui = ObliqueModeGenerator(new_f, new_g).run()
-            if mode_selection is not None:
-                ltf = ltf @ ob_u[:, mode_selection]
-                ltf_inv = ob_ui[mode_selection, :] @ ltf_inv
+            tf = inv @ alternate_modes
+            if unitarize:
+                tf = nput.unitarize_transformation(tf)
+                inv = tf.T
             else:
-                ltf = ltf @ ob_u
-                ltf_inv = ob_ui @ ltf_inv
-        elif mode_selection is not None:
-            ltf = ltf[:, mode_selection]
-            ltf_inv = ltf_inv[mode_selection, :]
+                inv = np.linalg.pinv(tf)
+            return tf, inv
 
-        res = (ltf, ltf_inv)
-        if rediagonalize:
-            new_f = ltf_inv @ np.diag(self.freqs ** 2) @ ltf_inv.T
-            new_g = ltf.T @ ltf
-            new_freqs, mode_tf, mode_inv = self.get_normal_modes(
-                new_f, new_g,
-                dimensionless=False
-            )
-            mode_inv, mode_tf = mode_tf.T, mode_inv.T
-            # new_freq2, mode_inv = slag.eigh(new_f, new_g, type=3)
-            # # raise Exception(new_freq2 * 219475.6)
-            # mode_tf = np.linalg.pinv(mode_inv)
-            # # if not make_oblique:
-            # new_freqs = np.sqrt(new_freq2)
-            # raise Exception(new_freqs * 219475.6)
-            # else:
-            #     new_freqs = new_freq2
-            #     mode_tf = mode_tf @ np.diag(1/np.sqrt(new_freqs))
-            #     mode_inv = np.diag(np.sqrt(new_freqs)) @ mode_inv
-
-            full_tf = ltf @ mode_tf
-            full_inv = mode_inv @ ltf_inv
-            new_modes = self.matrix @ full_tf
-            new_inv = full_inv @ self.inverse
-
-            res = (full_tf, full_inv), self.modify(
-                matrix=new_modes,
-                inverse=new_inv,
-                freqs=new_freqs
-            )
-
-        if return_target_modes:
-            res = res + (target_modes,)
-
-        return res
-
-    def _eval_G(self, masses):
-        G = np.diag(1 / np.repeat(masses, 3))
-        if 'Cartesians' not in self.basis.name:  # a hack
-            if self.origin is None:
-                raise ValueError("can't get mass weighting matrix (G^-1/2) without structure")
-            G = self.inverse.T @ self.inverse
-            # raise NotImplementedError("will add at some point")
-        return G
-
-    def _get_gmatrix(self, masses=None):
+    def get_atom_localized_mode_transformation(self,
+                                               atoms,
+                                               masses=None, origin=None,
+                                               localization_type='ned',
+                                               allow_mode_mixing=False,
+                                               maximum_similarity=False,
+                                               unitarize=True
+                                               ):
         if masses is None:
-            G = self.g_matrix
+            masses = self.masses
+            mw = self.make_mass_weighted()
         else:
-            G = None
-        if G is None:
-            if masses is None:
-                masses = self.masses
-                G = self.g_matrix = self._eval_G(self.masses)
+            mw = self.make_mass_weighted(masses=masses)
+
+        if origin is None:
+            origin = mw.remove_mass_weighting().origin
+
+        if nput.is_numeric(atoms):
+            atoms = [atoms]
+
+        f = mw.matrix @ np.diag(self.freqs**2) @ mw.matrix.T
+
+        if localization_type == 'direct':
+            tr_tf, tr_inv = nput.translation_rotation_invariant_transformation(
+                origin.reshape(-1, 3),
+                masses,
+                mass_weighted=True
+            )
+        else:
+            tr_tf = tr_inv = np.eye(mw.matrix.shape[0])
+
+        g_matrix = tr_tf.T @ tr_tf
+        if allow_mode_mixing:
+            proj = self._atom_projector(len(masses), atoms)
+            freqs, modes, inv = self.get_normal_modes(
+                tr_inv @ proj @ f @ proj @ tr_inv.T,
+                g_matrix,
+                remove_transrot=True
+            )
+        else:
+            # freqs = []
+            modes = []
+            # inv = []
+            for atom in atoms:
+                proj = self._atom_projector(len(masses), atom)
+                sub_freqs, sub_modes, sub_inv = self.get_normal_modes(
+                    tr_inv @ proj @ f @ proj @ tr_inv.T,
+                    g_matrix,
+                    remove_transrot=True
+                )
+                # freqs.append(sub_freqs)
+                modes.append(sub_modes)
+                # inv.append(sub_inv)
+            # freqs = np.concatenate(freqs)
+            modes = np.concatenate(modes, axis=1)
+            # inv = np.concatenate(inv, axis=0)
+
+        if localization_type == 'direct':
+            modes = tr_tf @ modes
+
+        return mw.get_nearest_mode_transform(
+            modes,
+            mass_weighted=True,
+            maximum_similarity=maximum_similarity,
+            unitarize=unitarize
+        )
+
+    def get_internal_localized_mode_transformation(
+            self,
+            expansion_coordinates: "Iterable[Iterable[int]|dict]",
+            fixed_atoms=None,
+            mass_weighted=False,
+            project_transrot=True,
+            atoms=None,
+            maximum_similarity=False,
+            unitarize=True
+    ):
+        # from .ObliqueModes import ObliqueModeGenerator
+
+        nmw = self.remove_mass_weighting()
+        base_derivs = nput.internal_coordinate_tensors(
+            nmw.origin,
+            expansion_coordinates,
+            fixed_atoms=fixed_atoms
+        )
+
+        if mass_weighted:
+            base_derivs = np.diag(np.repeat(1/np.sqrt(self.masses), 3)) @ base_derivs
+
+        if project_transrot:
+            origin = self.origin
+            masses = self.masses
+            projector = nput.translation_rotation_projector(
+                    origin.reshape(-1, 3),
+                    masses,
+                    mass_weighted=mass_weighted
+                )
+            base_derivs = projector @ base_derivs
+
+        return self.get_nearest_mode_transform(
+            base_derivs,
+            atoms=atoms,
+            mass_weighted=mass_weighted,
+            maximum_similarity=maximum_similarity,
+            unitarize=unitarize
+        )
+
+    def get_displacement_localized_mode_transformation(self,
+                                                       mode_blocks=None,
+                                                       atoms=None,
+                                                       mass_weighted=True,
+                                                       unitarize=True,
+                                                       **maximizer_opts
+                                                       ):
+        if not unitarize:
+            raise ValueError("Jacobi iterations only give a unitary transformation")
+
+        if mass_weighted:
+            modes = self.make_mass_weighted().matrix
+        else:
+            modes = self.remove_mass_weighting().matrix
+
+        if atoms is not None:
+            modes = self._atom_projector(modes.shape[0], atoms) @ modes
+        if mode_blocks is None:
+            mode_blocks = [np.arange(modes.shape[1])]
+        elif nput.is_numeric(mode_blocks[0]):
+            mode_blocks = [mode_blocks]
+
+        tf_inv = np.zeros((modes.shape[1], modes.shape[1]), dtype=float)
+        for block in mode_blocks:
+            _, sub_inv, _ = nput.jacobi_maximize(
+                modes[:, block],
+                nput.displacement_localizing_rotation_generator,
+                **maximizer_opts
+            )
+            tf_inv[np.ix_(block, block)] = sub_inv
+
+        return tf_inv, tf_inv.T
+
+    class LocalizationMethods(enum.Enum):
+        MaximumSimilarity = 'target_modes'
+        AtomLocalized = 'atoms'
+        DisplacmentMinimized = 'displacements'
+        Internals = 'coordinates'
+
+    @property
+    def localizer_dispatch(self):
+        return {
+            self.LocalizationMethods.MaximumSimilarity.value:(self.get_nearest_mode_transform, 'target_modes'),
+            self.LocalizationMethods.AtomLocalized.value:(self.get_atom_localized_mode_transformation, 'atoms'),
+            self.LocalizationMethods.DisplacmentMinimized.value:(self.get_displacement_localized_mode_transformation, 'mode_blocks'),
+            self.LocalizationMethods.Internals.value:(self.get_internal_localized_mode_transformation, 'internals')
+        }
+
+    def localize(self,
+                 method=None,
+                 *,
+                 atoms=None,
+                 target_modes=None,
+                 internals=None,
+                 mode_blocks=None,
+                 reorthogonalize=None,
+                 unitarize=True,
+                 **opts
+                 ):
+
+        from .LocalizedModes import LocalizedModes
+
+        if method is None:
+            if target_modes is not None:
+                method = 'target_modes'
+            elif internals is not None:
+                method = 'coordinates'
+            elif mode_blocks is not None:
+                method = 'displacements'
+            elif atoms is not None:
+                method = 'atoms'
             else:
-                G = self._eval_G(self.masses)
+                method = 'displacements'
 
-        g12 = nput.fractional_power(G, 1/2)
-        gi12 = nput.fractional_power(G, -1/2)
-        return masses, g12, gi12
+        if isinstance(method, str):
+            method = self.LocalizationMethods(method)
 
-    def make_mass_weighted(self, masses=None):
-        if self.mass_weighted: return self
-        masses, g12, gi12 = self._get_gmatrix(masses=masses)
-        L = g12 @ self.matrix
-        Linv = self.inverse @ gi12
-        origin = (self.origin.flatten()[np.newaxis, :] @ gi12).reshape(self.origin.shape)
+        if hasattr(method, 'value'):
+            method = self.localizer_dispatch.get(method.value, method)
 
-        return self.modify(L,
-                           inverse=Linv,
-                           masses=masses,
-                           origin=origin,
-                           mass_weighted=True
-                           )
-    def remove_mass_weighting(self, masses=None):
-        if not self.mass_weighted: return self
-        masses, g12, gi12 = self._get_gmatrix(masses=masses)
-        L = gi12 @ self.matrix
-        Linv = self.inverse @ g12
-        origin = (self.origin.flatten()[np.newaxis, :] @ g12).reshape(self.origin.shape)
+        args = ()
+        try:
+            method, arg_names = method
+        except TypeError:
+            ...
+        else:
+            if isinstance(arg_names, str):
+                arg_names = [arg_names]
+            all_kw = dict(
+                atoms=atoms,
+                target_modes=target_modes,
+                internals=internals,
+                mode_blocks=mode_blocks,
+                reorthogonalize=reorthogonalize,
+                unitarize=unitarize
+            )
+            args = tuple(all_kw.get(k) for k in arg_names)
+            if 'atoms' not in arg_names:
+                opts['atoms'] = atoms # taken by all of the localizers
 
-        return self.modify(L,
-                           inverse=Linv,
-                           masses=masses,
-                           origin=origin,
-                           mass_weighted=False
-                           )
+        tf, inv = method(*args, unitarize=unitarize, **opts)
+        # inverse = tf.T @ self.inverse # assumes a unitary localization
 
-    def _frequency_scaling(self, freqs=None):
-        # L = self.matrix.shape.T
-        if freqs is None:
-            freqs = self.freqs
-        conv = np.sqrt(freqs)
-        return freqs, conv
+        if reorthogonalize is None:
+            reorthogonalize = not unitarize
+        if reorthogonalize:
+            modes = self.make_mass_weighted().matrix @ tf
+            tf = tf @ nput.fractional_power(modes.T @ modes, -1 / 2)
+            inv = nput.fractional_power(modes.T @ modes, 1 / 2) @ inv
 
-    def make_frequency_scaled(self, freqs=None):
-        if self.frequency_scaled: return self
-        freqs, conv = self._frequency_scaling(freqs=freqs)
-        L = self.matrix * conv[np.newaxis, :]
-        Linv = self.inverse / conv[:, np.newaxis] # del_Q X
-
-        return self.modify(L,
-                           inverse=Linv,
-                           freqs=freqs,
-                           frequency_scaled=True
-                           )
-
-    def remove_frequency_scaling(self, freqs=None):
-        if not self.frequency_scaled: return self
-        freqs, conv = self._frequency_scaling(freqs=freqs)
-        L = self.matrix / conv[np.newaxis, :]
-        Linv = self.inverse * conv[:, np.newaxis] # del_Q X
-
-        return self.modify(L,
-                           inverse=Linv,
-                           freqs=freqs,
-                           frequency_scaled=False
-                           )
-
-    def make_dimensionless(self, freqs=None, masses=None):
-        new = self
-        if not new.mass_weighted: new = new.make_mass_weighted(masses=masses)
-        if not new.frequency_scaled: new = new.make_frequency_scaled(freqs=freqs)
-
-        return new
-
-    def make_dimensioned(self, freqs=None, masses=None):
-        new = self
-        if not new.mass_weighted: new = new.remove_mass_weighting(masses=masses)
-        if not new.frequency_scaled: new = new.remove_frequency_scaling(freqs=freqs)
-        return new
-
+        return LocalizedModes(self, tf, inverse=inv)
 
 class ReactionPathModes(NormalModes):
     def get_rp_modes(cls,
