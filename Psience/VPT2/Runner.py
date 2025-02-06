@@ -2982,7 +2982,9 @@ class AnalyticVPTRunner:
 
     def get_reexpressed_hamiltonian(self, states, order=None,
                                     degeneracy_specs=None, only_degenerate_terms=True,
-                                    verbose=False, **opts):
+                                    verbose=False,
+                                    zero_order_hamiltonian=None,
+                                    **opts):
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
         degs = states.degenerate_pairs
         if states.flat_space.degenerate_states is None: return None
@@ -2998,6 +3000,7 @@ class AnalyticVPTRunner:
                 order=order,
                 degenerate_states=degs,
                 only_degenerate_terms=only_degenerate_terms,
+                zero_order_hamiltonian=zero_order_hamiltonian,
                 verbose=verbose, **opts
             )
             corr_mats = self.construct_corrections_matrix(group, ham_corrs)
@@ -3323,6 +3326,7 @@ class AnalyticVPTRunner:
                 handle_degeneracies=True,
                 zero_cutoff=None,
                 transition_moment_terms=None,
+                degenerate_zero_order_hamiltonian=None,
                 clear_caches=True
                 ):
         with self.logger.block(tag="Running VPT"):
@@ -3383,11 +3387,14 @@ class AnalyticVPTRunner:
                 only_degenerate_terms = True
                 with self.logger.block(tag="Handling degeneracies"):
                     with self.logger.block(tag="Calculating effective Hamiltonians..."):
+                        if degenerate_zero_order_hamiltonian is not None:
+                            self.clear_caches()
                         _, degenerate_corrs = self.get_reexpressed_hamiltonian(
                             states,
                             order=order,
                             verbose=verbose,
                             only_degenerate_terms=only_degenerate_terms,
+                            zero_order_hamiltonian=degenerate_zero_order_hamiltonian,
                             zero_cutoff=zero_cutoff
                         )
                     corrs.only_degenerate_terms = only_degenerate_terms

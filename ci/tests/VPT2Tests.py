@@ -99,7 +99,7 @@ class VPT2Tests(TestCase):
             2,
             degeneracy_specs={
                 'polyads':[
-                    [[0,1,0],[2,0,0]]
+                    [[0,0,1],[0,1,0]]
                 ]
             }
             # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5")
@@ -107,13 +107,22 @@ class VPT2Tests(TestCase):
         classic, _ = runner.construct_classic_runner(states)
         # classic.print_tables()
 
+        # extra_coupling_ham = 0
+        extra_coupling_ham = np.diag(runner.eval.freqs) + (
+                np.array([
+                    [0,    100,  100],
+                    [100,    0,  100],
+                    [100,  100,    0],
+                ]) * UnitsData.convert("Wavenumbers", "Hartrees")
+        )
         runner.run_VPT(states,
-                       operator_expansions={
-                           "x1":[0, np.eye(9)[:, 0], np.zeros((9, 9))],
-                           "y1":[0, np.eye(9)[:, 1], np.zeros((9, 9))],
-                           "z1":[0, np.eye(9)[:, 2], np.zeros((9, 9))],
-                       },
-                       calculate_intensities=False
+                       # operator_expansions={
+                       #     "x1":[0, np.eye(9)[:, 0], np.zeros((9, 9))],
+                       #     "y1":[0, np.eye(9)[:, 1], np.zeros((9, 9))],
+                       #     "z1":[0, np.eye(9)[:, 2], np.zeros((9, 9))],
+                       # },
+                       calculate_intensities=False,
+                       degenerate_zero_order_hamiltonian=extra_coupling_ham
                        )
 
         raise Exception(...)
