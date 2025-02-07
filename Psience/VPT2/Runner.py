@@ -59,6 +59,7 @@ class VPTSystem:
     __props__ = (
         "internals",
         "modes",
+        "local_modes",
         "mode_selection",
         "full_surface_mode_selection",
         "potential_derivatives",
@@ -73,13 +74,15 @@ class VPTSystem:
                  internals=None,
                  dummy_atoms=None,
                  modes=None,
+                 local_modes=None,
                  mode_selection=None,
                  full_surface_mode_selection=None,
                  potential_derivatives=None,
                  potential_function=None,
                  order=2,
                  dipole_derivatives=None,
-                 eckart_embed=False
+                 eckart_embed=False,
+                 copy_mol=False
                  ):
         """
         :param mol: the molecule or system specification to use (doesn't really even need to be a molecule)
@@ -103,6 +106,9 @@ class VPTSystem:
         """
         if not isinstance(mol, Molecule):
             mol = Molecule.from_spec(mol)
+        elif copy_mol:
+            mol = mol.copy()
+
         if internals is not None:
             if dummy_atoms is not None:
                 dummy_specs = []
@@ -119,9 +125,7 @@ class VPTSystem:
                 mol = mol.insert_atoms(["X"]*len(dummy_atoms), [d[1] for d in dummy_specs], [d[0] for d in dummy_specs])
             mol.internals = internals
         self.mol = mol
-        if modes is not None:
-            self.mol.normal_modes.modes = modes
-        self.mode_selection = mode_selection
+
         self.full_surface_mode_selection = full_surface_mode_selection
         if potential_derivatives is not None:
             self.mol.potential_derivatives = potential_derivatives
@@ -129,6 +133,40 @@ class VPTSystem:
             self.get_potential_derivatives(potential_function, order=order)
         if dipole_derivatives is not None:
             self.mol.dipole_derivatives = dipole_derivatives
+
+        if local_modes is not None:
+            if modes is not None:
+                raise ValueError("can't handle having `local_modes` and `modes` passed")
+            if hasattr(local_modes, 'items'):
+                opts = local_modes.copy()
+                local_modes = (opts.pop('matrix', None), opts.pop('inverse', None))
+            elif len(local_modes) != 2:
+                opts = {}
+                local_modes = (local_modes, None)
+            elif nput.is_numeric_array_like(local_modes):
+                opts = {}
+                local_modes = np.asanyarray(local_modes)
+                if local_modes.ndim == 2:
+                    local_modes = (local_modes, None)
+            else:
+                opts = {}
+            modes = self.prep_local_modes(*local_modes, **opts)
+
+            pot_ders = self.mol.potential_derivatives
+            if pot_ders[2].shape[0] != pot_ders[1].shape[0]:
+                RQ = modes['inverse'] @ self.mol.normal_modes.modes.basis.matrix
+                # RQ = inverse@OHH.normal_modes.modes.basis.inverse.T
+                pot_ders = pot_ders[:2] + nput.tensor_reexpand(
+                    [RQ],
+                    pot_ders[2:],
+                    order=2
+                )
+                self.mol.potential_derivatives = pot_ders
+
+        self.use_local_modes = local_modes is not None
+        if modes is not None:
+            self.mol.normal_modes.modes = modes
+        self.mode_selection = mode_selection
 
         if eckart_embed is True:
             self.mol = self.mol.get_embedded_molecule()
@@ -140,6 +178,35 @@ class VPTSystem:
             if isinstance(eckart_embed, Molecule):
                 self.mol = self.mol.get_embedded_molecule(eckart_embed)
 
+    def prep_local_modes(self, dRdX, dXdR=None, sort_freqs=False):
+        if dXdR is None:
+            dXdR = np.linalg.pinv(dRdX)
+        elif dRdX is None:
+            dRdX = np.linalg.pinv(dXdR)
+
+        XR = dRdX
+        RX = dXdR
+        f0 = RX @ self.mol.potential_derivatives[1] @ RX.T
+        gx = self.mol.get_gmatrix(use_internals=False)
+        g0 = XR.T @ gx @ XR
+        a = np.diag(np.power(np.diag(g0)/np.diag(f0), 1/4))
+        ai = np.diag(np.power(np.diag(f0)/np.diag(g0), 1/4))
+        f_loc = a @ f0 @ a
+
+        freqs = np.diag(f_loc)
+        modes = XR @ ai @ np.diag(1 / np.sqrt(freqs))
+        inverse = np.diag(np.sqrt(freqs)) @ a @ RX
+        if sort_freqs:
+            ord = np.argsort(freqs)
+            freqs = freqs[ord,]
+            modes = modes[:, ord]
+            inverse = inverse[ord, :]
+
+        return {
+            'matrix':inverse.T,
+            'inverse':modes.T,
+            'freqs':freqs
+        }
 
     @property
     def nmodes(self):
@@ -1352,6 +1419,10 @@ class VPTRunner:
             sys = VPTSystem(system, **par.filter(VPTSystem))
         else:
             sys = system
+
+        if sys.use_local_modes:
+            par.ops['local_mode_couplings'] = par.ops.get('local_mode_couplings', True)
+
         if not isinstance(states, VPTStateSpace):
             if isinstance(states, int) or isinstance(states[0], int):
                 states = VPTStateSpace.from_system_and_quanta(
