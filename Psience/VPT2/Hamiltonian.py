@@ -185,8 +185,11 @@ class PerturbationTheoryHamiltonian:
         self.coriolis_terms = self.CoriolisTermGetter(Z_terms, coriolis_terms, mode_selection=mode_selection)
 
         if include_pseudopotential:
+            u_params = expansion_params.filter(PotentialLikeTerm)
+            if self.local_mode_couplings:
+                u_params['gmatrix_tolerance'] = u_params.get('gmatrix_tolerance', None)
             U_terms = PotentialLikeTerm(self.molecule, modes=modes, mode_selection=mode_selection,
-                                                          **expansion_params.filter(PotentialLikeTerm)
+                                                          **u_params
                                                           )
         else:
             U_terms = None

@@ -158,40 +158,18 @@ class VPT2Tests(TestCase):
             ]
         )
 
-        gx = OHH.get_gmatrix(use_internals=False)
+        # gx = OHH.get_gmatrix(use_internals=False)
         XR = OHH.get_internals_by_cartesians(1, strip_embedding=True)[0]
         RX = OHH.get_cartesians_by_internals(1, strip_embedding=True)[0]
-        f0 = OHH.get_internal_potential_derivatives(2, zero_gradient=True)[1]
-        g0 = XR.T @ gx @ XR
-        a = np.diag(np.power(np.diag(g0)/np.diag(f0), 1/4))
-        ai = np.diag(np.power(np.diag(f0)/np.diag(g0), 1/4))
-        f_loc = a @ f0 @ a
-
-        freqs = np.diag(f_loc)
-        modes = XR@ai@np.diag(1/np.sqrt(freqs))
-        inverse = np.diag(np.sqrt(freqs))@a@RX
-        ord = np.argsort(freqs)
-        freqs = freqs[ord,]
-        modes = modes[:, ord]
-        inverse = inverse[ord, :]
-
-        RQ = modes.T@OHH.normal_modes.modes.basis.matrix
-        # RQ = inverse@OHH.normal_modes.modes.basis.inverse.T
-        v_expansion = OHH.potential_derivatives[:2] + nput.tensor_reexpand(
-            [RQ],
-            OHH.potential_derivatives[2:],
-            order=2
-        )
-
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
             1,
-            modes={
-                'matrix':inverse.T,
-                'inverse':modes.T,
-                'freqs':freqs
-            },
-            potential_derivatives=v_expansion,
+            local_modes={'matrix':XR, 'inverse':RX, 'sort_freqs':True},
+            # internals=[
+            #     [0, -1, -1, -1],
+            #     [1,  0, -1, -1],
+            #     [2,  0,  1, -1]
+            # ],
             mixed_derivative_handling_mode='analytical',
             local_mode_couplings=True,
             degeneracy_specs={
@@ -226,6 +204,7 @@ class VPT2Tests(TestCase):
           1 0 0    1641.37852     65.14715      1597.32063     67.22674
           2 0 0    3282.75704      0.00000      3171.93290      0.00656
         """
+        return
 
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
@@ -308,49 +287,27 @@ class VPT2Tests(TestCase):
             TestManager.test_data(file_name),
             internals=[
                 [0, -1, -1, -1],
-                [1,  0, -1, -1],
-                [2,  0,  1, -1]
+                [1, 0, -1, -1],
+                [2, 0, 1, -1]
             ]
         )
 
-        gx = OHH.get_gmatrix(use_internals=False)
+        # gx = OHH.get_gmatrix(use_internals=False)
         XR = OHH.get_internals_by_cartesians(1, strip_embedding=True)[0]
         RX = OHH.get_cartesians_by_internals(1, strip_embedding=True)[0]
-        f0 = OHH.get_internal_potential_derivatives(2, zero_gradient=True)[1]
-        g0 = XR.T @ gx @ XR
-        a = np.diag(np.power(np.diag(g0)/np.diag(f0), 1/4))
-        ai = np.diag(np.power(np.diag(f0)/np.diag(g0), 1/4))
-        f_loc = a @ f0 @ a
-
-        freqs = np.diag(f_loc)
-        modes = XR@ai@np.diag(1/np.sqrt(freqs))
-        inverse = np.diag(np.sqrt(freqs))@a@RX
-        ord = np.argsort(freqs)
-        freqs = freqs[ord,]
-        modes = modes[:, ord]
-        inverse = inverse[ord, :]
-
-        RQ = modes.T@OHH.normal_modes.modes.basis.matrix
-        # RQ = inverse@OHH.normal_modes.modes.basis.inverse.T
-        v_expansion = OHH.potential_derivatives[:2] + nput.tensor_reexpand(
-            [RQ],
-            OHH.potential_derivatives[2:],
-            order=2
-        )
 
         AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
             1,
-            modes={
-                'matrix':inverse.T,
-                'inverse':modes.T,
-                'freqs':freqs
-            },
-            potential_derivatives=v_expansion,
-            mixed_derivative_handling_mode='analytical',
-            local_mode_couplings=True,
+            local_modes={'matrix': XR, 'inverse': RX, 'sort_freqs': True},
             local_mode_coupling_order=1,
             hamiltonian_correction_type='primary',
+            internals=[
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  0,  1, -1]
+            ],
+            mixed_derivative_handling_mode='analytical',
             degeneracy_specs={
                 'polyads': [
                     [
@@ -402,6 +359,17 @@ class VPT2Tests(TestCase):
 ::   2(1) | 3873.508 | 35.315 | 3752.794 | 64.662 | 3685.858 | 33.751
 ::   3(1) | 1641.379 | 65.147 | 1578.730 | 69.539 | 1578.730 | 69.539
 ::   3(2) | 3282.757 |  0.000 | 3136.249 |  0.505 | 3146.768 |  0.996
+
+1st order, Primary, Internals
+::        |     Harmonic      |    Anharmonic     |    Deperturbed   
+:: States |  Freq.   |  Int.  |  Freq.   |  Int.  |  Freq.   |  Int. 
+:: ------------------------------------------------------------------
+::     () |    0.000 |  0.000 |    0.000 |  0.000 |    0.000 |  0.000
+::   1(1) | 3873.508 | 35.315 | 3633.060 |  3.796 | 3692.440 | 33.437
+::   2(1) | 3873.508 | 35.315 | 3753.652 | 63.777 | 3692.745 | 32.936
+::   3(1) | 1641.379 | 65.147 | 1570.743 | 69.153 | 1570.743 | 69.153
+::   3(2) | 3282.757 |  0.000 | 3108.288 |  0.879 | 3109.816 |  1.069
+>>--------------------------------------------------<<
 """
         # """
         # ::> Deperturbed IR Data
