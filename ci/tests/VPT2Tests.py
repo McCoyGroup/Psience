@@ -85,7 +85,7 @@ class VPT2Tests(TestCase):
 
         raise Exception(...)
 
-    @debugTest
+    @validationTest
     def test_HOHAnalytic(self):
 
         file_name = "HOH_freq.fchk"
@@ -108,24 +108,22 @@ class VPT2Tests(TestCase):
         # classic.print_tables()
 
         # extra_coupling_ham = 0
-        extra_coupling_ham = np.diag(runner.eval.freqs) + (
-                np.array([
-                    [0,    100,  100],
-                    [100,    0,  100],
-                    [100,  100,    0],
-                ]) * UnitsData.convert("Wavenumbers", "Hartrees")
-        )
+        # extra_coupling_ham = np.diag(runner.eval.freqs) + (
+        #         np.array([
+        #             [0,    100,  100],
+        #             [100,    0,  100],
+        #             [100,  100,    0],
+        #         ]) * UnitsData.convert("Wavenumbers", "Hartrees")
+        # )
         runner.run_VPT(states,
-                       # operator_expansions={
-                       #     "x1":[0, np.eye(9)[:, 0], np.zeros((9, 9))],
-                       #     "y1":[0, np.eye(9)[:, 1], np.zeros((9, 9))],
-                       #     "z1":[0, np.eye(9)[:, 2], np.zeros((9, 9))],
-                       # },
-                       calculate_intensities=False,
-                       degenerate_zero_order_hamiltonian=extra_coupling_ham
+                       operator_expansions={
+                           "x1":[0, np.eye(9)[:, 0], np.zeros((9, 9))],
+                           "y1":[0, np.eye(9)[:, 1], np.zeros((9, 9))],
+                           "z1":[0, np.eye(9)[:, 2], np.zeros((9, 9))],
+                       },
+                       calculate_intensities=True,
+                       # degenerate_zero_order_hamiltonian=extra_coupling_ham
                        )
-
-        raise Exception(...)
 
 
 
@@ -146,6 +144,161 @@ class VPT2Tests(TestCase):
         classic2, _ = runner.construct_classic_runner(states, zero_element_warning=False)
         # classic2.print_tables()
         runner.run_VPT(states)
+
+    @debugTest
+    def test_HOHLocal(self):
+        file_name = "HOH_freq.fchk"
+
+        OHH = Molecule.from_file(
+            TestManager.test_data(file_name),
+            internals=[
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  0,  1, -1]
+            ]
+        )
+
+        gx = OHH.get_gmatrix(use_internals=False)
+        XR = OHH.get_internals_by_cartesians(1, strip_embedding=True)[0]
+        RX = OHH.get_cartesians_by_internals(1, strip_embedding=True)[0]
+        f0 = OHH.get_internal_potential_derivatives(2, zero_gradient=True)[1]
+        g0 = XR.T @ gx @ XR
+        a = np.diag(np.power(np.diag(g0)/np.diag(f0), 1/4))
+        ai = np.diag(np.power(np.diag(f0)/np.diag(g0), 1/4))
+        f_loc = a @ f0 @ a
+
+        freqs = np.diag(f_loc)
+        modes = XR@ai@np.diag(1/np.sqrt(freqs))
+        inverse = np.diag(np.sqrt(freqs))@a@RX
+        ord = np.argsort(freqs)
+        freqs = freqs[ord,]
+        modes = modes[:, ord]
+        inverse = inverse[ord, :]
+
+        RQ = modes.T@OHH.normal_modes.modes.basis.matrix
+        # RQ = inverse@OHH.normal_modes.modes.basis.inverse.T
+        v_expansion = OHH.potential_derivatives[:2] + nput.tensor_reexpand(
+            [RQ],
+            OHH.potential_derivatives[2:],
+            order=2
+        )
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            1,
+            modes={
+                'matrix':inverse.T,
+                'inverse':modes.T,
+                'freqs':freqs
+            },
+            potential_derivatives=v_expansion,
+            mixed_derivative_handling_mode='analytical',
+            local_mode_couplings=True,
+            degeneracy_specs={
+                'polyads': [
+                    [
+                        [0, 0, 1],
+                        [0, 1, 0]
+                    ],
+                    [
+                        [0, 0, 1],
+                        [2, 0, 0]
+                    ]
+                ]
+            },
+            calculate_intensities=True
+        )
+        """
+        ::> Deperturbed IR Data
+          > Initial State: 0 0 0 
+                           Harmonic                  Anharmonic
+        State       Frequency    Intensity       Frequency    Intensity
+          0 0 1    3873.50774     35.31527      3688.68476     35.44348
+          0 1 0    3873.50774     35.31527      3688.97960     35.28916
+          1 0 0    1641.37852     65.14715      1597.32063     67.22674
+          2 0 0    3282.75704      0.00000      3183.94992      0.15040
+        ::> IR Data
+          > Initial State: 0 0 0 
+                           Harmonic                  Anharmonic
+        State       Frequency    Intensity       Frequency    Intensity
+          0 0 1    3873.50774     35.31527      3636.87729      4.18690
+          0 1 0    3873.50774     35.31527      3752.80408     67.80845
+          1 0 0    1641.37852     65.14715      1597.32063     67.22674
+          2 0 0    3282.75704      0.00000      3171.93290      0.00656
+        """
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            1,
+            mode_selection=[0, 2, 1],
+            mixed_derivative_handling_mode='analytical',
+            degeneracy_specs={
+                'polyads': [
+                    [
+                        [0, 0, 1],
+                        [0, 1, 0]
+                    ],
+                    [
+                        [0, 0, 1],
+                        [2, 0, 0]
+                    ]
+                ]
+            },
+            calculate_intensities=True
+        )
+        """
+        ::> Deperturbed IR Data
+          > Initial State: 0 0 0 
+                           Harmonic                  Anharmonic
+        State       Frequency    Intensity       Frequency    Intensity
+          0 0 1    3803.29959      4.14283      3612.43457      3.45008
+          0 1 0    3937.52466     67.02051      3744.73518     64.43622
+          1 0 0    1622.30304     67.45626      1572.70760     68.11278
+          2 0 0    3244.60608      0.00000      3126.93384      1.18410
+        ::> IR Data
+          > Initial State: 0 0 0 
+                           Harmonic                  Anharmonic
+        State       Frequency    Intensity       Frequency    Intensity
+          0 0 1    3803.29959      4.14283      3623.17785      2.78848
+          0 1 0    3937.52466     67.02051      3744.73518     64.43622
+          1 0 0    1622.30304     67.45626      1572.70760     68.11278
+          2 0 0    3244.60608      0.00000      3116.19056      1.75788
+        """
+
+        raise Exception(...)
+
+        runner, states = VPTRunner.construct(
+            OHH,
+            2,
+            degeneracy_specs={
+                'polyads': [
+                    [[0, 0, 1], [0, 1, 0]]
+                ]
+            }
+            # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5")
+        )
+        classic, _ = runner.construct_classic_runner(states)
+        # classic.print_tables()
+
+        # extra_coupling_ham = 0
+        extra_coupling_ham = np.diag(runner.eval.freqs) + (
+                np.array([
+                    [0, 100, 100],
+                    [100, 0, 100],
+                    [100, 100, 0],
+                ]) * UnitsData.convert("Wavenumbers", "Hartrees")
+        )
+        runner.run_VPT(states,
+                       # operator_expansions={
+                       #     "x1":[0, np.eye(9)[:, 0], np.zeros((9, 9))],
+                       #     "y1":[0, np.eye(9)[:, 1], np.zeros((9, 9))],
+                       #     "z1":[0, np.eye(9)[:, 2], np.zeros((9, 9))],
+                       # },
+                       calculate_intensities=False,
+                       degenerate_zero_order_hamiltonian=extra_coupling_ham
+                       )
+
+        raise Exception(...)
 
     @validationTest
     def test_AnalyticWFC(self):

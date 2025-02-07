@@ -566,6 +566,7 @@ class VPTHamiltonianOptions:
 
     __props__ = (
         "mode_selection",
+        "local_mode_couplings",
         "full_surface_mode_selection",
         "include_potential",
         "include_gmatrix",
@@ -609,6 +610,7 @@ class VPTHamiltonianOptions:
 
     def __init__(self,
                  mode_selection=None,
+                 local_mode_couplings=None,
                  full_surface_mode_selection=None,
                  include_potential=None,
                  include_gmatrix=None,
@@ -705,6 +707,7 @@ class VPTHamiltonianOptions:
         """
         all_opts = dict(
             mode_selection=mode_selection,
+            local_mode_couplings=local_mode_couplings,
             full_surface_mode_selection=full_surface_mode_selection,
             include_potential=include_potential,
             include_gmatrix=include_gmatrix,

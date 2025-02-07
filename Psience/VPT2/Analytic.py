@@ -6437,8 +6437,20 @@ class PerturbationTheoryEvaluator:
                 for exp in expansions
             ]
         if zero_order_hamiltonian is not None:
+            if len(zero_order_hamiltonian) == 2:
+                v0, g0 = zero_order_hamiltonian
+                v0 = np.asanyarray(v0)
+                g0 = np.asanyarray(g0)
+                if v0.ndim != 2:
+                    z = np.asanyarray(zero_order_hamiltonian)
+                    v0 = z / 2
+                    g0 = z / 2
+            else:
+                z = np.asanyarray(zero_order_hamiltonian)
+                v0 = z / 2
+                g0 = z / 2
             exps = [
-                [zero_order_hamiltonian/2, zero_order_hamiltonian/2, 0, 0, zero_order_hamiltonian],
+                [v0, g0, 0, 0, zero_order_hamiltonian],
             ] + exps[1:]
         if diagonal_zero_order_hamiltonian is None:
             diagonal_zero_order_hamiltonian = zero_order_hamiltonian is None

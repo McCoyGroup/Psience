@@ -345,7 +345,7 @@ class ExpansionTerms:
         return is_internal
 
     def _reshape_internal_modes(self):
-        raise NotImplementedError("ordering has shifted")
+        # raise NotImplementedError("ordering has shifted")
         QR = self._modes.modes_by_coords  # derivatives of Q with respect to the internals
         # we need to add zeros for the orientation coordinates
         if not self.strip_embedding and QR.shape[0] != 3 * self.num_atoms:
