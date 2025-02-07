@@ -123,6 +123,24 @@ class AnalyticPerturbationTheorySolver:
                    allowed_energy_changes=allowed_energy_changes,
                    intermediate_normalization=intermediate_normalization)
 
+    def modify_hamiltonian(self, hamiltonian_corrections):
+        new_expansion = ReexpressedHamiltonian.prep_expansion(
+            self.hamiltonian_expansion,
+            hamiltonian_corrections,
+            logger=self.logger,
+            allowed_coefficients=self.allowed_coefficients,
+            disallowed_coefficients=self.disallowed_coefficients
+        )
+
+        return type(self)(
+            new_expansion,
+            logger=self.logger, checkpoint=self.checkpoint,
+            allowed_terms=self.allowed_terms,
+            allowed_coefficients=self.allowed_coefficients,
+            disallowed_coefficients=self.disallowed_coefficients,
+            allowed_energy_changes=self.allowed_energy_changes,
+            intermediate_normalization=self.intermediate_normalization
+        )
     _op_maps = {}
     def get_correction(self, key, cls, order, **kw):
         corr_key = (cls, key, order)
@@ -176,8 +194,11 @@ class AnalyticPerturbationTheorySolver:
         key = ('reH', tuple(sorted(tuple(c) for c in degenerate_changes)))
         return self.get_correction(key, ReexpressedHamiltonianDegenerateCorrection, order, degenerate_changes=degenerate_changes, **kw)
 
+    operator_expansion_index = 5
     @classmethod
-    def operator_expansion_terms(cls, order, logger=None, operator_type=None):
+    def operator_expansion_terms(cls, order, logger=None, base_index=None, operator_type=None):
+        if base_index is None:
+            base_index = cls.operator_expansion_index
 
         base_terms = []
         padding = 0
@@ -195,7 +216,7 @@ class AnalyticPerturbationTheorySolver:
                         [],
                         order=0,
                         index=0,
-                        identities=[5],
+                        identities=[base_index],
                         logger=logger
                     )
                 )
@@ -210,7 +231,7 @@ class AnalyticPerturbationTheorySolver:
                 [['x'] * (o + padding)],
                 order=o,
                 index=index_padding+o,
-                identities=[5],
+                identities=[base_index],
                 logger=logger
             )
             for o in range(order+1)
@@ -2276,22 +2297,32 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
         # new = (rest_sorts[0], p_sorts[0]) + tuple(rest_sorts[1:]) + (p_sorts[1],)
         # return new
 
+    default_symmetrizers = None
     @classmethod
     def symmetrizers(cls):
-        return (
-            cls._potential_symmetrizer,
-            cls._kinetic_symmetrizer,
-            cls._potential_symmetrizer,  # V'
-            cls._coriolis_symmetrizer,
-            cls._potential_symmetrizer,  # U
-            cls._potential_symmetrizer,  # M
-        )
+        if cls.default_symmetrizers is None:
+            return (
+                cls._potential_symmetrizer,
+                cls._kinetic_symmetrizer,
+                cls._potential_symmetrizer,  # V'
+                cls._coriolis_symmetrizer,
+                cls._potential_symmetrizer,  # U
+                cls._potential_symmetrizer,  # M
+            )
+        else:
+            return cls.default_symmetrizers
     @classmethod
-    def _symmetrize(cls, idx):
-        return (idx[0], idx[1]) + cls.symmetrizers()[idx[1]](idx[2:])
+    def _symmetrize(cls, idx, symmetrizers=None):
+        if symmetrizers is None:
+            symmetrizers = cls.symmetrizers()
+        try:
+            return (idx[0], idx[1]) + symmetrizers[idx[1]](idx[2:])
+        except:
+            print(symmetrizers)
+            raise
     @classmethod
-    def canonical_key(cls, monomial_tuple):
-        return super().canonical_key(tuple(cls._symmetrize(t) for t in monomial_tuple))
+    def canonical_key(cls, monomial_tuple, symmetrizers=None):
+        return super().canonical_key(tuple(cls._symmetrize(t, symmetrizers=symmetrizers) for t in monomial_tuple))
 
     @classmethod
     def _handle_mul(cls,
@@ -3604,11 +3635,12 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                     return terms
 
 class OperatorExpansionTerm(PerturbationTheoryTerm):
-    def __init__(self, terms, order=None, identities=None, symmetrizers=None, index=None, allowed_terms=None, **opts):
+    def __init__(self, terms, order=None, identities=None, symmetrizers=None, index=None, allowed_terms=None, change_rules=None, **opts):
         super().__init__(allowed_terms=allowed_terms, **opts)
 
         self.terms = terms
         self.order = order
+        self._change_rules = change_rules
         if index is None:
             index = order
         self.index = index
@@ -3653,27 +3685,40 @@ class OperatorExpansionTerm(PerturbationTheoryTerm):
             poly_contrib = scipy.signal.convolve(poly_contrib, sqrt_contrib)
         return poly_contrib
 
+    @property
+    def change_rules(self):
+        return self._change_rules
+    @change_rules.setter
+    def change_rules(self, rules):
+        self._change_rules = rules
+        self._changes = None
     def get_changes(self) -> 'dict[tuple[int], Any]':
-        changes = {}
-        l_check = set()
-        for t in self.terms:
-            start = len(t) % 2
-            for tl in range(start, len(t)+1, 2): # I could really just get the max_len but w/e
-                if tl == 0:
-                    changes[()] = None
-                    continue
-                if tl not in l_check: # just to not redo it...
-                    l_check.add(tl)
-                    for p in IntegerPartitioner.partitions(tl, pad=False):
-                        l = p.shape[1]
-                        for n in range(0, l+1):
-                            base_perm = [1] * (l-n) + [-1] * n
-                            signs = np.array(list(itertools.permutations(base_perm)))
-                            resigned_perms = (signs[np.newaxis] * p[:, np.newaxis]).reshape(-1, l)
-                            sort_key = self.change_sort(resigned_perms)
-                            sort_perms = nput.vector_take(resigned_perms, sort_key, shared=1)
-                            for subp in sort_perms:
-                                changes[tuple(subp)] = None
+        if self.change_rules is not None:
+            return {
+                tuple(r): None
+                for r in self.change_rules
+            }
+        else:
+            changes = {}
+            l_check = set()
+            for t in self.terms:
+                start = len(t) % 2
+                for tl in range(start, len(t)+1, 2): # I could really just get the max_len but w/e
+                    if tl == 0:
+                        changes[()] = None
+                        continue
+                    if tl not in l_check: # just to not redo it...
+                        l_check.add(tl)
+                        for p in IntegerPartitioner.partitions(tl, pad=False):
+                            l = p.shape[1]
+                            for n in range(0, l+1):
+                                base_perm = [1] * (l-n) + [-1] * n
+                                signs = np.array(list(itertools.permutations(base_perm)))
+                                resigned_perms = (signs[np.newaxis] * p[:, np.newaxis]).reshape(-1, l)
+                                sort_key = self.change_sort(resigned_perms)
+                                sort_perms = nput.vector_take(resigned_perms, sort_key, shared=1)
+                                for subp in sort_perms:
+                                    changes[tuple(subp)] = None
         return changes
 
     def get_subexpressions(self) -> 'Iterable[PerturbationTheoryTerm]':
@@ -3807,14 +3852,23 @@ class OperatorExpansionTerm(PerturbationTheoryTerm):
         return poly
 
 class HamiltonianExpansionTerm(OperatorExpansionTerm):
-    def __init__(self, terms, order=None, identities=None, symmetrizers=None, **opts):
+    def __init__(self, terms, order=None, identities=None, symmetrizers=None,
+                 change_rules=None,
+                 **opts):
 
         if identities is None:
             identities = np.arange(5) if identities is None else identities
         if symmetrizers is None:
             symmetrizers = PTTensorCoeffProductSum.symmetrizers()
+        else:
+            PTTensorCoeffProductSum.default_symmetrizers = symmetrizers
 
-        super().__init__(terms, order=order, identities=identities, symmetrizers=symmetrizers, **opts)
+        if change_rules is None and nput.is_zero(order):
+            change_rules = [()]
+
+        super().__init__(terms, order=order, identities=identities, symmetrizers=symmetrizers,
+                         change_rules=change_rules,
+                         **opts)
 
     def __repr__(self):
         return "H[{}]".format(self.order)
@@ -4174,18 +4228,34 @@ class FullWavefunctionCorrection(PerturbationTheoryTerm):
 
 class OperatorCorrection(PerturbationTheoryTerm):
 
-    def __init__(self, parent, order, operator_type=None, allowed_terms=None, wavefunction_generator=None, **opts):
+    def __init__(self, parent, order, operator_type=None, allowed_terms=None, wavefunction_generator=None, base_index=None, **opts):
         super().__init__(allowed_terms=allowed_terms, **opts)
         self.parent = parent
         self.order = order
-        self.expansion = parent.operator_expansion_terms(order, logger=self.logger, operator_type=operator_type)
+        self.type = self.get_type_key(operator_type)
+        self.expansion = parent.operator_expansion_terms(order, logger=self.logger, base_index=base_index, operator_type=operator_type)
         self._wavefunction_generator = wavefunction_generator
+
+    @classmethod
+    def get_type_key(cls, operator_type):
+        if operator_type is None:
+            return 1
+        elif isinstance(operator_type, str):
+            if operator_type == 'transition_moment':
+                operator_type = 'TM'
+        return operator_type
 
     def get_serializer_key(self):  # to be overridden
         return self.__repr__()
+
     repr_key = "M"
+    def get_repr_key(self):
+        if self.type == "TM":
+            return self.repr_key
+        else:
+            return '{}@{}'.format(self.repr_key, self.type)
     def __repr__(self):
-        return "<n|{}|m>({})".format(self.repr_key, self.order)
+        return "<n|{}|m>({})".format(self.get_repr_key(), self.order)
 
     def get_changes(self):
         base_changes = {}
@@ -4261,7 +4331,7 @@ class OperatorDegenerateCorrection(OperatorCorrection):
         self.both = self.Both(parent, order, self) # hack to minimize code necessary
 
     def __repr__(self):
-        return "<n||{}||m>({},{})".format(self.repr_key,self.degenerate_changes,self.order)
+        return "<n||{}||m>({},{})".format(self.get_repr_key(), self.degenerate_changes,self.order)
 
     def default_wavefunction_generator(self, o:int):
         return self.parent.overlap_correction(o, degenerate_changes=self.degenerate_changes)
@@ -4271,7 +4341,7 @@ class OperatorDegenerateCorrection(OperatorCorrection):
             super().__init__(parent, order, logger=real_parent.logger)
             self.op = real_parent
         def __repr__(self):
-            return "<n||{}|m>({},{})".format(self.op.repr_key, self.op.degenerate_changes, self.order)
+            return "<n||{}|m>({},{})".format(self.op.get_repr_key(), self.op.degenerate_changes, self.order)
         def get_subexpressions(self):
             woof = self.op.get_left_degenerate_expressions()
             return woof
@@ -4280,7 +4350,7 @@ class OperatorDegenerateCorrection(OperatorCorrection):
             super().__init__(parent, order, logger=real_parent.logger)
             self.op = real_parent
         def __repr__(self):
-            return "<n|{}||m>({},{})".format(self.op.repr_key,self.op.degenerate_changes,self.order)
+            return "<n|{}||m>({},{})".format(self.op.get_repr_key(), self.op.degenerate_changes,self.order)
         def get_subexpressions(self):
             return self.op.get_right_degenerate_expressions()
     class Both(OperatorCorrection):
@@ -4288,7 +4358,7 @@ class OperatorDegenerateCorrection(OperatorCorrection):
             super().__init__(parent, order, logger=real_parent.logger)
             self.op = real_parent
         def __repr__(self):
-            return "<n||{}||m>({},{})".format(self.op.repr_key,self.op.degenerate_changes,self.order)
+            return "<n||{}||m>({},{})".format(self.op.get_repr_key(), self.op.degenerate_changes,self.order)
         def get_subexpressions(self):
             return self.op.get_both_degenerate_expressions()
     def get_subexpressions(self,
@@ -4370,15 +4440,76 @@ class DiagonalHamiltonian(OperatorExpansionTerm):
 class ReexpressedHamiltonian(OperatorCorrection):
     repr_key = "H"
 
-    def __init__(self, parent, order, allowed_terms=None, degenerate_changes=None, **opts):
+    def __init__(self, parent, order, allowed_terms=None, degenerate_changes=None, hamiltonian_corrections=None, **opts):
         super().__init__(parent, order, allowed_terms=allowed_terms, **opts)
-        self.expansion = list(parent.hamiltonian_expansion)
+        self.expansion = self.prep_expansion(
+            parent.hamiltonian_expansion,
+            hamiltonian_corrections,
+            logger=self.logger,
+            allowed_coefficients=self.allowed_coefficients,
+            disallowed_coefficients=self.disallowed_coefficients
+        )
+
+    @classmethod
+    def prep_expansion(self, base_expansion, corrs, *,
+                       logger,
+                       allowed_coefficients,
+                       disallowed_coefficients,
+                       base_index=5):
+        if corrs is None:
+            return base_expansion
+        if len(corrs) < len(base_expansion):
+            corrs = list(corrs) + [[]] * (len(base_expansion) - len(corrs))
+        # symmetrizer = list(symmetrizers)
+        new_exp = []
+        for o, (b, term_list) in enumerate(zip(base_expansion, corrs)):
+            if len(term_list) > 0:
+                symmetrizers = list(b.symmetrizers)
+                new_idx = base_index + len(term_list)
+                ids = list(range(base_index, new_idx))
+                if len(symmetrizers) < new_idx:
+                    symmetrizers = symmetrizers + [None] * (new_idx - len(symmetrizers))
+                    for i, t in zip(ids, term_list):
+                        if 'p' in t:
+                            symmetrizers[i] = PTTensorCoeffProductSum._kinetic_symmetrizer
+                        else:
+                            symmetrizers[i] = PTTensorCoeffProductSum._potential_symmetrizer
+
+                # base_index = new_idx
+                new_exp.append(
+                    PerturbationTheoryTermSum(
+                        b,
+                        HamiltonianExpansionTerm(
+                            term_list,
+                            order=o,
+                            identities=ids,
+                            symmetrizers=tuple(symmetrizers),
+                            logger=logger,
+                            allowed_coefficients=allowed_coefficients,
+                            disallowed_coefficients=disallowed_coefficients
+                        )
+                    )
+                )
+            else:
+                new_exp.append(b)
+        return new_exp
+
+    def get_repr_key(self):
+        return self.repr_key
 class ReexpressedHamiltonianDegenerateCorrection(OperatorDegenerateCorrection):
     repr_key = "H"
-
-    def __init__(self, parent, order, allowed_terms=None, **opts):
+    def __init__(self, parent, order, allowed_terms=None, hamiltonian_corrections=None, **opts):
         super().__init__(parent, order, allowed_terms=allowed_terms, **opts)
-        self.expansion = list(parent.hamiltonian_expansion)
+        self.expansion = ReexpressedHamiltonian.prep_expansion(
+            parent.hamiltonian_expansion,
+            hamiltonian_corrections,
+            logger=self.logger,
+            allowed_coefficients=self.allowed_coefficients,
+            disallowed_coefficients=self.disallowed_coefficients
+        )
+
+    def get_repr_key(self):
+        return self.repr_key
 
 class ScaledPerturbationTheoryTerm(PerturbationTheoryTerm):
     #TODO: refactor since inheritance isn't really the right paradigm here
@@ -5445,7 +5576,14 @@ class PerturbationTheoryExpressionEvaluator:
             bad = True
             subtensors = []
             for coeffs in coeff_lists:
-                tensors = [coeffs[ci[0]][ci[1]] for ci in cinds]
+                try:
+                    tensors = [coeffs[ci[0]][ci[1]] for ci in cinds]
+                except:
+                    print([
+                        [x.shape if not nput.is_zero(x) else 0 for x in c]
+                        for c in coeffs
+                    ], cinds)
+                    raise
                 if bad and not any(nput.is_zero(t) for t in tensors): bad = False
                 # indices = [ (ci[:2], ci[:2]) for ci in cinds ]
                 subtensors.append(tensors)
@@ -5912,6 +6050,18 @@ class PerturbationTheoryEvaluator:
         if freqs is None: freqs = 2*np.diag(self.expansions[0][0])
         self.freqs = freqs
 
+    def modify_hamiltonian(self, hamiltonian_corrections):
+        if hamiltonian_corrections is None:
+            return self
+
+        hamiltonian_corrections, expansion_corrections = self._prep_ham_corrs(hamiltonian_corrections)
+        exps = self._prep_operator_expansion(self.expansions, expansion_corrections)
+
+        return type(self)(
+            self.solver.modify_hamiltonian(hamiltonian_corrections),
+            exps,
+        )
+
     def get_energy_corrections(self, states, order=None, expansions=None, freqs=None,
                                zero_cutoff=None, degenerate_states=None, verbose=False):
         expansions = self._prep_expansions(expansions)
@@ -6363,21 +6513,58 @@ class PerturbationTheoryEvaluator:
         return self.get_state_by_state_corrections(self.solver.wavefunction_correction, states, degenerate_states=degenerate_states,
                                                    order=order, expansions=expansions, freqs=freqs, zero_cutoff=zero_cutoff, verbose=verbose)
 
+    @classmethod
+    def _prep_ham_corrs(cls, base_corrs):
+        full_corrs = []
+        exps = []
+        for term_list_exps in base_corrs:
+            if nput.is_zero(term_list_exps):
+                full_corrs.append([])
+                exps.append([])
+            else:
+                full_corrs.append(
+                    [term_list for term_list, exp in term_list_exps]
+                )
+                exps.append(
+                    [exp for term_list, exp in term_list_exps]
+                )
+        return full_corrs, exps
+
     def get_reexpressed_hamiltonian(self, states, order=None, expansions=None, freqs=None,
                                     degenerate_states=None, only_degenerate_terms=False,
                                     verbose=False, include_diagonal=False,
+                                    hamiltonian_corrections=None,
                                     **opts):
+        """
+
+        :param states:
+        :param order:
+        :param expansions:
+        :param freqs:
+        :param degenerate_states:
+        :param only_degenerate_terms:
+        :param verbose:
+        :param include_diagonal:
+        :param hamiltonian_corrections:  `[[(order, terms), expansion], ...]`
+        :param opts:
+        :return:
+        """
         if freqs is None: freqs = self.freqs
-        diag_ham = [np.diag(freqs)]
+        if hamiltonian_corrections is not None:
+            hamiltonian_corrections, expansion_corrections = self._prep_ham_corrs(hamiltonian_corrections)
+            extra_expansion = expansion_corrections
+        else:
+            extra_expansion = [np.diag(freqs)]
+
         if expansions is None:
-            exps = self._prep_operator_expansion(expansions, diag_ham)
+            exps = self._prep_operator_expansion(expansions, extra_expansion)
         elif self.is_single_expansion(expansions):
-            exps = self._prep_operator_expansion(expansions, diag_ham)
+            exps = self._prep_operator_expansion(expansions, extra_expansion)
             if order is None: order = len(expansions) - 1
         else:
             if order is None: order = len(expansions[0]) - 1
             exps = [
-                self._prep_operator_expansion(exp, diag_ham)
+                self._prep_operator_expansion(exp, extra_expansion)
                 for exp in expansions
             ]
 
@@ -6388,33 +6575,72 @@ class PerturbationTheoryEvaluator:
                 for i in range(len(states) - (0 if include_diagonal else 1))
             ]
 
-        return self.get_state_by_state_corrections(self.solver.reexpressed_hamiltonian, states,
-                                                   degenerate_states=degenerate_states,
-                                                   only_degenerate_terms=only_degenerate_terms,
-                                                   degenerate_correction_generator=self.solver.reexpressed_hamiltonian_degenerate_correction,
-                                                   order=order, expansions=exps, freqs=freqs, verbose=verbose,
-                                                   log_scaled=True,
-                                                   **opts)
+        if hamiltonian_corrections is None:
+            corr_gen=self.solver.reexpressed_hamiltonian
+            deg_corr_gen=self.solver.reexpressed_hamiltonian_degenerate_correction
+        else:
+            corr_gen=lambda *a,**kw:self.solver.reexpressed_hamiltonian(
+                *a, hamiltonian_corrections=hamiltonian_corrections, **kw
+            )
+            deg_corr_gen= lambda order,**kw:self.solver.reexpressed_hamiltonian_degenerate_correction(
+                order, hamiltonian_corrections=hamiltonian_corrections, **kw
+            )
+
+        cur_symm = PTTensorCoeffProductSum.default_symmetrizers
+        try:
+            return self.get_state_by_state_corrections(corr_gen, states,
+                                                       degenerate_states=degenerate_states,
+                                                       only_degenerate_terms=only_degenerate_terms,
+                                                       degenerate_correction_generator=deg_corr_gen,
+                                                       order=order, expansions=exps, freqs=freqs, verbose=verbose,
+                                                       log_scaled=True,
+                                                       **opts)
+        finally:
+            PTTensorCoeffProductSum.default_symmetrizers = cur_symm
 
     def _prep_operator_expansion(self, expansions, operator_expansion):
         if expansions is None: expansions = self.expansions
         # expansions = self._prep_expansions(expansions)
         # if order is None: order = len(operator_expansion) - 1
 
+        max_len = max(len(e) for e in expansions)
+
         exps = []
         for base, op in zip(expansions, operator_expansion):
             # we always make the operator be the 5th element
+            if nput.is_numeric_array_like(op):
+                op = np.asanyarray(op)
+                if len(np.unique(op.shape)) == 1:
+                    op = [op]
+                else:
+                    op = list(op)
+            elif nput.is_numeric(op):
+                op = [op]
             exps.append(
-                base + [0] * (5 - len(base)) + [op]
+                base + [0] * (max_len - len(base)) + op
             )
         if len(operator_expansion) > len(expansions):
             for op in operator_expansion[len(expansions):]:
+                if nput.is_numeric_array_like(op):
+                    op = np.asanyarray(op)
+                    if len(np.unique(op.shape)) == 1:
+                        op = [op]
+                    else:
+                        op = list(op)
+                elif nput.is_numeric(op):
+                    op = [op]
                 exps.append(
-                    [0] * 5 + [op]
+                    [0] * (max_len) + op
                 )
         elif len(expansions) > len(operator_expansion):
             for base in expansions[len(operator_expansion):]:
-                exps.append(base + [0] * (6 - len(base)))
+                exps.append(base + [0] * (max_len+1 - len(base)))
+
+        max_len = max(len(e) for e in exps)
+        exps = [
+            e + [0] * (max_len - len(e))
+            for e in exps
+        ]
 
         return exps
 
@@ -6426,20 +6652,33 @@ class PerturbationTheoryEvaluator:
         if self.is_single_expansion(operator_expansion, min_order=min_order):
             exps = self._prep_operator_expansion(expansions, operator_expansion)
             if order is None: order = len(operator_expansion) - 1
+            base_index = len(exps[-1]) - 1
         else:
             if order is None: order = len(operator_expansion[0]) - 1
             exps = [
                 self._prep_operator_expansion(expansions, o)
                 for o in operator_expansion
             ]
-        if operator_type is None:
-            operator_type = min_order
-        return self.get_state_by_state_corrections(
-            lambda *a, **kw: self.solver.operator_correction(*a, operator_type=operator_type, **kw),
-            states, order=order,
-            expansions=exps, freqs=freqs, terms=terms, degenerate_states=degenerate_states,
-            degenerate_correction_generator=lambda *a, **kw: self.solver.operator_degenerate_correction(*a, operator_type=operator_type, **kw),
-            verbose=verbose, **opts)
+            base_index = len(exps[0][-1]) - 1
+
+        cur_symm = PTTensorCoeffProductSum.default_symmetrizers
+        symms = PTTensorCoeffProductSum.symmetrizers()
+        if len(symms) < base_index + 1:
+            symms = symms + (PTTensorCoeffProductSum._potential_symmetrizer,) * (base_index + 1 - len(symms))
+            PTTensorCoeffProductSum.default_symmetrizers = symms
+        try:
+            if operator_type is None:
+                operator_type = min_order
+            return self.get_state_by_state_corrections(
+                lambda *a, **kw: self.solver.operator_correction(*a, operator_type=operator_type, base_index=base_index, **kw),
+                states, order=order,
+                expansions=exps, freqs=freqs, terms=terms, degenerate_states=degenerate_states,
+                degenerate_correction_generator=(
+                    lambda *a, **kw: self.solver.operator_degenerate_correction(*a, operator_type=operator_type, base_index=base_index, **kw)
+                ),
+                verbose=verbose, **opts)
+        finally:
+            PTTensorCoeffProductSum.default_symmetrizers = cur_symm
 
     def evaluate_expressions(self, states, exprs, expansions=None, operator_expansions=None,
                              degenerate_states=None, zero_cutoff=None,

@@ -360,13 +360,16 @@ class Molecule(AbstractMolecule):
             return expansion
 
 
-    def get_internal_potential_derivatives(self, order=None, reembed=True, strip_embedding=True):
+    def get_internal_potential_derivatives(self, order=None, reembed=True, strip_embedding=True, zero_gradient=False):
         derivs = self.potential_derivatives
+        if zero_gradient:
+            derivs = [0] + list(derivs[1:])
         if order is None:
             order = len(derivs)
         return nput.tensor_reexpand(
             self.get_cartesians_by_internals(order, reembed=reembed, strip_embedding=strip_embedding),
-            derivs
+            derivs,
+            order
         )
 
     @property

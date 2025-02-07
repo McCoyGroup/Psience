@@ -55,6 +55,8 @@ class PerturbationTheorySolver:
                  degenerate_states=None,
                  degeneracy_handlers=None,
                  handle_strong_couplings=False,
+                 local_coupling_hamiltonian=None,
+                 local_coupling_order=None,
                  # strong_coupling_test_modes=None,
                  # strong_couplings_state_filter=None,
                  # strongly_coupled_group_filter=None,
@@ -170,6 +172,9 @@ class PerturbationTheorySolver:
                 self.handle_strong_couplings = True
                 if dspec.iterations is None: dspec.iterations = order//2
         self.nondeg_hamiltonian_precision=nondeg_hamiltonian_precision
+
+        self.local_coupling_hamiltonian = local_coupling_hamiltonian
+        self.local_coupling_order = local_coupling_order
 
         # self.extend_strong_coupling_spaces = extend_strong_coupling_spaces
         # self.strong_coupling_test_modes = strong_coupling_test_modes
@@ -2144,7 +2149,9 @@ class PerturbationTheorySolver:
                 group,
                 self.representations,
                 label="Block {group_num}".format(group_num=group_num),
-                gaussian_resonance_handling=self.gaussian_resonance_handling
+                gaussian_resonance_handling=self.gaussian_resonance_handling,
+                local_coupling_hamiltonian=self.local_coupling_hamiltonian,
+                local_coupling_order=self.local_coupling_order
             )
             if H_nd is not None:
                 ndeg_ham_corrs.append(H_nd)

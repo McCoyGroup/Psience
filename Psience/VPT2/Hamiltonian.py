@@ -13,7 +13,7 @@ from ..Molecools import Molecule
 from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace, HarmonicOscillatorProductBasis
 
 from .Common import PerturbationTheoryException
-from .Terms import PotentialTerms, KineticTerms, CoriolisTerm, PotentialLikeTerm, DipoleTerms
+from .Terms import PotentialTerms, KineticTerms, CoriolisTerm, PotentialLikeTerm, DipoleTerms, OperatorTerms
 from .Solver import PerturbationTheorySolver, PerturbationTheoryCorrections
 from .Wavefunctions import PerturbationTheoryWavefunctions
 
@@ -37,6 +37,8 @@ class PerturbationTheoryHamiltonian:
                  n_quanta=None,
                  modes=None,
                  mode_selection=None,
+                 local_mode_couplings=False,
+                 local_mode_coupling_order=None,
                  full_surface_mode_selection=None,
                  potential_derivatives=None,
                  include_potential=True,
@@ -123,6 +125,8 @@ class PerturbationTheoryHamiltonian:
             n_quanta = 15 # dunno yet how I want to handle this since it should really be defined by the order of state requested...
         self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.integer)) else tuple(n_quanta)
         self.modes = modes
+        self.local_mode_couplings = self.prep_local_couplings(local_mode_couplings)
+        self.local_mode_coupling_order = local_mode_coupling_order
         self.mode_selection = mode_selection
         self.full_surface_mode_selection = full_surface_mode_selection
 
@@ -139,22 +143,28 @@ class PerturbationTheoryHamiltonian:
         if not include_potential:
             V_terms = None
         else:
+            v_params = expansion_params.filter(PotentialTerms)
+            if self.local_mode_couplings and 'hessian_tolerance' not in v_params:
+                v_params['hessian_tolerance'] = None
             V_terms = PotentialTerms(self.molecule,
                                      modes=modes,
                                      mode_selection=mode_selection,
                                      full_surface_mode_selection=full_surface_mode_selection,
                                      potential_derivatives=potential_derivatives,
                                      allow_higher_potential_terms=allow_higher_potential_terms,
-                                     **expansion_params.filter(PotentialTerms)
+                                     **v_params
                                      )
         self.V_terms = self.TermGetter(V_terms, potential_terms, mode_selection=mode_selection)
 
         if not include_gmatrix:
             G_terms = None
         else:
+            g_params = expansion_params.filter(KineticTerms)
+            if self.local_mode_couplings and 'gmatrix_tolerance' not in g_params:
+                g_params['gmatrix_tolerance'] = None
             G_terms = KineticTerms(self.molecule, modes=modes, mode_selection=mode_selection,
-                                        **expansion_params.filter(KineticTerms)
-                                        )
+                                   **g_params
+                                   )
         self.G_terms = self.TermGetter(G_terms, kinetic_terms, mode_selection=mode_selection)
 
         if (
@@ -184,6 +194,7 @@ class PerturbationTheoryHamiltonian:
         self._dipole_terms = None
 
         self._expansions = []
+        self._local_coupling_expansion = None
         # self._h0 = self._h1 = self._h2 = None
         self._selection_rules = selection_rules
 
@@ -278,43 +289,32 @@ class PerturbationTheoryHamiltonian:
             )
         return self._dipole_terms
 
+    @classmethod
+    def prep_local_couplings(cls, local_mode_couplings):
+        if not local_mode_couplings:
+            return False
 
-    @property
-    def _H0(self):
-        """
-        Provides the representation for H0 in this basis
-        """
-        o = 0
-        if len(self._expansions) < o+1:
-            self._expansions += [None] * (o+1 - len(self._expansions))
-
-        if self._expansions[0] is None:
-            if isinstance(self.basis, HarmonicOscillatorProductBasis):
-                iphase = 1
+        if local_mode_couplings is True:
+            return [None, None]
+        else:
+            if len(local_mode_couplings) == 2:
+                v0, g0 = local_mode_couplings
+                if v0 is not None:
+                    v0 = np.asanyarray(v0)
+                if v0.ndim != 2:
+                    z = np.asanyarray(local_mode_couplings)
+                    if z.ndim != 2:
+                        raise ValueError("expected a local mode coupling matrix")
+                    v0 = g0 = z / 2
+                else:
+                    g0 = np.asanyarray(g0)
+                return [v0, g0]
             else:
-                iphase = -1
-
-            T0 = self._input_kinetic[0] if self._input_kinetic is not None and len(self._input_kinetic) > 0 else None
-            if T0 is None:
-                T0 = self.G_terms[0]
-            V0 = self._input_potential[0] if self._input_potential is not None and len(self._input_potential) > 0 else None
-            if V0 is None:
-                V0 = self.V_terms[0]
-            self._expansions[0] = (
-                    (iphase * 1 / 2) * self.basis.representation('p', 'p',
-                                                                 coeffs=T0,
-                                                                 name='T(0)',
-                                                                 **self.operator_settings
-                                                                 )
-                    + 1 / 2 * self.basis.representation('x', 'x',
-                                                        coeffs=V0,
-                                                        name='V(0)',
-                                                        **self.operator_settings
-                                                        )
-            )
-            self._expansions[0].name = "H(0)"
-
-        return self._expansions[0]
+                z = np.asanyarray(local_mode_couplings)
+                if z.ndim != 2:
+                    raise ValueError("expected a local mode coupling matrix")
+                v0 = g0 = z / 2
+                return [v0, g0]
 
     def _get_H(self, o,
                include_potential=True,
@@ -322,6 +322,7 @@ class PerturbationTheoryHamiltonian:
                include_coriolis=True,
                include_pseudopotential=True,
                include_modes=None,
+               local_mode_couplings=None,
                return_reps=True
                ):
         """
@@ -333,6 +334,11 @@ class PerturbationTheoryHamiltonian:
             excluded_modes = np.setdiff1d(np.arange(self.mode_n), include_modes)
         else:
             excluded_modes = None
+
+        if local_mode_couplings is None:
+            local_mode_couplings = self.local_mode_couplings
+        # if local_mode_couplings:
+        #     local_mode_couplings = list(local_mode_couplings)
 
         if len(self._expansions) < o + 1:
             self._expansions += [None] * (o + 1 - len(self._expansions))
@@ -363,6 +369,14 @@ class PerturbationTheoryHamiltonian:
                     T[zero_sel] = 0.
                 p_expansion = ['p'] + ['x'] * o + ['p']
 
+                if o == 0 and local_mode_couplings:
+                    if local_mode_couplings[1] is None:
+                        local_mode_couplings[1] = T
+                        T = np.diag(np.diag(T))
+                        local_mode_couplings[1] = local_mode_couplings[1] - T
+                    else:
+                        T = np.diag(np.diag(T))
+
                 if return_reps:
                     T = (iphase / (2*math.factorial(o))) * self.basis.representation(*p_expansion,
                                                                                         coeffs=T,
@@ -383,6 +397,15 @@ class PerturbationTheoryHamiltonian:
                     V = V.copy()
                     zero_sel = np.ix_(*[excluded_modes]*V.ndim)
                     V[zero_sel] = 0.
+
+                if o == 0 and local_mode_couplings:
+                    if local_mode_couplings[0] is None:
+                        local_mode_couplings[0] = V
+                        V = np.diag(np.diag(V))
+                        local_mode_couplings[0] = local_mode_couplings[0] - V
+                    else:
+                        V = np.diag(np.diag(V))
+
                 v_expansion = ['x'] * (o + 2)
                 if return_reps:
                     V = 1 / math.factorial(o + 2) * self.basis.representation(*v_expansion,
@@ -399,6 +422,38 @@ class PerturbationTheoryHamiltonian:
             else:
                 V = None
 
+            if o == 0 and local_mode_couplings:
+                T_loc = None
+                V_loc = None
+                if local_mode_couplings[0] is not None:
+                    V_loc = (iphase / (2 * math.factorial(o))) * self.basis.representation("x", "x",
+                                                                                           coeffs=local_mode_couplings[0],
+                                                                                           name='VL({})'.format(o),
+                                                                                           axes=[
+                                                                                               list(range(o + 2)),
+                                                                                               [o] + list(range(o)) + [o + 1]
+                                                                                           ],
+                                                                                           **self.operator_settings
+                                                                                           )
+                if local_mode_couplings[1] is not None:
+                    T_loc = (iphase / (2 * math.factorial(o))) * self.basis.representation("p", "p",
+                                                                                           coeffs=local_mode_couplings[1],
+                                                                                           name='TL({})'.format(o),
+                                                                                           axes=[
+                                                                                               list(range(o + 2)),
+                                                                                               [o] + list(range(o)) + [o + 1]
+                                                                                           ],
+                                                                                           **self.operator_settings
+                                                                                           )
+                if T_loc is None and V_loc is None:
+                    self._local_coupling_expansion = None
+                elif T is None:
+                    self._local_coupling_expansion = V_loc
+                elif V is None:
+                    self._local_coupling_expansion = T_loc
+                else:
+                    self._local_coupling_expansion = V_loc + T_loc
+
             if return_reps:
                 if T is None and V is None:
                     self._expansions[o] = 0
@@ -410,6 +465,7 @@ class PerturbationTheoryHamiltonian:
                     self._expansions[o] = T + V
             else:
                 self._expansions[o] = [x if x is not None else 0 for x in [V, T]]
+
             if o > 1:
                 oz = o - 2
                 if include_coriolis:
@@ -479,6 +535,38 @@ class PerturbationTheoryHamiltonian:
                     self._expansions[o].name = "H({})".format(o)
 
         return self._expansions[o]
+
+    def prep_operator_terms(self, coeffs, order):
+        coeffs = [
+            float(x)
+                if nput.is_numeric(x) else
+            np.asanyarray(x)
+                for x in coeffs
+        ]
+        const = coeffs[0]
+
+        coeff_padding = 0
+        exp = list(coeffs[1:])
+        for i,x in enumerate(exp):
+            if not nput.is_numeric(x):
+                coeff_padding = x.ndim - (i + 1)
+                break
+        else:
+            raise ValueError("ambiguous what to do with all zeros...")
+
+        ndim = self.modes.basis.matrix.shape[0]
+        exp = [
+            np.zeros((ndim,)*(i+1))
+            for i in range(coeff_padding)
+        ] + exp
+
+        exp = OperatorTerms(self.molecule, modes=self.modes, mode_selection=self.mode_selection,
+                               operator_derivatives=exp,
+                               **ParameterManager(self.expansion_options).filter(OperatorTerms)
+                               ).get_terms(order + coeff_padding)
+
+        coeffs = [const] + exp[coeff_padding:]
+        return coeffs
 
     def get_perturbations(self, expansion_orders, return_reps=True, order=None):
         """
@@ -834,6 +922,8 @@ class PerturbationTheoryHamiltonian:
                                         memory_constrained=memory_constrained,
                                         ignore_odd_order_energies=ignore_odd_order_energies,
                                         target_property_rules=target_property_rules,
+                                        local_coupling_hamiltonian=self._local_coupling_expansion,
+                                        local_coupling_order=self.local_mode_coupling_order,
                                         **opts
                                         )
 

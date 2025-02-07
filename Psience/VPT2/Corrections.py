@@ -381,7 +381,9 @@ class PerturbationTheoryCorrections:
                 for x in self.operator_representation(subhams, logger_symbol="H", logger_conversion=UnitsData.convert("Hartrees", "Wavenumbers"))
             ]
         return H_nd
-    def get_degenerate_rotation(self, deg_group, hams, label=None, zero_point_energy=None):
+    def get_degenerate_rotation(self, deg_group, hams, label=None, zero_point_energy=None,
+                                local_coupling_hamiltonian=None,
+                                local_coupling_order=None):
         """
 
         :param deg_group:
@@ -410,8 +412,26 @@ class PerturbationTheoryCorrections:
         # H_nd = self.get_transformed_Hamiltonians(corrs, deg_group)
         # for h in H_nd[1:]:
         #     np.fill_diagonal(h, 0.)
+        if local_coupling_order is None:
+            local_coupling_order = -1
+        if local_coupling_order < 0:
+            local_coupling_order = len(hams) + local_coupling_order
+        if local_coupling_order < len(hams) - 1:
+            #TODO: calculate only the required terms at this order
+            raise NotImplementedError("local mode couplings only provided at highest order")
+        if local_coupling_hamiltonian is not None:
+            hc = local_coupling_hamiltonian.get_representation_matrix(deg_group, deg_group,
+                                                                      zero_element_warning=False,
+                                                                      diagonal=False,
+                                                                      # memory_constrained=self.memory_constrained
+                                                                      )
+        else:
+            hc = None
+
         H_nd_corrs = subdegs.get_transformed_Hamiltonians(hams, deg_group=None)
         group_inds = self.states.find(deg_group)
+        if hc is not None:
+            H_nd_corrs[local_coupling_order] += hc.asarray()
         # zero_order_engs = self.energy_corrs[group_inds, 0]
         # raise Exception(
         #     (H_nd_corrs[0]-np.diag(np.full(len(group_inds), self.energy_corrs[0, 0])))*UnitsData.convert("Hartrees", "Wavenumbers"),
@@ -485,7 +505,11 @@ class PerturbationTheoryCorrections:
 
         return H_nd_corrs, deg_engs, deg_transf
 
-    def get_degenerate_transformation(self, group, hams, gaussian_resonance_handling=False, label=None, zero_point_energy=None):
+    def get_degenerate_transformation(self, group, hams, gaussian_resonance_handling=False, label=None,
+                                      zero_point_energy=None,
+                                      local_coupling_hamiltonian=None,
+                                      local_coupling_order=None
+                                      ):
         # this will be built from a series of block-diagonal matrices
         # so we store the relevant values and indices to compose the SparseArray
 
@@ -508,7 +532,11 @@ class PerturbationTheoryCorrections:
                 gaussian_resonance_handling and np.max(np.sum(group.excitations, axis=1)) > 2):
             H_nd = deg_engs = deg_rot = None
         elif len(deg_inds) > 1:
-            H_nd, deg_engs, deg_rot = self.get_degenerate_rotation(group, hams, label=label, zero_point_energy=zero_point_energy)
+            H_nd, deg_engs, deg_rot = self.get_degenerate_rotation(group, hams, label=label,
+                                                                   zero_point_energy=zero_point_energy,
+                                                                   local_coupling_hamiltonian=local_coupling_hamiltonian,
+                                                                   local_coupling_order=local_coupling_order
+                                                                   )
         else:
             H_nd = deg_engs = deg_rot = None
             # raise NotImplementedError("Not sure what to do when no states in degeneracy spec are in total space")
@@ -931,6 +959,7 @@ class AnalyticPerturbationTheoryCorrections:
     operator_corrections: 'Iterable[BasicAPTCorrections]' = None
     _deperturbed_operator_values: 'Iterable[np.ndarray]' = None
     _operator_values: 'Iterable[np.ndarray]' = None
+    operator_keys: 'Iterable[Any]' = None
     logger: 'Logger' = None
 
     _zpe_pos: int = None
@@ -1283,16 +1312,23 @@ class AnalyticPerturbationTheoryCorrections:
             if self.degenerate_states is None:
                 self._operator_values = self.deperturbed_operator_values
             else:
-                ops = self.deperturbed_operator_values
-                all_tms = [[] for _ in ops]  # num operators
-                for block_idx, (init_states, final_states) in enumerate(self.state_lists):
-                    for storage, axis_moms in zip(all_tms, ops):
-                        storage.append(
-                            self.apply_degenerate_transformations(
-                                init_states, final_states,
-                                axis_moms[block_idx]
-                            )
-                        )
-                self._operator_values = all_tms
+                tmoms = self.deperturbed_operator_values
+
+                self._operator_values = self._apply_degs_to_corrs(
+                    tmoms,
+                    logger=self.logger
+                )
+
+                # ops = self.deperturbed_operator_values
+                # all_tms = [[] for _ in ops]  # num operators
+                # for block_idx, (init_states, final_states) in enumerate(self.state_lists):
+                #     for storage, axis_moms in zip(all_tms, ops):
+                #         storage.append(
+                #             self.apply_degenerate_transformations(
+                #                 init_states, final_states,
+                #                 axis_moms[block_idx]
+                #             )
+                #         )
+                # self._operator_values = all_tms
 
         return self._operator_values
