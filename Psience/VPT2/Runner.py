@@ -567,6 +567,7 @@ class VPTHamiltonianOptions:
     __props__ = (
         "mode_selection",
         "local_mode_couplings",
+        "local_mode_coupling_order",
         "full_surface_mode_selection",
         "include_potential",
         "include_gmatrix",
@@ -611,6 +612,7 @@ class VPTHamiltonianOptions:
     def __init__(self,
                  mode_selection=None,
                  local_mode_couplings=None,
+                 local_mode_coupling_order=None,
                  full_surface_mode_selection=None,
                  include_potential=None,
                  include_gmatrix=None,
@@ -708,6 +710,7 @@ class VPTHamiltonianOptions:
         all_opts = dict(
             mode_selection=mode_selection,
             local_mode_couplings=local_mode_couplings,
+            local_mode_coupling_order=local_mode_coupling_order,
             full_surface_mode_selection=full_surface_mode_selection,
             include_potential=include_potential,
             include_gmatrix=include_gmatrix,
@@ -2415,14 +2418,18 @@ class MultiVPTStateSpace:
 
 
 class AnalyticVPTRunner:
-    def __init__(self, expansions, order=None, expansion_order=None, freqs=None, internals=True, logger=None,
+    def __init__(self,
+                 expansions,
+                 order=None, expansion_order=None, freqs=None, internals=True, logger=None,
                  hamiltonian=None, checkpoint=None,
                  dipole_expansion=None,
                  allowed_terms=None,
                  allowed_coefficients=None,
                  disallowed_coefficients=None,
                  allowed_energy_changes=None,
-                 intermediate_normalization=None
+                 intermediate_normalization=None,
+                 local_mode_couplings=None,
+                 local_mode_coupling_order=None
                  ):
         # self.expansions = expansions
         # if order is None: order = len(expansions) - 1
@@ -2431,21 +2438,24 @@ class AnalyticVPTRunner:
         # if freqs is None: freqs = 2*np.diag(expansions[0][0])
         # self.freqs = freqs
         self.ham = hamiltonian
-        self.eval = PerturbationTheoryEvaluator(
-            AnalyticPerturbationTheorySolver.from_order(
-                order,
-                internals=internals,
-                logger=logger,
-                checkpoint=checkpoint,
-                allowed_terms=allowed_terms,
-                allowed_coefficients=allowed_coefficients,
-                disallowed_coefficients=disallowed_coefficients,
-                allowed_energy_changes=allowed_energy_changes,
-                intermediate_normalization=intermediate_normalization
-            ),
-            expansions,
-            freqs=freqs
-        )
+        if not isinstance(expansions, PerturbationTheoryEvaluator):
+            self.eval = PerturbationTheoryEvaluator(
+                AnalyticPerturbationTheorySolver.from_order(
+                    order,
+                    internals=internals,
+                    logger=logger,
+                    checkpoint=checkpoint,
+                    allowed_terms=allowed_terms,
+                    allowed_coefficients=allowed_coefficients,
+                    disallowed_coefficients=disallowed_coefficients,
+                    allowed_energy_changes=allowed_energy_changes,
+                    intermediate_normalization=intermediate_normalization
+                ),
+                expansions,
+                freqs=freqs
+            )
+        else:
+            self.eval = expansions
         if dipole_expansion is None and self.ham is not None:
             if expansion_order is None:
                 expansion_order = {}
@@ -2453,9 +2463,15 @@ class AnalyticVPTRunner:
             dipole_expansion = self.ham.dipole_terms.get_terms(expansion_order)
         self.dipole_expansion = dipole_expansion
         self.logger = self.eval.solver.logger
+        self.local_mode_couplings=local_mode_couplings
+        self.local_mode_coupling_order=-1 if local_mode_coupling_order is None else local_mode_coupling_order
 
     @classmethod
-    def from_hamiltonian(cls, ham, order, expansion_order=None, logger=None, checkpoint=None,
+    def from_hamiltonian(cls,
+                         ham, order,
+                         expansion_order=None,
+                         logger=None,
+                         checkpoint=None,
                          allowed_terms=None,
                          allowed_coefficients=None,
                          disallowed_coefficients=None,
@@ -2527,7 +2543,9 @@ class AnalyticVPTRunner:
             allowed_coefficients=allowed_coefficients,
             disallowed_coefficients=disallowed_coefficients,
             allowed_energy_changes=allowed_energy_changes,
-            intermediate_normalization=intermediate_normalization
+            intermediate_normalization=intermediate_normalization,
+            local_mode_couplings=ham.local_mode_couplings,
+            local_mode_coupling_order=ham.local_mode_coupling_order
         )
 
     @classmethod
@@ -2986,7 +3004,7 @@ class AnalyticVPTRunner:
     def get_reexpressed_hamiltonian(self, states, order=None,
                                     degeneracy_specs=None, only_degenerate_terms=True,
                                     verbose=False,
-                                    zero_order_hamiltonian=None,
+                                    hamiltonian_corrections=None,
                                     **opts):
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
         degs = states.degenerate_pairs
@@ -3003,7 +3021,7 @@ class AnalyticVPTRunner:
                 order=order,
                 degenerate_states=degs,
                 only_degenerate_terms=only_degenerate_terms,
-                zero_order_hamiltonian=zero_order_hamiltonian,
+                hamiltonian_corrections=hamiltonian_corrections,
                 verbose=verbose, **opts
             )
             corr_mats = self.construct_corrections_matrix(group, ham_corrs)
@@ -3318,6 +3336,17 @@ class AnalyticVPTRunner:
         ham = np.asanyarray(ham)
         with np.printoptions(linewidth=1e8, suppress=True, precision=3):
             return str(ham).replace("[", " ").replace("]", " ")
+
+    def modify_hamiltonian(self, hamiltonian_corrections):
+        return type(self)(
+            self.eval.modify_hamiltonian(hamiltonian_corrections),
+            order=self.order,
+            expansion_order=self.expansion_order,
+            dipole_expansion = self.dipole_expansion,
+            logger=self.logger
+        )
+
+    hamiltonian_correction_modification_type = 'degenerate'
     def run_VPT(self,
                 states,
                 calculate_intensities=True,
@@ -3329,9 +3358,35 @@ class AnalyticVPTRunner:
                 handle_degeneracies=True,
                 zero_cutoff=None,
                 transition_moment_terms=None,
-                degenerate_zero_order_hamiltonian=None,
-                clear_caches=True
+                hamiltonian_corrections=None,
+                clear_caches=True,
+                hamiltonian_correction_type=None
                 ):
+        if hamiltonian_correction_type is None:
+            hamiltonian_correction_type = self.hamiltonian_correction_modification_type
+        if self.local_mode_couplings:
+            if hamiltonian_corrections is not None:
+                hamiltonian_corrections = list(hamiltonian_corrections)
+                if len(hamiltonian_corrections) < len(self.eval.expansions):
+                    nd = len(self.eval.expansions) - len(hamiltonian_corrections)
+                    hamiltonian_corrections = hamiltonian_corrections + [[] for _ in range(nd)]
+            else:
+                hamiltonian_corrections = [[] for _ in range(len(self.eval.expansions))]
+            couplings = []
+            v0, g0 = self.local_mode_couplings
+            if v0 is not None:
+                couplings.append([("x", "x"), v0/2])
+            if g0 is not None:
+                couplings.append([("p", "p"), g0/2])
+            hamiltonian_corrections[self.local_mode_coupling_order] = (
+                list(hamiltonian_corrections[self.local_mode_coupling_order]) + couplings
+            )
+
+        if hamiltonian_correction_type == 'primary':
+            self = self.modify_hamiltonian(hamiltonian_corrections)
+            hamiltonian_corrections = None
+
+
         with self.logger.block(tag="Running VPT"):
 
             states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
@@ -3390,14 +3445,12 @@ class AnalyticVPTRunner:
                 only_degenerate_terms = True
                 with self.logger.block(tag="Handling degeneracies"):
                     with self.logger.block(tag="Calculating effective Hamiltonians..."):
-                        if degenerate_zero_order_hamiltonian is not None:
-                            self.clear_caches()
                         _, degenerate_corrs = self.get_reexpressed_hamiltonian(
                             states,
                             order=order,
                             verbose=verbose,
                             only_degenerate_terms=only_degenerate_terms,
-                            zero_order_hamiltonian=degenerate_zero_order_hamiltonian,
+                            hamiltonian_corrections=hamiltonian_corrections,
                             zero_cutoff=zero_cutoff
                         )
                     corrs.only_degenerate_terms = only_degenerate_terms
@@ -3530,7 +3583,8 @@ class AnalyticVPTRunner:
                    # corrected_fundamental_frequencies=None,
                    calculate_intensities=True,
                    # plot_spectrum=False,
-                   operators=None,
+                   operator_expansions=None,
+                   operator_terms=None,
                    verbose=False,
                    return_runner=False,
                    degeneracy_specs=None,
@@ -3538,6 +3592,8 @@ class AnalyticVPTRunner:
                    handle_degeneracies=True,
                    zero_cutoff=None,
                    clear_caches=True,
+                   hamiltonian_correction_type=None,
+                   hamiltonian_corrections=None,
                    **opts
                    ):
         if degeneracy_states is not None: ValueError("expect `degeneracy_specs`, not `degeneracy_states`")
@@ -3546,11 +3602,14 @@ class AnalyticVPTRunner:
 
         res = runner.run_VPT(states,
                              calculate_intensities=calculate_intensities,
-                             operators=operators,
+                             operator_expansions=operator_expansions,
+                             operator_terms=operator_terms,
                              verbose=verbose, degeneracy_specs=degeneracy_specs,
                              handle_degeneracies=handle_degeneracies,
                              zero_cutoff=zero_cutoff,
-                             clear_caches=clear_caches
+                             clear_caches=clear_caches,
+                             hamiltonian_correction_type=hamiltonian_correction_type,
+                             hamiltonian_corrections=hamiltonian_corrections
                              )
 
         if return_runner:

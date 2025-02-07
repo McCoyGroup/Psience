@@ -38,6 +38,7 @@ class PerturbationTheoryHamiltonian:
                  modes=None,
                  mode_selection=None,
                  local_mode_couplings=False,
+                 local_mode_coupling_order=None,
                  full_surface_mode_selection=None,
                  potential_derivatives=None,
                  include_potential=True,
@@ -125,6 +126,7 @@ class PerturbationTheoryHamiltonian:
         self.n_quanta = np.full((mode_n,), n_quanta) if isinstance(n_quanta, (int, np.integer)) else tuple(n_quanta)
         self.modes = modes
         self.local_mode_couplings = self.prep_local_couplings(local_mode_couplings)
+        self.local_mode_coupling_order = local_mode_coupling_order
         self.mode_selection = mode_selection
         self.full_surface_mode_selection = full_surface_mode_selection
 
@@ -335,8 +337,8 @@ class PerturbationTheoryHamiltonian:
 
         if local_mode_couplings is None:
             local_mode_couplings = self.local_mode_couplings
-        if local_mode_couplings:
-            local_mode_couplings = list(local_mode_couplings)
+        # if local_mode_couplings:
+        #     local_mode_couplings = list(local_mode_couplings)
 
         if len(self._expansions) < o + 1:
             self._expansions += [None] * (o + 1 - len(self._expansions))
@@ -921,6 +923,7 @@ class PerturbationTheoryHamiltonian:
                                         ignore_odd_order_energies=ignore_odd_order_energies,
                                         target_property_rules=target_property_rules,
                                         local_coupling_hamiltonian=self._local_coupling_expansion,
+                                        local_coupling_order=self.local_mode_coupling_order,
                                         **opts
                                         )
 
