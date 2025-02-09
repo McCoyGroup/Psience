@@ -15,7 +15,8 @@ __all__ = [
     "MolecularEvaluator",
     "EnergyEvaluator",
     "RDKitEnergyEvaluator",
-    "AIMNet2EnergyEvaluator"
+    "AIMNet2EnergyEvaluator",
+    "XTBEnergyEvaluator"
 ]
 
 class MolecularEvaluator:
@@ -541,9 +542,25 @@ class EnergyEvaluator(metaclass=abc.ABCMeta):
             {
                 'rdkit': RDKitEnergyEvaluator,
                 'aimnet': AIMNet2EnergyEvaluator,
-                'aimnet2': AIMNet2EnergyEvaluator
+                'aimnet2': AIMNet2EnergyEvaluator,
+                'xtb': XTBEnergyEvaluator,
             }.get(name.lower())
         )
+
+    class quiet_mode:
+        def __init__(self, quiet=True):
+            self.quiet = quiet
+            self._stdout = None
+            self._devnull = None
+        def __enter__(self):
+            if self.quiet:
+                self._stdout = sys.stdout
+                self._devnull = open(os.devnull, 'w+').__enter__()
+                sys.stdout = self._devnull
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            if self.quiet:
+                self._devnull.__exit__(exc_type, exc_val, exc_tb)
+                sys.stdout = self._stdout
 
 class RDKitEnergyEvaluator(EnergyEvaluator):
     def __init__(self, rdmol, force_field='mmff'):
@@ -617,13 +634,8 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
     def setup_aimnet(cls, model):
         from aimnet2calc import AIMNet2Calculator
 
-        stdout = sys.stdout
-        try:
-            with open(os.devnull, 'w+') as devnull:
-                sys.stdout = devnull
-                calc = AIMNet2Calculator(model)
-        finally:
-            sys.stdout = stdout
+        with cls.quiet_mode():
+            calc = AIMNet2Calculator(model)
 
         return calc
 
@@ -772,16 +784,11 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
             from McUtils.ExternalPrograms import ASEMolecule
             from aimnet2calc import AIMNet2ASE
 
-            stdout = sys.stdout
-            try:
-                with open(os.devnull, 'w+') as devnull:
-                    sys.stdout = devnull
-                    calc = AIMNet2ASE(self.model,
+            with self.quiet_mode():
+                calc = AIMNet2ASE(self.model,
                                       charge=self.charge,
                                       mult=self.multiplicity
                                       )
-            finally:
-                sys.stdout = stdout
 
             mol = ASEMolecule.from_coords(
                 self.atoms,
@@ -803,3 +810,109 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                 restart_interval=restart_interval,
                 **opts
             )
+
+class XTBEnergyEvaluator(EnergyEvaluator):
+    """
+    Uses XTB to calculate, not tested since `xtb` is terrible to install without `conda`
+    """
+    def __init__(self, atoms, method="GFN2-xTB", charge=0, quiet=True):
+
+        # self.eval = self.setup_aimnet(model)
+        # self.model = model
+        self.atoms = atoms
+        self.numbers = np.array([AtomData[atom, "Number"] for atom in atoms])
+        # self.charge = charge
+        # self.multiplicity = multiplicity
+        self.quiet = quiet
+        self.method = method
+        self.charge = charge
+
+    @classmethod
+    def from_mol(cls, mol, **opts):
+        return cls(mol.atoms, charge=mol.charge, **opts)
+
+    def get_single_point(self, coords):
+        from xtb.interface import Calculator
+        from xtb.utils import get_method
+        calc = Calculator(get_method(self.method), self.numbers, coords,
+                          charge=self.charge)
+        if self.quiet:
+            calc.set_verbosity('muted')
+        return calc.singlepoint()
+
+
+    distance_units = "BohrRadius"
+    energy_units = 'Hartrees'
+    batched_orders = True
+    analytic_derivative_order = 1
+    def evaluate_term(self, coords, order, **opts):
+        # import torch
+
+        base_shape = coords.shape[:-2]
+        coords = coords.reshape((-1,) + coords.shape[-2:])
+
+        if order > 1:
+            raise NotImplementedError('`xtb` only implements up through gradients')
+
+        energies = np.empty(coords.shape[0], dtype=float)
+        if order > 0:
+            grads = np.empty(coords.shape, dtype=float)
+        else:
+            grads = None
+        for i,coord in enumerate(coords):
+            res = self.get_single_point(coord)
+            energies[i] = res.get_energy()
+            if order > 0:
+                grads[i] = res.get_gradient()
+
+        energies = energies.reshape(base_shape)
+        if order > 0:
+            grads = grads.reshape(base_shape +(-1,))
+            return [energies, grads]
+        else:
+            return [energies]
+
+        # if order > 2:
+        # if order > (forces=False, stress=False, hessian=False)
+        # if order == 0:
+        #     return self.rdmol.calculate_energy(coords, **opts)
+        # elif order == 2:
+        #     return self.rdmol.calculate_gradient(coords, **opts)
+        # else:
+        #     raise ValueError(f"order {order} not supported")
+
+        # @staticmethod
+        # def calculate_hessian(forces, coord):
+        #     # here forces have shape (N, 3) and coord has shape (N+1, 3)
+        #     # return hessian with shape (N, 3, N, 3)
+        #     hessian = - torch.stack([
+        #         torch.autograd.grad(_f, coord, retain_graph=True)[0]
+        #         for _f in forces.flatten().unbind()
+        #     ]).view(-1, 3, coord.shape[0], 3)[:-1, :, :-1, :]
+        #     return hessian
+
+    # def optimize(self,
+    #              coords,
+    #              method='quasi-newton',
+    #              tol=1e-8,
+    #              max_iterations=25,
+    #              damping_parameter=None,
+    #              damping_exponent=None,
+    #              restart_interval=None,
+    #              max_displacement=None,
+    #              **opts
+    #              ):
+    #     if method == 'xtb-base':
+    #         ...
+    #     else:
+    #         return super().optimize(
+    #             coords,
+    #             method=method,
+    #             tol=tol,
+    #             max_iterations=max_iterations,
+    #             damping_parameter=damping_parameter,
+    #             damping_exponent=damping_exponent,
+    #             restart_interval=restart_interval,
+    #             **opts
+    #         )
+

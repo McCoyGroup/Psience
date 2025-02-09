@@ -1408,10 +1408,17 @@ class Molecule(AbstractMolecule):
         )
 
     @classmethod
-    def _from_smiles(cls, smi, add_implicit_hydrogens=False, **opts):
+    def _from_smiles(cls, smi, add_implicit_hydrogens=False, num_confs=1, optimize=False, **opts):
         from McUtils.ExternalPrograms import RDMolecule
 
-        return cls.from_rdmol(RDMolecule.from_smiles(smi, add_implicit_hydrogens=add_implicit_hydrogens), **opts)
+        return cls.from_rdmol(
+            RDMolecule.from_smiles(smi,
+                                   add_implicit_hydrogens=add_implicit_hydrogens,
+                                   num_confs=num_confs,
+                                   optimize=optimize,
+                                   ),
+            **opts
+        )
     @classmethod
     def _from_name(cls, name, api_key=None, add_implicit_hydrogens=True, **opts):
         from McUtils.ExternalPrograms import ChemSpiderAPI
