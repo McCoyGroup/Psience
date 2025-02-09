@@ -1,13 +1,21 @@
+import abc
 import math
+import sys, os
 
 import numpy as np
-from .CoordinateSystems import MolecularEmbedding
-from .Properties import NormalModesManager
-from McUtils.Zachary import TensorDerivativeConverter
+
+from McUtils.Data import AtomData, UnitsData
+from McUtils.Zachary import TensorDerivativeConverter, FiniteDifferenceDerivative
 import McUtils.Numputils as nput
 
+from .CoordinateSystems import MolecularEmbedding
+from .Properties import NormalModesManager
+
 __all__ = [
-    "MolecularEvaluator"
+    "MolecularEvaluator",
+    "EnergyEvaluator",
+    "RDKitEnergyEvaluator",
+    "AIMNet2EnergyEvaluator"
 ]
 
 class MolecularEvaluator:
@@ -362,3 +370,436 @@ class MolecularEvaluator:
             0, -1
         )
         return self.get_nearest_displacement_coordinates(displacement_mesh, axes=axes, sel=sel)
+
+class EnergyEvaluator(metaclass=abc.ABCMeta):
+
+    @abc.abstractmethod
+    def evaluate_term(self, coords, order, **opts):
+        ...
+
+    @classmethod
+    @abc.abstractmethod
+    def from_mol(cls, mol, **opts):
+        ...
+
+    def optimize(self,
+                 coords,
+                 method='quasi-newton',
+                 unitary=False,
+                 # generate_rotation=False,
+                 # dtype='float64',
+                 orthogonal_directions=None,
+                 convergence_metric=None,
+                 tol=1e-8,
+                 max_iterations=25,
+                 damping_parameter=None,
+                 damping_exponent=None,
+                 restart_interval=None,
+                 max_displacement=None,
+                 line_search=True,
+                 optimizer_settings=None,
+                 **opts
+                 ):
+        from McUtils.Numputils import iterative_step_minimize
+
+        if optimizer_settings is None:
+            optimizer_settings = {}
+
+        #TODO: let evaluations cache results when batched
+        def func(crd, _):
+            res = self.evaluate_term(crd.reshape(1, -1, 3), 0, **opts)
+            if self.batched_orders:
+                return res[-1]
+            else:
+                return res
+        def jacobian(crd, _):
+            res = self.evaluate_term(crd.reshape(1, -1, 3), 1, **opts)
+            if self.batched_orders:
+                return res[-1]
+            else:
+                return res
+        if self.analytic_derivative_order > 1:
+            def hessian(crd, _):
+                res = self.evaluate_term(crd.reshape(1, -1, 3), 2, **opts)
+                if self.batched_orders:
+                    return res[-1]
+                else:
+                    return res
+        else:
+            hessian = None
+        if method is None or isinstance(method, str):
+            method = dict(
+                {
+                    'method': method,
+                    'func': func,
+                    'jacobian': jacobian,
+                    'hessian': hessian,
+                    'damping_parameter': damping_parameter,
+                    'damping_exponent': damping_exponent,
+                    'restart_interval': restart_interval,
+                    'line_search': line_search,
+                },
+                **optimizer_settings
+            )
+            method = {k:v for k,v in method.items() if v is not None}
+        opt_coords, converged, (errs, its) = iterative_step_minimize(
+            coords.flatten(),
+            method,
+            unitary=unitary,
+            orthogonal_directions=orthogonal_directions,
+            convergence_metric=convergence_metric,
+            tol=tol,
+            max_iterations=max_iterations,
+            max_displacement=max_displacement
+        )
+        return converged, opt_coords.reshape(coords.shape)
+
+
+    energy_units = None
+    distance_units = 'Angstroms'
+    batched_orders = False
+    analytic_derivative_order = 1
+    def evaluate(self,
+                 coords,
+                 order=0,
+                 analytic_derivative_order=None,
+                 batched_orders=None,
+                 stencil=5,
+                 mesh_spacing=.001,
+                 displacement_function=None,
+                 prep=None,
+                 lazy=False,
+                 cache_evaluations=True,
+                 parallelizer=None,
+                 logger=None,
+                 **opts):
+        expansion = []
+        if analytic_derivative_order is None:
+            analytic_derivative_order = self.analytic_derivative_order
+        if batched_orders is None:
+            batched_orders = self.batched_orders
+        if batched_orders:
+            expansion.extend(self.evaluate_term(coords, min(analytic_derivative_order, order), **opts))
+        else:
+            for i in range(min(analytic_derivative_order, order)+1):
+                expansion.append(self.evaluate_term(coords, i, **opts))
+        if order > analytic_derivative_order:
+
+            base_shape = coords.shape[:-2]
+            coord_shape = coords.shape[-2:]
+            flat_coords = coords.reshape(-1, np.prod(coord_shape, dtype=int))
+            def derivs(structs):
+                reconst = structs.reshape(structs.shape[:-1] + coord_shape)
+                ders = self.evaluate_term(reconst, self.analytic_derivative_order, **opts)
+                if batched_orders:
+                    return ders[-1]
+                else:
+                    return ders
+
+            der = FiniteDifferenceDerivative(derivs,
+                                             function_shape=((0,), (0,)*self.analytic_derivative_order),
+                                             stencil=stencil,
+                                             mesh_spacing=mesh_spacing,
+                                             displacement_function=displacement_function,
+                                             prep=prep,
+                                             lazy=lazy,
+                                             cache_evaluations=cache_evaluations,
+                                             parallelizer=parallelizer,
+                                             logger=logger
+                                             )
+            tensors = der.derivatives(flat_coords).derivative_tensor(
+                list(range(1, (order - analytic_derivative_order) + 1))
+            )
+            expansion.extend(
+                t.reshape(base_shape + t.shape[1:])
+                    if t.ndim > 0 and flat_coords.shape[0] != 1 else
+                t
+                for t in tensors
+            )
+
+        if self.energy_units is None:
+            eng_conv = 1
+        else:
+            eng_conv = UnitsData.convert(self.energy_units, "Hartrees")
+
+        if self.distance_units is None:
+            bohr_conv = 1
+        else:
+            bohr_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+
+        return [
+            e * eng_conv / (bohr_conv ** o)
+            for o,e in enumerate(expansion)
+        ]
+
+    evaluator_types = {}
+    @classmethod
+    def resolve_evaluator(cls, name):
+        if not isinstance(name, str): return name
+        return cls.evaluator_types.get(
+            name,
+            {
+                'rdkit': RDKitEnergyEvaluator,
+                'aimnet': AIMNet2EnergyEvaluator,
+                'aimnet2': AIMNet2EnergyEvaluator
+            }.get(name.lower())
+        )
+
+class RDKitEnergyEvaluator(EnergyEvaluator):
+    def __init__(self, rdmol, force_field='mmff'):
+        # if hasattr(mol, 'rdmol'):
+        #     mol = mol.rdmol
+        self.rdmol = rdmol
+        self.force_field = force_field
+
+    @classmethod
+    def from_mol(cls, mol, **opts):
+        return cls(mol.rdmol)
+
+    energy_units = 'Kilocalories/Mole'
+    analytic_derivative_order = 1
+    def evaluate_term(self, coords, order, force_field_type=None, **opts):
+        if force_field_type is None:
+            force_field_type = self.force_field
+        if order == 0:
+            return self.rdmol.calculate_energy(coords, force_field_type=force_field_type, **opts)
+        elif order == 1:
+            return self.rdmol.calculate_gradient(coords, force_field_type=force_field_type, **opts)
+        else:
+            raise ValueError(f"order {order} not supported")
+
+    def optimize(self,
+                 coords,
+                 method=None,
+                 force_field_type=None,
+                 unitary=False,
+                 # generate_rotation=False,
+                 # dtype='float64',
+                 orthogonal_directions=None,
+                 convergence_metric=None,
+                 tol=1e-8,
+                 max_iterations=100,
+                 damping_parameter=None,
+                 damping_exponent=None,
+                 reset_interval=None,
+                 **opts
+                 ):
+        if force_field_type is None:
+            force_field_type = self.force_field
+        maxIters = opts.pop('maxIters', max_iterations)
+        optimizer = opts.pop('optimizer', method)
+        return self.rdmol.optimize_structure(
+            geoms=coords,
+            force_field_type=force_field_type,
+            optimizer=optimizer,
+            maxIters=maxIters,
+            **opts
+        )
+
+class AIMNet2EnergyEvaluator(EnergyEvaluator):
+    """
+    Borrows structure from AIMNet2ASE to call appropriately
+    """
+    def __init__(self, atoms, model='aimnet2', charge=0, multiplicity=None, quiet=True):
+        self.eval = self.setup_aimnet(model)
+        self.model = model
+        self.atoms = atoms
+        self.numbers = [AtomData[atom, "Number"] for atom in atoms]
+        self.charge = charge
+        self.multiplicity = multiplicity
+        self.quiet = quiet
+
+    @classmethod
+    def from_mol(cls, mol, charge=None, multiplicity=None, **opts):
+        return cls(mol.atoms, multiplicity=multiplicity, **opts)
+
+    @classmethod
+    def setup_aimnet(cls, model):
+        from aimnet2calc import AIMNet2Calculator
+
+        stdout = sys.stdout
+        try:
+            with open(os.devnull, 'w+') as devnull:
+                sys.stdout = devnull
+                calc = AIMNet2Calculator(model)
+        finally:
+            sys.stdout = stdout
+
+        return calc
+
+    @staticmethod
+    def autodiff(expr, coord):
+        import torch
+        # here forces have shape (N, 3) and coord has shape (N+1, 3)
+        # return hessian with shape (N, 3, N, 3)
+        shape = coord.shape + expr.shape
+        deriv = - torch.stack([
+            torch.autograd.grad(_f, coord, retain_graph=True)[0]
+            for _f in expr.flatten().unbind()
+        ])
+        deriv = deriv.view(shape)
+        shape_tuple = (slice(None, -1), slice(None)) * (len(shape) // 2)
+        # return deriv[:-1, :, :-1, :]
+        return deriv.__getitem__(shape_tuple)
+
+    # def calculate(self, atoms=None, properties=['energy'], system_changes=all_changes):
+    #     super().calculate(atoms, properties, system_changes)
+    #     self.update_tensors()
+    #
+    #     if self.atoms.cell is not None and self.atoms.pbc.any():
+    #         # assert self.base_calc.cutoff_lr < float('inf'), 'Long-range cutoff must be finite for PBC'
+    #         cell = self.atoms.cell.array
+    #     else:
+    #         cell = None
+    #
+    #     results = self.base_calc({
+    #         'coord': torch.tensor(self.atoms.positions, dtype=torch.float32, device=self.base_calc.device),
+    #         'numbers': self._t_numbers,
+    #         'cell': cell,
+    #         'mol_idx': self._t_mol_idx,
+    #         'charge': self._t_charge,
+    #         'mult': self._t_mult,
+    #     }, forces='forces' in properties, stress='stress' in properties)
+
+    energy_units = 'ElectronVolts'
+    batched_orders = True
+    analytic_derivative_order = 6
+    def evaluate_term(self, coords, order, **opts):
+        import torch
+
+        base_shape = coords.shape[:-2]
+        coords = coords.reshape((-1,) + coords.shape[-2:])
+        numbers = np.broadcast_to(
+            np.array(self.numbers)[np.newaxis],
+            (len(coords), len(self.numbers))
+        )
+
+        forces = order > 0
+        hessian = order > 1
+
+        arg_dict = {
+            'coord':torch.tensor(coords.reshape(-1, 3), dtype=torch.float32, device=self.eval.device),
+            'numbers':torch.tensor(np.array(self.numbers), dtype=torch.int64, device=self.eval.device),
+            'charge':torch.tensor(self.charge, dtype=torch.float32, device=self.eval.device),
+            'cell':None,
+            'mol_idx':torch.tensor(
+                np.repeat(np.arange(coords.shape[0]), coords.shape[1]).flatten(),
+                dtype=torch.int64,
+                device=self.eval.device
+            )
+        }
+        if self.multiplicity is not None:
+            arg_dict['mult'] = torch.tensor(self.multiplicity, dtype=torch.float32, device=self.eval.device)
+
+        data = self.eval.prepare_input(arg_dict)
+        if hessian and data['mol_idx'][-1] > 0:
+            raise NotImplementedError('higher-derivative calculation is not supported for multiple molecules')
+        data = self.eval.set_grad_tensors(data,
+                                          forces=forces,
+                                          stress=False,
+                                          hessian=hessian
+                                          )
+        with torch.jit.optimized_execution(False):
+            data = self.eval.model(data)
+        data = self.eval.get_derivatives(
+            data,
+            forces=forces,
+            hessian=hessian,
+            **opts
+        )
+        if order > 0:
+            data['deriv_1'] = data['forces']
+            for o in range(2, order+1):
+                data[f'deriv_{o}'] = self.autodiff(data[f'deriv_{o-1}'], self.eval._saved_for_grad['coord'])
+        deriv_keys = [
+                f'deriv_{o}'
+                for o in range(1, order+1)
+            ]
+        ko = self.eval.keys_out
+        afk = self.eval.atom_feature_keys
+        try:
+            self.eval.keys_out = self.eval.keys_out + deriv_keys
+            self.eval.atom_feature_keys = self.eval.atom_feature_keys + deriv_keys[:1]
+            expansion = self.eval.process_output(data)
+        finally:
+            self.eval.keys_out = ko
+            self.eval.atom_feature_keys = afk
+
+        ndim = np.prod(coords.shape[-2:], dtype=int)
+
+        expansion = [
+            expansion[k].detach().cpu().numpy().reshape(
+                base_shape + (ndim,) * o
+            )
+            for o,k in enumerate(['energy'] + deriv_keys)
+        ]
+        if order > 0:
+            expansion[1] = -expansion[1]
+
+        return expansion
+
+        # if order > 2:
+        # if order > (forces=False, stress=False, hessian=False)
+        # if order == 0:
+        #     return self.rdmol.calculate_energy(coords, **opts)
+        # elif order == 2:
+        #     return self.rdmol.calculate_gradient(coords, **opts)
+        # else:
+        #     raise ValueError(f"order {order} not supported")
+
+        # @staticmethod
+        # def calculate_hessian(forces, coord):
+        #     # here forces have shape (N, 3) and coord has shape (N+1, 3)
+        #     # return hessian with shape (N, 3, N, 3)
+        #     hessian = - torch.stack([
+        #         torch.autograd.grad(_f, coord, retain_graph=True)[0]
+        #         for _f in forces.flatten().unbind()
+        #     ]).view(-1, 3, coord.shape[0], 3)[:-1, :, :-1, :]
+        #     return hessian
+
+    def optimize(self,
+                 coords,
+                 method='quasi-newton',
+                 tol=1e-8,
+                 max_iterations=25,
+                 damping_parameter=None,
+                 damping_exponent=None,
+                 restart_interval=None,
+                 max_displacement=None,
+                 **opts
+                 ):
+        if method == 'ase':
+            from McUtils.ExternalPrograms import ASEMolecule
+            from aimnet2calc import AIMNet2ASE
+
+            stdout = sys.stdout
+            try:
+                with open(os.devnull, 'w+') as devnull:
+                    sys.stdout = devnull
+                    calc = AIMNet2ASE(self.model,
+                                      charge=self.charge,
+                                      mult=self.multiplicity
+                                      )
+            finally:
+                sys.stdout = stdout
+
+            mol = ASEMolecule.from_coords(
+                self.atoms,
+                coords.reshape((-1,) + coords.shape[-2:])[0],
+                calculator=calc
+            )
+            return mol.optimize_structure(coords,
+                                          fmax=tol, steps=max_iterations,
+                                          maxstep=max_displacement
+                                          )
+        else:
+            return super().optimize(
+                coords,
+                method=method,
+                tol=tol,
+                max_iterations=max_iterations,
+                damping_parameter=damping_parameter,
+                damping_exponent=damping_exponent,
+                restart_interval=restart_interval,
+                **opts
+            )

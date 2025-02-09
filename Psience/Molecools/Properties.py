@@ -35,8 +35,8 @@ class MolecularPropertyError(Exception):
 
 class StructuralProperties:
     """
-    The set of molecular properties
-    that depend on its coordinates/configuration
+    The set of molecular properties that depend on its coordinates/configuration.
+    Slowly trying to move code out of this and into numputils/Hamiltonian/Evaluator
     """
 
     @classmethod
@@ -855,7 +855,7 @@ class BondingProperties:
         raise NotImplementedError("ran out of time to do this in May ;_;")
 
     @classmethod
-    def get_prop_guessed_bonds(cls, mol, tol=1.05, guess_type=True):
+    def get_prop_guessed_bonds(cls, mol, tol=1.05, guess_type=True, covalent_radius_scaling=1.1):
         """
         Guesses the bonds for the molecule by finding the ones that are less than some percentage of a single bond for that
         pair of elements
@@ -864,18 +864,23 @@ class BondingProperties:
         :rtype:
         """
 
+        coords = mol.coords * UnitsData.convert("BohrRadius", "Angstroms")
         if mol.multiconfig:
-            coords = list(np.asarray(mol.coords))
+            coords = list(np.asarray(coords))
         else:
-            coords = [np.asarray(mol.coords)]
+            coords = [np.asarray(coords)]
         guessed_bonds = [None] * len(coords)
-        for i, coord in enumerate(coords):
+        for struct, coord in enumerate(coords):
             # TODO: generalize this to work for multiple configurations at once
             cds = coord[:, np.newaxis]
             dist_mat = np.linalg.norm(cds - cds.transpose(1, 0, 2), axis=2)
-            atoms = np.array([a["ElementSymbol"] for a in mol._ats])
+            atoms = [a["ElementSymbol"] for a in mol._ats]
+            radii = {a["ElementSymbol"]:a["CovalentRadius"]*covalent_radius_scaling for a in mol._ats}
             pair_dists = np.array(
-                [BondData.get_distance((a1, a2, 1), default=-1) for a1, a2 in ip.product(atoms, atoms)]).reshape(
+                [
+                    BondData.get_distance((a1, a2), default=radii[a1] + radii[a2])
+                    for a1, a2 in ip.product(atoms, atoms)
+                ]).reshape(
                 len(atoms), len(atoms)
             )
             pair_dists[np.tril_indices_from(pair_dists)] = -1
@@ -908,7 +913,7 @@ class BondingProperties:
             else:
                 bonds = np.column_stack(pos, np.full((len(pos), 1), 1))
 
-            guessed_bonds[i] = bonds
+            guessed_bonds[struct] = bonds
 
         # TODO: should maybe put some valence checker in here?
         if not mol.multiconfig:
@@ -1162,34 +1167,28 @@ class MolecularProperties:
         :rtype:
         """
 
-        from .Molecule import Molecule
-
         cds = mol.coords
         bonds = mol.bonds
         ats = mol.atoms
 
         return BondingProperties.get_prop_fragments(ats, bonds)
-        # bond_map = {}
-        # for k in bonds:
-        #     if k[0] not in bond_map:
-        #         bond_map[k[0]] = [k]
-        #     else:
-        #         bond_map[k[0]].append(k)
-        # for i in range(len(ats)):
-        #     if i not in bond_map:
-        #         bond_map[i] = []
-        #
-        # frags = [None]*len(comps)
-        # for i,g in enumerate(comps):
-        #     frag_ats = [ats[x] for x in g]
-        #     frag_cds = cds[g] if not cds.multiconfig else cds[:, g]
-        #     frag_bonds = [bond_map[x] for x in g]
-        #     frags[i] = Molecule(
-        #         frag_ats,
-        #         frag_cds,
-        #         bonds=sum(frag_bonds, [])
-        #     )
-        return frags
+
+    @classmethod
+    def edge_graph(cls, mol):
+        """
+
+        :param mol:
+        :type mol: AbstractMolecule
+        :return:
+        :rtype:
+        """
+
+        from McUtils.Graphs import EdgeGraph
+
+        bonds = mol.bonds
+        ats = mol.atoms
+
+        return EdgeGraph(ats, bonds)
 
     @classmethod
     def guessed_bonds(cls, mol, tol=1.05, guess_type=True):

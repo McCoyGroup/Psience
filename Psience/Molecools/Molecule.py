@@ -19,7 +19,7 @@ from ..Modes import PrimitiveCoordinatePicker, RedundantCoordinateGenerator
 from .MoleculeInterface import *
 
 from .CoordinateSystems import MolecularEmbedding, ModeEmbedding
-from .Evaluator import MolecularEvaluator
+from .Evaluator import MolecularEvaluator, EnergyEvaluator
 from .Hamiltonian import MolecularHamiltonian
 from .Properties import *
 
@@ -52,6 +52,7 @@ class Molecule(AbstractMolecule):
                  guess_bonds=True,
                  charge=None,
                  display_mode=None,
+                 energy_evaluator=None,
                  **metadata
                  ):
         """
@@ -124,9 +125,32 @@ class Molecule(AbstractMolecule):
         metadata['charge'] = charge
         self._meta = metadata
 
-        if display_mode is None:
-            display_mode = self.default_display_mode
-        self.default_display_mode = display_mode
+        self.display_mode = display_mode
+        self.energy_evaluator = energy_evaluator
+
+    def modify(self,
+               atoms=None,
+               coords=None,
+               *,
+               internals=None,
+               masses=None,
+               bonds=None,
+               guess_bonds=None,
+               energy_evaluator=None,
+               display_mode=None,
+               charge=None
+               ):
+        return type(self)(
+            self.atoms if atoms is None else atoms,
+            self.coords if coords is None else coords,
+            masses=self.masses if (masses is None and atoms is None) else masses,
+            bonds=self._bonds if bonds is None else bonds,
+            guess_bonds=self.guess_bonds if guess_bonds is None else guess_bonds,
+            energy_evaluator=self.energy_evaluator if energy_evaluator is None else energy_evaluator,
+            display_mode=self.display_mode if display_mode is None else display_mode,
+            charge=self.charge if charge is None else charge,
+            internals=self.internals if internals is None else self.internals
+        )
 
     @classmethod
     def _auto_spec(cls, atoms, coords, bonds, redundant=False, base_coordinates=None,
@@ -326,39 +350,6 @@ class Molecule(AbstractMolecule):
     def potential_derivatives(self, derivs):
         self.potential_surface.derivatives = derivs
 
-    def rdkit_optimize(self, force_field_type='mmff', **etc):
-
-        rdmol = self.rdmol.copy()
-        rdmol.optimize_structure(force_field_type=force_field_type, **etc)
-
-        return type(self).from_rdmol(rdmol)
-
-    def get_rdkit_potential_expansion(self, order=2, *, optimize=False, force_field_type='mmff'):
-        if optimize:
-            self = self.rdkit_optimize(force_field_type=force_field_type)
-        rdmol = self.rdmol
-
-        ang2bohr = UnitsData.convert("Angstroms", "BohrRadius")
-        kcal_mol = UnitsData.convert("Kilocalories/Mole", "Hartrees")
-
-        if order > 2:
-            raise NotImplementedError("haven't bothered to add FD beyond the Hessian")
-
-        expansion = []
-        eng = rdmol.calculate_energy(force_field_type=force_field_type) * kcal_mol
-        expansion.append(eng)
-        if order > 0:
-            grad = rdmol.calculate_gradient(force_field_type=force_field_type) * kcal_mol / ang2bohr
-            expansion.append(grad)
-        if order > 1:
-            hess = rdmol.calculate_hessian(force_field_type=force_field_type) * kcal_mol / (ang2bohr**2)
-            expansion.append(hess)
-
-        if optimize:
-            return self, expansion
-        else:
-            return expansion
-
 
     def get_internal_potential_derivatives(self, order=None, reembed=True, strip_embedding=True, zero_gradient=False):
         derivs = self.potential_derivatives
@@ -455,13 +446,7 @@ class Molecule(AbstractMolecule):
     @property
     def bonds(self):
         if self._bonds is None and self.guess_bonds:
-            self._bonds = RDMolecule.from_coords(
-                                           self.atoms,
-                                           self.coords * UnitsData.convert("BohrRadius", "Angstroms"),
-                                           None,
-                                           guess_bonds=True
-                                           ).bonds
-            # self._bonds = self.prop("guessed_bonds", tol=1.05, guess_type=True)
+            self._bonds = self.get_guessed_bonds()
         return self._bonds
     @bonds.setter
     def bonds(self, b):
@@ -541,6 +526,26 @@ class Molecule(AbstractMolecule):
                 name
             ))
 
+    bond_guessing_mode = 'rdkit'
+    def get_guessed_bonds(self, mode=None, **opts):
+        if mode is None:
+            mode = self.bond_guessing_mode
+        if mode == 'rdkit':
+            return RDMolecule.from_coords(
+                self.atoms,
+                self.coords * UnitsData.convert("BohrRadius", "Angstroms"),
+                None,
+                guess_bonds=True,
+                **opts
+            ).bonds
+        else:
+            return MolecularProperties.guessed_bonds(self, **opts)
+        # self._bonds = self.prop("guessed_bonds", tol=1.05, guess_type=True)
+
+    @property
+    def edge_graph(self):
+        return MolecularProperties.edge_graph(self)
+
     @property
     def fragment_indices(self):
         return MolecularProperties.fragment_indices(self)
@@ -564,35 +569,35 @@ class Molecule(AbstractMolecule):
         :return:
         :rtype: CoordinateSet
         """
-        return self.prop('center_of_mass')
+        return MolecularProperties.center_of_mass(self)
     @property
     def inertia_tensor(self):
         """
         :return:
         :rtype: (np.ndarray, np.ndarray)
         """
-        return self.prop('inertia_tensor')
+        return MolecularProperties.inertia_tensor(self)
     @property
     def inertial_eigensystem(self):
         """
         :return:
         :rtype: (np.ndarray, np.ndarray)
         """
-        return self.prop('moments_of_inertia')
+        return MolecularProperties.moments_of_inertia(self)
     @property
     def moments_of_inertia(self):
         """
         :return:
         :rtype: np.ndarray
         """
-        return self.prop('moments_of_inertia')[0]
+        return MolecularProperties.moments_of_inertia(self)[0]
     @property
     def inertial_axes(self):
         """
         :return:
         :rtype: np.ndarray
         """
-        return self.prop('moments_of_inertia')[1]
+        return MolecularProperties.moments_of_inertia(self)[1]
 
     @property
     def translation_rotation_modes(self):
@@ -600,7 +605,7 @@ class Molecule(AbstractMolecule):
         :return:
         :rtype: np.ndarray
         """
-        return self.prop('translation_rotation_eigenvectors')
+        return MolecularProperties.translation_rotation_eigenvectors(self)
 
     def get_translation_rotation_projector(self, mass_weighted=False):
         return nput.translation_rotation_projector(
@@ -648,6 +653,72 @@ class Molecule(AbstractMolecule):
     #     self._zmat = zmatrix
 
     #region Evaluation
+
+    default_energy_evalutor = 'rdkit'
+    def get_energy_evaluator(self, evaluator=None, **opts):
+        if evaluator is None:
+            evaluator = self.energy_evaluator
+        if evaluator is None:
+            evaluator = self.default_energy_evalutor
+        eval_type = EnergyEvaluator.resolve_evaluator(evaluator)
+        if eval_type is None:
+            raise ValueError(f"can't resolve energy evaluator type for {evaluator}")
+        if hasattr(eval_type, 'from_mol') and isinstance(eval_type, type):
+            return eval_type.from_mol(self, **opts)
+        else:
+            return eval_type
+
+    def calculate_energy(self, evaluator=None, order=None, **opts):
+        evaluator = self.get_energy_evaluator(evaluator, **opts)
+        smol = order is None
+        if smol: order = 0
+        expansion = evaluator.evaluate(
+            self.coords * UnitsData.convert("BohrRadius", evaluator.distance_units),
+            order=order
+        )
+        if smol: expansion = expansion[0]
+        return expansion
+
+    def optimize(self,
+                 evaluator=None,
+                 *,
+                 method=None,
+                 unitary=False,
+                 orthogonal_directions=None,
+                 convergence_metric=None,
+                 tol=None,
+                 max_iterations=None,
+                 damping_parameter=None,
+                 damping_exponent=None,
+                 restart_interval=None,
+                 max_displacement=None,
+                 line_search=None,
+                 optimizer_settings=None,
+                 **opts):
+        evaluator = self.get_energy_evaluator(evaluator, **opts)
+        conv = UnitsData.convert("BohrRadius", evaluator.distance_units)
+        opt_params = dict(
+            method=method,
+            unitary=unitary,
+            # generate_rotation=False,
+            # dtype='float64',
+            orthogonal_directions=orthogonal_directions,
+            convergence_metric=convergence_metric,
+            tol=tol,
+            max_iterations=max_iterations,
+            damping_parameter=damping_parameter,
+            damping_exponent=damping_exponent,
+            restart_interval=restart_interval,
+            max_displacement=max_displacement,
+            line_search=line_search,
+            optimizer_settings=optimizer_settings
+        )
+        opt, opt_coords = evaluator.optimize(
+            self.coords * conv,
+            **{k:v for k,v in opt_params.items() if v is not None}
+        )
+        return self.modify(coords=opt_coords / conv)
+
     def evaluate(self,
                  func,
                  use_internals=None,
@@ -1515,7 +1586,7 @@ class Molecule(AbstractMolecule):
              highlight_rings=None,
              highlight_styles=None,
              mode=None,#'quality',
-             backend='x3d',
+             backend=None,
              objects=False,
              graphics_class=None,
              cylinder_class=None,
@@ -1527,8 +1598,12 @@ class Molecule(AbstractMolecule):
              **plot_ops
              ):
 
+        if backend is None:
+            backend = self.display_mode
+        if backend is None:
+            backend = self.default_display_mode
         if mode is None:
-            mode = 'backend'
+            mode = backend
 
         if mode == 'jupyter':
             return self.jupyter_viz()
@@ -1748,12 +1823,16 @@ class Molecule(AbstractMolecule):
         return geoms
     def animate_coordinate(self, which, extent=.5, steps=8, return_objects=False, strip_embedding=True,
                            units="Angstroms",
-                           backend='jsmol',
+                           backend=None,
                            mode=None,
                            jsmol_load_script=None,
                            coordinate_expansion=None,
                            **plot_opts
                            ):
+        if backend is None:
+            backend = self.display_mode
+        if backend is None:
+            backend = self.default_display_mode
         if mode is None:
             mode = backend
         if mode == 'jsmol':
@@ -1886,7 +1965,7 @@ class Molecule(AbstractMolecule):
                                 )
 
     def to_widget(self):
-        if self.display_jsmol:
+        if self.display_mode == 'jsmol':
             obj = self.plot(mode='jsmol', return_objects=False)
         else:
             obj = self.plot(backend='x3d', return_objects=False).figure.to_x3d()
@@ -1894,7 +1973,7 @@ class Molecule(AbstractMolecule):
 
     default_display_mode = 'jsmol'
     def _ipython_display_(self):
-        obj = self.plot(mode=self.default_display_mode, return_objects=False)
+        obj = self.plot(mode=self.display_mode, return_objects=False)
         return obj._ipython_display_()
         # return self.jupyter_viz()._ipython_display_()
     #endregion
