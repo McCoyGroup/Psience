@@ -300,8 +300,8 @@ class VPT2Tests(TestCase):
             TestManager.test_data(file_name),
             1,
             local_modes={'matrix': XR, 'inverse': RX, 'sort_freqs': True},
-            local_mode_coupling_order=1,
-            hamiltonian_correction_type='primary',
+            # local_mode_coupling_order=1,
+            # hamiltonian_correction_type='primary',
             internals=[
                 [0, -1, -1, -1],
                 [1,  0, -1, -1],
