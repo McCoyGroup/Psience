@@ -399,6 +399,7 @@ class EnergyEvaluator(metaclass=abc.ABCMeta):
                  max_displacement=None,
                  line_search=True,
                  optimizer_settings=None,
+                 mode=None,
                  **opts
                  ):
         from McUtils.Numputils import iterative_step_minimize
@@ -428,32 +429,57 @@ class EnergyEvaluator(metaclass=abc.ABCMeta):
                     return res
         else:
             hessian = None
-        if method is None or isinstance(method, str):
-            method = dict(
-                {
-                    'method': method,
-                    'func': func,
-                    'jacobian': jacobian,
-                    'hessian': hessian,
-                    'damping_parameter': damping_parameter,
-                    'damping_exponent': damping_exponent,
-                    'restart_interval': restart_interval,
-                    'line_search': line_search,
-                },
-                **optimizer_settings
+
+        if mode == 'scipy':
+            from scipy.optimize import minimize
+
+            def sfunc(crd):
+                return func(crd, None)[0]
+            def sjacobian(crd):
+                return jacobian(crd, None)[0]
+
+            if self.analytic_derivative_order > 1:
+                def shessian(crd):
+                    return hessian(crd, None)[0]
+            else:
+                shessian = None
+
+            min = minimize(sfunc,
+                           coords.flatten(),
+                           method='bfgs' if method == 'quasi-newton' else method,
+                           tol=tol,
+                           jac=sjacobian,
+                           hess=shessian,
+                           options=dict({'maxiter':max_iterations}, **optimizer_settings)
+                           )
+            return min.x, True
+        else:
+            if method is None or isinstance(method, str):
+                method = dict(
+                    {
+                        'method': method,
+                        'func': func,
+                        'jacobian': jacobian,
+                        'hessian': hessian,
+                        'damping_parameter': damping_parameter,
+                        'damping_exponent': damping_exponent,
+                        'restart_interval': restart_interval,
+                        'line_search': line_search,
+                    },
+                    **optimizer_settings
+                )
+                method = {k:v for k,v in method.items() if v is not None}
+            opt_coords, converged, (errs, its) = iterative_step_minimize(
+                coords.flatten(),
+                method,
+                unitary=unitary,
+                orthogonal_directions=orthogonal_directions,
+                convergence_metric=convergence_metric,
+                tol=tol,
+                max_iterations=max_iterations,
+                max_displacement=max_displacement
             )
-            method = {k:v for k,v in method.items() if v is not None}
-        opt_coords, converged, (errs, its) = iterative_step_minimize(
-            coords.flatten(),
-            method,
-            unitary=unitary,
-            orthogonal_directions=orthogonal_directions,
-            convergence_metric=convergence_metric,
-            tol=tol,
-            max_iterations=max_iterations,
-            max_displacement=max_displacement
-        )
-        return converged, opt_coords.reshape(coords.shape)
+            return converged, opt_coords.reshape(coords.shape)
 
 
     energy_units = None

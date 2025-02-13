@@ -156,12 +156,23 @@ class VPTSystem:
             if pot_ders[2].shape[0] != pot_ders[1].shape[0]:
                 RQ = modes['inverse'] @ self.mol.normal_modes.modes.basis.matrix
                 # RQ = inverse@OHH.normal_modes.modes.basis.inverse.T
-                pot_ders = pot_ders[:2] + nput.tensor_reexpand(
+                pot_ders = list(pot_ders[:2]) + nput.tensor_reexpand(
                     [RQ],
                     pot_ders[2:],
                     order=2
                 )
                 self.mol.potential_derivatives = pot_ders
+
+            dip_ders = self.mol.dipole_derivatives
+            if dip_ders is not None and dip_ders[2].shape[0] != dip_ders[1].shape[0]:
+                RQ = modes['inverse'] @ self.mol.normal_modes.modes.basis.matrix
+                # RQ = inverse@OHH.normal_modes.modes.basis.inverse.T
+                dip_ders = list(dip_ders[:2]) + nput.tensor_reexpand(
+                    [RQ],
+                    dip_ders[2:],
+                    order=2
+                )
+                self.mol.dipole_derivatives = dip_ders
 
         self.use_local_modes = local_modes is not None
         if modes is not None:
