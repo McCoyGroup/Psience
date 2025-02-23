@@ -383,6 +383,25 @@ class EnergyEvaluator(metaclass=abc.ABCMeta):
     def from_mol(cls, mol, **opts):
         ...
 
+    def minimizer_function_by_order(self, order, **opts):
+        if self.analytic_derivative_order >= order:
+            def func(crd, _):
+                res = self.evaluate_term(crd.reshape(1, -1, 3), order, **opts)
+                if self.batched_orders:
+                    return res[-1]
+                else:
+                    return res
+        else:
+            func = None
+        return func
+    def minimizer_func(self, **opts):
+        return self.minimizer_function_by_order(0, **opts)
+    def minimizer_jacobian(self, **opts):
+        return self.minimizer_function_by_order(1, **opts)
+    def minimizer_hessian(self, **opts):
+        return self.minimizer_function_by_order(2, **opts)
+
+
     def optimize(self,
                  coords,
                  method='quasi-newton',
@@ -408,27 +427,9 @@ class EnergyEvaluator(metaclass=abc.ABCMeta):
             optimizer_settings = {}
 
         #TODO: let evaluations cache results when batched
-        def func(crd, _):
-            res = self.evaluate_term(crd.reshape(1, -1, 3), 0, **opts)
-            if self.batched_orders:
-                return res[-1]
-            else:
-                return res
-        def jacobian(crd, _):
-            res = self.evaluate_term(crd.reshape(1, -1, 3), 1, **opts)
-            if self.batched_orders:
-                return res[-1]
-            else:
-                return res
-        if self.analytic_derivative_order > 1:
-            def hessian(crd, _):
-                res = self.evaluate_term(crd.reshape(1, -1, 3), 2, **opts)
-                if self.batched_orders:
-                    return res[-1]
-                else:
-                    return res
-        else:
-            hessian = None
+        func = self.minimizer_func(**opts)
+        jacobian = self.minimizer_jacobian(**opts)
+        hessian = self.minimizer_hessian(**opts)
 
         if mode == 'scipy':
             from scipy.optimize import minimize
@@ -452,7 +453,7 @@ class EnergyEvaluator(metaclass=abc.ABCMeta):
                            hess=shessian,
                            options=dict({'maxiter':max_iterations}, **optimizer_settings)
                            )
-            return min.x, True
+            return True, min.x
         else:
             if method is None or isinstance(method, str):
                 method = dict(

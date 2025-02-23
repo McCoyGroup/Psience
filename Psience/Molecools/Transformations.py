@@ -3,12 +3,13 @@ Defines a MolecularTransformation class that uses Coordinerds to describe a phys
 Then it layers some common transformations on top of that
 """
 from .MoleculeInterface import AbstractMolecule
-from McUtils.Coordinerds import CoordinateSet, CoordinateTransform
+from McUtils.Coordinerds import CoordinateSet
+from McUtils.Numputils import GeometricTransformation
 
 __all__ = ["MolecularTransformation"]
 __reload_hook__ = [".MoleculeInterface"]
 
-class MolecularTransformation(CoordinateTransform):
+class MolecularTransformation(GeometricTransformation):
     def apply(self, mol, shift=True):
         """
 

@@ -6,10 +6,12 @@ Uses AtomData to get properties and whatnot
 import itertools
 import os, numpy as np
 import tempfile
+import typing
 
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D
 import McUtils.Numputils as nput
+import McUtils.Iterators as itut
 from McUtils.Zachary import Mesh
 import McUtils.Plots as plt
 from McUtils.ExternalPrograms import RDMolecule
@@ -87,7 +89,7 @@ class Molecule(AbstractMolecule):
         """
         # convert "atoms" into list of atom data
         self._ats = [AtomData[atom] if isinstance(atom, (int, np.integer, str)) else atom for atom in atoms]
-        self._mass = np.array([a["Mass"] for a in self._ats]) if masses is None else masses
+        self._mass = np.array([a["Mass"] for a in self._ats]) if masses is None else np.asanyarray(masses)
         coords = CoordinateSet(coords, CartesianCoordinates3D)
 
         internals = self.canonicalize_internals(internals, self.atoms, coords, bonds, masses=self._mass)
@@ -138,7 +140,12 @@ class Molecule(AbstractMolecule):
                guess_bonds=None,
                energy_evaluator=None,
                display_mode=None,
-               charge=None
+               charge=None,
+               normal_modes=None,
+               dipole_surface=None,
+               potential_surface=None,
+               dipole_derivatives=None,
+               potential_derivatives=None
                ):
         return type(self)(
             self.atoms if atoms is None else atoms,
@@ -149,7 +156,20 @@ class Molecule(AbstractMolecule):
             energy_evaluator=self.energy_evaluator if energy_evaluator is None else energy_evaluator,
             display_mode=self.display_mode if display_mode is None else display_mode,
             charge=self.charge if charge is None else charge,
-            internals=self.internals if internals is None else self.internals
+            internals=self.internals if internals is None else internals,
+            normal_modes=self.normal_modes if normal_modes is None else None,
+            dipole_surface=self.dipole_surface if (
+                    dipole_surface is None
+                    and dipole_derivatives is None
+                    and coords is None
+            ) else dipole_surface,
+            dipole_derivatives=dipole_derivatives,
+            potential_surface=self.potential_surface if (
+                    potential_surface is None
+                    and potential_derivatives is None
+                    and coords is None
+            ) else potential_surface,
+            potential_derivatives=potential_derivatives
         )
 
     @classmethod
@@ -234,6 +254,15 @@ class Molecule(AbstractMolecule):
             if spec.get('redundant'):
                 spec['relocalize'] = spec.get('relocalize', relocalize)
         return spec
+    def prep_internal_spec(self, spec, relocalize=True, masses=None):
+        return self.canonicalize_internals(
+            spec,
+            self.atoms,
+            self.coords,
+            self.bonds,
+            relocalize=relocalize,
+            masses=masses
+        )
 
     #region Base Coords
     @property
@@ -394,12 +423,24 @@ class Molecule(AbstractMolecule):
     #endregion
 
     def __repr__(self):
-        return "{cls}('{name}', formula='{formula}', shape={shape}, coord_sys={coord_sys})".format(
+        name = self._name
+        if name is None:
+            src = self.source_file
+            if src is not None:
+                name = os.path.basename(src)
+        if name is None:
+            rdmol = self.rdmol
+            if rdmol is not None:
+                name = rdmol.to_smiles()
+        if name is None:
+            name = self.formula
+
+        return "{cls}('{name}', shape={shape})".format(
             cls=type(self).__name__,
-            name=self.name,
-            formula=self.formula,
+            name=name,
+            # formula=self.formula,
             shape=self.coords.shape,
-            coord_sys=self.coords.system.name if isinstance(self.coords, CoordinateSet) else 'undefined'
+            # coord_sys=self.coords.system.name if isinstance(self.coords, CoordinateSet) else 'undefined'
         )
 
     @property
@@ -1240,6 +1281,59 @@ class Molecule(AbstractMolecule):
         """
         return self.prop('principle_axis_data')
 
+    # def apply_coordinate_transformation(self,
+    #                                     forward_transformations,
+    #                                     reverse_transformation=None
+    #                                     ):
+    #     if nput.is_numeric_array_like(forward_transformations):
+    #         forward_transformations = np.asanyarray(forward_transformations)
+    #         if forward_transformations.ndim == 2:
+    #             forward_transformations = [forward_transformations]
+    #
+    #     if reverse_transformation is None:
+    #         reverse_transformation = nput.inverse_transformation(forward_transformations, len(forward_transformations))
+    #
+    #     new_coords = Molecular
+
+    def permute_atoms(self, perm):
+        inv_perm = np.argsort(perm)
+        return self.modify(
+            atoms=[self._ats[i] for i in perm],
+            masses=[self._mass[i] for i in perm],
+            coords=self.coords[perm, :],
+            bonds=[
+                [inv_perm[b[0]], inv_perm[b[1]]] + list(b[2:])
+                for b in self._bonds
+            ] if self._bonds is not None else None
+        )
+
+    def apply_affine_transformation(self, transformation, load_properties=False, embed_properties=True):
+        from .Transformations import MolecularTransformation
+
+        if not hasattr(transformation, 'apply'): # To support affine transformations
+            transformation = MolecularTransformation(transformation)
+        new = transformation.apply(self)
+        if embed_properties:
+            if load_properties or new._normal_modes._modes is not None:
+                new.normal_modes = new.normal_modes.apply_transformation(transformation)
+            if load_properties or new._pes._surf is not None or new._pes._derivs is not None:
+                new.potential_surface = new.potential_surface.apply_transformation(transformation)
+            if load_properties or new._dips._surf is not None or new._dips._derivs is not None:
+                new.dipole_surface = new.dipole_surface.apply_transformation(transformation)
+        new.source_file = None  # for safety
+
+        return new
+
+    def apply_rotation(self, rotation_matrix, shift_com=None, load_properties=False, embed_properties=True):
+
+        if shift_com and rotation_matrix.shape[-1] != 4:
+            com = self.center_of_mass
+            rotation_matrix = nput.affine_matrix(rotation_matrix, -com)
+
+        return self.apply_affine_transformation(rotation_matrix,
+                                                load_properties=load_properties,
+                                                embed_properties=embed_properties)
+
     def eckart_frame(self, mol, sel=None, inverse=False, planar_ref_tolerance=None, proper_rotation=False):
         """
         Gets the Eckart frame(s) for the molecule
@@ -1253,9 +1347,13 @@ class Molecule(AbstractMolecule):
         :return:
         :rtype: MolecularTransformation
         """
-        return self.prop('eckart_transformation', mol, sel=sel, inverse=inverse,
-                         planar_ref_tolerance=planar_ref_tolerance,
-                         proper_rotation=proper_rotation)
+        return MolecularProperties.eckart_transformation(
+            self,
+            mol,
+            sel=sel, inverse=inverse,
+            planar_ref_tolerance=planar_ref_tolerance,
+            proper_rotation=proper_rotation
+        )
 
     def embed_coords(self, crds, sel=None, in_paf=False, planar_ref_tolerance=None, proper_rotation=False):
         """
@@ -1303,23 +1401,96 @@ class Molecule(AbstractMolecule):
             frame = self.eckart_frame(ref, sel=sel, planar_ref_tolerance=planar_ref_tolerance, inverse=False,
                                       proper_rotation=proper_rotation
                                       )
-        # self.normal_modes.modes
-        new = frame.apply(self)
-        if embed_properties:
-            # inv_frame = frame
-            # if ref is None:
-            #     inv_frame = self.principle_axis_frame(inverse=True)
-            # else:
-            #     inv_frame = self.eckart_frame(ref, inverse=True)
-            if load_properties or new._normal_modes._modes is not None:
-                new.normal_modes = new.normal_modes.apply_transformation(frame)
-            if load_properties or new._pes._surf is not None or new._pes._derivs is not None:
-                new.potential_surface = new.potential_surface.apply_transformation(frame)
-            if load_properties or new._dips._surf is not None or new._dips._derivs is not None:
-                new.dipole_surface = new.dipole_surface.apply_transformation(frame)
-        new.source_file = None # for safety
+        return self.apply_rotation(frame, load_properties=load_properties, embed_properties=embed_properties)
 
-        return new
+    def align_molecule(self, other:'typing.Self',
+                       reindex_bonds=True,
+                       permute_atoms=True,
+                       align_structures=True,
+                       sel=None,
+                       embed_properties=True,
+                       load_properties=False
+                       ):
+        """
+        Aligns `other` with `self` by first finding the reindexing of the bonds of `other` that
+        lead to the best graph overlap with `self`, then determining which atoms can be permuted based on their graph
+        structures, then determining which permutation of equivalent atoms leads to the best agreement between the structures,
+        and then finally finding the Eckart/min-RMSD transformation after this transformation has been applied
+
+        :param other:
+        :param reindex_bonds:
+        :return:
+        """
+        from .Transformations import MolecularTransformation
+
+        if len(itut.dict_diff(itut.counts(other.atoms), itut.counts(self.atoms))) > 0:
+            raise ValueError(f"{self} and {other} have different atoms and can't be aligned")
+
+        if reindex_bonds:
+            perm = other.edge_graph.get_reindexing(self.edge_graph)
+            other = other.permute_atoms(perm)
+        else:
+            perm = np.arange(len(self.atoms))
+
+        if permute_atoms:
+            all_perms = permute_atoms == 'all'
+            permutable_atoms = []
+            bond_set = other.edge_graph.map
+            rem = list(range(0, len(other.atoms)))
+            for i,a in enumerate(other.atoms):
+                if i not in rem: continue
+                group = [i]
+                for j in rem:
+                    if j == i: continue
+                    if a == other.atoms[j]:
+                        if all_perms or (bond_set[i] - {j} == bond_set[j] - {i}): # same bonds
+                            group.append(j)
+                rem = np.setdiff1d(rem, group)
+                if len(group) > 1:
+                    permutable_atoms.append(group)
+        else:
+            permutable_atoms = None
+
+        if align_structures:
+            embedding_data = nput.eckart_embedding(
+                self.coords,
+                other.coords,
+                masses=self.atomic_masses,
+                sel=sel,
+                permutable_groups=permutable_atoms
+            )
+
+            rot, new_coords, ref_stuff, coord_stuff = embedding_data
+            ref, ref_com, ref_rot = ref_stuff
+            crd, com, crd_rot = coord_stuff
+            transf = MolecularTransformation(ref_com, ref_rot, rot, crd_rot.T, -com)
+
+            other = other.apply_affine_transformation(transf,
+                                                      embed_properties=embed_properties,
+                                                      load_properties=load_properties)
+
+        if permute_atoms:
+            # print(self.atoms)
+            # print(other.atoms)
+            perm_2 = nput.eckart_permutation(
+                self.coords,
+                other.coords,
+                masses=self.atomic_masses,
+                sel=sel,
+                permutable_groups=permutable_atoms
+            )
+
+            # perm = perm[perm_2]
+            other = other.permute_atoms(perm_2)
+
+        # elif align_structures:
+        #     other = other.get_embedded_molecule(self,
+        #                                         sel=sel,
+        #                                         embed_properties=embed_properties,
+        #                                         load_properties=load_properties)
+
+        return other
+
 
     #endregion
 
@@ -1328,7 +1499,10 @@ class Molecule(AbstractMolecule):
     def rdmol(self):
         from McUtils.ExternalPrograms import RDMolecule
 
-        return RDMolecule.from_mol(self, coord_unit="BohrRadius")
+        try:
+            return RDMolecule.from_mol(self, coord_unit="BohrRadius")
+        except ImportError:
+            return None
 
     @classmethod
     def from_zmat(cls, zmat, **opts):
@@ -1408,7 +1582,7 @@ class Molecule(AbstractMolecule):
         )
 
     @classmethod
-    def _from_smiles(cls, smi, add_implicit_hydrogens=False, num_confs=1, optimize=False, **opts):
+    def _from_smiles(cls, smi, add_implicit_hydrogens=True, num_confs=1, optimize=False, **opts):
         from McUtils.ExternalPrograms import RDMolecule
 
         return cls.from_rdmol(
@@ -1612,10 +1786,17 @@ class Molecule(AbstractMolecule):
         if mode is None:
             mode = backend
 
+        if len(geometries) > 0:
+            if mode in {'jupyter', 'jsmol'}:
+                mode = 'x3d'
+
         if mode == 'jupyter':
             return self.jupyter_viz()
         elif mode == 'jsmol':
             return self.jsmol_viz(script=jsmol_load_script)
+
+        if backend in {'jupyter', 'jsmol'}:
+            backend = 'x3d'
 
         from McUtils.Plots import Graphics3D, Sphere, Cylinder, Line, Disk
 
