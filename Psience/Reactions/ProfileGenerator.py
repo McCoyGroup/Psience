@@ -104,7 +104,9 @@ class InterpolatingProfileGenerator(ProfileGenerator):
                     + [self.products.coords],
                     self.products.coords.system
                 ),
-                coordinate_system=coordinate_system
+                coordinate_system=coordinate_system,
+                reembed=True,
+                embedding_options={'masses':self.reactants.atomic_masses}
             )
         else:
             return coordinate_interpolator

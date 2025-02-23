@@ -1460,7 +1460,7 @@ class Molecule(AbstractMolecule):
                 permutable_groups=permutable_atoms
             )
 
-            rot, ref_stuff, coord_stuff = embedding_data
+            rot, new_coords, ref_stuff, coord_stuff = embedding_data
             ref, ref_com, ref_rot = ref_stuff
             crd, com, crd_rot = coord_stuff
             transf = MolecularTransformation(ref_com, ref_rot, rot, crd_rot.T, -com)
