@@ -58,7 +58,8 @@ class InterpolatingProfileGenerator(ProfileGenerator):
                  coordinate_interpolator=None,
                  ts_guesses:list[Molecule]=None,
                  internals=None,
-                 num_images=10
+                 num_images=10,
+                 max_displacement_step=None
                  ):
         super().__init__(reactant_complex)
         self.products = product_complex
@@ -71,7 +72,10 @@ class InterpolatingProfileGenerator(ProfileGenerator):
             spec = self.products.prep_internal_spec(internals)
             base_internals = self.products.modify(internals=spec).internal_coordinates
             internals = self.wrap_conversion(spec, base_internals)
-        self.interpolator = self.get_interpolator(coordinate_interpolator, coordinate_system=internals)
+        self.interpolator = self.get_interpolator(coordinate_interpolator,
+                                                  coordinate_system=internals,
+                                                  max_displacement_step=max_displacement_step
+                                                  )
         self.num_images = num_images
 
     def wrap_conversion(self, spec, base_internals):
@@ -93,10 +97,31 @@ class InterpolatingProfileGenerator(ProfileGenerator):
                 if k in ints.converter_options:
                     ints.system.converter_options[k] = ints.converter_options[k]
             return ints
+        convert.system = base_internals.system
         return convert
 
-    def get_interpolator(self, coordinate_interpolator, coordinate_system=None):
+    def get_interpolator(self,
+                         coordinate_interpolator,
+                         coordinate_system=None,
+                         max_displacement_step=None
+                         ):
         if coordinate_interpolator is None:
+            if max_displacement_step is None:
+                if hasattr(coordinate_system, 'system'):
+                    sys = coordinate_system.system
+                else:
+                    sys = coordinate_system
+                if sys is None:
+                    max_displacement_step = 1.0
+                elif hasattr(sys, 'name'):
+                    if 'ZMatrix' in sys.name:
+                        max_displacement_step = .5
+                    elif 'Cartesian' in sys.name:
+                        max_displacement_step = 1.0
+                    else:
+                        max_displacement_step = .5
+                else:
+                    max_displacement_step = 1.0
             return CoordinateInterpolator(
                 CoordinateSet(
                     [self.reactants.coords]
@@ -106,7 +131,8 @@ class InterpolatingProfileGenerator(ProfileGenerator):
                 ),
                 coordinate_system=coordinate_system,
                 reembed=True,
-                embedding_options={'masses':self.reactants.atomic_masses}
+                embedding_options={'masses':self.reactants.atomic_masses},
+                max_displacement_step=max_displacement_step
             )
         else:
             return coordinate_interpolator
