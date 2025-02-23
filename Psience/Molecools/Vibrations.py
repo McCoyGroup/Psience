@@ -41,6 +41,14 @@ class MolecularVibrations:
         self._freqs = freqs
         self._widg = None
 
+    def change_mol(self, mol):
+        return type(self)(
+            mol,
+            self._basis.change_mol(mol),
+            freqs=self._freqs,
+            init=self._coords
+        )
+
     @property
     def basis(self):
         return self._basis
@@ -369,6 +377,18 @@ class MolecularNormalModes(CoordinateSystem):
         # thought I wanted this to reset the origin and things..
         self.basis.molecule = mol
         self._molecule = mol
+
+    def change_mol(self, mol):
+        return type(self)(
+            mol,
+            self.matrix,
+            name=self.name,
+            freqs=self.freqs,
+            internal=self.in_internals,
+            origin=self._origin,
+            basis=self.basis,
+            inverse=self.inverse
+        )
 
     @property
     def coords_by_modes(self):

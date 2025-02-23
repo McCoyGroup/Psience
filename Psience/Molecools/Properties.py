@@ -1188,7 +1188,7 @@ class MolecularProperties:
         bonds = mol.bonds
         ats = mol.atoms
 
-        return EdgeGraph(ats, bonds)
+        return EdgeGraph(ats, [b[:2] for b in bonds])
 
     @classmethod
     def guessed_bonds(cls, mol, tol=1.05, guess_type=True):
@@ -1647,13 +1647,18 @@ class DipoleSurfaceManager(PropertyManager):
     name='DipoleSurface'
     def __init__(self, mol, surface=None, derivatives=None):
         super().__init__(mol)
-        self._surf = surface
-        if isinstance(derivatives, dict):
-            self._derivs = derivatives['numerical']
-            self._analytic_derivatives = derivatives['analytic']
+        if hasattr(surface, '_surf'):
+            self._surf = surface._surf
+            self._derivs = surface._derivs
+            self._analytic_derivatives = surface._analytic_derivatives
         else:
-            self._derivs = derivatives
-            self._analytic_derivatives = None
+            self._surf = surface
+            if isinstance(derivatives, dict):
+                self._derivs = derivatives['numerical']
+                self._analytic_derivatives = derivatives['analytic']
+            else:
+                self._derivs = derivatives
+                self._analytic_derivatives = None
 
     @classmethod
     def from_data(cls, mol, data):
@@ -1870,9 +1875,15 @@ class PotentialSurfaceManager(PropertyManager):
     name="PotentialSurface"
     def __init__(self, mol, surface=None, derivatives=None):
         super().__init__(mol)
-        self._surf = surface
-        self._surface_coords = None
-        self._derivs = derivatives
+
+        if hasattr(surface, '_surf'):
+            self._surf = surface._surf
+            self._derivs = surface._derivs
+            self._surface_coords = surface._surface_coords
+        else:
+            self._surf = surface
+            self._surface_coords = None
+            self._derivs = derivatives
 
     @classmethod
     def from_data(cls, mol, data):
@@ -2061,6 +2072,14 @@ class NormalModesManager(PropertyManager):
                                      origin=normal_modes.get('origin', None)
                                      )
             )
+        elif hasattr(normal_modes, '_modes'):
+            if normal_modes._modes is not None:
+                normal_modes = normal_modes._modes.change_mol(mol)
+            else:
+                normal_modes = None
+        elif hasattr(normal_modes, 'change_mol'):
+            normal_modes = normal_modes.change_mol(mol)
+
         self._modes = normal_modes
         self._freqs = None # implementation detail
 
@@ -2091,7 +2110,7 @@ class NormalModesManager(PropertyManager):
     def set_molecule(self, mol):
         super().set_molecule(mol)
         if self._modes is not None:
-            self.modes.molecule = mol
+            self._modes = self._modes.change_mol(mol)
 
     @property
     def modes(self):
