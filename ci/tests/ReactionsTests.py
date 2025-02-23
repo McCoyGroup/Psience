@@ -84,29 +84,26 @@ class ReactionsTests(TestCase):
         # print(new[1][-3:])
         # print(old[1][-3:])
         # return
-
         gen = r.get_profile_generator(
             'interpolate',
-            # internals='auto'
-            internals=zmat
-            # internals={'specs':get_specs(zmat)}
+            # internals=zmat,
+            # internals={'specs':get_specs(zmat)},
+            # internals={'primitives':get_specs(zmat)}
+            internals={'specs':'auto', 'prune_coordinates':False}
+            # internals={'primitives':'auto', 'prune_coordinates':False}
         )
 
-        # from McUtils.Profilers import BlockProfiler
-        # with BlockProfiler.profiler(mode='deterministic'):
-        #     for c in itertools.combinations(range(coords.shape[0]), 3):
-        #         for p in itertools.permutations(c):
-        #             new = nput.angle_vec(coords, *p, order=2)
-        # # structs = gen.generate()
-        # return
-        int_vals = [0, .1, .2, .3, .4, .5, .6, .7, .8, .9, 1]
-        # int_vals = [0, .1, 1]
+        int_vals = [0, .2,  .4, .6, .8, 1]
         crds = gen.interpolator.interpolator(int_vals)
-        # return
+
+        from McUtils.Jupyter import ExamplesManager
+        vm = ExamplesManager.parse_x3d_view_matrix("{\"_00\":-0.2344741117584002,\"_01\":-0.9704258662186166,\"_02\":-0.05740669899034502,\"_03\":-0.5905212871236172,\"_10\":0.927679505284065,\"_11\":-0.2057128258010835,\"_12\":-0.3115974466789714,\"_13\":-0.3163106911448954,\"_20\":0.2905729278357282,\"_21\":-0.12631655265559674,\"_22\":0.948478519595548,\"_23\":-14.848572311368708,\"_30\":0,\"_31\":0,\"_32\":0,\"_33\":1.0000000000000002}")
 
         start = r.reactant_complex.modify(coords=crds[0])
-        rxn_plot = start.plot(backend='x3d')
-        colors = [
+        rxn_plot = start.plot(backend='x3d', image_size=(800, 800),
+                              view_settings=vm
+                              )
+        colors = ([
             '#00ff00',
             '#ff00ff',
             '#0000ff',
@@ -115,7 +112,7 @@ class ReactionsTests(TestCase):
             '#cc00cc',
             '#0000cc',
             '#f0f000',
-        ][:len(crds) - 2]
+        ]*(len(crds)//8 + 1))[:len(crds) - 2]
         for struct, color, p in zip(
                 crds[1:],
                 colors + [None],
