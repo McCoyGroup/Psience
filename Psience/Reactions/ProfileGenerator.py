@@ -147,7 +147,7 @@ class InterpolatingProfileGenerator(ProfileGenerator):
                     self.products.coords.system
                 ),
                 coordinate_system=coordinate_system,
-                reembed=True,
+                reembed=False,
                 embedding_options={'masses':self.reactants.atomic_masses},
                 max_displacement_step=max_displacement_step
             )
