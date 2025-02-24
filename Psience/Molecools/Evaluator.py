@@ -1,8 +1,8 @@
 import abc
 import math
 import sys, os
-
 import numpy as np
+import warnings
 
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Zachary import TensorDerivativeConverter, FiniteDifferenceDerivative
@@ -501,17 +501,22 @@ class EnergyEvaluator(metaclass=abc.ABCMeta):
                  parallelizer=None,
                  logger=None,
                  **opts):
+        if nput.is_numeric(order):
+            order = list(range(order+1))
+        # TODO: we assume order sorted, handle when it's not
         expansion = []
         if analytic_derivative_order is None:
             analytic_derivative_order = self.analytic_derivative_order
         if batched_orders is None:
             batched_orders = self.batched_orders
         if batched_orders:
-            expansion.extend(self.evaluate_term(coords, min(analytic_derivative_order, order), **opts))
+            terms = self.evaluate_term(coords, min(analytic_derivative_order, order[-1]), **opts)
+            expansion.extend([terms[o] for o in order if o <= analytic_derivative_order])
         else:
-            for i in range(min(analytic_derivative_order, order)+1):
+            for i in order:
+                if i > analytic_derivative_order: break
                 expansion.append(self.evaluate_term(coords, i, **opts))
-        if order > analytic_derivative_order:
+        if order[-1] > analytic_derivative_order:
 
             base_shape = coords.shape[:-2]
             coord_shape = coords.shape[-2:]
@@ -536,8 +541,9 @@ class EnergyEvaluator(metaclass=abc.ABCMeta):
                                              logger=logger
                                              )
             tensors = der.derivatives(flat_coords).derivative_tensor(
-                list(range(1, (order - analytic_derivative_order) + 1))
+                list(range(1, (order[-1] - analytic_derivative_order) + 1))
             )
+            #TODO: handle disjoin list of orders...
             expansion.extend(
                 t.reshape(base_shape + t.shape[1:])
                     if t.ndim > 0 and flat_coords.shape[0] != 1 else
@@ -557,7 +563,7 @@ class EnergyEvaluator(metaclass=abc.ABCMeta):
 
         return [
             e * eng_conv / (bohr_conv ** o)
-            for o,e in enumerate(expansion)
+            for o,e in zip(order, expansion)
         ]
 
     evaluator_types = {}
@@ -659,7 +665,9 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
 
     @classmethod
     def setup_aimnet(cls, model):
-        from aimnet2calc import AIMNet2Calculator
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            from aimnet2calc import AIMNet2Calculator
 
         with cls.quiet_mode():
             calc = AIMNet2Calculator(model)
@@ -809,13 +817,15 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                  ):
         if method == 'ase':
             from McUtils.ExternalPrograms import ASEMolecule
-            from aimnet2calc import AIMNet2ASE
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                from aimnet2calc import AIMNet2ASE
 
             with self.quiet_mode():
                 calc = AIMNet2ASE(self.model,
-                                      charge=self.charge,
-                                      mult=self.multiplicity
-                                      )
+                                  charge=self.charge,
+                                  mult=self.multiplicity
+                                  )
 
             mol = ASEMolecule.from_coords(
                 self.atoms,

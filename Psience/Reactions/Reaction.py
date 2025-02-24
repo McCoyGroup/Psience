@@ -22,20 +22,24 @@ class Reaction:
                  fragment_expansion_method=dev.default,
                  optimize=True,
                  energy_evaluator='rdkit',
-                 profile_generator=None
+                 profile_generator=None,
+                 **fragment_initialization_opts
                  ):
         self.reactants = reactants
         self.products = products
 
         self.product_complex = self.make_reaction_complex(products,
-                                                          fragment_expansion_method=fragment_expansion_method
+                                                          fragment_expansion_method=fragment_expansion_method,
+                                                          **fragment_initialization_opts
                                                           )
         if use_product_structure:
             self.reactant_complex = self.make_reaction_complex(reactants,
                                                                fragment_expansion_method=None)
         else:
             self.reactant_complex = self.make_reaction_complex(reactants,
-                                                               fragment_expansion_method=fragment_expansion_method)
+                                                               fragment_expansion_method=fragment_expansion_method,
+                                                               **fragment_initialization_opts
+                                                               )
 
         if align:
             self.reactant_complex = self.product_complex.align_molecule(
@@ -48,21 +52,19 @@ class Reaction:
             if fragment_expansion_method is not None:
                 method, opts = self.get_expansion_dispatch().resolve(fragment_expansion_method)
                 target_coords = method(self.reactant_complex.fragment_indices,
-                                       self.product_complex.coords, **opts)
+                                       self.product_complex.coords,
+                                       **dict(fragment_initialization_opts, **opts)
+                                       )
             else:
                 target_coords = self.product_complex.coords
 
             self.reactant_complex = self.reactant_complex.modify(coords=target_coords)
 
         if optimize:
-            self.product_complex = self.product_complex.optimize(
-                evaluator=energy_evaluator
-            )
-            self.reactant_complex = self.reactant_complex.optimize(
-                evaluator=energy_evaluator
-            )
+            self.product_complex = self.product_complex.optimize(evaluator=energy_evaluator)
+            self.reactant_complex = self.reactant_complex.optimize(evaluator=energy_evaluator)
             if align:
-                self.product_complex.align_molecule(
+                self.reactant_complex = self.product_complex.align_molecule(
                     self.reactant_complex,
                     reindex_bonds=False,
                     align_structures=True,
@@ -271,33 +273,37 @@ class Reaction:
         return reactant_complex
 
     @classmethod
-    def from_smiles(cls, smiles, fragment_expansion_method=dev.default, align=True, **opts):
+    def from_smiles(cls, smiles, fragment_expansion_method=dev.default, align=True,
+                    add_implicit_hydrogens=True,
+                    **opts):
         reactants, products = [s.strip() for s in smiles.split(">>")]
         reactants = [
             Molecule.from_string(
-                s.strip(), "smi", **opts
+                s.strip(), "smi", add_implicit_hydrogens=add_implicit_hydrogens
             )
             for s in reactants.split(".")
         ]
 
         products = [
             Molecule.from_string(
-                s.strip(), "smi", **opts
+                s.strip(), "smi", add_implicit_hydrogens=add_implicit_hydrogens
             )
             for s in products.split(".")
         ]
 
         return cls(reactants, products,
                    fragment_expansion_method=fragment_expansion_method,
-                   align=align
+                   align=align,
+                   **opts
                    )
 
-    def get_profile_generator(self, profile_generator=None, internals=None) -> ProfileGenerator:
+    def get_profile_generator(self, profile_generator=None, internals=None, **profile_opts) -> ProfileGenerator:
         if profile_generator is None:
             profile_generator = self.profile_generator
         return ProfileGenerator.resolve(
             self.reactant_complex,
             self.product_complex,
             profile_generator=profile_generator,
-            internals=internals
+            internals=internals,
+            **profile_opts
         )
