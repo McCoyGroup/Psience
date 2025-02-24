@@ -6,6 +6,7 @@ from McUtils.Coordinerds import CoordinateSet
 from McUtils.Zachary import CoordinateInterpolator
 import McUtils.Numputils as nput
 import McUtils.Devutils as dev
+from McUtils.Data import UnitsData
 
 from ..Molecools import Molecule
 from ..Molecools.Evaluator import EnergyEvaluator
@@ -19,6 +20,11 @@ class ProfileGenerator:
     @abc.abstractmethod
     def generate(self, **opts):
         ...
+
+    def evaluate_profile_energies(self, profile:'list[Molecule]', **opts):
+        raise NotImplementedError(f"{type(self).__name__} doesn't support profile energy evaluation")
+    def evaluate_profile_distances(self, profile:'list[Molecule]', **opts):
+        raise NotImplementedError(f"{type(self).__name__} doesn't support profile energy evaluation")
 
     @classmethod
     def get_profile_generators(cls):
@@ -59,6 +65,7 @@ class InterpolatingProfileGenerator(ProfileGenerator):
                  ts_guesses:list[Molecule]=None,
                  internals=None,
                  num_images=10,
+                 initial_image_positions=None,
                  max_displacement_step=None
                  ):
         super().__init__(reactant_complex)
@@ -77,6 +84,7 @@ class InterpolatingProfileGenerator(ProfileGenerator):
                                                   max_displacement_step=max_displacement_step
                                                   )
         self.num_images = num_images
+        self.initial_image_positions = initial_image_positions
 
     def wrap_conversion(self, spec, base_internals):
         def convert(coords):
@@ -137,78 +145,119 @@ class InterpolatingProfileGenerator(ProfileGenerator):
         else:
             return coordinate_interpolator
 
-    def generate(self, num_images=None):
-        if num_images is None:
-            num_images = self.num_images
-        return self.interpolator(np.linspace(0, 1, num_images))
-
-
-class NEBEnergyEvaluator(EnergyEvaluator):
-    def __init__(self, base_evaluator:EnergyEvaluator, spring_constant):
-        self.base = base_evaluator
-        self.energy_units = base_evaluator.energy_units
-        self.distance_units = base_evaluator.distance_units
-        self.batched_orders = base_evaluator.batched_orders
-        self.analytic_derivative_order = base_evaluator.analytic_derivative_order
-        self.spring_constant = spring_constant
-
-    def evaluate_term(self, coords, order, **opts):
-        return self.base.evaluate_term(coords, order, **opts)
-
-    def image_pairwise_contribution(self, guess, cur, prev, next, order=0):
-        if order > 2: return 0
-
-        (prev_dist, prev_const), (next_dist, next_const) = self.get_spring_params(guess, cur, prev, next)
-        contribution = 0
-        if order == 0:
-            if prev_dist is not None:
-                contribution += (prev_dist ** 2) * prev_const
-            if next_dist is not None:
-                contribution += (next_dist ** 2) * next_const
-        elif order == 1:
-            if prev_dist is not None:
-                contribution += 2 * prev_const * (guess[:, cur] - guess[:, prev])
-            if next_dist is not None:
-                contribution += 2 * next_const * (guess[:, cur] - guess[:, next])
-        elif order == 2:
-            if prev_dist is not None:
-                contribution += 2 * prev_const * nput.identity_tensors(guess.shape[0], guess.shape[1])
-            if next_dist is not None:
-                contribution += 2 * next_const * nput.identity_tensors(guess.shape[0], guess.shape[1])
-        return contribution
+    def generate(self, num_images=None, initial_image_positions=None):
+        if initial_image_positions is None:
+            initial_image_positions = self.initial_image_positions
+        if initial_image_positions is None:
+            if num_images is None:
+                num_images = self.num_images
+            initial_image_positions = np.linspace(0, 1, num_images)
+        crds = self.interpolator(initial_image_positions)
+        images = [
+            (self.reactants if p < .8 else self.products).modify(coords=c)
+            for p,c in zip(initial_image_positions, crds)
+        ]
+        return images
 
 class NudgedElasticBand(InterpolatingProfileGenerator):
     def __init__(self,
                  reactant_complex: Molecule,
                  product_complex: Molecule,
+                 *,
                  energy_evaluator: EnergyEvaluator,
                  coordinate_interpolator=None,
                  num_images=10,
-                 spring_constant=.1
+                 initial_image_positions=None,
+                 spring_constant=.01,
+                 internals=None,
+                 max_displacement_step=None
                  ):
         super().__init__(
             reactant_complex,
             product_complex,
             coordinate_interpolator=coordinate_interpolator,
-            num_images=num_images
+            num_images=num_images,
+            initial_image_positions=initial_image_positions,
+            internals=internals,
+            max_displacement_step=max_displacement_step
         )
+        self.internals = internals
+        if isinstance(energy_evaluator, str):
+            energy_evaluator = self.reactants.get_energy_evaluator(energy_evaluator)
         self.energy_evaluator = energy_evaluator
         self.spring_constant = spring_constant
 
-    def _get_potential_expansion(self):
-        ...
+    def _potential(self, energy_evaluator):
+        def _func(coords, mask):
+            coords = coords.reshape(coords.shape[:-1] + (-1, 3))
+            coords = coords * UnitsData.convert("BohrRadius", energy_evaluator.distance_units)
+            return energy_evaluator.evaluate(coords, order=0)[0]
+        return _func
+    def _jacobian(self, energy_evaluator, remove_translation_rotations=True):
+        def _jac(coords, mask):
+            coords = coords.reshape(coords.shape[:-1] + (-1, 3))
+            coords = coords * UnitsData.convert("BohrRadius", energy_evaluator.distance_units)
+            grad = energy_evaluator.evaluate(coords, order=[1])
+            if remove_translation_rotations:
+                grad = nput.remove_translation_rotations(grad,
+                                                         coords,
+                                                         masses=self.reactants.masses,
+                                                         mass_weighted=False)
+            return grad[0]
+        return _jac
 
-    def generate(self, num_images=None, spring_constant=None, energy_evaluator=None):
-        base_images = super().generate(num_images=num_images)
+    def evaluate_profile_distances(self, profile:'list[Molecule]'):
+        step_finder = self.get_step_finder()
+        dists = [
+            step_finder.get_dist(
+                p1.coords.flatten()[np.newaxis],
+                p2.coords.flatten()[np.newaxis]
+            )[0]
+            for p1,p2 in zip(profile, profile[1:])
+        ]
+        d = np.cumsum([0] + dists)
+        return d / d[-1]
+
+    def evaluate_profile_energies(self, profile:'list[Molecule]', energy_evaluator=None):
+        if energy_evaluator is None:
+            energy_evaluator = self.energy_evaluator
+
+        base_pot = self._potential(energy_evaluator)
+        return [
+            base_pot(i.coords.reshape(1, -1), None)[0]
+            for i in profile
+        ]
+
+    def get_step_finder(self, spring_constant=None, energy_evaluator=None):
         if spring_constant is None:
             spring_constant = self.spring_constant
         if energy_evaluator is None:
             energy_evaluator = self.energy_evaluator
+        return nput.NudgedElasticBandStepFinder(
+                self._potential(energy_evaluator),
+                self._jacobian(energy_evaluator),
+                spring_constants=spring_constant
+            )
 
-        image_coords = [b.coords for b in base_images]
-        return nput.iterative_chain_minimize(
+    def generate(self, num_images=None, spring_constant=None, energy_evaluator=None, return_preopt=False,
+                 embedding_options=None,
+                 **opt_opts):
+        base_images = super().generate(num_images=num_images)
+        step_finder = self.get_step_finder(spring_constant=spring_constant, energy_evaluator=energy_evaluator)
+
+        if embedding_options is None:
+            embedding_options = {'masses':self.reactants.masses}
+        image_coords = [b.coords.flatten() for b in base_images]
+        (res, nimg), _, _ = nput.iterative_chain_minimize(
             image_coords,
-
-
+            step_finder,
+            embedding_options=embedding_options,
+            **opt_opts
         )
+
+        new_img = [i.modify(coords=c.reshape(-1, 3)) for i,c in zip(base_images, res)]
+        if return_preopt:
+            return base_images, new_img
+        else:
+            return new_img
 
