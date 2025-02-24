@@ -86,24 +86,33 @@ class InterpolatingProfileGenerator(ProfileGenerator):
         self.num_images = num_images
         self.initial_image_positions = initial_image_positions
 
+    def prep_cart_coordinate_system(self, cart_sys, base_internals):
+        for k in [
+            'origins',
+            'axes',
+            'masses'
+        ]:
+            if k in base_internals.converter_options:
+                cart_sys.converter_options[k] = base_internals.converter_options[k]
+        return cart_sys
+    def prep_int_coordinate_system(self, ints, new_coords, base_internals):
+        for k in [
+            'reference_internals',
+            'redundant_transformation',
+            'reference_coordinates',
+            'origins',
+            'axes',
+            'masses'
+        ]:
+            if k in ints.converter_options:
+                ints.system.converter_options[k] = ints.converter_options[k]
+        return ints
     def wrap_conversion(self, spec, base_internals):
         def convert(coords):
             new = self.products.modify(coords=coords, internals=spec)
-            for k in [
-                'origins',
-                'axes'
-            ]:
-                if k in base_internals.converter_options:
-                    new.coords.system.converter_options[k] = base_internals.converter_options[k]
+            self.prep_cart_coordinate_system(new.coords.system, base_internals)
             ints = new.internal_coordinates
-            for k in [
-                'reference_internals',
-                'redundant_transformation',
-                'origins',
-                'axes'
-            ]:
-                if k in ints.converter_options:
-                    ints.system.converter_options[k] = ints.converter_options[k]
+            self.prep_int_coordinate_system(ints, new.coords, base_internals)
             return ints
         convert.system = base_internals.system
         return convert
@@ -170,8 +179,11 @@ class NudgedElasticBand(InterpolatingProfileGenerator):
                  initial_image_positions=None,
                  spring_constant=.01,
                  internals=None,
-                 max_displacement_step=None
+                 max_displacement_step=None,
+                 interpolation_gradient_scaling=None
                  ):
+        self.interpolation_gradient_scaling = interpolation_gradient_scaling
+        self._energy_evaluator = energy_evaluator
         super().__init__(
             reactant_complex,
             product_complex,
@@ -181,12 +193,11 @@ class NudgedElasticBand(InterpolatingProfileGenerator):
             internals=internals,
             max_displacement_step=max_displacement_step
         )
-        self.internals = internals
-        if isinstance(energy_evaluator, str):
-            energy_evaluator = self.reactants.get_energy_evaluator(energy_evaluator)
-        self.energy_evaluator = energy_evaluator
         self.spring_constant = spring_constant
-
+        self.internals = internals
+    @property
+    def energy_evaluator(self):
+        return self.reactants.get_energy_evaluator(self._energy_evaluator)
     def _potential(self, energy_evaluator):
         def _func(coords, mask):
             coords = coords.reshape(coords.shape[:-1] + (-1, 3))
@@ -205,6 +216,19 @@ class NudgedElasticBand(InterpolatingProfileGenerator):
                                                          mass_weighted=False)
             return grad[0]
         return _jac
+
+    # def prep_cart_coordinate_system(self, cart_sys, base_internals):
+    #     super().prep_cart_coordinate_system(cart_sys, base_internals)
+    #     if self.interpolation_gradient_scaling is not None:
+    #         cart_sys.converter_options['gradient_function'] = self._jacobian(self.energy_evaluator)
+    #         cart_sys.converter_options['gradient_scaling'] = self.interpolation_gradient_scaling
+    #     return cart_sys
+    def prep_int_coordinate_system(self, ints, new_coords, base_internals):
+        super().prep_int_coordinate_system(ints, new_coords, base_internals)
+        if self.interpolation_gradient_scaling is not None:
+            ints.system.converter_options['gradient_function'] = self._jacobian(self.energy_evaluator)
+            ints.system.converter_options['gradient_scaling'] = self.interpolation_gradient_scaling
+        return ints
 
     def evaluate_profile_distances(self, profile:'list[Molecule]'):
         step_finder = self.get_step_finder()

@@ -10,12 +10,40 @@ class ReactionsTests(TestCase):
     @debugTest
     def test_SetupReactants(self):
 
+        # from Psience.Molecools import Molecule
+        # hoono = Molecule.from_file(
+        #     TestManager.test_data('HOONO_freq.fchk'),
+        #     internals={'zmatrix': [
+        #         [0, -1, -1, -1],  # H
+        #         [1, 0, -1, -1],  # O
+        #         [2, 1, 0, -1],  # O
+        #         [3, 2, 1, 0],  # N
+        #         [4, 3, 2, 0]  # O
+        #     ], 'iterative': True},
+        # )
+        # hoono2 = Molecule.from_file(
+        #     TestManager.test_data('HOONO_freq.fchk'),
+        #     internals=[
+        #         [0, -1, -1, -1],  # H
+        #         [1,  0, -1, -1],  # O
+        #         [2,  1,  0, -1],  # O
+        #         [3,  2,  1,  0],  # N
+        #         [4,  3,  2,  0]  # O
+        #     ]
+        # )
+        # h1 = hoono.get_internals_by_cartesians(1)[0]
+        # h2 = hoono2.get_internals_by_cartesians(1)[0]
+        # print(h1 - h2)
+        # return
+
         r = Reaction.from_smiles(
             "C=C.C=CC=C>>C1CCC=CC1",
             fragment_expansion_method='centroid',
             # energy_evaluator='rdkit'
-            energy_evaluator='aimnet2'
+            energy_evaluator='aimnet2',
+            optimize=True
         )
+
         # for mol in r.reactant_complex.fragments:
         #     print(mol.coords)
         # rxn_plot = r.reactant_complex.plot(backend='x3d')
@@ -54,14 +82,20 @@ class ReactionsTests(TestCase):
         gen = r.get_profile_generator(
             'neb',
             energy_evaluator='aimnet2',
-            initial_image_positions=[0,  .4, .6, .7, .8, .9, .95, 1],
-            # internals=zmat,
+            # initial_image_positions=[0,  .4, .6, .7, .8, .9, .95, 1],
+            num_images=25,
+            # interpolation_gradient_scaling=.1,
+            internals=zmat,
+            # internals={'zmatrix':zmat, 'iterative':False},
             # internals={'specs':get_specs(zmat)},
             # internals={'primitives':get_specs(zmat)}
             # internals={'specs':'auto', 'prune_coordinates':False}
-            internals={'primitives':'auto', 'prune_coordinates':False},
-            spring_constant=.5
+            # internals={'primitives':'auto', 'prune_coordinates':False},
+            spring_constant=2
         )
+
+
+
         # int_vals = [0, .2,  .4, .6, .8, 1]
         # crds = gen.interpolator.interpolate(int_vals)
         # img = [
@@ -71,7 +105,8 @@ class ReactionsTests(TestCase):
         #         for p,struct in zip(int_vals, crds)
         #     ]
 
-        pre, post = gen.generate(return_preopt=True, max_iterations=15)
+        pre, post = gen.generate(return_preopt=True, max_iterations=10)
+        # return
         # return
 
         pre_eng = gen.evaluate_profile_energies(pre)

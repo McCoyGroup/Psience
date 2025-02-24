@@ -234,12 +234,12 @@ class Molecule(AbstractMolecule):
             # else:
             raise ValueError(f"can't understand internal spec '{spec}'")
         elif isinstance(spec, dict):
-            prims = spec.get('primitives')
+            if 'zmatrix' in spec: return spec
+            prims = spec.pop('primitives', None)
             if prims is not None:
                 spec = spec.copy()
                 spec['specs'] = prims
                 spec['redundant'] = True
-                del spec['primitives']
             subspec = spec.get('specs', '')
             if isinstance(subspec, str):
                 if subspec.lower() == 'auto':
