@@ -10,12 +10,130 @@ class ReactionsTests(TestCase):
     @debugTest
     def test_SetupReactants(self):
 
+        # def get_specs(zmat):
+        #     specs = []
+        #     for row in zmat:
+        #         if row[1] < 0: continue
+        #         specs.append(tuple(row[:2]))
+        #         if row[2] < 0: continue
+        #         specs.append(tuple(row[:3]))
+        #         if row[3] < 0: continue
+        #         specs.append(tuple(row[:4]))
+        #     return specs
+        #
+        # from Psience.Molecools import Molecule
+        # hoono3 = Molecule.from_file(
+        #     TestManager.test_data('HOONO_freq.fchk'),
+        #     internals={'specs': get_specs([
+        #         [0, -1, -1, -1],  # H
+        #         [1,  0, -1, -1],  # O
+        #         [2,  1, 0, -1],  # O
+        #         [3,  2, 1, 0],  # N
+        #         [4,  3, 2, 0]  # O
+        #     ])},
+        # ).get_embedded_molecule()
+        # hoono = Molecule.from_file(
+        #     TestManager.test_data('HOONO_freq.fchk'),
+        #     internals={'zmatrix': [
+        #         [0, -1, -1, -1],  # H
+        #         [1,  0, -1, -1],  # O
+        #         [2,  1,  0, -1],  # O
+        #         [3,  2,  1,  0],  # N
+        #         [4,  3,  2,  0]  # O
+        #     ], 'iterative': True},
+        # ).get_embedded_molecule()
+        # hoono2 = Molecule.from_file(
+        #     TestManager.test_data('HOONO_freq.fchk'),
+        #     internals=[
+        #         [0, -1, -1, -1],  # H
+        #         [1,  0, -1, -1],  # O
+        #         [2,  1,  0, -1],  # O
+        #         [3,  2,  1,  0],  # N
+        #         [4,  3,  2,  0]  # O
+        #     ]
+        # ).get_embedded_molecule()
+        # # h1 = hoono.get_internals_by_cartesians(1)[0]
+        # # h2 = hoono2.get_internals_by_cartesians(1)[0]
+        # ho2_ics = hoono2.internal_coordinates.copy()
+        # ho2_ics[3, 2] += 1
+        # ho2_new_carts = ho2_ics.convert(hoono2.coords.system)
+        #
+        # print("="*100)
+        #
+        # ho3_ics = hoono3.internal_coordinates.copy()
+        # print(hoono3.internal_coordinates.converter_options['specs'])
+        # ho3_ics[5] += 1
+        # ho3_new_carts = ho3_ics.convert(hoono.coords.system)
+        #
+        # print("="*100)
+        #
+        # ho1_ics = hoono.internal_coordinates.copy()
+        # ho1_ics[3, 2] += 1
+        # ho1_new_carts = ho1_ics.convert(hoono.coords.system)
+        #
+        # from McUtils.Numputils import eckart_embedding
+        # hoono_og_carts = eckart_embedding(
+        #     ho2_new_carts,
+        #     hoono.coords,
+        #     masses=hoono.masses
+        # ).coordinates
+        #
+        # ho1_new_carts = eckart_embedding(
+        #     ho2_new_carts,
+        #     ho1_new_carts,
+        #     masses=hoono.masses
+        # ).coordinates
+        #
+        # ho3_new_carts = eckart_embedding(
+        #     ho2_new_carts,
+        #     ho3_new_carts,
+        #     masses=hoono.masses
+        # ).coordinates
+        # print("="*20)
+        # print(ho2_new_carts - ho1_new_carts)
+        # print(ho2_new_carts - ho3_new_carts)
+        # print("_"*20)
+        #
+        # return
+
+        # ploot = hoono2.plot(hoono_og_carts, backend='x3d')
+        # hoono.plot(ho1_new_carts, backend='x3d', figure=ploot,
+        #            atom_style={'color': 'white', 'glow': '#00ff00'},
+        #            bond_style={'color': 'white', 'glow': '#00ff00'}
+        #            )
+        # hoono.plot(ho2_new_carts, backend='x3d', figure=ploot,
+        #            atom_style={'color': 'white', 'glow': '#f0f'},
+        #            bond_style={'color': 'white', 'glow': '#f0f'}
+        #            )
+        # ploot.show()
+        #
+        # return
+        #
+        # ho1_ics = hoono.internal_coordinates.copy()
+        # ho1_ics[2, 2] += .1
+        # ho1_new_carts = ho1_ics.convert(hoono.coords.system)
+        #
+        # ploot = hoono2.plot(ho2_new_carts, backend='x3d')
+        # hoono.plot(ho1_new_carts, backend='x3d', figure=ploot,
+        #            atom_style={'color': 'white', 'glow': '#00ff00'},
+        #            bond_style={'color': 'white', 'glow': '#00ff00'}
+        #            )
+        # hoono.plot(backend='x3d', figure=ploot,
+        #            atom_style={'color': 'white', 'glow': '#f0f'},
+        #            bond_style={'color': 'white', 'glow': '#f0f'}
+        #            )
+        # ploot.show()
+        #
+        # return
+
         r = Reaction.from_smiles(
             "C=C.C=CC=C>>C1CCC=CC1",
             fragment_expansion_method='centroid',
             # energy_evaluator='rdkit'
-            energy_evaluator='aimnet2'
+            energy_evaluator='rdkit',
+            optimize=True
         )
+
         # for mol in r.reactant_complex.fragments:
         #     print(mol.coords)
         # rxn_plot = r.reactant_complex.plot(backend='x3d')
@@ -24,21 +142,21 @@ class ReactionsTests(TestCase):
         # rxn_plot.show()
         zmat = [
                 [0, -1, -1, -1],
-                [1, 0, -1, -1],
-                [2, 1, 0, -1],
-                [3, 2, 1, 0],
-                [4, 3, 2, 1],
-                [5, 4, 3, 2],
-                [6, 0, 5, 1],
-                [7, 0, 5, 1],
-                [8, 1, 0, 2],
-                [9, 1, 0, 2],
-                [10, 2, 1, 3],
-                [11, 2, 1, 3],
-                [12, 3, 2, 4],
-                [13, 4, 3, 5],
-                [14, 5, 4, 0],
-                [15, 5, 4, 0]
+                [1,  0, -1, -1],
+                [2,  1,  0, -1],
+                [3,  2,  1,  0],
+                [4,  3,  2,  1],
+                [5,  4,  3,  2],
+                [6,  0,  5,  1],
+                [7,  0,  5,  1],
+                [8,  1,  0,  2],
+                [9,  1,  0,  2],
+                [10, 2,  1,  3],
+                [11, 2,  1,  3],
+                [12, 3,  2,  4],
+                [13, 4,  3,  5],
+                [14, 5,  4,  0],
+                [15, 5,  4,  0]
             ]
         def get_specs(zmat):
             specs = []
@@ -54,14 +172,21 @@ class ReactionsTests(TestCase):
         gen = r.get_profile_generator(
             'neb',
             energy_evaluator='aimnet2',
-            initial_image_positions=[0,  .4, .6, .7, .8, .9, .95, 1],
+            # initial_image_positions=[0, .2, .4, .6, .8, 1],
+            # initial_image_positions=[0, .1, 1],
+            num_images=8,
+            # interpolation_gradient_scaling=.1,
             # internals=zmat,
+            internals={'zmatrix':zmat, 'iterative':True},
             # internals={'specs':get_specs(zmat)},
             # internals={'primitives':get_specs(zmat)}
-            # internals={'specs':'auto', 'prune_coordinates':False}
-            internals={'primitives':'auto', 'prune_coordinates':False},
-            spring_constant=.5
+            # internals={'specs':'auto', 'prune_coordinates':False},
+            # internals={'primitives':'auto', 'prune_coordinates':False},
+            spring_constant=2
         )
+
+
+
         # int_vals = [0, .2,  .4, .6, .8, 1]
         # crds = gen.interpolator.interpolate(int_vals)
         # img = [
@@ -71,18 +196,19 @@ class ReactionsTests(TestCase):
         #         for p,struct in zip(int_vals, crds)
         #     ]
 
-        pre, post = gen.generate(return_preopt=True, max_iterations=15)
+        pre, post = gen.generate(return_preopt=True, max_iterations=0)
+        # return
         # return
 
-        pre_eng = gen.evaluate_profile_energies(pre)
-        post_eng = gen.evaluate_profile_energies(post)
-        pre_dist = gen.evaluate_profile_distances(post)
-        post_dist = gen.evaluate_profile_distances(post)
-
-        import McUtils.Plots as plt
-        eng_plot = plt.Plot(pre_dist, pre_eng, marker='.')
-        eng_plot = plt.Plot(post_dist, post_eng, figure=eng_plot, marker='.')
-        eng_plot.show()
+        # pre_eng = gen.evaluate_profile_energies(pre)
+        # post_eng = gen.evaluate_profile_energies(post)
+        # pre_dist = gen.evaluate_profile_distances(post)
+        # post_dist = gen.evaluate_profile_distances(post)
+        #
+        # import McUtils.Plots as plt
+        # eng_plot = plt.Plot(pre_dist, pre_eng, marker='.')
+        # eng_plot = plt.Plot(post_dist, post_eng, figure=eng_plot, marker='.')
+        # eng_plot.show()
         # return
 
         img = post
