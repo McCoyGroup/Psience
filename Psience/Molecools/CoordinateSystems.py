@@ -164,6 +164,7 @@ class MolecularEmbedding:
         self._ints = None
 
     def internal_coordinates_from_spec(self, spec:dict):
+        spec = spec.copy() # don't mutate user data
         opts = spec.copy()
         coords = self.coords
         specs = opts.pop('specs', None)
@@ -171,21 +172,7 @@ class MolecularEmbedding:
         conversion = opts.pop('conversion', None)
         inverse = opts.pop('inverse', None)
         if specs is not None:
-            # opts = {
-            #     k:spec[k]
-            #     for k in [
-            #         'specs',
-            #         'redundant',
-            #         'untransformed_coordinates',
-            #         'relocalize',
-            #         'redundant_transformation',
-            #         'redundant_inverse',
-            #         'reference_internals',
-            #         'reference_coordinates'
-            #     ]
-            #     if k in spec
-            # }
-            ints = MolecularGenericInternalCoordinateSystem(self.masses, coords, **opts)
+            ints = MolecularGenericInternalCoordinateSystem(self.masses, coords, specs=specs, **opts)
             MolecularCartesianToGICConverter(coords.system, ints).register()
             MolecularGICToCartesianConverter(ints, coords.system).register()
             coords = coords.convert(ints, reference_internals=spec.get('reference_internals'))
@@ -1287,6 +1274,7 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
                                                                       origins=origins,
                                                                       axes=axes,
                                                                       return_derivs=return_derivs,
+                                                                      masses=masses,
                                                                       **kwargs
                                                                       )
 
@@ -1296,6 +1284,8 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
             zmcs = res
             opts=res.converter_options
         opts['ordering'] = opts['ordering'][3:] - 3
+        if masses is not None:
+            opts['masses'] = masses
         # zmcs = zmcs[:, 2:]
         if strip_dummies:
             dummies = [0, 1, 2] + [x+3 for x in dummy_positions] # add on axes
@@ -1394,6 +1384,7 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
                      strip_dummies=False,
                      strip_embedding=True,
                      planar_ref_tolerance=None,
+                     embedding_masses=None,
                      **kwargs):
         """
         Converts from Cartesian to ZMatrix coords, attempting to preserve the embedding
@@ -1459,12 +1450,16 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
                 ordering = ordering + 3
                 ordering = np.concatenate([ [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]], ordering])
 
+        if embedding_masses is None:
+            embedding_masses = masses
+
         refuse_derivs = reembed and coords.squeeze().ndim != 2
         res = CoordinateSet(coords, self.base_internal_type).convert(self.base_cartesian_type,
                                                                      ordering=ordering,
                                                                      origins=origins,
                                                                      axes=axes,
                                                                      return_derivs=return_derivs and not refuse_derivs,
+                                                                     masses=embedding_masses,
                                                                      **kwargs)
 
         if isinstance(res, tuple):
@@ -1632,12 +1627,8 @@ class MolecularCartesianToGICConverter(CartesianToGICSystemConverter):
                     periodic_disps = disp[..., self._periodics]
                     big_changes = np.where(np.abs(periodic_disps) > np.pi)
                     if len(big_changes[0]) > 0:
-                        print('!!!!', disp)
                         mods = periodic_disps[big_changes] % np.pi
                         disp[..., self._periodics][big_changes] = mods
-                        print('...', disp)
-
-
 
                 internals = nput.vec_tensordot(
                     red_tf,
@@ -1739,6 +1730,40 @@ class MolecularIZToCartesianConverter(MolecularZMatrixToCartesianConverter):
     ...
     """
     base_internal_type = McUtils.Coordinerds.IterativeZMatrixCoordinates
+    def convert_many(self, coords, *,
+                     masses, dummy_positions, ref_coords,
+                     origins=None, axes=None, ordering=None,
+                     reembed=False, axes_choice=None, return_derivs=None,
+                     strip_dummies=False,
+                     strip_embedding=True,
+                     planar_ref_tolerance=None,
+                     embedding_masses=None,
+                     fixed_atoms=None,
+                     fixed_coords=None,
+                     **kwargs):
+        if embedding_masses is None:
+            embedding_masses = np.concatenate([[1e8] * 3, masses])
+        if fixed_atoms is None:
+            fixed_atoms = [0, 1, 2]
+        if fixed_coords is None:
+            fixed_coords = [x+3 for x in MolecularZMatrixCoordinateSystem.embedding_coords]
+        carts, opts = super().convert_many(
+            coords,
+            masses=masses, dummy_positions=dummy_positions, ref_coords=ref_coords,
+            origins=origins, axes=axes, ordering=ordering,
+            reembed=reembed, axes_choice=axes_choice, return_derivs=return_derivs,
+            strip_dummies=strip_dummies,
+            strip_embedding=strip_embedding,
+            planar_ref_tolerance=planar_ref_tolerance,
+            embedding_masses=embedding_masses,
+            fixed_atoms=fixed_atoms,
+            fixed_coords=fixed_coords,
+            **kwargs
+        )
+        opts['masses'] = masses
+
+        return carts, opts
+
 
 class RegularIZToMolecularIZConverter(CoordinateSystemConverter):
     """

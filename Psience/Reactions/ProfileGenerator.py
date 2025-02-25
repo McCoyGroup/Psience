@@ -104,7 +104,7 @@ class InterpolatingProfileGenerator(ProfileGenerator):
             'axes',
             'masses'
         ]:
-            if k in ints.converter_options:
+            if k in ints.converter_options and k not in ints.system.converter_options:
                 ints.system.converter_options[k] = ints.converter_options[k]
         return ints
     def wrap_conversion(self, spec, base_internals):
@@ -147,7 +147,7 @@ class InterpolatingProfileGenerator(ProfileGenerator):
                     self.products.coords.system
                 ),
                 coordinate_system=coordinate_system,
-                reembed=False,
+                reembed=True,
                 embedding_options={'masses':self.reactants.atomic_masses},
                 max_displacement_step=max_displacement_step
             )

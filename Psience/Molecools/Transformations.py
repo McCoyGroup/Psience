@@ -25,7 +25,7 @@ class MolecularTransformation(GeometricTransformation):
                 new.coords = CoordinateSet(new_coords, mol.coords.system)
             else:
                 new.coords = CoordinateSet(new_coords)
-        elif isinstance(mol, CoordinateTransform):
+        elif isinstance(mol, GeometricTransformation):
             new = type(self)(self, mol)#, shift=shift)
         else:
             new = super().apply(mol, shift=shift)
