@@ -7,6 +7,7 @@ import warnings
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Zachary import TensorDerivativeConverter, FiniteDifferenceDerivative
 import McUtils.Numputils as nput
+import McUtils.Devutils as dev
 
 from ..Data import PotentialSurface, DipoleSurface
 from .CoordinateSystems import MolecularEmbedding
@@ -376,7 +377,7 @@ class MolecularEvaluator:
         )
         return self.get_nearest_displacement_coordinates(displacement_mesh, axes=axes, sel=sel)
 
-class EnergyEvaluator(metaclass=abc.ABCMeta):
+class PropertyEvaluator(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def evaluate_term(self, coords, order, **opts):
@@ -386,6 +387,270 @@ class EnergyEvaluator(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def from_mol(cls, mol, **opts):
         ...
+
+    property_units = None
+    target_property_units = None
+    distance_units = 'Angstroms'
+    batched_orders = False
+    analytic_derivative_order = 1
+    def evaluate(self,
+                 coords,
+                 order=0,
+                 analytic_derivative_order=None,
+                 batched_orders=None,
+                 stencil=5,
+                 mesh_spacing=.001,
+                 displacement_function=None,
+                 prep=None,
+                 lazy=False,
+                 cache_evaluations=True,
+                 parallelizer=None,
+                 logger=None,
+                 **opts):
+
+        if nput.is_numeric(order):
+            order = list(range(order+1))
+        # TODO: we assume order sorted, handle when it's not
+        expansion = []
+        if analytic_derivative_order is None:
+            analytic_derivative_order = self.analytic_derivative_order
+        if batched_orders is None:
+            batched_orders = self.batched_orders
+        if batched_orders:
+            terms = self.evaluate_term(coords, min(analytic_derivative_order, order[-1]), **opts)
+            expansion.extend([terms[o] for o in order if o <= analytic_derivative_order])
+        else:
+            for i in order:
+                if i > analytic_derivative_order: break
+                expansion.append(self.evaluate_term(coords, i, **opts))
+        if order[-1] > analytic_derivative_order:
+
+            base_shape = coords.shape[:-2]
+            coord_shape = coords.shape[-2:]
+            flat_coords = coords.reshape(-1, np.prod(coord_shape, dtype=int))
+            def derivs(structs):
+                reconst = structs.reshape(structs.shape[:-1] + coord_shape)
+                ders = self.evaluate_term(reconst, self.analytic_derivative_order, **opts)
+                if batched_orders:
+                    return ders[-1]
+                else:
+                    return ders
+
+            der = FiniteDifferenceDerivative(derivs,
+                                             function_shape=((0,), (0,)*self.analytic_derivative_order),
+                                             stencil=stencil,
+                                             mesh_spacing=mesh_spacing,
+                                             displacement_function=displacement_function,
+                                             prep=prep,
+                                             lazy=lazy,
+                                             cache_evaluations=cache_evaluations,
+                                             parallelizer=parallelizer,
+                                             logger=logger
+                                             )
+            tensors = der.derivatives(flat_coords).derivative_tensor(
+                list(range(1, (order[-1] - analytic_derivative_order) + 1))
+            )
+            #TODO: handle disjoin list of orders...
+            expansion.extend(
+                t.reshape(base_shape + t.shape[1:])
+                    if t.ndim > 0 and flat_coords.shape[0] != 1 else
+                t
+                for t in tensors
+            )
+
+        if self.property_units is None:
+            eng_conv = 1
+        else:
+            eng_conv = UnitsData.convert(self.property_units, self.target_property_units)
+
+        if self.distance_units is None:
+            bohr_conv = 1
+        else:
+            bohr_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+
+        return [
+            e * eng_conv / (bohr_conv ** o)
+            for o,e in zip(order, expansion)
+        ]
+
+    # evaluator_types = {}
+    @classmethod
+    @abc.abstractmethod
+    def get_evaluators(cls):
+        ...
+
+    _profile_dispatch = dev.uninitialized
+    default_evaluator_type = 'expansion'
+    @classmethod
+    def profile_generator_dispatch(cls):
+        cls._profile_dispatch = dev.handle_uninitialized(
+            cls._profile_dispatch,
+            dev.OptionsMethodDispatch,
+            args=(cls.get_evaluators,),
+            kwargs=dict(default_method=cls.default_evaluator_type)
+        )
+        return cls._profile_dispatch
+
+    @classmethod
+    @abc.abstractmethod
+    def get_default_function_evaluator_type(cls):
+        ...
+
+    @classmethod
+    def resolve_evaluator(cls, name):
+        if name is not None and not isinstance(name, str):
+            if hasattr(name, 'evaluate_term'):
+                return name
+            else:
+                eval = cls.get_default_function_evaluator_type()
+                eval.bind_default(name)
+                return eval
+        return cls.profile_generator_dispatch().resolve(name)
+
+    class quiet_mode:
+        def __init__(self, quiet=True):
+            self.quiet = quiet
+            self._stdout = None
+            self._devnull = None
+        def __enter__(self):
+            if self.quiet:
+                self._stdout = sys.stdout
+                self._devnull = open(os.devnull, 'w+').__enter__()
+                sys.stdout = self._devnull
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            if self.quiet:
+                self._devnull.__exit__(exc_type, exc_val, exc_tb)
+                sys.stdout = self._stdout
+
+class PropertyFunctionEvaluator(PropertyEvaluator):
+    # Slightly strange use case...we mostly use this as a component to
+    # implement individual methods
+
+    def __init__(self,
+                 potential_function,
+                 embedding=None,
+                 use_internals=True,
+                 reembed_cartesians=False,
+                 property_units=None,
+                 distance_units='Angstroms',
+                 batched_orders=False,
+                 analytic_derivative_order=0
+                 ):
+        self.property_function = potential_function
+        self.embedding = embedding
+        self.batched_orders = batched_orders
+        self.analytic_derivative_order = analytic_derivative_order
+        self.property_units = property_units
+        self.distance_units = distance_units
+        self.use_internals = use_internals
+        self.reembed_cartesians = reembed_cartesians
+
+    def evaluate_term(self, coords, order, **opts):
+        if self.embedding is not None:
+            if self.use_internals and self.embedding.internals is not None:
+                crds = self.embedding.coords*0 + coords
+                coords = crds.convert(
+                    self.embedding.internal_coordinates.system
+                )
+            elif self.reembed_cartesians:
+                coords = self.embedding.embed_coords(coords)
+
+        return self.property_function(coords, order=order, **opts)
+
+    def evaluate(self,
+                 coords,
+                 order=0,
+                 logger=None,
+                 **opts):
+        use_internals = self.use_internals
+        reembed = self.reembed_cartesians
+
+        if self.embedding is not None:
+            if self.use_internals and self.embedding.internals is not None:
+                crds = self.embedding.coords*0 + coords
+                coords = crds.convert(
+                    self.embedding.internal_coordinates.system
+                )
+            elif self.reembed_cartesians:
+                coords = self.embedding.embed_coords(coords)
+
+        try:
+            self.use_internals = False
+            self.reembed_cartesians = False
+
+            # TODO: make this less hacky...
+            return super(type(self).__bases__[0], self).evaluate(
+                coords,
+                order=order,
+                logger=logger,
+                **opts
+            )
+        finally:
+            self.use_internals = use_internals
+            self.reembed_cartesians = reembed
+
+    default_property_function = None
+    @classmethod
+    def bind_default(cls, potential):
+        cls.default_property_function = potential
+    @classmethod
+    def get_property_function(cls, prop_func, mol):
+        return prop_func
+    @classmethod
+    def initializer(cls, mol, **opts):
+        return cls(None, **opts)
+    @classmethod
+    def initialize_from_mol(root,
+                            cls,
+                            mol,
+                            property_function=None,
+                            *,
+                            embedding=None,
+                            use_internals=None,
+                            reembed_cartesians=None,
+                            property_units=None,
+                            distance_units=None,
+                            batched_orders=None,
+                            analytic_derivative_order=None,
+                            **opts):
+        if property_function is None:
+            property_function = cls.default_property_function
+            cls.default_property_function = None
+        property_function = cls.get_property_function(property_function, mol)
+        if property_function is None:
+            raise ValueError(f"can't evaluate with property function {property_function}")
+        init_opts = {
+            k: v for k, v in dict(
+                embedding=mol.embedding if embedding is None else embedding,
+                use_internals=use_internals,
+                reembed_cartesians=reembed_cartesians,
+                property_units=property_units,
+                distance_units=distance_units,
+                batched_orders=batched_orders,
+                analytic_derivative_order=analytic_derivative_order,
+            ).items()
+            if v is not None
+        }
+        return cls(
+            property_function,
+            **opts,
+            **init_opts
+        )
+
+class EnergyEvaluator(PropertyEvaluator):
+
+    target_property_units = 'Hartrees'
+    @classmethod
+    def get_evaluators(cls):
+        return {
+            'rdkit': RDKitEnergyEvaluator,
+            'aimnet2': AIMNet2EnergyEvaluator,
+            'xtb': XTBEnergyEvaluator,
+            'expansion': PotentialExpansionEnergyEvaluator
+        }
+    @classmethod
+    def get_default_function_evaluator_type(cls):
+        return PotentialFunctionEnergyEvaluator
 
     def minimizer_function_by_order(self, order, **opts):
         if self.analytic_derivative_order >= order:
@@ -404,7 +669,6 @@ class EnergyEvaluator(metaclass=abc.ABCMeta):
         return self.minimizer_function_by_order(1, **opts)
     def minimizer_hessian(self, **opts):
         return self.minimizer_function_by_order(2, **opts)
-
 
     def optimize(self,
                  coords,
@@ -486,126 +750,6 @@ class EnergyEvaluator(metaclass=abc.ABCMeta):
             )
             return converged, opt_coords.reshape(coords.shape)
 
-
-    energy_units = None
-    distance_units = 'Angstroms'
-    batched_orders = False
-    analytic_derivative_order = 1
-    def evaluate(self,
-                 coords,
-                 order=0,
-                 analytic_derivative_order=None,
-                 batched_orders=None,
-                 stencil=5,
-                 mesh_spacing=.001,
-                 displacement_function=None,
-                 prep=None,
-                 lazy=False,
-                 cache_evaluations=True,
-                 parallelizer=None,
-                 logger=None,
-                 **opts):
-
-        if nput.is_numeric(order):
-            order = list(range(order+1))
-        # TODO: we assume order sorted, handle when it's not
-        expansion = []
-        if analytic_derivative_order is None:
-            analytic_derivative_order = self.analytic_derivative_order
-        if batched_orders is None:
-            batched_orders = self.batched_orders
-        if batched_orders:
-            terms = self.evaluate_term(coords, min(analytic_derivative_order, order[-1]), **opts)
-            expansion.extend([terms[o] for o in order if o <= analytic_derivative_order])
-        else:
-            for i in order:
-                if i > analytic_derivative_order: break
-                expansion.append(self.evaluate_term(coords, i, **opts))
-        if order[-1] > analytic_derivative_order:
-
-            base_shape = coords.shape[:-2]
-            coord_shape = coords.shape[-2:]
-            flat_coords = coords.reshape(-1, np.prod(coord_shape, dtype=int))
-            def derivs(structs):
-                reconst = structs.reshape(structs.shape[:-1] + coord_shape)
-                ders = self.evaluate_term(reconst, self.analytic_derivative_order, **opts)
-                if batched_orders:
-                    return ders[-1]
-                else:
-                    return ders
-
-            der = FiniteDifferenceDerivative(derivs,
-                                             function_shape=((0,), (0,)*self.analytic_derivative_order),
-                                             stencil=stencil,
-                                             mesh_spacing=mesh_spacing,
-                                             displacement_function=displacement_function,
-                                             prep=prep,
-                                             lazy=lazy,
-                                             cache_evaluations=cache_evaluations,
-                                             parallelizer=parallelizer,
-                                             logger=logger
-                                             )
-            tensors = der.derivatives(flat_coords).derivative_tensor(
-                list(range(1, (order[-1] - analytic_derivative_order) + 1))
-            )
-            #TODO: handle disjoin list of orders...
-            expansion.extend(
-                t.reshape(base_shape + t.shape[1:])
-                    if t.ndim > 0 and flat_coords.shape[0] != 1 else
-                t
-                for t in tensors
-            )
-
-        if self.energy_units is None:
-            eng_conv = 1
-        else:
-            eng_conv = UnitsData.convert(self.energy_units, "Hartrees")
-
-        if self.distance_units is None:
-            bohr_conv = 1
-        else:
-            bohr_conv = UnitsData.convert(self.distance_units, "BohrRadius")
-
-        return [
-            e * eng_conv / (bohr_conv ** o)
-            for o,e in zip(order, expansion)
-        ]
-
-    evaluator_types = {}
-    @classmethod
-    def resolve_evaluator(cls, name):
-        if name is not None and not isinstance(name, str):
-            if hasattr(name, 'evaluate_term'):
-                return name
-            else:
-                PotentialFunctionEnergyEvaluator.bind_default(name)
-                return PotentialFunctionEnergyEvaluator
-        return cls.evaluator_types.get(
-            name,
-            {
-                'rdkit': RDKitEnergyEvaluator,
-                'aimnet': AIMNet2EnergyEvaluator,
-                'aimnet2': AIMNet2EnergyEvaluator,
-                'xtb': XTBEnergyEvaluator,
-                None:PotentialExpansionEnergyEvaluator
-            }.get(name.lower() if name is not None else None)
-        )
-
-    class quiet_mode:
-        def __init__(self, quiet=True):
-            self.quiet = quiet
-            self._stdout = None
-            self._devnull = None
-        def __enter__(self):
-            if self.quiet:
-                self._stdout = sys.stdout
-                self._devnull = open(os.devnull, 'w+').__enter__()
-                sys.stdout = self._devnull
-        def __exit__(self, exc_type, exc_val, exc_tb):
-            if self.quiet:
-                self._devnull.__exit__(exc_type, exc_val, exc_tb)
-                sys.stdout = self._stdout
-
 class RDKitEnergyEvaluator(EnergyEvaluator):
     def __init__(self, rdmol, force_field='mmff'):
         # if hasattr(mol, 'rdmol'):
@@ -617,7 +761,7 @@ class RDKitEnergyEvaluator(EnergyEvaluator):
     def from_mol(cls, mol, **opts):
         return cls(mol.rdmol)
 
-    energy_units = 'Kilocalories/Mole'
+    property_units = 'Kilocalories/Mole'
     analytic_derivative_order = 1
     def evaluate_term(self, coords, order, force_field_type=None, **opts):
         if force_field_type is None:
@@ -719,28 +863,28 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
     #         'mult': self._t_mult,
     #     }, forces='forces' in properties, stress='stress' in properties)
 
-    energy_units = 'ElectronVolts'
+    property_units = 'ElectronVolts'
     batched_orders = True
     analytic_derivative_order = 6
-    def evaluate_term(self, coords, order, **opts):
+    def prep_eval(self, coords, order, **opts):
         import torch
 
         base_shape = coords.shape[:-2]
         coords = coords.reshape((-1,) + coords.shape[-2:])
-        numbers = np.broadcast_to(
-            np.array(self.numbers)[np.newaxis],
-            (len(coords), len(self.numbers))
-        )
+        # numbers = np.broadcast_to(
+        #     np.array(self.numbers)[np.newaxis],
+        #     (len(coords), len(self.numbers))
+        # )
 
         forces = order > 0
         hessian = order > 1
 
         arg_dict = {
-            'coord':torch.tensor(coords.reshape(-1, 3), dtype=torch.float32, device=self.eval.device),
-            'numbers':torch.tensor(np.array(self.numbers), dtype=torch.int64, device=self.eval.device),
-            'charge':torch.tensor(self.charge, dtype=torch.float32, device=self.eval.device),
-            'cell':None,
-            'mol_idx':torch.tensor(
+            'coord': torch.tensor(coords.reshape(-1, 3), dtype=torch.float32, device=self.eval.device),
+            'numbers': torch.tensor(np.array(self.numbers), dtype=torch.int64, device=self.eval.device),
+            'charge': torch.tensor(self.charge, dtype=torch.float32, device=self.eval.device),
+            'cell': None,
+            'mol_idx': torch.tensor(
                 np.repeat(np.arange(coords.shape[0]), coords.shape[1]).flatten(),
                 dtype=torch.int64,
                 device=self.eval.device
@@ -765,14 +909,23 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
             hessian=hessian,
             **opts
         )
+
+        return base_shape, coords, data
+
+    def process_aimnet_derivs(self, base_shape, coords, data, root_key, order, deriv_key=None, property_shape=()):
         if order > 0:
-            data['deriv_1'] = data['forces']
-            for o in range(2, order+1):
-                data[f'deriv_{o}'] = self.autodiff(data[f'deriv_{o-1}'], self.eval._saved_for_grad['coord'])
+            if deriv_key is not None:
+                data['deriv_1'] = data[deriv_key]
+                for o in range(2, order+1):
+                    data[f'deriv_{o}'] = self.autodiff(data[f'deriv_{o-1}'], self.eval._saved_for_grad['coord'])
+            else:
+                data['deriv_0'] = data[root_key]
+                for o in range(2, order+1):
+                    data[f'deriv_{o}'] = self.autodiff(data[f'deriv_{o-1}'], self.eval._saved_for_grad['coord'])
         deriv_keys = [
-                f'deriv_{o}'
-                for o in range(1, order+1)
-            ]
+            f'deriv_{o}'
+            for o in range(1, order + 1)
+        ]
         ko = self.eval.keys_out
         afk = self.eval.atom_feature_keys
         try:
@@ -787,33 +940,24 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
 
         expansion = [
             expansion[k].detach().cpu().numpy().reshape(
-                base_shape + (ndim,) * o
+                base_shape + (ndim,) * o + property_shape
             )
-            for o,k in enumerate(['energy'] + deriv_keys)
+            for o,k in enumerate([root_key] + deriv_keys)
         ]
         if order > 0:
             expansion[1] = -expansion[1]
 
         return expansion
+    def evaluate_term(self, coords, order, **opts):
 
-        # if order > 2:
-        # if order > (forces=False, stress=False, hessian=False)
-        # if order == 0:
-        #     return self.rdmol.calculate_energy(coords, **opts)
-        # elif order == 2:
-        #     return self.rdmol.calculate_gradient(coords, **opts)
-        # else:
-        #     raise ValueError(f"order {order} not supported")
+        base_shape, coords, data = self.prep_eval(coords, order, **opts)
 
-        # @staticmethod
-        # def calculate_hessian(forces, coord):
-        #     # here forces have shape (N, 3) and coord has shape (N+1, 3)
-        #     # return hessian with shape (N, 3, N, 3)
-        #     hessian = - torch.stack([
-        #         torch.autograd.grad(_f, coord, retain_graph=True)[0]
-        #         for _f in forces.flatten().unbind()
-        #     ]).view(-1, 3, coord.shape[0], 3)[:-1, :, :-1, :]
-        #     return hessian
+        return self.process_aimnet_derivs(
+            base_shape, coords, data,
+            'energy',
+            order,
+            deriv_key='forces'
+        )
 
     def optimize(self,
                  coords,
@@ -890,7 +1034,7 @@ class XTBEnergyEvaluator(EnergyEvaluator):
 
 
     distance_units = "BohrRadius"
-    energy_units = 'Hartrees'
+    property_units = 'Hartrees'
     batched_orders = True
     analytic_derivative_order = 1
     def evaluate_term(self, coords, order, **opts):
@@ -965,85 +1109,62 @@ class XTBEnergyEvaluator(EnergyEvaluator):
     #         )
 
 class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
+    # slightly weird, want single inheritance, but using `PropertyFunctionEvaluator` to define the
+    # interface--I'm sure there's a better way to do this, but multiple inheritance always feels
+    # fragile and python doesn't implement traits...
 
     def __init__(self,
                  potential_function,
-                 embedding=None,
-                 use_internals=True,
-                 reembed_cartesians=False,
-                 energy_units='Hartrees',
-                 distance_units='Angstroms',
-                 batched_orders=False,
-                 analytic_derivative_order=0
+                 property_units='Hartrees',
+                 distance_units='BohrRadius',
+                 **opts
                  ):
-        self.potential_function = potential_function
-        self.embedding = embedding
-        self.batched_orders = batched_orders
-        self.analytic_derivative_order = analytic_derivative_order
-        self.energy_units = energy_units
-        self.distance_units = distance_units
-        self.use_internals = use_internals
-        self.reembed_cartesians = reembed_cartesians
-
-    @classmethod
-    def from_mol(cls, mol, potential_function=None,  **opts):
-        if potential_function is None:
-            potential_function = cls.default_potential
-        if potential_function is None:
-            raise ValueError(f"can't evaluate with potential function {potential_function}")
-        return cls(
+        PropertyFunctionEvaluator.__init__(
+            self,
             potential_function,
-            embedding=mol.embedding,
+            property_units=property_units,
+            distance_units=distance_units,
             **opts
         )
 
     def evaluate_term(self, coords, order, **opts):
-        if self.embedding is not None:
-            if self.use_internals and self.embedding.internals is not None:
-                crds = self.embedding.coords*0 + coords
-                coords = crds.convert(
-                    self.embedding.internal_coordinates.system
-                )
-            elif self.reembed_cartesians:
-                coords = self.embedding.embed_coords(coords)
-
-        return self.potential_function(coords, order=order, **opts)
+        return PropertyFunctionEvaluator.evaluate_term(
+            self,
+            coords,
+            order,
+            **opts
+        )
 
     def evaluate(self,
                  coords,
                  order=0,
                  logger=None,
                  **opts):
-        use_internals = self.use_internals
-        reembed = self.reembed_cartesians
+        return PropertyFunctionEvaluator.evaluate(
+            self,
+            coords,
+            order,
+            **opts
+        )
 
-        if self.embedding is not None:
-            if self.use_internals and self.embedding.internals is not None:
-                crds = self.embedding.coords*0 + coords
-                coords = crds.convert(
-                    self.embedding.internal_coordinates.system
-                )
-            elif self.reembed_cartesians:
-                coords = self.embedding.embed_coords(coords)
+    @classmethod
+    def from_mol(cls,
+                 mol,
+                 property_function=None,
+                 **opts
+                 ):
+        return PropertyFunctionEvaluator.initialize_from_mol(
+            cls,
+            mol,
+            property_function=property_function,
+            **opts
+        )
 
-        try:
-            self.use_internals = False
-            self.reembed_cartesians = False
-
-            return super().evaluate(
-                coords,
-                order=order,
-                logger=logger,
-                **opts
-            )
-        finally:
-            self.use_internals = use_internals
-            self.reembed_cartesians = reembed
-
-    default_potential = None
+    default_property_function = None
     @classmethod
     def bind_default(cls, potential):
-        cls.default_potential = potential
+        cls.default_property_function = potential
+
 
 class PotentialExpansionEnergyEvaluator(PotentialFunctionEnergyEvaluator):
 
@@ -1051,8 +1172,6 @@ class PotentialExpansionEnergyEvaluator(PotentialFunctionEnergyEvaluator):
                  expansion,
                  center=None,
                  ref=None,
-                 energy_units='Hartrees',
-                 distance_units='BohrRadius',
                  batched_orders=None,
                  **opts
                  ):
@@ -1060,229 +1179,90 @@ class PotentialExpansionEnergyEvaluator(PotentialFunctionEnergyEvaluator):
             expansion = PotentialSurface.from_derivatives(expansion, center=center, ref=ref)
         super().__init__(
             expansion,
-            energy_units=energy_units,
-            distance_units=distance_units,
             batched_orders=True,
             **opts
         )
 
     @classmethod
-    def from_mol(cls, mol, expansion=None,  **opts):
-        if expansion is None:
-            expansion = cls.default_potential
-        if expansion is None:
-            expansion = mol.potential_derivatives
-        if expansion is None:
-            raise ValueError(f"can't evaluate with potential expansion {expansion}")
-        return super().from_mol(
-            PotentialSurface.from_mol(mol, expansion=expansion),
-            **opts
-        )
+    def get_property_function(cls, expansion, mol):
+        if not callable(expansion):
+            if expansion is None:
+                expansion = mol.potential_derivatives
+            expansion = PotentialSurface.from_mol(mol, expansion=expansion)
+        return expansion
 
-class DipoleEvaluator(metaclass=abc.ABCMeta):
-
-    @abc.abstractmethod
-    def evaluate_term(self, coords, order, **opts):
-        ...
-
+class DipoleEvaluator(PropertyEvaluator):
+    target_property_units = ("ElementaryCharge", "BohrRadius")
     @classmethod
-    @abc.abstractmethod
-    def from_mol(cls, mol, **opts):
-        ...
-
-
-    dipole_units = 'Debye'
-    distance_units = 'Angstroms'
-    batched_orders = False
-    analytic_derivative_order = 0
-    def evaluate(self,
-                 coords,
-                 order=0,
-                 analytic_derivative_order=None,
-                 batched_orders=None,
-                 stencil=5,
-                 mesh_spacing=.001,
-                 displacement_function=None,
-                 prep=None,
-                 lazy=False,
-                 cache_evaluations=True,
-                 parallelizer=None,
-                 logger=None,
-                 **opts):
-        if nput.is_numeric(order):
-            order = list(range(order+1))
-        # TODO: we assume order sorted, handle when it's not
-        expansion = []
-        if analytic_derivative_order is None:
-            analytic_derivative_order = self.analytic_derivative_order
-        if batched_orders is None:
-            batched_orders = self.batched_orders
-        if batched_orders:
-            terms = self.evaluate_term(coords, min(analytic_derivative_order, order[-1]), **opts)
-            expansion.extend([terms[o] for o in order if o <= analytic_derivative_order])
-        else:
-            for i in order:
-                if i > analytic_derivative_order: break
-                expansion.append(self.evaluate_term(coords, i, **opts))
-        if order[-1] > analytic_derivative_order:
-
-            base_shape = coords.shape[:-2]
-            coord_shape = coords.shape[-2:]
-            flat_coords = coords.reshape(-1, np.prod(coord_shape, dtype=int))
-            def derivs(structs):
-                reconst = structs.reshape(structs.shape[:-1] + coord_shape)
-                ders = self.evaluate_term(reconst, self.analytic_derivative_order, **opts)
-                if batched_orders:
-                    return ders[-1]
-                else:
-                    return ders
-
-            der = FiniteDifferenceDerivative(derivs,
-                                             function_shape=((0,), (0,)*self.analytic_derivative_order + (3,)),
-                                             stencil=stencil,
-                                             mesh_spacing=mesh_spacing,
-                                             displacement_function=displacement_function,
-                                             prep=prep,
-                                             lazy=lazy,
-                                             cache_evaluations=cache_evaluations,
-                                             parallelizer=parallelizer,
-                                             logger=logger
-                                             )
-            tensors = der.derivatives(flat_coords).derivative_tensor(
-                list(range(1, (order[-1] - analytic_derivative_order) + 1))
-            )
-            #TODO: handle disjoin list of orders...
-            expansion.extend(
-                t.reshape(base_shape + t.shape[1:])
-                    if t.ndim > 0 and flat_coords.shape[0] != 1 else
-                t
-                for t in tensors
-            )
-
-        if self.dipole_units is None:
-            eng_conv = 1
-        else:
-            eng_conv = UnitsData.convert(self.dipole_units, ("ElementaryCharge", "BohrRadius"))
-
-        if self.distance_units is None:
-            bohr_conv = 1
-        else:
-            bohr_conv = UnitsData.convert(self.distance_units, "BohrRadius")
-
-        return [
-            e * eng_conv / (bohr_conv ** o)
-            for o,e in zip(order, expansion)
-        ]
-
-    evaluator_types = {}
+    def get_evaluators(cls):
+        return {
+                'expansion':DipoleExpansionEnergyEvaluator
+            }
     @classmethod
-    def resolve_evaluator(cls, name):
-        if name is not None and not isinstance(name, str):
-            if hasattr(name, 'evaluate_term'):
-                return name
-            else:
-                DipoleFunctionDipoleEvaluator.bind_default(name)
-                return DipoleFunctionDipoleEvaluator
-        return cls.evaluator_types.get(
-            name,
-            {
-                # 'rdkit': RDKitEnergyEvaluator,
-                # 'aimnet': AIMNet2EnergyEvaluator,
-                # 'aimnet2': AIMNet2EnergyEvaluator,
-                # 'xtb': XTBEnergyEvaluator,
-                None:DipoleExpansionEnergyEvaluator
-            }.get(name.lower() if name is not None else None)
-        )
+    def get_default_function_evaluator_type(cls):
+        return DipoleFunctionDipoleEvaluator
 
 class DipoleFunctionDipoleEvaluator(DipoleEvaluator):
 
     def __init__(self,
-                 dipole_function,
-                 embedding=None,
-                 use_internals=True,
-                 reembed_cartesians=False,
-                 dipole_units='ElementaryCharge',
+                 potential_function,
+                 property_units=('ElementaryCharge', 'BohrRadius'),
                  distance_units='BohrRadius',
-                 batched_orders=False,
-                 analytic_derivative_order=0
+                 **opts
                  ):
-        self.dipole_function = dipole_function
-        self.embedding = embedding
-        self.batched_orders = batched_orders
-        self.analytic_derivative_order = analytic_derivative_order
-        self.dipole_units = dipole_units
-        self.distance_units = distance_units
-        self.use_internals = use_internals
-        self.reembed_cartesians = reembed_cartesians
-
-    @classmethod
-    def from_mol(cls, mol, dipole_function=None,  **opts):
-        if dipole_function is None:
-            dipole_function = cls.default_dipole
-        if dipole_function is None:
-            raise ValueError(f"can't evaluate with dipole function {dipole_function}")
-        return cls(
-            dipole_function,
-            embedding=mol.embedding,
+        PropertyFunctionEvaluator.__init__(
+            self,
+            potential_function,
+            property_units=property_units,
+            distance_units=distance_units,
             **opts
         )
 
     def evaluate_term(self, coords, order, **opts):
-        if self.embedding is not None:
-            if self.use_internals and self.embedding.internals is not None:
-                crds = self.embedding.coords*0 + coords
-                coords = crds.convert(
-                    self.embedding.internal_coordinates.system
-                )
-            elif self.reembed_cartesians:
-                coords = self.embedding.embed_coords(coords)
-
-        return self.dipole_function(coords, order=order, **opts)
+        return PropertyFunctionEvaluator.evaluate_term(
+            self,
+            coords,
+            order,
+            **opts
+        )
 
     def evaluate(self,
                  coords,
                  order=0,
                  logger=None,
                  **opts):
-        use_internals = self.use_internals
-        reembed = self.reembed_cartesians
+        return PropertyFunctionEvaluator.evaluate(
+            self,
+            coords,
+            order,
+            **opts
+        )
 
-        if self.embedding is not None:
-            if self.use_internals and self.embedding.internals is not None:
-                crds = self.embedding.coords*0 + coords
-                coords = crds.convert(
-                    self.embedding.internal_coordinates.system
-                )
-            elif self.reembed_cartesians:
-                coords = self.embedding.embed_coords(coords)
-
-        try:
-            self.use_internals = False
-            self.reembed_cartesians = False
-
-            return super().evaluate(
-                coords,
-                order=order,
-                logger=logger,
-                **opts
-            )
-        finally:
-            self.use_internals = use_internals
-            self.reembed_cartesians = reembed
-
-    default_dipole = None
     @classmethod
-    def bind_default(cls, dipole):
-        cls.default_dipole = dipole
+    def from_mol(cls,
+                 mol,
+                 property_function=None,
+                 **opts
+                 ):
+        return PropertyFunctionEvaluator.initialize_from_mol(
+            cls,
+            mol,
+            property_function=property_function,
+            **opts
+        )
+
+    default_property_function = None
+    @classmethod
+    def bind_default(cls, potential):
+        cls.default_property_function = potential
 
 class DipoleExpansionEnergyEvaluator(DipoleFunctionDipoleEvaluator):
-
 
     def __init__(self,
                  expansion,
                  center=None,
                  ref=None,
-                 dipole_units=('ElementaryCharge', "BohrRadius"),
+                 property_units=('ElementaryCharge', "BohrRadius"),
                  distance_units='BohrRadius',
                  analytic_derivative_order=None,
                  batched_orders=None,
@@ -1294,7 +1274,7 @@ class DipoleExpansionEnergyEvaluator(DipoleFunctionDipoleEvaluator):
             analytic_derivative_order = len(expansion.expansion_tensors)
         super().__init__(
             expansion,
-            dipole_units=dipole_units,
+            property_units=property_units,
             distance_units=distance_units,
             analytic_derivative_order=analytic_derivative_order,
             batched_orders=True,
@@ -1304,7 +1284,7 @@ class DipoleExpansionEnergyEvaluator(DipoleFunctionDipoleEvaluator):
     @classmethod
     def expansion_from_mol_charges(cls, mol, charges=None):
         if charges is None:
-            charges = mol.get_charges()
+            charges = mol.calculate_charges()
         charges = np.asanyarray(charges)
         com = mol.center_of_mass
         coords = mol.coords
@@ -1315,17 +1295,125 @@ class DipoleExpansionEnergyEvaluator(DipoleFunctionDipoleEvaluator):
             deriv[:, i, i] = dip_contribs[:, i]
         return [np.sum(dip_contribs, axis=0), deriv.reshape(-1, 3)]
     @classmethod
-    def from_mol(cls, mol, expansion=None,  **opts):
-        if expansion is None:
-            expansion = cls.default_dipole
-        if expansion is None:
-            expansion = mol.dipole_derivatives
-        if expansion is None:
-            expansion = cls.expansion_from_mol_charges(mol)
-        if expansion is None:
-            raise ValueError(f"can't evaluate with dipole expansion {expansion}")
-        return super().from_mol(
-            mol,
-            dipole_function=DipoleSurface.from_mol(mol, expansion=expansion),
+    def get_property_function(cls, expansion, mol):
+        if not callable(expansion):
+            if expansion is None:
+                expansion = mol.dipole_derivatives
+                if expansion is None:
+                    expansion = cls.expansion_from_mol_charges(mol)
+            expansion = DipoleSurface.from_mol(mol, expansion=expansion)
+        return expansion
+
+
+class ChargeEvaluator(PropertyEvaluator):
+    target_property_units = "ElementaryCharge"
+    default_evaluator_type = 'rdkit'
+    @classmethod
+    def get_evaluators(cls):
+        return {
+                'rdkit':RDKitChargeEvaluator,
+                'aimnet2':AIMNet2ChargeEvaluator
+            }
+    @classmethod
+    def get_default_function_evaluator_type(cls):
+        return ChargeFunctionChargeEvaluator
+
+class ChargeFunctionChargeEvaluator(ChargeEvaluator):
+    def __init__(self,
+                 potential_function,
+                 property_units='ElementaryCharge',
+                 distance_units='BohrRadius',
+                 **opts
+                 ):
+        PropertyFunctionEvaluator.__init__(
+            self,
+            potential_function,
+            property_units=property_units,
+            distance_units=distance_units,
             **opts
         )
+
+    def evaluate_term(self, coords, order, **opts):
+        return PropertyFunctionEvaluator.evaluate_term(
+            self,
+            coords,
+            order,
+            **opts
+        )
+
+    def evaluate(self,
+                 coords,
+                 order=0,
+                 logger=None,
+                 **opts):
+        return PropertyFunctionEvaluator.evaluate(
+            self,
+            coords,
+            order,
+            **opts
+        )
+
+    @classmethod
+    def from_mol(cls,
+                 mol,
+                 property_function=None,
+                 **opts
+                 ):
+        return PropertyFunctionEvaluator.initialize_from_mol(
+            cls,
+            mol,
+            property_function=property_function,
+            **opts
+        )
+
+    default_property_function = None
+    @classmethod
+    def bind_default(cls, potential):
+        cls.default_property_function = potential
+
+class RDKitChargeEvaluator(ChargeEvaluator):
+    def __init__(self, rdmol, model='gasteiger'):
+        self.rdmol = rdmol
+        self.model = model
+
+    @classmethod
+    def from_mol(cls, mol, **opts):
+        return cls(mol.rdmol)
+
+    property_units = 'ElementaryCharge'
+    analytic_derivative_order = 0
+    def evaluate_term(self, coords, order, model=None, **opts):
+        if model is None:
+            model = self.model
+        return np.array(
+            self.rdmol.evaluate_charges(coords, model=model, **opts)
+        ) / np.sqrt(2) # TODO: I think my base dipoles are just scaled incorrectly...
+
+
+class AIMNet2ChargeEvaluator(ChargeEvaluator):
+
+    def __init__(self, atoms, model='aimnet2', charge=0, multiplicity=None, quiet=True):
+        self.base = AIMNet2EnergyEvaluator(atoms, model=model, charge=charge, multiplicity=multiplicity, quiet=quiet)
+
+    @classmethod
+    def from_mol(cls, mol, charge=None, multiplicity=None, **opts):
+        return cls(mol.atoms, multiplicity=multiplicity, **opts)
+
+    property_units = 'ElementaryCharge'
+    distance_units = 'Angstroms'
+    batched_orders = True
+    analytic_derivative_order = 6
+    scaling_factor = 0.59667 # necessary to make water work...but I don't know what the actual units are
+    def evaluate_term(self, coords, order, **opts):
+        base_shape, coords, data = self.base.prep_eval(coords, order, **opts)
+
+        expansions = self.base.process_aimnet_derivs(
+            base_shape, coords, data,
+            'charges',
+            order,
+            property_shape=(coords.shape[-2],)
+        )
+        s = self.scaling_factor / np.sqrt(2)
+        expansions = [e * s for e in expansions]
+
+        return expansions

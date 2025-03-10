@@ -22,7 +22,7 @@ from McUtils.ExternalPrograms import RDMolecule
 from .MoleculeInterface import *
 
 from .CoordinateSystems import MolecularEmbedding, ModeEmbedding
-from .Evaluator import MolecularEvaluator, EnergyEvaluator, DipoleEvaluator
+from .Evaluator import MolecularEvaluator, EnergyEvaluator, DipoleEvaluator, ChargeEvaluator
 from .Hamiltonian import MolecularHamiltonian
 from .Properties import *
 
@@ -57,6 +57,7 @@ class Molecule(AbstractMolecule):
                  display_mode=None,
                  energy_evaluator=None,
                  dipole_evaluator=None,
+                 charge_evaluator=None,
                  **metadata
                  ):
         """
@@ -132,6 +133,7 @@ class Molecule(AbstractMolecule):
         self.display_mode = display_mode
         self.energy_evaluator = energy_evaluator
         self.dipole_evaluator = dipole_evaluator
+        self.charge_evaluator = charge_evaluator
 
     def modify(self,
                atoms=None,
@@ -142,6 +144,8 @@ class Molecule(AbstractMolecule):
                bonds=None,
                guess_bonds=None,
                energy_evaluator=None,
+               dipole_evaluator=None,
+               charge_evaluator=None,
                display_mode=None,
                charge=None,
                normal_modes=None,
@@ -157,6 +161,8 @@ class Molecule(AbstractMolecule):
             bonds=self._bonds if bonds is None else bonds,
             guess_bonds=self.guess_bonds if guess_bonds is None else guess_bonds,
             energy_evaluator=self.energy_evaluator if energy_evaluator is None else energy_evaluator,
+            dipole_evaluator=self.dipole_evaluator if dipole_evaluator is None else dipole_evaluator,
+            charge_evaluator=self.charge_evaluator if charge_evaluator is None else charge_evaluator,
             display_mode=self.display_mode if display_mode is None else display_mode,
             charge=self.charge if charge is None else charge,
             internals=self.internals if internals is None else internals,
@@ -296,12 +302,27 @@ class Molecule(AbstractMolecule):
     @charges.setter
     def charges(self, c):
         self._meta['charges'] = c
-    def get_charges(self, method='rdkit'):
-        if method == 'rdkit':
-            gasteiger = np.array(self.rdmol.charges)
-            return gasteiger / np.sqrt(2)
+
+    def get_charge_evaluator(self, evaluator=None, **opts):
+        if evaluator is None:
+            evaluator = self.charge_evaluator
+        eval_type, new_opts = ChargeEvaluator.resolve_evaluator(evaluator)
+        if eval_type is None:
+            raise ValueError(f"can't resolve charge evaluator type for {evaluator}")
+        if hasattr(eval_type, 'from_mol') and isinstance(eval_type, type):
+            return eval_type.from_mol(self, **dict(opts, **new_opts))
         else:
-            raise NotImplementedError(f"don't known how to handle charges method {method}")
+            return eval_type
+    def calculate_charges(self, evaluator=None, order=None, **opts):
+        evaluator = self.get_charge_evaluator(evaluator, **opts)
+        smol = order is None
+        if smol: order = 0
+        expansion = evaluator.evaluate(
+            self.coords * UnitsData.convert("BohrRadius", evaluator.distance_units),
+            order=order
+        )
+        if smol: expansion = expansion[0]
+        return expansion
     @internals.setter
     def internals(self, spec):
         self.embedding = MolecularEmbedding(
@@ -748,11 +769,11 @@ class Molecule(AbstractMolecule):
             evaluator = self.energy_evaluator
         if evaluator is None:
             evaluator = self.default_energy_evalutor
-        eval_type = EnergyEvaluator.resolve_evaluator(evaluator)
+        eval_type, new_opts = EnergyEvaluator.resolve_evaluator(evaluator)
         if eval_type is None:
             raise ValueError(f"can't resolve energy evaluator type for {evaluator}")
         if hasattr(eval_type, 'from_mol') and isinstance(eval_type, type):
-            return eval_type.from_mol(self, **opts)
+            return eval_type.from_mol(self, **dict(opts, **new_opts))
         else:
             return eval_type
 
@@ -807,15 +828,14 @@ class Molecule(AbstractMolecule):
         )
         return self.modify(coords=opt_coords / conv)
 
-    default_dipole_evaluator = 'charges'
     def get_dipole_evaluator(self, evaluator=None, **opts):
         if evaluator is None:
             evaluator = self.dipole_evaluator
-        eval_type = DipoleEvaluator.resolve_evaluator(evaluator)
+        eval_type, new_opts = DipoleEvaluator.resolve_evaluator(evaluator)
         if eval_type is None:
-            raise ValueError(f"can't resolve energy dipole type for {evaluator}")
+            raise ValueError(f"can't resolve dipole evaluator type for {evaluator}")
         if hasattr(eval_type, 'from_mol') and isinstance(eval_type, type):
-            return eval_type.from_mol(self, **opts)
+            return eval_type.from_mol(self, **dict(opts, **new_opts))
         else:
             return eval_type
 
