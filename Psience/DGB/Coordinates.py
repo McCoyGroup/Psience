@@ -368,7 +368,7 @@ class DGBWatsonModes(DGBCoords):
 
         # scaled_modes = modes.matrix.T / np.sqrt(modes.freqs[:, np.newaxis]) # used in the VPT version?
         zeta, (B_e, eigs) = StructuralProperties.get_prop_coriolis_constants(carts,
-                                                                             modes.matrix.T,
+                                                                             modes.coords_by_modes,
                                                                              masses
                                                                              )
 
@@ -401,14 +401,15 @@ class DGBWatsonModes(DGBCoords):
             flat_carts = (carts - modes.origin[np.newaxis]).reshape((len(carts), -1))
         else:
             flat_carts = (carts).reshape((len(carts), -1))
-        return (flat_carts[:, np.newaxis, :] @ modes.inverse.T[np.newaxis]).reshape(
+        emb = (flat_carts[:, np.newaxis, :] @ modes.modes_by_coords).reshape(
             flat_carts.shape[0],
-            modes.matrix.shape[1]
+            modes.modes_by_coords.shape[1]
         )
+        return emb
     @classmethod
     def unembed_coords(cls, mode_coords, modes, masses=None, shift=True):
         origin = modes.origin
-        carts = (mode_coords[:, np.newaxis, :] @ modes.matrix.T[np.newaxis]).reshape(
+        carts = (mode_coords[:, np.newaxis, :] @ modes.coords_by_modes).reshape(
             mode_coords.shape[:1] + origin.shape
         )
         if shift:
@@ -427,7 +428,7 @@ class DGBWatsonModes(DGBCoords):
         _ = []
         for n, d in enumerate(derivs):
             for j in range(n):
-                d = np.tensordot(d, modes.matrix, axes=[fshape, 0])
+                d = np.tensordot(d, modes.coords_by_modes, axes=[fshape, 1])
             _.append(d)
         return _
     @classmethod
@@ -456,7 +457,7 @@ class DGBWatsonModes(DGBCoords):
             raise ValueError("need `masses` to be able to convert back to Cartesians")
         carts = carts.reshape((carts.shape[0], len(masses), -1))
 
-        return DGBCartesians(carts, masses), (modes.matrix, modes.inverse)
+        return DGBCartesians(carts, masses), (modes.coords_by_modes.T, modes.modes_by_coords.T)
 
     def __getitem__(self, item):
         c = self.coords[item]

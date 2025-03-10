@@ -172,10 +172,10 @@ class ReactionsTests(TestCase):
         gen = r.get_profile_generator(
             'neb',
             energy_evaluator='aimnet2',
-            # initial_image_positions=[0, .2, .4, .6, .8, 1],
+            # initial_image_positions=[0, .2, .6, .7, .8, .9, .95, 1],
             # initial_image_positions=[0, .1, 1],
             num_images=8,
-            # interpolation_gradient_scaling=.1,
+            interpolation_gradient_scaling=.3,
             # internals=zmat,
             internals={'zmatrix':zmat, 'iterative':True},
             # internals={'specs':get_specs(zmat)},
@@ -184,8 +184,6 @@ class ReactionsTests(TestCase):
             # internals={'primitives':'auto', 'prune_coordinates':False},
             spring_constant=2
         )
-
-
 
         # int_vals = [0, .2,  .4, .6, .8, 1]
         # crds = gen.interpolator.interpolate(int_vals)
@@ -196,19 +194,19 @@ class ReactionsTests(TestCase):
         #         for p,struct in zip(int_vals, crds)
         #     ]
 
-        pre, post = gen.generate(return_preopt=True, max_iterations=0)
+        pre, post = gen.generate(return_preopt=True, max_iterations=15)
         # return
         # return
 
-        # pre_eng = gen.evaluate_profile_energies(pre)
-        # post_eng = gen.evaluate_profile_energies(post)
-        # pre_dist = gen.evaluate_profile_distances(post)
-        # post_dist = gen.evaluate_profile_distances(post)
-        #
-        # import McUtils.Plots as plt
-        # eng_plot = plt.Plot(pre_dist, pre_eng, marker='.')
-        # eng_plot = plt.Plot(post_dist, post_eng, figure=eng_plot, marker='.')
-        # eng_plot.show()
+        pre_eng = gen.evaluate_profile_energies(pre)
+        post_eng = gen.evaluate_profile_energies(post)
+        pre_dist = gen.evaluate_profile_distances(pre)
+        post_dist = gen.evaluate_profile_distances(post)
+
+        import McUtils.Plots as plt
+        eng_plot = plt.Plot(pre_dist, pre_eng, marker='.')
+        eng_plot = plt.Plot(post_dist, post_eng, figure=eng_plot, marker='.')
+        eng_plot.show()
         # return
 
         img = post

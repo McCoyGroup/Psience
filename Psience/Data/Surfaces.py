@@ -6,6 +6,7 @@ import numpy as np
 from collections import namedtuple
 from McUtils.GaussianInterface import GaussianLogReader, GaussianFChkReader
 from McUtils.Zachary import Surface, MultiSurface, InterpolatedSurface, TaylorSeriesSurface
+import McUtils.Numputils as nput
 
 __all__=[
     "DipoleSurface",
@@ -38,6 +39,21 @@ class DipoleSurface(MultiSurface):
             mu_z
         )
 
+    @property
+    def center(self):
+        return self.surfs[0].center
+    @property
+    def ref(self):
+        return [s.ref for s in self.surfs]
+    @property
+    def expansion_tensors(self):
+        base = [s.expansion_tensors for s in self.surfs]
+        return [
+            np.moveaxis(np.array(base[i][o]), 0, -1)
+            for i in range(len(base))
+            for o in range(len(base[0]))
+        ]
+
     @staticmethod
     def get_log_values(log_file, keys=("StandardCartesianCoordinates", "DipoleMoments")):
 
@@ -49,7 +65,7 @@ class DipoleSurface(MultiSurface):
 
         return namedtuple('dipole_log_values', ['cartesians', 'dipoles'])(carts, dipoles)
     @classmethod
-    def from_log_file(cls, log_file, coord_transf, keys=("StandardCartesianCoordinates", "DipoleMoments"), tol = .001, **opts):
+    def from_log_file(cls, log_file, coord_transf, keys=("StandardCartesianCoordinates", "DipoleMoments"), tol=.001, **opts):
         """
         Loads dipoles from a Gaussian log file and builds a dipole surface by interpolating.
         Obviously this only really works if we have a subset of "scan" coordinates, so at this stage the user is obligated
@@ -103,18 +119,18 @@ class DipoleSurface(MultiSurface):
             ) for i,d in enumerate(dipoles)
         ))
 
-    @staticmethod
-    def get_fchk_values(fchk_file):
-
-        with GaussianFChkReader(fchk_file) as parser:
-            parse_data = parser.parse(["Coordinates", "Dipole Moment", "Dipole Derivatives"])
-
-        center = parse_data["Coordinates"]
-        const_dipole = parse_data["Dipole Moment"]
-        derivs = parse_data["Dipole Derivatives"]
-        derivs = np.reshape(derivs, (int(len(derivs) / 3), 3))
-
-        return namedtuple('dipole_fchk_values', ['center', 'const', 'derivs'])(center, const_dipole, derivs)
+    # @staticmethod
+    # def get_fchk_values(fchk_file):
+    #
+    #     with GaussianFChkReader(fchk_file) as parser:
+    #         parse_data = parser.parse(["Coordinates", "Dipole Moment", "Dipole Derivatives"])
+    #
+    #     center = parse_data["Coordinates"]
+    #     const_dipole = parse_data["Dipole Moment"]
+    #     derivs = parse_data["Dipole Derivatives"]
+    #     derivs = np.reshape(derivs, (int(len(derivs) / 3), 3))
+    #
+    #     return namedtuple('dipole_fchk_values', ['center', 'const', 'derivs'])(center, const_dipole, derivs)
     @classmethod
     def from_fchk_file(cls, fchk_file, **opts):
         """
@@ -125,23 +141,51 @@ class DipoleSurface(MultiSurface):
         :return:
         :rtype:
         """
+        from ..Molecools import Molecule
 
-        center, const_dipole, derivs = cls.get_fchk_values(fchk_file)
-        derivs = list(np.transpose(derivs))
+        return cls.from_mol(
+            Molecule.from_file(fchk_file, 'fchk'),
+            **opts
+        )
 
-        opts['center'] = center.flatten()
-        surfs = [None]*3
+    @classmethod
+    def from_derivatives(cls, expansion, center=None, **opts):
+        if not nput.is_numeric(expansion[0][0]):
+            expansion = [[0, 0, 0]] + list(expansion)
+        if center is not None:
+            opts['center'] = center.flatten()
+        const_dipole, derivs = expansion[0], expansion[1:]
+        derivs = [np.asanyarray(d) for d in derivs]
+        derivs = [
+            [e[..., i] for e in derivs]
+            for i in range(3)
+        ]
+        surfs = [None] * 3
         for i, d in enumerate(zip(derivs, list(const_dipole))):
             d, r = d
             opts = opts.copy()
             opts["ref"] = r
             surfs[i] = Surface(
-                ((d,), opts),
-                base = TaylorSeriesSurface,
-                dipole_component="x" if i == 0 else "y" if i == 1 else "z"
+                (d, opts),
+                base=TaylorSeriesSurface,
+                dipole_component=["x", "y", "z"][i]
             )
-
         return cls(*surfs)
+
+    @classmethod
+    def from_mol(cls, mol, expansion=None, center=None, transforms=None, use_internals=True, **opts):
+        if use_internals and transforms is None and mol.internals is not None:
+            transforms = mol.get_cartesians_by_internals(len(mol.dipole_derivatives) - 1)
+        if center is None:
+            center = mol.coords
+        if expansion is None:
+            expansion = mol.dipole_derivatives
+        return cls.from_derivatives(
+            expansion,
+            center=center,
+            transforms=transforms,
+            **opts
+        )
 
     def __call__(self, gridpoints, **opts):
         """
@@ -155,12 +199,10 @@ class DipoleSurface(MultiSurface):
         :rtype:
         """
 
-        gps = np.asarray(gridpoints)
-        if self.mode == "taylor":
-            if gps.ndim == 2:
-                gps = gps.flatten()
-            elif gps.ndim > 2:
-                gps = np.reshape(gps, gps.shape[:-2] + (np.prod(gps.shape[-2:]),))
+        gps = np.asanyarray(gridpoints)
+        gp_shape = self.center.shape
+        if gps.shape[-1] != gp_shape[-1]:
+            gps = np.reshape(gps, gps.shape[:-2] + (-1,))
 
         return super().__call__(gps, **opts)
 
@@ -187,7 +229,7 @@ class PotentialSurface(Surface):
 
         return namedtuple('potential_log_values', ['coords', 'energies'])(coords, energies)
     @classmethod
-    def from_log_file(cls, log_file, coord_transf, keys=("StandardCartesianCoordinates", "ScanEnergies"), tol = .001, **opts):
+    def from_log_file(cls, log_file, coord_transf, keys=("StandardCartesianCoordinates", "ScanEnergies"), tol=.001, **opts):
         """
         Loads dipoles from a Gaussian log file and builds a potential surface by interpolating.
         Obviously this only really works if we have a subset of "scan" coordinates, so at this stage the user is obligated
@@ -239,21 +281,23 @@ class PotentialSurface(Surface):
                 base=InterpolatedSurface
         )
 
-    @staticmethod
-    def get_fchk_values(fchk_file):
-        # TODO: I know I probably didn't do this right but I'm just getting a thing out for now
-        with GaussianFChkReader(fchk_file) as parser:
-            parse_data = parser.parse(["Coordinates", "Total Energy", "Gradient", "ForceConstants", "ForceDerivatives"])
-
-        center = parse_data["Coordinates"]
-        eng = parse_data["Total Energy"]
-        derivs = [parse_data['Gradient'], parse_data["ForceConstants"], parse_data["ForceDerivatives"]]
-
-        return namedtuple('potential_fchk_values', ['center', 'energy', 'derivs'])(
-            center, eng, derivs
-        )
+    # @staticmethod
+    # def get_fchk_values(fchk_file):
+    #     # TODO: I know I probably didn't do this right but I'm just getting a thing out for now
+    #     from ..Molecools import Molecule
+    #
+    #     with GaussianFChkReader(fchk_file) as parser:
+    #         parse_data = parser.parse(["Coordinates", "Total Energy", "Gradient", "ForceConstants", "ForceDerivatives"])
+    #
+    #     center = parse_data["Coordinates"]
+    #     eng = parse_data["Total Energy"]
+    #     derivs = [parse_data['Gradient'], parse_data["ForceConstants"], parse_data["ForceDerivatives"]]
+    #
+    #     return namedtuple('potential_fchk_values', ['center', 'energy', 'derivs'])(
+    #         center, eng, derivs
+    #     )
     @classmethod
-    def from_fchk_file(cls, fchk_file, **opts):
+    def from_fchk_file(cls, fchk_file, ref=None, **opts):
         """
         Loads potential from a Gaussian formatted checkpoint file and builds a potential surface via a quartic approximation
 
@@ -262,7 +306,63 @@ class PotentialSurface(Surface):
         :return:
         :rtype:
         """
+        from ..Molecools import Molecule
 
-        center, energy, derivs = cls.get_fchk_values(fchk_file)
+        if ref is None:
+            with GaussianFChkReader(fchk_file) as parser:
+                parse_data = parser.parse(["Total Energy"])
+                ref = parse_data['Total Energy'],
 
-        return cls((derivs, dict(ref=energy, center=center.flatten())), base=TaylorSeriesSurface, **opts)
+        return cls.from_mol(
+            Molecule.from_file(fchk_file, 'fchk'),
+            ref=ref,
+            **opts
+        )
+
+    @classmethod
+    def from_mol(cls, mol, expansion=None, center=None, transforms=None, use_internals=True, **opts):
+        if use_internals and transforms is None and mol.internals is not None:
+            transforms = mol.get_cartesians_by_internals(len(mol.potential_derivatives))
+        if center is None:
+            center = mol.coords
+        if expansion is None:
+            expansion = mol.potential_derivatives
+        return cls.from_derivatives(
+            expansion,
+            center=center,
+            transforms=transforms,
+            **opts
+        )
+
+    @classmethod
+    def from_derivatives(cls, expansion, center=None, ref=None, **opts):
+        if not nput.is_numeric(expansion[0]):
+            expansion = [0] + list(expansion)
+        energy, derivs = expansion[0], expansion[1:]
+        if ref is None:
+            ref = energy
+        return cls(
+            (derivs, dict(ref=ref, center=center)),
+            base=TaylorSeriesSurface,
+            **opts
+        )
+
+
+    def __call__(self, gridpoints, **opts):
+        """
+        Explicitly overrides the Surface-level evaluation because we know the Taylor surface needs us to flatten our gridpoints
+
+        :param gridpoints:
+        :type gridpoints:
+        :param opts:
+        :type opts:
+        :return:
+        :rtype:
+        """
+
+        gps = np.asanyarray(gridpoints)
+        gp_shape = self.center.shape
+        if gps.shape[-1] != gp_shape[-1]:
+            gps = np.reshape(gps, gps.shape[:-2] + (-1,))
+
+        return super().__call__(gps, **opts)

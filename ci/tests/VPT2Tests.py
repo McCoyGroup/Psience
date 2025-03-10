@@ -280,6 +280,21 @@ class VPT2Tests(TestCase):
         raise Exception(...)
 
     @debugTest
+    def test_QuickAnneTest(self):
+        AnalyticVPTRunner.run_simple(
+            os.path.expanduser("~/Documents/Postdoc/Projects/Anne_Misc/formate/Dformate_OH+ezWeD2z_anh_tz.fchk"),
+            states=2,  # max quanta to be focusing on
+            order=2,  # None, # orderr of VPT
+            operator_chunk_size=100000,
+            degeneracy_specs={'wfc_threshold': .3},
+            logger=os.path.expanduser("~/Documents/Postdoc/Projects/Anne_Misc/formate/formate.out"),
+            internals=VPTRunner.helpers.parse_zmatrix(
+                os.path.expanduser("~/Documents/Postdoc/Projects/Anne_Misc/formate/z_mat_WeD2z.dat")
+            )
+        )
+        #    ,extended_space_target_property='frequencies'                    )
+
+    @validationTest
     def test_HOHLocalAnalytic(self):
         file_name = "HOH_freq.fchk"
 

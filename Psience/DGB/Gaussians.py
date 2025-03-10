@@ -636,7 +636,7 @@ class DGBGaussians:
                         raise NotImplementedError("transformation not fully implemented")
                         # Is this right???
                         coords = DGBWatsonModes(
-                            modes.matrix @ coords,
+                            modes.coords_by_modes.T @ coords,
                             modes=modes
                         )
 
@@ -772,7 +772,8 @@ class DGBGaussians:
             f_matrix,
             mass_spec,
             origin=reference_structure,
-            dimensionless=False
+            dimensionless=False,
+            mass_weighted=False
         )
 
     @classmethod

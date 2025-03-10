@@ -1866,7 +1866,7 @@ class DGBWatsonPairwiseEvaluator(DGBPairwisePotentialEvaluator):
 
     def get_coordinate_bond_length_projection(self, i, j):
         natoms = len(self.coords.masses)
-        modes = self.coords.modes.matrix
+        modes = self.coords.modes.coords_by_modes.T
         ndim = modes.shape[0] // natoms # this will almost always be 3
         base_mat = self.get_bond_length_deltas(natoms, ndim, i, j)
         tf_base = base_mat @ modes

@@ -610,10 +610,15 @@ class ZetaExpansion:
     def __init__(self, embedding:ModeEmbedding):
         self.embedding = embedding
     def get_terms(self, order, transformation=None):
-        QY = self.embedding.get_cartesians_by_internals(order=order)
+
+        QY = self.embedding.get_internals_by_cartesians(order=order)
         if transformation is not None:
             forward_derivs, reverse_derivs = MolecularHamiltonian.prep_transformation(transformation)
             QY = nput.tensor_reexpand(forward_derivs, QY, order)
+        QY = [
+            np.moveaxis(yq, -1, 0) if not nput.is_zero(yq) else 0
+            for yq in QY
+        ]
 
         B_e, eigs = self.embedding.get_inertial_frame()
 

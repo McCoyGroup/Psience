@@ -175,7 +175,9 @@ class NormalModes(MixtureModes):
     default_projected_zero_freq_cutoff = None
     @classmethod
     def from_molecule(cls, mol,
-                      dimensionless=False, use_internals=None,
+                      dimensionless=False,
+                      use_internals=None,
+                      potential_derivatives=None,
                       project_transrot=True,
                       zero_freq_cutoff=None,
                       masses=None,
@@ -186,10 +188,14 @@ class NormalModes(MixtureModes):
         mol = mol  # type:Molecule
         if use_internals is None:
             use_internals = mol.internal_coordinates is not None
+        if potential_derivatives is None:
+            potential_derivatives = mol.potential_derivatives
+            if potential_derivatives is None and mol.energy_evaluator is not None:
+                potential_derivatives = mol.calculate_energy(order=2)[1:]
         if use_internals:
             hess = nput.tensor_reexpand(
                 mol.get_cartesians_by_internals(1, strip_embedding=True, reembed=True),
-                [0, mol.potential_derivatives[1]],
+                [0, potential_derivatives[1]],
                 order=2
             )[1]
             if zero_freq_cutoff is None:
@@ -208,7 +214,7 @@ class NormalModes(MixtureModes):
         else:
             if masses is None:
                 masses = mol.atomic_masses
-            hess = mol.potential_derivatives[1]
+            hess = potential_derivatives[1]
             if project_transrot:
                 proj = mol.get_translation_rotation_projector(mass_weighted=True)
                 mw = np.diag(np.repeat(1 / np.sqrt(masses), 3))

@@ -9,19 +9,20 @@ import tempfile
 import typing
 
 from McUtils.Data import AtomData, UnitsData
-from McUtils.Coordinerds import CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D
+from McUtils.Coordinerds import (
+    CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D,
+    PrimitiveCoordinatePicker, RedundantCoordinateGenerator
+)
 import McUtils.Numputils as nput
 import McUtils.Iterators as itut
 from McUtils.Zachary import Mesh
 import McUtils.Plots as plt
 from McUtils.ExternalPrograms import RDMolecule
 
-from ..Modes import PrimitiveCoordinatePicker, RedundantCoordinateGenerator
-
 from .MoleculeInterface import *
 
 from .CoordinateSystems import MolecularEmbedding, ModeEmbedding
-from .Evaluator import MolecularEvaluator, EnergyEvaluator
+from .Evaluator import MolecularEvaluator, EnergyEvaluator, DipoleEvaluator
 from .Hamiltonian import MolecularHamiltonian
 from .Properties import *
 
@@ -55,6 +56,7 @@ class Molecule(AbstractMolecule):
                  charge=None,
                  display_mode=None,
                  energy_evaluator=None,
+                 dipole_evaluator=None,
                  **metadata
                  ):
         """
@@ -129,6 +131,7 @@ class Molecule(AbstractMolecule):
 
         self.display_mode = display_mode
         self.energy_evaluator = energy_evaluator
+        self.dipole_evaluator = dipole_evaluator
 
     def modify(self,
                atoms=None,
@@ -287,6 +290,18 @@ class Molecule(AbstractMolecule):
     @charge.setter
     def charge(self, c):
         self._meta['charge'] = c
+    @property
+    def charges(self):
+        return self._meta.get('charges', None)
+    @charges.setter
+    def charges(self, c):
+        self._meta['charges'] = c
+    def get_charges(self, method='rdkit'):
+        if method == 'rdkit':
+            gasteiger = np.array(self.rdmol.charges)
+            return gasteiger / np.sqrt(2)
+        else:
+            raise NotImplementedError(f"don't known how to handle charges method {method}")
     @internals.setter
     def internals(self, spec):
         self.embedding = MolecularEmbedding(
@@ -344,6 +359,25 @@ class Molecule(AbstractMolecule):
     @dipole_derivatives.setter
     def dipole_derivatives(self, derivs):
         self.dipole_surface.derivatives = derivs
+    def get_cartesian_dipole_derivatives(self, order=None):
+        dipole_derivatives = self.dipole_derivatives
+        if dipole_derivatives is None and self.energy_evaluator is not None:
+            if order is None: order = 1
+            dipole_derivatives = self.calculate_dipole(order=order)
+        if order is None:
+            return dipole_derivatives[1:]
+        else:
+            return dipole_derivatives[1:order+1]
+    def get_internal_dipole_derivatives(self, order=None, reembed=True, strip_embedding=True):
+        derivs = self.get_cartesian_dipole_derivatives(order=order)
+        if order is None:
+            order = len(derivs)
+        return nput.tensor_reexpand(
+            self.get_cartesians_by_internals(order, reembed=reembed, strip_embedding=strip_embedding),
+            derivs,
+            order
+        )
+
     @property
     def potential_surface(self):
         """
@@ -360,12 +394,15 @@ class Molecule(AbstractMolecule):
         self._pes = val
     @property
     def potential_derivatives(self):
+        base_derivs = self.potential_surface.derivatives
+        if base_derivs is None:
+            return None
         base_derivs = [
             (
                 (0 if nput.is_numeric(p) else np.asanyarray(p))
                 if p is not None else 0
             )
-            for p in self.potential_surface.derivatives
+            for p in base_derivs
         ]
         n = len(base_derivs)
         for i in range(n): # remove 0 padding
@@ -379,9 +416,14 @@ class Molecule(AbstractMolecule):
     def potential_derivatives(self, derivs):
         self.potential_surface.derivatives = derivs
 
-
+    def get_cartesian_potential_derivatives(self, order=None):
+        potential_derivatives = self.potential_derivatives
+        if potential_derivatives is None and self.energy_evaluator is not None:
+            if order is None: order = 2
+            potential_derivatives = self.calculate_energy(order=order)[1:]
+        return potential_derivatives[:order-1]
     def get_internal_potential_derivatives(self, order=None, reembed=True, strip_embedding=True, zero_gradient=False):
-        derivs = self.potential_derivatives
+        derivs = self.get_cartesian_potential_derivatives(order)
         if zero_gradient:
             derivs = [0] + list(derivs[1:])
         if order is None:
@@ -420,6 +462,11 @@ class Molecule(AbstractMolecule):
                 dict.__name__
             ))
         self._meta = val
+
+
+    def get_harmonic_spectrum(self, **opts):
+        from ..Spectra import HarmonicSpectrum
+        return HarmonicSpectrum.from_mol(self, **opts)
     #endregion
 
     def __repr__(self):
@@ -759,6 +806,29 @@ class Molecule(AbstractMolecule):
             **{k:v for k,v in opt_params.items() if v is not None}
         )
         return self.modify(coords=opt_coords / conv)
+
+    default_dipole_evaluator = 'charges'
+    def get_dipole_evaluator(self, evaluator=None, **opts):
+        if evaluator is None:
+            evaluator = self.dipole_evaluator
+        eval_type = DipoleEvaluator.resolve_evaluator(evaluator)
+        if eval_type is None:
+            raise ValueError(f"can't resolve energy dipole type for {evaluator}")
+        if hasattr(eval_type, 'from_mol') and isinstance(eval_type, type):
+            return eval_type.from_mol(self, **opts)
+        else:
+            return eval_type
+
+    def calculate_dipole(self, evaluator=None, order=None, **opts):
+        evaluator = self.get_dipole_evaluator(evaluator, **opts)
+        smol = order is None
+        if smol: order = 0
+        expansion = evaluator.evaluate(
+            self.coords * UnitsData.convert("BohrRadius", evaluator.distance_units),
+            order=order
+        )
+        if smol: expansion = expansion[0]
+        return expansion
 
     def evaluate(self,
                  func,
@@ -1146,16 +1216,16 @@ class Molecule(AbstractMolecule):
                 energies = dirs * freqs[np.newaxis, :]
                 initial_energies = total_energy * energies / np.sum(np.abs(energies), axis=1)[:, np.newaxis]
 
-            nms = self.normal_modes.modes.basis
+            nms = self.get_normal_modes(use_internals=False, mass_weighted=False)
             sim = AIMDSimulator(
                 self.atomic_masses,
                 [self.coords] * len(initial_energies),
                 lambda c: -potential_function(c, deriv_order=1)[1].reshape(c.shape),
                 velocities=AIMDSimulator.mode_energies_to_velocities(
-                    nms.inverse.T,
+                    nms.coords_by_modes,
                     self.atomic_masses,
                     initial_energies,
-                    inverse=nms.matrix.T
+                    inverse=nms.modes_by_coords
                 ),
                 timestep=timestep,
                 track_kinetic_energy=track_kinetic_energy,
