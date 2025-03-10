@@ -1,3 +1,4 @@
+import os.path
 
 from Peeves.TestUtils import *
 from unittest import TestCase
@@ -827,11 +828,41 @@ class MolecoolsTests(TestCase):
         # propane = Molecule.from_string('CCC', 'smi', energy_evaluator='rdkit').optimize()
         # propane.get_harmonic_spectrum().plot().show()
 
-        propane = Molecule.from_string('CCCO', 'smi', energy_evaluator='rdkit').optimize()
-        propane.get_harmonic_spectrum().plot().show()
+        propanol = Molecule.from_string('CCCO', 'smi',
+                                        energy_evaluator='rdkit',
+                                        charge_evaluator='aimnet2'
+                                        ).optimize()
+        propanol.get_harmonic_spectrum().plot(
+            plot_range=[
+                None,
+                [0, 170]
+            ],
+            axes_labels=['Freq. (cm$^{-1}$)', 'Int. (km mol$^{-1}$)'],
+            plot_label='AIMNet2 Charges w/ MMFF Modes',
+            padding=[[55, 0], [40, 20]]
+        ).savefig(os.path.expanduser('~/Desktop/aimnet2_propanol_rdkit_opt.png'))
 
+        propanol = propanol.modify(charge_evaluator='rdkit')
+        propanol.get_harmonic_spectrum().plot(
+            plot_range=[
+                None,
+                [0, 170]
+            ],
+            axes_labels=['Freq. (cm$^{-1}$)', 'Int. (km mol$^{-1}$)'],
+            plot_label='Gasteiger Charges w/ MMFF Modes',
+            padding=[[55, 0], [40, 20]]
+        ).savefig(os.path.expanduser('~/Desktop/gasteiger_propanol_rdkit_opt.png'))
+
+        return
         # water = Molecule.from_file(TestManager.test_data("HOH_freq.fchk"))
-        water = Molecule.from_string('O', 'smi', energy_evaluator='rdkit').optimize()
+
+        water = Molecule.from_string('O', 'smi',
+                                     energy_evaluator='rdkit',
+                                     charge_evaluator='aimnet2'
+                                     ).optimize()
+        water.get_harmonic_spectrum().plot()
+
+        water = water.modify(charge_evaluator='rdkit')
         spec = water.get_harmonic_spectrum()
         spec.plot().show()
 
