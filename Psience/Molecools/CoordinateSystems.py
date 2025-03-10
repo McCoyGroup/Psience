@@ -11,10 +11,9 @@ from McUtils.Coordinerds import (
     ZMatrixCoordinateSystem, CartesianCoordinateSystem, CoordinateSystemConverter,
     ZMatrixCoordinates, CartesianCoordinates3D, CoordinateSet, CompositeCoordinateSystem,
     GenericInternalCoordinateSystem, GenericInternalCoordinates,
-    CartesianToGICSystemConverter, GICSystemToCartesianConverter
+    CartesianToGICSystemConverter, GICSystemToCartesianConverter,
+    PrimitiveCoordinatePicker, RedundantCoordinateGenerator
 )
-
-from ..Modes import RedundantCoordinateGenerator
 
 from .Properties import StructuralProperties
 # from .MoleculeInterface import AbstractMolecule
@@ -163,16 +162,16 @@ class MolecularEmbedding:
             self._int_spec['zmatrix'] = zmat
         self._ints = None
 
-    def internal_coordinates_from_spec(self, spec:dict):
-        spec = spec.copy() # don't mutate user data
+    @classmethod
+    def convert_to_internals(cls, coords, masses, spec):
+        spec = spec.copy()  # don't mutate user data
         opts = spec.copy()
-        coords = self.coords
         specs = opts.pop('specs', None)
         zmatrix = opts.pop('zmatrix', None)
         conversion = opts.pop('conversion', None)
         inverse = opts.pop('inverse', None)
         if specs is not None:
-            ints = MolecularGenericInternalCoordinateSystem(self.masses, coords, specs=specs, **opts)
+            ints = MolecularGenericInternalCoordinateSystem(masses, coords, specs=specs, **opts)
             MolecularCartesianToGICConverter(coords.system, ints).register()
             MolecularGICToCartesianConverter(ints, coords.system).register()
             coords = coords.convert(ints, reference_internals=spec.get('reference_internals'))
@@ -188,13 +187,13 @@ class MolecularEmbedding:
         elif zmatrix is not None:
             iterative = opts.pop('iterative', False)
             if iterative:
-                zms = MolecularIZCoordinateSystem(self.masses, coords, ordering=zmatrix, **opts)
+                zms = MolecularIZCoordinateSystem(masses, coords, ordering=zmatrix, **opts)
                 MolecularCartesianToIZConverter(coords.system, zms).register()
                 MolecularIZToCartesianConverter(zms, coords.system).register()
                 MolecularIZToRegularIZConverter(zms).register()
                 RegularIZToMolecularIZConverter(zms).register()
             else:
-                zms = MolecularZMatrixCoordinateSystem(self.masses, coords, ordering=zmatrix,**opts)
+                zms = MolecularZMatrixCoordinateSystem(masses, coords, ordering=zmatrix, **opts)
                 MolecularCartesianToZMatrixConverter(coords.system, zms).register()
                 MolecularZMatrixToCartesianConverter(zms, coords.system).register()
                 MolecularZMatrixToRegularZMatrixConverter(zms).register()
@@ -205,12 +204,18 @@ class MolecularEmbedding:
                 coords.system,
                 conversion,
                 inverse_conversion=inverse
-                **opts
+                                   ** opts
             )
             coords = coords.convert(conv)
 
         return coords, spec
 
+    def internal_coordinates_from_spec(self, spec:dict):
+        return self.convert_to_internals(
+            self.coords,
+            self.masses,
+            spec
+        )
 
     @property
     def internal_coordinates(self):

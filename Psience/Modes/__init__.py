@@ -12,5 +12,3 @@ from .ObliqueModes import *; from .ObliqueModes import __all__ as exposed
 __all__ += exposed
 from .LocalizedModes import *; from .LocalizedModes import __all__ as exposed
 __all__ += exposed
-from .Redundant import *; from .Redundant import __all__ as exposed
-__all__ += exposed

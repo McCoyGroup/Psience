@@ -132,7 +132,7 @@ class WatsonPairwisePotential:
         return mat
 
     def get_coordinate_bond_length_projection(self, i, j, ndim=3):# TODO: relax this
-        modes = self.modes.matrix
+        modes = self.modes.coords_by_modes.T
         natoms = modes.shape[0] // ndim
         base_mat = self.get_bond_length_deltas(natoms, ndim, i, j)
         tf_base = base_mat @ modes

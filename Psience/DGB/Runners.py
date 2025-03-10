@@ -2,6 +2,7 @@
 import numpy as np, os
 from McUtils.Data import AtomData, UnitsData
 import McUtils.Plots as plt
+import McUtils.Numputils as nput
 
 from .DGB import DGB
 from .Coordinates import DGBCoords, DGBCartesians
@@ -14,6 +15,127 @@ __all__ = [
 __reload_hook__ = ['.DGB', '.Coordinates', '.Wavefunctions']
 
 class DGBRunner:
+
+    @classmethod
+    def construct_from_model_simulation(cls,
+                                        sim, model, mol=None,
+                                        *,
+                                        use_cartesians=False,
+                                        use_momenta=False,
+                                        quadrature_degree=3,
+                                        expansion_degree=2,
+                                        use_interpolation=True,
+                                        use_quadrature=False,
+                                        symmetrizations=None,
+                                        momentum_scaling=None,
+                                        skip_initial_configurations=True,
+                                        modes='normal',
+                                        transformations='diag',
+                                        **opts
+                                        ):
+        if mol is None:
+            mol = model.mol.get_embedded_molecule()
+
+        coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        if skip_initial_configurations:
+            nconf = len(sim.coords)
+            coords = coords[nconf - 1:]
+            velocities = velocities[nconf - 1:]
+        if use_momenta:
+            momenta = velocities * mol.masses[np.newaxis, :, np.newaxis]
+            if momentum_scaling is not None:
+                momenta = momentum_scaling * momenta
+        else:
+            momenta = None
+
+        mol.potential_derivatives = model.potential(mol.coords, deriv_order=2)[1:]
+        nms = mol.normal_modes.modes.basis.to_new_modes()
+
+        if use_interpolation:
+            if symmetrizations is not None:
+
+                emb_coords = nms.embed_coords(coords)
+                embs = [coords]
+                for symm in symmetrizations:
+                    if nput.is_numeric(symm) or all(s >= 0 for s in symm):
+                        s = [1]*len(nms.freqs)
+                        for i in symm: s[i] = -1
+                        symm = s
+                    new_emb = emb_coords * np.array(symm)[np.newaxis, :]
+                    new_coords = nms.unembed_coords(new_emb)
+                    embs.append(new_coords)
+                interp_coords = np.concatenate(embs, axis=0)
+            else:
+                interp_coords = coords
+            potential_data = {
+                'centers': interp_coords,
+                'values': model.potential(interp_coords, deriv_order=2)
+            }
+        else:
+            potential_data = None
+
+        if use_quadrature and use_interpolation:
+            raise ValueError("don't use interpolation with quadrature...")
+
+        if use_cartesians:
+            diffs = [np.ptp(coords[:, i]) for i in range(3)]
+            axes = [i for i,d in enumerate(diffs) if d > 1e-8]
+        else:
+            axes = None
+
+        return model.setup_DGB(
+            coords,
+            **dict(
+                dict(
+                    potential_function=potential_data,
+                    modes=None if use_cartesians else modes,
+                    cartesians=axes
+                    , quadrature_degree=quadrature_degree
+                    , expansion_degree=expansion_degree if not use_quadrature else None
+                    , transformations=transformations
+                    , momenta=momenta
+                ),
+                **opts
+            )
+        )
+
+    @classmethod
+    def construct_from_model(cls,
+                             model,
+                             trajectories=10,
+                             *,
+                             propagation_time=10,
+                             timestep=50,
+                             use_cartesians=False,
+                             use_momenta=False,
+                             use_pairwise=True,
+                             use_interpolation=True,
+                             use_quadrature=False,
+                             symmetrizations=None,
+                             momentum_scaling=None,
+                             track_velocities=True,
+                             **aimd_options
+                             ):
+
+        sim = model.setup_AIMD(
+            trajectories=trajectories,
+            timestep=timestep,
+            track_velocities=True,
+            **aimd_options
+        )
+        sim.propagate(propagation_time)
+
+        return cls.construct_from_model_simulation(
+            sim, model,
+            use_cartesians=use_cartesians,
+            use_momenta=use_momenta,
+            use_pairwise=use_pairwise,
+            use_interpolation=use_interpolation,
+            use_quadrature=use_quadrature,
+            momentum_scaling=momentum_scaling,
+            symmetrizations=symmetrizations,
+        )
+
 
     @classmethod
     def run_simple(cls,
@@ -275,7 +397,7 @@ class DGBRunner:
                 figs[0].show()
 
     @classmethod
-    def runDGB(cls,
+    def run_DGB(cls,
                dgb: DGB,
                mol,
                plot_centers=True,
@@ -325,6 +447,15 @@ class DGBRunner:
 
                 if isinstance(plot_wavefunctions, str) and plot_wavefunctions == 'cartesians':
                     plot_wavefunctions = {'cartesians': None}
+                elif plot_wavefunctions is True and dgb.gaussians.coords.centers.shape[-1] > 2:
+                    plot_wavefunctions = {'cartesians': None}
+
+                if plot_wavefunctions.get('cartesians', False) is None:
+                    embed_coords = dgb.gaussians.coords.as_cartesians()[0].centers
+                    diffs = [np.ptp(embed_coords[:, i]) for i in range(3)]
+                    axes = [i for i, d in enumerate(diffs) if d > 1e-8]
+                    plot_wavefunctions['cartesians'] = axes
+
                 cartesian_plot_axes = None
                 if isinstance(plot_wavefunctions, dict):
                     if 'cartesians' in plot_wavefunctions:
@@ -352,9 +483,18 @@ class DGBRunner:
             if plot_similarity:
                 plt.ArrayPlot(dgb.get_similarity_matrix()).show()
 
-            use_cartesians = False
+
             if isinstance(plot_wavefunctions, str) and plot_wavefunctions == 'cartesians':
                 plot_wavefunctions = {'cartesians': None}
+            elif plot_wavefunctions is True and dgb.gaussians.coords.centers.shape[-1] > 2:
+                plot_wavefunctions = {'cartesians': None}
+
+            if plot_wavefunctions.get('cartesians', False) is None:
+                embed_coords = dgb.gaussians.coords.as_cartesians()[0].centers
+                diffs = [np.ptp(embed_coords[:, i]) for i in range(3)]
+                axes = [i for i, d in enumerate(diffs) if d > 1e-8]
+                plot_wavefunctions['cartesians'] = axes
+
             coordinate_sel = None
             if isinstance(plot_wavefunctions, dict):
                 if 'cartesians' in plot_wavefunctions:

@@ -823,6 +823,19 @@ class MolecoolsTests(TestCase):
         self.assertAlmostEquals(np.sum(ic1.convert(ic2.system)-ic2)[()], 0.)
 
     @debugTest
+    def test_RDKitSpectrum(self):
+        # propane = Molecule.from_string('CCC', 'smi', energy_evaluator='rdkit').optimize()
+        # propane.get_harmonic_spectrum().plot().show()
+
+        propane = Molecule.from_string('CCCO', 'smi', energy_evaluator='rdkit').optimize()
+        propane.get_harmonic_spectrum().plot().show()
+
+        # water = Molecule.from_file(TestManager.test_data("HOH_freq.fchk"))
+        water = Molecule.from_string('O', 'smi', energy_evaluator='rdkit').optimize()
+        spec = water.get_harmonic_spectrum()
+        spec.plot().show()
+
+    @validationTest
     def test_InternalConv(self):
 
         gggg = Molecule(

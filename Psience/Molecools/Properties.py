@@ -1928,6 +1928,9 @@ class PotentialSurfaceManager(PropertyManager):
         if file is None:
             file = self.mol.source_file
 
+        if file is None:
+            return None
+
         path, ext = os.path.splitext(file)
         ext = ext.lower()
 
@@ -2218,7 +2221,7 @@ class NormalModesManager(PropertyManager):
                         modes = modes.rotate(phases)
 
             if recalculate:
-                fcs = self.mol.potential_surface.force_constants
+                fcs = self.get_force_constants()
                 new_modes = MolecularNormalModes.from_force_constants(self.mol, fcs, self.mol.atoms)
                 new_old_phases = np.dot(modes.matrix.T, new_modes.matrix)
                 old_old_phases = np.dot(modes.matrix.T, modes.matrix)
@@ -2259,12 +2262,21 @@ class NormalModesManager(PropertyManager):
         if self.mol.source_file is not None:
             vibs = MolecularVibrations(self.mol, self.load_normal_modes())
         else:
-            fcs = self.mol.potential_surface.force_constants
+            fcs = self.get_force_constants()
             vibs = MolecularVibrations(self.mol,
                                        MolecularNormalModes.from_force_constants(self.mol, fcs, atoms=self.mol.atoms, **kwargs)
                                        )
 
         return vibs
+
+    def get_force_constants(self):
+        derivs = self.mol.potential_derivatives
+        if derivs is None:
+            if self.mol.energy_evaluator is None:
+                raise ValueError("can't compute normal modes without derivatives or energy evaluator")
+            derivs = self.mol.calculate_energy(order=2)[1:]
+        fcs = derivs[1]
+        return fcs
 
     @classmethod
     def get_dipole_derivative_based_rephasing(cls, modes, analytic_dipoles, numerical_dipoles):

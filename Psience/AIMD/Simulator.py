@@ -108,15 +108,15 @@ class AIMDSimulator:
                 raise ValueError("modes aren't normalized -> non-unitary transformation")
             inverse = modes.T
 
-        tripmass = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten()
-        g = inverse @ np.diag(tripmass) @ modes
+        tripmass = np.repeat(masses, 3).flatten()
+        g = inverse.T @ np.diag(tripmass) @ inverse
 
         gv, Q = np.linalg.eigh(g)
         sorting = np.argsort(np.argmax(Q ** 2, axis=0))
         gv = gv[sorting]  # maximum similarity to OG vectors
         Q = Q[:, sorting]
 
-        axes = (Q.T @ inverse).reshape(modes.shape[1], -1, 3)
+        axes = (Q.T @ modes).reshape(modes.shape[0], -1, 3)
         v_part = np.sign(e_part) * np.sqrt(2 * np.abs(e_part)) # / gv[np.newaxis])
         vels = np.sum(
             axes[np.newaxis] *
