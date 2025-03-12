@@ -777,12 +777,14 @@ class Molecule(AbstractMolecule):
         else:
             return eval_type
 
-    def calculate_energy(self, evaluator=None, order=None, **opts):
+    def calculate_energy(self, coords=None, *, evaluator=None, order=None, **opts):
         evaluator = self.get_energy_evaluator(evaluator, **opts)
         smol = order is None
         if smol: order = 0
+        if coords is None:
+            coords = self.coords
         expansion = evaluator.evaluate(
-            self.coords * UnitsData.convert("BohrRadius", evaluator.distance_units),
+            np.asanyarray(coords) * UnitsData.convert("BohrRadius", evaluator.distance_units),
             order=order
         )
         if smol: expansion = expansion[0]
@@ -901,7 +903,8 @@ class Molecule(AbstractMolecule):
                              which=None, sel=None, axes=None,
                              shift=True,
                              coordinate_expansion=None,
-                             strip_embedding=False
+                             strip_embedding=False,
+                             return_displacements=False
                              ):
         from ..Modes import NormalModes
 
@@ -923,7 +926,8 @@ class Molecule(AbstractMolecule):
             internals=internals,
             which=which, sel=sel, axes=axes,
             shift=shift, coordinate_expansion=coordinate_expansion,
-            strip_embedding=strip_embedding
+            strip_embedding=strip_embedding,
+            return_displacements=return_displacements
         )
 
     def get_nearest_displacement_atoms(self,
