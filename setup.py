@@ -23,7 +23,7 @@ setup(
     # Self-descriptive entries which should always be present
     name='mccoygroup-psience',
     author='Mark Boyer',
-    author_email='b3m2a1@uw.edu',
+    author_email='maboyer@tamu.edu',
     description=short_description[0],
     long_description=long_description,
     long_description_content_type="text/markdown",
@@ -42,6 +42,6 @@ setup(
     # include_package_data=True
     python_requires=">=3.9",
     install_requires=[
-        'mccoygroup-mcutils>=1.2.14'
+        'mccoygroup-mcutils>=1.3.0'
     ]
 )
