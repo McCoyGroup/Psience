@@ -212,6 +212,9 @@ class NormalModes(MixtureModes):
                 **opts
             )
         else:
+            if not project_transrot and mol.normal_modes.modes is not None:
+                return mol.normal_modes.modes.basis.to_new_modes()
+
             if masses is None:
                 masses = mol.atomic_masses
             hess = potential_derivatives[1]

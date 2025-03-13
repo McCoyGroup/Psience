@@ -224,7 +224,8 @@ class MolecularEvaluator:
                              which=None, sel=None, axes=None,
                              coordinate_expansion=None,
                              strip_embedding=False,
-                             shift=True
+                             shift=True,
+                             return_displacements=False
                              ):
 
         displacement_mesh = np.moveaxis(
@@ -233,11 +234,15 @@ class MolecularEvaluator:
             ),
             0, -1
         )
-        return self.get_displaced_coordinates(displacement_mesh, shift=shift,
+        disps = self.get_displaced_coordinates(displacement_mesh, shift=shift,
                                               use_internals=internals, which=which, sel=sel, axes=axes,
                                               coordinate_expansion=coordinate_expansion,
                                               strip_embedding=strip_embedding
                                               )
+        if return_displacements:
+            return displacement_mesh, disps
+        else:
+            return disps
 
     def get_nearest_displacement_atoms(self,
                                        points,
@@ -498,7 +503,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
 
     @classmethod
     def resolve_evaluator(cls, name):
-        if name is not None and not isinstance(name, str):
+        if name is not None and not isinstance(name, (str, dict, tuple)) and callable(name):
             if hasattr(name, 'evaluate_term'):
                 return name
             else:
@@ -594,7 +599,7 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
     def bind_default(cls, potential):
         cls.default_property_function = potential
     @classmethod
-    def get_property_function(cls, prop_func, mol):
+    def get_property_function(cls, prop_func, mol, **opts):
         return prop_func
     @classmethod
     def initializer(cls, mol, **opts):
@@ -616,7 +621,7 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
         if property_function is None:
             property_function = cls.default_property_function
             cls.default_property_function = None
-        property_function = cls.get_property_function(property_function, mol)
+        property_function = cls.get_property_function(property_function, mol, **opts)
         if property_function is None:
             raise ValueError(f"can't evaluate with property function {property_function}")
         init_opts = {
@@ -759,7 +764,7 @@ class RDKitEnergyEvaluator(EnergyEvaluator):
 
     @classmethod
     def from_mol(cls, mol, **opts):
-        return cls(mol.rdmol)
+        return cls(mol.rdmol, **opts)
 
     property_units = 'Kilocalories/Mole'
     analytic_derivative_order = 1
@@ -1173,10 +1178,16 @@ class PotentialExpansionEnergyEvaluator(PotentialFunctionEnergyEvaluator):
                  center=None,
                  ref=None,
                  batched_orders=None,
+                 transforms=None,
+                 transformed_derivatives=False,
                  **opts
                  ):
         if not callable(expansion):
-            expansion = PotentialSurface.from_derivatives(expansion, center=center, ref=ref)
+            expansion = PotentialSurface.from_derivatives(expansion,
+                                                          center=center, ref=ref,
+                                                          transforms=transforms,
+                                                          transformed_derivatives=transformed_derivatives
+                                                          )
         super().__init__(
             expansion,
             batched_orders=True,
@@ -1184,11 +1195,48 @@ class PotentialExpansionEnergyEvaluator(PotentialFunctionEnergyEvaluator):
         )
 
     @classmethod
-    def get_property_function(cls, expansion, mol):
+    def from_mol(cls,
+                 mol,
+                 property_function=None,
+                 expansion=None,
+                 **opts
+                 ):
+        return super().from_mol(
+            mol,
+            property_function=expansion if property_function is None else property_function
+            **opts
+        )
+
+    @classmethod
+    def get_property_function(cls, expansion, mol, transforms=None, **ignored):
         if not callable(expansion):
+            transforms = transforms
+            transformed_derivatives = False
             if expansion is None:
                 expansion = mol.potential_derivatives
-            expansion = PotentialSurface.from_mol(mol, expansion=expansion)
+                # handle partial quatics
+            if len(expansion) > 2 and expansion[2].shape[0] < expansion[1].shape[0]:
+                if transforms is None:
+                    modes = mol.get_normal_modes(project_transrot=False).remove_mass_weighting()
+                    transforms = [[modes.coords_by_modes], [modes.modes_by_coords]]
+                if nput.is_numeric_array_like(transforms[0]):
+                    tf = np.asanyarray(transforms[0])
+                    if tf.ndim > 2:
+                        tf = tf[0]
+                else:
+                    tf = np.asanyarray(transforms[0][0])
+                _ = []
+                for i,e in enumerate(expansion):
+                    for j in range(min([i+1, 2])):
+                        e = np.tensordot(tf, e, axes=[1, -1])
+                    _.append(e)
+                expansion = _
+                transformed_derivatives = True
+            expansion = PotentialSurface.from_mol(mol,
+                                                  expansion=expansion,
+                                                  transforms=transforms,
+                                                  transformed_derivatives=transformed_derivatives
+                                                  )
         return expansion
 
 class DipoleEvaluator(PropertyEvaluator):

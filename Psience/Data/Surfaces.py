@@ -320,7 +320,13 @@ class PotentialSurface(Surface):
         )
 
     @classmethod
-    def from_mol(cls, mol, expansion=None, center=None, transforms=None, use_internals=True, **opts):
+    def from_mol(cls, mol,
+                 expansion=None,
+                 center=None,
+                 transforms=None,
+                 transformed_derivatives=False,
+                 use_internals=True,
+                 **opts):
         if use_internals and transforms is None and mol.internals is not None:
             transforms = mol.get_cartesians_by_internals(len(mol.potential_derivatives))
         if center is None:
@@ -331,18 +337,21 @@ class PotentialSurface(Surface):
             expansion,
             center=center,
             transforms=transforms,
+            transformed_derivatives=transformed_derivatives,
             **opts
         )
 
     @classmethod
-    def from_derivatives(cls, expansion, center=None, ref=None, **opts):
+    def from_derivatives(cls, expansion, center=None, ref=None, transforms=None, transformed_derivatives=False, **opts):
         if not nput.is_numeric(expansion[0]):
             expansion = [0] + list(expansion)
+        if center is not None:
+            center = center.flatten()
         energy, derivs = expansion[0], expansion[1:]
         if ref is None:
             ref = energy
         return cls(
-            (derivs, dict(ref=ref, center=center)),
+            (derivs, dict(ref=ref, center=center, transforms=transforms, transformed_derivatives=transformed_derivatives)),
             base=TaylorSeriesSurface,
             **opts
         )
@@ -362,7 +371,7 @@ class PotentialSurface(Surface):
 
         gps = np.asanyarray(gridpoints)
         gp_shape = self.center.shape
-        if gps.shape[-1] != gp_shape[-1]:
+        if gps.shape[-1] < gp_shape[-1] and (gps.shape[-1] * gps.shape[-2] == gp_shape[-1]):
             gps = np.reshape(gps, gps.shape[:-2] + (-1,))
 
         return super().__call__(gps, **opts)

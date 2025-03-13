@@ -9,6 +9,7 @@ from Psience.Molecools import Molecule, MolecularNormalModes
 from Psience.Data import DipoleSurface # this will be leaving Zachary very soon I think...
 from McUtils.GaussianInterface import GaussianFChkReader, GaussianLogReader
 from McUtils.Plots import *
+import McUtils.Plots as plt
 from McUtils.Coordinerds import cartesian_to_zmatrix
 from McUtils.Data import UnitsData
 import numpy as np, scipy
@@ -823,7 +824,7 @@ class MolecoolsTests(TestCase):
 
         self.assertAlmostEquals(np.sum(ic1.convert(ic2.system)-ic2)[()], 0.)
 
-    @debugTest
+    @validationTest
     def test_RDKitSpectrum(self):
         # propane = Molecule.from_string('CCC', 'smi', energy_evaluator='rdkit').optimize()
         # propane.get_harmonic_spectrum().plot().show()
@@ -865,6 +866,63 @@ class MolecoolsTests(TestCase):
         water = water.modify(charge_evaluator='rdkit')
         spec = water.get_harmonic_spectrum()
         spec.plot().show()
+
+    @validationTest
+    def test_ExpansionPotential(self):
+        h2co = Molecule.from_file(TestManager.test_data('OCHH_freq.fchk'))
+        disps, scan_coords = h2co.get_scan_coordinates(
+            [[-.5, .5, 1000]],
+            which=[[2, 2]],
+            return_displacements=True
+        )
+        [grad, hess, cubes, quarts] = h2co.potential_derivatives
+        vals_2 = h2co.calculate_energy(scan_coords,
+                                       evaluator=(
+                                           'expansion',
+                                           {
+                                               'expansion': [grad, hess]
+                                           }
+                                       )
+                                       ) * 219475.6
+        vals_3 = h2co.calculate_energy(scan_coords,
+                                     evaluator=(
+                                         'expansion',
+                                         {
+                                             'expansion':[grad, hess, cubes]
+                                         }
+                                     )
+                                     ) * 219475.6
+        vals_4 = h2co.calculate_energy(scan_coords,
+                                     evaluator=(
+                                         'expansion',
+                                         {
+                                             'expansion':[grad, hess, cubes, quarts]
+                                         }
+                                     )
+                                     ) * 219475.6
+        # h2co.plot(scan_coords).show()
+        base_fig = plt.Plot(disps, vals_2, plot_range=[None, [0, 20000]])
+        plt.Plot(disps, vals_3, figure=base_fig)
+        plt.Plot(disps, vals_4, figure=base_fig)
+        base_fig.show()
+        # print(vals)
+
+    @validationTest
+    def test_Constructors(self):
+
+        a = Molecule.construct(TestManager.test_data('OCHH_freq.fchk'))
+        b = Molecule.construct([
+            a.atoms, a.coords,
+            dict(internals=[
+                [0, -1, -1, -1],
+                [1, 0, -1, -1],
+                [2, 1, 0, -1],
+                [3, 1, 0, 2]
+            ])
+        ])
+        c = Molecule.construct([b.atoms, (b.internals['zmatrix'], b.internal_coordinates[1:])])
+        b = Molecule.construct('formaldehyde')
+        c = Molecule.construct('OC')
 
     @validationTest
     def test_InternalConv(self):

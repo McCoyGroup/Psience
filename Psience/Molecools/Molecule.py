@@ -15,6 +15,8 @@ from McUtils.Coordinerds import (
 )
 import McUtils.Numputils as nput
 import McUtils.Iterators as itut
+import McUtils.Devutils as dev
+import McUtils.Coordinerds as coordops
 from McUtils.Zachary import Mesh
 import McUtils.Plots as plt
 from McUtils.ExternalPrograms import RDMolecule
@@ -777,12 +779,29 @@ class Molecule(AbstractMolecule):
         else:
             return eval_type
 
-    def calculate_energy(self, evaluator=None, order=None, **opts):
+    def get_energy_function(self, evaluator=None, *, order=None, **opts):
+        evaluator = self.get_energy_evaluator(evaluator, **opts)
+        def evaluate_energy(coords, order=order):
+            smol = order is None
+            if smol: order = 0
+            if coords is None:
+                coords = self.coords
+            expansion = evaluator.evaluate(
+                np.asanyarray(coords) * UnitsData.convert("BohrRadius", evaluator.distance_units),
+                order=order
+            )
+            if smol: expansion = expansion[0]
+            return expansion
+        return evaluate_energy
+
+    def calculate_energy(self, coords=None, *, evaluator=None, order=None, **opts):
         evaluator = self.get_energy_evaluator(evaluator, **opts)
         smol = order is None
         if smol: order = 0
+        if coords is None:
+            coords = self.coords
         expansion = evaluator.evaluate(
-            self.coords * UnitsData.convert("BohrRadius", evaluator.distance_units),
+            np.asanyarray(coords) * UnitsData.convert("BohrRadius", evaluator.distance_units),
             order=order
         )
         if smol: expansion = expansion[0]
@@ -901,7 +920,8 @@ class Molecule(AbstractMolecule):
                              which=None, sel=None, axes=None,
                              shift=True,
                              coordinate_expansion=None,
-                             strip_embedding=False
+                             strip_embedding=False,
+                             return_displacements=False
                              ):
         from ..Modes import NormalModes
 
@@ -923,7 +943,8 @@ class Molecule(AbstractMolecule):
             internals=internals,
             which=which, sel=sel, axes=axes,
             shift=shift, coordinate_expansion=coordinate_expansion,
-            strip_embedding=strip_embedding
+            strip_embedding=strip_embedding,
+            return_displacements=return_displacements
         )
 
     def get_nearest_displacement_atoms(self,
@@ -1595,22 +1616,15 @@ class Molecule(AbstractMolecule):
             return None
 
     @classmethod
-    def from_zmat(cls, zmat, **opts):
-        """Little z-matrix importer
-
-        :param zmat:
-        :type zmat: str | tuple
-        :return:
-        :rtype: Molecule
-        """
-
+    def from_zmat(cls, zmat, internals=None, **opts):
         if isinstance(zmat, str):
-            from McUtils.Parsers import StringParser, ZMatPattern
-            zmcs = StringParser(ZMatPattern).parse(zmat)
-        else:
-            zmcs = zmat
-        coords = CoordinateSet([zmcs[1]], ZMatrixCoordinates).convert(CartesianCoordinates3D)
-        return cls(zmcs[0], coords, zmatrix=zmat[:, (1, 3, 5)], **opts)
+            (atoms, ordering, coords) = coordops.parse_zmatrix_string(zmat)
+            zmat = (atoms, (ordering, coords))
+        (atoms, (ordering, coords)) = zmat
+
+        coords = CoordinateSet(coords, ZMatrixCoordinates).convert(CartesianCoordinates3D, ordering=ordering)
+        if internals is None: internals = ordering
+        return cls(atoms, coords, internals=internals, **opts)
     @classmethod
     def from_pybel(cls, mol, **opts):
         """
@@ -1730,14 +1744,59 @@ class Molecule(AbstractMolecule):
     def from_name(cls, name, **opts):
         return cls.from_string(name, 'name', **opts)
 
+    _atom_strs = None
     @classmethod
-    def from_string(cls, string, fmt, **opts):
+    def get_atom_strings(cls):
+        if cls._atom_strs is None:
+            cls._atom_strs = {d["Symbol"][:2] for d in AtomData.data.values()}
+        return cls._atom_strs
+    _smi_punct=('c','[',']','+','-', '0','1','2','3','4','5','6','7','8','9')
+    @classmethod
+    def _check_smi(cls, string, atom_types, other_syms=None):
+        for s in atom_types:
+            string = string.replace(s, '')
+        if other_syms is None:
+            other_syms = cls._smi_punct
+        for s in other_syms:
+            string = string.replace(s, '')
+        return len(string.strip()) == 0
+    @classmethod
+    def _infer_str_format(cls, string:str, **opts):
+        lines = string.splitlines()
+        at_strs = cls.get_atom_strings()
+        if len(lines) == 1:
+            if len(string.split()) == 1 and cls._check_smi(string, at_strs):
+                return 'smi'
+            else:
+                return 'name'
+        elif 'V2000' in string or 'V3000' in string:
+            return 'mol'
+        elif all(l.strip().split()[0] in at_strs for l in lines):
+            return 'zmat'
+        else:
+            try:
+                int(lines[0].strip())
+            except TypeError:
+                pass
+            else:
+                return 'xyz'
+
+            if len(lines) > 2 and len(lines[2].split()) == 4:
+                return 'xyz'
+            else:
+                raise ValueError(f"can't infer molecule spec from '''{string}'''")
+
+    @classmethod
+    def from_string(cls, string, fmt=None, **opts):
+        if fmt is None:
+            fmt = cls._infer_str_format(string)
         format_dispatcher = {
             "smi": cls._from_smiles,
             "name": cls._from_name,
             "mol": cls._from_molblock,
             "sdf": cls._from_sdf,
-            "xyz": cls._from_xyz
+            "xyz": cls._from_xyz,
+            "zmat": cls.from_zmat
         }
 
         if fmt in format_dispatcher:
@@ -1791,52 +1850,49 @@ class Molecule(AbstractMolecule):
                 return cls.from_pybel(mol)
 
     @classmethod
-    def _infer_spec_format(cls, spec):
-        if isinstance(spec, str):
-            return 'file'
+    def _infer_spec_format(cls, spec, **opts):
+        if all(hasattr(spec, k) for k in ['atoms', 'coords', 'bonds', 'meta']):
+            return 'rdmol', {}
+        elif isinstance(spec, str):
+            if os.path.isfile(spec):
+                return 'file', {}
+            else:
+                return 'str', {}
+        elif dev.is_dict_like(spec):
+            return 'dict'
 
-        fmt = None
-        try:
-            atoms = spec[0]
-            if all(isinstance(a, str) for a in atoms):
-                return 'standard'
-        except:
-            pass
+        atoms = coords = None
+        opts = {}
+        if len(spec) == 2:
+            atoms, coords = spec
+        elif len(spec) == 3:
+            atoms, coords, opts = spec
 
-        if fmt is None:
-            raise ValueError("don't know how to build a molecule from spec {}".format(spec))
+        if atoms is None:
+            raise ValueError(f"don't know how to build a molecule from {spec}")
+
+        return (atoms, coords), opts
 
     @classmethod
-    def from_spec(cls, spec):
-        fmt = cls._infer_spec_format(spec)
-        if fmt == 'file':
-            return cls.from_file(spec)
-        elif fmt == 'standard':
-            atoms = spec[0]
-            coords = spec[1]
-            if len(spec) == 2:
-                opts = {}
-            elif len(spec) == 3:
-                opts = spec[2]
-            else:
-                raise ValueError("too many arguments in {} to build {}".format(spec, cls.__name__))
-            return cls(atoms, coords, **opts)
-        elif fmt == 'zmat':
-            if isinstance(spec[0], str):
-                opts = {}
-                zmat = spec
-            else:
-                if len(spec) == 1:
-                    opts = {}
-                    zmat = spec[0]
-                elif len(spec) == 2:
-                    opts = spec[1]
-                    zmat = spec[0]
-                else:
-                    raise ValueError("too many arguments in {} to build {}".format(spec, cls.__name__))
-            return cls.from_zmat(zmat, **opts)
+    def construct(cls, spec, **opts):
+        if isinstance(spec, Molecule):
+            return spec.modify(**opts)
+
+        fmt, subopts = cls._infer_spec_format(spec, **opts)
+        if fmt == 'rdmol':
+            return cls.from_rdmol(spec, **opts)
+        elif fmt == 'file':
+            return cls.from_file(spec, **opts)
+        elif fmt == 'str':
+            return cls.from_string(spec, **opts)
+        elif fmt == 'dict':
+            return cls(**dict(spec, **opts))
         else:
-            raise NotImplementedError("don't have {} loading from format {} for spec {}".format(cls.__name__, fmt, spec))
+            atoms, coords = fmt
+            if isinstance(coords, tuple) and len(coords) == 2:
+                return cls.from_zmat(fmt, **dict(subopts, **opts))
+            else:
+                return cls(atoms, coords, **dict(subopts, **opts))
     #endregion
 
     #region Visualization
