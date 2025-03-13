@@ -867,7 +867,7 @@ class MolecoolsTests(TestCase):
         spec = water.get_harmonic_spectrum()
         spec.plot().show()
 
-    @debugTest
+    @validationTest
     def test_ExpansionPotential(self):
         h2co = Molecule.from_file(TestManager.test_data('OCHH_freq.fchk'))
         disps, scan_coords = h2co.get_scan_coordinates(
@@ -906,6 +906,23 @@ class MolecoolsTests(TestCase):
         plt.Plot(disps, vals_4, figure=base_fig)
         base_fig.show()
         # print(vals)
+
+    @validationTest
+    def test_Constructors(self):
+
+        a = Molecule.construct(TestManager.test_data('OCHH_freq.fchk'))
+        b = Molecule.construct([
+            a.atoms, a.coords,
+            dict(internals=[
+                [0, -1, -1, -1],
+                [1, 0, -1, -1],
+                [2, 1, 0, -1],
+                [3, 1, 0, 2]
+            ])
+        ])
+        c = Molecule.construct([b.atoms, (b.internals['zmatrix'], b.internal_coordinates[1:])])
+        b = Molecule.construct('formaldehyde')
+        c = Molecule.construct('OC')
 
     @validationTest
     def test_InternalConv(self):
