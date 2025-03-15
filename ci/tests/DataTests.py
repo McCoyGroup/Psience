@@ -52,3 +52,10 @@ class DataTests(TestCase):
         surf = PotentialSurface.from_log_file(log, conv)
         pots = surf(np.arange(.5, 2, .1))
         self.assertEquals(pots.shape, ((2-.5)/.1,))
+
+
+    @debugTest
+    def test_PotentialRegistry(self):
+        print(
+            PotentialRegistryAPI().get_potential('H2COPot').Potential
+        )

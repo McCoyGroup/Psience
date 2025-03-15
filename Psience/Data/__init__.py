@@ -11,3 +11,5 @@ from .Surfaces import *; from .Surfaces import __all__ as exposed
 __all__ += exposed
 from .KEData import *; from .KEData import __all__ as exposed
 __all__ += exposed
+from .PotentialRegistry import *; from .PotentialRegistry import __all__ as exposed
+__all__ += exposed
