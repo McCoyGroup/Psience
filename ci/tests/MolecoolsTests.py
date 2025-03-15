@@ -915,9 +915,9 @@ class MolecoolsTests(TestCase):
             a.atoms, a.coords,
             dict(internals=[
                 [0, -1, -1, -1],
-                [1, 0, -1, -1],
-                [2, 1, 0, -1],
-                [3, 1, 0, 2]
+                [1,  0, -1, -1],
+                [2,  1,  0, -1],
+                [3,  1,  0,  2]
             ])
         ])
         c = Molecule.construct([b.atoms, (b.internals['zmatrix'], b.internal_coordinates[1:])])
