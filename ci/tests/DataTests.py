@@ -71,6 +71,7 @@ class DataTests(TestCase):
                 "distance_units": "Angstroms"
             }
         )
-        raise Exception(
-            ochh_base.calculate_energy(order=1)
-        )
+
+        opt_ochh = ochh_base.optimize()
+        print(ochh_base.calculate_energy(), opt_ochh.calculate_energy())
+        print(opt_ochh.coords - ochh_base.coords)
