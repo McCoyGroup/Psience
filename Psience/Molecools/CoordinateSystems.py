@@ -32,7 +32,9 @@ class MolecularEmbedding:
     def __init__(self,
                  masses,
                  coords,
-                 internals
+                 internals,
+                 internal_fd_opts=None,
+                 cartesian_fd_opts=None
                  ):
 
         self._coords = CoordinateSet(coords, MolecularCartesianCoordinateSystem(masses, coords))
@@ -48,6 +50,8 @@ class MolecularEmbedding:
         # self._int_spec = internals
         self._frame = None
         self._tr_modes = None
+        self._internal_fd_opts={} if internal_fd_opts is None else internal_fd_opts
+        self._cart_fd_opts={} if cartesian_fd_opts is None else cartesian_fd_opts
 
     @property
     def coords(self):
@@ -255,13 +259,25 @@ class MolecularEmbedding:
             'fast-internals': {"default":[], "reembed":[]},
             'cartesian': []
         }
+    internal_fd_defaults=dict(
+        strip_dummies=False,
+        stencil=None, mesh_spacing=1.0e-3,
+        all_numerical=None, reembed=True,
+        planar_ref_tolerance=None,
+        parallelizer=None
+    )
+    def _get_internal_fd_opts(self, **opts):
+        return dict(
+            dict(
+                self.internal_fd_defaults,
+                **self._internal_fd_opts
+            ),
+            **opts
+        )
     def _get_int_jacobs(self,
                         jacs,
-                        strip_dummies=False,
-                        stencil=None, mesh_spacing=1.0e-3,
-                        all_numerical=None, reembed=True,
-                        planar_ref_tolerance=None,
-                        parallelizer=None
+                         coords=None,
+                        **fd_opts
                         ):
         """
         Gets the specified dX/dRs
@@ -271,13 +287,33 @@ class MolecularEmbedding:
         :return:
         :rtype:
         """
-        intcds = self.internal_coordinates
-        ccoords = self.coords
+
+        if coords is None:
+            intcds = self.internal_coordinates
+            ccoords = self.coords
+        else:
+            # intcds = self.internal_coordinates
+            ccoords = self.coords.flatten()[:0]*0 + coords
+            intcds = self.convert_to_internals(ccoords, self.masses, self.internals)
+        # intcds = self.internal_coordinates
+        # ccoords = self.coords
         carts = ccoords.system
         internals = intcds.system
 
         generics = 'GenericInternals' in internals.name
         zmatrix = 'ZMatrix' in internals.name
+
+        fd_opts = self._get_internal_fd_opts(**fd_opts)
+        (
+            all_numerical, reembed, planar_ref_tolerance,
+            strip_dummies, mesh_spacing, stencil, parallelizer
+        ) = [
+            fd_opts[k] for k in
+            (
+                "all_numerical", "reembed", "planar_ref_tolerance",
+                "strip_dummies", "mesh_spacing", "stencil", "parallelizer"
+            )
+        ]
 
         if all_numerical is None:
             all_numerical = zmatrix
@@ -294,18 +330,54 @@ class MolecularEmbedding:
 
         if isinstance(jacs, int):
             jacs = list(range(1, jacs + 1))
-
-        exist_jacs = self._jacobians['internals']
-        if reembed:
-            exist_jacs = exist_jacs["reembed"]
-        else:
-            exist_jacs = exist_jacs["default"]
-        # {"default": [], "reembed": [], "fast": [], "generic": []}
         max_jac = max(jacs)
-        need_jacs = [x + 1 for x in range(0, max_jac) if x >= len(exist_jacs) or exist_jacs[x] is None]
-        if len(need_jacs) > 0:
+
+        if coords is None:
+
+            exist_jacs = self._jacobians['internals']
+            if reembed:
+                exist_jacs = exist_jacs["reembed"]
+            else:
+                exist_jacs = exist_jacs["default"]
+            # {"default": [], "reembed": [], "fast": [], "generic": []}
+            need_jacs = [x + 1 for x in range(0, max_jac) if x >= len(exist_jacs) or exist_jacs[x] is None]
+            if len(need_jacs) > 0:
+                if generics:
+                    exist_jacs[:] = [
+                        x.squeeze() for x in
+                        intcds.jacobian(carts, jacs,
+                                        # odd behaves better
+                                        mesh_spacing=mesh_spacing,
+                                        stencil=stencil,
+                                        all_numerical=all_numerical,
+                                        converter_options=converter_options
+                                        )
+                    ]
+                    # self._jacobians['internals'] = exist_jacs
+                else:
+                    stencil = (max(need_jacs) + 2 + (1 + max(need_jacs)) % 2) if stencil is None else stencil
+                    # odd behaves better
+                    with Parallelizer.lookup(parallelizer) as par:
+                        new_jacs = [
+                            x.squeeze() if isinstance(x, np.ndarray) else x
+                            for x in intcds.jacobian(carts, need_jacs,
+                                                     # odd behaves better
+                                                     mesh_spacing=mesh_spacing,
+                                                     stencil=stencil,
+                                                     all_numerical=all_numerical,
+                                                     converter_options=converter_options,
+                                                     parallelizer=par
+                                                     )
+                        ]
+                    for j, v in zip(need_jacs, new_jacs):
+                        for d in range(j - len(exist_jacs)):
+                            exist_jacs.append(None)
+                        exist_jacs[j - 1] = v
+
+            return [exist_jacs[j - 1] for j in jacs]
+        else:
             if generics:
-                exist_jacs[:] = [
+                new_jacs = [
                     x.squeeze() for x in
                     intcds.jacobian(carts, jacs,
                                     # odd behaves better
@@ -317,12 +389,12 @@ class MolecularEmbedding:
                 ]
                 # self._jacobians['internals'] = exist_jacs
             else:
-                stencil = (max(need_jacs) + 2 + (1 + max(need_jacs)) % 2) if stencil is None else stencil
+                stencil = (max_jac + 2 + (1 + max_jac) % 2) if stencil is None else stencil
                 # odd behaves better
                 with Parallelizer.lookup(parallelizer) as par:
                     new_jacs = [
                         x.squeeze() if isinstance(x, np.ndarray) else x
-                        for x in intcds.jacobian(carts, need_jacs,
+                        for x in intcds.jacobian(carts, max_jac,
                                                  # odd behaves better
                                                  mesh_spacing=mesh_spacing,
                                                  stencil=stencil,
@@ -331,18 +403,25 @@ class MolecularEmbedding:
                                                  parallelizer=par
                                                  )
                     ]
-                for j, v in zip(need_jacs, new_jacs):
-                    for d in range(j - len(exist_jacs)):
-                        exist_jacs.append(None)
-                    exist_jacs[j - 1] = v
+            return new_jacs
 
-        return [exist_jacs[j - 1] for j in jacs]
-
+    cart_fd_defaults=dict(
+        strip_dummies=False,
+        stencil=None, mesh_spacing=1.0e-3,
+        all_numerical=None,
+        parallelizer=None
+    )
+    def _get_cart_fd_opts(self, **opts):
+        return dict(
+            dict(
+                self.cart_fd_defaults,
+                **self._cart_fd_opts
+            ),
+            **opts
+        )
     def _get_cart_jacobs(self, jacs,
-                         strip_dummies=False,
-                         stencil=None, mesh_spacing=1.0e-3,
-                         all_numerical=None,
-                         parallelizer=None
+                         coords=None,
+                         **fd_opts
                          ):
         """
         Gets the specified dR/dXs
@@ -352,12 +431,26 @@ class MolecularEmbedding:
         :return:
         :rtype:
         """
-        intcds = self.internal_coordinates
-        ccoords = self.coords
+        if coords is None:
+            # intcds = self.internal_coordinates
+            ccoords = self.coords
+        else:
+            # intcds = self.internal_coordinates
+            ccoords = self.coords.flatten()[:0]*0 + coords
         carts = ccoords.system
-        internals = intcds.system
+        internals = self.internal_coordinates.system
         generics = 'GenericInternals' in internals.name
         zmatrix = 'ZMatrix' in internals.name
+
+        fd_opts = self._get_cart_fd_opts(**fd_opts)
+        (
+            all_numerical, strip_dummies, mesh_spacing, stencil, parallelizer
+        ) = [
+            fd_opts[k] for k in
+            (
+                "all_numerical", "strip_dummies", "mesh_spacing", "stencil", "parallelizer"
+            )
+        ]
 
         if all_numerical is None:
             all_numerical = zmatrix
@@ -371,15 +464,46 @@ class MolecularEmbedding:
         if isinstance(jacs, int):
             jacs = list(range(1, jacs + 1))
 
-        exist_jacs = self._jacobians['cartesian']
-        max_jac = max(jacs)
-        need_jacs = [x + 1 for x in range(0, max_jac) if x >= len(exist_jacs) or exist_jacs[x] is None]
-        if len(need_jacs) > 0:
+        if coords is None:
+            exist_jacs = self._jacobians['cartesian']
+            max_jac = max(jacs)
+            need_jacs = [x + 1 for x in range(0, max_jac) if x >= len(exist_jacs) or exist_jacs[x] is None]
+            if len(need_jacs) > 0:
+                if generics:
+                    exist_jacs[:] = [
+                        x.squeeze() for x in
+                        ccoords.jacobian(internals,
+                                         list(range(1, max_jac+1)),
+                                         # mesh_spacing=mesh_spacing,
+                                         # stencil=stencil,
+                                         # all_numerical=all_numerical,
+                                         converter_options=converter_options
+                                         )
+                    ]
+                else:
+                    stencil = (max(need_jacs) + 2 + (1 + max(need_jacs)) % 2) if stencil is None else stencil
+                    # odd behaves better
+                    with Parallelizer.lookup(parallelizer) as par:
+                        exist_jacs = [
+                            x.squeeze() if isinstance(x, np.ndarray) else x
+                            for x in ccoords.jacobian(internals,
+                                                      order=list(range(1, max_jac+1)),
+                                                      mesh_spacing=mesh_spacing,
+                                                      stencil=stencil,
+                                                      all_numerical=all_numerical,
+                                                      converter_options=converter_options,
+                                                      parallelizer=par
+                                                      )
+                        ]
+
+            return [exist_jacs[j - 1] for j in jacs]
+        else:
+            max_jac = max(jacs)
             if generics:
-                exist_jacs[:] = [
+                new_jacs = [
                     x.squeeze() for x in
                     ccoords.jacobian(internals,
-                                     list(range(1, max_jac+1)),
+                                     list(range(1, max_jac + 1)),
                                      # mesh_spacing=mesh_spacing,
                                      # stencil=stencil,
                                      # all_numerical=all_numerical,
@@ -387,22 +511,21 @@ class MolecularEmbedding:
                                      )
                 ]
             else:
-                stencil = (max(need_jacs) + 2 + (1 + max(need_jacs)) % 2) if stencil is None else stencil
+                stencil = (max_jac + 2 + (1 + max_jac) % 2) if stencil is None else stencil
                 # odd behaves better
                 with Parallelizer.lookup(parallelizer) as par:
-                    exist_jacs = [
+                    new_jacs = [
                         x.squeeze() if isinstance(x, np.ndarray) else x
                         for x in ccoords.jacobian(internals,
-                                                  order=list(range(1, max_jac+1)),
+                                                  order=list(range(1, max_jac + 1)),
                                                   mesh_spacing=mesh_spacing,
                                                   stencil=stencil,
                                                   all_numerical=all_numerical,
                                                   converter_options=converter_options,
                                                   parallelizer=par
                                                   )
-                    ]
-
-        return [exist_jacs[j - 1] for j in jacs]
+                        ]
+            return new_jacs
 
     @property
     def embedding_coords(self):
@@ -418,7 +541,7 @@ class MolecularEmbedding:
         return embedding
 
     cartesian_by_internals_method = 'fast'
-    def get_cartesians_by_internals(self, order=None, strip_embedding=False, reembed=True, method=None):
+    def get_cartesians_by_internals(self, order=None, strip_embedding=False, reembed=True, method=None, coords=None):
         if method is None:
             int_sys = self.internal_coordinates.system
             if "GenericInternals" in int_sys.name:
@@ -429,9 +552,11 @@ class MolecularEmbedding:
         if reembed and method == 'fast':
             fast_ints = self._jacobians['fast-internals']["reembed"]
             if len(fast_ints) < order:
-                L_base = self.get_translation_rotation_invariant_transformation(strip_embedding=strip_embedding, mass_weighted=False)
-                jacs_1 = self.get_internals_by_cartesians(order, strip_embedding=strip_embedding)
-                new_tf = nput.tensor_reexpand([L_base.T], jacs_1, order)
+                L_base = self.get_translation_rotation_invariant_transformation(strip_embedding=strip_embedding,
+                                                                                mass_weighted=False,
+                                                                                coords=coords)
+                jacs_1 = self.get_internals_by_cartesians(order, strip_embedding=strip_embedding, coords=coords)
+                new_tf = nput.tensor_reexpand([np.moveaxis(L_base, -1, 0)], jacs_1, order)
                 inverse_tf = nput.inverse_transformation(new_tf, order, allow_pseudoinverse=True)
                 fast_ints[:] = [
                     np.tensordot(j, L_base, axes=[-1, -1])
@@ -440,22 +565,27 @@ class MolecularEmbedding:
             return fast_ints
         elif not reembed and method == 'fast':
             # fast_ints = self._jacobians['fast-internals']["reembed"]
-            wtf = self.get_internals_by_cartesians(order, strip_embedding=False) # faster to just do these derivs.
+            wtf = self.get_internals_by_cartesians(order, strip_embedding=False, coords=coords) # faster to just do these derivs.
             base = nput.inverse_transformation(wtf, order-1, allow_pseudoinverse=True)
         else:
-            base = (
-                self._get_int_jacobs(order, reembed=reembed)
-                    if order is not None else
-                self._jacobians['internals']["default" if not reembed else "reembed"]
-            )
-            if order is not None:
-                if len(base) < order:
-                    raise ValueError("insufficient {} (have {} but expected {})".format(
-                        'CartesiansByInternals',
-                        len(base),
-                        order
-                    ))
-                base = base[:order]
+            if coords is None:
+                base = (
+                    self._get_int_jacobs(order, reembed=reembed)
+                        if order is not None else
+                    self._jacobians['internals']["default" if not reembed else "reembed"]
+                )
+                if order is not None:
+                    if len(base) < order:
+                        raise ValueError("insufficient {} (have {} but expected {})".format(
+                            'CartesiansByInternals',
+                            len(base),
+                            order
+                        ))
+                    base = base[:order]
+            else:
+                if order is None:
+                    order = 1
+                base = self._get_int_jacobs(order, reembed=reembed, coords=coords)
 
             _ = []
             sh = self.coords.shape[:-2]
@@ -474,8 +604,9 @@ class MolecularEmbedding:
             base = [t[np.ix_(*((good_coords,) * (t.ndim - 1)))] for t in base]
         return base
 
-    def get_internals_by_cartesians(self, order=None, strip_embedding=False):
-        base = self._get_cart_jacobs(order) if order is not None else self._jacobians['cartesian']
+    def get_internals_by_cartesians(self, order=None, strip_embedding=False, coords=None):
+        if coords is not None and order is None: order = 1
+        base = self._get_cart_jacobs(order, coords=coords) if order is not None else self._jacobians['cartesian']
         if order is not None:
             if len(base) < order:
                 raise ValueError("insufficient {} (have {} but expected {})".format(
@@ -509,6 +640,24 @@ class MolecularEmbedding:
             in_paf=in_paf,
             planar_ref_tolerance=planar_ref_tolerance
         )
+
+    def unembed_derivs(self, coords, derivs, sel=None, in_paf=False, planar_ref_tolerance=None):
+        emb = nput.eckart_embedding(
+            self.coords,
+            coords,
+            self.masses,
+            sel=sel,
+            in_paf=in_paf,
+            planar_ref_tolerance=planar_ref_tolerance,
+            transform_coordinates=False
+        )
+
+        tfs = emb.coord_data.axes @ emb.rotations
+        return nput.transform_cartesian_derivatives(
+            derivs,
+            tfs
+        )
+
 
     @property
     def inertia_tensor(self):
@@ -560,18 +709,27 @@ class MolecularEmbedding:
     def get_translation_rotation_invariant_transformation(self,
                                                           order=0,
                                                           mass_weighted=True,
-                                                          strip_embedding=True):
-        L_tr = self.translation_rotation_modes[1]
-        A = np.eye(L_tr.shape[0]) - (L_tr @ L_tr.T)
-        evals, tf = np.linalg.eigh(A)
-        zero_pos = np.abs(evals) < 1e-4 # the rest should be 1
-        tf[:, zero_pos] = L_tr
-        if strip_embedding:
-            nzpos = np.abs(evals) > 1e-4
-            tf = tf[:, nzpos]
+                                                          strip_embedding=True,
+                                                          coords=None):
+        if coords is None:
+            L_tr = self.translation_rotation_modes[1]
+            A = np.eye(L_tr.shape[0]) - (L_tr @ L_tr.T)
+            evals, tf = np.linalg.eigh(A)
+            zero_pos = np.abs(evals) < 1e-4 # the rest should be 1
+            tf[:, zero_pos] = L_tr
+            if strip_embedding:
+                nzpos = np.abs(evals) > 1e-4
+                tf = tf[:, nzpos]
 
-        if not mass_weighted:
-            tf = np.diag(np.repeat(1/np.sqrt(self.masses), 3)) @ tf
+            if not mass_weighted:
+                tf = np.diag(np.repeat(1/np.sqrt(self.masses), 3)) @ tf
+        else:
+            tf = nput.translation_rotation_invariant_transformation(
+                coords,
+                masses=self.masses,
+                mass_weighted=mass_weighted,
+                strip_embedding=strip_embedding
+            )[0]
 
         return tf
 

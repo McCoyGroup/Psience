@@ -484,6 +484,10 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
     def get_evaluators(cls):
         ...
 
+    @classmethod
+    def get_evaluators_by_attributes(cls):
+        return None
+
     _profile_dispatch = dev.uninitialized
     default_evaluator_type = 'expansion'
     @classmethod
@@ -492,7 +496,10 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
             cls._profile_dispatch,
             dev.OptionsMethodDispatch,
             args=(cls.get_evaluators,),
-            kwargs=dict(default_method=cls.default_evaluator_type)
+            kwargs=dict(
+                default_method=cls.default_evaluator_type,
+                attributes_map=cls.get_evaluators_by_attributes()
+            )
         )
         return cls._profile_dispatch
 
@@ -534,6 +541,7 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
     def __init__(self,
                  potential_function,
                  embedding=None,
+                 permutation=None,
                  use_internals=True,
                  reembed_cartesians=False,
                  property_units=None,
@@ -549,18 +557,64 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
         self.distance_units = distance_units
         self.use_internals = use_internals
         self.reembed_cartesians = reembed_cartesians
+        self.permutation = permutation
 
-    def evaluate_term(self, coords, order, **opts):
+    def embed_coords(self, coords):
+        coords = np.asanyarray(coords)
         if self.embedding is not None:
             if self.use_internals and self.embedding.internals is not None:
-                crds = self.embedding.coords*0 + coords
+                crds = self.embedding.coords * 0 + coords
                 coords = crds.convert(
                     self.embedding.internal_coordinates.system
                 )
             elif self.reembed_cartesians:
                 coords = self.embedding.embed_coords(coords)
+        if self.permutation is not None:
+            if self.use_internals and self.embedding.internals is not None:
+                coords = coords[..., self.permutation]
+            else:
+                coords = coords[..., self.permutation, :]
+        return coords
 
-        return self.property_function(coords, order=order, **opts)
+    def unembed_derivs(self, base_coords, coords, derivs):
+        if len(derivs) == 0: return derivs
+
+        if self.permutation is not None:
+            inv = np.argsort(self.permutation)
+            new_derivs = []
+            base_shape = base_coords.shape[:-2]
+            ndim = len(base_shape)
+            f_shape = derivs[0].shape[ndim+1:]
+            fdim = len(f_shape)
+            ncoord = derivs[0].shape[ndim]
+            nat = ncoord // 3 # not always used, but never an error
+            for i,d in enumerate(derivs):
+                #TODO: fix assumption that we always request all orders
+                if self.use_internals and self.embedding.internals is not None:
+                    for ax in range(-(i+1), 0):
+                        d = np.take(d, inv, axis=(ax-fdim))
+                else:
+                    for ax in range(i+1):
+                        coord_shape = tuple(ncoord for _ in range(ax)) + (nat, 3) + tuple(ncoord for _ in range(i-ax))
+                        d_shape = d.shape
+                        d = d.reshape(base_shape + coord_shape + f_shape)
+                        d = np.take(d, inv, axis=ndim+ax).reshape(d_shape)
+                new_derivs.append(d)
+            derivs = new_derivs
+
+        if self.embedding is not None:
+            if self.use_internals and self.embedding.internals is not None:
+                expansion = self.embedding.get_internals_by_cartesians(
+                    order=len(derivs),
+                    coords=base_coords
+                )
+                derivs = nput.tensor_reexpand(expansion, derivs, len(derivs))
+            elif self.reembed_cartesians:
+                derivs = self.embedding.unembed_derivs(coords, derivs)
+        return derivs
+
+    def evaluate_term(self, coords, order, **opts):
+        return self.property_function(self.embed_coords(coords), order=order, **opts)
 
     def evaluate(self,
                  coords,
@@ -569,22 +623,17 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
                  **opts):
         use_internals = self.use_internals
         reembed = self.reembed_cartesians
-
-        if self.embedding is not None:
-            if self.use_internals and self.embedding.internals is not None:
-                crds = self.embedding.coords*0 + coords
-                coords = crds.convert(
-                    self.embedding.internal_coordinates.system
-                )
-            elif self.reembed_cartesians:
-                coords = self.embedding.embed_coords(coords)
+        perm = self.permutation
+        base_coords = coords
+        coords = self.embed_coords(coords)
 
         try:
             self.use_internals = False
             self.reembed_cartesians = False
+            self.permutation = None
 
             # TODO: make this less hacky...
-            return super(type(self).__bases__[0], self).evaluate(
+            expansion = super(type(self).__bases__[0], self).evaluate(
                 coords,
                 order=order,
                 logger=logger,
@@ -593,6 +642,10 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
         finally:
             self.use_internals = use_internals
             self.reembed_cartesians = reembed
+            self.permutation = perm
+
+        expansion = [expansion[0]] + self.unembed_derivs(base_coords, coords, expansion[1:])
+        return expansion
 
     default_property_function = None
     @classmethod
@@ -654,6 +707,11 @@ class EnergyEvaluator(PropertyEvaluator):
             'expansion': PotentialExpansionEnergyEvaluator
         }
     @classmethod
+    def get_evaluators_by_attributes(cls):
+        return {
+            ('potential_function',):PotentialFunctionEnergyEvaluator
+        }
+    @classmethod
     def get_default_function_evaluator_type(cls):
         return PotentialFunctionEnergyEvaluator
 
@@ -703,6 +761,8 @@ class EnergyEvaluator(PropertyEvaluator):
         func = self.minimizer_func(**opts)
         jacobian = self.minimizer_jacobian(**opts)
         hessian = self.minimizer_hessian(**opts)
+
+        raise Exception(jacobian)
 
         if mode == 'scipy':
             from scipy.optimize import minimize
@@ -1132,6 +1192,20 @@ class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
             **opts
         )
 
+    def embed_coords(self, coords):
+        return PropertyFunctionEvaluator.embed_coords(
+            self,
+            coords
+        )
+
+    def unembed_derivs(self, base_coords, coords, derivs):
+        return PropertyFunctionEvaluator.unembed_derivs(
+            self,
+            base_coords,
+            coords,
+            derivs
+        )
+
     def evaluate_term(self, coords, order, **opts):
         return PropertyFunctionEvaluator.evaluate_term(
             self,
@@ -1153,11 +1227,18 @@ class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
         )
 
     @classmethod
+    def get_property_function(cls, prop_func, mol, **opts):
+        return prop_func
+
+    @classmethod
     def from_mol(cls,
                  mol,
                  property_function=None,
+                 potential_function=None,
                  **opts
                  ):
+        if property_function is None:
+            property_function = potential_function
         return PropertyFunctionEvaluator.initialize_from_mol(
             cls,
             mol,
@@ -1287,11 +1368,18 @@ class DipoleFunctionDipoleEvaluator(DipoleEvaluator):
         )
 
     @classmethod
+    def get_property_function(cls, prop_func, mol, **opts):
+        return prop_func
+
+    @classmethod
     def from_mol(cls,
                  mol,
                  property_function=None,
+                 dipole_function=None,
                  **opts
                  ):
+        if property_function is None:
+            property_function = dipole_function
         return PropertyFunctionEvaluator.initialize_from_mol(
             cls,
             mol,

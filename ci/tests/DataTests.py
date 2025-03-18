@@ -56,6 +56,21 @@ class DataTests(TestCase):
 
     @debugTest
     def test_PotentialRegistry(self):
-        print(
-            PotentialRegistryAPI().get_potential('H2COPot').Potential
+
+        from Psience.Molecools import Molecule
+
+        base_pot = PotentialRegistryAPI().get_potential('H2COPot').Potential.get_pot
+        def pot(coords, order=None):
+            return base_pot(coords)
+
+        ochh_base = Molecule.from_file(
+            TestManager.test_data('OCHH_freq.fchk'),
+            energy_evaluator={
+                'potential_function':pot,
+                'permutation':[2, 3, 1, 0],
+                "distance_units": "Angstroms"
+            }
+        )
+        raise Exception(
+            ochh_base.calculate_energy(order=1)
         )
