@@ -238,14 +238,40 @@ class MolecularEmbedding:
             ))
         self._ints = ics
 
-    def get_internals(self, strip_embedding=True):
-        ics = self.internal_coordinates
+    def strip_embedding_coordinates(self, coords):
+        embedding_coords = self._get_embedding_coords()
+        if embedding_coords is not None:
+            coord_shape = coords.shape[-2:]
+            good_coords = np.setdiff1d(np.arange(np.prod(coord_shape, dtype=int)), embedding_coords)
+            coords = np.reshape(coords, coords.shape[:-2] + (-1,))
+            coords = coords[..., good_coords]
+        return coords
+
+    def restore_embedding_coordinates(self, coords):
+        embedding_coords = self._get_embedding_coords()
+        if embedding_coords is not None:
+            coord_shape = coords.shape[:-1]
+            fc_shape = self.internal_coordinates.shape
+            new_coords = type(self.internal_coordinates)(
+                np.zeros(coord_shape + fc_shape, dtype=self.internal_coordinates.dtype),
+                self.internal_coordinates.system
+            )
+            flat_coords = new_coords.reshape(coord_shape + (-1,))
+            good_coords = np.setdiff1d(np.arange(np.prod(fc_shape, dtype=int)), embedding_coords)
+            flat_coords[..., good_coords] = coords
+            coords = new_coords
+        return coords
+
+    def get_internals(self, *, coords=None, strip_embedding=True):
+        if coords is None:
+            ics = self.internal_coordinates
+        else:
+            ccoords = type(self.coords)(coords, self.coords.system)
+            ics, _ = self.convert_to_internals(ccoords, self.masses, self.internals)
         if ics is None:
             return None
-        embedding_coords = self._get_embedding_coords()
-        if embedding_coords is not None and strip_embedding:
-            good_coords = np.setdiff1d(np.arange(3 * len(self.masses)), embedding_coords)
-            ics = ics.flatten()[good_coords]
+        if strip_embedding:
+            ics = self.strip_embedding_coordinates(ics)
         return ics
 
     @property
@@ -293,7 +319,7 @@ class MolecularEmbedding:
             ccoords = self.coords
         else:
             # intcds = self.internal_coordinates
-            ccoords = self.coords.flatten()[:0]*0 + coords
+            ccoords = type(self.coords)(coords, self.coords.system)
             intcds = self.convert_to_internals(ccoords, self.masses, self.internals)
         # intcds = self.internal_coordinates
         # ccoords = self.coords
@@ -934,7 +960,7 @@ def _get_best_axes(first_pos, axes):
         ax_choice = (0, 1)
         ax_names = ["A", "B"]
     else:
-        fp_norm = np.linalg.norm(first_pos)
+        fp_norm = np.linalg.norm(first_pos, axis=-1)
         if fp_norm > 1.0e-10:  # not chilling at the origin...
             first_pos = first_pos / fp_norm
             # check if it lies along an axis or is perpendicular to an axis
@@ -1092,7 +1118,7 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
         else:
             first = 0
 
-        first_pos = self.coords[first]
+        first_pos = self.coords[..., first, :]
         axes, ax_names, ax_choice = _get_best_axes(first_pos, axes)
 
         if 'origins' not in converter_options or converter_options['origins'] is None:
@@ -1403,8 +1429,12 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
             origins = np.broadcast_to(origins[np.newaxis, np.newaxis], (n_sys, 1, 3))
         elif origins.ndim == 2:
             origins = origins[:, np.newaxis, :]
+        elif origins.ndim > 2:
+            origins = np.reshape(origins, (-1, 1, 3))
         if axes.ndim == 2:
             axes = np.broadcast_to(axes[np.newaxis], (n_sys, 2, 3))
+        elif axes.ndim > 2:
+            axes = np.reshape(axes, (-1, 2, 3))
         if origins.shape[0] != n_sys:
             if n_sys % origins.shape[0] != 0:
                 raise ValueError("inconsistent shapes; origins shape {} but coords shape {}".format(
