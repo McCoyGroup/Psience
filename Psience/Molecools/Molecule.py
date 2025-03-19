@@ -814,6 +814,7 @@ class Molecule(AbstractMolecule):
                  tol=None,
                  max_iterations=None,
                  logger=None,
+                 reembed=True,
                  **opts):
         opts = dev.OptionsSet(opts)
         optimizer_opts = opts.filter(None, props=EnergyEvaluator.get_optimizer_options())
@@ -831,7 +832,12 @@ class Molecule(AbstractMolecule):
             **{k:v for k,v in opt_params.items() if v is not None},
             **optimizer_opts
         )
-        return self.modify(coords=opt_coords / conv)
+        opt_coords = opt_coords / conv
+        if reembed:
+            opt_coords = nput.eckart_embedding(
+                self.coords, opt_coords, masses=self.masses
+            ).coordinates
+        return self.modify(coords=opt_coords)
 
     def get_dipole_evaluator(self, evaluator=None, **opts):
         if evaluator is None:
@@ -858,27 +864,27 @@ class Molecule(AbstractMolecule):
     def evaluate(self,
                  func,
                  use_internals=None,
-                 deriv_order=None,
+                 order=None,
                  strip_embedding=False
                  ):
         return self.evaluator.evaluate(
             func,
             use_internals=use_internals,
-            deriv_order=deriv_order,
+            order=order,
             strip_embedding=strip_embedding
         )
     def evaluate_at(self,
                     func,
                     coords,
                     use_internals=None,
-                    deriv_order=None,
+                    order=None,
                     strip_embedding=False
                     ):
         return self.evaluator.evaluate_at(
             func,
             coords,
             use_internals=use_internals,
-            deriv_order=deriv_order,
+            order=order,
             strip_embedding=strip_embedding
         )
 
@@ -1196,7 +1202,7 @@ class Molecule(AbstractMolecule):
         )
 
     def setup_AIMD(self,
-                   potential_function,
+                   potential_function=None,
                    timestep=.5,
                    seed=None,
                    total_energy=None,
@@ -1206,9 +1212,12 @@ class Molecule(AbstractMolecule):
                    initial_displacements=None,
                    displaced_coords=None,
                    track_kinetic_energy=False,
-                   track_velocities=False
+                   track_velocities=False,
                    ):
         from ..AIMD import AIMDSimulator
+
+        if potential_function is None:
+            potential_function = self.get_energy_function()
 
         if initial_displacements is not None:
             init_pos = self.get_displaced_coordinates(
@@ -1219,18 +1228,22 @@ class Molecule(AbstractMolecule):
             sim = AIMDSimulator(
                 self.masses,
                 init_pos,
-                lambda c: -potential_function(c, deriv_order=1)[1].reshape(c.shape),
+                lambda c: -potential_function(c, order=1)[1].reshape(c.shape),
                 timestep=timestep,
                 track_kinetic_energy=track_kinetic_energy,
                 track_velocities=track_velocities
             )
         else:
-            self.potential_derivatives = potential_function(self.coords, deriv_order=2)[1:]
+            new = self.modify(potential_derivatives=potential_function(self.coords, order=2)[1:])
 
-            if total_energy is not None:
+            if initial_energies is None:
+                freqs = new.normal_modes.modes.freqs
+
+                if total_energy is None:
+                    total_energy = np.sum(freqs) / 2
+
                 if seed is not None:
                     np.random.seed(seed)
-                freqs = self.normal_modes.modes.freqs
                 if sampled_modes is None:
                     sampled_modes = list(range(freqs.shape[0]))
                 subdirs = np.random.normal(0, 1, size=(trajectories, len(sampled_modes)))
@@ -1243,11 +1256,11 @@ class Molecule(AbstractMolecule):
                 energies = dirs * freqs[np.newaxis, :]
                 initial_energies = total_energy * energies / np.sum(np.abs(energies), axis=1)[:, np.newaxis]
 
-            nms = self.get_normal_modes(use_internals=False, mass_weighted=False)
+            nms = new.get_normal_modes(use_internals=False, mass_weighted=False)
             sim = AIMDSimulator(
                 self.atomic_masses,
                 [self.coords] * len(initial_energies),
-                lambda c: -potential_function(c, deriv_order=1)[1].reshape(c.shape),
+                lambda c: -potential_function(c, order=1)[1].reshape(c.shape),
                 velocities=AIMDSimulator.mode_energies_to_velocities(
                     nms.coords_by_modes,
                     self.atomic_masses,

@@ -17,6 +17,100 @@ __reload_hook__ = ['.DGB', '.Coordinates', '.Wavefunctions']
 class DGBRunner:
 
     @classmethod
+    def construct_from_mol_simulation(cls,
+                                      sim, mol,
+                                      *,
+                                      potential_function=None,
+                                      dipole_function=None,
+                                      use_cartesians=False,
+                                      use_momenta=False,
+                                      quadrature_degree=3,
+                                      expansion_degree=2,
+                                      use_interpolation=True,
+                                      use_quadrature=False,
+                                      symmetrizations=None,
+                                      momentum_scaling=None,
+                                      skip_initial_configurations=True,
+                                      modes='normal',
+                                      transformations='diag',
+                                      logger=True,
+                                      **opts
+                                      ):
+
+        coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        if skip_initial_configurations:
+            nconf = len(sim.coords)
+            coords = coords[nconf - 1:]
+            velocities = velocities[nconf - 1:]
+        if use_momenta:
+            momenta = velocities * mol.masses[np.newaxis, :, np.newaxis]
+            if momentum_scaling is not None:
+                momenta = momentum_scaling * momenta
+        else:
+            momenta = None
+
+        if potential_function is not None:
+            mol = mol.modify(energy_evaluator=potential_function)
+            mol.potential_derivatives = mol.calculate_energy(mol.coords, order=2)[1:]
+        else:
+            mol = mol.modify(
+                potential_derivatives=mol.calculate_energy(mol.coords, order=2)[1:]
+            )
+        if dipole_function is not None:
+            mol = mol.modify(dipole_evaluator=dipole_function)
+        potential_function = mol.get_energy_function()
+        nms = mol.get_normal_modes()
+
+        if use_interpolation:
+            if symmetrizations is not None:
+                emb_coords = nms.embed_coords(coords)
+                embs = [coords]
+                for symm in symmetrizations:
+                    if nput.is_numeric(symm) or all(s >= 0 for s in symm):
+                        s = [1] * len(nms.freqs)
+                        for i in symm: s[i] = -1
+                        symm = s
+                    new_emb = emb_coords * np.array(symm)[np.newaxis, :]
+                    new_coords = nms.unembed_coords(new_emb)
+                    embs.append(new_coords)
+                interp_coords = np.concatenate(embs, axis=0)
+            else:
+                interp_coords = coords
+            potential_data = {
+                'centers': interp_coords,
+                'values': mol.calculate_energy(interp_coords, order=2)
+            }
+        else:
+            potential_data = potential_function
+
+        if use_quadrature and use_interpolation:
+            raise ValueError("don't use interpolation with quadrature...")
+
+        if use_cartesians:
+            diffs = [np.ptp(coords[:, i]) for i in range(3)]
+            axes = [i for i, d in enumerate(diffs) if d > 1e-8]
+        else:
+            axes = None
+
+        return DGB.construct(
+            coords,
+            **dict(
+                dict(
+                    potential_function=potential_data,
+                    dipole_function=mol.get_dipole_function(),
+                    modes=None if use_cartesians else modes,
+                    cartesians=axes
+                    , quadrature_degree=quadrature_degree
+                    , expansion_degree=expansion_degree if not use_quadrature else None
+                    , transformations=transformations
+                    , momenta=momenta
+                    , logger=logger
+                ),
+                **opts
+            )
+        )
+
+    @classmethod
     def construct_from_model_simulation(cls,
                                         sim, model, mol=None,
                                         *,
@@ -104,6 +198,7 @@ class DGBRunner:
                              model,
                              trajectories=10,
                              *,
+                             sim=None,
                              propagation_time=10,
                              timestep=50,
                              use_cartesians=False,
@@ -117,13 +212,14 @@ class DGBRunner:
                              **aimd_options
                              ):
 
-        sim = model.setup_AIMD(
-            trajectories=trajectories,
-            timestep=timestep,
-            track_velocities=True,
-            **aimd_options
-        )
-        sim.propagate(propagation_time)
+        if sim is None:
+            sim = model.setup_AIMD(
+                trajectories=trajectories,
+                timestep=timestep,
+                track_velocities=True,
+                **aimd_options
+            )
+            sim.propagate(propagation_time)
 
         return cls.construct_from_model_simulation(
             sim, model,
@@ -136,6 +232,36 @@ class DGBRunner:
             symmetrizations=symmetrizations,
         )
 
+    @classmethod
+    def from_mol(cls,
+                 mol, sim=None,
+                 *,
+                 potential_function=None,
+                 dipole_function=None,
+                 trajectories=10,
+                 propagation_time=10,
+                 timestep=50,
+                 use_cartesians=False,
+                 use_momenta=False,
+                 use_pairwise=True,
+                 use_interpolation=True,
+                 use_quadrature=False,
+                 symmetrizations=None,
+                 momentum_scaling=None,
+                 track_velocities=True,
+                 **aimd_options
+                 ):
+
+        if potential_function is not None:
+            mol = mol.modify(energy_evaluator=potential_function)
+        if sim is None:
+            sim = mol.setup_AIMD(
+                trajectories=trajectories,
+                timestep=timestep,
+                track_velocities=True,
+                **aimd_options
+            )
+            sim.propagate(propagation_time)
 
     @classmethod
     def run_simple(cls,
