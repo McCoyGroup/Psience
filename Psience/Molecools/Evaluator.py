@@ -39,7 +39,7 @@ class MolecularEvaluator:
     def evaluate(self,
                  func,
                  use_internals=None,
-                 deriv_order=None,
+                 order=None,
                  strip_embedding=False
                  ):
         if use_internals is None:
@@ -52,10 +52,10 @@ class MolecularEvaluator:
                     good_coords = np.setdiff1d(np.arange(3 * len(self.embedding.masses)), embedding_coords)
                     coords = coords.reshape(coords.shape[:-2] + (3 * len(self.embedding.masses),))
                     coords = coords[..., good_coords]
-            if deriv_order is None:
+            if order is None:
                 return func(coords).view(np.ndarray)
 
-            terms = func(coords, deriv_order=deriv_order)
+            terms = func(coords, order=order)
             # raise Exception([t.shape for t in terms], coords.shape)
             if strip_embedding:
                 embedding_coords = self.embedding.embedding_coords
@@ -80,7 +80,7 @@ class MolecularEvaluator:
                     terms = [const] + new
 
             const = terms[0]
-            jacs = self.embedding.get_internals_by_cartesians(deriv_order)
+            jacs = self.embedding.get_internals_by_cartesians(order)
 
             terms = TensorDerivativeConverter(
                 jacs,
@@ -91,22 +91,22 @@ class MolecularEvaluator:
 
             return [const.view(np.ndarray)] + [t.view(np.ndarray) for t in terms]
         else:
-            if deriv_order is None:
+            if order is None:
                 return func(self.embedding.coords).view(np.ndarray)
             else:
-                return [x.view(np.ndarray) for x in func(self.embedding.coords, deriv_order=deriv_order)]
+                return [x.view(np.ndarray) for x in func(self.embedding.coords, order=order)]
 
     def evaluate_at(self,
                     func,
                     coords,
                     use_internals=None,
-                    deriv_order=None,
+                    order=None,
                     strip_embedding=False
                     ):
         return type(self)(
             MolecularEmbedding(self.embedding.masses, coords, self.embedding.internals),
             self.normal_modes
-        ).evaluate(func, use_internals=use_internals, deriv_order=deriv_order, strip_embedding=strip_embedding)
+        ).evaluate(func, use_internals=use_internals, order=order, strip_embedding=strip_embedding)
 
     def get_displaced_coordinates(self, displacements, which=None, sel=None, axes=None,
                                   use_internals=False,
@@ -432,6 +432,8 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         tensors = der.derivatives(flat_coords).derivative_tensor(
             list(range(1, (order - self.analytic_derivative_order) + 1))
         )
+        if flat_coords.shape[0] > 1:
+            tensors = [np.moveaxis(d, n + 1, 0) for n, d in enumerate(tensors)]
 
         res = [
             t.reshape(base_shape + t.shape[1:])
@@ -453,6 +455,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                  analytic_derivative_order=None,
                  batched_orders=None,
                  logger=None,
+                 fd_handler=None,
                  **opts):
 
         opts = dev.OptionsSet(opts)
@@ -475,11 +478,12 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                 if i > analytic_derivative_order: break
                 expansion.append(self.evaluate_term(coords, i, **opts))
         if order[-1] > analytic_derivative_order:
+            if fd_handler is None: fd_handler = self.finite_difference_derivs
 
             # self.fd_derivs(**opts)
             #TODO: handle disjoin list of orders...
             expansion.extend(
-                self.finite_difference_derivs(coords, order[-1], batched_orders=batched_orders, **fd_opts)
+                fd_handler(coords, order[-1], batched_orders=batched_orders, **fd_opts)
             )
 
         if self.property_units is None:
@@ -581,6 +585,9 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
         self.flatten_internals = flatten_internals
         self.reembed_cartesians = reembed_cartesians
         self.permutation = permutation
+
+    def use_internal_coordinate_handlers(self):
+        return (self.use_internals and self.embedding.internals is not None)
 
     def embed_coords(self, coords):
         coords = np.asanyarray(coords)
@@ -785,7 +792,7 @@ class EnergyEvaluator(PropertyEvaluator):
         return self.minimizer_function_by_order(2, **opts)
 
     optimizer_defaults = dict(
-        method='quasi-newton',
+        method='conjugate-gradient',
         unitary=False,
         # generate_rotation=False,
         # dtype='float64',
@@ -1341,15 +1348,22 @@ class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
             **opts
         )
 
+    def use_internal_coordinate_handlers(self):
+        return PropertyFunctionEvaluator.use_internal_coordinate_handlers(self)
+
     def evaluate(self,
                  coords,
                  order=0,
                  logger=None,
+                 fd_handler=None,
                  **opts):
+        if fd_handler is None and self.use_internal_coordinate_handlers():
+            fd_handler = self.internal_finite_difference_derivs
         return PropertyFunctionEvaluator.evaluate(
             self,
             coords,
             order,
+            fd_handler=fd_handler,
             **opts
         )
 
@@ -1380,7 +1394,8 @@ class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
         tensors = der.derivatives(flat_coords).derivative_tensor(
             list(range(1, (order - self.analytic_derivative_order) + 1))
         )
-
+        if flat_coords.shape[0] > 1:
+            tensors = [np.moveaxis(d, n+1, 0) for n,d in enumerate(tensors)]
         res = [
             t.reshape(base_shape + t.shape[1:])
                 if t.ndim > 0 and flat_coords.shape[0] != 1 else

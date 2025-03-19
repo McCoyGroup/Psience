@@ -241,26 +241,81 @@ class MolecularEmbedding:
     def strip_embedding_coordinates(self, coords):
         embedding_coords = self._get_embedding_coords()
         if embedding_coords is not None:
-            coord_shape = coords.shape[-2:]
-            good_coords = np.setdiff1d(np.arange(np.prod(coord_shape, dtype=int)), embedding_coords)
-            coords = np.reshape(coords, coords.shape[:-2] + (-1,))
-            coords = coords[..., good_coords]
+            nc = 3 * len(self.masses)
+            if isinstance(coords, list):
+                if coords[0].shape[-1] == nc - len(embedding_coords): return coords
+                good_coords = np.setdiff1d(np.arange(nc), embedding_coords)
+                coords = [
+                    c[..., good_coords]
+                    for c in coords
+                ]
+            else:
+                if coords.shape[-1] == nc - len(embedding_coords): return coords
+                good_coords = np.setdiff1d(np.arange(nc), embedding_coords)
+                coords = np.reshape(coords, coords.shape[:-2] + (-1,))
+                coords = coords[..., good_coords]
         return coords
+
+    def strip_derivative_embedding(self, derivs):
+        embedding_coords = self._get_embedding_coords()
+        if embedding_coords is not None:
+            nc = 3 * len(self.masses)
+            if derivs[0].shape[-2] == nc - len(embedding_coords): return derivs
+            good_coords = np.setdiff1d(np.arange(nc), embedding_coords)
+            new_derivs = []
+            for n,t in enumerate(derivs):
+                idx = (...,) + np.ix_(*((good_coords,) * (n + 1))) + (slice(None),)
+                new_derivs.append(t[idx])
+            derivs = new_derivs
+        return derivs
 
     def restore_embedding_coordinates(self, coords):
         embedding_coords = self._get_embedding_coords()
         if embedding_coords is not None:
-            coord_shape = coords.shape[:-1]
-            fc_shape = self.internal_coordinates.shape
-            new_coords = type(self.internal_coordinates)(
-                np.zeros(coord_shape + fc_shape, dtype=self.internal_coordinates.dtype),
-                self.internal_coordinates.system
-            )
-            flat_coords = new_coords.reshape(coord_shape + (-1,))
-            good_coords = np.setdiff1d(np.arange(np.prod(fc_shape, dtype=int)), embedding_coords)
-            flat_coords[..., good_coords] = coords
-            coords = new_coords
+            nc = 3 * len(self.masses)
+            if isinstance(coords, list):
+                #TODO: add more robust check for derivatives
+                #TODO: this is probably invalid and will need to be overwritten by downstream users
+                if coords[0].shape[-1] == nc: return coords
+                new_coords = []
+                good_coords = np.setdiff1d(np.arange(nc), embedding_coords)
+                for c in coords:
+                    new_c = np.zeros(c.shape[:-1] + (nc,), dtype=c.dtype)
+                    new_c[..., good_coords] = c
+                    new_coords.append(c)
+                coords = new_coords
+            else:
+                if coords.shape[-1] == nc: return coords
+                coord_shape = coords.shape[:-1]
+                fc_shape = self.internal_coordinates.shape
+                new_coords = type(self.internal_coordinates)(
+                    np.zeros(coord_shape + fc_shape, dtype=self.internal_coordinates.dtype),
+                    self.internal_coordinates.system
+                )
+                flat_coords = new_coords.reshape(coord_shape + (-1,))
+                good_coords = np.setdiff1d(np.arange(np.prod(fc_shape, dtype=int)), embedding_coords)
+                flat_coords[..., good_coords] = coords
+                coords = new_coords
         return coords
+
+    def restore_derivative_embedding(self, derivs):
+        embedding_coords = self._get_embedding_coords()
+        if embedding_coords is not None:
+            nc = 3 * len(self.masses)
+            if derivs[0].shape[-2] == nc: return derivs
+            good_coords = np.setdiff1d(np.arange(nc), embedding_coords)
+            coord_shape = derivs[0].shape[:-2]
+            new_derivs = []
+            for n,t in enumerate(derivs):
+                new_d = np.zeros(
+                    coord_shape + (nc,) * (n+2),
+                    dtype=self.internal_coordinates.dtype
+                )
+                idx = (...,) + np.ix_(*((good_coords,) * (n + 1))) + (slice(None),)
+                new_d[idx] = t
+                new_derivs.append(new_d)
+            derivs = new_derivs
+        return derivs
 
     def get_internals(self, *, coords=None, strip_embedding=True):
         if coords is None:
@@ -462,7 +517,7 @@ class MolecularEmbedding:
             ccoords = self.coords
         else:
             # intcds = self.internal_coordinates
-            ccoords = self.coords.flatten()[:0]*0 + coords
+            ccoords = type(self.coords)(coords, self.coords.system)
         carts = ccoords.system
         internals = self.internal_coordinates.system
         generics = 'GenericInternals' in internals.name
@@ -609,12 +664,16 @@ class MolecularEmbedding:
                         ))
                     base = base[:order]
             else:
+                coords = np.asanyarray(coords)
                 if order is None:
                     order = 1
                 base = self._get_int_jacobs(order, reembed=reembed, coords=coords)
 
             _ = []
-            sh = self.coords.shape[:-2]
+            if coords is not None:
+                sh = coords.shape[:-2]
+            else:
+                sh = self.coords.shape[:-2]
             nc = 3 * len(self.masses)
             nr = len(sh)
             n = -2 if base[0].shape[-2:] == (len(self.masses), 3) else -1
@@ -631,7 +690,9 @@ class MolecularEmbedding:
         return base
 
     def get_internals_by_cartesians(self, order=None, strip_embedding=False, coords=None):
-        if coords is not None and order is None: order = 1
+        if coords is not None:
+            coords = np.asanyarray(coords)
+            if order is None: order = 1
         base = self._get_cart_jacobs(order, coords=coords) if order is not None else self._jacobians['cartesian']
         if order is not None:
             if len(base) < order:
@@ -643,18 +704,18 @@ class MolecularEmbedding:
             base = base[:order]
 
         _ = []
-        sh = self.coords.shape[:-2]
+        if coords is not None:
+            sh = coords.shape[:-2]
+        else:
+            sh = self.coords.shape[:-2]
         nc = 3 * len(self.masses)
         for i, b in enumerate(base):
             b = b.reshape(sh + (nc,) * (i + 1) + (-1,))
             _.append(b)
         base = _
 
-        if strip_embedding and base[0].shape[-1] == nc:
-            embedding_coords = self._get_embedding_coords()
-            if embedding_coords is not None:
-                good_coords = np.setdiff1d(np.arange(3 * len(self.masses)), embedding_coords)
-                base = [t[..., good_coords] for t in base]
+        if strip_embedding:
+            base = self.strip_embedding_coordinates(base)
         return base
 
     def embed_coords(self, coords, sel=None, in_paf=False, planar_ref_tolerance=None):

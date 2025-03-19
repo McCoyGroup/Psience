@@ -118,13 +118,12 @@ class DataTests(TestCase):
                 [3,  1,  0,  2],
             ]
         )
-        # raise Exception(ochh_base.internal_coordinates)
 
         opt_ochh = ochh_base.optimize(
             # method='quasi-newton'
             method='conjugate-gradient'
             # method='gradient-descent'
-            , max_iterations=100
+            # , max_iterations=100
             , stencil=3
             # , logger=True
             # , max_displacement=.01
@@ -132,17 +131,12 @@ class DataTests(TestCase):
             , restart_interval=15
             # , mesh_spacing=1e-2
         )
-        opt_ochh = opt_ochh.modify(
-            coords=nput.eckart_embedding(
-                ochh_base.coords, opt_ochh.coords, masses=opt_ochh.masses
-            ).coordinates
-        )
-        print("...")
+        # print("...")
         b1 = ochh_base.calculate_energy()
         b2 = opt_ochh.calculate_energy()
         print(b1, b2)
-        print(opt_ochh.coords - ochh_base.coords)
-        print(opt_ochh.internal_coordinates - ochh_base.internal_coordinates)
+        # print(opt_ochh.coords - ochh_base.coords)
+        # print(opt_ochh.internal_coordinates - ochh_base.internal_coordinates)
         # print(opt_ochh.internal_coordinates - ochh_base.internal_coordinates)
 
         # opt_ochh = ochh_base.optimize(max_displacement=.1, max_iterations=50)

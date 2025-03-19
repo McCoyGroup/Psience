@@ -3503,7 +3503,7 @@ class DGBTests(TestCase):
 
         return pot, dip, mol
 
-    @debugTest
+    @validationTest
     def test_OCHH(self):
         pot, dip, mol = self.setupOCHHModel()
 
@@ -3892,6 +3892,82 @@ class DGBTests(TestCase):
                     print("Ints:", spec.intensities, file=woof)
 
         plt.Graphics().show()
+
+    @classmethod
+    def setup_OCHH(cls, optimize=True):
+        loader = ModuleLoader(os.path.expanduser("~/Documents/Postdoc/Projects/DGB"))
+        h2co_mod = loader.load("H2COPot")
+
+        def internal_pot(coords, order=None):
+            coords = coords[..., (0, 1, 3, 2, 4, 5)]
+            vals = h2co_mod.InternalsPotential.get_pot(coords)
+            return vals
+
+        ochh = Molecule.from_file(
+            TestManager.test_data('OCHH_freq.fchk'),
+            energy_evaluator={
+                'potential_function': internal_pot,
+                "distance_units": "Angstroms",
+                "energy_units": "Wavenumbers",
+                "strip_embedding": True,
+            },
+            internals=[
+                [0, -1, -1, -1],
+                [1, 0, -1, -1],
+                [2, 1, 0, -1],
+                [3, 1, 0, 2],
+            ]
+        )
+        if optimize:
+            ochh = ochh.optimize(
+                # method='quasi-newton'
+                method='conjugate-gradient'
+                # method='gradient-descent'
+                # , max_iterations=100
+                , stencil=3
+                # , logger=True
+                # , max_displacement=.01
+                , prevent_oscillations=3
+                , restart_interval=15
+            )
+            # ochh = Molecule(
+            #     ochh.atoms,
+            #     ochh_opt.coords,
+            #     energy_evaluator={
+            #         'potential_function': internal_pot,
+            #         "distance_units": "Angstroms",
+            #         "energy_units": "Wavenumbers",
+            #         "strip_embedding": True,
+            #     },
+            #     internals=[
+            #         [0, -1, -1, -1],
+            #         [1,  0, -1, -1],
+            #         [2,  1,  0, -1],
+            #         [3,  1,  0,  2],
+            #     ]
+            # )
+
+
+        return ochh
+    @debugTest
+    def test_NewRunnerOCHH(self):
+
+
+        # def woof(crds):
+        #     return crds.copy()
+        #
+        # deriv_gen = FiniteDifferenceDerivative(
+        #     woof,
+        #     function_shape=((0,), (0,))
+        # )
+        # center = np.random.rand(2, 3)
+        # dts = deriv_gen.derivatives(center).derivative_tensor([1, 2])
+        # print([t.shape for t in dts])
+        # return
+
+        ochh = self.setup_OCHH(optimize=True)
+        dgb = DGBRunner.from_mol(ochh)
+
 
     @inactiveTest
     def test_WaterAIMDDisplaced(self):
