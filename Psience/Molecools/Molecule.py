@@ -811,39 +811,25 @@ class Molecule(AbstractMolecule):
                  evaluator=None,
                  *,
                  method=None,
-                 unitary=False,
-                 orthogonal_directions=None,
-                 convergence_metric=None,
                  tol=None,
                  max_iterations=None,
-                 damping_parameter=None,
-                 damping_exponent=None,
-                 restart_interval=None,
-                 max_displacement=None,
-                 line_search=None,
-                 optimizer_settings=None,
+                 logger=None,
                  **opts):
-        evaluator = self.get_energy_evaluator(evaluator, **opts)
+        opts = dev.OptionsSet(opts)
+        optimizer_opts = opts.filter(None, props=EnergyEvaluator.get_optimizer_options())
+        eval_opts = opts.exclude(None, props=EnergyEvaluator.get_optimizer_options())
+        evaluator = self.get_energy_evaluator(evaluator, **eval_opts)
         conv = UnitsData.convert("BohrRadius", evaluator.distance_units)
         opt_params = dict(
             method=method,
-            unitary=unitary,
-            # generate_rotation=False,
-            # dtype='float64',
-            orthogonal_directions=orthogonal_directions,
-            convergence_metric=convergence_metric,
             tol=tol,
             max_iterations=max_iterations,
-            damping_parameter=damping_parameter,
-            damping_exponent=damping_exponent,
-            restart_interval=restart_interval,
-            max_displacement=max_displacement,
-            line_search=line_search,
-            optimizer_settings=optimizer_settings
+            logger=logger
         )
         opt, opt_coords = evaluator.optimize(
             self.coords * conv,
-            **{k:v for k,v in opt_params.items() if v is not None}
+            **{k:v for k,v in opt_params.items() if v is not None},
+            **optimizer_opts
         )
         return self.modify(coords=opt_coords / conv)
 

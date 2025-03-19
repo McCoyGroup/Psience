@@ -406,6 +406,9 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         return dict(self.fd_defaults, **opts)
 
     def finite_difference_derivs(self, coords, order, batched_orders=None, **opts):
+        opts = dev.OptionsSet(opts)
+        fd_opts = opts.filter(FiniteDifferenceDerivative)
+        opts = opts.exclude(FiniteDifferenceDerivative)
 
         if batched_orders is None:
             batched_orders = self.batched_orders
@@ -424,7 +427,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
 
         der = FiniteDifferenceDerivative(derivs,
                                          function_shape=((0,), (0,) * self.analytic_derivative_order),
-                                         **self.get_fd_opts(**opts)
+                                         **self.get_fd_opts(**fd_opts)
                                          )
         tensors = der.derivatives(flat_coords).derivative_tensor(
             list(range(1, (order - self.analytic_derivative_order) + 1))
@@ -452,6 +455,10 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                  logger=None,
                  **opts):
 
+        opts = dev.OptionsSet(opts)
+        fd_opts = opts.filter(FiniteDifferenceDerivative)
+        opts = opts.exclude(FiniteDifferenceDerivative)
+
         if nput.is_numeric(order):
             order = list(range(order+1))
         # TODO: we assume order sorted, handle when it's not
@@ -472,7 +479,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
             # self.fd_derivs(**opts)
             #TODO: handle disjoin list of orders...
             expansion.extend(
-                self.finite_difference_derivs(coords, order[-1], batched_orders=batched_orders, **opts)
+                self.finite_difference_derivs(coords, order[-1], batched_orders=batched_orders, **fd_opts)
             )
 
         if self.property_units is None:
@@ -555,6 +562,8 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
                  embedding=None,
                  permutation=None,
                  use_internals=True,
+                 strip_embedding=True,
+                 flatten_internals=True,
                  reembed_cartesians=False,
                  property_units=None,
                  distance_units='Angstroms',
@@ -568,6 +577,8 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
         self.property_units = property_units
         self.distance_units = distance_units
         self.use_internals = use_internals
+        self.strip_embedding = strip_embedding
+        self.flatten_internals = flatten_internals
         self.reembed_cartesians = reembed_cartesians
         self.permutation = permutation
 
@@ -575,17 +586,39 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
         coords = np.asanyarray(coords)
         if self.embedding is not None:
             if self.use_internals and self.embedding.internals is not None:
-                crds = self.embedding.coords * 0 + coords
-                coords = crds.convert(
-                    self.embedding.internal_coordinates.system
-                )
+                base_coords = coords
+                coords = self.embedding.get_internals(coords=coords, strip_embedding=self.strip_embedding)
+                if not self.strip_embedding and self.flatten_internals:
+                    if base_coords.ndim == coords.ndim:
+                        coords = coords.reshape(base_coords.shape[:-2]+(-1,))
             elif self.reembed_cartesians:
                 coords = self.embedding.embed_coords(coords)
         if self.permutation is not None:
             if self.use_internals and self.embedding.internals is not None:
+                if not self.strip_embedding and not self.flatten_internals:
+                    raise NotImplementedError("don't know how to permute not-flat internals...")
                 coords = coords[..., self.permutation]
             else:
                 coords = coords[..., self.permutation, :]
+        return coords
+
+    def unembed_coords(self, coords):
+        # coords = np.asanyarray(coords)
+        if self.embedding is not None:
+            if self.use_internals and self.embedding.internals is not None:
+                if self.strip_embedding:
+                    coords = self.embedding.restore_embedding_coordinates(coords)
+                elif self.flatten_internals:
+                    coords = np.reshape(coords, coords.shape[:-1] + self.embedding.internal_coordinates.shape[-2:])
+                coords = coords.convert(self.embedding.coords.system)
+        if self.permutation is not None:
+            inv = np.argsort(self.permutation)
+            if self.use_internals and self.embedding.internals is not None:
+                if not self.strip_embedding and not self.flatten_internals:
+                    raise NotImplementedError("don't know how to permute not-flat internals...")
+                coords = coords[..., inv]
+            else:
+                coords = coords[..., inv, :]
         return coords
 
     def unembed_derivs(self, base_coords, coords, derivs):
@@ -618,7 +651,8 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
             if self.use_internals and self.embedding.internals is not None:
                 expansion = self.embedding.get_internals_by_cartesians(
                     order=len(derivs),
-                    coords=base_coords
+                    coords=base_coords,
+                    strip_embedding=self.strip_embedding
                 )
                 derivs = nput.tensor_reexpand(expansion, derivs, len(derivs))
             elif self.reembed_cartesians:
@@ -728,17 +762,18 @@ class EnergyEvaluator(PropertyEvaluator):
         return PotentialFunctionEnergyEvaluator
 
     def minimizer_function_by_order(self, order, allow_fd=False, **opts):
+        conv = UnitsData.convert(self.property_units, "Hartrees")
         if self.analytic_derivative_order >= order:
             def func(crd, _):
                 res = self.evaluate_term(crd.reshape(1, -1, 3), order, **opts)
                 if self.batched_orders:
-                    return res[-1]
+                    return res[-1] * conv
                 else:
                     return res
         elif allow_fd:
             def func(crd, _):
                 res = self.finite_difference_derivs(crd.reshape(1, -1, 3), order, **opts)[-1]
-                return res[np.newaxis] # it obliterates the 1
+                return res[np.newaxis] * conv # it obliterates the 1
         else:
             func = None
         return func
@@ -749,34 +784,106 @@ class EnergyEvaluator(PropertyEvaluator):
     def minimizer_hessian(self, **opts):
         return self.minimizer_function_by_order(2, **opts)
 
+    optimizer_defaults = dict(
+        method='quasi-newton',
+        unitary=False,
+        # generate_rotation=False,
+        # dtype='float64',
+        orthogonal_directions=None,
+        convergence_metric=None,
+        tol=1e-8,
+        max_iterations=25,
+        damping_parameter=None,
+        damping_exponent=None,
+        restart_interval=None,
+        max_displacement=.2,
+        line_search=False,
+        optimizer_settings=None,
+        mode=None,
+        func=None,
+        jacobian=None,
+        hessian=None,
+        logger=None,
+
+        generate_rotation=False,
+        dtype='float64',
+        orthogonal_projection_generator=None,
+        region_constraints=None,
+        max_displacement_norm=None,
+        oscillation_damping_factor=None,
+        termination_function=None,
+        prevent_oscillations=None,
+        use_max_for_error=True,
+        track_best=True
+    )
+    @classmethod
+    def get_optimizer_options(self):
+        return tuple(self.optimizer_defaults.keys()) + FiniteDifferenceDerivative.__props__
     def optimize(self,
                  coords,
-                 method='quasi-newton',
-                 unitary=False,
-                 # generate_rotation=False,
-                 # dtype='float64',
-                 orthogonal_directions=None,
-                 convergence_metric=None,
-                 tol=1e-8,
-                 max_iterations=25,
-                 damping_parameter=None,
-                 damping_exponent=None,
-                 restart_interval=None,
-                 max_displacement=None,
-                 line_search=True,
-                 optimizer_settings=None,
-                 mode=None,
                  **opts
                  ):
         from McUtils.Numputils import iterative_step_minimize
+        opts = dict(self.optimizer_defaults, **opts)
+
+        (
+            method,
+            unitary,
+            # generate_rotation=False,
+            # dtype='float64',
+            orthogonal_directions,
+            convergence_metric,
+            tol,
+            max_iterations,
+            damping_parameter,
+            damping_exponent,
+            restart_interval,
+            max_displacement,
+            line_search,
+            optimizer_settings,
+            mode,
+            func,
+            jacobian,
+            hessian,
+            logger
+        ) = (
+            opts.pop(k) for k in
+            [
+                "method",
+                "unitary",
+                # generate_rotation=False,
+                # dtype='float64',
+                "orthogonal_directions",
+                "convergence_metric",
+                "tol",
+                "max_iterations",
+                "damping_parameter",
+                "damping_exponent",
+                "restart_interval",
+                "max_displacement",
+                "line_search",
+                "optimizer_settings",
+                "mode",
+                "func",
+                "jacobian",
+                "hessian",
+                "logger"
+            ]
+        )
+
+        fopts = dev.OptionsSet(opts).exclude(None, props=self.optimizer_defaults.keys())
+        opt_opts = dev.OptionsSet(opts).filter(None, props=self.optimizer_defaults.keys())
 
         if optimizer_settings is None:
             optimizer_settings = {}
 
         #TODO: let evaluations cache results when batched
-        func = self.minimizer_func(**opts)
-        jacobian = self.minimizer_jacobian(**opts)
-        hessian = self.minimizer_hessian(**opts)
+        if func is None:
+            func = self.minimizer_func(**fopts)
+        if jacobian is None:
+            jacobian = self.minimizer_jacobian(**fopts)
+        if hessian is None:
+            hessian = self.minimizer_hessian(**fopts)
 
         if mode == 'scipy':
             from scipy.optimize import minimize
@@ -825,7 +932,9 @@ class EnergyEvaluator(PropertyEvaluator):
                 convergence_metric=convergence_metric,
                 tol=tol,
                 max_iterations=max_iterations,
-                max_displacement=max_displacement
+                max_displacement=max_displacement,
+                logger=logger,
+                **opt_opts
             )
             return converged, opt_coords.reshape(coords.shape)
 
@@ -1040,15 +1149,13 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
 
     def optimize(self,
                  coords,
-                 method='quasi-newton',
-                 tol=1e-8,
-                 max_iterations=25,
-                 damping_parameter=None,
-                 damping_exponent=None,
-                 restart_interval=None,
-                 max_displacement=None,
+                 method=None,
                  **opts
                  ):
+        tol, max_iterations, max_displacement = [
+            opts.pop(k, self.optimizer_defaults[k])
+            for k in ["tol", "max_iterations", "max_displacement"]
+        ]
         if method == 'ase':
             from McUtils.ExternalPrograms import ASEMolecule
             with warnings.catch_warnings():
@@ -1076,9 +1183,6 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                 method=method,
                 tol=tol,
                 max_iterations=max_iterations,
-                damping_parameter=damping_parameter,
-                damping_exponent=damping_exponent,
-                restart_interval=restart_interval,
                 **opts
             )
 
@@ -1194,10 +1298,13 @@ class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
 
     def __init__(self,
                  potential_function,
-                 property_units='Hartrees',
+                 property_units=None,
+                 energy_units='Hartrees',
                  distance_units='BohrRadius',
                  **opts
                  ):
+        if property_units is None:
+            property_units = energy_units
         PropertyFunctionEvaluator.__init__(
             self,
             potential_function,
@@ -1208,6 +1315,12 @@ class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
 
     def embed_coords(self, coords):
         return PropertyFunctionEvaluator.embed_coords(
+            self,
+            coords
+        )
+
+    def unembed_coords(self, coords):
+        return PropertyFunctionEvaluator.unembed_coords(
             self,
             coords
         )
@@ -1239,6 +1352,106 @@ class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
             order,
             **opts
         )
+
+    def internal_finite_difference_derivs(self, coords, order, batched_orders=None, **opts):
+        opts = dev.OptionsSet(opts)
+        fd_opts = opts.filter(FiniteDifferenceDerivative)
+        opts = opts.exclude(FiniteDifferenceDerivative)
+
+        if batched_orders is None:
+            batched_orders = self.batched_orders
+
+        base_shape = coords.shape[:-1]
+        coord_shape = coords.shape[-1:]
+        flat_coords = coords.reshape(-1, np.prod(coord_shape, dtype=int))
+
+        def derivs(structs):
+            reconst = structs.reshape(structs.shape[:-1] + coord_shape)
+            ders = self.property_function(reconst, self.analytic_derivative_order, **opts)
+            if batched_orders:
+                return ders[-1]
+            else:
+                return ders
+
+        der = FiniteDifferenceDerivative(derivs,
+                                         function_shape=((0,), (0,) * self.analytic_derivative_order),
+                                         **self.get_fd_opts(**fd_opts)
+                                         )
+        tensors = der.derivatives(flat_coords).derivative_tensor(
+            list(range(1, (order - self.analytic_derivative_order) + 1))
+        )
+
+        res = [
+            t.reshape(base_shape + t.shape[1:])
+                if t.ndim > 0 and flat_coords.shape[0] != 1 else
+            t
+            for t in tensors
+        ]
+
+        return res
+
+    def minimizer_internal_function_by_order(self, order, allow_fd=False, **opts):
+        conv = UnitsData.convert(self.property_units, "Hartrees")
+        if self.analytic_derivative_order >= order:
+            opts = dev.OptionsSet(opts)
+            # fd_opts = opts.filter(FiniteDifferenceDerivative)
+            opts = opts.exclude(FiniteDifferenceDerivative)
+            def func(crd, _):
+                res = self.property_function(crd, order, **opts)
+                if self.batched_orders:
+                    return res[-1] * conv
+                else:
+                    return res * conv
+        elif allow_fd:
+            def func(crd, _):
+                res = self.internal_finite_difference_derivs(crd, order, **opts)[-1]
+                return res[np.newaxis] * conv  # it obliterates the 1
+        else:
+            func = None
+        return func
+
+    internal_optimizer_defaults = dict(
+        max_displacement=.01
+    )
+    def optimize(self,
+                 coords,
+                 use_internals=None,
+                 func=None,
+                 jacobian=None,
+                 hessian=None,
+                 logger=None,
+                 **opts
+                 ):
+        if use_internals is None: use_internals = self.use_internals
+        if use_internals and self.embedding.internals is not None:
+            opts = dict(self.internal_optimizer_defaults, **opts)
+            fopts = dev.OptionsSet(opts).exclude(None, props=self.optimizer_defaults.keys())
+            if func is None:
+                func = self.minimizer_internal_function_by_order(0, **fopts)
+            if jacobian is None:
+                jacobian = self.minimizer_internal_function_by_order(1, allow_fd=True, **fopts)
+            if hessian is None:
+                hessian = self.minimizer_internal_function_by_order(2, **fopts)
+            try:
+                self.use_internals = True
+                coords = self.embed_coords(coords)
+                convergence, opt_coords = super().optimize(coords,
+                                                           func=func,
+                                                           jacobian=jacobian,
+                                                           hessian=hessian,
+                                                           logger=logger,
+                                                           **opts
+                                                           )
+                coords = self.unembed_coords(opt_coords)
+                return convergence, coords
+            finally:
+                self.use_internals = use_internals
+
+        else:
+            return super().optimize(coords,
+                                    logger=logger,
+                                    **opts
+                                    )
 
     @classmethod
     def get_property_function(cls, prop_func, mol, **opts):
