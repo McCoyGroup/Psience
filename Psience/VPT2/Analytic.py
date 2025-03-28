@@ -293,7 +293,7 @@ class PolynomialInterface(metaclass=abc.ABCMeta):
     def scale(self, scaling)->'Self':
         ...
     @abc.abstractmethod
-    def permute(self, perm, check_perm=True)->'Self':
+    def permute(self, perm, check_perm=True, allow_padding=False)->'Self':
         ...
 
     @abc.abstractmethod
@@ -557,8 +557,8 @@ class ProductPTPolynomial(PolynomialInterface):
     """
     def __init__(self, coeffs, prefactor=1, idx=None, steps=None):
         if (
-                nput.is_numeric(coeffs)
-                or nput.is_numeric(coeffs[0])
+                len(coeffs) > 0 and
+                (nput.is_numeric(coeffs) or nput.is_numeric(coeffs[0]))
         ):
             raise ValueError("coeffs must be a vector of vectors (not {})".format(coeffs))
         self.coeffs = [np.asanyarray(c) for c in coeffs] # coeffs along each dim independently
@@ -620,6 +620,9 @@ class ProductPTPolynomial(PolynomialInterface):
 
     @property
     def ndim(self):
+        # if len(self.coeffs) == 1 and len(self.coeffs[0]) == 1:
+        #     return 0
+        # else:
         return len(self.coeffs)
     @property
     def order(self):
@@ -692,16 +695,24 @@ class ProductPTPolynomial(PolynomialInterface):
             prefac_str = "{}/s[{}]*".format(self.prep_float(c), self.steps)
             return prefac_str + poly_str
 
-    def permute(self, new_inds, check_perm=True):
+    def permute(self, new_inds, check_perm=True, allow_padding=False):
         # must be a proper permutation
+        coeffs = self.coeffs
+        if allow_padding:
+            if len(coeffs) < len(new_inds):
+                coeffs = coeffs + [
+                    np.array([1.])
+                    for _ in range(len(new_inds) - len(coeffs))
+                ]
         if check_perm:
             if np.any(
-                    np.sort(np.concatenate([new_inds, np.arange(len(new_inds), len(self.coeffs))]))
-                        != np.arange(len(self.coeffs))
+                    np.sort(
+                        np.concatenate([new_inds, np.arange(len(new_inds), len(coeffs))])
+                    ) != np.arange(len(coeffs))
             ):
-                raise ValueError("bad permutation {}")
+                raise ValueError(f"bad permutation {new_inds} from into {len(coeffs)} dimensions")
         return self.mutate(
-            [self.coeffs[i] for i in new_inds] + self.coeffs[len(new_inds):]
+            [coeffs[i] for i in new_inds] + coeffs[len(new_inds):]
         )
 
     def constant_rescale(self):
@@ -969,6 +980,8 @@ class ProductPTPolynomial(PolynomialInterface):
         :param inds:
         :return:
         """
+        dim_1 = max([dim_1, len(inds[0])])
+        dim_2 = max([dim_2, len(inds[1])])
         remainder = None
         if nput.is_numeric(inds):
             # simplest form, multiply the first indices
@@ -1035,10 +1048,11 @@ class ProductPTPolynomial(PolynomialInterface):
 
 
         inds = new_inds
-        remainder = [
-            list(remainder[0]) + new_rems[0],
-            list(remainder[1]) + new_rems[1]
-        ]
+        if return_remainder:
+            remainder = [
+                list(remainder[0]) + new_rems[0],
+                list(remainder[1]) + new_rems[1]
+            ]
 
         res = inds
         if return_remainder:
@@ -1058,9 +1072,25 @@ class ProductPTPolynomial(PolynomialInterface):
                     steps=self.steps + other.steps
                 )
             else:
+                # if remainder is None:
                 (self_inds, other_inds), (self_remainder, other_remainder) = self.get_index_mapping(
-                    len(self.coeffs), len(other.coeffs), inds, return_remainder=True
+                    self.ndim, other.ndim, inds, return_remainder=True
+                    # len(self.coeffs), len(other.coeffs), inds, return_remainder=True
                 )
+                # else:
+                #     (self_inds, other_inds) = self.get_index_mapping(
+                #         self.ndim, other.ndim, inds, return_remainder=False
+                #     )
+                #     (self_remainder, other_remainder) = remainder
+
+                # print(
+                #     other_inds,
+                #     self_inds,
+                #     self_remainder,
+                #     other_remainder
+                # )
+                # print(self.format_expr())
+                # print(other.format_expr())
 
                 new_coeffs = [
                                  scipy.signal.convolve(
@@ -1078,6 +1108,8 @@ class ProductPTPolynomial(PolynomialInterface):
                                  for ox in other_remainder
                                  # if len(other.coeffs) > ox
                              ]
+                if len(new_coeffs) == 0:
+                    new_coeffs = [[1.]]
 
                 new = self.mutate(
                     new_coeffs,
@@ -1235,9 +1267,9 @@ class ProductPTPolynomialSum(PolynomialInterface):
                 base_sum = "{}*{}".format(self.prefactor, base_sum)
         return base_sum
 
-    def permute(self, new_inds, check_perm=True):
+    def permute(self, new_inds, check_perm=True, allow_padding=False):
         return self.mutate(
-            [p.permute(new_inds, check_perm=check_perm) for p in self.polys],
+            [p.permute(new_inds, check_perm=check_perm, allow_padding=allow_padding) for p in self.polys],
             prefactor=self.prefactor,
             reduced=self.reduced
         )
@@ -1666,14 +1698,14 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
             changes[i] for i in new_inds
         ) + changes[len(new_inds):]
         return new
-    def permute(self, new_inds, check_perm=True):
+    def permute(self, new_inds, check_perm=True, allow_padding=False):
         new_terms = {}
         for energy_changes,polys in self.terms.items():
             new_ech = tuple(
                 (side,)+self._permute_changes(ec, new_inds)
                 for side,ec in self.side_change_iter(energy_changes)
             )
-            new_terms[new_ech] = polys.permute(new_inds, check_perm=check_perm)
+            new_terms[new_ech] = polys.permute(new_inds, check_perm=check_perm, allow_padding=allow_padding)
         return self.mutate(new_terms)
 
     @staticmethod
@@ -1802,9 +1834,11 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         return new_key
     @classmethod
     def _pad_echange_key_right(cls, k, ndim, inds, remainder):
+        ndim = max([ndim, len(inds[1])])#, len(remainder[1])])
         return cls._build_new_echange_key(k, ((0,)*(ndim+1),), inds, remainder)[:-1]
     @classmethod
     def _pad_echange_key_left(cls, k, ndim, inds, remainder):
+        ndim = max([ndim, len(inds[0])])#, len(remainder[0])])
         return cls._build_new_echange_key(((0,)*(ndim+1),), k, inds, remainder)[1:]
     def mul_along(self, other:'PolynomialInterface', inds, remainder=None, mapping=None):
         """
@@ -2131,7 +2165,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
             }
         )
 
-    def permute(self, new_inds, check_perm=True):
+    def permute(self, new_inds, check_perm=True, allow_padding=False):
         new_terms = {}
         inv_map = np.argsort(new_inds)
         for coeff_inds,polys in self.terms.items():
@@ -2142,7 +2176,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                 )
                 for ci in coeff_inds
             )
-            new_terms[new_key] = polys.permute(new_inds, check_perm=check_perm)
+            new_terms[new_key] = polys.permute(new_inds, check_perm=check_perm, allow_padding=allow_padding)
         return self.mutate(new_terms, canonicalize=True)
 
     def _check_equiv(self, k1, k2):
@@ -2315,11 +2349,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
     def _symmetrize(cls, idx, symmetrizers=None):
         if symmetrizers is None:
             symmetrizers = cls.symmetrizers()
-        try:
-            return (idx[0], idx[1]) + symmetrizers[idx[1]](idx[2:])
-        except:
-            print(symmetrizers)
-            raise
+        return (idx[0], idx[1]) + symmetrizers[idx[1]](idx[2:])
     @classmethod
     def canonical_key(cls, monomial_tuple, symmetrizers=None):
         return super().canonical_key(tuple(cls._symmetrize(t, symmetrizers=symmetrizers) for t in monomial_tuple))
@@ -2389,7 +2419,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
         )
         perm = np.argsort(true_index)  # gives the position each final index should map to
         inv_perm = np.argsort(perm)
-        new_poly = new_poly.permute(perm)
+        new_poly = new_poly.permute(perm, allow_padding=False)
         old_key = new_key
         new_key = tuple(
             ci[:2] + tuple(inv_perm[i] for i in ci[2:])
@@ -2400,7 +2430,26 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                 or len(cls.coeff_product_inds(new_key)) != num_left + num_right - num_fixed - mul_size
         ):
             raise ValueError(old_key, new_key)
-        new_poly.audit(num_left + num_right - num_fixed - mul_size)
+        if _DEBUG_PRINT:
+            try:
+                new_poly.audit(num_left + num_right - num_fixed - mul_size)
+            except:
+                logger.log_print([
+                    "Audit failed for: {p} = {f}",
+                    "Inds: {m}",
+                    "Rem: {r}",
+                    "Perm: {perm}"
+                ],
+                    p=new_poly,
+                    m=mul_inds,
+                    r=mul_remainder,
+                    perm=perm,
+                    log_level=log_level,
+                    preformatter=lambda **vars: dict(vars, f=vars['p'].format_expr()),
+                )
+                raise
+        else:
+            new_poly.audit(num_left + num_right - num_fixed - mul_size)
 
         _, counts = cls.coeff_product_inds(new_key, return_counts=True)
         for c, d in zip(counts, total_order):
@@ -3161,14 +3210,14 @@ class SqrtChangePoly(PolynomialInterface):
         return self.mutate(
             self.poly_obj.scale(scaling)
         )
-    def permute(self, perm, check_perm=True):
+    def permute(self, perm, check_perm=True, allow_padding=False):
 
         if check_perm:
             if np.any(np.sort(perm) != np.arange(len(perm))):
                 raise ValueError("bad permutation {}")
 
         new = self.mutate(
-            self.poly_obj.permute(perm, check_perm=check_perm),
+            self.poly_obj.permute(perm, check_perm=check_perm, allow_padding=allow_padding),
             [self.poly_change[c] for c in perm],
             [
                 self.shift_start[c] for c in perm
@@ -3745,7 +3794,7 @@ class OperatorExpansionTerm(PerturbationTheoryTerm):
             if group_size == 0: # constant contrib
                 for term_index, term_list in terms:
                     subpolys = [
-                        ProductPTPolynomial([np.array([1])], steps=0)
+                        ProductPTPolynomial([], steps=0)
                     ]
                     prefactor = (self.index, self.identities[term_index])  # type: tuple[int]
                     poly_contribs[(prefactor,)] = poly_contribs.get((prefactor,), 0) + ProductPTPolynomialSum(subpolys)
@@ -5248,7 +5297,10 @@ class PerturbationTheoryExpressionEvaluator:
                                     # still_good = True
                                     perm = perms[i]
                                     idx = tuple(perm[x] for x in ind)
-                                    base_val = t[idx]
+                                    try:
+                                        base_val = t[idx]
+                                    except:
+                                        raise ValueError(t, perm, idx)
                                     prod[k, i] *= base_val
                                     if abs(prod[k, i]) < zero_cutoff:  # we assume monotonic b.c. small corrections
                                         good_perms[k, i] = False
@@ -5577,7 +5629,10 @@ class PerturbationTheoryExpressionEvaluator:
             subtensors = []
             for coeffs in coeff_lists:
                 try:
-                    tensors = [coeffs[ci[0]][ci[1]] for ci in cinds]
+                    tensors = [
+                        coeffs[ci[0]][ci[1]] if len(coeffs) > ci[0] else 0
+                        for ci in cinds
+                    ]
                 except:
                     print([
                         [x.shape if not nput.is_zero(x) else 0 for x in c]
@@ -5595,7 +5650,7 @@ class PerturbationTheoryExpressionEvaluator:
     @classmethod
     def _get_max_order(cls, expr):
         if isinstance(expr, ProductPTPolynomial):
-            return max(len(c) for c in expr.coeffs)
+            return 1 if len(expr.coeffs) == 0 else max(len(c) for c in expr.coeffs)
         elif isinstance(expr, ProductPTPolynomialSum):
             return max(cls._get_max_order(p) for p in expr.polys)
         else:
@@ -6610,7 +6665,7 @@ class PerturbationTheoryEvaluator:
             # we always make the operator be the 5th element
             if nput.is_numeric_array_like(op):
                 op = np.asanyarray(op)
-                if len(np.unique(op.shape)) == 1:
+                if len(np.unique(op.shape)) < 2:
                     op = [op]
                 else:
                     op = list(op)
@@ -6623,7 +6678,7 @@ class PerturbationTheoryEvaluator:
             for op in operator_expansion[len(expansions):]:
                 if nput.is_numeric_array_like(op):
                     op = np.asanyarray(op)
-                    if len(np.unique(op.shape)) == 1:
+                    if len(np.unique(op.shape)) < 2:
                         op = [op]
                     else:
                         op = list(op)
@@ -6648,8 +6703,10 @@ class PerturbationTheoryEvaluator:
                                  order=None, expansions=None, freqs=None,
                                  degenerate_states=None,
                                  operator_type=None,
-                                 terms=None, min_order=1, verbose=False, **opts):
-        if self.is_single_expansion(operator_expansion, min_order=min_order):
+                                 check_single=True,
+                                 terms=None, min_order=1, verbose=False,
+                                 **opts):
+        if check_single and self.is_single_expansion(operator_expansion, min_order=min_order):
             exps = self._prep_operator_expansion(expansions, operator_expansion)
             if order is None: order = len(operator_expansion) - 1
             base_index = len(exps[-1]) - 1
