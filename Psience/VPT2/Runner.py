@@ -9,7 +9,6 @@ from McUtils.Scaffolding import ParameterManager, Logger
 from McUtils.Zachary import FiniteDifferenceDerivative
 from McUtils.Extensions import ModuleLoader
 import McUtils.Numputils as nput
-import McUtils.Iterators as itut
 from McUtils.Formatters import TableFormatter
 
 from ..BasisReps import (
@@ -2953,27 +2952,19 @@ class AnalyticVPTRunner:
                                  operator_expansion, states,
                                  order=None, terms=None, degeneracy_specs=None, verbose=False,
                                  operator_type=None,
-                                 check_single=True,
                                  **opts
                                  ):
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
 
-        is_sing = check_single and (
+        is_sing = (
             nput.is_numeric(operator_expansion[0])
             or nput.is_numeric_array_like(operator_expansion[0])
         )
         if is_sing:
             operator_expansion = [operator_expansion]
-        operator_expansion = [
-            [np.asanyarray(o) for o in expansion]
-            for expansion in operator_expansion
-        ]
 
         if operator_type is None:
-            ndim = len(states.flat_space.state_list[0])
-            operator_type = itut.counts(operator_expansion[0][0].shape).get(ndim, 0)
-            # if operator_type == 0:
-            #     operator_type = "transition_moment"
+            operator_type = operator_expansion[0][0].ndim
 
         base_corrs = self.eval.get_operator_corrections(
             operator_expansion,
@@ -2982,7 +2973,6 @@ class AnalyticVPTRunner:
             verbose=verbose,
             degenerate_states=states.degenerate_pairs,
             operator_type=operator_type,
-            check_single=False,
             **opts
         )
 
@@ -2990,8 +2980,8 @@ class AnalyticVPTRunner:
             self.unflatten_corr(states, corr)
             for corr in base_corrs
         ]
-        # if is_sing:
-        #     reconst_corrs = reconst_corrs[0]
+        if is_sing:
+            reconst_corrs = reconst_corrs[0]
 
         return reconst_corrs
 
@@ -3283,7 +3273,7 @@ class AnalyticVPTRunner:
         nord = len(operator_corrections[0][0])
         nop = len(keys)
         operator_table_formatter = TableFormatter(
-            [StateMaker.parse_state] + [number_format] * (nop*(1+nord)),
+            [StateMaker.parse_state] + [number_format] * (3*(1+nord)),
             row_padding="  ",
             column_join=" | ",
             headers=[
@@ -3644,7 +3634,7 @@ class AnalyticVPTRunner:
                     order=order,
                     verbose=verbose,
                     zero_cutoff=zero_cutoff,
-                    check_single=False
+                    terms=transition_moment_terms
                 )
                 corrs.operator_corrections = operator_corrections
                 corrs.operator_keys = keys

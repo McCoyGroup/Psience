@@ -620,10 +620,7 @@ class ProductPTPolynomial(PolynomialInterface):
 
     @property
     def ndim(self):
-        if len(self.coeffs) == 1 and len(self.coeffs[0]) == 1:
-            return 0
-        else:
-            return len(self.coeffs)
+        return len(self.coeffs)
     @property
     def order(self):
         if self._order is None:
@@ -699,11 +696,10 @@ class ProductPTPolynomial(PolynomialInterface):
         # must be a proper permutation
         if check_perm:
             if np.any(
-                    np.sort(
-                        np.concatenate([new_inds, np.arange(len(new_inds), len(self.coeffs))])
-                    ) != np.arange(len(self.coeffs))
+                    np.sort(np.concatenate([new_inds, np.arange(len(new_inds), len(self.coeffs))]))
+                        != np.arange(len(self.coeffs))
             ):
-                raise ValueError(f"bad permutation {new_inds} from into {len(self.coeffs)} dimensions")
+                raise ValueError("bad permutation {}")
         return self.mutate(
             [self.coeffs[i] for i in new_inds] + self.coeffs[len(new_inds):]
         )
@@ -973,8 +969,6 @@ class ProductPTPolynomial(PolynomialInterface):
         :param inds:
         :return:
         """
-        dim_1 = max([dim_1, len(inds[0])])
-        dim_2 = max([dim_2, len(inds[1])])
         remainder = None
         if nput.is_numeric(inds):
             # simplest form, multiply the first indices
@@ -1041,11 +1035,10 @@ class ProductPTPolynomial(PolynomialInterface):
 
 
         inds = new_inds
-        if return_remainder:
-            remainder = [
-                list(remainder[0]) + new_rems[0],
-                list(remainder[1]) + new_rems[1]
-            ]
+        remainder = [
+            list(remainder[0]) + new_rems[0],
+            list(remainder[1]) + new_rems[1]
+        ]
 
         res = inds
         if return_remainder:
@@ -1065,15 +1058,9 @@ class ProductPTPolynomial(PolynomialInterface):
                     steps=self.steps + other.steps
                 )
             else:
-                if remainder is None:
-                    (self_inds, other_inds), (self_remainder, other_remainder) = self.get_index_mapping(
-                        self.ndim, other.ndim, inds, return_remainder=True
-                    )
-                else:
-                    (self_inds, other_inds) = self.get_index_mapping(
-                        self.ndim, other.ndim, inds, return_remainder=False
-                    )
-                    (self_remainder, other_remainder) = remainder
+                (self_inds, other_inds), (self_remainder, other_remainder) = self.get_index_mapping(
+                    len(self.coeffs), len(other.coeffs), inds, return_remainder=True
+                )
 
                 new_coeffs = [
                                  scipy.signal.convolve(
@@ -1815,13 +1802,10 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         return new_key
     @classmethod
     def _pad_echange_key_right(cls, k, ndim, inds, remainder):
-        ndim = max([ndim, len(inds[1]), len(remainder[1])])
         return cls._build_new_echange_key(k, ((0,)*(ndim+1),), inds, remainder)[:-1]
     @classmethod
     def _pad_echange_key_left(cls, k, ndim, inds, remainder):
-        ndim = max([ndim, len(inds[0]), len(remainder[0])])
-        huh = cls._build_new_echange_key(((0,)*(ndim+1),), k, inds, remainder)[1:]
-        return huh
+        return cls._build_new_echange_key(((0,)*(ndim+1),), k, inds, remainder)[1:]
     def mul_along(self, other:'PolynomialInterface', inds, remainder=None, mapping=None):
         """
         We multiply every subpoly along the given indices, transposing the appropriate tensor indices
@@ -2331,7 +2315,11 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
     def _symmetrize(cls, idx, symmetrizers=None):
         if symmetrizers is None:
             symmetrizers = cls.symmetrizers()
-        return (idx[0], idx[1]) + symmetrizers[idx[1]](idx[2:])
+        try:
+            return (idx[0], idx[1]) + symmetrizers[idx[1]](idx[2:])
+        except:
+            print(symmetrizers)
+            raise
     @classmethod
     def canonical_key(cls, monomial_tuple, symmetrizers=None):
         return super().canonical_key(tuple(cls._symmetrize(t, symmetrizers=symmetrizers) for t in monomial_tuple))
@@ -2412,26 +2400,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                 or len(cls.coeff_product_inds(new_key)) != num_left + num_right - num_fixed - mul_size
         ):
             raise ValueError(old_key, new_key)
-        if _DEBUG_PRINT:
-            try:
-                new_poly.audit(num_left + num_right - num_fixed - mul_size)
-            except:
-                logger.log_print([
-                    "Audit failed for: {p} = {f}",
-                    "Inds: {m}",
-                    "Rem: {r}",
-                    "Perm: {perm}"
-                ],
-                    p=new_poly,
-                    m=mul_inds,
-                    r=mul_remainder,
-                    perm=perm,
-                    log_level=log_level,
-                    preformatter=lambda **vars: dict(vars, f=vars['p'].format_expr()),
-                )
-                raise
-        else:
-            new_poly.audit(num_left + num_right - num_fixed - mul_size)
+        new_poly.audit(num_left + num_right - num_fixed - mul_size)
 
         _, counts = cls.coeff_product_inds(new_key, return_counts=True)
         for c, d in zip(counts, total_order):
@@ -5279,10 +5248,7 @@ class PerturbationTheoryExpressionEvaluator:
                                     # still_good = True
                                     perm = perms[i]
                                     idx = tuple(perm[x] for x in ind)
-                                    try:
-                                        base_val = t[idx]
-                                    except:
-                                        raise ValueError(t, perm, idx)
+                                    base_val = t[idx]
                                     prod[k, i] *= base_val
                                     if abs(prod[k, i]) < zero_cutoff:  # we assume monotonic b.c. small corrections
                                         good_perms[k, i] = False
@@ -5611,10 +5577,7 @@ class PerturbationTheoryExpressionEvaluator:
             subtensors = []
             for coeffs in coeff_lists:
                 try:
-                    tensors = [
-                        coeffs[ci[0]][ci[1]] if len(coeffs) > ci[0] else 0
-                        for ci in cinds
-                    ]
+                    tensors = [coeffs[ci[0]][ci[1]] for ci in cinds]
                 except:
                     print([
                         [x.shape if not nput.is_zero(x) else 0 for x in c]
@@ -6647,7 +6610,7 @@ class PerturbationTheoryEvaluator:
             # we always make the operator be the 5th element
             if nput.is_numeric_array_like(op):
                 op = np.asanyarray(op)
-                if len(np.unique(op.shape)) < 2:
+                if len(np.unique(op.shape)) == 1:
                     op = [op]
                 else:
                     op = list(op)
@@ -6660,7 +6623,7 @@ class PerturbationTheoryEvaluator:
             for op in operator_expansion[len(expansions):]:
                 if nput.is_numeric_array_like(op):
                     op = np.asanyarray(op)
-                    if len(np.unique(op.shape)) < 2:
+                    if len(np.unique(op.shape)) == 1:
                         op = [op]
                     else:
                         op = list(op)
@@ -6685,10 +6648,8 @@ class PerturbationTheoryEvaluator:
                                  order=None, expansions=None, freqs=None,
                                  degenerate_states=None,
                                  operator_type=None,
-                                 check_single=True,
-                                 terms=None, min_order=1, verbose=False,
-                                 **opts):
-        if check_single and self.is_single_expansion(operator_expansion, min_order=min_order):
+                                 terms=None, min_order=1, verbose=False, **opts):
+        if self.is_single_expansion(operator_expansion, min_order=min_order):
             exps = self._prep_operator_expansion(expansions, operator_expansion)
             if order is None: order = len(operator_expansion) - 1
             base_index = len(exps[-1]) - 1
