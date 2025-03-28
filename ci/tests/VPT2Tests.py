@@ -279,7 +279,7 @@ class VPT2Tests(TestCase):
 
         raise Exception(...)
 
-    @debugTest
+    @validationTest
     def test_QuickAnneTest(self):
         AnalyticVPTRunner.run_simple(
             os.path.expanduser("~/Documents/Postdoc/Projects/Anne_Misc/formate/Dformate_OH+ezWeD2z_anh_tz.fchk"),
@@ -686,6 +686,45 @@ class VPT2Tests(TestCase):
             degeneracy_specs=[
                 [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
             ]
+        )
+
+    @debugTest
+    def test_AnalyticOCHHOperators(self):
+        """
+        Run OCHH, add in the single degeneracy by hand
+        :return:
+        """
+
+        file_name = "OCHH_freq.fchk"
+        AnalyticVPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [
+                    0,
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 1, 0, 1, 0, 0],
+                        [0, 0, 0, 1, 1, 0],
+                        [0, 0, 0, 0, 1, 0],
+                    ],
+                ],
+                [
+                    [0, 0, 0, 0, 1, 0],
+                    [
+                        [0, 0, 0, 0, 1, 1],
+                        [0, 1, 0, 1, 1, 0]
+                    ]
+                ]
+            ],
+            calculate_intensities=True,
+            # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+            degeneracy_specs=[
+                [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+            ],
+            operator_terms={
+                'q1':[0, [0, 0, 0, 0, 0, 1]],
+                'q2':[0, [0, 0, 0, 0, 1, 0]]
+            }
         )
 
     @validationTest

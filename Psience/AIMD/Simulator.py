@@ -13,6 +13,15 @@ __all__ = [
 ]
 
 class AIMDSimulator:
+    __props__ = (
+        "atomic_structures",
+        "internals",
+        "velocities",
+        "track_kinetic_energy",
+        "track_velocities",
+        "timestep",
+        "sampling_rate"
+    )
     def __init__(self,
                  atoms,
                  coordinates,

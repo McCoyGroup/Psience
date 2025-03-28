@@ -3913,23 +3913,24 @@ class DGBTests(TestCase):
             },
             internals=[
                 [0, -1, -1, -1],
-                [1, 0, -1, -1],
-                [2, 1, 0, -1],
-                [3, 1, 0, 2],
+                [1,  0, -1, -1],
+                [2,  1,  0, -1],
+                [3,  1,  2,  0]
             ]
         )
         if optimize:
+            base_dip = ochh.dipole_derivatives
             ochh = ochh.optimize(
                 # method='quasi-newton'
                 method='conjugate-gradient'
                 # method='gradient-descent'
-                # , max_iterations=100
+                , max_iterations=50
                 , stencil=3
                 # , logger=True
                 # , max_displacement=.01
                 , prevent_oscillations=3
                 , restart_interval=15
-            )
+            ).modify(dipole_derivatives=base_dip)
             # ochh = Molecule(
             #     ochh.atoms,
             #     ochh_opt.coords,
@@ -3952,21 +3953,127 @@ class DGBTests(TestCase):
     @debugTest
     def test_NewRunnerOCHH(self):
 
+        ochh = self.setup_OCHH(optimize=True)
 
-        # def woof(crds):
-        #     return crds.copy()
-        #
-        # deriv_gen = FiniteDifferenceDerivative(
-        #     woof,
-        #     function_shape=((0,), (0,))
+        int_ochh = ochh.modify(internals=[
+                    [0, -1, -1, -1],
+                    [1,  0, -1, -1],
+                    [2,  1,  0, -1],
+                    [3,  1,  2,  0],
+                ])
+        # print(
+        #     nput.internal_coordinate_tensors(
+        #         int_ochh.coords,
+        #         [
+        #             [0, 1],
+        #             [1, 2],
+        #             [1, 3],
+        #             [2, 1, 3]
+        #         ],
+        #         order=0
+        #     )
         # )
-        # center = np.random.rand(2, 3)
-        # dts = deriv_gen.derivatives(center).derivative_tensor([1, 2])
-        # print([t.shape for t in dts])
+        #
+        # print(
+        #     int_ochh.get_internals(strip_embedding=True)
+        # )
+        #
         # return
 
-        ochh = self.setup_OCHH(optimize=True)
-        dgb = DGBRunner.from_mol(ochh)
+        scan_disps = [-1.0, 1.0, 51]
+        scan_angles = int_ochh.get_scan_coordinates(
+            [scan_disps],
+            which=[[3, 1]],
+            internals='reembed'
+        )
+        # scan_disp_dist = [-.4, .7, 25]
+        # # int_ochh.plot(scan_angles).show()
+        # scan_dists = int_ochh.get_scan_coordinates(
+        #     [scan_disp_dist],
+        #     which=[[1, 0]],
+        #     internals='reembed'
+        # )
+
+        pot_vals = int_ochh.calculate_energy(scan_angles)
+
+        # pot_vals_dists = int_ochh.calculate_energy(scan_dists)
+
+        # woof = ochh.get_anharmonic_parameters(
+        #     [(0, 1), (1, 2), (1, 3), (2, 1, 3), (0, 1, 2, 3)]
+        # )
+        woof_pots = ochh.get_1d_potentials(
+            [(0, 1), (1, 2), (1, 3), (2, 1, 3), (0, 1, 2, 3)]
+        )
+        woof_pots_4 = ochh.get_1d_potentials(
+            [(0, 1), (1, 2), (1, 3), (2, 1, 3), (0, 1, 2, 3)],
+            poly_expansion_order=4
+        )
+        woof_pots_morse = ochh.get_1d_potentials(
+            [(0, 1), (1, 2), (1, 3), (2, 1, 3), (0, 1, 2, 3)],
+            quartic_potential_cutoff=0
+        )
+        # for method, (params, re) in woof:
+        #     print(
+        #         [
+        #             p * 219475.6
+        #             for n, p in enumerate(params)
+        #         ],
+        #         re
+        #     )
+
+        # _, pot_vals_dists_appx = woof_pots[0](
+        #     scan_dists
+        # )
+        angs, pot_vals_angs_appx = woof_pots[3](
+            scan_angles
+        )
+        angs, pot_vals_angs_appx_4 = woof_pots_4[3](
+            scan_angles
+        )
+        angs, pot_vals_angs_appx_morse = woof_pots_morse[3](
+            scan_angles
+        )
+
+        # uh = nput.internal_coordinate_tensors(
+        #     scan_angles,
+        #     [
+        #         [0, 1],
+        #         [1, 2],
+        #         [1, 3],
+        #         [2, 1, 3]
+        #     ],
+        #     order=0
+        # )
+        # print(uh[0])
+
+        disp_vals = np.linspace(*scan_disps)
+        ploots = plt.Plot(disp_vals, pot_vals * 219475.6, color='black', plot_range=[None, [None, 35000]])
+        # plt.Plot(np.linspace(*scan_disp_dist), pot_vals_dists * 219475.6, figure=ploots)
+        # plt.Plot(np.linspace(*scan_disp_dist), pot_vals_dists_appx[0] * 219475.6, figure=ploots,
+        #          linestyle='dashed')
+        # k = len(disp_vals) // 2
+        # f2_alt = (pot_vals[k+1] + pot_vals[k-1] - 2*pot_vals[k]) / (2*(disp_vals[1] - disp_vals[0])**2)
+        # print(f2_alt)
+        # print(angs[0] - angs[0][k])
+        # print(disp_vals)
+        shang_vals = (ochh.calculate_energy() + pot_vals_angs_appx[0])
+        shang_vals_4 = (ochh.calculate_energy() + pot_vals_angs_appx_4[0])
+        shang_vals_morse = (ochh.calculate_energy() + pot_vals_angs_appx_morse[0])
+        plt.Plot(np.linspace(*scan_disps), shang_vals * 219475.6, figure=ploots,
+                 linestyle='dashed')
+        plt.Plot(np.linspace(*scan_disps), shang_vals_4 * 219475.6, figure=ploots,
+                 linestyle='dashed')
+        plt.Plot(np.linspace(*scan_disps), shang_vals_morse * 219475.6, figure=ploots,
+                 linestyle='dashed')
+        ploots.show()
+        return
+
+
+        dgb, res = DGBRunner.run_simple(
+            ochh
+        )
+
+
 
 
     @inactiveTest

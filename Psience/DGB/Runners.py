@@ -4,6 +4,8 @@ from McUtils.Data import AtomData, UnitsData
 import McUtils.Plots as plt
 import McUtils.Numputils as nput
 
+from ..Molecools import Molecule
+
 from .DGB import DGB
 from .Coordinates import DGBCoords, DGBCartesians
 from .Wavefunctions import DGBWavefunctions, DGBWavefunction
@@ -15,6 +17,9 @@ __all__ = [
 __reload_hook__ = ['.DGB', '.Coordinates', '.Wavefunctions']
 
 class DGBRunner:
+
+    # @classmethod
+    # def prep_pairwise_functions(cls, coord, ...):
 
     @classmethod
     def construct_from_mol_simulation(cls,
@@ -263,24 +268,45 @@ class DGBRunner:
             )
             sim.propagate(propagation_time)
 
-    @classmethod
-    def run_simple(cls,
-                coords,
-                pot,
-                dipole,
-                *,
-                logger=True,
-                plot_wavefunctions=True,
-                plot_spectrum=True,
-                **opts
-        ):
+        return cls.construct_from_mol_simulation(
+            sim, mol,
+            potential_function=None,
+            use_cartesians=use_cartesians,
+            use_momenta=use_momenta,
+            use_pairwise=use_pairwise,
+            use_interpolation=use_interpolation,
+            use_quadrature=use_quadrature,
+            symmetrizations=symmetrizations,
+            momentum_scaling=momentum_scaling,
+            dipole_function=dipole_function,
+        )
 
-            dgb = DGB.construct(
-                np.round(coords, 8),  # this ends up really mattering to keep optimize_centers stable
-                pot,
-                logger=logger,
-                **opts
-            )
+    # @classmethod
+    # def from_coord(cls,
+    #             coords,
+    #             potential=None,
+    #             dipole=None,
+    #             *,
+    #             logger=True,
+    #             plot_wavefunctions=True,
+    #             plot_spectrum=True,
+    #             **opts
+    #     ):
+    #
+    #         dgb = DGB.construct(
+    #             np.round(coords, 8),  # this ends up really mattering to keep optimize_centers stable
+    #             pot,
+    #             logger=logger,
+    #             **opts
+    #         )
+
+    @classmethod
+    def run_dgb(cls,
+                dgb,
+                *,
+                plot_wavefunctions=True,
+                plot_spectrum=True
+                ):
 
             logger = dgb.logger
             with logger.block(tag="Running DGB"):
@@ -306,13 +332,37 @@ class DGBRunner:
                     for i in range(4):
                         wfns_cart[i].plot().show()
 
-                spec = wfns_cart[:4].get_spectrum(dipole)
-                with logger.block(tag="Intensities"):
-                    logger.log_print(
-                        logger.prep_array(spec.intensities)
-                    )
                 if plot_spectrum:
+                    spec = wfns_cart[:4].get_spectrum()
+                    with logger.block(tag="Intensities"):
+                        logger.log_print(
+                            logger.prep_array(spec.intensities)
+                        )
                     spec.plot().show()
+                else:
+                    spec = None
+            return wfns_cart, spec
+    @classmethod
+    def run_simple(cls,
+                   system_spec,
+                   sim=None,
+                   plot_wavefunctions=True,
+                   plot_spectrum=True,
+                   **opts
+                   ):
+        if isinstance(system_spec, (str, dict, tuple)):
+            system_spec = Molecule.construct(system_spec)
+            system_spec.get_dipole_evaluator()
+        if hasattr(system_spec, 'potential'): # analyt
+            dgb = cls.construct_from_model(system_spec, sim=sim, **opts)
+        else:
+            dgb = cls.from_mol(system_spec, sim=sim, **opts)
+
+        return dgb, cls.run_dgb(
+            dgb,
+            plot_wavefunctions=plot_wavefunctions,
+            plot_spectrum=plot_spectrum
+        )
 
     @classmethod
     def plot_dgb_potential(cls,

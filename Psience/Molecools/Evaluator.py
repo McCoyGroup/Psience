@@ -208,7 +208,9 @@ class MolecularEvaluator:
 
         if use_internals:
             # track the embedding info...
-            base_coords = self.embedding.internal_coordinates.system(base_coords, **self.embedding.internal_coordinates.converter_options)
+            base_coords = self.embedding.internal_coordinates.system(base_coords,
+                                                                     **self.embedding.internal_coordinates.converter_options
+                                                                     )
             if isinstance(use_internals, str):
                 if use_internals == 'convert':
                     base_coords = base_coords.convert(self.embedding.coords.system)
@@ -394,8 +396,8 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         ...
 
     fd_defaults=dict(
-        stencil=5,
-        mesh_spacing=.001,
+        stencil=None,
+        mesh_spacing=.1,
         displacement_function=None,
         prep=None,
         lazy=False,
@@ -1540,7 +1542,7 @@ class PotentialExpansionEnergyEvaluator(PotentialFunctionEnergyEvaluator):
                 # handle partial quatics
             if len(expansion) > 2 and expansion[2].shape[0] < expansion[1].shape[0]:
                 if transforms is None:
-                    modes = mol.get_normal_modes(project_transrot=False).remove_mass_weighting()
+                    modes = mol.get_normal_modes(use_internals=False, project_transrot=False).remove_mass_weighting()
                     transforms = [[modes.coords_by_modes], [modes.modes_by_coords]]
                 if nput.is_numeric_array_like(transforms[0]):
                     tf = np.asanyarray(transforms[0])
@@ -1673,13 +1675,36 @@ class DipoleExpansionEnergyEvaluator(DipoleFunctionDipoleEvaluator):
             deriv[:, i, i] = dip_contribs[:, i]
         return [np.sum(dip_contribs, axis=0), deriv.reshape(-1, 3)]
     @classmethod
-    def get_property_function(cls, expansion, mol):
+    def get_property_function(cls, expansion, mol, transforms=None, **ignored):
         if not callable(expansion):
+            transforms = transforms
+            transformed_derivatives = False
             if expansion is None:
                 expansion = mol.dipole_derivatives
                 if expansion is None:
                     expansion = cls.expansion_from_mol_charges(mol)
-            expansion = DipoleSurface.from_mol(mol, expansion=expansion)
+                # handle partial quatics
+            if len(expansion) > 2 and expansion[2].shape[0] < expansion[1].shape[0]:
+                if transforms is None:
+                    modes = mol.get_normal_modes(use_internals=False, project_transrot=False).remove_mass_weighting()
+                    transforms = [[modes.coords_by_modes], [modes.modes_by_coords]]
+                if nput.is_numeric_array_like(transforms[0]):
+                    tf = np.asanyarray(transforms[0])
+                    if tf.ndim > 2:
+                        tf = tf[0]
+                else:
+                    tf = np.asanyarray(transforms[0][0])
+                _ = []
+                for i, e in enumerate(expansion[1:]):
+                    e = np.tensordot(tf, e, axes=[1, -2])
+                    _.append(e)
+                expansion = [expansion[0]] + _
+                transformed_derivatives = True
+            expansion = DipoleSurface.from_mol(mol,
+                                               expansion=expansion,
+                                               transforms=transforms,
+                                               transformed_derivatives=transformed_derivatives
+                                               )
         return expansion
 
 
