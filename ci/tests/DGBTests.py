@@ -14,6 +14,7 @@ from McUtils.Data import UnitsData, PotentialData, AtomData
 from McUtils.Zachary import Interpolator, FiniteDifferenceDerivative
 import McUtils.Plots as plt
 import McUtils.Numputils as nput
+import McUtils.Devutils as dev
 from McUtils.GaussianInterface import GaussianFChkReader, GaussianLogReader
 from McUtils.Extensions import ModuleLoader
 
@@ -303,7 +304,7 @@ class DGBTests(TestCase):
             internals=[
                 [0, -1, -1, -1],
                 [1,  0, -1, -1],
-                [2,  0, 1, -1],
+                [2,  0,  1, -1],
             ]
         )
 
@@ -2206,8 +2207,6 @@ class DGBTests(TestCase):
             ERROR: test_ModelPotentialAIMD (tests.DGBTests.DGBTests)
             ----------------------------------------------------------------------
             Traceback (most recent call last):
-              File "/Users/Mark/Documents/UW/Research/Development/Peeves/Peeves/TestUtils.py", line 501, in Debug
-                return fn(*args, **kwargs)
               File "/Users/Mark/Documents/UW/Research/Development/Psience/ci/tests/DGBTests.py", line 1040, in test_ModelPotentialAIMD
                 raise Exception(po_data.wavefunctions.frequencies()*UnitsData.hartrees_to_wavenumbers)
             Exception: (
@@ -3893,6 +3892,154 @@ class DGBTests(TestCase):
 
         plt.Graphics().show()
 
+    default_OH_freq = 3869.47
+    default_OH_anh = -84
+    default_HOH_freq = 1600
+    @classmethod
+    def setup_Water(cls,
+                    use_mbpol=False,
+                    atoms=None,
+                    oh_model=False,
+                    stretch_model=False,
+                    bend_model=False,
+                    full_model=True,
+                    w=None,
+                    wx=None,
+                    w2=None,
+                    wx2=None,
+                    w_bend=None,
+                    freq_units='Wavenumbers',
+                    dipole_model='linear',
+                    potential_params=None,
+                    reoptimize=False):
+        mol = Molecule.from_file(
+            TestManager.test_data('water_freq.fchk')
+        )
+        if atoms is not None:
+            mol = mol.modify(atoms=atoms).get_embedded_molecule()
+
+        h2w = UnitsData.convert(freq_units, 'Hartrees')
+        base_params = potential_params
+        potential_params = {} if potential_params is None else potential_params
+        if oh_model:
+            mol = mol.modify(
+                atoms=mol.atoms[:2],
+                coords=mol.coords[:2],
+                dipole_derivatives=[
+                    mol.dipole_derivatives[0],
+                    mol.dipole_derivatives[1][:6, :]
+                ]
+            ).get_embedded_molecule(load_properties=False)
+            if w is None: w = cls.default_OH_freq
+            if wx is None: wx = cls.default_OH_anh
+        elif stretch_model:
+            if w is None: w = cls.default_OH_freq
+            if wx is None: wx = cls.default_OH_anh
+            if w2 is None: w2 = cls.default_OH_freq
+            if wx2 is None: wx2 = cls.default_OH_anh
+        elif full_model:
+            if w is None: w = cls.default_OH_freq
+            if wx is None: wx = cls.default_OH_anh
+            if w2 is None: w2 = cls.default_OH_freq
+            if wx2 is None: wx2 = cls.default_OH_anh
+            if w_bend is None: w_bend = cls.default_OH_freq
+
+        if not use_mbpol and base_params is None:
+            if w is not None:
+                if wx is None:
+                    potential_params[(0, 1)] = {'w_coeffs': [w * h2w]}
+                else:
+                    potential_params[(0, 1)] = {'w': w * h2w, 'wx': -wx * h2w}
+            if w2 is not None:
+                if wx2 is None:
+                    potential_params[(0, 2)] = {'w_coeffs': [w2 * h2w]}
+                else:
+                    potential_params[(0, 2)] = {'w': w2 * h2w, 'wx': -wx2 * h2w}
+            if w_bend is not None:
+                potential_params[(1, 0, 2)] = {'w_coeffs': [w_bend * h2w]}
+
+        if len(potential_params) > 0:
+            pot = mol.get_1d_potentials(potential_params)
+            base_pot = sum(pot)
+            def potential(coords, order=None, base_pot=base_pot):
+                none_ord = order is None
+                if none_ord: order=0
+                pot_exp = base_pot(coords, order=order)[1]
+                if none_ord:
+                    pot_exp = pot_exp[0]
+                return pot_exp
+
+            mol = mol.modify(
+                energy_evaluator={
+                    'potential_function': potential,
+                    'analytic_derivative_order': 4,
+                    'batched_orders': True
+                },
+                dipole_derivatives=mol.dipole_derivatives[:2] if dev.str_is(dipole_model, 'linear') else mol.dipole_derivatives,
+                dipole_evaluator='expansion'
+            )
+            # raise Exception(
+            #     mol.get_cartesian_dipole_derivatives(1, include_constant_term=True)
+            # )
+        else:
+            loader = ModuleLoader(TestManager.current_manager().test_data_dir)
+            mbpol = loader.load("LegacyMBPol").MBPol
+
+            def potential(coords, order=None, chunk_size=int(5e5)):
+                coords = coords.reshape(-1, 9)
+
+                just_vals = order is None
+                if just_vals: order = 0
+
+                chunks = [[] for _ in range(order + 1)]
+                num_chunks = int(len(coords) / chunk_size) + 1
+
+                for coords in np.array_split(coords, num_chunks):
+                    # interp.logger.log_print("evaluating energies")
+                    if order == 0:
+                        energies = mbpol.get_pot(coords=coords.reshape(-1, 3, 3), nwaters=1,
+                                                 threading_vars=['energy', 'coords'], threading_mode='omp')
+                        chunks[0].append(energies)
+                    else:
+                        grad_vals = mbpol.get_pot_grad(
+                            nwaters=1, coords=coords.reshape(-1, 3, 3), threading_vars=['energy', 'grad', 'coords'],
+                            threading_mode='omp'
+                        )
+                        chunks[0].append(grad_vals['energies'])
+                        chunks[1].append(grad_vals['grad'])
+
+                for i, c in enumerate(chunks):
+                    chunks[i] = np.concatenate(c, axis=0)
+
+                if just_vals:
+                    chunks = chunks[0]
+
+                return chunks
+
+            mol = mol.modify(
+                coords=np.array([
+                    [0.00000000e+00, 6.56215885e-02, 0.00000000e+00],
+                    [7.57391014e-01, -5.20731105e-01, 0.00000000e+00],
+                    [-7.57391014e-01, -5.20731105e-01, 0.00000000e+00]
+                ]) * UnitsData.convert("Angstroms", "BohrRadius"),
+                energy_evaluator={
+                    'potential_function': potential,
+                    'analytic_derivative_order': 4,
+                    'distance_units': 'Angstroms',
+                    'energy_units': 'Kilojoules/Mole',
+                    'batched_orders': True
+                },
+                dipole_derivatives=mol.dipole_derivatives,
+                dipole_evaluator='linear'
+            ).get_embedded_molecule(load_properties=False)
+            if reoptimize:
+                mol = mol.optimize()
+        # if dev.str_is(dipole_model, 'linear'):
+        #     mol.modify(dipole_evaluator='expansion', dipole_derivatives=mol.dipole_derivatives[:2])
+        # else:
+        #     mol.modify(dipole_evaluator='expansion')
+
+        return mol
     @classmethod
     def setup_OCHH(cls, optimize=True):
         loader = ModuleLoader(os.path.expanduser("~/Documents/Postdoc/Projects/DGB"))
@@ -3950,10 +4097,16 @@ class DGBTests(TestCase):
 
 
         return ochh
-    @debugTest
+
+    @validationTest
     def test_NewRunnerOCHH(self):
 
         ochh = self.setup_OCHH(optimize=True)
+        dgb, res = DGBRunner.run_simple(
+            ochh
+        )
+
+        return
 
         int_ochh = ochh.modify(internals=[
                     [0, -1, -1, -1],
@@ -4073,8 +4226,105 @@ class DGBTests(TestCase):
             ochh
         )
 
+    @validationTest
+    def test_NewRunnerOH(self):
 
+        oh = self.setup_Water(oh_model=True)
+        # wat = oh.get_1d_potentials([[0, 1]])
+        # scan = np.linspace(1, 4, 50)
+        # _, vals = wat[0](scan[:, np.newaxis], preconverted=True)
+        # plt.Plot(scan, vals[0]).show()
+        # return
 
+        dgb, res = DGBRunner.run_simple(
+            oh,
+            plot_wavefunctions=False,
+            use_interpolation=True,
+            total_energy_scaling=1.5,
+            trajectories=10,
+            timestep=2,
+            propagation_time=35,
+            pairwise_potential_functions={(0, 1):'auto'}
+        )
+
+        # (wnfs, plots), spec = res
+        # spec.plot().show()
+
+        return
+
+    @debugTest
+    def test_NewRunnerStretches(self):
+        water = self.setup_Water(stretch_model=True)
+
+        # runner, _ = water.setup_VPT(states=1)
+        # runner.print_tables()
+
+        # wat = oh.get_1d_potentials([[0, 1]])
+        # scan = np.linspace(1, 4, 50)
+        # _, vals = wat[0](scan[:, np.newaxis], preconverted=True)
+        # plt.Plot(scan, vals[0]).show()
+        # return
+
+        """
+State     Frequency    Intensity       Frequency    Intensity
+  0 1    3896.87027     67.02048      3726.72078     65.47440
+  1 0    3841.87432      6.66771      3675.96178      6.52096
+  """
+
+        """
+                sim = model.setup_AIMD(
+            initial_energies=np.array([
+                [ symm,  asymm],
+                [-symm,  asymm],
+                [ 0,    -asymm],
+                [-symm,      0],
+                # [2000 * self.w2h, 0],
+                # [0, 2000 * self.w2h],
+                # [-2000 * self.w2h, 0],
+                # [0, -2000 * self.w2h],
+                # [-15000 * self.w2h, -15000 * self.w2h],
+                # [15000 * self.w2h, -15000 * self.w2h],
+                # [10000 * self.w2h, 0],
+                # [0, 10000 * self.w2h],
+                # [-10000 * self.w2h, 0],
+                # [0, -10000 * self.w2h]
+            ])*2,
+            timestep=15,
+            track_velocities=True
+        )
+        sim.propagate(25)
+        coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        momenta = 1872 * velocities * mol.masses[np.newaxis, :, np.newaxis]"""
+
+        dgb, res = DGBRunner.run_simple(
+            water,
+            plot_wavefunctions=3,
+            use_interpolation=False,
+            # total_energy_scaling=2,
+            # trajectories=5,
+            initial_mode_directions=[
+                [ 1,  1],
+                [-1,  1],
+                [ 0, -1],
+                [-1,  0]
+            ],
+            timestep=15,
+            propagation_time=25,
+            # pairwise_potential_functions={
+            #     (0, 1): 'auto',
+            #     (0, 2): 'auto'
+            # }
+        )
+
+        (wnfs, plots), spec = res
+        plots[0].show()
+        # spec.plot().show()
+
+        return
+
+    # @debugTest
+    # def test_NewRunnerWaterModel(self):
+    #     ...
 
     @inactiveTest
     def test_WaterAIMDDisplaced(self):

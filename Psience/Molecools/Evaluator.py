@@ -5,9 +5,10 @@ import numpy as np
 import warnings
 
 from McUtils.Data import AtomData, UnitsData
-from McUtils.Zachary import TensorDerivativeConverter, FiniteDifferenceDerivative
+from McUtils.Zachary import TensorDerivativeConverter, FiniteDifferenceDerivative, CoordinateFunction
 import McUtils.Numputils as nput
 import McUtils.Devutils as dev
+import McUtils.Coordinerds as coordops
 
 from ..Data import PotentialSurface, DipoleSurface
 from .CoordinateSystems import MolecularEmbedding
@@ -537,11 +538,11 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
     def resolve_evaluator(cls, name):
         if name is not None and not isinstance(name, (str, dict, tuple)) and callable(name):
             if hasattr(name, 'evaluate_term'):
-                return name
+                return name, {}
             else:
                 eval = cls.get_default_function_evaluator_type()
                 eval.bind_default(name)
-                return eval
+                return eval, {}
         return cls.profile_generator_dispatch().resolve(name)
 
     class quiet_mode:
@@ -669,7 +670,8 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
         return derivs
 
     def evaluate_term(self, coords, order, **opts):
-        return self.property_function(self.embed_coords(coords), order=order, **opts)
+        emb = self.embed_coords(coords)
+        return self.property_function(emb, order=order, **opts)
 
     def evaluate(self,
                  coords,
@@ -1528,7 +1530,7 @@ class PotentialExpansionEnergyEvaluator(PotentialFunctionEnergyEvaluator):
                  ):
         return super().from_mol(
             mol,
-            property_function=expansion if property_function is None else property_function
+            property_function=expansion if property_function is None else property_function,
             **opts
         )
 
@@ -1589,6 +1591,26 @@ class DipoleFunctionDipoleEvaluator(DipoleEvaluator):
             property_units=property_units,
             distance_units=distance_units,
             **opts
+        )
+
+    def embed_coords(self, coords):
+        return PropertyFunctionEvaluator.embed_coords(
+            self,
+            coords
+        )
+
+    def unembed_coords(self, coords):
+        return PropertyFunctionEvaluator.unembed_coords(
+            self,
+            coords
+        )
+
+    def unembed_derivs(self, base_coords, coords, derivs):
+        return PropertyFunctionEvaluator.unembed_derivs(
+            self,
+            base_coords,
+            coords,
+            derivs
         )
 
     def evaluate_term(self, coords, order, **opts):
@@ -1674,6 +1696,20 @@ class DipoleExpansionEnergyEvaluator(DipoleFunctionDipoleEvaluator):
         for i in range(3):
             deriv[:, i, i] = dip_contribs[:, i]
         return [np.sum(dip_contribs, axis=0), deriv.reshape(-1, 3)]
+
+    @classmethod
+    def from_mol(cls,
+                 mol,
+                 property_function=None,
+                 expansion=None,
+                 **opts
+                 ):
+        return super().from_mol(
+            mol,
+            property_function=expansion
+            if property_function is None else property_function,
+            **opts
+        )
     @classmethod
     def get_property_function(cls, expansion, mol, transforms=None, **ignored):
         if not callable(expansion):
@@ -1820,3 +1856,218 @@ class AIMNet2ChargeEvaluator(ChargeEvaluator):
         expansions = [e * s for e in expansions]
 
         return expansions
+
+class ReducedDimensionalPotentialHandler:
+
+    def __init__(self, mol):
+        self.mol = mol
+
+    # @property
+    # def cartesian_derivatives(self):
+    #     ...
+
+    @classmethod
+    def get_potential_params(cls, spec, re, g, local_derivs,
+                             quartic_potential_cutoff=5e-2,
+                             poly_expansion_order=2,
+                             **opts):
+        # if (use_morse and len(local_derivs) > 3) or (use_morse is None and len(spec) == 2):
+        f2, f3, f4 = [local_derivs[i + 1] if i < len(local_derivs) else 0 for i in range(3)]
+        if np.abs(f3 / f4) < quartic_potential_cutoff:
+            opts['method'] = 'poly'
+            opts['g'] = g
+            sg = np.sqrt(g)
+            opts['w_coeffs'] = [
+                         sg * np.sign(d) * np.power(np.abs(d) / math.factorial(k + 2), 1 / (k + 2))
+                         # * (.25 ** (k + 2))
+                         for k, d in enumerate(local_derivs[1:4])
+                     ][:poly_expansion_order - 1]
+        else:
+            opts['method'] = 'morse'
+            opts['g'] = g
+            sg = np.sqrt(g)
+            w = sg * np.sqrt(f2)
+            wx = -((g / (4 * w)) ** 2) * (f4 - 5 / 3 * f3 / f2)
+            params = [w, wx]
+            # if len(local_derivs) > 4:
+            #     params = params + [
+            #         sg * np.sign(d) * np.power(np.abs(d) / math.factorial(k + 4), 1 / (k + 4))  # * (.25 ** (k + 2))
+            #         for k, d in enumerate(local_derivs[4:])
+            #     ]
+            opts['w'] = w
+            opts['wx'] = wx
+        opts['re'] = re
+
+        return opts
+
+    @classmethod
+    def get_morse_potential(cls, spec, *, w, wx, g, re):
+        return CoordinateFunction.morse(
+                spec,
+                re=re,
+                w=w,
+                wx=wx,
+                g=g
+            )
+    @classmethod
+    def get_poly_potential(cls, spec, *, w_coeffs=None, coeffs=None, g, re):
+        if w_coeffs is not None:
+            sg = np.sqrt(g)
+            coeffs = [0] + [(c / sg) ** (k + 2) for k, c in enumerate(w_coeffs)]
+        return CoordinateFunction.polynomial(
+            spec,
+            center=re,
+            coeffs=coeffs,
+            ref=0
+        )
+    @classmethod
+    def get_potential_types(cls):
+        return {
+            'morse':cls.get_morse_potential,
+            'poly':cls.get_poly_potential
+        }
+    @classmethod
+    def get_potentials_by_attributes(cls):
+        return {
+            ('w', 'wx'): 'morse',
+            ('coeffs',): 'poly',
+            ('w_coeffs',): 'poly'
+        }
+
+    _pot_dispatch = dev.uninitialized
+    default_evaluator_type = 'poly'
+    @classmethod
+    def potential_generator_dispatch(cls) -> 'dev.OptionsMethodDispatch':
+        cls._pot_dispatch = dev.handle_uninitialized(
+            cls._pot_dispatch,
+            dev.OptionsMethodDispatch,
+            args=(cls.get_potential_types,),
+            kwargs=dict(
+                attributes_map=cls.get_potentials_by_attributes()
+            )
+        )
+        return cls._pot_dispatch
+
+    def get_g(self, which, return_tf=True, order=1):
+        r, tf = nput.internal_coordinate_tensors(self.mol.coords, which,
+                                                 return_inverse=True,
+                                                 masses=self.mol.atomic_masses,
+                                                 order=order)
+        b = np.diag(np.repeat(1 / np.sqrt(self.mol.atomic_masses), 3)) @ r[1]
+        G = b.T @ b
+        if return_tf:
+            return G, (r, tf)
+        else:
+            return G
+
+
+    def get_anharmonic_parameters(self,
+                                  which,
+                                  evaluator=None,
+                                  energy_expansion=None,
+                                  params_handler=None,
+                                  # allow_fd=False,
+                                  # fd_options=None,
+                                  **opts
+                                  ):
+        if params_handler is None:
+            params_handler = self.get_potential_params
+
+        if nput.is_numeric(which[0]):
+            which = [which]
+
+        G, (r, tf) = self.get_g(which, return_tf=True, order=4)
+        if energy_expansion is None:
+            energy_expansion = self.mol.get_cartesian_potential_derivatives(evaluator=evaluator, order=4)
+        derivs = nput.tensor_reexpand(tf, energy_expansion, order=4)
+
+        bond_params = []
+        for n, spec in enumerate(which):
+            diag_derivs = []
+            for k, d in enumerate(derivs):
+                idx = (n,) * (k + 1)
+                diag_derivs.append(d[idx])
+            bond_params.append(
+                params_handler(spec, r[0][n], G[n, n], diag_derivs, **opts)
+            )
+
+        return bond_params
+
+    def get_1d_potentials(self,
+                          which,
+                          evaluator=None,
+                          energy_expansion=None,
+                          params_handler=None,
+                          potential_params=None,
+                          coordinate_potential_handler=None,
+                          **opts
+                          ):
+        if dev.is_dict_like(which):
+            potential_params = which
+            which = list(which.keys())
+
+        if potential_params is not None:
+            if dev.is_dict_like(potential_params):
+                which = [
+                    coordops.canonicalize_internal(w)
+                    for w in which
+                ]
+                potential_params = {
+                    coordops.canonicalize_internal(k): v
+                    for k, v in potential_params.items()
+                }
+                potential_params = [
+                    potential_params.get(w)
+                    for w in which
+                ]
+            else:
+                potential_params = list(potential_params)
+            subwhich = [
+                w for w, p in enumerate(potential_params)
+                if p is None
+            ]
+            remwhich = [
+                w for w, p in enumerate(potential_params)
+                if p is not None
+            ]
+            gwhich = [
+                w for w in remwhich
+                if potential_params[w].get('g') is None or potential_params[w].get('re') is None
+            ]
+            if len(gwhich) > 0:
+                G, (r, tf) = self.get_g([which[i] for i in gwhich], return_tf=True)
+                for n,w in enumerate(gwhich):
+                    potential_params[w] = potential_params[w].copy()
+                    if potential_params[w].get('g') is None:
+                        potential_params[w]['g'] = G[n, n]
+                    if potential_params[w].get('re') is None:
+                        potential_params[w]['re'] = r[0][n]
+            if len(subwhich) > 0:
+                subparams = self.get_anharmonic_parameters([which[k] for k in subwhich],
+                                                           evaluator=evaluator,
+                                                           energy_expansion=energy_expansion,
+                                                           params_handler=params_handler,
+                                                           **opts
+                                                           )
+                for k, p in zip(subwhich, subparams):
+                    potential_params[k] = p
+
+        else:
+            potential_params = self.get_anharmonic_parameters(
+                which,
+                evaluator=evaluator,
+                energy_expansion=energy_expansion,
+                params_handler=params_handler,
+                **opts
+            )
+
+        if coordinate_potential_handler is None:
+            coordinate_potential_handler = self.potential_generator_dispatch()
+        pots = []
+        for spec, params in zip(which, potential_params):
+            handler, props = coordinate_potential_handler.resolve(params)
+            pots.append(
+                handler(spec, **props)
+            )
+
+        return pots

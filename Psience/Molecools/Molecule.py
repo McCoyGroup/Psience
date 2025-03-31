@@ -25,7 +25,10 @@ from McUtils.ExternalPrograms import RDMolecule
 from .MoleculeInterface import *
 
 from .CoordinateSystems import MolecularEmbedding, ModeEmbedding
-from .Evaluator import MolecularEvaluator, EnergyEvaluator, DipoleEvaluator, ChargeEvaluator
+from .Evaluator import (
+    MolecularEvaluator, EnergyEvaluator, DipoleEvaluator, ChargeEvaluator,
+    ReducedDimensionalPotentialHandler
+)
 from .Hamiltonian import MolecularHamiltonian
 from .Properties import *
 
@@ -383,15 +386,29 @@ class Molecule(AbstractMolecule):
     @dipole_derivatives.setter
     def dipole_derivatives(self, derivs):
         self.dipole_surface.derivatives = derivs
-    def get_cartesian_dipole_derivatives(self, order=None):
+    def get_cartesian_dipole_derivatives(self, order=None, evaluator=None, include_constant_term=False):
         dipole_derivatives = self.dipole_derivatives
-        if dipole_derivatives is None and self.energy_evaluator is not None:
-            if order is None: order = 1
-            dipole_derivatives = self.calculate_dipole(order=order)
+        # if dipole_derivatives is None and self.energy_evaluator is not None:
+        #     if order is None: order = 1
+        #     dipole_derivatives = self.calculate_dipole(order=order)
+        if dipole_derivatives is None or (order is not None and len(dipole_derivatives) < order):
+            if evaluator is None: evaluator = self.dipole_evaluator
+            if evaluator is not None:
+                if order is None: order = 1
+                dipole_derivatives = self.calculate_dipole(evaluator=evaluator, order=order)
+                if (
+                        isinstance(evaluator, str)
+                        and isinstance(self.dipole_evaluator, str)
+                        and evaluator == self.dipole_evaluator
+                ) or evaluator is self.dipole_evaluator:
+                    self.dipole_derivatives = dipole_derivatives
+        o = 0 if include_constant_term else 1
+        if dipole_derivatives is None:
+            return dipole_derivatives
         if order is None:
-            return dipole_derivatives[1:]
+            return dipole_derivatives[o:]
         else:
-            return dipole_derivatives[1:order+1]
+            return dipole_derivatives[o:order+1]
     def get_internal_dipole_derivatives(self, order=None, reembed=True, strip_embedding=True):
         derivs = self.get_cartesian_dipole_derivatives(order=order)
         if order is None:
@@ -456,7 +473,7 @@ class Molecule(AbstractMolecule):
         if order is None or potential_derivatives is None:
             return potential_derivatives
         else:
-            return potential_derivatives[:order-1]
+            return potential_derivatives[:order]
     def get_internal_potential_derivatives(self, order=None, reembed=True, strip_embedding=True, zero_gradient=False):
         derivs = self.get_cartesian_potential_derivatives(order)
         if derivs is None: return None
@@ -889,119 +906,22 @@ class Molecule(AbstractMolecule):
         if smol: expansion = expansion[0]
         return expansion
 
-    @classmethod
-    def get_potential_params(cls, spec, re, g, local_derivs,
-                             quartic_potential_cutoff=5e-2,
-                             poly_expansion_order=2,
-                             **rem_opts):
-        # if (use_morse and len(local_derivs) > 3) or (use_morse is None and len(spec) == 2):
-        f2, f3, f4 = [local_derivs[i+1] if i < len(local_derivs) else 0 for i in range(3)]
-        if np.abs(f3 / f4) < quartic_potential_cutoff:
-            method = 'poly'
-            sg = np.sqrt(g)
-            params = [
-                sg * np.sign(d) * np.power(np.abs(d) / math.factorial(k+2), 1/(k+2))  # * (.25 ** (k + 2))
-                for k, d in enumerate(local_derivs[1:4])
-            ][:poly_expansion_order-1]
-        else:
-            method = 'morse'
-            sg = np.sqrt(g)
-            w = sg * np.sqrt(f2)
-            wx = -((g / (4 * w)) ** 2) * (f4 - 5 / 3 * f3 / f2)
-            params = [w, wx]
-            if len(local_derivs) > 4:
-                params = params + [
-                    sg * np.sign(d) * np.power(np.abs(d)/ math.factorial(k+4), 1 / (k + 4)) #* (.25 ** (k + 2))
-                    for k, d in enumerate(local_derivs[4:])
-                ]
-
-        return method, (params, g, re), rem_opts
-
-    @classmethod
-    def get_coordinate_potential(cls, spec, method, param_data, **opts):
-        from McUtils.Zachary import CoordinateFunction
-        if method == 'morse':
-            (w, wx), g, re = param_data
-            return CoordinateFunction.morse(
-                spec,
-                re=re,
-                w=w,
-                wx=wx,
-                g=g
-            )
-        elif method == 'poly':
-            mw_coeffs, g, re = param_data
-            sg = np.sqrt(g)
-            coeffs = [0] + [(c/sg)**(k+2) for k,c in enumerate(mw_coeffs)]
-            return CoordinateFunction.polynomial(
-                spec,
-                center=re,
-                coeffs=coeffs,
-                ref=0
-            )
-        else:
-            return ValueError(f"don't know what to do with potential type {method}")
-
-
-    def get_anharmonic_parameters(self,
-                                  which,
-                                  evaluator=None,
-                                  energy_expansion=None,
-                                  params_handler=None,
-                                  **opts
-                                  ):
-        if params_handler is None:
-            params_handler = self.get_potential_params
-
-        if nput.is_numeric(which[0]):
-            which = [which]
-        r, tf = nput.internal_coordinate_tensors(self.coords, which,
-                                                 return_inverse=True,
-                                                 masses=self.atomic_masses,
-                                                 order=4)
-        if energy_expansion is None:
-            energy_expansion = self.get_cartesian_potential_derivatives(evaluator=evaluator, order=4)
-        derivs = nput.tensor_reexpand(tf, energy_expansion, order=4)
-
-        bond_params = []
-        b = np.diag(np.repeat(1/np.sqrt(self.atomic_masses), 3)) @ r[1]
-        G = b.T @ b
-        for n,spec in enumerate(which):
-            diag_derivs = []
-            for k,d in enumerate(derivs):
-                idx = (n,)*(k+1)
-                diag_derivs.append(d[idx])
-            bond_params.append(
-                params_handler(spec, r[0][n], G[n, n], diag_derivs, **opts)
-            )
-
-        return bond_params
-
+    def get_reduced_potential_generator(self):
+        return ReducedDimensionalPotentialHandler(self)
     def get_1d_potentials(self,
-                          which,
+                          spec,
                           evaluator=None,
                           energy_expansion=None,
-                          params_handler=None,
-                          coordinate_potential_handler=None,
-                          **opts
-                          ):
-        anh_params = self.get_anharmonic_parameters(which,
-                                                    evaluator=evaluator,
-                                                    energy_expansion=energy_expansion,
-                                                    params_handler=params_handler,
-                                                    **opts
-                                                    )
-        if coordinate_potential_handler is None:
-            coordinate_potential_handler = self.get_coordinate_potential
-        pots = []
-        for spec,params in zip(which, anh_params):
-            method, param_data, props = params
-            pots.append(
-                coordinate_potential_handler(spec, method, param_data, **props)
-            )
-
-        return pots
-
+                          potential_params=None,
+                          **opts):
+        pot_gen = self.get_reduced_potential_generator()
+        return pot_gen.get_1d_potentials(
+            spec,
+            evaluator=evaluator,
+            energy_expansion=energy_expansion,
+            potential_params=potential_params,
+            **opts
+        )
 
     def evaluate(self,
                  func,
@@ -1348,10 +1268,12 @@ class Molecule(AbstractMolecule):
                    timestep=.5,
                    seed=None,
                    total_energy=None,
+                   total_energy_scaling=None,
                    trajectories=1,
                    sampled_modes=None,
                    initial_energies=None,
                    initial_displacements=None,
+                   initial_mode_directions=None,
                    displaced_coords=None,
                    track_kinetic_energy=False,
                    track_velocities=False,
@@ -1378,11 +1300,24 @@ class Molecule(AbstractMolecule):
         else:
             new = self.modify(potential_derivatives=potential_function(self.coords, order=2)[1:])
 
+            if initial_mode_directions is not None:
+                if initial_energies is not None:
+                    raise ValueError("definitions for both `initial_energies` and `initial_mode_directions`")
+                freqs = new.normal_modes.modes.freqs
+                if sampled_modes is None:
+                    sampled_modes = list(range(freqs.shape[0]))
+
+                initial_energies = np.zeros((len(initial_mode_directions), freqs.shape[0]))
+                subdirs = np.asanyarray(initial_mode_directions) * freqs[sampled_modes,][np.newaxis]
+                initial_energies[:, sampled_modes] = subdirs
+
             if initial_energies is None:
                 freqs = new.normal_modes.modes.freqs
 
                 if total_energy is None:
-                    total_energy = np.sum(freqs) / 2
+                    if total_energy_scaling is None:
+                        total_energy_scaling = 1/2
+                    total_energy = np.sum(freqs) * total_energy_scaling
 
                 if seed is not None:
                     np.random.seed(seed)
@@ -1421,18 +1356,52 @@ class Molecule(AbstractMolecule):
                   states=2,
                   order=2,
                   use_internals=None,
+                  potential_derivatives=None,
+                  energy_evaluator=None,
+                  dipole_derivatives=None,
+                  dipole_evaluator=None,
+                  runner='matrix',
+                  modes=None,
                   **opts
                   ):
-        from ..VPT2 import VPTRunner
+        from ..VPT2 import VPTRunner, AnalyticVPTRunner
+        if dev.str_is(runner, 'matrix'):
+            runner = VPTRunner
+        elif not hasattr(runner, 'construct'):
+            runner = AnalyticVPTRunner
+
+        if potential_derivatives is None:
+            potential_derivatives = self.get_cartesian_potential_derivatives(
+                evaluator=energy_evaluator,
+                order=order+2
+            )
+        if dipole_derivatives is None:
+            dipole_derivatives = self.get_cartesian_dipole_derivatives(
+                evaluator=dipole_evaluator,
+                order=order+1,
+                include_constant_term=True
+            )
+
+        if modes is None and potential_derivatives[2].shape[0] != (3*len(self._ats)):
+            modes = self.normal_modes.modes.basis
+
 
         if use_internals or use_internals is None:
-            return VPTRunner.construct(self, states, order=order, **opts)
+            return runner.construct(self,
+                                    states,
+                                    order=order,
+                                    potential_derivatives=potential_derivatives,
+                                    dipole_derivatives=dipole_derivatives,
+                                    modes=modes,
+                                    **opts
+                                    )
         else:
-            return VPTRunner.construct(
+            return runner.construct(
                 [self.atoms, self.coords],
                 states,
-                potential_derivatives=self.potential_derivatives,
-                modes=self.normal_modes.modes.basis,
+                potential_derivatives=potential_derivatives,
+                dipole_derivatives=dipole_derivatives,
+                modes=modes,
                 order=order,
                 **opts
             )
@@ -1928,10 +1897,8 @@ class Molecule(AbstractMolecule):
                 raise ValueError(f"can't infer molecule spec from '''{string}'''")
 
     @classmethod
-    def from_string(cls, string, fmt=None, **opts):
-        if fmt is None:
-            fmt = cls._infer_str_format(string)
-        format_dispatcher = {
+    def get_string_format_dispatchers(cls):
+        return {
             "smi": cls._from_smiles,
             "name": cls._from_name,
             "mol": cls._from_molblock,
@@ -1939,6 +1906,11 @@ class Molecule(AbstractMolecule):
             "xyz": cls._from_xyz,
             "zmat": cls.from_zmat
         }
+    @classmethod
+    def from_string(cls, string, fmt=None, **opts):
+        if fmt is None:
+            fmt = cls._infer_str_format(string)
+        format_dispatcher = cls.get_string_format_dispatchers()
 
         if fmt in format_dispatcher:
             return format_dispatcher[fmt](string, **opts)
@@ -1949,6 +1921,16 @@ class Molecule(AbstractMolecule):
             new.source_file = None # don't want to keep this lying around...
         return new
 
+    @classmethod
+    def get_file_format_dispatchers(cls):
+        return {
+            "log": cls._from_log_file,
+            "fchk": cls._from_fchk_file,
+            "smi": cls._from_smiles,
+            "mol": cls._from_molblock,
+            "sdf": cls._from_sdf,
+            "xyz": cls._from_xyz_file
+        }
     @classmethod
     def from_file(cls, file, mode=None, **opts):
         """In general we'll delegate to pybel except for like Fchk and Log files
@@ -1961,14 +1943,7 @@ class Molecule(AbstractMolecule):
         import os
 
         opts['source_file'] = file
-        format_dispatcher = {
-            "log": cls._from_log_file,
-            "fchk": cls._from_fchk_file,
-            "smi": cls._from_smiles,
-            "mol":cls._from_molblock,
-            "sdf":cls._from_sdf,
-            "xyz": cls._from_xyz_file
-        }
+        format_dispatcher = cls.get_file_format_dispatchers()
 
         if mode == None:
             path, ext = os.path.splitext(file)
@@ -1995,7 +1970,7 @@ class Molecule(AbstractMolecule):
         if all(hasattr(spec, k) for k in ['atoms', 'coords', 'bonds', 'meta']):
             return 'rdmol', {}
         elif isinstance(spec, str):
-            if os.path.isfile(spec):
+            if os.path.isfile(spec) or any(spec.endswith('.'+fmt) for fmt in cls.get_file_format_dispatchers()):
                 return 'file', {}
             else:
                 return 'str', {}

@@ -2575,7 +2575,7 @@ class DipoleTerms(ExpansionTerms):
         if self.mixed_derivs is None:
             self.mixed_derivs = mixed_derivs
         if dipole_derivatives is None:
-            dipole_derivatives = molecule.dipole_surface.derivatives
+            dipole_derivatives = molecule.dipole_derivatives
         self.derivs = self._canonicalize_derivs(self.freqs, self.masses, dipole_derivatives, self.full_mode_sel)
 
     def _canonicalize_derivs(self, freqs, masses, derivs, full_mode_sel):
@@ -2590,7 +2590,7 @@ class DipoleTerms(ExpansionTerms):
                         or (isinstance(d, np.ndarray) and d.ndim > 0 and d.shape[-1] == 3)
                         for d in derivs
                     )
-        )
+                )
 
         ):
             # need to effectively transpose things...
@@ -2602,6 +2602,18 @@ class DipoleTerms(ExpansionTerms):
                 np.moveaxis(np.array(x), 0, -1)
                 for x in tp_derivs
             ]
+
+        _ = derivs[:1]
+        for n, w in enumerate(derivs[1:]):
+            w = np.asanyarray(w)
+            if w.shape == (3,):
+                if np.allclose(w, [0, 0, 0]):
+                    xn = 3*len(masses)
+                    w = np.zeros((xn,) * (n + 1) + (3,), dtype=float)
+                else:
+                    raise ValueError("shape mismatch for dipole derivs")
+            _.append(w)
+        derivs = _
 
         if self._check_mode_terms(derivs):
             return derivs
@@ -2648,7 +2660,7 @@ class DipoleTerms(ExpansionTerms):
                     and grad.shape != (internals_n, 3)
             ):
                 raise PerturbationTheoryException(
-                    "{0}.{1}: dimension of dipole derivative array ({2[0]}) is not {3[0]} or {4[0]}".format(
+                    "{0}.{1}: dimension of dipole derivative array ({2[0]}) is not {3} or {4}".format(
                         type(self).__name__,
                         "_canonicalize_derivs",
                         grad.shape,
