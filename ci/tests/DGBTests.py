@@ -2839,7 +2839,7 @@ class DGBTests(TestCase):
             internals = TensorDerivativeConverter(conv, [d.squeeze() for d in mbpol_deriv[1:]]).convert()
             g = (1 / mol.atomic_masses[0] + 1 / mol.atomic_masses[1])
             w = np.sqrt(internals[1][0, 0] * g)
-            wx = (g/(4*w)) ** 2 * (internals[3][0, 0, 0, 0] - 5 / 3 * internals[2][0, 0, 0]/internals[1][0, 0])
+            wx = (g/(4*w)) ** 2 * (internals[3][0, 0, 0, 0] - 5 / 3 * (internals[2][0, 0, 0]**2)/internals[1][0, 0])
             raise Exception(
                 w * UnitsData.hartrees_to_wavenumbers, # 3891.634745263701
                 wx * UnitsData.hartrees_to_wavenumbers # 185.31310314514627
@@ -3673,7 +3673,7 @@ class DGBTests(TestCase):
                 g = (1 / mol.atomic_masses[i] + 1 / mol.atomic_masses[j])
                 w = np.sqrt(internals[1][k, k] * g)
                 wx = (g / (4 * w)) ** 2 * (
-                        internals[3][k, k, k, k] - 5 / 3 * internals[2][k, k, k] / internals[1][k, k]
+                        internals[3][k, k, k, k] - 5 / 3 * (internals[2][k, k, k]**2) / internals[1][k, k]
                 )
                 print((i,j), w / self.w2h, wx / self.w2h)
             raise Exception(...)
@@ -3893,7 +3893,7 @@ class DGBTests(TestCase):
         plt.Graphics().show()
 
     default_OH_freq = 3869.47
-    default_OH_anh = -84
+    default_OH_anh = 84
     default_HOH_freq = 1600
     @classmethod
     def setup_Water(cls,
@@ -3949,12 +3949,12 @@ class DGBTests(TestCase):
                 if wx is None:
                     potential_params[(0, 1)] = {'w_coeffs': [w * h2w]}
                 else:
-                    potential_params[(0, 1)] = {'w': w * h2w, 'wx': -wx * h2w}
+                    potential_params[(0, 1)] = {'w': w * h2w, 'wx': wx * h2w}
             if w2 is not None:
                 if wx2 is None:
                     potential_params[(0, 2)] = {'w_coeffs': [w2 * h2w]}
                 else:
-                    potential_params[(0, 2)] = {'w': w2 * h2w, 'wx': -wx2 * h2w}
+                    potential_params[(0, 2)] = {'w': w2 * h2w, 'wx': wx2 * h2w}
             if w_bend is not None:
                 potential_params[(1, 0, 2)] = {'w_coeffs': [w_bend * h2w]}
 
@@ -4256,50 +4256,16 @@ class DGBTests(TestCase):
     def test_NewRunnerStretches(self):
         water = self.setup_Water(stretch_model=True)
 
-        # runner, _ = water.setup_VPT(states=1)
-        # runner.print_tables()
-
-        # wat = oh.get_1d_potentials([[0, 1]])
-        # scan = np.linspace(1, 4, 50)
-        # _, vals = wat[0](scan[:, np.newaxis], preconverted=True)
-        # plt.Plot(scan, vals[0]).show()
-        # return
-
         """
 State     Frequency    Intensity       Frequency    Intensity
   0 1    3896.87027     67.02048      3726.72078     65.47440
   1 0    3841.87432      6.66771      3675.96178      6.52096
   """
 
-        """
-                sim = model.setup_AIMD(
-            initial_energies=np.array([
-                [ symm,  asymm],
-                [-symm,  asymm],
-                [ 0,    -asymm],
-                [-symm,      0],
-                # [2000 * self.w2h, 0],
-                # [0, 2000 * self.w2h],
-                # [-2000 * self.w2h, 0],
-                # [0, -2000 * self.w2h],
-                # [-15000 * self.w2h, -15000 * self.w2h],
-                # [15000 * self.w2h, -15000 * self.w2h],
-                # [10000 * self.w2h, 0],
-                # [0, 10000 * self.w2h],
-                # [-10000 * self.w2h, 0],
-                # [0, -10000 * self.w2h]
-            ])*2,
-            timestep=15,
-            track_velocities=True
-        )
-        sim.propagate(25)
-        coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
-        momenta = 1872 * velocities * mol.masses[np.newaxis, :, np.newaxis]"""
-
         dgb, res = DGBRunner.run_simple(
             water,
             plot_wavefunctions=3,
-            use_interpolation=False,
+            use_interpolation=True,
             # total_energy_scaling=2,
             # trajectories=5,
             initial_mode_directions=[
@@ -4310,10 +4276,10 @@ State     Frequency    Intensity       Frequency    Intensity
             ],
             timestep=15,
             propagation_time=25,
-            # pairwise_potential_functions={
-            #     (0, 1): 'auto',
-            #     (0, 2): 'auto'
-            # }
+            pairwise_potential_functions={
+                (0, 1): 'auto',
+                (0, 2): 'auto'
+            }
         )
 
         (wnfs, plots), spec = res

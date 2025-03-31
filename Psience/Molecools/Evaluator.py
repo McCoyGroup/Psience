@@ -1887,7 +1887,7 @@ class ReducedDimensionalPotentialHandler:
             opts['g'] = g
             sg = np.sqrt(g)
             w = sg * np.sqrt(f2)
-            wx = -((g / (4 * w)) ** 2) * (f4 - 5 / 3 * f3 / f2)
+            wx = -((g / (4 * w)) ** 2) * (f4 - 5 / 3 * (f3**2) / f2)
             params = [w, wx]
             # if len(local_derivs) > 4:
             #     params = params + [

@@ -177,12 +177,14 @@ class Molecule(AbstractMolecule):
                     dipole_surface is None
                     and dipole_derivatives is None
                     and coords is None
+                    and dipole_evaluator is None
             ) else dipole_surface,
             dipole_derivatives=dipole_derivatives,
             potential_surface=self.potential_surface if (
                     potential_surface is None
                     and potential_derivatives is None
                     and coords is None
+                    and energy_evaluator is None
             ) else potential_surface,
             potential_derivatives=potential_derivatives
         )
