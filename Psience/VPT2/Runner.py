@@ -133,6 +133,17 @@ class VPTSystem:
         elif potential_function is not None:
             self.get_potential_derivatives(potential_function, order=order)
         if dipole_derivatives is not None:
+            _ = dipole_derivatives[:1]
+            for n,w in enumerate(dipole_derivatives[1:]):
+                w = np.asanyarray(w)
+                if w.shape == (3,):
+                    if np.allclose(w, [0, 0, 0]):
+                        pd = self.mol.potential_derivatives
+                        w = np.zeros((pd[0].shape[0],)*(n+1)+(3,), dtype=float)
+                    else:
+                        raise ValueError("shape mismatch for dipole derivs")
+                _.append(w)
+            dipole_derivatives = _
             self.mol.dipole_derivatives = dipole_derivatives
 
         if local_modes is not None:

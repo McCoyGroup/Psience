@@ -688,7 +688,7 @@ class VPT2Tests(TestCase):
             ]
         )
 
-    @debugTest
+    @validationTest
     def test_AnalyticOCHHOperators(self):
         """
         Run OCHH, add in the single degeneracy by hand
@@ -923,10 +923,10 @@ class VPT2Tests(TestCase):
             #     state(10), state(11)
             # ],
             1,
-            expressions_file="exprs.hdf5",
-            degeneracy_specs=degs,
+            # expressions_file="exprs.hdf5",
+            degeneracy_specs=None,
             logger=True,
-            zero_cutoff=1e-12
+            # zero_cutoff=1e-12
         )
 
     @validationTest

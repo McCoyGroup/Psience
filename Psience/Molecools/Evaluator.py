@@ -670,7 +670,8 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
         return derivs
 
     def evaluate_term(self, coords, order, **opts):
-        return self.property_function(self.embed_coords(coords), order=order, **opts)
+        emb = self.embed_coords(coords)
+        return self.property_function(emb, order=order, **opts)
 
     def evaluate(self,
                  coords,
@@ -1529,7 +1530,7 @@ class PotentialExpansionEnergyEvaluator(PotentialFunctionEnergyEvaluator):
                  ):
         return super().from_mol(
             mol,
-            property_function=expansion if property_function is None else property_function
+            property_function=expansion if property_function is None else property_function,
             **opts
         )
 
@@ -1695,6 +1696,20 @@ class DipoleExpansionEnergyEvaluator(DipoleFunctionDipoleEvaluator):
         for i in range(3):
             deriv[:, i, i] = dip_contribs[:, i]
         return [np.sum(dip_contribs, axis=0), deriv.reshape(-1, 3)]
+
+    @classmethod
+    def from_mol(cls,
+                 mol,
+                 property_function=None,
+                 expansion=None,
+                 **opts
+                 ):
+        return super().from_mol(
+            mol,
+            property_function=expansion
+            if property_function is None else property_function,
+            **opts
+        )
     @classmethod
     def get_property_function(cls, expansion, mol, transforms=None, **ignored):
         if not callable(expansion):
@@ -1881,9 +1896,9 @@ class ReducedDimensionalPotentialHandler:
             #     ]
             opts['w'] = w
             opts['wx'] = wx
+        opts['re'] = re
 
-
-        return optsrem_opts
+        return opts
 
     @classmethod
     def get_morse_potential(cls, spec, *, w, wx, g, re):
@@ -1898,7 +1913,7 @@ class ReducedDimensionalPotentialHandler:
     def get_poly_potential(cls, spec, *, w_coeffs=None, coeffs=None, g, re):
         if w_coeffs is not None:
             sg = np.sqrt(g)
-            coeffs = [0] + [(c / sg) ** (k + 2) for k, c in enumerate(ww_coeffs)]
+            coeffs = [0] + [(c / sg) ** (k + 2) for k, c in enumerate(w_coeffs)]
         return CoordinateFunction.polynomial(
             spec,
             center=re,
@@ -1934,7 +1949,6 @@ class ReducedDimensionalPotentialHandler:
         return cls._pot_dispatch
 
     def get_g(self, which, return_tf=True, order=1):
-
         r, tf = nput.internal_coordinate_tensors(self.mol.coords, which,
                                                  return_inverse=True,
                                                  masses=self.mol.atomic_masses,
@@ -2053,7 +2067,7 @@ class ReducedDimensionalPotentialHandler:
         for spec, params in zip(which, potential_params):
             handler, props = coordinate_potential_handler.resolve(params)
             pots.append(
-                handler(spec, **params)
+                handler(spec, **props)
             )
 
         return pots

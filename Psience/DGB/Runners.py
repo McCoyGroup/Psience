@@ -122,7 +122,15 @@ class DGBRunner:
                 pots = mol.get_1d_potentials(auto_keys)
                 pairwise_potential_functions = pairwise_potential_functions.copy()
                 for k,p in zip(auto_keys, pots):
-                    pairwise_potential_functions[k] = p
+                    def ppf(c, deriv_order=None, _p=p):
+                        ord = 0 if deriv_order is None else deriv_order
+                        _, conv = _p(c.reshape(-1, 1), preconverted=True, order=ord)
+                        conv = [d.reshape(c.shape + d.shape[1:]) for d in conv]
+                        # print(deriv_order, c.shape, [d.shape for d in conv])
+                        if deriv_order is None:
+                            conv = conv[0]
+                        return conv
+                    pairwise_potential_functions[k] = ppf
 
         dipole = mol.get_dipole_function()
         def dipole_data(coords, deriv_order=None):
@@ -293,6 +301,7 @@ class DGBRunner:
                  sampled_modes=None,
                  initial_energies=None,
                  initial_displacements=None,
+                 initial_mode_directions=None,
                  displaced_coords=None,
                  track_velocities=True,
                  **aimd_options
@@ -411,6 +420,7 @@ class DGBRunner:
                    total_energy_scaling=None,
                    sampled_modes=None,
                    initial_energies=None,
+                   initial_mode_directions=None,
                    initial_displacements=None,
                    displaced_coords=None,
                    **opts
@@ -434,6 +444,7 @@ class DGBRunner:
             total_energy_scaling=total_energy_scaling,
             sampled_modes=sampled_modes,
             initial_energies=initial_energies,
+            initial_mode_directions=initial_mode_directions,
             initial_displacements=initial_displacements,
             displaced_coords=displaced_coords
         )
