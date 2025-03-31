@@ -303,7 +303,7 @@ class DGBTests(TestCase):
             internals=[
                 [0, -1, -1, -1],
                 [1,  0, -1, -1],
-                [2,  0, 1, -1],
+                [2,  0,  1, -1],
             ]
         )
 
@@ -2206,8 +2206,6 @@ class DGBTests(TestCase):
             ERROR: test_ModelPotentialAIMD (tests.DGBTests.DGBTests)
             ----------------------------------------------------------------------
             Traceback (most recent call last):
-              File "/Users/Mark/Documents/UW/Research/Development/Peeves/Peeves/TestUtils.py", line 501, in Debug
-                return fn(*args, **kwargs)
               File "/Users/Mark/Documents/UW/Research/Development/Psience/ci/tests/DGBTests.py", line 1040, in test_ModelPotentialAIMD
                 raise Exception(po_data.wavefunctions.frequencies()*UnitsData.hartrees_to_wavenumbers)
             Exception: (
@@ -3893,6 +3891,140 @@ class DGBTests(TestCase):
 
         plt.Graphics().show()
 
+    default_OH_freq = 3869.47
+    default_OH_anh = -84
+    default_HOH_freq = 1600
+    @classmethod
+    def setup_Water(cls,
+                    use_mbpol=False,
+                    atoms=None,
+                    oh_model=False,
+                    stretch_model=False,
+                    bend_model=False,
+                    full_model=True,
+                    w=None,
+                    wx=None,
+                    w2=None,
+                    wx2=None,
+                    w_bend=None,
+                    freq_units='Wavenumbers',
+                    potential_params=None,
+                    reoptimize=False):
+        mol = Molecule.from_file(
+            TestManager.test_data('water_freq.fchk')
+        )
+        if atoms is not None:
+            mol = mol.modify(atoms=atoms).get_embedded_molecule()
+
+        h2w = UnitsData.convert(freq_units, 'Hartrees')
+        base_params = potential_params
+        potential_params = {} if potential_params is None else potential_params
+        if oh_model:
+            mol = mol.modify(
+                atoms=mol.atoms[:2],
+                coords=mol.coords[:2],
+                dipole_derivatives=[
+                    mol.dipole_derivatives[0],
+                    mol.dipole_derivatives[1][:6, :]
+                ]
+            ).get_embedded_molecule(load_properties=False)
+            if w is None: w = cls.default_OH_freq
+            if wx is None: wx = cls.default_OH_anh
+        elif stretch_model:
+            if w is None: w = cls.default_OH_freq
+            if wx is None: wx = cls.default_OH_anh
+            if w2 is None: w2 = cls.default_OH_freq
+            if wx2 is None: wx2 = cls.default_OH_anh
+        elif full_model:
+            if w is None: w = cls.default_OH_freq
+            if wx is None: wx = cls.default_OH_anh
+            if w2 is None: w2 = cls.default_OH_freq
+            if wx2 is None: wx2 = cls.default_OH_anh
+            if w_bend is None: w_bend = cls.default_OH_freq
+
+        if not use_mbpol and base_params is None:
+            if w is not None:
+                if wx is None:
+                    potential_params[(0, 1)] = {'w_coeffs': [w * h2w]}
+                else:
+                    potential_params[(0, 1)] = {'w': w * h2w, 'wx': -wx * h2w}
+            if w2 is not None:
+                if wx2 is None:
+                    potential_params[(0, 2)] = {'w_coeffs': [w2 * h2w]}
+                else:
+                    potential_params[(0, 2)] = {'w': w2 * h2w, 'wx': -wx2 * h2w}
+            if w_bend is not None:
+                potential_params[(1, 0, 2)] = {'w_coeffs': [w_bend * h2w]}
+
+        if len(potential_params) > 0:
+            pot = mol.get_1d_potentials(potential_params)
+            base_pot = sum(pot)
+            def potential(coords, order=None, base_pot=base_pot):
+                none_ord = order is None
+                if none_ord: order=0
+                pot_exp = base_pot(coords, order=order)[1]
+                if none_ord:
+                    pot_exp = pot_exp[0]
+                return pot_exp
+            mol = mol.modify(energy_evaluator={
+                'potential_function':potential,
+                'analytic_derivative_order':4,
+                'batched_orders':True
+            })
+        else:
+            loader = ModuleLoader(TestManager.current_manager().test_data_dir)
+            mbpol = loader.load("LegacyMBPol").MBPol
+
+            def potential(coords, order=None, chunk_size=int(5e5)):
+                coords = coords.reshape(-1, 9)
+
+                just_vals = order is None
+                if just_vals: order = 0
+
+                chunks = [[] for _ in range(order + 1)]
+                num_chunks = int(len(coords) / chunk_size) + 1
+
+                for coords in np.array_split(coords, num_chunks):
+                    # interp.logger.log_print("evaluating energies")
+                    if order == 0:
+                        energies = mbpol.get_pot(coords=coords.reshape(-1, 3, 3), nwaters=1,
+                                                 threading_vars=['energy', 'coords'], threading_mode='omp')
+                        chunks[0].append(energies)
+                    else:
+                        grad_vals = mbpol.get_pot_grad(
+                            nwaters=1, coords=coords.reshape(-1, 3, 3), threading_vars=['energy', 'grad', 'coords'],
+                            threading_mode='omp'
+                        )
+                        chunks[0].append(grad_vals['energies'])
+                        chunks[1].append(grad_vals['grad'])
+
+                for i, c in enumerate(chunks):
+                    chunks[i] = np.concatenate(c, axis=0)
+
+                if just_vals:
+                    chunks = chunks[0]
+
+                return chunks
+
+            mol = mol.modify(
+                coords=np.array([
+                    [0.00000000e+00, 6.56215885e-02, 0.00000000e+00],
+                    [7.57391014e-01, -5.20731105e-01, 0.00000000e+00],
+                    [-7.57391014e-01, -5.20731105e-01, 0.00000000e+00]
+                ]) * UnitsData.convert("Angstroms", "BohrRadius"),
+                energy_evaluator={
+                    'potential_function': potential,
+                    'analytic_derivative_order': 4,
+                    'distance_units': 'Angstroms',
+                    'energy_units': 'Kilojoules/Mole',
+                    'batched_orders': True
+                }
+            ).get_embedded_molecule(load_properties=False)
+            if reoptimize:
+                mol = mol.optimize()
+
+
+        return mol
     @classmethod
     def setup_OCHH(cls, optimize=True):
         loader = ModuleLoader(os.path.expanduser("~/Documents/Postdoc/Projects/DGB"))
@@ -3950,10 +4082,16 @@ class DGBTests(TestCase):
 
 
         return ochh
-    @debugTest
+
+    @validationTest
     def test_NewRunnerOCHH(self):
 
         ochh = self.setup_OCHH(optimize=True)
+        dgb, res = DGBRunner.run_simple(
+            ochh
+        )
+
+        return
 
         int_ochh = ochh.modify(internals=[
                     [0, -1, -1, -1],
@@ -4073,7 +4211,21 @@ class DGBTests(TestCase):
             ochh
         )
 
+    @debugTest
+    def test_NewRunnerOH(self):
 
+        oh = self.setup_Water(oh_model=True)
+        dgb, res = DGBRunner.run_simple(
+            oh,
+            plot_wavefunctions=True,
+            use_interpolation=False,
+            total_energy_scaling=1.5
+        )
+
+        (wnfs, plots), spec = res
+        spec.plot().show()
+
+        return
 
 
     @inactiveTest

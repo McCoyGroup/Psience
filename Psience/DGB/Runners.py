@@ -1,10 +1,12 @@
 
 import numpy as np, os
 from McUtils.Data import AtomData, UnitsData
+import McUtils.Devutils as dev
 import McUtils.Plots as plt
 import McUtils.Numputils as nput
 
 from ..Molecools import Molecule
+from ..AIMD import AIMDSimulator
 
 from .DGB import DGB
 from .Coordinates import DGBCoords, DGBCartesians
@@ -22,6 +24,27 @@ class DGBRunner:
     # def prep_pairwise_functions(cls, coord, ...):
 
     @classmethod
+    def prep_interpolation(cls, nms, coords, potential_function, symmetrizations=None):
+        if symmetrizations is not None:
+            emb_coords = nms.embed_coords(coords)
+            embs = [coords]
+            for symm in symmetrizations:
+                if nput.is_numeric(symm) or all(s >= 0 for s in symm):
+                    s = [1] * len(nms.freqs)
+                    for i in symm: s[i] = -1
+                    symm = s
+                new_emb = emb_coords * np.array(symm)[np.newaxis, :]
+                new_coords = nms.unembed_coords(new_emb)
+                embs.append(new_coords)
+            interp_coords = np.concatenate(embs, axis=0)
+        else:
+            interp_coords = coords
+        return {
+            'centers': interp_coords,
+            'values': potential_function(interp_coords, order=2)
+        }
+
+    @classmethod
     def construct_from_mol_simulation(cls,
                                       sim, mol,
                                       *,
@@ -36,8 +59,10 @@ class DGBRunner:
                                       symmetrizations=None,
                                       momentum_scaling=None,
                                       skip_initial_configurations=True,
+                                      alphas='virial',
                                       modes='normal',
                                       transformations='diag',
+                                      pairwise_potential_functions=None,
                                       logger=True,
                                       **opts
                                       ):
@@ -48,7 +73,7 @@ class DGBRunner:
             coords = coords[nconf - 1:]
             velocities = velocities[nconf - 1:]
         if use_momenta:
-            momenta = velocities * mol.masses[np.newaxis, :, np.newaxis]
+            momenta = velocities * sim.masses[np.newaxis, :, np.newaxis]
             if momentum_scaling is not None:
                 momenta = momentum_scaling * momenta
         else:
@@ -67,26 +92,17 @@ class DGBRunner:
         nms = mol.get_normal_modes()
 
         if use_interpolation:
-            if symmetrizations is not None:
-                emb_coords = nms.embed_coords(coords)
-                embs = [coords]
-                for symm in symmetrizations:
-                    if nput.is_numeric(symm) or all(s >= 0 for s in symm):
-                        s = [1] * len(nms.freqs)
-                        for i in symm: s[i] = -1
-                        symm = s
-                    new_emb = emb_coords * np.array(symm)[np.newaxis, :]
-                    new_coords = nms.unembed_coords(new_emb)
-                    embs.append(new_coords)
-                interp_coords = np.concatenate(embs, axis=0)
-            else:
-                interp_coords = coords
-            potential_data = {
-                'centers': interp_coords,
-                'values': mol.calculate_energy(interp_coords, order=2)
-            }
+            potential_data = cls.prep_interpolation(
+                nms,
+                coords,
+                mol.calculate_energy,
+                symmetrizations=symmetrizations
+            )
         else:
-            potential_data = potential_function
+            def pot(coords, deriv_order=None):
+                exp = potential_function(coords, order=deriv_order)
+                return exp
+            potential_data = pot
 
         if use_quadrature and use_interpolation:
             raise ValueError("don't use interpolation with quadrature...")
@@ -97,14 +113,32 @@ class DGBRunner:
         else:
             axes = None
 
+        if pairwise_potential_functions is not None:
+            auto_keys = [
+                k for k,v in pairwise_potential_functions.items()
+                if dev.str_is(v, 'auto')
+            ]
+            if len(auto_keys) > 0:
+                pots = mol.get_1d_potentials(auto_keys)
+                pairwise_potential_functions = pairwise_potential_functions.copy()
+                for k,p in zip(auto_keys, pots):
+                    pairwise_potential_functions[k] = p
+
+        dipole = mol.get_dipole_function()
+        def dipole_data(coords, deriv_order=None):
+            exp = dipole(coords, order=deriv_order)
+            return exp
         return DGB.construct(
             coords,
             **dict(
                 dict(
                     potential_function=potential_data,
-                    dipole_function=mol.get_dipole_function(),
+                    dipole_function=dipole_data,
                     modes=None if use_cartesians else modes,
                     cartesians=axes
+                    , alphas=alphas
+                    , masses=mol.atomic_masses
+                    , pairwise_potential_functions=pairwise_potential_functions
                     , quadrature_degree=quadrature_degree
                     , expansion_degree=expansion_degree if not use_quadrature else None
                     , transformations=transformations
@@ -208,7 +242,7 @@ class DGBRunner:
                              timestep=50,
                              use_cartesians=False,
                              use_momenta=False,
-                             use_pairwise=True,
+                             pairwise_potential_functions=None,
                              use_interpolation=True,
                              use_quadrature=False,
                              symmetrizations=None,
@@ -230,7 +264,7 @@ class DGBRunner:
             sim, model,
             use_cartesians=use_cartesians,
             use_momenta=use_momenta,
-            use_pairwise=use_pairwise,
+            pairwise_potential_functions=pairwise_potential_functions,
             use_interpolation=use_interpolation,
             use_quadrature=use_quadrature,
             momentum_scaling=momentum_scaling,
@@ -248,11 +282,18 @@ class DGBRunner:
                  timestep=50,
                  use_cartesians=False,
                  use_momenta=False,
-                 use_pairwise=True,
+                 pairwise_potential_functions=None,
                  use_interpolation=True,
                  use_quadrature=False,
                  symmetrizations=None,
                  momentum_scaling=None,
+                 trajectory_seed=None,
+                 total_energy=None,
+                 total_energy_scaling=None,
+                 sampled_modes=None,
+                 initial_energies=None,
+                 initial_displacements=None,
+                 displaced_coords=None,
                  track_velocities=True,
                  **aimd_options
                  ):
@@ -264,6 +305,13 @@ class DGBRunner:
                 trajectories=trajectories,
                 timestep=timestep,
                 track_velocities=True,
+                seed=trajectory_seed,
+                total_energy=total_energy,
+                total_energy_scaling=total_energy_scaling,
+                sampled_modes=sampled_modes,
+                initial_energies=initial_energies,
+                initial_displacements=initial_displacements,
+                displaced_coords=displaced_coords,
                 **aimd_options
             )
             sim.propagate(propagation_time)
@@ -273,7 +321,7 @@ class DGBRunner:
             potential_function=None,
             use_cartesians=use_cartesians,
             use_momenta=use_momenta,
-            use_pairwise=use_pairwise,
+            pairwise_potential_functions=pairwise_potential_functions,
             use_interpolation=use_interpolation,
             use_quadrature=use_quadrature,
             symmetrizations=symmetrizations,
@@ -300,68 +348,112 @@ class DGBRunner:
     #             **opts
     #         )
 
-    @classmethod
-    def run_dgb(cls,
-                dgb,
-                *,
-                plot_wavefunctions=True,
-                plot_spectrum=True
-                ):
-
-            logger = dgb.logger
-            with logger.block(tag="Running DGB"):
-                logger.log_print("num coords: {c}", c=len(dgb.gaussians.coords.centers))
-                with logger.block(tag="S"):
-                    logger.log_print(logger.prep_array(dgb.S[:5, :5]))
-                with logger.block(tag="T"):
-                    logger.log_print(logger.prep_array(dgb.T[:5, :5]))
-                with logger.block(tag="V"):
-                    logger.log_print(logger.prep_array(dgb.V[:5, :5]))
-
-                wfns_cart = dgb.get_wavefunctions()
-                with logger.block(tag="Energies"):
-                    logger.log_print(
-                        logger.prep_array(wfns_cart.energies[:5] * UnitsData.convert("Hartrees", "Wavenumbers"))
-                    )
-                with logger.block(tag="Frequencies"):
-                    logger.log_print(
-                        logger.prep_array(wfns_cart.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers"))
-                    )
-
-                if plot_wavefunctions:
-                    for i in range(4):
-                        wfns_cart[i].plot().show()
-
-                if plot_spectrum:
-                    spec = wfns_cart[:4].get_spectrum()
-                    with logger.block(tag="Intensities"):
-                        logger.log_print(
-                            logger.prep_array(spec.intensities)
-                        )
-                    spec.plot().show()
-                else:
-                    spec = None
-            return wfns_cart, spec
+    # @classmethod
+    # def run_dgb(cls,
+    #             dgb,
+    #             *,
+    #             plot_wavefunctions=True,
+    #             plot_spectrum=True
+    #             ):
+    #
+    #         logger = dgb.logger
+    #         with logger.block(tag="Running DGB"):
+    #             logger.log_print("num coords: {c}", c=len(dgb.gaussians.coords.centers))
+    #             with logger.block(tag="S"):
+    #                 logger.log_print(logger.prep_array(dgb.S[:5, :5]))
+    #             with logger.block(tag="T"):
+    #                 logger.log_print(logger.prep_array(dgb.T[:5, :5]))
+    #             with logger.block(tag="V"):
+    #                 logger.log_print(logger.prep_array(dgb.V[:5, :5]))
+    #
+    #             wfns_cart = dgb.get_wavefunctions()
+    #             with logger.block(tag="Energies"):
+    #                 logger.log_print(
+    #                     logger.prep_array(wfns_cart.energies[:5] * UnitsData.convert("Hartrees", "Wavenumbers"))
+    #                 )
+    #             with logger.block(tag="Frequencies"):
+    #                 logger.log_print(
+    #                     logger.prep_array(wfns_cart.frequencies()[:5] * UnitsData.convert("Hartrees", "Wavenumbers"))
+    #                 )
+    #
+    #             if plot_wavefunctions:
+    #                 for i in range(4):
+    #                     wfns_cart[i].plot().show()
+    #
+    #             if plot_spectrum:
+    #                 spec = wfns_cart[:4].get_spectrum()
+    #                 with logger.block(tag="Intensities"):
+    #                     logger.log_print(
+    #                         logger.prep_array(spec.intensities)
+    #                     )
+    #                 spec.plot().show()
+    #             else:
+    #                 spec = None
+    #         return wfns_cart, spec
     @classmethod
     def run_simple(cls,
                    system_spec,
                    sim=None,
                    plot_wavefunctions=True,
                    plot_spectrum=True,
+                   trajectories=10,
+                   propagation_time=10,
+                   timestep=50,
+                   use_cartesians=False,
+                   use_momenta=False,
+                   pairwise_potential_functions=None,
+                   use_interpolation=True,
+                   use_quadrature=False,
+                   symmetrizations=None,
+                   momentum_scaling=None,
+                   trajectory_seed=None,
+                   total_energy=None,
+                   total_energy_scaling=None,
+                   sampled_modes=None,
+                   initial_energies=None,
+                   initial_displacements=None,
+                   displaced_coords=None,
                    **opts
                    ):
+
+        base_opts = dev.OptionsSet(opts)
+        opts, run_opts = base_opts.split(AIMDSimulator)
+        opts.update(
+            trajectories=trajectories,
+            propagation_time=propagation_time,
+            timestep=timestep,
+            use_cartesians=use_cartesians,
+            use_momenta=use_momenta,
+            pairwise_potential_functions=pairwise_potential_functions,
+            use_interpolation=use_interpolation,
+            use_quadrature=use_quadrature,
+            symmetrizations=symmetrizations,
+            momentum_scaling=momentum_scaling,
+            trajectory_seed=trajectory_seed,
+            total_energy=total_energy,
+            total_energy_scaling=total_energy_scaling,
+            sampled_modes=sampled_modes,
+            initial_energies=initial_energies,
+            initial_displacements=initial_displacements,
+            displaced_coords=displaced_coords
+        )
+
         if isinstance(system_spec, (str, dict, tuple)):
             system_spec = Molecule.construct(system_spec)
             system_spec.get_dipole_evaluator()
         if hasattr(system_spec, 'potential'): # analyt
             dgb = cls.construct_from_model(system_spec, sim=sim, **opts)
+            mol = system_spec.mol
         else:
             dgb = cls.from_mol(system_spec, sim=sim, **opts)
+            mol = system_spec
 
         return dgb, cls.run_dgb(
             dgb,
+            mol,
             plot_wavefunctions=plot_wavefunctions,
-            plot_spectrum=plot_spectrum
+            plot_spectrum=plot_spectrum,
+            **run_opts
         )
 
     @classmethod
@@ -370,6 +462,7 @@ class DGBRunner:
                            coordinate_sel=None,
                            domain=None, domain_padding=1,
                            potential_cutoff=17000,
+                           potential_units='Wavenumbers',
                            potential_min=0,
                            plot_cartesians=None,
                            plot_atoms=True,
@@ -379,10 +472,11 @@ class DGBRunner:
                            levels=24,
                            **plot_styles
                            ):
-        def cutoff_pot(points, cutoff=potential_cutoff / UnitsData.hartrees_to_wavenumbers,
-                       cutmin=potential_min / UnitsData.hartrees_to_wavenumbers
+        def cutoff_pot(points,
+                       cutoff=potential_cutoff,
+                       cutmin=potential_min
                        ):
-            values = potential(points)
+            values = potential(points) * UnitsData.convert('Hartrees', potential_units)
             values[np.logical_or(values < cutmin, values > cutoff)] = cutoff
             return values
 
@@ -419,7 +513,7 @@ class DGBRunner:
             if points.shape[-1] == 1:
                 figure = plt.Plot(
                     *np.moveaxis(points, -1, 0),
-                    potential(points),
+                    cutoff_pot(points),
                     **plot_styles
                 )
             else:
@@ -475,9 +569,11 @@ class DGBRunner:
                            plot_name='wfn_{i}.pdf',
                            plot_label='{e} cm-1',
                            plot_potential=True,
+                           potential_units='Wavenumbers',
                            plot_atoms=None,
                            plot_centers=True,
                            potential_styles=None,
+                           scaling=None,
                            **plot_options
                            ):
 
@@ -485,6 +581,12 @@ class DGBRunner:
         if cartesians:
             wfns = wfns.as_cartesian_wavefunction()
             dgb = wfns.hamiltonian
+
+        if dgb.gaussians.coords.shape[-1] == 1:
+            if scaling is None: scaling = .05
+            scaling *= UnitsData.convert("Hartrees", potential_units)
+        elif scaling is None:
+            scaling = .2
 
         if coordinate_sel is None:
             coordinate_sel = list(range(dgb.gaussians.alphas.shape[-1]))
@@ -505,6 +607,7 @@ class DGBRunner:
                     dgb, mol, pot,
                     coordinate_sel=coordinate_sel,
                     plot_atoms=plot_atoms,
+                    potential_units=potential_units,
                     **potential_styles
                 )
             else:
@@ -551,6 +654,7 @@ class DGBRunner:
                                     figure=figure,
                                     plot_centers=plot_centers,
                                     plot_label=lab,
+                                    scaling=scaling,
                                     **plot_options
                                 )
                             )
@@ -560,6 +664,7 @@ class DGBRunner:
                                     figure=figure,
                                     plot_centers=plot_centers,
                                     plot_label=lab,
+                                    scaling=scaling,
                                     **plot_options
                                 )
                             )
@@ -569,165 +674,182 @@ class DGBRunner:
                         fig.savefig(os.path.join(plot_dir, plot_name.format(i=i)))
                         fig.close()
 
-            if plot_dir is None:
-                figs[0].show()
+            # if plot_dir is None:
+            #     figs[0].show()
+
+        return figs
 
     @classmethod
-    def run_DGB(cls,
-               dgb: DGB,
-               mol,
-               plot_centers=True,
-               plot_wavefunctions=True,
-               plot_spectrum=False,
-               pot_cmap='viridis',
-               wfn_cmap='RdBu',
-               wfn_points=100,
-               wfn_contours=12,
-               plot_dir=None,
-               plot_potential=True,
-               pot_points=100,
-               domain=None,
-               domain_padding=1,
-               potential_cutoff=15000,
-               mode=None,
-               nodeless_ground_state=None,
-               min_singular_value=None,
-               subspace_size=None,
-               plot_similarity=False,
-               similarity_cutoff=None,
-               similarity_chunk_size=None,
-               similar_det_cutoff=None,
-               **plot_options
-               ):
+    def plot_potential_from_spec(cls, dgb, mol, spec,
+                                 plot_centers=True,
+                                 **opts
+                                 ):
+        spec = cls.prep_plot_wavefunctions_spec(dgb, spec)
+        cartesian_plot_axes = None
+        if isinstance(spec, dict):
+            if 'cartesians' in spec:
+                cartesian_plot_axes = spec['cartesians']
+                dgb = dgb.as_cartesian_dgb()
 
-        print("--->", len(dgb.gaussians.coords.centers))
-        print(dgb.S[:5, :5])
-        print(dgb.T[:5, :5])
-        print(dgb.V[:5, :5])
+        pot = dgb.pot.potential_function
+        figure = cls.plot_dgb_potential(
+            dgb, mol, pot,
+            **opts
+        )
 
-        try:
-            wfns, spec = dgb.run(
-                calculate_spectrum=plot_spectrum,
-                mode=mode,
-                nodeless_ground_state=nodeless_ground_state,
-                subspace_size=subspace_size,
-                min_singular_value=min_singular_value,
-                similarity_cutoff=similarity_cutoff,
-                similarity_chunk_size=similarity_chunk_size,
-                similar_det_cutoff=similar_det_cutoff
+        if plot_centers:
+            dgb.gaussians.plot_centers(
+                figure,
+                xyz_sel=cartesian_plot_axes
             )
-        except Exception as e:
 
-            if plot_wavefunctions is not False:
-                print(e)
+        return figure
 
-                if isinstance(plot_wavefunctions, str) and plot_wavefunctions == 'cartesians':
-                    plot_wavefunctions = {'cartesians': None}
-                elif plot_wavefunctions is True and dgb.gaussians.coords.centers.shape[-1] > 2:
-                    plot_wavefunctions = {'cartesians': None}
+    @classmethod
+    def prep_plot_wavefunctions_spec(cls, dgb, spec):
+        if dev.str_is(spec, 'cartesians'):
+            spec = {'cartesians': None}
+        elif spec is True:
+            if dgb.gaussians.coords.centers.shape[-1] > 2:
+                spec = {'cartesians': None}
+            else:
+                spec = {}
+        elif dev.is_dict_like(spec) and spec.get('cartesians', False) is None:
+            embed_coords = dgb.gaussians.coords.as_cartesians()[0].centers
+            diffs = [np.ptp(embed_coords[:, i]) for i in range(3)]
+            axes = [i for i, d in enumerate(diffs) if d > 1e-8]
+            spec['cartesians'] = axes
 
-                if plot_wavefunctions.get('cartesians', False) is None:
-                    embed_coords = dgb.gaussians.coords.as_cartesians()[0].centers
-                    diffs = [np.ptp(embed_coords[:, i]) for i in range(3)]
-                    axes = [i for i, d in enumerate(diffs) if d > 1e-8]
-                    plot_wavefunctions['cartesians'] = axes
+        return spec
 
-                cartesian_plot_axes = None
-                if isinstance(plot_wavefunctions, dict):
-                    if 'cartesians' in plot_wavefunctions:
-                        cartesian_plot_axes = plot_wavefunctions['cartesians']
-                        dgb = dgb.as_cartesian_dgb()
-                    else:
-                        raise ValueError(plot_wavefunctions)
+    @classmethod
+    def run_dgb(cls,
+                dgb: DGB,
+                mol,
+                plot_centers=True,
+                plot_wavefunctions=True,
+                plot_spectrum=False,
+                pot_cmap='viridis',
+                wfn_cmap='RdBu',
+                wfn_points=100,
+                wfn_contours=12,
+                plot_dir=None,
+                plot_potential=True,
+                pot_points=100,
+                domain=None,
+                domain_padding=1,
+                wavefunction_scaling=None,
+                potential_cutoff=15000,
+                potential_units='Wavenumbers',
+                mode=None,
+                nodeless_ground_state=None,
+                min_singular_value=None,
+                subspace_size=None,
+                plot_similarity=False,
+                similarity_cutoff=None,
+                similarity_chunk_size=None,
+                similar_det_cutoff=None,
+                **plot_options
+                ):
 
-                pot = dgb.pot.potential_function
-                figure = cls.plot_dgb_potential(
-                    dgb, mol, pot,
-                    domain=domain, domain_padding=domain_padding,
-                    potential_cutoff=potential_cutoff,
+        logger = dgb.logger
+        with logger.block(tag="Running DGB"):
+            # print("--->", len(dgb.gaussians.coords.centers))
+            # print(dgb.S[:5, :5])
+            # print(dgb.T[:5, :5])
+            # print(dgb.V[:5, :5])
+
+            try:
+                wfns, spec = dgb.run(
+                    calculate_spectrum=plot_spectrum,
+                    mode=mode,
+                    nodeless_ground_state=nodeless_ground_state,
+                    subspace_size=subspace_size,
+                    min_singular_value=min_singular_value,
+                    similarity_cutoff=similarity_cutoff,
+                    similarity_chunk_size=similarity_chunk_size,
+                    similar_det_cutoff=similar_det_cutoff
                 )
-
-                dgb.gaussians.plot_centers(
-                    figure,
-                    xyz_sel=cartesian_plot_axes
-                )
-
-                figure.show()
-
-            raise e
-        else:
-            if plot_similarity:
-                plt.ArrayPlot(dgb.get_similarity_matrix()).show()
-
-
-            if isinstance(plot_wavefunctions, str) and plot_wavefunctions == 'cartesians':
-                plot_wavefunctions = {'cartesians': None}
-            elif plot_wavefunctions is True and dgb.gaussians.coords.centers.shape[-1] > 2:
-                plot_wavefunctions = {'cartesians': None}
-
-            if plot_wavefunctions.get('cartesians', False) is None:
-                embed_coords = dgb.gaussians.coords.as_cartesians()[0].centers
-                diffs = [np.ptp(embed_coords[:, i]) for i in range(3)]
-                axes = [i for i, d in enumerate(diffs) if d > 1e-8]
-                plot_wavefunctions['cartesians'] = axes
-
-            coordinate_sel = None
-            if isinstance(plot_wavefunctions, dict):
-                if 'cartesians' in plot_wavefunctions:
-                    use_cartesians = True
-                    coordinate_sel = plot_wavefunctions['cartesians']
-                    plot_wavefunctions = plot_wavefunctions.get('num', True)
-                elif 'modes' in plot_wavefunctions:
-                    coordinate_sel = plot_wavefunctions['modes']
-                    plot_wavefunctions = plot_wavefunctions.get('num', True)
-                    plot_potential = False
-                else:
-                    raise ValueError(plot_wavefunctions)
-
-            if plot_spectrum:
-                # which = plot_wavefunctions
-                # if which is True:
-                #     which = cls.default_num_plot_wfns
-                # if isinstance(which, int):
-                #     which = list(range(which))
-                # print(which, spec.intensities, spec.frequencies, spec[which])
-                if plot_dir is not None:
-                    spec_plot = spec.plot()
-                    os.makedirs(plot_dir, exist_ok=True)
-                    spec_plot.savefig(os.path.join(plot_dir, 'spec.png'))
-                    spec_plot.close()
-
-            if plot_wavefunctions:
-                cls.plot_wavefunctions(
-                    wfns,
-                    dgb,
-                    mol,
-                    which=plot_wavefunctions,
-                    cartesians=use_cartesians,
-                    coordinate_sel=coordinate_sel,
-                    plot_dir=plot_dir,
-                    contour_levels=wfn_contours,
-                    cmap=wfn_cmap,
-                    plot_points=wfn_points,
-                    plot_centers={'color': 'red'} if plot_centers else False,
-                    domain=domain,
-                    domain_padding=domain_padding,
-                    plot_potential=plot_potential,
-                    scaling=.2,
-                    plotter=plt.TriContourLinesPlot,
-                    potential_styles=dict(
+            except Exception as e:
+                if plot_wavefunctions is not False:
+                    figure = cls.plot_potential_from_spec(
+                        dgb, mol, plot_wavefunctions,
                         domain=domain,
                         domain_padding=domain_padding,
-                        cmap=pot_cmap,
-                        plot_points=pot_points
-                    ),
-                    **plot_options
-                )
-
-            if plot_spectrum:
-                return wfns, spec
+                        potential_cutoff=potential_cutoff
+                    )
+                    figure.show()
+                raise e
             else:
-                return wfns
+                if plot_similarity:
+                    plt.ArrayPlot(dgb.get_similarity_matrix()).show()
+
+                if plot_spectrum:
+                    # which = plot_wavefunctions
+                    # if which is True:
+                    #     which = cls.default_num_plot_wfns
+                    # if isinstance(which, int):
+                    #     which = list(range(which))
+                    # print(which, spec.intensities, spec.frequencies, spec[which])
+                    if plot_dir is not None:
+                        spec_plot = spec.plot()
+                        os.makedirs(plot_dir, exist_ok=True)
+                        spec_plot.savefig(os.path.join(plot_dir, 'spec.png'))
+                        spec_plot.close()
+
+                plot_wavefunctions = cls.prep_plot_wavefunctions_spec(dgb, plot_wavefunctions)
+                use_cartesians = False
+                if plot_wavefunctions or dev.is_dict_like(plot_wavefunctions):
+                    coordinate_sel = None
+                    if dev.is_dict_like(plot_wavefunctions):
+                        if 'cartesians' in plot_wavefunctions:
+                            use_cartesians = True
+                            coordinate_sel = spec['cartesians']
+                            plot_wavefunctions = plot_wavefunctions.get('num', True)
+                        elif 'modes' in plot_wavefunctions:
+                            coordinate_sel = spec['modes']
+                            plot_wavefunctions = plot_wavefunctions.get('num', True)
+                            plot_potential = len(coordinate_sel) < 2
+                        else:
+                            coordinate_sel = plot_wavefunctions.get('coords')
+                            plot_wavefunctions = plot_wavefunctions.get('num', True)
+                            # plot_potential = False
+                        # else:
+                        #     raise ValueError(plot_wavefunctions)
+
+                    wfns_plots = cls.plot_wavefunctions(
+                        wfns,
+                        dgb,
+                        mol,
+                        which=plot_wavefunctions,
+                        cartesians=use_cartesians,
+                        coordinate_sel=coordinate_sel,
+                        potential_units=potential_units,
+                        plot_dir=plot_dir,
+                        contour_levels=wfn_contours,
+                        cmap=wfn_cmap,
+                        plot_points=wfn_points,
+                        plot_centers={'color': 'red'} if plot_centers is True else plot_centers,
+                        domain=domain,
+                        domain_padding=domain_padding,
+                        plot_potential=plot_potential,
+                        scaling=wavefunction_scaling,
+                        plotter=plt.TriContourLinesPlot,
+                        potential_styles=dict(
+                            domain=domain,
+                            domain_padding=domain_padding,
+                            cmap=pot_cmap,
+                            plot_points=pot_points
+                        ),
+                        **plot_options
+                    )
+                else:
+                    wfns_plots = None
+
+                if plot_spectrum:
+                    return (wfns, wfns_plots), spec
+                else:
+                    return (wfns, wfns_plots)
 
 
     @classmethod

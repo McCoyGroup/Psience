@@ -718,18 +718,19 @@ class VPT2Tests(TestCase):
             ],
             calculate_intensities=True,
             # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
-            # degeneracy_specs=[
-            #     [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
-            # ],
-            # operator_terms={
-            #     'q1':[0, [0, 0, 0, 0, 0, 1]],
-            #     'q2':[0, [0, 0, 0, 0, 1, 0]]
-            # },
+            degeneracy_specs=[
+                [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+            ],
             operator_terms={
-                'q1': [0, [0, 0, 0, 0, 0, 1]],
-                'q2': [0, [0, 0, 0, 0, 1, 0]]
+                'q1':[0, [0, 0, 0, 0, 0, 1]],
+                'q2':[0, [0, 0, 0, 0, 1, 0]]
             },
-            operator_type='transition_moment'
+            # operator_terms={
+            #     # 'q1': [0, [0, 0, 0, 0, 0, 1]],
+            #     # 'q2': [0, [0, 0, 0, 0, 1, 0]],
+            #     'I': [0, 0, np.eye(6, k=1)]
+            # },
+            # operator_type='transition_moment'
         )
         """
 ::> Operator Corrections:

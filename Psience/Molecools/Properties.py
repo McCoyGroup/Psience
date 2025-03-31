@@ -2273,7 +2273,7 @@ class NormalModesManager(PropertyManager):
         derivs = self.mol.potential_derivatives
         if derivs is None:
             if self.mol.energy_evaluator is None:
-                raise ValueError("can't compute normal modes without derivatives or energy evaluator")
+                raise ValueError("can't compute force constants without derivatives or energy evaluator")
             derivs = self.mol.calculate_energy(order=2)[1:]
         fcs = derivs[1]
         return fcs

@@ -25,7 +25,10 @@ from McUtils.ExternalPrograms import RDMolecule
 from .MoleculeInterface import *
 
 from .CoordinateSystems import MolecularEmbedding, ModeEmbedding
-from .Evaluator import MolecularEvaluator, EnergyEvaluator, DipoleEvaluator, ChargeEvaluator
+from .Evaluator import (
+    MolecularEvaluator, EnergyEvaluator, DipoleEvaluator, ChargeEvaluator,
+    ReducedDimensionalPotentialHandler
+)
 from .Hamiltonian import MolecularHamiltonian
 from .Properties import *
 
@@ -889,119 +892,22 @@ class Molecule(AbstractMolecule):
         if smol: expansion = expansion[0]
         return expansion
 
-    @classmethod
-    def get_potential_params(cls, spec, re, g, local_derivs,
-                             quartic_potential_cutoff=5e-2,
-                             poly_expansion_order=2,
-                             **rem_opts):
-        # if (use_morse and len(local_derivs) > 3) or (use_morse is None and len(spec) == 2):
-        f2, f3, f4 = [local_derivs[i+1] if i < len(local_derivs) else 0 for i in range(3)]
-        if np.abs(f3 / f4) < quartic_potential_cutoff:
-            method = 'poly'
-            sg = np.sqrt(g)
-            params = [
-                sg * np.sign(d) * np.power(np.abs(d) / math.factorial(k+2), 1/(k+2))  # * (.25 ** (k + 2))
-                for k, d in enumerate(local_derivs[1:4])
-            ][:poly_expansion_order-1]
-        else:
-            method = 'morse'
-            sg = np.sqrt(g)
-            w = sg * np.sqrt(f2)
-            wx = -((g / (4 * w)) ** 2) * (f4 - 5 / 3 * f3 / f2)
-            params = [w, wx]
-            if len(local_derivs) > 4:
-                params = params + [
-                    sg * np.sign(d) * np.power(np.abs(d)/ math.factorial(k+4), 1 / (k + 4)) #* (.25 ** (k + 2))
-                    for k, d in enumerate(local_derivs[4:])
-                ]
-
-        return method, (params, g, re), rem_opts
-
-    @classmethod
-    def get_coordinate_potential(cls, spec, method, param_data, **opts):
-        from McUtils.Zachary import CoordinateFunction
-        if method == 'morse':
-            (w, wx), g, re = param_data
-            return CoordinateFunction.morse(
-                spec,
-                re=re,
-                w=w,
-                wx=wx,
-                g=g
-            )
-        elif method == 'poly':
-            mw_coeffs, g, re = param_data
-            sg = np.sqrt(g)
-            coeffs = [0] + [(c/sg)**(k+2) for k,c in enumerate(mw_coeffs)]
-            return CoordinateFunction.polynomial(
-                spec,
-                center=re,
-                coeffs=coeffs,
-                ref=0
-            )
-        else:
-            return ValueError(f"don't know what to do with potential type {method}")
-
-
-    def get_anharmonic_parameters(self,
-                                  which,
-                                  evaluator=None,
-                                  energy_expansion=None,
-                                  params_handler=None,
-                                  **opts
-                                  ):
-        if params_handler is None:
-            params_handler = self.get_potential_params
-
-        if nput.is_numeric(which[0]):
-            which = [which]
-        r, tf = nput.internal_coordinate_tensors(self.coords, which,
-                                                 return_inverse=True,
-                                                 masses=self.atomic_masses,
-                                                 order=4)
-        if energy_expansion is None:
-            energy_expansion = self.get_cartesian_potential_derivatives(evaluator=evaluator, order=4)
-        derivs = nput.tensor_reexpand(tf, energy_expansion, order=4)
-
-        bond_params = []
-        b = np.diag(np.repeat(1/np.sqrt(self.atomic_masses), 3)) @ r[1]
-        G = b.T @ b
-        for n,spec in enumerate(which):
-            diag_derivs = []
-            for k,d in enumerate(derivs):
-                idx = (n,)*(k+1)
-                diag_derivs.append(d[idx])
-            bond_params.append(
-                params_handler(spec, r[0][n], G[n, n], diag_derivs, **opts)
-            )
-
-        return bond_params
-
+    def get_reduced_potential_generator(self):
+        return ReducedDimensionalPotentialHandler(self)
     def get_1d_potentials(self,
-                          which,
+                          spec,
                           evaluator=None,
                           energy_expansion=None,
-                          params_handler=None,
-                          coordinate_potential_handler=None,
-                          **opts
-                          ):
-        anh_params = self.get_anharmonic_parameters(which,
-                                                    evaluator=evaluator,
-                                                    energy_expansion=energy_expansion,
-                                                    params_handler=params_handler,
-                                                    **opts
-                                                    )
-        if coordinate_potential_handler is None:
-            coordinate_potential_handler = self.get_coordinate_potential
-        pots = []
-        for spec,params in zip(which, anh_params):
-            method, param_data, props = params
-            pots.append(
-                coordinate_potential_handler(spec, method, param_data, **props)
-            )
-
-        return pots
-
+                          potential_params=None,
+                          **opts):
+        pot_gen = self.get_reduced_potential_generator()
+        return pot_gen.get_1d_potentials(
+            spec,
+            evaluator=evaluator,
+            energy_expansion=energy_expansion,
+            potential_params=potential_params,
+            **opts
+        )
 
     def evaluate(self,
                  func,
@@ -1348,6 +1254,7 @@ class Molecule(AbstractMolecule):
                    timestep=.5,
                    seed=None,
                    total_energy=None,
+                   total_energy_scaling=None,
                    trajectories=1,
                    sampled_modes=None,
                    initial_energies=None,
@@ -1382,7 +1289,9 @@ class Molecule(AbstractMolecule):
                 freqs = new.normal_modes.modes.freqs
 
                 if total_energy is None:
-                    total_energy = np.sum(freqs) / 2
+                    if total_energy_scaling is None:
+                        total_energy_scaling = 1/2
+                    total_energy = np.sum(freqs) * total_energy_scaling
 
                 if seed is not None:
                     np.random.seed(seed)
