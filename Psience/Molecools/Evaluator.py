@@ -387,6 +387,9 @@ class MolecularEvaluator:
 
 class PropertyEvaluator(metaclass=abc.ABCMeta):
 
+    def __init__(self, **defaults):
+        self.defaults = defaults
+
     @abc.abstractmethod
     def evaluate_term(self, coords, order, **opts):
         ...
@@ -398,7 +401,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
 
     fd_defaults=dict(
         stencil=None,
-        mesh_spacing=.1,
+        mesh_spacing=.05,
         displacement_function=None,
         prep=None,
         lazy=False,
@@ -461,7 +464,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                  fd_handler=None,
                  **opts):
 
-        opts = dev.OptionsSet(opts)
+        opts = dev.OptionsSet(dict(self.defaults, **opts))
         fd_opts = opts.filter(FiniteDifferenceDerivative)
         opts = opts.exclude(FiniteDifferenceDerivative)
 
@@ -575,8 +578,10 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
                  property_units=None,
                  distance_units='Angstroms',
                  batched_orders=False,
-                 analytic_derivative_order=0
+                 analytic_derivative_order=0,
+                 **defaults
                  ):
+        super(type(self).__bases__[0], self).__init__(**defaults)
         self.property_function = potential_function
         self.embedding = embedding
         self.batched_orders = batched_orders
@@ -950,7 +955,8 @@ class EnergyEvaluator(PropertyEvaluator):
             return converged, opt_coords.reshape(coords.shape)
 
 class RDKitEnergyEvaluator(EnergyEvaluator):
-    def __init__(self, rdmol, force_field='mmff'):
+    def __init__(self, rdmol, force_field='mmff', **defaults):
+        super().__init__(**defaults)
         # if hasattr(mol, 'rdmol'):
         #     mol = mol.rdmol
         self.rdmol = rdmol
@@ -1004,7 +1010,8 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
     """
     Borrows structure from AIMNet2ASE to call appropriately
     """
-    def __init__(self, atoms, model='aimnet2', charge=0, multiplicity=None, quiet=True):
+    def __init__(self, atoms, model='aimnet2', charge=0, multiplicity=None, quiet=True, **defaults):
+        super().__init__(**defaults)
         self.eval = self.setup_aimnet(model)
         self.model = model
         self.atoms = atoms
@@ -1201,7 +1208,8 @@ class XTBEnergyEvaluator(EnergyEvaluator):
     """
     Uses XTB to calculate, not tested since `xtb` is terrible to install without `conda`
     """
-    def __init__(self, atoms, method="GFN2-xTB", charge=0, quiet=True):
+    def __init__(self, atoms, method="GFN2-xTB", charge=0, quiet=True, **defaults):
+        super().__init__(**defaults)
 
         # self.eval = self.setup_aimnet(model)
         # self.model = model
@@ -1811,7 +1819,8 @@ class ChargeFunctionChargeEvaluator(ChargeEvaluator):
         cls.default_property_function = potential
 
 class RDKitChargeEvaluator(ChargeEvaluator):
-    def __init__(self, rdmol, model='gasteiger'):
+    def __init__(self, rdmol, model='gasteiger', **defaults):
+        super().__init__(**defaults)
         self.rdmol = rdmol
         self.model = model
 
@@ -1831,7 +1840,8 @@ class RDKitChargeEvaluator(ChargeEvaluator):
 
 class AIMNet2ChargeEvaluator(ChargeEvaluator):
 
-    def __init__(self, atoms, model='aimnet2', charge=0, multiplicity=None, quiet=True):
+    def __init__(self, atoms, model='aimnet2', charge=0, multiplicity=None, quiet=True, **defaults):
+        super().__init__(**defaults)
         self.base = AIMNet2EnergyEvaluator(atoms, model=model, charge=charge, multiplicity=multiplicity, quiet=quiet)
 
     @classmethod
@@ -1878,7 +1888,7 @@ class ReducedDimensionalPotentialHandler:
             opts['g'] = g
             sg = np.sqrt(g)
             opts['w_coeffs'] = [
-                         sg * np.sign(d) * np.power(np.abs(d) / math.factorial(k + 2), 1 / (k + 2))
+                         sg * np.sign(d) * np.power(np.abs(d), 1 / (k + 2))
                          # * (.25 ** (k + 2))
                          for k, d in enumerate(local_derivs[1:4])
                      ][:poly_expansion_order - 1]
@@ -1887,7 +1897,7 @@ class ReducedDimensionalPotentialHandler:
             opts['g'] = g
             sg = np.sqrt(g)
             w = sg * np.sqrt(f2)
-            wx = -((g / (4 * w)) ** 2) * (f4 - 5 / 3 * f3 / f2)
+            wx = -((g / (4 * w)) ** 2) * (f4 - 5 / 3 * (f3**2) / f2)
             params = [w, wx]
             # if len(local_derivs) > 4:
             #     params = params + [
@@ -1913,7 +1923,7 @@ class ReducedDimensionalPotentialHandler:
     def get_poly_potential(cls, spec, *, w_coeffs=None, coeffs=None, g, re):
         if w_coeffs is not None:
             sg = np.sqrt(g)
-            coeffs = [0] + [(c / sg) ** (k + 2) for k, c in enumerate(w_coeffs)]
+            coeffs = [0] + [np.sign(c) * (np.abs(c) / sg) ** (k + 2) / math.factorial(k + 2) for k, c in enumerate(w_coeffs)]
         return CoordinateFunction.polynomial(
             spec,
             center=re,

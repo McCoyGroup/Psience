@@ -2839,7 +2839,7 @@ class DGBTests(TestCase):
             internals = TensorDerivativeConverter(conv, [d.squeeze() for d in mbpol_deriv[1:]]).convert()
             g = (1 / mol.atomic_masses[0] + 1 / mol.atomic_masses[1])
             w = np.sqrt(internals[1][0, 0] * g)
-            wx = (g/(4*w)) ** 2 * (internals[3][0, 0, 0, 0] - 5 / 3 * internals[2][0, 0, 0]/internals[1][0, 0])
+            wx = (g/(4*w)) ** 2 * (internals[3][0, 0, 0, 0] - 5 / 3 * (internals[2][0, 0, 0]**2)/internals[1][0, 0])
             raise Exception(
                 w * UnitsData.hartrees_to_wavenumbers, # 3891.634745263701
                 wx * UnitsData.hartrees_to_wavenumbers # 185.31310314514627
@@ -3673,7 +3673,7 @@ class DGBTests(TestCase):
                 g = (1 / mol.atomic_masses[i] + 1 / mol.atomic_masses[j])
                 w = np.sqrt(internals[1][k, k] * g)
                 wx = (g / (4 * w)) ** 2 * (
-                        internals[3][k, k, k, k] - 5 / 3 * internals[2][k, k, k] / internals[1][k, k]
+                        internals[3][k, k, k, k] - 5 / 3 * (internals[2][k, k, k]**2) / internals[1][k, k]
                 )
                 print((i,j), w / self.w2h, wx / self.w2h)
             raise Exception(...)
@@ -3893,8 +3893,8 @@ class DGBTests(TestCase):
         plt.Graphics().show()
 
     default_OH_freq = 3869.47
-    default_OH_anh = -84
-    default_HOH_freq = 1600
+    default_OH_anh = 84
+    default_HOH_freq = 1624
     @classmethod
     def setup_Water(cls,
                     use_mbpol=False,
@@ -3911,7 +3911,7 @@ class DGBTests(TestCase):
                     freq_units='Wavenumbers',
                     dipole_model='linear',
                     potential_params=None,
-                    reoptimize=False):
+                    reoptimize=True):
         mol = Molecule.from_file(
             TestManager.test_data('water_freq.fchk')
         )
@@ -3942,19 +3942,19 @@ class DGBTests(TestCase):
             if wx is None: wx = cls.default_OH_anh
             if w2 is None: w2 = cls.default_OH_freq
             if wx2 is None: wx2 = cls.default_OH_anh
-            if w_bend is None: w_bend = cls.default_OH_freq
+            if w_bend is None: w_bend = cls.default_HOH_freq
 
         if not use_mbpol and base_params is None:
             if w is not None:
                 if wx is None:
                     potential_params[(0, 1)] = {'w_coeffs': [w * h2w]}
                 else:
-                    potential_params[(0, 1)] = {'w': w * h2w, 'wx': -wx * h2w}
+                    potential_params[(0, 1)] = {'w': w * h2w, 'wx': wx * h2w}
             if w2 is not None:
                 if wx2 is None:
                     potential_params[(0, 2)] = {'w_coeffs': [w2 * h2w]}
                 else:
-                    potential_params[(0, 2)] = {'w': w2 * h2w, 'wx': -wx2 * h2w}
+                    potential_params[(0, 2)] = {'w': w2 * h2w, 'wx': wx2 * h2w}
             if w_bend is not None:
                 potential_params[(1, 0, 2)] = {'w_coeffs': [w_bend * h2w]}
 
@@ -3972,20 +3972,19 @@ class DGBTests(TestCase):
             mol = mol.modify(
                 energy_evaluator={
                     'potential_function': potential,
-                    'analytic_derivative_order': 4,
+                    'analytic_derivative_order': 6,
                     'batched_orders': True
                 },
                 dipole_derivatives=mol.dipole_derivatives[:2] if dev.str_is(dipole_model, 'linear') else mol.dipole_derivatives,
                 dipole_evaluator='expansion'
             )
-            # raise Exception(
-            #     mol.get_cartesian_dipole_derivatives(1, include_constant_term=True)
-            # )
         else:
             loader = ModuleLoader(TestManager.current_manager().test_data_dir)
             mbpol = loader.load("LegacyMBPol").MBPol
 
             def potential(coords, order=None, chunk_size=int(5e5)):
+                coords = np.asanyarray(coords)
+                base_shape = coords.shape[:-1] if coords.shape[-1] == 9 else coords.shape[:-2]
                 coords = coords.reshape(-1, 9)
 
                 just_vals = order is None
@@ -4005,11 +4004,17 @@ class DGBTests(TestCase):
                             nwaters=1, coords=coords.reshape(-1, 3, 3), threading_vars=['energy', 'grad', 'coords'],
                             threading_mode='omp'
                         )
-                        chunks[0].append(grad_vals['energies'])
-                        chunks[1].append(grad_vals['grad'])
+                        chunks[0].append(grad_vals['energy'])
+                        chunks[1].append(grad_vals['grad'].reshape((-1, 9)))
 
-                for i, c in enumerate(chunks):
-                    chunks[i] = np.concatenate(c, axis=0)
+                chunks = [
+                    np.concatenate(c, axis=0)
+                    for c in chunks
+                ]
+                chunks = [
+                    c.reshape(base_shape + c.shape[1:])
+                    for c in chunks
+                ]
 
                 if just_vals:
                     chunks = chunks[0]
@@ -4018,22 +4023,24 @@ class DGBTests(TestCase):
 
             mol = mol.modify(
                 coords=np.array([
-                    [0.00000000e+00, 6.56215885e-02, 0.00000000e+00],
-                    [7.57391014e-01, -5.20731105e-01, 0.00000000e+00],
-                    [-7.57391014e-01, -5.20731105e-01, 0.00000000e+00]
-                ]) * UnitsData.convert("Angstroms", "BohrRadius"),
+                    [ 0.00000000,  0.12400683, 0.00000000e+00],
+                    [ 1.43126159, -0.98403917, 0.00000000e+00],
+                    [-1.43126159, -0.98403917, 0.00000000e+00]
+                ]),
                 energy_evaluator={
                     'potential_function': potential,
-                    'analytic_derivative_order': 4,
+                    'analytic_derivative_order': 1,
                     'distance_units': 'Angstroms',
-                    'energy_units': 'Kilojoules/Mole',
-                    'batched_orders': True
+                    'energy_units': 'Hartrees',
+                    'batched_orders': True,
+                    'mesh_spacing':.0001
                 },
                 dipole_derivatives=mol.dipole_derivatives,
-                dipole_evaluator='linear'
+                dipole_evaluator='expansion'
             ).get_embedded_molecule(load_properties=False)
             if reoptimize:
-                mol = mol.optimize()
+                opt_mol = mol.optimize()
+                mol = opt_mol
         # if dev.str_is(dipole_model, 'linear'):
         #     mol.modify(dipole_evaluator='expansion', dipole_derivatives=mol.dipole_derivatives[:2])
         # else:
@@ -4108,124 +4115,6 @@ class DGBTests(TestCase):
 
         return
 
-        int_ochh = ochh.modify(internals=[
-                    [0, -1, -1, -1],
-                    [1,  0, -1, -1],
-                    [2,  1,  0, -1],
-                    [3,  1,  2,  0],
-                ])
-        # print(
-        #     nput.internal_coordinate_tensors(
-        #         int_ochh.coords,
-        #         [
-        #             [0, 1],
-        #             [1, 2],
-        #             [1, 3],
-        #             [2, 1, 3]
-        #         ],
-        #         order=0
-        #     )
-        # )
-        #
-        # print(
-        #     int_ochh.get_internals(strip_embedding=True)
-        # )
-        #
-        # return
-
-        scan_disps = [-1.0, 1.0, 51]
-        scan_angles = int_ochh.get_scan_coordinates(
-            [scan_disps],
-            which=[[3, 1]],
-            internals='reembed'
-        )
-        # scan_disp_dist = [-.4, .7, 25]
-        # # int_ochh.plot(scan_angles).show()
-        # scan_dists = int_ochh.get_scan_coordinates(
-        #     [scan_disp_dist],
-        #     which=[[1, 0]],
-        #     internals='reembed'
-        # )
-
-        pot_vals = int_ochh.calculate_energy(scan_angles)
-
-        # pot_vals_dists = int_ochh.calculate_energy(scan_dists)
-
-        # woof = ochh.get_anharmonic_parameters(
-        #     [(0, 1), (1, 2), (1, 3), (2, 1, 3), (0, 1, 2, 3)]
-        # )
-        woof_pots = ochh.get_1d_potentials(
-            [(0, 1), (1, 2), (1, 3), (2, 1, 3), (0, 1, 2, 3)]
-        )
-        woof_pots_4 = ochh.get_1d_potentials(
-            [(0, 1), (1, 2), (1, 3), (2, 1, 3), (0, 1, 2, 3)],
-            poly_expansion_order=4
-        )
-        woof_pots_morse = ochh.get_1d_potentials(
-            [(0, 1), (1, 2), (1, 3), (2, 1, 3), (0, 1, 2, 3)],
-            quartic_potential_cutoff=0
-        )
-        # for method, (params, re) in woof:
-        #     print(
-        #         [
-        #             p * 219475.6
-        #             for n, p in enumerate(params)
-        #         ],
-        #         re
-        #     )
-
-        # _, pot_vals_dists_appx = woof_pots[0](
-        #     scan_dists
-        # )
-        angs, pot_vals_angs_appx = woof_pots[3](
-            scan_angles
-        )
-        angs, pot_vals_angs_appx_4 = woof_pots_4[3](
-            scan_angles
-        )
-        angs, pot_vals_angs_appx_morse = woof_pots_morse[3](
-            scan_angles
-        )
-
-        # uh = nput.internal_coordinate_tensors(
-        #     scan_angles,
-        #     [
-        #         [0, 1],
-        #         [1, 2],
-        #         [1, 3],
-        #         [2, 1, 3]
-        #     ],
-        #     order=0
-        # )
-        # print(uh[0])
-
-        disp_vals = np.linspace(*scan_disps)
-        ploots = plt.Plot(disp_vals, pot_vals * 219475.6, color='black', plot_range=[None, [None, 35000]])
-        # plt.Plot(np.linspace(*scan_disp_dist), pot_vals_dists * 219475.6, figure=ploots)
-        # plt.Plot(np.linspace(*scan_disp_dist), pot_vals_dists_appx[0] * 219475.6, figure=ploots,
-        #          linestyle='dashed')
-        # k = len(disp_vals) // 2
-        # f2_alt = (pot_vals[k+1] + pot_vals[k-1] - 2*pot_vals[k]) / (2*(disp_vals[1] - disp_vals[0])**2)
-        # print(f2_alt)
-        # print(angs[0] - angs[0][k])
-        # print(disp_vals)
-        shang_vals = (ochh.calculate_energy() + pot_vals_angs_appx[0])
-        shang_vals_4 = (ochh.calculate_energy() + pot_vals_angs_appx_4[0])
-        shang_vals_morse = (ochh.calculate_energy() + pot_vals_angs_appx_morse[0])
-        plt.Plot(np.linspace(*scan_disps), shang_vals * 219475.6, figure=ploots,
-                 linestyle='dashed')
-        plt.Plot(np.linspace(*scan_disps), shang_vals_4 * 219475.6, figure=ploots,
-                 linestyle='dashed')
-        plt.Plot(np.linspace(*scan_disps), shang_vals_morse * 219475.6, figure=ploots,
-                 linestyle='dashed')
-        ploots.show()
-        return
-
-
-        dgb, res = DGBRunner.run_simple(
-            ochh
-        )
-
     @validationTest
     def test_NewRunnerOH(self):
 
@@ -4252,18 +4141,9 @@ class DGBTests(TestCase):
 
         return
 
-    @debugTest
+    @validationTest
     def test_NewRunnerStretches(self):
         water = self.setup_Water(stretch_model=True)
-
-        # runner, _ = water.setup_VPT(states=1)
-        # runner.print_tables()
-
-        # wat = oh.get_1d_potentials([[0, 1]])
-        # scan = np.linspace(1, 4, 50)
-        # _, vals = wat[0](scan[:, np.newaxis], preconverted=True)
-        # plt.Plot(scan, vals[0]).show()
-        # return
 
         """
 State     Frequency    Intensity       Frequency    Intensity
@@ -4271,35 +4151,10 @@ State     Frequency    Intensity       Frequency    Intensity
   1 0    3841.87432      6.66771      3675.96178      6.52096
   """
 
-        """
-                sim = model.setup_AIMD(
-            initial_energies=np.array([
-                [ symm,  asymm],
-                [-symm,  asymm],
-                [ 0,    -asymm],
-                [-symm,      0],
-                # [2000 * self.w2h, 0],
-                # [0, 2000 * self.w2h],
-                # [-2000 * self.w2h, 0],
-                # [0, -2000 * self.w2h],
-                # [-15000 * self.w2h, -15000 * self.w2h],
-                # [15000 * self.w2h, -15000 * self.w2h],
-                # [10000 * self.w2h, 0],
-                # [0, 10000 * self.w2h],
-                # [-10000 * self.w2h, 0],
-                # [0, -10000 * self.w2h]
-            ])*2,
-            timestep=15,
-            track_velocities=True
-        )
-        sim.propagate(25)
-        coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
-        momenta = 1872 * velocities * mol.masses[np.newaxis, :, np.newaxis]"""
-
         dgb, res = DGBRunner.run_simple(
             water,
             plot_wavefunctions=3,
-            use_interpolation=False,
+            use_interpolation=True,
             # total_energy_scaling=2,
             # trajectories=5,
             initial_mode_directions=[
@@ -4310,6 +4165,50 @@ State     Frequency    Intensity       Frequency    Intensity
             ],
             timestep=15,
             propagation_time=25,
+            pairwise_potential_functions={
+                (0, 1): 'auto',
+                (0, 2): 'auto'
+            }
+        )
+
+        (wnfs, plots), spec = res
+        # plots[0].show()
+        spec.plot().show()
+
+        return
+
+    @validationTest
+    def test_NewRunnerWaterModel(self):
+        water = self.setup_Water()
+
+        # runner, _ = water.setup_VPT()
+        # runner.print_tables()
+        # return
+        """
+0 0 0   4680.42616   4611.15061            -            -
+State       Frequency    Intensity       Frequency    Intensity
+  0 0 1    3896.87027     67.02048      3719.85964     65.84225
+  0 1 0    3843.25704      7.19605      3676.13891      6.84807
+  1 0 0    1620.72502     64.40303      1602.96996     64.42250
+  0 0 2    7793.74054      0.00000      7352.95904      0.07177
+  0 2 0    7686.51408      0.00000      7268.89839      0.06386
+  2 0 0    3241.45004      0.00000      3196.09031      0.24595
+  0 1 1    7740.12731      0.00000      7229.91491      1.39120
+  1 0 1    5517.59529      0.00000      5308.41248      0.00014
+  1 1 0    5463.98206      0.00000      5277.71509      0.08929
+  """
+
+        dgb, res = DGBRunner.run_simple(
+            water,
+            plot_wavefunctions={'cartesians':None, 'num':5},
+            use_interpolation=False,
+            initial_mode_directions=[
+                [-1, 0, 0],
+                [ 0, 1, 0],
+                [ 0, 0, 1]
+            ],
+            timestep=15,
+            propagation_time=25,
             # pairwise_potential_functions={
             #     (0, 1): 'auto',
             #     (0, 2): 'auto'
@@ -4317,14 +4216,53 @@ State     Frequency    Intensity       Frequency    Intensity
         )
 
         (wnfs, plots), spec = res
-        plots[0].show()
+        # plots[0].show()
         # spec.plot().show()
 
         return
 
-    # @debugTest
-    # def test_NewRunnerWaterModel(self):
-    #     ...
+    @debugTest
+    def test_NewRunnerWaterMBPol(self):
+        water = self.setup_Water(use_mbpol=True)
+        # runner, _ = water.setup_VPT()
+        # runner.print_tables()
+        # return
+        """
+0 0 0   4713.07998   4636.85302            -            - 
+State       Frequency    Intensity       Frequency    Intensity
+  0 0 1    3944.32498      0.00000      3753.01419      0.00001
+  0 1 0    3832.76357     67.06675      3654.46840     64.14965
+  1 0 0    1649.07141     50.92918      1594.32376     50.57197
+  0 0 2    7888.64996      0.00000      7408.61233      0.66599
+  0 2 0    7665.52714      0.00000      7222.14797      0.78352
+  2 0 0    3298.14283      0.00000      3152.39043      1.67217
+  0 1 1    7777.08855      0.00000      7240.57209      0.00000
+  1 0 1    5593.39639      0.00000      5326.45901      0.00000
+  1 1 0    5481.83498      0.00000      5232.69000      0.06185
+  """
+
+        dgb, res = DGBRunner.run_simple(
+            water,
+            plot_wavefunctions={'cartesians': None, 'num': 5},
+            use_interpolation=False,
+            initial_mode_directions=[
+                [-1, 0, 0],
+                [ 0, 1, 0],
+                [ 0, 0, 1]
+            ],
+            timestep=15,
+            propagation_time=25,
+            # pairwise_potential_functions={
+            #     (0, 1): 'auto',
+            #     (0, 2): 'auto'
+            # }
+        )
+
+        (wnfs, plots), spec = res
+        # plots[0].show()
+        # spec.plot().show()
+
+        return
 
     @inactiveTest
     def test_WaterAIMDDisplaced(self):

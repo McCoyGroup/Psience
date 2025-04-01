@@ -815,10 +815,10 @@ class DGBRunner:
                     if dev.is_dict_like(plot_wavefunctions):
                         if 'cartesians' in plot_wavefunctions:
                             use_cartesians = True
-                            coordinate_sel = spec['cartesians']
+                            coordinate_sel = plot_wavefunctions['cartesians']
                             plot_wavefunctions = plot_wavefunctions.get('num', True)
                         elif 'modes' in plot_wavefunctions:
-                            coordinate_sel = spec['modes']
+                            coordinate_sel = plot_wavefunctions['modes']
                             plot_wavefunctions = plot_wavefunctions.get('num', True)
                             plot_potential = len(coordinate_sel) < 2
                         else:
