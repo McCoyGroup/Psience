@@ -1480,7 +1480,6 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
             logger = Logger.lookup(logger)
 
         if expansion_degree > -1:
-
             deriv_order = expansion_degree # renamed for consistency
             if expansion_type == 'taylor':
                 raise NotImplementedError('need to fix up taylor expansion')

@@ -133,7 +133,7 @@ class VPTSystem:
         elif potential_function is not None:
             self.get_potential_derivatives(potential_function, order=order)
         if dipole_derivatives is not None:
-            _ = dipole_derivatives[:1]
+            _ = list(dipole_derivatives[:1])
             for n,w in enumerate(dipole_derivatives[1:]):
                 w = np.asanyarray(w)
                 if w.shape == (3,):
