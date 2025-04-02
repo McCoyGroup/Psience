@@ -6118,27 +6118,31 @@ class PerturbationTheoryEvaluator:
         )
 
     def get_energy_corrections(self, states, order=None, expansions=None, freqs=None,
-                               zero_cutoff=None, degenerate_states=None, verbose=False):
+                               zero_cutoff=None, degenerate_states=None, verbose=False, logger=None):
         expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
         if order is None: order = len(self.expansions) - 1
 
-        energy_evaluators = [
-            self.solver.energy_correction(o)([]) for o in range(order + 1) if o % 2 == 0
-        ]
-
         degenerate_changes = self.get_degenerate_changes(degenerate_states)
 
-        corrs = [
-            np.concatenate(
-                evaluator.evaluate(
-                    [[s, [np.arange(len(s))]] for s in states],
-                    expansions, freqs, verbose=verbose,
-                    degenerate_changes=degenerate_changes, zero_cutoff=zero_cutoff, log_scaled=True
-                )
-            )
-            for evaluator in energy_evaluators
-        ]
+        if logger is None: logger=self.solver.logger
+        logger = Logger.lookup(logger)
+
+        corrs = []
+        for o in range(0, order + 1, 2):
+            with logger.block(tag="Getting corrections at order {o}", o=o):
+                evaluator = self.solver.energy_correction(o)([])
+                with logger.block(tag="evaluating..."):
+                    start = time.time()
+                    subcorrs = evaluator.evaluate(
+                            [[s, [np.arange(len(s))]] for s in states],
+                            expansions, freqs, verbose=verbose,
+                            degenerate_changes=degenerate_changes, zero_cutoff=zero_cutoff, log_scaled=True
+                        )
+
+                    end = time.time()
+                    logger.log_print('took {e:.3f}s', e=end - start)
+                corrs.append(np.concatenate(subcorrs))
 
         return corrs
 

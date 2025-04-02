@@ -4048,7 +4048,7 @@ class DGBTests(TestCase):
 
         return mol
     @classmethod
-    def setup_OCHH(cls, optimize=True):
+    def setup_OCHH(cls, optimize=False):
         loader = ModuleLoader(os.path.expanduser("~/Documents/Postdoc/Projects/DGB"))
         h2co_mod = loader.load("H2COPot")
 
@@ -4057,23 +4057,31 @@ class DGBTests(TestCase):
             vals = h2co_mod.InternalsPotential.get_pot(coords)
             return vals
 
+        def pot(coords, order=None):
+            if coords.shape[-1] == 12:
+                base_shape = coords.shape[:-1]
+            else:
+                base_shape = coords.shape[:-2]
+            vals = h2co_mod.Potential.get_pot(coords.reshape(-1, 4, 3), order=(3, 2, 1, 0))
+            return vals.reshape(base_shape)
+
         ochh = Molecule.from_file(
             TestManager.test_data('OCHH_freq.fchk'),
             energy_evaluator={
-                'potential_function': internal_pot,
+                'potential_function': pot,
                 "distance_units": "Angstroms",
-                "energy_units": "Wavenumbers",
-                "strip_embedding": True,
-            },
-            internals=[
-                [0, -1, -1, -1],
-                [1,  0, -1, -1],
-                [2,  1,  0, -1],
-                [3,  1,  2,  0]
-            ]
+                "energy_units": "Wavenumbers"
+            }
+        )
+
+        ochh = ochh.modify(
+            coords=[[0,               0,  1.27851316e+00],
+                    [0,               0, -1.00141774e+00],
+                    [0,  1.77589409e+00, -2.09935779e+00],
+                    [0, -1.77589409e+00, -2.09935779e+00]],
+            dipole_derivatives=ochh.dipole_derivatives
         )
         if optimize:
-            base_dip = ochh.dipole_derivatives
             ochh = ochh.optimize(
                 # method='quasi-newton'
                 method='conjugate-gradient'
@@ -4084,34 +4092,91 @@ class DGBTests(TestCase):
                 # , max_displacement=.01
                 , prevent_oscillations=3
                 , restart_interval=15
-            ).modify(dipole_derivatives=base_dip)
-            # ochh = Molecule(
-            #     ochh.atoms,
-            #     ochh_opt.coords,
-            #     energy_evaluator={
-            #         'potential_function': internal_pot,
-            #         "distance_units": "Angstroms",
-            #         "energy_units": "Wavenumbers",
-            #         "strip_embedding": True,
-            #     },
-            #     internals=[
-            #         [0, -1, -1, -1],
-            #         [1,  0, -1, -1],
-            #         [2,  1,  0, -1],
-            #         [3,  1,  0,  2],
-            #     ]
-            # )
+            ).modify(dipole_derivatives=ochh.dipole_derivatives)
 
 
         return ochh
 
-    @validationTest
+    @debugTest
     def test_NewRunnerOCHH(self):
 
-        ochh = self.setup_OCHH(optimize=True)
+        ochh = self.setup_OCHH(optimize=False)
+        base_modes = ochh.get_normal_modes().remove_mass_weighting()
+        ochh.normal_modes = {
+            'freqs':base_modes.freqs,
+            'matrix':base_modes.coords_by_modes.T,
+            'inverse':base_modes.modes_by_coords.T
+            # 'masses':base_modes.masses
+        }
+        # runner, _ = ochh.setup_VPT(degeneracy_specs='auto')
+        # runner.print_tables()
+        # return
+        """
+0 0 0 0 0 0   5912.72412   5817.58162 
+State       Frequency    Intensity       Frequency    Intensity
+  0 0 0 0 0 1    3148.89130     83.71469      2900.10415     28.48416
+  0 0 0 0 1 0    2824.52190     76.41008      2640.88943     72.18154
+  0 0 0 1 0 0    1854.49411     72.27262      1818.84810     71.81706
+  0 0 1 0 0 0    1546.69344      4.74627      1491.82735      6.07001
+  0 1 0 0 0 0    1254.07407     12.11578      1198.10062     11.14660
+  1 0 0 0 0 0    1196.77341      6.97394      1183.51882      6.79932
+  0 0 0 0 0 2    6297.78260      0.00000      5782.91182      9.27327
+  0 0 0 0 2 0    5649.04381      0.00000      5129.71615      6.45106
+  0 0 0 2 0 0    3708.98822      0.00000      3615.40399      0.15834
+  0 0 2 0 0 0    3093.38687      0.00000      2983.37686      5.43076
+  0 2 0 0 0 0    2508.14814      0.00000      2371.94034      1.25110
+  2 0 0 0 0 0    2393.54682      0.00000      2361.89497      0.48209
+  """
+
         dgb, res = DGBRunner.run_simple(
-            ochh
+            ochh,
+            plot_wavefunctions={'cartesians': [1, 2], 'num': 15},
+            initial_mode_directions=[
+                # [0, 0, 0, 0, 0, 1],
+                # [0, 0, 0, 0, 1, 0],
+                # [0, 0, 0, 1, 0, 0],
+                # [0, 0, 1, 0, 0, 0],
+                # [0, 1, 0, 0, 0, 0],
+                [1, 0, 0, 0, 0, 0],
+            ],
+            # coordinate_selection=[4, 5],
+            # modes=ochh.get_normal_modes(),#[(3, 4, 5),],
+            trajectory_seed=12332123,
+            total_energy=1200 * UnitsData.convert("Wavenumbers", "Hartrees"),
+            trajectories=25,
+            sampled_modes=[4, 5],
+            timestep=25,
+            propagation_time=50,
+            optimize_centers=[
+                {
+                    'method': 'energy-cutoff',
+                    'probabilities': [
+                        [1600 / UnitsData.hartrees_to_wavenumbers, 50],
+                        # [3000 / UnitsData.hartrees_to_wavenumbers, 300]
+                    ],
+                    'cutoff': None
+                }
+            ],
+            similarity_cutoff=.99,
+            # subspace_size=15,
+            # use_momenta=True,
+            # momentum_scaling=1 / 8,
+            kinetic_options=dict(
+                include_diagonal_contribution=True,
+                include_coriolis_coupling=True,
+                include_watson_term=True
+            ),
+            use_interpolation=False,
+            # pairwise_potential_functions={
+            #     (0, 1): 'auto',
+            #     (1, 2): 'auto',
+            #     (1, 3): 'auto'
+            # }
         )
+
+        (wnfs, plots), spec = res
+        # plots[0].show()
+        spec.plot().show()
 
         return
 
@@ -4221,7 +4286,7 @@ State       Frequency    Intensity       Frequency    Intensity
 
         return
 
-    @debugTest
+    @validationTest
     def test_NewRunnerWaterMBPol(self):
         water = self.setup_Water(use_mbpol=True)
         # runner, _ = water.setup_VPT()

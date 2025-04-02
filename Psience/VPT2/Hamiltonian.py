@@ -116,7 +116,7 @@ class PerturbationTheoryHamiltonian:
 
         if mode_selection is not None:
             mode_selection = tuple(mode_selection)
-        mode_n = modes.basis.matrix.shape[1] if mode_selection is None else len(mode_selection)
+        mode_n = modes.basis.coords_by_modes.shape[0] if mode_selection is None else len(mode_selection)
         if mode_n == 0:
             raise ValueError("empty normal modes supplied")
         self.mode_n = mode_n
@@ -557,7 +557,7 @@ class PerturbationTheoryHamiltonian:
         else:
             raise ValueError("ambiguous what to do with all zeros...")
 
-        ndim = self.modes.basis.matrix.shape[0]
+        ndim = self.modes.basis.coords_by_modes.shape[1]
         exp = [
             np.zeros((ndim,)*(i+1))
             for i in range(coeff_padding)

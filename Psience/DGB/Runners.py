@@ -136,6 +136,9 @@ class DGBRunner:
         def dipole_data(coords, deriv_order=None):
             exp = dipole(coords, order=deriv_order)
             return exp
+
+        if dev.str_is(modes, 'normal'):
+            modes = mol.get_normal_modes(use_internals=False, project_transrot=True)
         return DGB.construct(
             coords,
             **dict(
@@ -307,6 +310,8 @@ class DGBRunner:
                  **aimd_options
                  ):
 
+        aimd_options, dgb_opts = dev.OptionsSet(aimd_options).split(AIMDSimulator)
+
         if potential_function is not None:
             mol = mol.modify(energy_evaluator=potential_function)
         if sim is None:
@@ -336,6 +341,7 @@ class DGBRunner:
             symmetrizations=symmetrizations,
             momentum_scaling=momentum_scaling,
             dipole_function=dipole_function,
+            **dgb_opts
         )
 
     # @classmethod
@@ -427,7 +433,7 @@ class DGBRunner:
                    ):
 
         base_opts = dev.OptionsSet(opts)
-        opts, run_opts = base_opts.split(AIMDSimulator)
+        opts, run_opts = base_opts.split(None, props=AIMDSimulator.__props__ + DGB.__props__)
         opts.update(
             trajectories=trajectories,
             propagation_time=propagation_time,

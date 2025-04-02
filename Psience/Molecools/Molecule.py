@@ -142,51 +142,51 @@ class Molecule(AbstractMolecule):
         self.charge_evaluator = charge_evaluator
 
     def modify(self,
-               atoms=None,
-               coords=None,
+               atoms=dev.default,
+               coords=dev.default,
                *,
-               internals=None,
-               masses=None,
-               bonds=None,
-               guess_bonds=None,
-               energy_evaluator=None,
-               dipole_evaluator=None,
-               charge_evaluator=None,
-               display_mode=None,
-               charge=None,
-               normal_modes=None,
-               dipole_surface=None,
-               potential_surface=None,
-               dipole_derivatives=None,
-               potential_derivatives=None
+               internals=dev.default,
+               masses=dev.default,
+               bonds=dev.default,
+               guess_bonds=dev.default,
+               energy_evaluator=dev.default,
+               dipole_evaluator=dev.default,
+               charge_evaluator=dev.default,
+               display_mode=dev.default,
+               charge=dev.default,
+               normal_modes=dev.default,
+               dipole_surface=dev.default,
+               potential_surface=dev.default,
+               dipole_derivatives=dev.default,
+               potential_derivatives=dev.default
                ):
         return type(self)(
-            self.atoms if atoms is None else atoms,
-            self.coords if coords is None else coords,
-            masses=self.masses if (masses is None and atoms is None) else masses,
-            bonds=self._bonds if bonds is None else bonds,
-            guess_bonds=self.guess_bonds if guess_bonds is None else guess_bonds,
-            energy_evaluator=self.energy_evaluator if energy_evaluator is None else energy_evaluator,
-            dipole_evaluator=self.dipole_evaluator if dipole_evaluator is None else dipole_evaluator,
-            charge_evaluator=self.charge_evaluator if charge_evaluator is None else charge_evaluator,
-            display_mode=self.display_mode if display_mode is None else display_mode,
-            charge=self.charge if charge is None else charge,
-            internals=self.internals if internals is None else internals,
-            normal_modes=self.normal_modes if normal_modes is None else None,
+            self.atoms if atoms is dev.default else atoms,
+            self.coords if coords is dev.default else coords,
+            masses=self.masses if (masses is dev.default and atoms is dev.default) else masses,
+            bonds=self._bonds if bonds is dev.default else bonds,
+            guess_bonds=self.guess_bonds if guess_bonds is dev.default else guess_bonds,
+            energy_evaluator=self.energy_evaluator if energy_evaluator is dev.default else energy_evaluator,
+            dipole_evaluator=self.dipole_evaluator if dipole_evaluator is dev.default else dipole_evaluator,
+            charge_evaluator=self.charge_evaluator if charge_evaluator is dev.default else charge_evaluator,
+            display_mode=self.display_mode if display_mode is dev.default else display_mode,
+            charge=self.charge if charge is dev.default else charge,
+            internals=self.internals if internals is dev.default else internals,
+            normal_modes=self.normal_modes if normal_modes is dev.default else normal_modes,
             dipole_surface=self.dipole_surface if (
-                    dipole_surface is None
-                    and dipole_derivatives is None
-                    and coords is None
-                    and dipole_evaluator is None
+                    dipole_surface is dev.default
+                    and dipole_derivatives is dev.default
+                    and coords is dev.default
+                    and dipole_evaluator is dev.default
             ) else dipole_surface,
-            dipole_derivatives=dipole_derivatives,
+            dipole_derivatives=None if dipole_derivatives is dev.default else dipole_derivatives ,
             potential_surface=self.potential_surface if (
-                    potential_surface is None
-                    and potential_derivatives is None
-                    and coords is None
-                    and energy_evaluator is None
+                    potential_surface is dev.default
+                    and potential_derivatives is dev.default
+                    and coords is dev.default
+                    and energy_evaluator is dev.default
             ) else potential_surface,
-            potential_derivatives=potential_derivatives
+            potential_derivatives=None if potential_derivatives is dev.default else potential_derivatives
         )
 
     @classmethod

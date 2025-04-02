@@ -117,6 +117,30 @@ class DGB:
             self.logger = old_logger
         return wfns, spec
 
+
+    __props__ = (
+        "potential_function",
+        "gmat_function",
+        "masses",
+        "atoms",
+        "alphas",
+        "transformations",
+        "internals",
+        "modes",
+        "coordinate_selection",
+        "cartesians",
+        "logger",
+        "parallelizer",
+        "optimize_centers",
+        "quadrature_degree",
+        "expansion_degree",
+        "expansion_type",
+        "momenta",
+        "poly_coeffs",
+        "pairwise_potential_functions",
+        "dipole_function",
+        "kinetic_options"
+    )
     @classmethod
     def construct(cls,
                   centers,

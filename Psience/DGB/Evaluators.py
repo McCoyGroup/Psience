@@ -1,5 +1,5 @@
 
-import abc, math, gc
+import abc, math, gc, time
 
 import numpy as np, itertools, functools
 
@@ -1181,13 +1181,18 @@ class DGBCartesianEvaluator(DGBKineticEnergyEvaluator):
 
     def evaluate_ke(self, overlap_data:'OverlapGaussianData', logger=None):
         logger = Logger.lookup(logger)
+        start = time.time()
         logger.log_print("evaluating Cartesian kinetic energy contribution")
 
         masses = self.masses
-        return self.evaluate_diagonal_rotated_momentum_contrib(
+        corr = self.evaluate_diagonal_rotated_momentum_contrib(
             overlap_data,
             masses
         )
+
+        end = time.time()
+        logger.log_print('took {e:.3f}s', e=end - start)
+        return corr
 
         # prefactors = np.broadcast_to(
         #     np.diag(1 / (masses))[np.newaxis],
@@ -1391,31 +1396,44 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
                     ):
 
         logger = Logger.lookup(logger)
-        logger.log_print("evaluating Watson diagonal momentum contribution")
+
         if include_diagonal_contribution:
+            logger.log_print("evaluating Watson diagonal momentum contribution")
+            start = time.time()
             base = self.evaluate_diagonal_rotated_momentum_contrib(
                 overlap_data,
                 np.ones(overlap_data.ndim)
             )
+            end = time.time()
+            logger.log_print('took {e:.3f}s', e=end - start)
         else:
             base = 0
 
         if include_watson_term or include_coriolis_coupling:
-            if include_coriolis_coupling:
-                logger.log_print("evaluating coriolis contribution")
+            logger.log_print("evaluating moments of inertia and coriolis constants")
+            start = time.time()
             B_e, coriolis = self.ci_func(overlap_data.centers)
-            if include_coriolis_coupling:
-                coriolis = self.evaluate_coriolis_contrib(coriolis, overlap_data)
-            else:
-                coriolis = 0
+            end = time.time()
+            logger.log_print('took {e:.3f}s', e=end - start)
         else:
             coriolis = 0
             B_e = 0
 
+        if include_coriolis_coupling:
+            logger.log_print("evaluating coriolis contribution")
+            start = time.time()
+            coriolis = self.evaluate_coriolis_contrib(coriolis, overlap_data)
+            end = time.time()
+            logger.log_print('took {e:.3f}s', e=end - start)
+        else:
+            coriolis = 0
+
         if include_watson_term:
             logger.log_print("evaluating Watson term contribution")
-        if include_watson_term:
+            start = time.time()
             watson = self.evaluate_watson_term(B_e, overlap_data)
+            end = time.time()
+            logger.log_print('took {e:.3f}s', e=end - start)
         else:
             watson = 0
 
@@ -1468,10 +1486,13 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
 
         if pairwise_functions is not None:
             logger.log_print("evaluating pairwise potential contributions...")
+            start = time.time()
             pot_contribs, deriv_corrs = pairwise_functions.evaluate_pairwise_contrib(
                 overlap_data,
                 expansion_degree=None if expansion_degree < 0 else expansion_degree
             )
+            end = time.time()
+            logger.log_print('took {e:.3f}s', e=end - start)
         else:
             pot_contribs = None
             deriv_corrs = None
@@ -1582,17 +1603,21 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
                              n=quadrature_degree,
                              npt=overlap_data.npts
                              )
+            start = time.time()
             pot_mat = cls.quad_integrate(
                 function,
                 overlap_data,
                 degree=quadrature_degree,
                 logger=logger
             )
+            end = time.time()
+            logger.log_print('took {e:.3f}s', e=end - start)
         elif integral_handler == 'expansion':
             logger.log_print("evaluating integrals with {n}-degree expansions about {npt} points",
                              n=expansion_degree,
                              npt=overlap_data.npts
                              )
+            start = time.time()
             pot_mat = cls.expansion_integrate(function,
                                               overlap_data,
                                               expansion_degree=expansion_degree,
@@ -1600,9 +1625,14 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
                                               pairwise_functions=pairwise_functions,
                                               logger=logger
                                               )
+            end = time.time()
+            logger.log_print('took {e:.3f}s', e=end - start)
         elif integral_handler == 'analytic':
             logger.log_print("evaluating integrals analytically", n=expansion_degree)
+            start = time.time()
             pot_mat = cls.analytic_integrate()
+            end = time.time()
+            logger.log_print('took {e:.3f}s', e=end - start)
         else:
             raise ValueError("unknown operator evaluation scheme {}".format(integral_handler))
 
@@ -1611,8 +1641,9 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
     def evaluate_pe(self, overlap_data:'OverlapGaussianData', logger=None):
         if logger is None:
             logger = self.logger
-        logger.log_print("evaluating potential energy contribution")
-        return self.evaluate_multiplicative(
+        # logger.log_print("evaluating potential energy contribution")
+        # start = time.time()
+        pe = self.evaluate_multiplicative(
             self.potential_function,
             overlap_data,
             integral_handler=self.handler,
@@ -1622,6 +1653,9 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
             pairwise_functions=self.pairwise_handler,
             logger=logger
         )
+        # end = time.time()
+        # logger.log_print('took {e:.3f}s', e=end - start)
+        return pe
 
     def evaluate_op(self,
                     operator,

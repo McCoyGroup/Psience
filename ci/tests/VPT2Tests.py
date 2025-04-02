@@ -533,15 +533,6 @@ class VPT2Tests(TestCase):
     @validationTest
     def test_AnalyticOCHHMultiple(self):
 
-        """
-
-::       1(1) | 2908.616 | 90.480 | 2689.933 | 68.349 | 2732.141 | 105.713
-::       2(1) | 2828.758 | 65.833 | 2660.651 | 60.476 | 2660.651 |  60.476
-::       3(2) | 3281.457 |  0.000 | 3193.397 |  5.802 | 3193.397 |   5.802
-::   3(1)5(1) | 2830.284 |  0.000 | 2811.622 | 37.349 | 2769.415 |   0.001
-        :return:
-        """
-
         file_name = "OCHH_freq.fchk"
         # VPTRunner.run_simple(
         #     TestManager.test_data(file_name),

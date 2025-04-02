@@ -2088,7 +2088,7 @@ class NormalModesManager(PropertyManager):
 
     @classmethod
     def from_data(cls, mol, data):
-        if isinstance(data, MolecularVibrations):
+        if isinstance(data, MolecularVibrations) or data is None:
             modes = data
         elif isinstance(data, dict):
             modes = MolecularVibrations(
