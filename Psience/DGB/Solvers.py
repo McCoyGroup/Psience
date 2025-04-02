@@ -100,17 +100,25 @@ class DGBEigensolver:
     eigensimilarity_cutoff = None
     eigensimilarity_chunk_size = 3
     similar_determinant_cutoff = 0.05
+    similar_det_diff_cutoff = .05
+    similarity_cutoff_rounding = .05
     @classmethod
     def get_eigensimilarity_subspace_size(cls, H, S,
                                           similarity_cutoff=None,
                                           similarity_chunk_size=None,
-                                          similar_det_cutoff=None
+                                          similar_det_cutoff=None,
+                                          similar_det_diff_cutoff=None,
+                                          similarity_cutoff_rounding=None
                                           ):
 
         if similarity_cutoff is None:
             similarity_cutoff = cls.eigensimilarity_cutoff
         if similarity_chunk_size is None:
             similarity_chunk_size = cls.eigensimilarity_chunk_size
+        if similar_det_diff_cutoff is None:
+            similar_det_diff_cutoff = cls.similar_det_diff_cutoff
+        if similarity_cutoff_rounding is None:
+            similarity_cutoff_rounding = cls.similarity_cutoff_rounding
 
         eigs, Qs = np.linalg.eigh(S)
         eigh, Qh = np.linalg.eigh(H)
@@ -120,7 +128,7 @@ class DGBEigensolver:
         # compute moving average of abs of blocks of dets
         prev_dets = collections.deque(maxlen=similarity_chunk_size)
         cur_sum = 0
-        strike_det_cutoff = 0.05
+        strike_det_cutoff = similar_det_diff_cutoff
         strikes = 0
         max_strikes = 10
         blocks = np.zeros(len(eigs))
@@ -151,7 +159,7 @@ class DGBEigensolver:
         # blocks = avgs[w - 1:] / w
 
         if similarity_cutoff is None:
-            similarity_cutoff = np.floor(np.max(blocks)*100/5)*5 / 100 # next lowest .5
+            similarity_cutoff = np.floor(np.max(blocks)/similarity_cutoff_rounding)*similarity_cutoff_rounding # next lowest .05
         block_pos = np.where(blocks > similarity_cutoff)
         if len(block_pos) == 0 or len(block_pos[0]) == 0:
             raise ValueError(
@@ -161,7 +169,7 @@ class DGBEigensolver:
                 )
             )
 
-        return int(block_pos[0][-1] + 1) #+ np.ceil(w/2))
+        return int(block_pos[0][-1] + 1), similarity_cutoff #+ np.ceil(w/2))
 
 
         # det_chunks = np.split(np.arange(len(dets)), np.where(np.abs(np.diff(dets)) > similar_det_cutoff)[0] + 1)
@@ -190,14 +198,17 @@ class DGBEigensolver:
                                  ):
 
 
-        subspace_size = self.get_eigensimilarity_subspace_size(H, S,
+        subspace_size, sim = self.get_eigensimilarity_subspace_size(H, S,
                                                similarity_cutoff=similarity_cutoff,
                                                similarity_chunk_size=similarity_chunk_size,
                                                similar_det_cutoff=similar_det_cutoff
                                                )
 
         hamiltonian.logger.log_print(
-            'diagonalizing in the space of {} S functions'.format(np.sum(subspace_size))
+            'diagonalizing in the space of {} S functions with a similarity of {}'.format(
+                np.sum(subspace_size),
+                sim
+            )
         )
 
         eigh, Qh = np.linalg.eigh(H)
@@ -231,7 +242,9 @@ class DGBEigensolver:
                                  similarity_cutoff=None,
                                  similarity_chunk_size=None,
                                  similar_det_cutoff=None,
-                                 similarity_shift=None
+                                 similarity_shift=None,
+                                similar_det_diff_cutoff=None,
+                                similarity_cutoff_rounding=None
                                  ):
         if similarity_shift is None:
             similarity_shift = self.default_shift
@@ -248,8 +261,10 @@ class DGBEigensolver:
                     shift_H, S,
                     similarity_cutoff=similarity_cutoff,
                     similarity_chunk_size=similarity_chunk_size,
-                    similar_det_cutoff=similar_det_cutoff
-                )
+                    similar_det_cutoff=similar_det_cutoff,
+                    similar_det_diff_cutoff=similar_det_diff_cutoff,
+                    similarity_cutoff_rounding=similarity_cutoff_rounding
+                )[0]
             )
             eigh, Qh = np.linalg.eigh(shift_H)
             A = Qs.T @ Qh

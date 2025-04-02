@@ -725,7 +725,8 @@ class DGBGaussians:
                          internals=None,
                          gmat_function=None,
                          reference_structure=None,
-                         stationary_point_norm=1e-2
+                         stationary_point_norm=1e-2,
+                         project_transrot=True
                          ):
         if internals is not None:
             raise ValueError("internal coordinate support still to come")
@@ -767,13 +768,20 @@ class DGBGaussians:
         else:
             raise ValueError("higher than 3D Cartesians?")
 
+
+        if project_transrot:
+            projector = nput.translation_rotation_projector(reference_structure, masses=masses, mass_weighted=True)
+        else:
+            projector = None
+
         return NormalModes.from_fg(
             basis,
             f_matrix,
             mass_spec,
             origin=reference_structure,
             dimensionless=False,
-            mass_weighted=False
+            mass_weighted=False,
+            projector=projector
         )
 
     @classmethod
@@ -849,7 +857,10 @@ class DGBGaussians:
             cls,
             coords,
             potential_function,
-            gmat_function
+            gmat_function,
+            *,
+            masses=None,
+            project_transrot=True
     ):
         f_data = potential_function(coords, deriv_order=2)
         if isinstance(f_data, np.ndarray) and f_data.ndim == 3:
@@ -858,6 +869,10 @@ class DGBGaussians:
             pot = potential_function(coords, deriv_order=1)
         else:
             pot, grad, hess = f_data
+
+        if project_transrot and coords.ndim == 3:
+            projector = nput.translation_rotation_projector(coords, masses=masses, mass_weighted=False)
+            hess = projector @ hess @ projector
 
         hess_og = hess
         gmats = gmat_function(coords)

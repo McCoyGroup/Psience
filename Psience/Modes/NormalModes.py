@@ -55,7 +55,8 @@ class NormalModes(MixtureModes):
                          dimensionless=False,
                          mass_weighted=None,
                          zero_freq_cutoff=None,
-                         return_gmatrix=False
+                         return_gmatrix=False,
+                         projector=None
                          ):
 
         f_matrix = np.asanyarray(f_matrix)
@@ -70,11 +71,17 @@ class NormalModes(MixtureModes):
             if mass_weighted is None: mass_weighted = dimensionless # generally do the right thing for Cartesians
             mass_spec = np.broadcast_to(mass_spec[:, np.newaxis], (len(mass_spec), 3)).flatten()
             mass_spec = np.diag(1 / mass_spec)
-        freq2, modes = slag.eigh(f_matrix, mass_spec, type=3)
 
         gi12 = nput.fractional_power(mass_spec, -1 / 2)
         g12 = nput.fractional_power(mass_spec, 1 / 2)
-        V = gi12 @ modes
+        if projector is None:
+            freq2, modes = slag.eigh(f_matrix, mass_spec, type=3)
+            V = gi12 @ modes
+        else:
+            pG12 = projector @ gi12
+            mw_F = pG12 @ f_matrix @ pG12.T
+            freq2, V = np.linalg.eigh(mw_F)
+            modes = g12 @ V
         # modes = g12 @ V
         # therefore, inv = V.T @ gi12
         # and modes[:, nz] = g12 @ V[:, nz]; inv[nz, :] = (V.T)[nz, :] @ gi12 (this is only the _left_ inverse)
@@ -136,6 +143,7 @@ class NormalModes(MixtureModes):
                 zero_freq_cutoff=None,
                 mass_weighted=None,
                 origin=None,
+                projector=None,
                 **opts
                 ):
         """
@@ -151,12 +159,13 @@ class NormalModes(MixtureModes):
         """
 
         (freqs, modes, inv), g_matrix = cls.get_normal_modes(f_matrix, mass_spec,
-                                                 remove_transrot=remove_transrot,
-                                                 dimensionless=dimensionless,
-                                                 zero_freq_cutoff=zero_freq_cutoff,
-                                                 mass_weighted=mass_weighted,
-                                                 return_gmatrix=True
-                                                 )
+                                                             remove_transrot=remove_transrot,
+                                                             dimensionless=dimensionless,
+                                                             zero_freq_cutoff=zero_freq_cutoff,
+                                                             mass_weighted=mass_weighted,
+                                                             return_gmatrix=True,
+                                                             projector=projector
+                                                             )
 
         mass_weighted = mass_weighted or dimensionless
 

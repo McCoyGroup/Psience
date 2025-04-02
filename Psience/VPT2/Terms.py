@@ -2603,7 +2603,7 @@ class DipoleTerms(ExpansionTerms):
                 for x in tp_derivs
             ]
 
-        _ = derivs[:1]
+        _ = list(derivs[:1])
         for n, w in enumerate(derivs[1:]):
             w = np.asanyarray(w)
             if w.shape == (3,):
