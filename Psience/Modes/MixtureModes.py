@@ -99,7 +99,7 @@ class MixtureModes(CoordinateSystem):
             else:
                 basis = InternalCoordinateSystem(dimension=(None, matrix.shape[0]))
 
-        cls(
+        return cls(
             basis,
             matrix,
             inverse=inverse,

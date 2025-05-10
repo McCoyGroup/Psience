@@ -967,6 +967,12 @@ class MolecoolsTests(TestCase):
         return ochh
 
     @debugTest
+    def test_OpenBabel(self):
+        mol = Molecule.from_file(TestManager.test_data("nh3.fchk"))
+        print(mol.to_string("pdb"))
+        return
+
+    @validationTest
     def test_1DPotentialReps(self):
         ochh = self.setup_OCHH(optimize=True)
         int_ochh = ochh.modify(internals=[
