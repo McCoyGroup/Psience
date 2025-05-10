@@ -401,7 +401,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
 
     fd_defaults=dict(
         stencil=None,
-        mesh_spacing=.05,
+        mesh_spacing=.005,
         displacement_function=None,
         prep=None,
         lazy=False,

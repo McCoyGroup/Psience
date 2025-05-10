@@ -4048,14 +4048,9 @@ class DGBTests(TestCase):
 
         return mol
     @classmethod
-    def setup_OCHH(cls, optimize=False):
+    def setup_OCHH(cls, optimize=False, use_internals=True, **fd_opts):
         loader = ModuleLoader(os.path.expanduser("~/Documents/Postdoc/Projects/DGB"))
         h2co_mod = loader.load("H2COPot")
-
-        def internal_pot(coords, order=None):
-            coords = coords[..., (0, 1, 3, 2, 4, 5)]
-            vals = h2co_mod.InternalsPotential.get_pot(coords)
-            return vals
 
         def pot(coords, order=None):
             if coords.shape[-1] == 12:
@@ -4065,21 +4060,47 @@ class DGBTests(TestCase):
             vals = h2co_mod.Potential.get_pot(coords.reshape(-1, 4, 3), order=(3, 2, 1, 0))
             return vals.reshape(base_shape)
 
-        ochh = Molecule.from_file(
-            TestManager.test_data('OCHH_freq.fchk'),
-            energy_evaluator={
-                'potential_function': pot,
-                "distance_units": "Angstroms",
-                "energy_units": "Wavenumbers"
-            }
-        )
-
+        if not use_internals:
+            ochh = Molecule.from_file(
+                TestManager.test_data('OCHH_freq.fchk'),
+                energy_evaluator=dict(
+                    {
+                        'potential_function': pot,
+                        "distance_units": "Angstroms",
+                        "energy_units": "Wavenumbers"
+                    },
+                    **fd_opts
+                )
+            )
+        else:
+            def internal_pot(coords, order=None):
+                coords = coords[..., (0, 1, 3, 2, 4, 5)]
+                vals = h2co_mod.InternalsPotential.get_pot(coords)
+                return vals
+            ochh = Molecule.from_file(
+                TestManager.test_data('OCHH_freq.fchk'),
+                energy_evaluator=dict(
+                    {
+                        'potential_function': internal_pot,
+                        "distance_units": "Angstroms",
+                        "energy_units": "Wavenumbers",
+                        'strip_embedding': True
+                    },
+                    **fd_opts
+                ),
+                internals=[
+                    [0, -1, -1, -1],
+                    [1,  0, -1, -1],
+                    [2,  1,  0, -1],
+                    [3,  1,  0,  2],
+                ]
+            )
+        base_dip = ochh.dipole_derivatives
         ochh = ochh.modify(
-            coords=[[0,               0,  1.27851316e+00],
-                    [0,               0, -1.00141774e+00],
-                    [0,  1.77589409e+00, -2.09935779e+00],
-                    [0, -1.77589409e+00, -2.09935779e+00]],
-            dipole_derivatives=ochh.dipole_derivatives
+            coords=[[0,               0,  1.27603352e+00],
+                    [0,               0, -9.98625259e-01],
+                    [0,  1.77174246e+00, -2.09630576e+00],
+                    [0, -1.77174246e+00, -2.09630576e+00]]
         )
         if optimize:
             ochh = ochh.optimize(
@@ -4088,45 +4109,24 @@ class DGBTests(TestCase):
                 # method='gradient-descent'
                 , max_iterations=50
                 , stencil=3
-                # , logger=True
+                , logger=True
                 # , max_displacement=.01
                 , prevent_oscillations=3
                 , restart_interval=15
-            ).modify(dipole_derivatives=ochh.dipole_derivatives)
-
+            )
+            print(ochh.coords)
+        ochh = ochh.modify(dipole_derivatives=base_dip)
 
         return ochh
 
     @debugTest
     def test_NewRunnerOCHH(self):
+        from Psience.Modes import LocalizedModes
 
-        ochh = self.setup_OCHH(optimize=False)
-        base_modes = ochh.get_normal_modes().remove_mass_weighting()
-        ochh.normal_modes = {
-            'freqs':base_modes.freqs,
-            'matrix':base_modes.coords_by_modes.T,
-            'inverse':base_modes.modes_by_coords.T
-            # 'masses':base_modes.masses
-        }
+        ochh = self.setup_OCHH(optimize=False, use_internals=True, stencil=7)
         # runner, _ = ochh.setup_VPT(degeneracy_specs='auto')
         # runner.print_tables()
         # return
-        """
-0 0 0 0 0 0   5912.72412   5817.58162 
-State       Frequency    Intensity       Frequency    Intensity
-  0 0 0 0 0 1    3148.89130     83.71469      2900.10415     28.48416
-  0 0 0 0 1 0    2824.52190     76.41008      2640.88943     72.18154
-  0 0 0 1 0 0    1854.49411     72.27262      1818.84810     71.81706
-  0 0 1 0 0 0    1546.69344      4.74627      1491.82735      6.07001
-  0 1 0 0 0 0    1254.07407     12.11578      1198.10062     11.14660
-  1 0 0 0 0 0    1196.77341      6.97394      1183.51882      6.79932
-  0 0 0 0 0 2    6297.78260      0.00000      5782.91182      9.27327
-  0 0 0 0 2 0    5649.04381      0.00000      5129.71615      6.45106
-  0 0 0 2 0 0    3708.98822      0.00000      3615.40399      0.15834
-  0 0 2 0 0 0    3093.38687      0.00000      2983.37686      5.43076
-  0 2 0 0 0 0    2508.14814      0.00000      2371.94034      1.25110
-  2 0 0 0 0 0    2393.54682      0.00000      2361.89497      0.48209
-  """
 
         dgb, res = DGBRunner.run_simple(
             ochh,

@@ -178,14 +178,22 @@ class Molecule(AbstractMolecule):
                     and dipole_derivatives is dev.default
                     and coords is dev.default
                     and dipole_evaluator is dev.default
-            ) else dipole_surface,
+            ) else (
+                None
+                    if dipole_surface is dev.default
+                else dipole_surface
+            ),
             dipole_derivatives=None if dipole_derivatives is dev.default else dipole_derivatives ,
             potential_surface=self.potential_surface if (
                     potential_surface is dev.default
                     and potential_derivatives is dev.default
                     and coords is dev.default
                     and energy_evaluator is dev.default
-            ) else potential_surface,
+            ) else (
+                None
+                    if potential_surface is dev.default
+                else potential_surface
+            ),
             potential_derivatives=None if potential_derivatives is dev.default else potential_derivatives
         )
 
@@ -1738,7 +1746,7 @@ class Molecule(AbstractMolecule):
         if internals is None: internals = ordering
         return cls(atoms, coords, internals=internals, **opts)
     @classmethod
-    def from_pybel(cls, mol, **opts):
+    def from_openbabel(cls, mol, **opts):
         """
 
         :param mol:
@@ -1746,14 +1754,20 @@ class Molecule(AbstractMolecule):
         :return:
         :rtype:
         """
-        from McUtils.ExternalPrograms import OpenBabelInterface
+        return cls(
+            mol.atoms,
+            mol.coords * UnitsData.convert("Angstroms", "BohrRadius"),
+            bonds=mol.bonds,
+            **opts
+            # **dict(
+            #     rdmol.meta,
+            #     **opts
+            # )
+        )
+    def get_obmol(self, **opts):
+        from McUtils.ExternalPrograms import OBMolecule
 
-        ob = OpenBabelInterface().openbabel
-        bonds = list(ob.OBMolBondIter(mol.OBMol))
-        atoms = list(mol.atoms)
-
-        opts = dict({'bonds':bonds, 'obmol':mol}, **opts)
-        return cls(atoms, [a.coords for a in atoms], **opts)
+        return OBMolecule.from_mol(self, **opts)
     @classmethod
     def _from_log_file(cls, file, num=None, **opts):
         from McUtils.GaussianInterface import GaussianLogReader
@@ -1922,6 +1936,14 @@ class Molecule(AbstractMolecule):
                 new = cls.from_file(tf.name, mode=fmt, **opts)
             new.source_file = None # don't want to keep this lying around...
         return new
+    @classmethod
+    def _from_ob_import(cls, file, fmt=None, **opts):
+        from McUtils.ExternalPrograms import OBMolecule
+
+        return cls.from_openbabel(
+            OBMolecule.from_file(file, fmt=fmt),
+            **opts
+        )
 
     @classmethod
     def get_file_format_dispatchers(cls):
@@ -1956,16 +1978,106 @@ class Molecule(AbstractMolecule):
             loader = format_dispatcher[mode]
             return loader(file, **opts)
         else:
-            from McUtils.ExternalPrograms import OpenBabelInterface
+            return cls._from_ob_import(file, fmt=mode, **opts)
+
+            # try:
+            #     pybel = OpenBabelInterface().pybel
+            # except ImportError:
+            #     pybel = None
+            # if pybel is None:
+            #     raise IOError("{} doesn't support file type {} without OpenBabel installed.".format(cls.__name__, mode))
+            # else:
+            #     mol = next(pybel.readfile(mode, file))
+            #     return cls.from_openbabel(mol)
+
+    @classmethod
+    def _to_smiles(cls, mol, **opts):
+        rdmol = mol.rdmol
+        if rdmol is not None:
+            return rdmol.to_smiles(**opts)
+        else:
+            raise ValueError(f"couldn't get `rdmol` for {mol}")
+
+    @classmethod
+    def _to_xyz_string(cls, mol, comment=None, num_prec=8):
+        ats = mol.atoms
+        crds = mol.coords
+        num_ats = len(ats)
+        x_width = 1 + np.ceil(np.max(np.log10(np.abs(crds.flatten()))))
+        total_width = int(2 + x_width + num_prec)
+        return "\n".join([
+            str(num_ats),
+            repr(mol) if comment is None else comment
+        ] + [
+            f"{at}  {c[0]:>{total_width}.{num_prec}f} {c[1]:>{total_width}.{num_prec}f} {c[2]:>{total_width}.{num_prec}f}"
+            for at, c in zip(ats, crds)
+        ])
+
+    @classmethod
+    def get_string_export_dispatchers(cls):
+        return {
+            "smi": cls._to_smiles,
+            # "mol": cls._to_molblock,
+            # "sdf": cls._to_sdf,
+            "xyz": cls._to_xyz_string
+        }
+    def to_string(self, fmt, **opts):
+        format_dispatcher = self.get_string_export_dispatchers()
+        file_format_dispatcher = self.get_file_export_dispatchers()
+
+        if fmt in format_dispatcher:
+            exporter = format_dispatcher[fmt]
+            return exporter(self, **opts)
+        elif fmt in file_format_dispatcher:
+            import tempfile as tf
+            with tf.NamedTemporaryFile(mode='w+') as file:
+                name = file.name
+            name = self.to_file(name, fmt, **opts)
             try:
-                pybel = OpenBabelInterface().pybel
-            except ImportError:
-                pybel = None
-            if pybel is None:
-                raise IOError("{} doesn't support file type {} without OpenBabel installed.".format(cls.__name__, mode))
-            else:
-                mol = next(pybel.readfile(mode, file))
-                return cls.from_pybel(mol)
+                with open(name) as file:
+                    return file.read()
+            finally:
+                try:
+                    os.remove(name)
+                except:
+                    ...
+        else:
+            obmol = self.get_obmol()
+            return obmol.to_string(fmt)
+
+
+
+    @classmethod
+    def get_file_export_dispatchers(cls):
+        return {
+        }
+    def to_file(self, file, mode=None, **opts):
+        """
+        :param file:
+        :type file:
+        :return:
+        :rtype:
+        """
+        import os
+
+        format_dispatcher = self.get_file_export_dispatchers()
+        string_format_dispatcher = self.get_string_format_dispatchers()
+
+        if mode == None:
+            path, ext = os.path.splitext(file)
+            ext = ext.lower()
+            mode = ext.strip(".")
+
+        if mode in format_dispatcher:
+            exporter = format_dispatcher[mode]
+            return exporter(self, file, **opts)
+        elif mode in string_format_dispatcher:
+            exporter = format_dispatcher[mode]
+            data = exporter(self, **opts)
+            return dev.write_file(file, data)
+        else:
+            obmol = self.get_obmol()
+            return obmol.to_file(file, mode)
 
     @classmethod
     def _infer_spec_format(cls, spec, **opts):
