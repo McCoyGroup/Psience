@@ -1,8 +1,8 @@
 ## <a id="Psience.Molecools.Molecule.Molecule">Molecule</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule.py#L31)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule.py#L31?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule.py#L42)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule.py#L42?message=Update%20Docs)]
 </div>
 
 General purpose 'Molecule' class where the 'Molecule' need not be a molecule at all
@@ -18,14 +18,19 @@ General purpose 'Molecule' class where the 'Molecule' need not be a molecule at 
 ## <a class="collapse-link" data-toggle="collapse" href="#methods" markdown="1"> Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
  </div>
  <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
- 
+ ```python
+bond_guessing_mode: str
+default_energy_evalutor: str
+highlight_styles: dict
+default_display_mode: str
+```
 <a id="Psience.Molecools.Molecule.Molecule.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
-__init__(self, atoms, coords, bonds=None, masses=None, name=None, internals=None, obmol=None, dipole_surface=None, dipole_derivatives=None, potential_surface=None, potential_derivatives=None, normal_modes=None, source_file=None, guess_bonds=True, charge=None, **metadata): 
+__init__(self, atoms, coords, bonds=None, masses=None, name=None, internals=None, rdmol=None, dipole_surface=None, dipole_derivatives=None, potential_surface=None, potential_derivatives=None, normal_modes=None, source_file=None, guess_bonds=True, charge=None, display_mode=None, energy_evaluator=None, dipole_evaluator=None, charge_evaluator=None, **metadata): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L36)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L36?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L47)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L47?message=Update%20Docs)]
 </div>
 
   - `atoms`: `Iterable[str]`
@@ -57,14 +62,203 @@ The internal coordinate specification for the molecule
     > Other bound parameters that might be useful
 
 
+<a id="Psience.Molecools.Molecule.Molecule.modify" class="docs-object-method">&nbsp;</a> 
+```python
+modify(self, atoms=<McUtils.McUtils.Devutils.core.DefaultType instance>, coords=<McUtils.McUtils.Devutils.core.DefaultType instance>, *, internals=<McUtils.McUtils.Devutils.core.DefaultType instance>, masses=<McUtils.McUtils.Devutils.core.DefaultType instance>, bonds=<McUtils.McUtils.Devutils.core.DefaultType instance>, guess_bonds=<McUtils.McUtils.Devutils.core.DefaultType instance>, energy_evaluator=<McUtils.McUtils.Devutils.core.DefaultType instance>, dipole_evaluator=<McUtils.McUtils.Devutils.core.DefaultType instance>, charge_evaluator=<McUtils.McUtils.Devutils.core.DefaultType instance>, display_mode=<McUtils.McUtils.Devutils.core.DefaultType instance>, charge=<McUtils.McUtils.Devutils.core.DefaultType instance>, normal_modes=<McUtils.McUtils.Devutils.core.DefaultType instance>, dipole_surface=<McUtils.McUtils.Devutils.core.DefaultType instance>, potential_surface=<McUtils.McUtils.Devutils.core.DefaultType instance>, dipole_derivatives=<McUtils.McUtils.Devutils.core.DefaultType instance>, potential_derivatives=<McUtils.McUtils.Devutils.core.DefaultType instance>): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L144)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L144?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.canonicalize_internals" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+canonicalize_internals(cls, spec, atoms, coords, bonds, relocalize=True, masses=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L249)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L249?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.prep_internal_spec" class="docs-object-method">&nbsp;</a> 
+```python
+prep_internal_spec(self, spec, relocalize=True, masses=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L282)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L282?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.coords" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+coords(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L293)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L293?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.masses" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+masses(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L299)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L299?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.internals" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+internals(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L306)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L306?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.charge" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+charge(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L309)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L309?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.charges" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+charges(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L315)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L315?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_charge_evaluator" class="docs-object-method">&nbsp;</a> 
+```python
+get_charge_evaluator(self, evaluator=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L322)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L322?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.calculate_charges" class="docs-object-method">&nbsp;</a> 
+```python
+calculate_charges(self, evaluator=None, order=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L332)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L332?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.internal_coordinates" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+internal_coordinates(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L349)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L349?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.redundant_internal_transformation" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+redundant_internal_transformation(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L352)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L352?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.mode_embedding" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+mode_embedding(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L356)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L356?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_internals" class="docs-object-method">&nbsp;</a> 
+```python
+get_internals(self, strip_embedding=True): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L361)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L361?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_cartesians_by_internals" class="docs-object-method">&nbsp;</a> 
+```python
+get_cartesians_by_internals(self, order=None, strip_embedding=False, **kw): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L364)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L364?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_internals_by_cartesians" class="docs-object-method">&nbsp;</a> 
+```python
+get_internals_by_cartesians(self, order=None, strip_embedding=False, **kw): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L367)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L367?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_cartesians_by_modes" class="docs-object-method">&nbsp;</a> 
+```python
+get_cartesians_by_modes(self, order=None, **kw): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L370)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L370?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_modes_by_cartesians" class="docs-object-method">&nbsp;</a> 
+```python
+get_modes_by_cartesians(self, order=None, **kw): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L373)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L373?message=Update%20Docs)]
+</div>
+
+
 <a id="Psience.Molecools.Molecule.Molecule.dipole_surface" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
 dipole_surface(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L131)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L131?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L379)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L379?message=Update%20Docs)]
 </div>
 
   - `:returns`: `DipoleSurfaceManager`
@@ -77,8 +271,28 @@ dipole_surface(self):
 dipole_derivatives(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L145)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L145?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L393)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L393?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_cartesian_dipole_derivatives" class="docs-object-method">&nbsp;</a> 
+```python
+get_cartesian_dipole_derivatives(self, order=None, evaluator=None, include_constant_term=False): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L399)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L399?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_internal_dipole_derivatives" class="docs-object-method">&nbsp;</a> 
+```python
+get_internal_dipole_derivatives(self, order=None, reembed=True, strip_embedding=True): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L422)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L422?message=Update%20Docs)]
 </div>
 
 
@@ -88,8 +302,8 @@ dipole_derivatives(self):
 potential_surface(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L151)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L151?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L432)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L432?message=Update%20Docs)]
 </div>
 
   - `:returns`: `PotentialSurfaceManager`
@@ -102,8 +316,28 @@ potential_surface(self):
 potential_derivatives(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L165)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L165?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L446)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L446?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_cartesian_potential_derivatives" class="docs-object-method">&nbsp;</a> 
+```python
+get_cartesian_potential_derivatives(self, order=None, evaluator=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L470)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L470?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_internal_potential_derivatives" class="docs-object-method">&nbsp;</a> 
+```python
+get_internal_potential_derivatives(self, order=None, reembed=True, strip_embedding=True, zero_gradient=False): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L487)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L487?message=Update%20Docs)]
 </div>
 
 
@@ -113,12 +347,22 @@ potential_derivatives(self):
 normal_modes(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L171)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L171?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L500)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L500?message=Update%20Docs)]
 </div>
 
   - `:returns`: `NormalModesManager`
     >
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_normal_modes" class="docs-object-method">&nbsp;</a> 
+```python
+get_normal_modes(self, masses=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L515)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L515?message=Update%20Docs)]
+</div>
 
 
 <a id="Psience.Molecools.Molecule.Molecule.metadata" class="docs-object-method">&nbsp;</a> 
@@ -127,8 +371,18 @@ normal_modes(self):
 metadata(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L185)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L185?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L518)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L518?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_harmonic_spectrum" class="docs-object-method">&nbsp;</a> 
+```python
+get_harmonic_spectrum(self, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L530)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L530?message=Update%20Docs)]
 </div>
 
 
@@ -137,8 +391,8 @@ metadata(self):
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L197)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L197?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L535)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L535?message=Update%20Docs)]
 </div>
 
 
@@ -148,8 +402,8 @@ __repr__(self):
 num_atoms(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L206)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L206?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L556)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L556?message=Update%20Docs)]
 </div>
 
 
@@ -159,8 +413,8 @@ num_atoms(self):
 atom_positions(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L209)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L209?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L559)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L559?message=Update%20Docs)]
 </div>
 A mapping of atom types to positions
   - `spec`: `Any`
@@ -175,8 +429,8 @@ A mapping of atom types to positions
 dummy_positions(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L226)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L226?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L576)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L576?message=Update%20Docs)]
 </div>
 
 
@@ -186,19 +440,8 @@ dummy_positions(self):
 atoms(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L230)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L230?message=Update%20Docs)]
-</div>
-
-
-<a id="Psience.Molecools.Molecule.Molecule.masses" class="docs-object-method">&nbsp;</a> 
-```python
-@property
-masses(self): 
-```
-<div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L233)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L233?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L580)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L580?message=Update%20Docs)]
 </div>
 
 
@@ -208,8 +451,8 @@ masses(self):
 atomic_masses(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L244)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L244?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L594)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L594?message=Update%20Docs)]
 </div>
 
 
@@ -219,30 +462,8 @@ atomic_masses(self):
 bonds(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L247)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L247?message=Update%20Docs)]
-</div>
-
-
-<a id="Psience.Molecools.Molecule.Molecule.coords" class="docs-object-method">&nbsp;</a> 
-```python
-@property
-coords(self): 
-```
-<div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L252)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L252?message=Update%20Docs)]
-</div>
-
-
-<a id="Psience.Molecools.Molecule.Molecule.sys" class="docs-object-method">&nbsp;</a> 
-```python
-@property
-sys(self): 
-```
-<div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L261)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L261?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L597)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L597?message=Update%20Docs)]
 </div>
 
 
@@ -252,8 +473,8 @@ sys(self):
 formula(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L264)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L264?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L605)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L605?message=Update%20Docs)]
 </div>
 
 
@@ -263,8 +484,8 @@ formula(self):
 multiconfig(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L267)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L267?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L608)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L608?message=Update%20Docs)]
 </div>
 
 
@@ -274,8 +495,8 @@ multiconfig(self):
 name(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L270)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L270?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L611)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L611?message=Update%20Docs)]
 </div>
 
 
@@ -285,45 +506,9 @@ name(self):
 source_file(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L276)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L276?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L617)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L617?message=Update%20Docs)]
 </div>
-
-
-<a id="Psience.Molecools.Molecule.Molecule.insert_atoms" class="docs-object-method">&nbsp;</a> 
-```python
-insert_atoms(self, atoms, coords, where, handle_properties=True): 
-```
-<div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L284)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L284?message=Update%20Docs)]
-</div>
-
-
-<a id="Psience.Molecools.Molecule.Molecule.delete_atoms" class="docs-object-method">&nbsp;</a> 
-```python
-delete_atoms(self, where, handle_properties=True): 
-```
-<div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L310)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L310?message=Update%20Docs)]
-</div>
-
-
-<a id="Psience.Molecools.Molecule.Molecule.take_submolecule" class="docs-object-method">&nbsp;</a> 
-```python
-take_submolecule(self, spec): 
-```
-<div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L326)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L326?message=Update%20Docs)]
-</div>
-Takes a 'slice' of a molecule if working with Cartesian coords.
-If not, need to do some corner case handling for that.
-  - `spec`: `Any`
-    > 
-  - `:returns`: `_`
-    >
 
 
 <a id="Psience.Molecools.Molecule.Molecule.shape" class="docs-object-method">&nbsp;</a> 
@@ -332,8 +517,8 @@ If not, need to do some corner case handling for that.
 shape(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L351)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L351?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L624)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L624?message=Update%20Docs)]
 </div>
 
 
@@ -342,28 +527,8 @@ shape(self):
 __len__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L354)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L354?message=Update%20Docs)]
-</div>
-
-
-<a id="Psience.Molecools.Molecule.Molecule.__iter__" class="docs-object-method">&nbsp;</a> 
-```python
-__iter__(self): 
-```
-<div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L359)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L359?message=Update%20Docs)]
-</div>
-
-
-<a id="Psience.Molecools.Molecule.Molecule.__getitem__" class="docs-object-method">&nbsp;</a> 
-```python
-__getitem__(self, item): 
-```
-<div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L365)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L365?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L627)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L627?message=Update%20Docs)]
 </div>
 
 
@@ -372,8 +537,18 @@ __getitem__(self, item):
 copy(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L368)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L368?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L633)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L633?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.take_submolecule" class="docs-object-method">&nbsp;</a> 
+```python
+take_submolecule(self, pos): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L649)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L649?message=Update%20Docs)]
 </div>
 
 
@@ -382,8 +557,51 @@ copy(self):
 prop(self, name, *args, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L384)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L384?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L673)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L673?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_guessed_bonds" class="docs-object-method">&nbsp;</a> 
+```python
+get_guessed_bonds(self, mode=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L685)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L685?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.edge_graph" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+edge_graph(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L700)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L700?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.fragment_indices" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+fragment_indices(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L704)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L704?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.fragments" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+fragments(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L708)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L708?message=Update%20Docs)]
 </div>
 
 
@@ -393,8 +611,8 @@ prop(self, name, *args, **kwargs):
 mass_weighted_coords(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L397)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L397?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L713)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L713?message=Update%20Docs)]
 </div>
 
   - `:returns`: `CoordinateSet`
@@ -407,8 +625,8 @@ mass_weighted_coords(self):
 center_of_mass(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L404)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L404?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L721)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L721?message=Update%20Docs)]
 </div>
 
   - `:returns`: `CoordinateSet`
@@ -421,8 +639,8 @@ center_of_mass(self):
 inertia_tensor(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L411)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L411?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L728)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L728?message=Update%20Docs)]
 </div>
 
   - `:returns`: `(np.ndarray, np.ndarray)`
@@ -435,8 +653,8 @@ inertia_tensor(self):
 inertial_eigensystem(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L418)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L418?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L735)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L735?message=Update%20Docs)]
 </div>
 
   - `:returns`: `(np.ndarray, np.ndarray)`
@@ -449,8 +667,8 @@ inertial_eigensystem(self):
 moments_of_inertia(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L425)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L425?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L742)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L742?message=Update%20Docs)]
 </div>
 
   - `:returns`: `np.ndarray`
@@ -463,8 +681,8 @@ moments_of_inertia(self):
 inertial_axes(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L432)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L432?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L749)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L749?message=Update%20Docs)]
 </div>
 
   - `:returns`: `np.ndarray`
@@ -477,124 +695,181 @@ inertial_axes(self):
 translation_rotation_modes(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L440)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L440?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L757)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L757?message=Update%20Docs)]
 </div>
 
   - `:returns`: `np.ndarray`
     >
 
 
-<a id="Psience.Molecools.Molecule.Molecule.canonicalize_internal_coordinate_spec" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.Molecools.Molecule.Molecule.get_translation_rotation_projector" class="docs-object-method">&nbsp;</a> 
 ```python
-canonicalize_internal_coordinate_spec(spec): 
+get_translation_rotation_projector(self, mass_weighted=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L466)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L466?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L765)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L765?message=Update%20Docs)]
 </div>
 
 
-<a id="Psience.Molecools.Molecule.Molecule.internals" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.Molecools.Molecule.Molecule.get_translation_rotation_invariant_transformation" class="docs-object-method">&nbsp;</a> 
 ```python
-@property
-internals(self): 
+get_translation_rotation_invariant_transformation(self, mass_weighted=False, strip_embedding=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L528)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L528?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L779)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L779?message=Update%20Docs)]
 </div>
 
 
-<a id="Psience.Molecools.Molecule.Molecule.zmatrix" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.Molecools.Molecule.Molecule.get_energy_evaluator" class="docs-object-method">&nbsp;</a> 
 ```python
-@property
-zmatrix(self): 
+get_energy_evaluator(self, evaluator=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L536)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L536?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L813)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L813?message=Update%20Docs)]
 </div>
 
 
-<a id="Psience.Molecools.Molecule.Molecule.internal_coordinates" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.Molecools.Molecule.Molecule.get_energy_function" class="docs-object-method">&nbsp;</a> 
 ```python
-@property
-internal_coordinates(self): 
+get_energy_function(self, evaluator=None, *, order=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L551)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L551?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L826)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L826?message=Update%20Docs)]
 </div>
 
 
-<a id="Psience.Molecools.Molecule.Molecule.get_cartesians_by_internals" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.Molecools.Molecule.Molecule.calculate_energy" class="docs-object-method">&nbsp;</a> 
 ```python
-get_cartesians_by_internals(self, order=None, strip_embedding=False): 
+calculate_energy(self, coords=None, *, evaluator=None, order=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L698)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L698?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L841)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L841?message=Update%20Docs)]
 </div>
 
 
-<a id="Psience.Molecools.Molecule.Molecule.get_internals_by_cartesians" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.Molecools.Molecule.Molecule.optimize" class="docs-object-method">&nbsp;</a> 
 ```python
-get_internals_by_cartesians(self, order=None, strip_embedding=False): 
+optimize(self, evaluator=None, *, method=None, tol=None, max_iterations=None, logger=None, reembed=True, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L722)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L722?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L854)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L854?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_dipole_evaluator" class="docs-object-method">&nbsp;</a> 
+```python
+get_dipole_evaluator(self, evaluator=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L887)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L887?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_dipole_function" class="docs-object-method">&nbsp;</a> 
+```python
+get_dipole_function(self, evaluator=None, *, order=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L898)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L898?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.calculate_dipole" class="docs-object-method">&nbsp;</a> 
+```python
+calculate_dipole(self, evaluator=None, order=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L913)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L913?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_reduced_potential_generator" class="docs-object-method">&nbsp;</a> 
+```python
+get_reduced_potential_generator(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L924)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L924?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_1d_potentials" class="docs-object-method">&nbsp;</a> 
+```python
+get_1d_potentials(self, spec, evaluator=None, energy_expansion=None, potential_params=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L926)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L926?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.Molecools.Molecule.Molecule.evaluate" class="docs-object-method">&nbsp;</a> 
 ```python
-evaluate(self, func, internals=None, deriv_order=None, strip_embedding=False): 
+evaluate(self, func, use_internals=None, order=None, strip_embedding=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L748)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L748?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L941)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L941?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.Molecools.Molecule.Molecule.evaluate_at" class="docs-object-method">&nbsp;</a> 
 ```python
-evaluate_at(self, func, coords, internals=None, deriv_order=None, strip_embedding=False): 
+evaluate_at(self, func, coords, use_internals=None, order=None, strip_embedding=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L808)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L808?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L953)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L953?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.Molecools.Molecule.Molecule.get_displaced_coordinates" class="docs-object-method">&nbsp;</a> 
 ```python
-get_displaced_coordinates(self, displacements, which=None, sel=None, axes=None, internals=False, shift=True): 
+get_displaced_coordinates(self, displacements, which=None, sel=None, axes=None, use_internals=False, coordinate_expansion=None, strip_embedding=False, shift=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L821)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L821?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L968)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L968?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.Molecools.Molecule.Molecule.get_scan_coordinates" class="docs-object-method">&nbsp;</a> 
 ```python
-get_scan_coordinates(self, domains, internals=False, which=None, sel=None, axes=None, shift=True): 
+get_scan_coordinates(self, domains, internals=False, modes=None, order=None, which=None, sel=None, axes=None, shift=True, coordinate_expansion=None, strip_embedding=False, return_displacements=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L895)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L895?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L984)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L984?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_nearest_displacement_atoms" class="docs-object-method">&nbsp;</a> 
+```python
+get_nearest_displacement_atoms(self, points, sel=None, axes=None, weighting_function=None, return_distances=False): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1019)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1019?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.Molecools.Molecule.Molecule.get_nearest_displacement_coordinates" class="docs-object-method">&nbsp;</a> 
 ```python
-get_nearest_displacement_coordinates(self, points, sel=None, axes=None, weighting_function=None): 
+get_nearest_displacement_coordinates(self, points, sel=None, axes=None, weighting_function=None, modes_nearest=False, return_distances=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L911)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L911?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1029)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1029?message=Update%20Docs)]
 </div>
 
 
@@ -603,8 +878,18 @@ get_nearest_displacement_coordinates(self, points, sel=None, axes=None, weightin
 get_nearest_scan_coordinates(self, domains, sel=None, axes=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L946)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L946?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1041)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1041?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.plot_molecule_function" class="docs-object-method">&nbsp;</a> 
+```python
+plot_molecule_function(self, function, *, axes, sel=None, embed=False, modes_nearest=False, domain=None, domain_padding=1, plot_points=500, weighting_function=None, mask_function=None, mask_value=0, plot_atoms=False, atom_colors=None, atom_radii=None, plotter=None, epilog=None, **plot_options): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1044)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1044?message=Update%20Docs)]
 </div>
 
 
@@ -613,8 +898,38 @@ get_nearest_scan_coordinates(self, domains, sel=None, axes=None):
 get_model(self, potential_specs, dipole=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L955)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L955?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1156)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1156?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.setup_AIMD" class="docs-object-method">&nbsp;</a> 
+```python
+setup_AIMD(self, potential_function=None, timestep=0.5, seed=None, total_energy=None, total_energy_scaling=None, trajectories=1, sampled_modes=None, initial_energies=None, initial_displacements=None, initial_mode_directions=None, displaced_coords=None, track_kinetic_energy=False, track_velocities=False): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1281)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1281?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.setup_VPT" class="docs-object-method">&nbsp;</a> 
+```python
+setup_VPT(self, *, states=2, order=2, use_internals=None, potential_derivatives=None, energy_evaluator=None, dipole_derivatives=None, dipole_evaluator=None, runner='matrix', modes=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1369)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1369?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_gmatrix" class="docs-object-method">&nbsp;</a> 
+```python
+get_gmatrix(self, masses=None, use_internals=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1424)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1424?message=Update%20Docs)]
 </div>
 
 
@@ -624,8 +939,22 @@ get_model(self, potential_specs, dipole=None):
 g_matrix(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1080)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1080?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1438)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1438?message=Update%20Docs)]
+</div>
+Returns the molecular g-matrix for the system
+  - `:returns`: `_`
+    >
+
+
+<a id="Psience.Molecools.Molecule.Molecule.coriolis_constants" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+coriolis_constants(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1447)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1447?message=Update%20Docs)]
 </div>
 Returns the molecular g-matrix for the system
   - `:returns`: `_`
@@ -637,8 +966,8 @@ Returns the molecular g-matrix for the system
 bond_length(self, i, j): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1091)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1091?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1456)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1456?message=Update%20Docs)]
 </div>
 Returns the bond length of the coordinates
   - `i`: `Any`
@@ -654,8 +983,8 @@ Returns the bond length of the coordinates
 bond_angle(self, i, j, k): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1103)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1103?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1468)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1468?message=Update%20Docs)]
 </div>
 Returns the bond angle of the specified coordinates
   - `i`: `Any`
@@ -671,8 +1000,8 @@ Returns the bond angle of the specified coordinates
 dihedral(self, i, j, k, l): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1115)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1115?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1480)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1480?message=Update%20Docs)]
 </div>
 Returns the dihedral angle of the specified coordinates
   - `i`: `Any`
@@ -688,8 +1017,8 @@ Returns the dihedral angle of the specified coordinates
 principle_axis_frame(self, sel=None, inverse=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1131)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1131?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1496)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1496?message=Update%20Docs)]
 </div>
 Gets the principle axis frame(s) for the molecule
   - `mol`: `Any`
@@ -708,21 +1037,51 @@ Gets the principle axis frame(s) for the molecule
 principle_axis_data(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1145)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1145?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1510)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1510?message=Update%20Docs)]
 </div>
 Gets the principle axis embedded coords and embedding parameters for the molecule
   - `:returns`: `MolecularTransformation | List[MolecularTransformation]`
     >
 
 
-<a id="Psience.Molecools.Molecule.Molecule.eckart_frame" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.Molecools.Molecule.Molecule.permute_atoms" class="docs-object-method">&nbsp;</a> 
 ```python
-eckart_frame(self, mol, sel=None, inverse=False, planar_ref_tolerance=None): 
+permute_atoms(self, perm): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1155)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1155?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1534)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1534?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.apply_affine_transformation" class="docs-object-method">&nbsp;</a> 
+```python
+apply_affine_transformation(self, transformation, load_properties=False, embed_properties=True): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1546)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1546?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.apply_rotation" class="docs-object-method">&nbsp;</a> 
+```python
+apply_rotation(self, rotation_matrix, shift_com=None, load_properties=False, embed_properties=True): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1563)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1563?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.eckart_frame" class="docs-object-method">&nbsp;</a> 
+```python
+eckart_frame(self, mol, sel=None, inverse=False, planar_ref_tolerance=None, proper_rotation=False): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1573)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1573?message=Update%20Docs)]
 </div>
 Gets the Eckart frame(s) for the molecule
   - `mol`: `Any`
@@ -737,11 +1096,11 @@ Gets the Eckart frame(s) for the molecule
 
 <a id="Psience.Molecools.Molecule.Molecule.embed_coords" class="docs-object-method">&nbsp;</a> 
 ```python
-embed_coords(self, crds, sel=None, in_paf=False, planar_ref_tolerance=None): 
+embed_coords(self, crds, sel=None, in_paf=False, planar_ref_tolerance=None, proper_rotation=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1170)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1170?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1594)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1594?message=Update%20Docs)]
 </div>
 Embeds coords in the Eckart frame using `self` as a reference
   - `crds`: `Any`
@@ -752,26 +1111,26 @@ Embeds coords in the Eckart frame using `self` as a reference
 
 <a id="Psience.Molecools.Molecule.Molecule.get_embedding_data" class="docs-object-method">&nbsp;</a> 
 ```python
-get_embedding_data(self, crds, sel=None, in_paf=False, planar_ref_tolerance=None): 
+get_embedding_data(self, crds, sel=None, in_paf=False, planar_ref_tolerance=None, proper_rotation=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1181)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1181?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1608)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1608?message=Update%20Docs)]
 </div>
 Gets the necessary data to embed crds in the Eckart frame using `self` as a reference
   - `crds`: `Any`
     > 
-  - `:returns`: `tuple[np.ndarray, tuple[np.ndarray], tuple[np.ndarray]]`
+  - `:returns`: `_`
     >
 
 
 <a id="Psience.Molecools.Molecule.Molecule.get_embedded_molecule" class="docs-object-method">&nbsp;</a> 
 ```python
-get_embedded_molecule(self, ref=None, sel=None, planar_ref_tolerance=None, embed_properties=True, load_properties=True): 
+get_embedded_molecule(self, ref=None, sel=None, planar_ref_tolerance=None, proper_rotation=False, embed_properties=True, load_properties=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1191)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1191?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1620)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1620?message=Update%20Docs)]
 </div>
 Returns a Molecule embedded in an Eckart frame if ref is not None, otherwise returns
 a principle-axis embedded Molecule
@@ -779,28 +1138,56 @@ a principle-axis embedded Molecule
     >
 
 
-<a id="Psience.Molecools.Molecule.Molecule.from_zmat" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.Molecools.Molecule.Molecule.align_molecule" class="docs-object-method">&nbsp;</a> 
 ```python
-from_zmat(zmat, **opts): 
+align_molecule(self, other: 'typing.Self', reindex_bonds=True, permute_atoms=True, align_structures=True, sel=None, embed_properties=True, load_properties=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1229)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1229?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1642)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1642?message=Update%20Docs)]
 </div>
-Little z-matrix importer
-  - `zmat`: `str | tuple`
+Aligns `other` with `self` by first finding the reindexing of the bonds of `other` that
+lead to the best graph overlap with `self`, then determining which atoms can be permuted based on their graph
+structures, then determining which permutation of equivalent atoms leads to the best agreement between the structures,
+and then finally finding the Eckart/min-RMSD transformation after this transformation has been applied
+  - `other`: `Any`
     > 
-  - `:returns`: `Molecule`
+  - `reindex_bonds`: `Any`
+    > 
+  - `:returns`: `_`
     >
 
 
-<a id="Psience.Molecools.Molecule.Molecule.from_pybel" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.Molecools.Molecule.Molecule.rdmol" class="docs-object-method">&nbsp;</a> 
 ```python
-from_pybel(mol, **opts): 
+@property
+rdmol(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1246)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1246?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1734)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1734?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.from_zmat" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_zmat(cls, zmat, internals=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1743)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1743?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.from_openbabel" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_openbabel(cls, mol, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1753)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1753?message=Update%20Docs)]
 </div>
 
   - `mol`: `pybel.mol`
@@ -809,13 +1196,90 @@ from_pybel(mol, **opts):
     >
 
 
-<a id="Psience.Molecools.Molecule.Molecule.from_file" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.Molecools.Molecule.Molecule.get_obmol" class="docs-object-method">&nbsp;</a> 
 ```python
-from_file(file, mode=None, **opts): 
+get_obmol(self, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1294)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1294?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1772)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1772?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.from_rdmol" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_rdmol(cls, rdmol, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1807)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1807?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.from_name" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_name(cls, name, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1874)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1874?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_atom_strings" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+get_atom_strings(cls): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1879)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1879?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_string_format_dispatchers" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+get_string_format_dispatchers(cls): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1920)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1920?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.from_string" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_string(cls, string, fmt=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1930)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1930?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_file_format_dispatchers" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+get_file_format_dispatchers(cls): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1953)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1953?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.from_file" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_file(cls, file, mode=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1963)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1963?message=Update%20Docs)]
 </div>
 In general we'll delegate to pybel except for like Fchk and Log files
   - `file`: `Any`
@@ -824,23 +1288,131 @@ In general we'll delegate to pybel except for like Fchk and Log files
     >
 
 
-<a id="Psience.Molecools.Molecule.Molecule.from_spec" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.Molecools.Molecule.Molecule.get_string_export_dispatchers" class="docs-object-method">&nbsp;</a> 
 ```python
-from_spec(spec): 
+@classmethod
+get_string_export_dispatchers(cls): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1347)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1347?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L2023)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L2023?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.to_string" class="docs-object-method">&nbsp;</a> 
+```python
+to_string(self, fmt, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L2031)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L2031?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_file_export_dispatchers" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+get_file_export_dispatchers(cls): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L2057)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L2057?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.to_file" class="docs-object-method">&nbsp;</a> 
+```python
+to_file(self, file, mode=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L2061)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L2061?message=Update%20Docs)]
+</div>
+
+  - `file`: `Any`
+    > 
+  - `:returns`: `_`
+    >
+
+
+<a id="Psience.Molecools.Molecule.Molecule.construct" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+construct(cls, spec, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L2113)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L2113?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.Molecools.Molecule.Molecule.plot" class="docs-object-method">&nbsp;</a> 
 ```python
-plot(self, *geometries, figure=None, bond_radius=0.1, atom_radius_scaling=0.25, atom_style=None, bond_style=None, mode='fast', objects=False, **plot_ops): 
+plot(self, *geometries, figure=None, return_objects=False, bond_radius=0.1, atom_radius_scaling=0.25, atom_style=None, bond_style=None, highlight_atoms=None, highlight_bonds=None, highlight_rings=None, highlight_styles=None, mode=None, backend=None, objects=False, graphics_class=None, cylinder_class=None, sphere_class=None, animate=None, animation_options=None, jsmol_load_script=None, units='Angstroms', **plot_ops): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1381)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1381?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L2140)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L2140?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.get_animation_geoms" class="docs-object-method">&nbsp;</a> 
+```python
+get_animation_geoms(self, which, extent=0.35, steps=8, strip_embedding=True, units=None, coordinate_expansion=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L2373)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L2373?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.animate_coordinate" class="docs-object-method">&nbsp;</a> 
+```python
+animate_coordinate(self, which, extent=0.5, steps=8, return_objects=False, strip_embedding=True, units='Angstroms', backend=None, mode=None, jsmol_load_script=None, coordinate_expansion=None, **plot_opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L2395)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L2395?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.animate_mode" class="docs-object-method">&nbsp;</a> 
+```python
+animate_mode(self, which, extent=0.5, steps=8, modes=None, coordinate_expansion=None, order=None, normalize=True, mass_weight=False, mass_scale=True, frequency_scale=True, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L2421)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L2421?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.format_structs" class="docs-object-method">&nbsp;</a> 
+```python
+format_structs(self, geoms, format='xyz'): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L2471)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L2471?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.format_animation_file" class="docs-object-method">&nbsp;</a> 
+```python
+format_animation_file(self, which, format='xyz', extent=0.35, steps=8, strip_embedding=True, units='Angstroms', coordinate_expansion=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L2503)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L2503?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Molecule.Molecule.jsmol_viz" class="docs-object-method">&nbsp;</a> 
+```python
+jsmol_viz(self, xyz=None, animate=False, vibrate=False, script=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L2520)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L2520?message=Update%20Docs)]
 </div>
 
 
@@ -849,8 +1421,8 @@ plot(self, *geometries, figure=None, bond_radius=0.1, atom_radius_scaling=0.25, 
 jupyter_viz(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1484)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1484?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L2530)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L2530?message=Update%20Docs)]
 </div>
 
 
@@ -859,8 +1431,8 @@ jupyter_viz(self):
 to_widget(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L1491)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L1491?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/Molecule.py#L2538)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/Molecule.py#L2538?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -868,902 +1440,8 @@ to_widget(self):
 
 
 
-## Examples
 
 
-
-
-
-
-
-
-
-
-
-
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-9d5c24" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-9d5c24"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-9d5c24" markdown="1">
- - [NormalModeRephasing](#NormalModeRephasing)
-- [MolecularGMatrix](#MolecularGMatrix)
-- [ImportMolecule](#ImportMolecule)
-- [PrincipleAxisEmbedding](#PrincipleAxisEmbedding)
-- [EckartEmbed](#EckartEmbed)
-- [Eckart](#Eckart)
-- [HOONODihedral](#HOONODihedral)
-- [EckartEmbedDipoles](#EckartEmbedDipoles)
-- [EckartEmbedMolecule](#EckartEmbedMolecule)
-- [EmbeddedMolecule](#EmbeddedMolecule)
-- [AddDummyAtoms](#AddDummyAtoms)
-- [AddDummyAtomProperties](#AddDummyAtomProperties)
-- [AddDummyAtomJacobians](#AddDummyAtomJacobians)
-- [InternalCoordOrder](#InternalCoordOrder)
-- [Plotting](#Plotting)
-- [BondGuessing](#BondGuessing)
-- [Frags](#Frags)
-- [AutoZMat](#AutoZMat)
-- [HODModes](#HODModes)
-- [H2OModes](#H2OModes)
-- [RenormalizeGaussianModes](#RenormalizeGaussianModes)
-- [VisualizeNormalModes](#VisualizeNormalModes)
-- [InternalCartesianJacobians](#InternalCartesianJacobians)
-- [CompositeCoordinates](#CompositeCoordinates)
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-99e6bd" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-99e6bd"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-99e6bd" markdown="1">
- 
-Before we can run our examples we should get a bit of setup out of the way.
-Since these examples were harvested from the unit tests not all pieces
-will be necessary for all situations.
-
-All tests are wrapped in a test class
-```python
-class MolecoolsTests(TestCase):
-    def setUp(self):
-        self.test_log_water = TestManager.test_data("water_OH_scan.log")
-        self.test_log_freq = TestManager.test_data("water_freq.log")
-        self.test_HOD = TestManager.test_data("HOD_freq.fchk")
-        self.test_fchk = TestManager.test_data("water_freq.fchk")
-        self.test_log_h2 = TestManager.test_data("outer_H2_scan_new.log")
-```
-
- </div>
-</div>
-
-#### <a name="NormalModeRephasing">NormalModeRephasing</a>
-```python
-    def test_NormalModeRephasing(self):
-        m_16 = Molecule.from_file(TestManager.test_data('CH2DT_freq_16.fchk'))
-        m_09 = Molecule.from_file(TestManager.test_data('CH2DT_freq.fchk'))
-        modes_09 = m_09.normal_modes.modes
-        # modes_16 = m_16.normal_modes
-
-        modes_09 = np.array([x / np.linalg.norm(x) for x in modes_09.basis.matrix.T])
-        # modes_16 = np.array([x / np.linalg.norm(x) for x in modes_16.basis.matrix.T])
-
-        phases = m_16.normal_modes.get_fchk_normal_mode_rephasing()
-        rescaled = m_16.normal_modes.modes.rescale(phases)
-
-        rescaled_16 = np.array([x / np.linalg.norm(x) for x in rescaled.basis.matrix.T])
-
-        phase_test = np.sign(np.diag(np.dot(modes_09, rescaled_16.T)))
-
-        self.assertEquals(np.sum(np.diff(phase_test)), 0)
-```
-
-#### <a name="MolecularGMatrix">MolecularGMatrix</a>
-```python
-    def test_MolecularGMatrix(self):
-        mol = Molecule.from_file(self.test_fchk)
-        mol.zmatrix = [
-            [0, -1, -1, -1],
-            [1,  0, -1, -1],
-            [2,  0,  1, -1]
-        ]
-        g = mol.g_matrix
-
-        self.assertEquals(g.shape, (3, 3))
-```
-
-#### <a name="ImportMolecule">ImportMolecule</a>
-```python
-    def test_ImportMolecule(self):
-
-        n = 3 # water
-        m = Molecule.from_file(self.test_fchk)
-        self.assertEquals(m.atoms, ("O", "H", "H"))
-```
-
-#### <a name="PrincipleAxisEmbedding">PrincipleAxisEmbedding</a>
-```python
-    def test_PrincipleAxisEmbedding(self):
-        ref_file = TestManager.test_data("tbhp_180.fchk")
-
-        ref = Molecule.from_file(ref_file)
-        self.assertEquals(ref.center_of_mass.tolist(),
-                          [-0.10886336323443993, -7.292720327263524e-05, -0.04764041570644441]
-                          )
-
-        ref_inerts = [
-                [-0.9998646051394727,    -1.6944914059526497e-5, -1.6455123887595957e-2],
-                [-1.6455007408638932e-2,  4.930578772682442e-3,   0.9998524501765987],
-                [-6.419087070136426e-5,  -0.9999878444790397,     4.930190026343585e-3]
-            ]
-        inerts = ref.inertial_axes
-        test_inerts = (inerts * np.array([-1, 1, 1])).T
-        self.assertTrue(np.allclose(
-            test_inerts,
-            ref_inerts
-        ),
-            msg="principle axes {} and {} don't align".format(
-                test_inerts,
-                ref_inerts
-            )
-        )
-
-        pax_rot = ref.principle_axis_frame()  # type: MolecularTransformation
-        self.assertTrue(np.allclose(
-            pax_rot.transformation_function.transform,
-            inerts.T
-        ))
-        rot_ref = pax_rot.apply(ref)
-
-        # g, _, _ = ref.plot(atom_style=dict(color='black'))
-        # rot_ref.plot(figure=g)
-        # g.show()
-
-        self.assertTrue(np.allclose(
-            rot_ref.center_of_mass,
-            [0., 0., 0.]
-        ),
-            msg="COM: {} was {}".format(rot_ref.center_of_mass, ref.center_of_mass))
-
-        test_coords = np.matmul(
-                    (ref.coords - ref.center_of_mass[np.newaxis])[:, np.newaxis, :],
-                    inerts
-                ).squeeze()
-        # raise Exception(rot_ref.coords, test_coords)
-        self.assertTrue(
-            np.allclose(
-                rot_ref.coords,
-                test_coords
-            )
-        )
-
-        mathematica_coords = np.array([
-                [ 2.094928525160645e-4,   8.85212868882308e-2,  -0.8400509406910139],
-                [ 2.389396575506497,      1.697491740062459,    -0.8428256390972853],
-                [ 2.435043833038253,      2.934952064361808,     0.7950074811481486],
-                [ 4.0560845074996985,     0.4921123166233054,   -0.8003781737352631],
-                [-4.983484850171475e-3,  -1.5885626031388058,    1.2992229461755922],
-                [-1.7490151872158886e-4, -1.8815600632167903e-3, 3.5774728125123842],
-                [-4.314406779968471e-3,  -1.3424852433777361,    4.810480604689872],
-                [-4.312429484356625e-3,  -1.7659250558813848,   -3.0429810385290326],
-                [-1.6805757842711242,    -2.9559004963767235,   -2.984461679814903],
-                [ 1.663962078887355,      -2.9669237481136603,   -2.9820756778710344],
-                [ 4.171884239172418e-4,   -0.7242576512048614,   -4.816727043081511],
-                [-2.3797319162701913,     1.7110998385574014,   -0.8442221100234485],
-                [-4.053502667206945,      0.5153958278660512,   -0.8051208327551433],
-                [-2.439171179603177,      2.871593767591361,    -2.543401568931165],
-                [-2.419963556488472,      2.947396453869957,     0.7945604672548087],
-                [2.4576648430627377,      2.8566629998551765,   -2.5425989365331256]
-            ])
-        self.assertTrue(np.allclose(
-            rot_ref.coords,
-            -mathematica_coords[:, (2, 1, 0)]
-        ),
-        msg="{} but mathematica {}".format(
-            rot_ref.coords,
-            -mathematica_coords[:, (2, 1, 0)]
-        ))
-```
-
-#### <a name="EckartEmbed">EckartEmbed</a>
-```python
-    def test_EckartEmbed(self):
-        m = Molecule.from_file(TestManager.test_data('HOH_freq.fchk'))
-        crd = m.embed_coords(m.coords)
-        self.assertTrue(np.allclose(m.coords, crd))
-```
-
-#### <a name="Eckart">Eckart</a>
-```python
-    def test_Eckart(self):
-        scan_file = TestManager.test_data("tbhp_030.log")
-        ref_file = TestManager.test_data("tbhp_180.fchk")
-
-        scan = Molecule.from_file(scan_file)
-        ref = Molecule.from_file(ref_file)
-        sel = np.where(ref.masses > 3)[0]
-
-        pax_rot = ref.principle_axis_frame(sel=sel) #type: MolecularTransformation
-        rot_ref = pax_rot.apply(ref)
-
-        self.assertTrue(np.allclose(
-            rot_ref.center_of_mass,
-            [0., 0., 0.]
-        ))
-
-        #transf = scan.principle_axis_frame(sel=sel)
-        transf = scan.eckart_frame(rot_ref, sel=sel)
-        tf_test = transf[0].transformation_function
-
-        tf_mat = tf_test.transform
-        self.assertTrue(np.allclose(tf_mat@tf_mat.T - np.eye(3), 0.))
-        self.assertEquals(tf_test.transf.shape, (4, 4))
-
-        for t, m in zip(transf, scan):
-            # t = m.principle_axis_frame(sel=sel)  # type: MolecularTransformation
-
-            new_mol = t(m)
-            # rot_ref.guess_bonds = False
-            # ref.guess_bonds = False
-            # m.guess_bonds = False
-            # new_mol.guess_bonds = False
-            # m = m #type: Molecule
-            # # g1, a, b = ref.plot()
-            # # ref.plot(figure=g1)
-            # # rot_ref.plot(figure=g1)
-            # g, a, b = new_mol.plot()
-            # rot_ref.plot(figure=g, atom_style=dict(color='black'))
-            # g.show()
-
-            fuckup = np.linalg.norm(new_mol.coords[sel] - rot_ref.coords[sel])
-            self.assertLess(fuckup / len(sel), .1,
-                            msg="new: {}\nref: {}".format(
-                                new_mol.coords,
-                                rot_ref.coords
-                            )
-                            )
-
-            # transf = scan.principle_axis_frame(sel=sel)
-        transf = scan.eckart_frame(ref, sel=sel)
-        for t, m in zip(transf, scan):
-            # t = m.principle_axis_frame(sel=sel)  # type: MolecularTransformation
-
-            new_mol = t(m)
-            # rot_ref.guess_bonds = False
-            # ref.guess_bonds = False
-            # m.guess_bonds = False
-            # new_mol.guess_bonds = False
-            # m = m #type: Molecule
-            # # g1, a, b = ref.plot()
-            # # ref.plot(figure=g1)
-            # # rot_ref.plot(figure=g1)
-            # g, a, b = new_mol.plot()
-            # rot_ref.plot(figure=g, atom_style=dict(color='black'))
-            # g.show()
-
-            fuckup = np.linalg.norm(new_mol.coords[sel] - ref.coords[sel])
-            self.assertLess(fuckup / len(sel), .1,
-                            msg="new: {}\nref: {}".format(
-                                new_mol.coords,
-                                ref.coords
-                            )
-                            )
-```
-
-#### <a name="HOONODihedral">HOONODihedral</a>
-```python
-    def test_HOONODihedral(self):
-        # should be broken
-
-        mol = Molecule.from_file(TestManager.test_data('HOONO_freq.fchk'))
-        mol.zmatrix = [
-            [1, -1, -1, -1],
-            [2,  1, -1, -1],
-            [3,  2,  1, -1],
-            [0,  1,  2,  3],
-            [4,  3,  2,  1]
-        ]
-
-        intcds = mol.internal_coordinates
-        ccoords = mol.coords
-        carts = ccoords.system
-        internals = intcds.system
-
-
-        raise Exception(nput.dihed_deriv(
-            ccoords,
-            0, 1, 2, 3
-        ))
-
-        new_jacs_anal, = ccoords.jacobian(internals, [1],
-                                          mesh_spacing=1.0e-3,
-                                          stencil=5,
-                                          # all_numerical=True,
-                                          analytic_deriv_order=1,
-                                          converter_options=dict(strip_dummies=True)
-                                          )
-
-        raise Exception(new_jacs_anal.shape)
-        raise Exception(new_jacs_anal[1][2][3], np.deg2rad(45))
-
-
-        new_jacs_num, = ccoords.jacobian(internals, [1],
-                                    mesh_spacing=1.0e-3,
-                                    stencil=5,
-                                    # all_numerical=True,
-                                    analytic_deriv_order=0,
-                                    converter_options=dict(strip_dummies=True)
-                                   )
-
-
-        raise Exception(new_jacs_num[1][2][3], np.deg2rad(45))
-
-
-
-        raise Exception(new_jacs_num[1][2], new_jacs_anal[1][2])
-```
-
-#### <a name="EckartEmbedDipoles">EckartEmbedDipoles</a>
-```python
-    def test_EckartEmbedDipoles(self):
-        scan_file = TestManager.test_data("tbhp_030.log")
-        ref_file = TestManager.test_data("tbhp_180.fchk")
-
-        scan = Molecule.from_file(scan_file)
-        ref = Molecule.from_file(ref_file)
-        sel = np.where(ref.masses>3)[0]
-        pax_rot = ref.principle_axis_frame(sel=sel, inverse=True)  # type: MolecularTransformation
-        rot_ref = pax_rot.apply(ref)
-
-        transf = scan.eckart_frame(rot_ref, sel=sel)
-
-        carts, dips = DipoleSurface.get_log_values(scan_file, keys=("StandardCartesianCoordinates", "OptimizedDipoleMoments"))
-        rot_dips = np.array([ np.dot(t.transformation_function.transform, d) for t,d in zip(transf, dips) ])
-        self.assertTrue(np.allclose(np.linalg.norm(dips, axis=1)-np.linalg.norm(rot_dips, axis=1), 0.))
-```
-
-#### <a name="EckartEmbedMolecule">EckartEmbedMolecule</a>
-```python
-    def test_EckartEmbedMolecule(self):
-
-        ref_file = TestManager.test_data("tbhp_180.fchk")
-        ref = Molecule.from_file(ref_file)
-        new = ref.get_embedded_molecule()
-```
-
-#### <a name="EmbeddedMolecule">EmbeddedMolecule</a>
-```python
-    def test_EmbeddedMolecule(self):
-
-        file_name = TestManager.test_data("HOH_freq.fchk")
-
-        mol1 = Molecule.from_file(file_name)
-        # init_mat1 = mol1.normal_modes.modes
-        mol = mol1.get_embedded_molecule()
-        init_mat = mol1.normal_modes.modes.basis.matrix
-        self.assertTrue(np.allclose(mol.moments_of_inertia, mol1.moments_of_inertia),
-                        msg="(HOH) Moments of inertia changed post-rotation: {} to {}".format(mol1.moments_of_inertia, mol.moments_of_inertia)
-                        )
-        self.assertTrue(np.allclose(mol.inertial_axes, np.eye(3)),
-                        msg="(HOH) Principle axes are not identity matrix post-rotation: {}".format(mol.inertial_axes)
-                        )
-
-        norms_1 = np.linalg.norm(mol.normal_modes.modes.basis.matrix, axis=0)
-        norms_2 = np.linalg.norm(init_mat, axis=0)
-        self.assertTrue(np.allclose(norms_1, norms_2),
-                        msg="(HOH) Normal modes renomalized:{} different from {}".format(norms_1, norms_2)
-                        )
-
-        # try on TBHP
-        file_name = TestManager.test_data("tbhp_180.fchk")
-        mol1 = Molecule.from_file(file_name)
-        # init_mat1 = mol1.normal_modes.modes
-        mol = mol1.get_embedded_molecule()
-        init_mat = mol1.normal_modes.modes.basis.matrix
-        self.assertTrue(np.allclose(mol.moments_of_inertia, mol1.moments_of_inertia),
-                        msg="(TBHP) Moments of inertia changed post-rotation: {} to {}".format(mol1.moments_of_inertia,
-                                                                                        mol.moments_of_inertia)
-                        )
-        self.assertTrue(np.allclose(mol.inertial_axes, np.eye(3)),
-                        msg="(TBHP) Principle axes are not identity matrix post-rotation: {}".format(mol.inertial_axes)
-                        )
-
-        norms_1 = np.linalg.norm(mol.normal_modes.modes.basis.matrix, axis=0)
-        norms_2 = np.linalg.norm(init_mat, axis=0)
-        self.assertTrue(np.allclose(norms_1, norms_2),
-                        msg="(TBHP) Normal modes renomalized: {} different from {}".format(norms_1, norms_2)
-                        )
-
-
-        # try on HOONO
-        file_name = TestManager.test_data("HOONO_freq.fchk")
-        mol1 = Molecule.from_file(file_name)
-        # init_mat1 = mol1.normal_modes.modes
-        mol = mol1.get_embedded_molecule()
-        init_mat = mol1.normal_modes.modes.basis.matrix
-        self.assertTrue(np.allclose(mol.moments_of_inertia, mol1.moments_of_inertia),
-                        msg="(HOONO) Moments of inertia changed post-rotation: {} to {}".format(mol1.moments_of_inertia,
-                                                                                        mol.moments_of_inertia)
-                        )
-        self.assertTrue(np.allclose(mol.inertial_axes, np.eye(3)),
-                        msg="(HOONO) Principle axes are not identity matrix post-rotation: {}".format(mol.inertial_axes)
-                        )
-
-        norms_1 = np.linalg.norm(mol.normal_modes.modes.basis.matrix, axis=0)
-        norms_2 = np.linalg.norm(init_mat, axis=0)
-        self.assertTrue(np.allclose(norms_1, norms_2),
-                        msg="(HOONO) Normal modes renomalized: {} different from {}".format(norms_1, norms_2)
-        )
-```
-
-#### <a name="AddDummyAtoms">AddDummyAtoms</a>
-```python
-    def test_AddDummyAtoms(self):
-
-        file_name = TestManager.test_data("HOONO_freq.fchk")
-
-        mol = Molecule.from_file(file_name)
-        n_pos = mol.atom_positions["N"]
-        o_pos = mol.atom_positions["O"]
-
-        normal = nput.vec_crosses(
-            mol.coords[o_pos[0]] - mol.coords[o_pos[1]],
-            mol.coords[n_pos[0]] - mol.coords[o_pos[1]],
-            normalize=True
-        )
-
-        mol2 = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 5, handle_properties=False)
-        del mol # to elim hard to debug errors
-
-        self.assertEquals(mol2.atoms,
-                          ("H", "O", "O", "N", "O", "X")
-                          )
-        self.assertEquals(np.linalg.norm(mol2.coords[o_pos[1]] - mol2.coords[-1]), 5.0)
-
-        mol2.zmatrix = [
-            [1, -1, -1, -1], #O
-            [2,  1, -1, -1], #O
-            [3,  2,  1, -1], #N
-            [5,  2,  1,  3], #X
-            [0,  1,  2,  5], #H
-            [4,  3,  2,  5], #O
-        ]
-
-        self.assertEquals(
-            mol2.internal_coordinates[3, 0], 5.0
-        )
-        self.assertEquals(
-            mol2.internal_coordinates[3, 1], np.pi/2
-        )
-        self.assertEquals(
-            mol2.internal_coordinates[3, 2], np.pi/2
-        )
-        self.assertEquals(
-            mol2.internal_coordinates[4, 2], np.pi/2
-        )
-        self.assertEquals(
-            mol2.internal_coordinates[5, 2], -np.pi/2
-        )
-```
-
-#### <a name="AddDummyAtomProperties">AddDummyAtomProperties</a>
-```python
-    def test_AddDummyAtomProperties(self):
-
-        file_name = TestManager.test_data("HOONO_freq.fchk")
-
-        mol = Molecule.from_file(file_name)
-        n_pos = mol.atom_positions["N"]
-        o_pos = mol.atom_positions["O"]
-
-        normal = nput.vec_crosses(
-            mol.coords[o_pos[0]] - mol.coords[o_pos[1]],
-            mol.coords[n_pos[0]] - mol.coords[o_pos[1]],
-            normalize=True
-        )
-
-        mol2 = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 5, handle_properties=False)
-
-        self.assertEquals(
-            mol2.moments_of_inertia.tolist(),
-            mol.moments_of_inertia.tolist()
-        )
-
-        self.assertEquals(
-            mol2.inertial_axes.tolist(),
-            mol.inertial_axes.tolist()
-        )
-```
-
-#### <a name="AddDummyAtomJacobians">AddDummyAtomJacobians</a>
-```python
-    def test_AddDummyAtomJacobians(self):
-
-        file_name = TestManager.test_data("HOONO_freq.fchk")
-
-        mol = Molecule.from_file(file_name)
-        n_pos = mol.atom_positions["N"]
-        o_pos = mol.atom_positions["O"]
-
-        normal = nput.vec_crosses(
-            mol.coords[o_pos[0]] - mol.coords[o_pos[1]],
-            mol.coords[n_pos[0]] - mol.coords[o_pos[1]],
-            normalize=True
-        )
-        mol2 = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 3, handle_properties=False)
-        mol2.zmatrix = [
-            [1, -1, -1, -1],  # O
-            [2,  1, -1, -1],  # O
-            [3,  2,  1, -1],  # N
-            [5,  2,  1,  3],  # X
-            [0,  1,  2,  5],  # H
-            [4,  3,  2,  5],  # O
-        ]
-
-        jacobians_no_dummy = mol2.coords.jacobian(mol2.internal_coordinates.system,
-                                                  [1, 2],
-                                                  stencil=3,
-                                                  all_numerical=True,
-                                                  converter_options=dict(strip_dummies=True),
-                                                  )
-        self.assertEquals(jacobians_no_dummy[0].shape, (5, 3, 5, 3))
-        self.assertEquals(jacobians_no_dummy[1].shape, (5, 3, 5, 3, 5, 3))
-        jacobians = mol2.coords.jacobian(mol2.internal_coordinates.system,
-                                                       [1, 2, 3],
-                                                       stencil=5,
-                                                       all_numerical=True,
-                                                       converter_options=dict(strip_dummies=False),
-                                                       )
-        self.assertEquals(jacobians[0].shape, (6, 3, 6, 3))
-        self.assertEquals(jacobians[1].shape, (6, 3, 6, 3, 6, 3))
-        self.assertEquals(jacobians[2].shape, (6, 3, 6, 3, 6, 3, 6, 3))
-        jacobians_analytic = mol2.coords.jacobian(mol2.internal_coordinates.system,
-                                                       [1, 2],
-                                                       stencil=5,
-                                                       analytic_deriv_order=1,
-                                                       converter_options=dict(strip_dummies=False),
-                                                       )
-        self.assertEquals(jacobians_analytic[0].shape, (6, 3, 6, 3))
-        self.assertEquals(jacobians_analytic[1].shape, (6, 3, 6, 3, 6, 3))
-        jacobians_no_dummy_analytic = mol2.coords.jacobian(mol2.internal_coordinates.system,
-                                                  [1, 2],
-                                                  stencil=3,
-                                                  analytic_deriv_order=1,
-                                                  converter_options=dict(strip_dummies=True),
-                                                  )
-        self.assertEquals(jacobians_no_dummy_analytic[0].shape, (5, 3, 5, 3))
-        self.assertEquals(jacobians_no_dummy_analytic[1].shape, (5, 3, 5, 3, 5, 3))
-
-        self.assertTrue(np.allclose(
-            jacobians[0][0, 0][:2],
-            jacobians_no_dummy[0][0, 0][:2]
-        ))
-
-        self.assertTrue(np.allclose(
-            jacobians[1][0, 0, 0, 0][:2], jacobians_no_dummy[1][0, 0, 0, 0][:2]
-        ))
-
-        # with BlockProfiler():
-        jacobians_no_dummy = mol2.internal_coordinates.jacobian(mol2.coords.system,
-                                                       [1, 2],
-                                                       stencil=3,
-                                                       all_numerical=True,
-                                                       converter_options=dict(strip_dummies=True),
-                                                       )
-        self.assertEquals(jacobians_no_dummy[0].shape, (5, 3, 5, 3))
-        self.assertEquals(jacobians_no_dummy[1].shape, (5, 3, 5, 3, 5, 3))
-        jacobians = mol2.internal_coordinates.jacobian(mol2.coords.system,
-                                                       [1, 2],
-                                                       stencil=3,
-                                                       all_numerical=True,
-                                                       converter_options=dict(strip_dummies=False),
-                                                       )
-        self.assertEquals(jacobians[0].shape, (6, 3, 6, 3))
-        self.assertEquals(jacobians[1].shape, (6, 3, 6, 3, 6, 3))
-```
-
-#### <a name="InternalCoordOrder">InternalCoordOrder</a>
-```python
-    def test_InternalCoordOrder(self):
-        file_name = TestManager.test_data("HOONO_freq.fchk")
-
-        mol = Molecule.from_file(file_name)
-        mol.zmatrix = [
-            [1, -1, -1, -1],
-            [2,  1, -1, -1],
-            [3,  2,  1, -1],
-            [0,  1,  2,  3],
-            [4,  3,  2,  1]
-        ]
-        mol_ics = mol.internal_coordinates
-
-        mol2 = Molecule.from_file(file_name)
-        mol2.zmatrix = [
-            [0, -1, -1, -1],  # H
-            [1,  0, -1, -1],  # O
-            [2,  1,  0, -1],  # O
-            [3,  2,  1,  0],  # N
-            [4,  3,  2,  0]   # O
-        ]
-        mol2_ics = mol2.internal_coordinates
-
-        self.assertEquals(mol_ics[1, 0], mol2_ics[2, 0])
-        self.assertEquals(mol_ics[3, 0], mol2_ics[1, 0])
-        self.assertEquals(mol_ics[3, 2], mol2_ics[3, 2])
-
-        jacs = mol.coords.jacobian(mol_ics.system, [1])[0]
-        jacs2 = mol2.coords.jacobian(mol2_ics.system, [1])[0]
-
-        self.assertEquals(jacs[0, 0][3, 0], jacs2[0, 0][1, 0])
-        self.assertEquals(jacs[0, 0][1, 0], jacs2[0, 0][2, 0])
-        self.assertEquals(jacs[0, 0][3, 2], jacs2[0, 0][3, 2])
-
-        remade_carts = np.round(mol_ics.convert(mol.coords.system), 4)
-        remade_carts2 = np.round(mol2_ics.convert(mol2.coords.system), 4)
-        # raise Exception(remade_carts, remade_carts2)
-
-        jacs = mol_ics.jacobian(mol.coords.system, [1], all_numerical=True)[0]
-        jacs2 = mol2_ics.jacobian(mol2.coords.system, [1], all_numerical=True)[0]
-
-        self.assertTrue(np.allclose(jacs[3, 0], jacs2[1, 0]))
-```
-
-#### <a name="Plotting">Plotting</a>
-```python
-    def test_Plotting(self):
-
-        # g = Graphics3D(
-        #     image_size=[1500, 1500],
-        #     plot_range=[[-10, 10]]*3,
-        #     backend="VTK"
-        #     )
-        # h5 = Molecule.from_file(
-        #     self.test_log_h2,
-        #     # self.test_fchk,
-        #     # bonds = [
-        #     #     [0, 1, 1],
-        #     #     [0, 2, 1]
-        #     # ]
-        # )
-        # h5.plot(
-        #     figure=g
-        #     # mode='3D',
-        #     # bond_style= { "circle_points": 24 },
-        #     # atom_style= { "sphere_points": 24 }
-        # )
-        m = Molecule.from_file(
-            self.test_fchk,
-            bonds = [
-                [0, 1, 1],
-                [0, 2, 1]
-            ]
-        )
-        m.plot(
-            # figure=g
-            # mode='3D',
-            # bond_style= { "circle_points": 24 },
-            # atom_style= { "sphere_points": 24 }
-            )
-```
-
-#### <a name="BondGuessing">BondGuessing</a>
-```python
-    def test_BondGuessing(self):
-        m = Molecule.from_file(self.test_fchk)
-        self.assertEquals(m.bonds, [[0, 1, 1], [0, 2, 1]])
-```
-
-#### <a name="Frags">Frags</a>
-```python
-    def test_Frags(self):
-        m = Molecule.from_file(self.test_fchk)
-        self.assertEquals(len(m.prop("fragments")), 1)
-```
-
-#### <a name="AutoZMat">AutoZMat</a>
-```python
-    def test_AutoZMat(self):
-        raise NotImplementedError("saddy")
-        m = Molecule.from_file(self.test_fchk)
-```
-
-#### <a name="HODModes">HODModes</a>
-```python
-    def test_HODModes(self):
-        # oops fucked up getting D out
-        m = Molecule.from_file(self.test_HOD, bonds=[[0, 1, 1], [0, 2, 1]])
-        modes = m.normal_modes
-        self.assertEquals(m.atoms, ("O", "H", "D"))
-        self.assertEquals(
-            tuple(np.round(modes.freqs*UnitsData.convert("Hartrees", "Wavenumbers"))),
-            (1422.0, 2810.0, 3874.0)
-        )
-```
-
-#### <a name="H2OModes">H2OModes</a>
-```python
-    def test_H2OModes(self):
-        m = Molecule.from_file(self.test_fchk, bonds=[[0, 1, 1], [0, 2, 1]])
-        modes = m.normal_modes
-        self.assertEquals(m.atoms, ("O", "H", "H"))
-        self.assertEquals(
-            tuple(np.round(modes.freqs*UnitsData.convert("Hartrees", "Wavenumbers"))),
-            (1622.0, 3803.0, 3938.0)
-        )
-```
-
-#### <a name="RenormalizeGaussianModes">RenormalizeGaussianModes</a>
-```python
-    def test_RenormalizeGaussianModes(self):
-
-        with GaussianFChkReader(self.test_HOD) as gr:
-            parse = gr.parse(["Coordinates", "Gradient", "AtomicMasses",
-                              "ForceConstants", "ForceDerivatives", "VibrationalModes", "VibrationalData"])
-
-        coords = UnitsData.convert("Angstroms", "AtomicUnitOfLength") * parse["Coordinates"]
-        masses = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass") * parse["AtomicMasses"]
-        modes = parse["VibrationalModes"].T
-        freqs = parse["VibrationalData"]["Frequencies"]
-        fcs = parse["ForceConstants"].array
-        sad = UnitsData.convert("Hartrees", "Wavenumbers") * np.sqrt(np.diag(np.dot(np.dot(modes.T, fcs), modes)))
-        modes = modes * freqs/sad
-        print( UnitsData.convert("Hartrees", "Wavenumbers") * np.sqrt(np.diag(np.dot(np.dot(modes.T, fcs), modes))))
-
-        masses = np.broadcast_to(masses, (len(masses), 3)).T.flatten()
-        # print(modes-np.linalg.pinv(modes).T)
-        print(np.dot(np.dot(modes.T, np.diag(masses)), modes))
-
-        modes_2 = Molecule.from_file(self.test_HOD).get_normal_modes(normalize=False)
-        mm = modes_2._basis.matrix
-
-        print(np.dot(np.dot(mm.T, np.diag(masses)), mm))
-        print(UnitsData.convert("Hartrees", "Wavenumbers") * np.sqrt(np.diag(np.dot(np.dot(mm.T, fcs), mm))))
-```
-
-#### <a name="VisualizeNormalModes">VisualizeNormalModes</a>
-```python
-    def test_VisualizeNormalModes(self):
-
-        from Psience.Molecools.Vibrations import MolecularVibrations, MolecularNormalModes
-        from McUtils.Plots import GraphicsGrid, Graphics3D
-
-        m = Molecule.from_file(self.test_fchk, bonds = [[0, 1, 1], [0, 2, 1]])
-
-        with GaussianFChkReader(self.test_fchk) as reader:
-            parse = reader.parse(("VibrationalModes", "VibrationalData"))
-        modes = parse["VibrationalModes"].T
-
-        test_freqs = parse["VibrationalData"]["Frequencies"]
-
-        nms = m.normal_modes
-        realvibs = MolecularVibrations(m, basis=MolecularNormalModes(m, modes, freqs=test_freqs))
-
-        realvibs.visualize(mode='jupyter') # get no bugs
-
-        plot_vibrations = False
-        if plot_vibrations:
-            nmodes = 1
-            mode_start = 0
-            g = GraphicsGrid(nrows=2, ncols=nmodes,
-                             graphics_class=Graphics3D,
-                             plot_range = [[-2, 2], [-2, 2], [-2, 2]],
-                             fig_kw = dict(figsize = (17, 5)),
-                             tighten = True
-                             )
-
-            for i in range(nmodes):
-                nms.visualize(step_size=.1, figure = g[0, i], which=mode_start + i,
-                              anim_opts= dict(interval = 10)
-                              )
-
-            for i in range(nmodes):
-                realvibs.visualize(step_size=.1, figure = g[1, i], which= mode_start+i,
-                                   anim_opts= dict(interval = 10)
-                                   )
-
-            g.show()
-
-        self.assertEquals(
-            tuple(np.round(UnitsData.convert("Hartrees", "Wavenumbers")*nms.modes.freqs, 4)),
-            tuple(np.round(test_freqs, 4))
-        )
-```
-
-#### <a name="InternalCartesianJacobians">InternalCartesianJacobians</a>
-```python
-    def test_InternalCartesianJacobians(self):
-        import McUtils.Plots as plt
-        m = Molecule.from_file(TestManager.test_data('HOH_freq.fchk'),
-                               zmatrix=[
-                                   [0, -1, -1, -1],
-                                   [1,  0, -1, -1],
-                                   [2,  0,  1, -1]
-                               ]
-                               )
-        # m = m.get_embedded_molecule()
-        intcds = m.internal_coordinates
-        carts = m.coords
-        # ijacsnum, ijacs2num = intcds.jacobian(carts.system, [1, 2], analytic_deriv_order=0, mesh_spacing=1.0e-2)
-        ijacsnum, ijacs2num = intcds.jacobian(carts.system, [1, 2], all_numerical=True, mesh_spacing=1.0e-2)
-        ijacs, ijacs2 = intcds.jacobian(carts.system, [1, 2], analytic_deriv_order=1,
-                                        converter_options=dict(reembed=False)
-                                        )#, mesh_spacing=1.0e-2)
-        jacs, jacs2 = carts.jacobian(intcds.system, [1, 2], mesh_spacing=1.0e-5)
-
-        meh1 = ijacs.squeeze().reshape(9, 9)
-        meh0 = ijacsnum.squeeze().reshape(9, 9)
-        meh2 = jacs.squeeze().reshape(9, 9)
-
-        itest = np.dot(meh1, meh2)
-        itest2 = np.dot(meh2, meh1)
-
-        # plt.ArrayPlot(meh1)
-        # plt.ArrayPlot(meh1)
-        # plt.ArrayPlot(meh0).show()
-        # plt.ArrayPlot(np.dot(meh0, meh2)).show()
-        self.assertTrue(np.allclose(np.eye(9), itest))
-
-
-        good_sel = (...,) + np.ix_((3, 5, 6), (3, 5, 6))
-        meh12 = ijacs2.squeeze().reshape(9, 9, 9)
-        meh12 = meh12.transpose(2, 0, 1).reshape(3, 3, 9, 9)
-        meh22 = ijacs2num.squeeze().reshape(9, 9, 9)
-        meh22 = meh22.transpose(2, 0, 1).reshape(3, 3, 9, 9)
-        meh12 = meh12[good_sel]
-        meh22 = meh22[good_sel]
-        ps = dict(vmin=-.05, vmax=.05)
-        plt.TensorPlot(meh12, plot_style=ps)
-        plt.TensorPlot(meh22, plot_style=ps).show()
-        # plt.TensorPlot(meh22-meh12, plot_style=ps).show()
-
-        self.assertAlmostEquals(meh22[1, 1, 0, 0], .009235, places=6)
-        self.assertTrue(np.allclose(meh12, meh22))
-```
-
-#### <a name="CompositeCoordinates">CompositeCoordinates</a>
-```python
-    def test_CompositeCoordinates(self):
-        def conv(r, t, f, **kwargs):
-            return [r**2, np.cos(t), np.sin(f)]
-        def inv(r2, t, f, **kwargs):
-            return [np.sqrt(r2), np.arccos(t), np.arcsin(f)]
-
-        mol = Molecule.from_file(
-            TestManager.test_data('HOONO_freq.fchk'),
-            internals = {
-                'zmatrix':[
-                    [1, -1, -1, -1],
-                    [2,  1, -1, -1],
-                    [3,  2,  1, -1],
-                    [0,  1,  2,  3],
-                    [4,  3,  2,  1]
-                ],
-                'conversion':conv,
-                'inverse':inv,
-                'converter_options':{'pointwise':True}
-            }
-        )
-
-        mol2 = Molecule.from_file(
-            TestManager.test_data('HOONO_freq.fchk'),
-            internals = {
-                'zmatrix':[
-                    [1, -1, -1, -1],
-                    [2,  1, -1, -1],
-                    [3,  2,  1, -1],
-                    [0,  1,  2,  3],
-                    [4,  3,  2,  1]
-                ]
-            }
-        )
-
-        ic1 = mol.internal_coordinates
-        ic2 = mol2.internal_coordinates
-
-        self.assertAlmostEquals(np.sum(ic1.convert(ic2.system)-ic2)[()], 0.)
-```
-
- </div>
-</div>
 
 
 
@@ -1809,7 +1487,7 @@ class MolecoolsTests(TestCase):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/Molecule/Molecule.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/Molecule/Molecule.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule.py#L31?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule.py#L42?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

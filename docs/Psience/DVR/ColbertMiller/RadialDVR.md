@@ -1,8 +1,8 @@
 ## <a id="Psience.DVR.ColbertMiller.RadialDVR">RadialDVR</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller.py#L276)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller.py#L276?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller.py#L275)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller.py#L275?message=Update%20Docs)]
 </div>
 
 Provides a DVR for working on the (0, inf) range from Colbert and Miller
@@ -24,8 +24,8 @@ Provides a DVR for working on the (0, inf) range from Colbert and Miller
 get_grid(self, domain=(0, 3.141592653589793), divs=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/RadialDVR.py#L281)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/RadialDVR.py#L281?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/RadialDVR.py#L280)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/RadialDVR.py#L280?message=Update%20Docs)]
 </div>
 Provides the grid appropriate for the Colbert-Miller (0, Pi) range
   - `domain`: `Any`
@@ -43,8 +43,8 @@ Provides the grid appropriate for the Colbert-Miller (0, Pi) range
 get_kinetic_energy(self, grid=None, mass=None, hb=1, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/RadialDVR.py#L297)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/RadialDVR.py#L297?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/RadialDVR.py#L296)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/RadialDVR.py#L296?message=Update%20Docs)]
 </div>
 Colbert-Miller kinetic energy for the (0, inf) range
   - `grid`: `Any`
@@ -110,7 +110,7 @@ Colbert-Miller kinetic energy for the (0, inf) range
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/ColbertMiller/RadialDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/ColbertMiller/RadialDVR.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller.py#L276?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller.py#L275?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

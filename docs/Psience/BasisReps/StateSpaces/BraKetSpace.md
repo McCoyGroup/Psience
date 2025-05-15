@@ -1,8 +1,8 @@
 ## <a id="Psience.BasisReps.StateSpaces.BraKetSpace">BraKetSpace</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces.py#L3503)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L3503?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces.py#L3640)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L3640?message=Update%20Docs)]
 </div>
 
 Represents a set of pairs of states that can be fed into a `Representation` or `Operator`
@@ -35,8 +35,8 @@ use_change_indices: bool
 __init__(self, bra_space, ket_space, changes=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3510)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3510?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3647)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3647?message=Update%20Docs)]
 </div>
 
   - `bra_space`: `BasisStateSpace`
@@ -51,18 +51,19 @@ __init__(self, bra_space, ket_space, changes=None):
 state_pairs(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3533)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3533?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3670)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3670?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.BasisReps.StateSpaces.BraKetSpace.from_indices" class="docs-object-method">&nbsp;</a> 
 ```python
-from_indices(inds, basis=None, quanta=None): 
+@classmethod
+from_indices(cls, inds, basis=None, quanta=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3548)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3548?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L3685)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L3685?message=Update%20Docs)]
 </div>
 
 
@@ -71,8 +72,8 @@ from_indices(inds, basis=None, quanta=None):
 __len__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3580)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3580?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3717)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3717?message=Update%20Docs)]
 </div>
 
 
@@ -81,8 +82,8 @@ __len__(self):
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3588)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3588?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3725)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3725?message=Update%20Docs)]
 </div>
 
 
@@ -91,8 +92,8 @@ __repr__(self):
 remove_duplicates(self, assume_symmetric=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3592)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3592?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3729)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3729?message=Update%20Docs)]
 </div>
 
 
@@ -101,8 +102,8 @@ remove_duplicates(self, assume_symmetric=True):
 load_space_diffs(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3623)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3623?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3760)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3760?message=Update%20Docs)]
 </div>
 
 
@@ -111,8 +112,8 @@ load_space_diffs(self):
 load_non_orthog(self, use_aggressive_caching=None, use_preindex_trie=None, preindex_trie_depth=None, shared_memory_manager=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3629)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3629?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3766)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3766?message=Update%20Docs)]
 </div>
 
 
@@ -121,8 +122,8 @@ load_non_orthog(self, use_aggressive_caching=None, use_preindex_trie=None, prein
 share(self, shared_memory_manager): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3965)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3965?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4102)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4102?message=Update%20Docs)]
 </div>
 Creates a shared memory version of the `BraKetSpace`
   - `shared_memory_manager`: `Any`
@@ -136,8 +137,8 @@ Creates a shared memory version of the `BraKetSpace`
 unshare(self, shared_memory_manager): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3986)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3986?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4123)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4123?message=Update%20Docs)]
 </div>
 
 
@@ -146,8 +147,8 @@ unshare(self, shared_memory_manager):
 clear_cache(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3991)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3991?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4128)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4128?message=Update%20Docs)]
 </div>
 
 
@@ -156,8 +157,8 @@ clear_cache(self):
 free(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L3996)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L3996?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4133)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4133?message=Update%20Docs)]
 </div>
 
 
@@ -166,8 +167,8 @@ free(self):
 get_non_orthog(self, inds, assume_unique=False, use_aggressive_caching=None, use_preindex_trie=None, preindex_trie_depth=None, shared_memory_manager=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4032)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4032?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4169)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4169?message=Update%20Docs)]
 </div>
 Returns whether the states are non-orthogonal under the set of indices.
   - `inds`: `Any`
@@ -181,8 +182,8 @@ Returns whether the states are non-orthogonal under the set of indices.
 get_sel_rules_from1d(self, inds, rules): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4062)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4062?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4199)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4199?message=Update%20Docs)]
 </div>
 
 
@@ -191,8 +192,8 @@ get_sel_rules_from1d(self, inds, rules):
 get_sel_rule_filter(self, rules): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4084)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4084?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4221)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4221?message=Update%20Docs)]
 </div>
 
 
@@ -201,8 +202,8 @@ get_sel_rule_filter(self, rules):
 take_subspace(self, sel): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4109)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4109?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4246)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4246?message=Update%20Docs)]
 </div>
 
 
@@ -211,8 +212,8 @@ take_subspace(self, sel):
 take_subdimensions(self, inds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4126)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4126?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4263)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4263?message=Update%20Docs)]
 </div>
 
 
@@ -221,8 +222,8 @@ take_subdimensions(self, inds):
 apply_non_orthogonality(self, inds, use_aggressive_caching=None, use_preindex_trie=None, preindex_trie_depth=None, assume_unique=False, use_change_indices=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4138)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4138?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4275)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4275?message=Update%20Docs)]
 </div>
 Takes the bra-ket pairs that are non-orthogonal under the indices `inds`
   - `inds`: `Any`
@@ -238,8 +239,8 @@ Takes the bra-ket pairs that are non-orthogonal under the indices `inds`
 apply_sel_rules_along(self, rules, inds, permute=True, dim=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4254)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4254?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4391)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4391?message=Update%20Docs)]
 </div>
 
 
@@ -248,8 +249,8 @@ apply_sel_rules_along(self, rules, inds, permute=True, dim=None):
 apply_sel_sums(self, rules, inds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4305)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4305?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4442)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4442?message=Update%20Docs)]
 </div>
 We reckon it's fast enough to just determine if the number
 of quanta in the bra is compatible with the number of
@@ -267,8 +268,8 @@ quanta in the ket...
 apply_sel_rules(self, rules): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4327)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4327?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4464)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4464?message=Update%20Docs)]
 </div>
 Applies selections rules
   - `rules`: `Any`
@@ -282,8 +283,8 @@ Applies selections rules
 adjacency_matrix(self, total_space=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4339)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4339?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4476)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4476?message=Update%20Docs)]
 </div>
 Generates the (sparse) unweighted adjacency matrix for the bras & kets
   - `:returns`: `_`
@@ -295,8 +296,8 @@ Generates the (sparse) unweighted adjacency matrix for the bras & kets
 split(self, chunksize): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4368)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4368?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4505)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4505?message=Update%20Docs)]
 </div>
 splits the brakets into blocks of at max chunksize
   - `chunksize`: `int`
@@ -310,8 +311,8 @@ splits the brakets into blocks of at max chunksize
 concatenate(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4384)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4384?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/BraKetSpace.py#L4521)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/BraKetSpace.py#L4521?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -319,108 +320,8 @@ concatenate(self, other):
 
 
 
-## Examples
 
 
-
-
-
-
-
-
-
-
-
-
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-545390" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-545390"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-545390" markdown="1">
- - [HarmHam](#HarmHam)
-- [BasisRepMatrixOps](#BasisRepMatrixOps)
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-07c050" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-07c050"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-07c050" markdown="1">
- 
-Before we can run our examples we should get a bit of setup out of the way.
-Since these examples were harvested from the unit tests not all pieces
-will be necessary for all situations.
-
-All tests are wrapped in a test class
-```python
-class BasisSetTests(TestCase):
-    def get_states(self, n_quanta, n_modes, max_quanta=None):
-        return [np.flip(x) for x in BasisStateSpace.from_quanta(
-            HarmonicOscillatorProductBasis(n_modes),
-            range(n_quanta)
-        ).excitations]
-```
-
- </div>
-</div>
-
-#### <a name="HarmHam">HarmHam</a>
-```python
-    def test_HarmHam(self):
-
-        n = 10
-        m = 3
-        basis = HarmonicOscillatorProductBasis((n,) * m)
-        G, V = [
-            np.array([[6.47886479e-03, 5.17641431e-12, -1.12922679e-12],
-                      [5.17641431e-12, 1.28034398e-02, -3.15629792e-12],
-                      [-1.12922679e-12, -3.15629792e-12, 1.76505371e-02]]),
-            np.array([[6.47886478e-03, -8.45595180e-13, -1.01327126e-11],
-                      [-8.45595549e-13, 1.28034398e-02, -4.72136245e-12],
-                      [-1.01327124e-11, -4.72136255e-12, 1.76505372e-02]])]
-
-        mommy = (1 / 2) * basis.representation('p', 'p', coeffs=G)
-        possy = (1 / 2) * basis.representation('x', 'x', coeffs=V)
-        H0 = ( mommy + possy )
-
-        states = BasisStateSpace(basis, self.get_states(2, 3, max_quanta=10), mode='excitations')
-
-        diag_inds = BraKetSpace(states, states)
-
-        # raise Exception(diag_inds.state_pairs)
-
-        diags = H0[diag_inds]
-
-        self.assertEquals(np.average(diags), 0.036932841734999985)
-```
-
-#### <a name="BasisRepMatrixOps">BasisRepMatrixOps</a>
-```python
-    def test_BasisRepMatrixOps(self):
-
-        n = 15 # totally meaningless these days
-        m = 4
-        basis = HarmonicOscillatorProductBasis((n,) * m)
-
-        mat = StateSpaceMatrix(basis)
-
-        self.assertEquals(mat.array.shape[0], 0)
-
-        states = BasisStateSpace.from_quanta(basis, range(10))
-        brakets = BraKetSpace(states, states)
-        vals = np.ones(len(brakets))
-        mat_2 = StateSpaceMatrix(brakets, vals)
-
-        def wat(state_space):
-            return np.ones(len(state_space))
-        sub_brakets = BasisStateSpace.from_quanta(basis, range(4)).get_representation_brakets()
-        mat2_vals = mat_2.compute_values(wat, sub_brakets)
-
-        self.assertEquals(mat2_vals.tolist(), mat_2[sub_brakets].tolist())
-```
-
- </div>
-</div>
 
 
 
@@ -466,7 +367,7 @@ class BasisSetTests(TestCase):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/StateSpaces/BraKetSpace.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/StateSpaces/BraKetSpace.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L3503?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L3640?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

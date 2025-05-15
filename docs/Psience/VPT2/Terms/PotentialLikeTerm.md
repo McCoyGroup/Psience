@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Terms.PotentialLikeTerm">PotentialLikeTerm</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms.py#L2076)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L2076?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms.py#L2395)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L2395?message=Update%20Docs)]
 </div>
 
 This accounts for the potential-like term.
@@ -26,8 +26,8 @@ In proper internals, this is the V' term.
 get_terms(self, order=None, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/PotentialLikeTerm.py#L2083)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/PotentialLikeTerm.py#L2083?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/PotentialLikeTerm.py#L2402)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/PotentialLikeTerm.py#L2402?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -82,7 +82,7 @@ get_terms(self, order=None, logger=None):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Terms/PotentialLikeTerm.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Terms/PotentialLikeTerm.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L2076?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L2395?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

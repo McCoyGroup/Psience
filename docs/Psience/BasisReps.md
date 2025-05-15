@@ -109,21 +109,10 @@ BasisReps manages useful functions for generating & working with basis-set repre
 </div>
   <div class="row">
    <div class="col" markdown="1">
-[BaseStateIndexer](BasisReps/StateIndexers/BaseStateIndexer.md)   
+[BasisStateSpaceFilter](BasisReps/StateFilters/BasisStateSpaceFilter.md)   
 </div>
    <div class="col" markdown="1">
-[ArrayStateIndexer](BasisReps/StateIndexers/ArrayStateIndexer.md)   
-</div>
-   <div class="col" markdown="1">
-[SpaceStateIndexer](BasisReps/StateIndexers/SpaceStateIndexer.md)   
-</div>
-</div>
-  <div class="row">
-   <div class="col" markdown="1">
-[PermutationStateIndexer](BasisReps/StateIndexers/PermutationStateIndexer.md)   
-</div>
-   <div class="col" markdown="1">
-   
+[StateMaker](BasisReps/Util/StateMaker.md)   
 </div>
    <div class="col" markdown="1">
    
@@ -151,9 +140,9 @@ BasisReps manages useful functions for generating & working with basis-set repre
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-efaa52" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-efaa52"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-0c9049" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-0c9049"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-efaa52" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-0c9049" markdown="1">
  - [HOBasis1DX](#HOBasis1DX)
 - [HOElements](#HOElements)
 - [HOBasis1DXX](#HOBasis1DXX)
@@ -181,6 +170,7 @@ BasisReps manages useful functions for generating & working with basis-set repre
 - [StateSpaceIntersections](#StateSpaceIntersections)
 - [StateConnections](#StateConnections)
 - [StateSpaceTakeProfile](#StateSpaceTakeProfile)
+- [StateSpaceStatesGen](#StateSpaceStatesGen)
 - [BasisRepMatrixOps](#BasisRepMatrixOps)
 - [ImprovedRepresentations](#ImprovedRepresentations)
 - [PermutationallyReducedStateSpace](#PermutationallyReducedStateSpace)
@@ -189,9 +179,9 @@ BasisReps manages useful functions for generating & working with basis-set repre
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-b5c367" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-b5c367"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-f79f39" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-f79f39"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-b5c367" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-f79f39" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -1171,6 +1161,16 @@ class BasisSetTests(TestCase):
         init_space = basis.get_state_space(2)
         init_space.full_basis = CompleteSymmetricGroupSpace(m)
         tf = x_rep.get_transformed_space(init_space)
+```
+
+#### <a name="StateSpaceStatesGen">StateSpaceStatesGen</a>
+```python
+    def test_StateSpaceStatesGen(self):
+        wheeeeee = BasisStateSpace.states_under_freq_threshold(
+            [1, 1.2, 1.8, 2, 2.5, 2.7, 2.8, 2.9, 3],
+            4
+        )
+        raise Exception(len(wheeeeee))
 ```
 
 #### <a name="BasisRepMatrixOps">BasisRepMatrixOps</a>

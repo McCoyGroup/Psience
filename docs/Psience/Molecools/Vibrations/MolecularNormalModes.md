@@ -1,8 +1,8 @@
 ## <a id="Psience.Molecools.Vibrations.MolecularNormalModes">MolecularNormalModes</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations.py#L286)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations.py#L286?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations.py#L311)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations.py#L311?message=Update%20Docs)]
 </div>
 
 A Coordinerds CoordinateSystem object that manages all of the data needed to
@@ -27,8 +27,8 @@ name: str
 __init__(self, molecule, coeffs, name=None, freqs=None, internal=False, origin=None, basis=None, inverse=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L292)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L292?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L317)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L317?message=Update%20Docs)]
 </div>
 
   - `molecule`: `AbstractMolecule`
@@ -55,8 +55,40 @@ __init__(self, molecule, coeffs, name=None, freqs=None, internal=False, origin=N
 molecule(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L347)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L347?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L372)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L372?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.change_mol" class="docs-object-method">&nbsp;</a> 
+```python
+change_mol(self, mol): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L381)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L381?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.coords_by_modes" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+coords_by_modes(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L393)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L393?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.modes_by_coords" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+modes_by_coords(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L396)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L396?message=Update%20Docs)]
 </div>
 
 
@@ -65,8 +97,8 @@ molecule(self):
 to_internals(self, intcrds=None, dYdR=None, dRdY=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L357)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L357?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L401)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L401?message=Update%20Docs)]
 </div>
 
 
@@ -76,8 +108,8 @@ to_internals(self, intcrds=None, dYdR=None, dRdY=None):
 origin(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L389)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L389?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L434)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L434?message=Update%20Docs)]
 </div>
 
 
@@ -86,8 +118,8 @@ origin(self):
 embed(self, frame): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L397)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L397?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L444)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L444?message=Update%20Docs)]
 </div>
 
   - `frame`: `MolecularTransformation`
@@ -101,8 +133,8 @@ embed(self, frame):
 insert(self, val, where): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L461)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L461?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L507)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L507?message=Update%20Docs)]
 </div>
 Inserts values into the appropriate positions in the mode matrix
   - `val`: `Any`
@@ -113,13 +145,41 @@ Inserts values into the appropriate positions in the mode matrix
     >
 
 
-<a id="Psience.Molecools.Vibrations.MolecularNormalModes.from_force_constants" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.to_new_modes" class="docs-object-method">&nbsp;</a> 
 ```python
-from_force_constants(molecule, fcs, atoms=None, masses=None, mass_units='AtomicMassUnits', inverse_mass_matrix=False, remove_transrot=True, normalize=False, **opts): 
+to_new_modes(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L514)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L514?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L560)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L560?message=Update%20Docs)]
+</div>
+Converts to the new generalized normal modes
+  - `:returns`: `_`
+    >
+
+
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.from_new_modes" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_new_modes(cls, mol, modes): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L580)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L580?message=Update%20Docs)]
+</div>
+Converts to the new generalized normal modes
+  - `:returns`: `_`
+    >
+
+
+<a id="Psience.Molecools.Vibrations.MolecularNormalModes.from_force_constants" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_force_constants(cls, molecule, fcs, *, atoms=None, masses=None, mass_units='AtomicMassUnits', inverse_mass_matrix=False, remove_transrot=True, dimensionless=False, mass_weighted=False, normalize=False, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L596)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L596?message=Update%20Docs)]
 </div>
 Generates normal modes from the specified force constants
   - `molecule`: `AbstractMolecule`
@@ -149,8 +209,8 @@ Generates normal modes from the specified force constants
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L592)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L592?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Vibrations/MolecularNormalModes.py#L653)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations/MolecularNormalModes.py#L653?message=Update%20Docs)]
 </div>
 Takes a slice of the modes
   - `item`: `Any`
@@ -163,102 +223,8 @@ Takes a slice of the modes
 
 
 
-## Examples
 
 
-
-
-
-
-
-
-
-
-
-
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-f1900c" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-f1900c"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-f1900c" markdown="1">
- - [VisualizeNormalModes](#VisualizeNormalModes)
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-9d8a8b" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-9d8a8b"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-9d8a8b" markdown="1">
- 
-Before we can run our examples we should get a bit of setup out of the way.
-Since these examples were harvested from the unit tests not all pieces
-will be necessary for all situations.
-
-All tests are wrapped in a test class
-```python
-class MolecoolsTests(TestCase):
-    def setUp(self):
-        self.test_log_water = TestManager.test_data("water_OH_scan.log")
-        self.test_log_freq = TestManager.test_data("water_freq.log")
-        self.test_HOD = TestManager.test_data("HOD_freq.fchk")
-        self.test_fchk = TestManager.test_data("water_freq.fchk")
-        self.test_log_h2 = TestManager.test_data("outer_H2_scan_new.log")
-```
-
- </div>
-</div>
-
-#### <a name="VisualizeNormalModes">VisualizeNormalModes</a>
-```python
-    def test_VisualizeNormalModes(self):
-
-        from Psience.Molecools.Vibrations import MolecularVibrations, MolecularNormalModes
-        from McUtils.Plots import GraphicsGrid, Graphics3D
-
-        m = Molecule.from_file(self.test_fchk, bonds = [[0, 1, 1], [0, 2, 1]])
-
-        with GaussianFChkReader(self.test_fchk) as reader:
-            parse = reader.parse(("VibrationalModes", "VibrationalData"))
-        modes = parse["VibrationalModes"].T
-
-        test_freqs = parse["VibrationalData"]["Frequencies"]
-
-        nms = m.normal_modes
-        realvibs = MolecularVibrations(m, basis=MolecularNormalModes(m, modes, freqs=test_freqs))
-
-        realvibs.visualize(mode='jupyter') # get no bugs
-
-        plot_vibrations = False
-        if plot_vibrations:
-            nmodes = 1
-            mode_start = 0
-            g = GraphicsGrid(nrows=2, ncols=nmodes,
-                             graphics_class=Graphics3D,
-                             plot_range = [[-2, 2], [-2, 2], [-2, 2]],
-                             fig_kw = dict(figsize = (17, 5)),
-                             tighten = True
-                             )
-
-            for i in range(nmodes):
-                nms.visualize(step_size=.1, figure = g[0, i], which=mode_start + i,
-                              anim_opts= dict(interval = 10)
-                              )
-
-            for i in range(nmodes):
-                realvibs.visualize(step_size=.1, figure = g[1, i], which= mode_start+i,
-                                   anim_opts= dict(interval = 10)
-                                   )
-
-            g.show()
-
-        self.assertEquals(
-            tuple(np.round(UnitsData.convert("Hartrees", "Wavenumbers")*nms.modes.freqs, 4)),
-            tuple(np.round(test_freqs, 4))
-        )
-```
-
- </div>
-</div>
 
 
 
@@ -304,7 +270,7 @@ class MolecoolsTests(TestCase):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/Vibrations/MolecularNormalModes.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/Vibrations/MolecularNormalModes.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations.py#L286?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Vibrations.py#L311?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

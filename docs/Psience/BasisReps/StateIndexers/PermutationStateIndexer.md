@@ -47,11 +47,12 @@ to_state(self, serializer=None):
 
 <a id="Psience.BasisReps.StateIndexers.PermutationStateIndexer.from_state" class="docs-object-method">&nbsp;</a> 
 ```python
-from_state(data, serializer=None): 
+@classmethod
+from_state(cls, data, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateIndexers/PermutationStateIndexer.py#L109)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateIndexers/PermutationStateIndexer.py#L109?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L109)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L109?message=Update%20Docs)]
 </div>
 
 
@@ -93,123 +94,8 @@ This is not assured to be a fast process in any way.
 
 
 
-## Examples
 
 
-
-
-
-
-
-
-
-
-
-
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-565ac5" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-565ac5"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-565ac5" markdown="1">
- - [StateIndexing](#StateIndexing)
-- [PermIndices](#PermIndices)
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-39d15e" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-39d15e"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-39d15e" markdown="1">
- 
-Before we can run our examples we should get a bit of setup out of the way.
-Since these examples were harvested from the unit tests not all pieces
-will be necessary for all situations.
-
-All tests are wrapped in a test class
-```python
-class BasisSetTests(TestCase):
-    def get_states(self, n_quanta, n_modes, max_quanta=None):
-        return [np.flip(x) for x in BasisStateSpace.from_quanta(
-            HarmonicOscillatorProductBasis(n_modes),
-            range(n_quanta)
-        ).excitations]
-```
-
- </div>
-</div>
-
-#### <a name="StateIndexing">StateIndexing</a>
-```python
-    def test_StateIndexing(self):
-        """
-        Tests indexing state specs through a more
-        intelligent lexicographic order
-        :return:
-        :rtype:
-        """
-
-        ndim = 6
-        indexer = PermutationStateIndexer(ndim)
-
-        states = BasisStateSpace.from_quanta(HarmonicOscillatorProductBasis(ndim), range(10)).excitations
-        # print(states)
-        inds = indexer.to_indices(states)
-
-        # print(states[44:])
-
-        checks = inds != np.arange(len(states))
-        self.assertFalse(
-            checks.any()
-            , msg="{} no good ({} out of {})".format(states[checks], inds[checks], inds)
-        )
-
-        # np.random.seed(0)
-        # some_sel = np.arange(len(states))
-        some_sel = np.unique(np.random.choice(np.arange(len(states)), 100))
-        rev = indexer.from_indices(inds[some_sel,])
-        self.assertTrue((states[some_sel,] == rev).all(),
-                        msg="{} != {}".format(states[some_sel,], rev))
-```
-
-#### <a name="PermIndices">PermIndices</a>
-```python
-    def test_PermIndices(self):
-        ndim = 3
-        indexer = PermutationStateIndexer(ndim)
-
-        states = [[0, 0, 0],
-         [0, 0, 1],
-         [0, 0, 2],
-         [0, 0, 3],
-         [0, 0, 4],
-         [0, 0, 5],
-         [0, 0, 6],
-         [0, 1, 0],
-         [0, 1, 1],
-         [0, 1, 2],
-         [0, 2, 3],
-         [0, 2, 4],
-         [3, 1, 0],
-         [3, 1, 1],
-         [3, 1, 2],
-         [3, 2, 0],
-         [3, 2, 1],
-         [3, 3, 0],
-         [4, 0, 0],
-         [4, 0, 1],
-         [4, 0, 2],
-         [4, 1, 0],
-         [4, 1, 1],
-         [4, 2, 0],
-         [5, 0, 0],
-         [5, 0, 1],
-         [5, 1, 0],
-         [6, 0, 0]]
-        raise Exception(indexer.to_indices(states))
-```
-
- </div>
-</div>
 
 
 

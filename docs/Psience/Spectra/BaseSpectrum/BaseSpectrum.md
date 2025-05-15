@@ -132,11 +132,12 @@ Saves the spectrum in JSON format
 
 <a id="Psience.Spectra.BaseSpectrum.BaseSpectrum.load" class="docs-object-method">&nbsp;</a> 
 ```python
-load(file): 
+@classmethod
+load(cls, file): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/BaseSpectrum/BaseSpectrum.py#L108)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum/BaseSpectrum.py#L108?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L108)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L108?message=Update%20Docs)]
 </div>
 Saves a spectrum from a JSON file
   - `file`: `Any`

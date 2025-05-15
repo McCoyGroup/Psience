@@ -21,61 +21,67 @@ The polynomial induced by _a_ raising operations and _b_ lowering ops
  
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorRaisingLoweringPolyTerms.get_poly_coeffs" class="docs-object-method">&nbsp;</a> 
 ```python
-get_poly_coeffs(a, b, shift=0): 
+@classmethod
+get_poly_coeffs(cls, a, b, shift=0): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorRaisingLoweringPolyTerms.py#L256)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorRaisingLoweringPolyTerms.py#L256?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L256)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L256?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorRaisingLoweringPolyTerms.get_direction_change_poly" class="docs-object-method">&nbsp;</a> 
 ```python
-get_direction_change_poly(delta, shift): 
+@classmethod
+get_direction_change_poly(cls, delta, shift, baseline=0): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorRaisingLoweringPolyTerms.py#L267)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorRaisingLoweringPolyTerms.py#L267?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L267)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L267?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorRaisingLoweringPolyTerms.get_sqrt_remainder_coeffs" class="docs-object-method">&nbsp;</a> 
 ```python
-get_sqrt_remainder_coeffs(delta, k): 
+@classmethod
+get_sqrt_remainder_coeffs(cls, delta, prev, baseline=0): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorRaisingLoweringPolyTerms.py#L279)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorRaisingLoweringPolyTerms.py#L279?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L280)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L280?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorRaisingLoweringPolyTerms.s1" class="docs-object-method">&nbsp;</a> 
 ```python
-s1(i, j): 
+@classmethod
+s1(cls, i, j): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorRaisingLoweringPolyTerms.py#L305)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorRaisingLoweringPolyTerms.py#L305?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L304)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L304?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorRaisingLoweringPolyTerms.binom" class="docs-object-method">&nbsp;</a> 
 ```python
-binom(i, j): 
+@classmethod
+binom(cls, i, j): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorRaisingLoweringPolyTerms.py#L311)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorRaisingLoweringPolyTerms.py#L311?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L310)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L310?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorRaisingLoweringPolyTerms.get_reduced_raising_lowering_coeffs" class="docs-object-method">&nbsp;</a> 
 ```python
-get_reduced_raising_lowering_coeffs(a, b): 
+@classmethod
+get_reduced_raising_lowering_coeffs(cls, a, b): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorRaisingLoweringPolyTerms.py#L317)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorRaisingLoweringPolyTerms.py#L317?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L316)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L316?message=Update%20Docs)]
 </div>
  </div>
 </div>

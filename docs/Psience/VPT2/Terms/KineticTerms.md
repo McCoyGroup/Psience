@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Terms.KineticTerms">KineticTerms</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms.py#L1882)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L1882?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms.py#L1975)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L1975?message=Update%20Docs)]
 </div>
 
 Represents the KE coefficients
@@ -21,11 +21,11 @@ Represents the KE coefficients
  
 <a id="Psience.VPT2.Terms.KineticTerms.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
-__init__(self, molecule, g_derivative_threshold=0.001, gmatrix_tolerance=1e-06, use_cartesian_kinetic_energy=False, **opts): 
+__init__(self, molecule, g_derivative_threshold=0.001, gmatrix_tolerance=1e-06, use_cartesian_kinetic_energy=False, check_input_gmatrix=True, freq_tolerance=0.002, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/KineticTerms.py#L1890)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/KineticTerms.py#L1890?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/KineticTerms.py#L1985)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/KineticTerms.py#L1985?message=Update%20Docs)]
 </div>
 
 
@@ -34,8 +34,68 @@ __init__(self, molecule, g_derivative_threshold=0.001, gmatrix_tolerance=1e-06, 
 get_terms(self, order=None, logger=None, return_expressions=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/KineticTerms.py#L1902)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/KineticTerms.py#L1902?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/KineticTerms.py#L2001)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/KineticTerms.py#L2001?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.VPT2.Terms.KineticTerms.reexpress_G" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+reexpress_G(self, G_expansion, forward_derivs, reverse_derivs=None, order=2): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L2214)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L2214?message=Update%20Docs)]
+</div>
+Apply a coordinate transformation to the G-matrix
+  - `forward_derivs`: `Any`
+    > 
+  - `reverse_derivs`: `Any`
+    > 
+  - `order`: `Any`
+    > 
+  - `:returns`: `_`
+    >
+
+
+<a id="Psience.VPT2.Terms.KineticTerms.reexpress" class="docs-object-method">&nbsp;</a> 
+```python
+reexpress(self, forward_derivs, reverse_derivs=None, order=2): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/KineticTerms.py#L2255)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/KineticTerms.py#L2255?message=Update%20Docs)]
+</div>
+Finds a coordinate transformation the give 0 contribution to the G-matrix
+  - `forward_derivs`: `Any`
+    > 
+  - `reverse_derivs`: `Any`
+    > 
+  - `order`: `Any`
+    > 
+  - `:returns`: `_`
+    >
+
+
+<a id="Psience.VPT2.Terms.KineticTerms.get_kinetic_optimized_coordinates" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+get_kinetic_optimized_coordinates(cls, G_expansion, order=2): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L2268)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L2268?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.VPT2.Terms.KineticTerms.optimize_coordinates" class="docs-object-method">&nbsp;</a> 
+```python
+optimize_coordinates(self, order=2): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/KineticTerms.py#L2307)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/KineticTerms.py#L2307?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -90,7 +150,7 @@ get_terms(self, order=None, logger=None, return_expressions=False):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Terms/KineticTerms.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Terms/KineticTerms.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L1882?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L1975?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

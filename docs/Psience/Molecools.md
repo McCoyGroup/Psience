@@ -24,15 +24,48 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 [MolecoolException](Molecools/Molecule/MolecoolException.md)   
 </div>
    <div class="col" markdown="1">
-[MolecularZMatrixCoordinateSystem](Molecools/CoordinateSystems/MolecularZMatrixCoordinateSystem.md)   
+[StructuralProperties](Molecools/Properties/StructuralProperties.md)   
 </div>
    <div class="col" markdown="1">
-[MolecularCartesianCoordinateSystem](Molecools/CoordinateSystems/MolecularCartesianCoordinateSystem.md)   
+[BondingProperties](Molecools/Properties/BondingProperties.md)   
 </div>
 </div>
   <div class="row">
    <div class="col" markdown="1">
-   
+[MolecularProperties](Molecools/Properties/MolecularProperties.md)   
+</div>
+   <div class="col" markdown="1">
+[MolecularPropertyError](Molecools/Properties/MolecularPropertyError.md)   
+</div>
+   <div class="col" markdown="1">
+[OpenBabelMolManager](Molecools/Properties/OpenBabelMolManager.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[DipoleSurfaceManager](Molecools/Properties/DipoleSurfaceManager.md)   
+</div>
+   <div class="col" markdown="1">
+[PotentialSurfaceManager](Molecools/Properties/PotentialSurfaceManager.md)   
+</div>
+   <div class="col" markdown="1">
+[NormalModesManager](Molecools/Properties/NormalModesManager.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[MolecularEmbedding](Molecools/CoordinateSystems/MolecularEmbedding.md)   
+</div>
+   <div class="col" markdown="1">
+[ModeEmbedding](Molecools/CoordinateSystems/ModeEmbedding.md)   
+</div>
+   <div class="col" markdown="1">
+[MolecularZMatrixCoordinateSystem](Molecools/CoordinateSystems/MolecularZMatrixCoordinateSystem.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[MolecularCartesianCoordinateSystem](Molecools/CoordinateSystems/MolecularCartesianCoordinateSystem.md)   
 </div>
    <div class="col" markdown="1">
    
@@ -63,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-19360b" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-19360b"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-d75433" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-d75433"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-19360b" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-d75433" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -90,12 +123,20 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [VisualizeNormalModes](#VisualizeNormalModes)
 - [InternalCartesianJacobians](#InternalCartesianJacobians)
 - [CompositeCoordinates](#CompositeCoordinates)
+- [RDKitSpectrum](#RDKitSpectrum)
+- [ExpansionPotential](#ExpansionPotential)
+- [OpenBabel](#OpenBabel)
+- [1DPotentialReps](#1DPotentialReps)
+- [Constructors](#Constructors)
+- [InternalConv](#InternalConv)
+- [AutomaticConversion](#AutomaticConversion)
+- [FastInternals](#FastInternals)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-954885" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-954885"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-a579a3" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-a579a3"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-954885" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-a579a3" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -110,6 +151,63 @@ class MolecoolsTests(TestCase):
         self.test_HOD = TestManager.test_data("HOD_freq.fchk")
         self.test_fchk = TestManager.test_data("water_freq.fchk")
         self.test_log_h2 = TestManager.test_data("outer_H2_scan_new.log")
+    def setup_OCHH(cls, optimize=True):
+        from McUtils.Extensions import ModuleLoader
+
+        loader = ModuleLoader(os.path.expanduser("~/Documents/Postdoc/Projects/DGB"))
+        h2co_mod = loader.load("H2COPot")
+
+        def internal_pot(coords, order=None):
+            coords = coords[..., (0, 1, 3, 2, 4, 5)]
+            vals = h2co_mod.InternalsPotential.get_pot(coords)
+            return vals
+
+        ochh = Molecule.from_file(
+            TestManager.test_data('OCHH_freq.fchk'),
+            energy_evaluator={
+                'potential_function': internal_pot,
+                "distance_units": "Angstroms",
+                "energy_units": "Wavenumbers",
+                "strip_embedding": True,
+            },
+            internals=[
+                [0, -1, -1, -1],
+                [1, 0, -1, -1],
+                [2, 1, 0, -1],
+                [3, 1, 2, 0]
+            ]
+        )
+        if optimize:
+            base_dip = ochh.dipole_derivatives
+            ochh = ochh.optimize(
+                # method='quasi-newton'
+                method='conjugate-gradient'
+                # method='gradient-descent'
+                , max_iterations=50
+                , stencil=3
+                # , logger=True
+                # , max_displacement=.01
+                , prevent_oscillations=3
+                , restart_interval=15
+            ).modify(dipole_derivatives=base_dip)
+            # ochh = Molecule(
+            #     ochh.atoms,
+            #     ochh_opt.coords,
+            #     energy_evaluator={
+            #         'potential_function': internal_pot,
+            #         "distance_units": "Angstroms",
+            #         "energy_units": "Wavenumbers",
+            #         "strip_embedding": True,
+            #     },
+            #     internals=[
+            #         [0, -1, -1, -1],
+            #         [1,  0, -1, -1],
+            #         [2,  1,  0, -1],
+            #         [3,  1,  0,  2],
+            #     ]
+            # )
+
+        return ochh
 ```
 
  </div>
@@ -939,6 +1037,416 @@ class MolecoolsTests(TestCase):
         ic2 = mol2.internal_coordinates
 
         self.assertAlmostEquals(np.sum(ic1.convert(ic2.system)-ic2)[()], 0.)
+```
+
+#### <a name="RDKitSpectrum">RDKitSpectrum</a>
+```python
+    def test_RDKitSpectrum(self):
+        # propane = Molecule.from_string('CCC', 'smi', energy_evaluator='rdkit').optimize()
+        # propane.get_harmonic_spectrum().plot().show()
+
+        propanol = Molecule.from_string('CCCO', 'smi',
+                                        energy_evaluator='rdkit',
+                                        charge_evaluator='aimnet2'
+                                        ).optimize()
+        propanol.get_harmonic_spectrum().plot(
+            plot_range=[
+                None,
+                [0, 170]
+            ],
+            axes_labels=['Freq. (cm$^{-1}$)', 'Int. (km mol$^{-1}$)'],
+            plot_label='AIMNet2 Charges w/ MMFF Modes',
+            padding=[[55, 0], [40, 20]]
+        ).savefig(os.path.expanduser('~/Desktop/aimnet2_propanol_rdkit_opt.png'))
+
+        propanol = propanol.modify(charge_evaluator='rdkit')
+        propanol.get_harmonic_spectrum().plot(
+            plot_range=[
+                None,
+                [0, 170]
+            ],
+            axes_labels=['Freq. (cm$^{-1}$)', 'Int. (km mol$^{-1}$)'],
+            plot_label='Gasteiger Charges w/ MMFF Modes',
+            padding=[[55, 0], [40, 20]]
+        ).savefig(os.path.expanduser('~/Desktop/gasteiger_propanol_rdkit_opt.png'))
+
+        return
+        # water = Molecule.from_file(TestManager.test_data("HOH_freq.fchk"))
+
+        water = Molecule.from_string('O', 'smi',
+                                     energy_evaluator='rdkit',
+                                     charge_evaluator='aimnet2'
+                                     ).optimize()
+        water.get_harmonic_spectrum().plot()
+
+        water = water.modify(charge_evaluator='rdkit')
+        spec = water.get_harmonic_spectrum()
+        spec.plot().show()
+```
+
+#### <a name="ExpansionPotential">ExpansionPotential</a>
+```python
+    def test_ExpansionPotential(self):
+        h2co = Molecule.from_file(TestManager.test_data('OCHH_freq.fchk'))
+        disps, scan_coords = h2co.get_scan_coordinates(
+            [[-.5, .5, 1000]],
+            which=[[2, 2]],
+            return_displacements=True
+        )
+        [grad, hess, cubes, quarts] = h2co.potential_derivatives
+        vals_2 = h2co.calculate_energy(scan_coords,
+                                       evaluator=(
+                                           'expansion',
+                                           {
+                                               'expansion': [grad, hess]
+                                           }
+                                       )
+                                       ) * 219475.6
+        vals_3 = h2co.calculate_energy(scan_coords,
+                                     evaluator=(
+                                         'expansion',
+                                         {
+                                             'expansion':[grad, hess, cubes]
+                                         }
+                                     )
+                                     ) * 219475.6
+        vals_4 = h2co.calculate_energy(scan_coords,
+                                     evaluator=(
+                                         'expansion',
+                                         {
+                                             'expansion':[grad, hess, cubes, quarts]
+                                         }
+                                     )
+                                     ) * 219475.6
+        # h2co.plot(scan_coords).show()
+        base_fig = plt.Plot(disps, vals_2, plot_range=[None, [0, 20000]])
+        plt.Plot(disps, vals_3, figure=base_fig)
+        plt.Plot(disps, vals_4, figure=base_fig)
+        base_fig.show()
+```
+
+#### <a name="OpenBabel">OpenBabel</a>
+```python
+    def test_OpenBabel(self):
+        mol = Molecule.from_file(TestManager.test_data("nh3.fchk"))
+        print(mol.to_string("pdb"))
+        return
+```
+
+#### <a name="1DPotentialReps">1DPotentialReps</a>
+```python
+    def test_1DPotentialReps(self):
+        ochh = self.setup_OCHH(optimize=True)
+        int_ochh = ochh.modify(internals=[
+            [0, -1, -1, -1],
+            [1, 0, -1, -1],
+            [2, 1, 0, -1],
+            [3, 1, 2, 0],
+        ])
+
+        scan_disps = [-1.0, 1.0, 51]
+        scan_angles = int_ochh.get_scan_coordinates(
+            [scan_disps],
+            which=[[3, 1]],
+            internals='reembed'
+        )
+        # scan_disp_dist = [-.4, .7, 25]
+        # # int_ochh.plot(scan_angles).show()
+        # scan_dists = int_ochh.get_scan_coordinates(
+        #     [scan_disp_dist],
+        #     which=[[1, 0]],
+        #     internals='reembed'
+        # )
+
+        pot_vals = int_ochh.calculate_energy(scan_angles)
+
+        # pot_vals_dists = int_ochh.calculate_energy(scan_dists)
+
+        # woof = ochh.get_anharmonic_parameters(
+        #     [(0, 1), (1, 2), (1, 3), (2, 1, 3), (0, 1, 2, 3)]
+        # )
+        woof_pots = ochh.get_1d_potentials(
+            [(0, 1), (1, 2), (1, 3), (2, 1, 3), (0, 1, 2, 3)]
+        )
+        woof_pots_4 = ochh.get_1d_potentials(
+            [(0, 1), (1, 2), (1, 3), (2, 1, 3), (0, 1, 2, 3)],
+            poly_expansion_order=4
+        )
+        woof_pots_morse = ochh.get_1d_potentials(
+            [(0, 1), (1, 2), (1, 3), (2, 1, 3), (0, 1, 2, 3)],
+            quartic_potential_cutoff=0
+        )
+        # for method, (params, re) in woof:
+        #     print(
+        #         [
+        #             p * 219475.6
+        #             for n, p in enumerate(params)
+        #         ],
+        #         re
+        #     )
+
+        # _, pot_vals_dists_appx = woof_pots[0](
+        #     scan_dists
+        # )
+        angs, pot_vals_angs_appx = woof_pots[3](
+            scan_angles
+        )
+        angs, pot_vals_angs_appx_4 = woof_pots_4[3](
+            scan_angles
+        )
+        angs, pot_vals_angs_appx_morse = woof_pots_morse[3](
+            scan_angles
+        )
+
+        # uh = nput.internal_coordinate_tensors(
+        #     scan_angles,
+        #     [
+        #         [0, 1],
+        #         [1, 2],
+        #         [1, 3],
+        #         [2, 1, 3]
+        #     ],
+        #     order=0
+        # )
+        # print(uh[0])
+
+        disp_vals = np.linspace(*scan_disps)
+        ploots = plt.Plot(disp_vals, pot_vals * 219475.6, color='black', plot_range=[None, [None, 35000]])
+        # plt.Plot(np.linspace(*scan_disp_dist), pot_vals_dists * 219475.6, figure=ploots)
+        # plt.Plot(np.linspace(*scan_disp_dist), pot_vals_dists_appx[0] * 219475.6, figure=ploots,
+        #          linestyle='dashed')
+        # k = len(disp_vals) // 2
+        # f2_alt = (pot_vals[k+1] + pot_vals[k-1] - 2*pot_vals[k]) / (2*(disp_vals[1] - disp_vals[0])**2)
+        # print(f2_alt)
+        # print(angs[0] - angs[0][k])
+        # print(disp_vals)
+        shang_vals = (ochh.calculate_energy() + pot_vals_angs_appx[0])
+        shang_vals_4 = (ochh.calculate_energy() + pot_vals_angs_appx_4[0])
+        shang_vals_morse = (ochh.calculate_energy() + pot_vals_angs_appx_morse[0])
+        plt.Plot(np.linspace(*scan_disps), shang_vals * 219475.6, figure=ploots,
+                 linestyle='dashed')
+        plt.Plot(np.linspace(*scan_disps), shang_vals_4 * 219475.6, figure=ploots,
+                 linestyle='dashed')
+        plt.Plot(np.linspace(*scan_disps), shang_vals_morse * 219475.6, figure=ploots,
+                 linestyle='dashed')
+        ploots.show()
+        return
+```
+
+#### <a name="Constructors">Constructors</a>
+```python
+    def test_Constructors(self):
+
+        a = Molecule.construct(TestManager.test_data('OCHH_freq.fchk'))
+        b = Molecule.construct([
+            a.atoms, a.coords,
+            dict(internals=[
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  1,  0, -1],
+                [3,  1,  0,  2]
+            ])
+        ])
+        c = Molecule.construct([b.atoms, (b.internals['zmatrix'], b.internal_coordinates[1:])])
+        b = Molecule.construct('formaldehyde')
+        c = Molecule.construct('OC')
+```
+
+#### <a name="InternalConv">InternalConv</a>
+```python
+    def test_InternalConv(self):
+
+        gggg = Molecule(
+            ['C', 'C', 'H', 'H', 'H', 'C', 'C', 'H', 'H', 'H', 'C', 'C', 'H', 'H', 'H', 'C', 'H', 'H', 'H'],
+            [[0., 0., 0.],
+             [2.5221177, 0., 0.],
+             [-1.074814, 1.74867225, 0.],
+             [-1.06173943, -1.75324789, -0.02644452],
+             [3.50660496, -1.80459232, -0.09993741],
+             [4.12940149, 2.25082363, 0.07118096],
+             [3.53603628, 4.43884306, 1.1781188],
+             [5.96989258, 2.06662578, -0.83065536],
+             [4.82076346, 6.03519987, 1.12058693],
+             [1.77236274, 4.68977978, 2.19737026],
+             [0.05431618, 1.81919915, 6.66571583],
+             [0.10361848, 4.11457325, 7.68790077],
+             [1.66160335, 1.19828653, 5.53987418],
+             [-1.46076767, 4.82280651, 8.81630128],
+             [1.71219257, 5.36239542, 7.43802933],
+             [-2.06783807, -0.02189412, 6.91272006],
+             [-2.80613635, -0.54136474, 5.04934629],
+             [-1.42168595, -1.77751975, 7.80094268],
+             [-3.61859877, 0.74452369, 8.04209746]],
+            internals={
+                'primitives': 'auto',
+                'nonredundant_coordinates': [(15, 10, 11, 13)]
+            }
+        )
+
+        raise Exception(gggg.internal_coordinates.shape)
+
+
+        nh3 = Molecule.from_file(
+            TestManager.test_data("nh3.fchk"),
+            internals=[
+                [0, -1, -1, -1],
+                [1, 0, -1, -1],
+                [2, 0, 1, -1],
+                [3, 0, 1, 2]
+            ]
+        )
+        emb_nh3 = nh3.get_embedded_molecule()
+        emb_test = emb_nh3.internal_coordinates.convert(emb_nh3.coords.system)
+        # conv_1 = nh3.internal_coordinates.convert(nh3.coords.system)
+        # print(emb_nh3.internal_coordinates)
+        # print(emb_nh3.internal_coordinates.converter_options)
+        # print(np.round(emb_nh3.coords, 8))
+        # print(np.round(emb_test, 8))
+        # raise Exception(...)
+        # conv_2 = ...
+
+        nh3 = Molecule.from_file(
+            TestManager.test_data("nh3.fchk"),
+            internals=[
+                [0, -1, -1, -1],
+                [1, 0, -1, -1],
+                [2, 0, 1, -1],
+                [3, 0, 1, 2]
+            ]
+        )
+        ders1 = nh3.get_cartesians_by_internals(1, strip_embedding=True, reembed=True)[0]
+        ders_inv1 = nh3.get_internals_by_cartesians(1, strip_embedding=True)[0]
+
+        # nh3 = Molecule.from_file(
+        #     TestManager.test_data("nh3.fchk"),
+        #     internals=[
+        #         [0, -1, -1, -1],
+        #         [1,  0, -1, -1],
+        #         [2,  0,  1, -1],
+        #         [3,  0,  1,  2]
+        #     ]
+        # )
+        ders2 = nh3.get_cartesians_by_internals(1, method='classic', strip_embedding=True, reembed=True)[0]
+        # print(np.round(ders1, 7)[0])
+        # print(np.round(ders2, 7)[0])
+
+        # print(np.round(ders2 @ ders_inv1, 6))
+        # print(np.round(ders1 @ ders_inv1, 8))
+
+        nh3_derivs_internal = nput.tensor_reexpand(
+            nh3.get_cartesians_by_internals(2, strip_embedding=True, reembed=True),
+            [0, nh3.potential_derivatives[1]]
+        )
+
+        nh3_gmatrix = nh3.g_matrix
+
+        freqs_int, _ = scipy.linalg.eigh(nh3_derivs_internal[1], nh3_gmatrix, type=2)
+        freqs_cart, _ = scipy.linalg.eigh(nh3.potential_derivatives[1], nh3.get_gmatrix(use_internals=False), type=2)
+
+        print(np.sqrt(freqs_int) * UnitsData.convert("Hartrees", "Wavenumbers"))
+        print(np.sqrt(freqs_cart[6:]) * UnitsData.convert("Hartrees", "Wavenumbers"))
+```
+
+#### <a name="AutomaticConversion">AutomaticConversion</a>
+```python
+    def test_AutomaticConversion(self):
+        sys = 'benzene.sdf'
+        mol = Molecule.from_file(
+            TestManager.test_data(sys),
+            internals='auto'
+        )
+
+        with BlockProfiler():
+            disps = mol.get_displaced_coordinates(
+                np.linspace(-1, 1, 25)[:, np.newaxis],
+                which=[0],
+                use_internals=True
+            )
+```
+
+#### <a name="FastInternals">FastInternals</a>
+```python
+    def test_FastInternals(self):
+
+        sys = 'nh3.fchk'
+        mol = Molecule.from_file(
+            TestManager.test_data(sys),
+            internals=[
+                (1, 0),
+                (2, 0),
+                (0, 1, 2),
+                (0, 3),
+                (0, 1, 3),
+                (3, 0, 1, 2)
+            ]
+        )
+        # plt, _, _ = mol.plot(backend='vpython')
+        # plt.show()
+        #
+        # raise Exception(...)
+
+        mol2 = Molecule.from_file(
+            TestManager.test_data(sys),
+            internals=[
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  0,  1, -1],
+                [3,  0,  1,  2]
+            ]
+        )
+
+        # disp_carts = mol.get_displaced_coordinates([.2], [3], use_internals=True).convert(
+        #     mol.coords.system
+        # )
+        # raise Exception([
+        #     s.shape for s in mol.get_cartesians_by_internals(2)
+        # ])
+
+        # raise Exception([
+        #     s.shape for s in mol2.get_cartesians_by_internals(2, strip_embedding=True)
+        # ])
+
+        # with ...:
+        #     mol.get_cartesians_by_internals(1)
+        # int = mol.get_internals_by_cartesians(2)
+        # int2 = mol2.get_internals_by_cartesians(2, strip_embedding=True)
+        #
+        # print(int[0][0])
+        # print("-"*10)
+        # print(int2[0][0])
+        #
+        # print("="*10)
+        #
+        # print(int[1][0, 0])
+        # print("-"*10)
+        # print(int2[1][0, 0])
+        # raise Exception(...)
+
+        cart = mol.get_cartesians_by_internals(1)[0][0]
+        # cart2 = mol.get_cartesians_by_internals(1, method='og')[0][0]
+        # print(cart2 / np.linalg.norm(cart2))
+        cart3 = mol2.get_cartesians_by_internals(1, strip_embedding=True)[0][0]
+
+        # print()
+        # print(cart / np.linalg.norm(cart))
+        # print(cart3 / np.linalg.norm(cart3))
+        # print(
+        #     (np.abs(cart) > 1e-14) * (cart) / (cart3)
+        # )
+        #
+        # raise Exception(...)
+
+        raise Exception(
+            [
+                np.round(s1 - s2, 6) for s1, s2 in zip(
+                    mol.get_cartesians_by_internals(2),
+                    mol2.get_cartesians_by_internals(2, method='classic', strip_embedding=True),
+                    # mol2.get_cartesians_by_internals(2, strip_embedding=True)
+                )
+            ]
+        )
+
+        raise Exception(mol.internal_coordinates, mol.coords - disp_carts)
 ```
 
  </div>

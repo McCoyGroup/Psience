@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Terms.DipoleTerms">DipoleTerms</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms.py#L2223)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L2223?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms.py#L2542)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L2542?message=Update%20Docs)]
 </div>
 
 
@@ -21,11 +21,11 @@
  
 <a id="Psience.VPT2.Terms.DipoleTerms.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
-__init__(self, molecule, dipole_derivatives=None, mixed_derivs=None, modes=None, mode_selection=None, logger=None, parallelizer=None, checkpointer=None, **opts): 
+__init__(self, molecule, dipole_derivatives=None, mixed_derivs=None, modes=None, mode_selection=None, full_surface_mode_selection=None, logger=None, parallelizer=None, checkpointer=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/DipoleTerms.py#L2227)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/DipoleTerms.py#L2227?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/DipoleTerms.py#L2546)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/DipoleTerms.py#L2546?message=Update%20Docs)]
 </div>
 
   - `molecule`: `Molecule`
@@ -40,11 +40,11 @@ __init__(self, molecule, dipole_derivatives=None, mixed_derivs=None, modes=None,
 
 <a id="Psience.VPT2.Terms.DipoleTerms.get_terms" class="docs-object-method">&nbsp;</a> 
 ```python
-get_terms(self, order=None): 
+get_terms(self, order=None, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/DipoleTerms.py#L2488)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/DipoleTerms.py#L2488?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Terms/DipoleTerms.py#L2830)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms/DipoleTerms.py#L2830?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -99,7 +99,7 @@ get_terms(self, order=None):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Terms/DipoleTerms.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Terms/DipoleTerms.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L2223?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Terms.py#L2542?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

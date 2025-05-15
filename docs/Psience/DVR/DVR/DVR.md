@@ -43,9 +43,9 @@ Constructs a DVR object
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-8c6e17" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-8c6e17"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-47256a" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-47256a"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-8c6e17" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-47256a" markdown="1">
  - [1D](#1D)
 - [energies_1D](#energies_1D)
 - [energies_2D](#energies_2D)
@@ -57,13 +57,14 @@ Constructs a DVR object
 - [Ring3D](#Ring3D)
 - [Ring3DCosMass3D](#Ring3DCosMass3D)
 - [Ring2DDifferentMass](#Ring2DDifferentMass)
+- [MBPolDVR](#MBPolDVR)
 - [MoleculeDVR](#MoleculeDVR)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-4e108c" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-4e108c"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-d2e457" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-d2e457"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-4e108c" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-d2e457" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -84,6 +85,8 @@ class DVRTests(TestCase):
         return np.cos(grid[..., 0]) * np.cos(grid[..., 1]) * np.cos(grid[..., 2])
     def cos_sin_pot(self, grid):
         return UnitsData.convert("Wavenumbers", "Hartrees")* 2500 / 8 * ((2 + np.cos(grid[..., :, 0])) * (2 + np.sin(grid[..., :, 1])) - 1)
+    def setupMBPolModel(self):
+        ...
 ```
 
  </div>
@@ -364,6 +367,57 @@ class DVRTests(TestCase):
                          )
         # print(res[0][:5], file=sys.stderr)
         self.assertIsInstance(res.wavefunctions[0].data, np.ndarray)
+```
+
+#### <a name="MBPolDVR">MBPolDVR</a>
+```python
+    def test_MBPolDVR(self):
+        loader = ModuleLoader(TestManager.current_manager().test_data_dir)
+        mbpol = loader.load("LegacyMBPol").potential
+        mol = Molecule.from_file(TestManager.test_data("water_freq.fchk")) # we won't bother to reoptimize
+
+
+        mol.zmatrix = [
+            [0, -1, -1, -1],
+            [1,  0, -1, -1],
+            [2,  0,  1, -1]
+        ]
+
+        disps_r = np.linspace(-.2, .5, 25) / UnitsData.bohr_to_angstroms
+        # # disps_r = np.zeros_like(disps_r)
+        # dr_coords0 = mol.get_displaced_coordinates(
+        #     disps_r[:, np.newaxis],
+        #     [0],
+        #     internals='convert',
+        #     strip_embedding=True
+        # )
+        # dr_coords1 = mol.get_displaced_coordinates(
+        #     disps_r[:, np.newaxis],
+        #     [1],
+        #     internals='convert',
+        #     strip_embedding=True
+        # )
+
+        # pot0 = mbpol(dr_coords0)[0]
+        # pot1 = mbpol(dr_coords1)[0]
+        # p1 = plt.Plot(disps_r, pot0 * 219475.6)
+        # plt.Plot(disps_r, pot1 * 219475.6).show()
+
+        disps_grid = np.array(np.meshgrid(disps_r, disps_r))
+        dr_coords = mol.get_displaced_coordinates(
+            np.moveaxis(disps_grid, 0, -1).reshape(-1, disps_grid.shape[0]),
+            [0, 1],
+            use_internals='convert',
+            strip_embedding=True
+        )
+
+        # raise Exception(
+        #     np.linalg.norm(dr_coords[:, 0] - dr_coords[:, 1], axis=1),
+        #     np.linalg.norm(dr_coords[:, 0] - dr_coords[:, 2], axis=1)
+        # )
+
+        pot = mbpol(dr_coords)[0]
+        plt.ContourPlot(*disps_grid, pot.reshape(disps_grid[0].shape) * 219475.6).show()
 ```
 
 #### <a name="MoleculeDVR">MoleculeDVR</a>

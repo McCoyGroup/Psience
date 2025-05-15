@@ -1,8 +1,8 @@
 ## <a id="Psience.Data.Surfaces.DipoleSurface">DipoleSurface</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces.py#L15)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces.py#L15?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces.py#L16)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces.py#L16?message=Update%20Docs)]
 </div>
 
 Provides a unified interface to working with dipole surfaces.
@@ -26,8 +26,8 @@ stuff could come
 __init__(self, mu_x, mu_y, mu_z): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/DipoleSurface.py#L21)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/DipoleSurface.py#L21?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/DipoleSurface.py#L22)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/DipoleSurface.py#L22?message=Update%20Docs)]
 </div>
 
   - `mu_x`: `Surface`
@@ -38,23 +38,58 @@ __init__(self, mu_x, mu_y, mu_z):
     > Z-component of dipole moment
 
 
+<a id="Psience.Data.Surfaces.DipoleSurface.center" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+center(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/DipoleSurface.py#L42)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/DipoleSurface.py#L42?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Data.Surfaces.DipoleSurface.ref" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+ref(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/DipoleSurface.py#L45)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/DipoleSurface.py#L45?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Data.Surfaces.DipoleSurface.expansion_tensors" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+expansion_tensors(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/DipoleSurface.py#L48)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/DipoleSurface.py#L48?message=Update%20Docs)]
+</div>
+
+
 <a id="Psience.Data.Surfaces.DipoleSurface.get_log_values" class="docs-object-method">&nbsp;</a> 
 ```python
+@staticmethod
 get_log_values(log_file, keys=('StandardCartesianCoordinates', 'DipoleMoments')): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/DipoleSurface.py#L41)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/DipoleSurface.py#L41?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L57)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L57?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.Data.Surfaces.DipoleSurface.from_log_file" class="docs-object-method">&nbsp;</a> 
 ```python
-from_log_file(log_file, coord_transf, keys=('StandardCartesianCoordinates', 'DipoleMoments'), tol=0.001, **opts): 
+@classmethod
+from_log_file(cls, log_file, coord_transf, keys=('StandardCartesianCoordinates', 'DipoleMoments'), tol=0.001, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/DipoleSurface.py#L51)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/DipoleSurface.py#L51?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L67)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L67?message=Update%20Docs)]
 </div>
 Loads dipoles from a Gaussian log file and builds a dipole surface by interpolating.
 Obviously this only really works if we have a subset of "scan" coordinates, so at this stage the user is obligated
@@ -66,23 +101,14 @@ Coordinerds can be helpful with this, as it provides a convenient syntax for Car
     >
 
 
-<a id="Psience.Data.Surfaces.DipoleSurface.get_fchk_values" class="docs-object-method">&nbsp;</a> 
-```python
-get_fchk_values(fchk_file): 
-```
-<div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/DipoleSurface.py#L106)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/DipoleSurface.py#L106?message=Update%20Docs)]
-</div>
-
-
 <a id="Psience.Data.Surfaces.DipoleSurface.from_fchk_file" class="docs-object-method">&nbsp;</a> 
 ```python
-from_fchk_file(fchk_file, **opts): 
+@classmethod
+from_fchk_file(cls, fchk_file, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/DipoleSurface.py#L118)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/DipoleSurface.py#L118?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L134)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L134?message=Update%20Docs)]
 </div>
 Loads dipoles from a Gaussian formatted checkpoint file and builds a dipole surface via a linear approximation
   - `fchk_file`: `Any`
@@ -93,13 +119,35 @@ Loads dipoles from a Gaussian formatted checkpoint file and builds a dipole surf
     >
 
 
+<a id="Psience.Data.Surfaces.DipoleSurface.from_derivatives" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_derivatives(cls, expansion, center=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L151)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L151?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Data.Surfaces.DipoleSurface.from_mol" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_mol(cls, mol, expansion=None, center=None, transforms=None, use_internals=True, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L175)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L175?message=Update%20Docs)]
+</div>
+
+
 <a id="Psience.Data.Surfaces.DipoleSurface.__call__" class="docs-object-method">&nbsp;</a> 
 ```python
 __call__(self, gridpoints, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/DipoleSurface.py#L146)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/DipoleSurface.py#L146?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/DipoleSurface.py#L190)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/DipoleSurface.py#L190?message=Update%20Docs)]
 </div>
 Explicitly overrides the Surface-level evaluation because we know the Taylor surface needs us to flatten our gridpoints
   - `gridpoints`: `Any`
@@ -114,78 +162,8 @@ Explicitly overrides the Surface-level evaluation because we know the Taylor sur
 
 
 
-## Examples
 
 
-
-
-
-
-
-
-
-
-
-
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-888985" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-888985"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-888985" markdown="1">
- - [FChkFileDipoleSurface](#FChkFileDipoleSurface)
-- [LogFileDipoleSurface](#LogFileDipoleSurface)
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-52115a" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-52115a"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-52115a" markdown="1">
- 
-Before we can run our examples we should get a bit of setup out of the way.
-Since these examples were harvested from the unit tests not all pieces
-will be necessary for all situations.
-
-All tests are wrapped in a test class
-```python
-class DataTests(TestCase):
-    maxDiff = None
-```
-
- </div>
-</div>
-
-#### <a name="FChkFileDipoleSurface">FChkFileDipoleSurface</a>
-```python
-    def test_FChkFileDipoleSurface(self):
-        fchk = TestManager.test_data("HOD_freq.fchk")
-        surf = DipoleSurface.from_fchk_file(fchk)
-        surf_center = surf.surfs[0].base.data['center']
-        self.assertIsInstance(surf_center, np.ndarray)
-        self.assertTrue(
-            np.allclose(surf(surf_center) - np.array([s.base.data['ref'] for s in surf.surfs]), 0.)
-        )
-        self.assertEquals(surf([[0, 0, 0], [1, 0, 0], [0, 1, 0]]).shape, (1, 3))
-        self.assertEquals(surf([
-            [[0, 0, 0], [1, 0, 0], [0, 1, 0]],
-            [[0, 0, 0], [1, 0, 0], [0, 1, 0]]
-        ]).shape, (2, 3))
-```
-
-#### <a name="LogFileDipoleSurface">LogFileDipoleSurface</a>
-```python
-    def test_LogFileDipoleSurface(self):
-        log = TestManager.test_data("water_OH_scan.log")
-        conv = lambda x: cartesian_to_zmatrix(
-            x, ordering=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
-        ).coords[:, 0, 0]
-        surf = DipoleSurface.from_log_file(log, conv)
-        dips = surf(np.arange(.5, 2, .1))
-        self.assertEquals(dips.shape, ((2-.5)/.1, 3))
-```
-
- </div>
-</div>
 
 
 
@@ -231,7 +209,7 @@ class DataTests(TestCase):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Data/Surfaces/DipoleSurface.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Data/Surfaces/DipoleSurface.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces.py#L15?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces.py#L16?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -24,8 +24,8 @@ keep_excitations: bool
 keep_indices: bool
 StateSpaceSpec: StateSpaceSpec
 StateSpaceCache: StateSpaceCache
-excitations_dtype: dtype[int8]
-indices_dtype: dtype[uint64]
+excitations_dtype: Int8DType
+indices_dtype: UInt64DType
 ```
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -58,11 +58,12 @@ serialize the object
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.from_state" class="docs-object-method">&nbsp;</a> 
 ```python
-from_state(state, serializer=None): 
+@classmethod
+from_state(cls, state, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/AbstractStateSpace.py#L91)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/AbstractStateSpace.py#L91?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L91)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L91?message=Update%20Docs)]
 </div>
 Loads from the stored state
   - `serializer`: `Any`
@@ -422,11 +423,12 @@ Drops a subset of the state dimensions
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.get_states_with_quanta" class="docs-object-method">&nbsp;</a> 
 ```python
-get_states_with_quanta(n, ndim): 
+@classmethod
+get_states_with_quanta(cls, n, ndim): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/AbstractStateSpace.py#L428)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/AbstractStateSpace.py#L428?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L428)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L428?message=Update%20Docs)]
 </div>
 Returns the states with number of quanta equal to n
   - `quanta`: `Any`
@@ -437,11 +439,12 @@ Returns the states with number of quanta equal to n
 
 <a id="Psience.BasisReps.StateSpaces.AbstractStateSpace.num_states_with_quanta" class="docs-object-method">&nbsp;</a> 
 ```python
-num_states_with_quanta(n, ndim): 
+@classmethod
+num_states_with_quanta(cls, n, ndim): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/AbstractStateSpace.py#L450)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/AbstractStateSpace.py#L450?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L450)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L450?message=Update%20Docs)]
 </div>
 Returns the states with number of quanta equal to n
   - `quanta`: `Any`

@@ -1,8 +1,8 @@
 ## <a id="Psience.Wavefun.Wavefunctions.Wavefunctions">Wavefunctions</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions.py#L199)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions.py#L199?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions.py#L229)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions.py#L229?message=Update%20Docs)]
 </div>
 
 An object representing a set of wavefunctions.
@@ -24,11 +24,11 @@ wavefunction_class: Wavefunction
 ```
 <a id="Psience.Wavefun.Wavefunctions.Wavefunctions.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
-__init__(self, energies=None, wavefunctions=None, indices=None, wavefunction_class=None, **opts): 
+__init__(self, energies=None, wavefunctions=None, indices=None, wavefunction_class=None, dipole_function=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L206)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L206?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L236)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L236?message=Update%20Docs)]
 </div>
 
 
@@ -37,8 +37,8 @@ __init__(self, energies=None, wavefunctions=None, indices=None, wavefunction_cla
 get_wavefunctions(self, which): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L215)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L215?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L248)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L248?message=Update%20Docs)]
 </div>
 
 
@@ -47,8 +47,8 @@ get_wavefunctions(self, which):
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L235)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L235?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L269)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L269?message=Update%20Docs)]
 </div>
 Returns a single Wavefunction object
 
@@ -58,8 +58,8 @@ Returns a single Wavefunction object
 __len__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L239)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L239?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L273)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L273?message=Update%20Docs)]
 </div>
 
 
@@ -68,8 +68,8 @@ __len__(self):
 __iter__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L241)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L241?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L275)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L275?message=Update%20Docs)]
 </div>
 
 
@@ -78,18 +78,18 @@ __iter__(self):
 frequencies(self, start_at=0): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L245)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L245?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L279)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L279?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.Wavefun.Wavefunctions.Wavefunctions.get_spectrum" class="docs-object-method">&nbsp;</a> 
 ```python
-get_spectrum(self, dipole_function, start_at=0, **options): 
+get_spectrum(self, dipole_function=None, *, start_at=0, **options): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L248)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L248?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L282)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L282?message=Update%20Docs)]
 </div>
 
 
@@ -98,8 +98,8 @@ get_spectrum(self, dipole_function, start_at=0, **options):
 plot(self, figure=None, graphics_class=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L266)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L266?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L305)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L305?message=Update%20Docs)]
 </div>
 Plots all of the wavefunctions on one set of axes
   - `opts`: `Any`
@@ -113,8 +113,8 @@ Plots all of the wavefunctions on one set of axes
 expectation(self, op, other=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L301)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L301?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L340)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L340?message=Update%20Docs)]
 </div>
 Computes the expectation value of operator op over the wavefunction other and self
   - `other`: `Wavefunctions`
@@ -130,8 +130,8 @@ Computes the expectation value of operator op over the wavefunction other and se
 overlap(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L322)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L322?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L361)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L361?message=Update%20Docs)]
 </div>
 
 
@@ -140,8 +140,8 @@ overlap(self, other):
 coordinate(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L325)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L325?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L364)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L364?message=Update%20Docs)]
 </div>
 Provides the coordinate operator in the wavefunction basis
   - `:returns`: `_`
@@ -153,8 +153,8 @@ Provides the coordinate operator in the wavefunction basis
 momentum(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L333)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L333?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L372)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L372?message=Update%20Docs)]
 </div>
 Provides the real part of the representation of the momentum operator in the wavefunction basis
   - `:returns`: `_`
@@ -166,8 +166,8 @@ Provides the real part of the representation of the momentum operator in the wav
 laplacian(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L341)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L341?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L380)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L380?message=Update%20Docs)]
 </div>
 Provides the representation of the laplacian in the wavefunction basis
   - `:returns`: `_`
@@ -179,8 +179,8 @@ Provides the representation of the laplacian in the wavefunction basis
 kinetic_energy(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L349)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L349?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Wavefun/Wavefunctions/Wavefunctions.py#L388)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions/Wavefunctions.py#L388?message=Update%20Docs)]
 </div>
 Provides the representation of the KE in the wavefunction basis
   - `:returns`: `_`
@@ -238,7 +238,7 @@ Provides the representation of the KE in the wavefunction basis
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Wavefun/Wavefunctions/Wavefunctions.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Wavefun/Wavefunctions/Wavefunctions.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions.py#L199?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Wavefun/Wavefunctions.py#L229?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

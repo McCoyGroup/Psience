@@ -22,11 +22,12 @@ solely to allow for plotting and broadening.
  
 <a id="Psience.Spectra.BaseSpectrum.DiscreteSpectrum.from_transition_moments" class="docs-object-method">&nbsp;</a> 
 ```python
-from_transition_moments(frequencies, transition_moments, **meta): 
+@classmethod
+from_transition_moments(cls, frequencies, transition_moments, **meta): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/BaseSpectrum/DiscreteSpectrum.py#L148)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum/DiscreteSpectrum.py#L148?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L148)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L148?message=Update%20Docs)]
 </div>
 Assumes frequencies and transition moments in a.u.
   - `frequencies`: `Any`

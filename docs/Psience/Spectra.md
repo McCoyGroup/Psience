@@ -27,6 +27,17 @@
 [MultiSpectrum](Spectra/BaseSpectrum/MultiSpectrum.md)   
 </div>
    <div class="col" markdown="1">
+[HarmonicSpectrum](Spectra/HarmonicSpectrum/HarmonicSpectrum.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
    
 </div>
 </div>

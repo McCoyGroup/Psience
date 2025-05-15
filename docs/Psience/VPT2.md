@@ -42,18 +42,18 @@ Finally, the general code flow is detailed below
 </div>
   <div class="row">
    <div class="col" markdown="1">
-[VPTStateMaker](VPT2/Runner/VPTStateMaker.md)   
-</div>
-   <div class="col" markdown="1">
 [VPTHamiltonianOptions](VPT2/Runner/VPTHamiltonianOptions.md)   
 </div>
    <div class="col" markdown="1">
 [VPTRuntimeOptions](VPT2/Runner/VPTRuntimeOptions.md)   
 </div>
+   <div class="col" markdown="1">
+[VPTSolverOptions](VPT2/Runner/VPTSolverOptions.md)   
+</div>
 </div>
   <div class="row">
    <div class="col" markdown="1">
-[VPTSolverOptions](VPT2/Runner/VPTSolverOptions.md)   
+[AnalyticVPTRunner](VPT2/Runner/AnalyticVPTRunner.md)   
 </div>
    <div class="col" markdown="1">
 [VPTResultsLoader](VPT2/Analyzer/VPTResultsLoader.md)   
@@ -78,40 +78,51 @@ Finally, the general code flow is detailed below
 [PerturbationTheorySolver](VPT2/Solver/PerturbationTheorySolver.md)   
 </div>
    <div class="col" markdown="1">
-[PerturbationTheoryCorrections](VPT2/Corrections/PerturbationTheoryCorrections.md)   
+[AnalyticPerturbationTheoryCorrections](VPT2/Corrections/AnalyticPerturbationTheoryCorrections.md)   
 </div>
    <div class="col" markdown="1">
-[PerturbationTheoryWavefunctions](VPT2/Wavefunctions/PerturbationTheoryWavefunctions.md)   
+[PTCorrections](VPT2/Corrections/PTCorrections.md)   
 </div>
 </div>
   <div class="row">
+   <div class="col" markdown="1">
+[PerturbationTheoryWavefunctions](VPT2/Wavefunctions/PerturbationTheoryWavefunctions.md)   
+</div>
    <div class="col" markdown="1">
 [ExpansionTerms](VPT2/Terms/ExpansionTerms.md)   
 </div>
    <div class="col" markdown="1">
 [KineticTerms](VPT2/Terms/KineticTerms.md)   
 </div>
+</div>
+  <div class="row">
    <div class="col" markdown="1">
 [PotentialTerms](VPT2/Terms/PotentialTerms.md)   
 </div>
-</div>
-  <div class="row">
    <div class="col" markdown="1">
 [CoriolisTerm](VPT2/Terms/CoriolisTerm.md)   
 </div>
    <div class="col" markdown="1">
 [PotentialLikeTerm](VPT2/Terms/PotentialLikeTerm.md)   
 </div>
+</div>
+  <div class="row">
    <div class="col" markdown="1">
 [DipoleTerms](VPT2/Terms/DipoleTerms.md)   
 </div>
-</div>
-  <div class="row">
    <div class="col" markdown="1">
 [OperatorTerms](VPT2/Terms/OperatorTerms.md)   
 </div>
    <div class="col" markdown="1">
+[PerturbationTheoryEvaluator](VPT2/Analytic/PerturbationTheoryEvaluator.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
 [AnalyticPerturbationTheorySolver](VPT2/Analytic/AnalyticPerturbationTheorySolver.md)   
+</div>
+   <div class="col" markdown="1">
+   
 </div>
    <div class="col" markdown="1">
    
@@ -269,11 +280,27 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-58a54f" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-58a54f"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-a59e51" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-a59e51"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-58a54f" markdown="1">
- - [AnalyticPTOperators](#AnalyticPTOperators)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-a59e51" markdown="1">
+ - [MultdiDegHOH](#MultdiDegHOH)
+- [HOHAnalytic](#HOHAnalytic)
+- [HOHLocal](#HOHLocal)
+- [QuickAnneTest](#QuickAnneTest)
+- [HOHLocalAnalytic](#HOHLocalAnalytic)
+- [AnalyticWFC](#AnalyticWFC)
+- [PartialRebuild](#PartialRebuild)
+- [AnalyticOCHHMultiple](#AnalyticOCHHMultiple)
+- [AnalyticOCHH](#AnalyticOCHH)
+- [AnalyticOCHHOperators](#AnalyticOCHHOperators)
+- [AnalyticHOONO](#AnalyticHOONO)
+- [TrimerAnalytic](#TrimerAnalytic)
+- [SelAnharmAnalytic](#SelAnharmAnalytic)
+- [PyreneAnalytic](#PyreneAnalytic)
+- [NewEmbedding](#NewEmbedding)
+- [HOHNoKE](#HOHNoKE)
 - [HOHVPTRunner](#HOHVPTRunner)
+- [HODVPTRunner](#HODVPTRunner)
 - [HOHVPTSubstates](#HOHVPTSubstates)
 - [BlockLabels](#BlockLabels)
 - [ResultsFileAnalysis](#ResultsFileAnalysis)
@@ -283,6 +310,11 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 - [HOHVPTNonGSRunner](#HOHVPTNonGSRunner)
 - [HOHVPTRunnerFlow](#HOHVPTRunnerFlow)
 - [HOHVPTRunnerShifted](#HOHVPTRunnerShifted)
+- [OCHHSubspaceTargetProps](#OCHHSubspaceTargetProps)
+- [OCHHFasterDegen](#OCHHFasterDegen)
+- [OCHHFasterDegenSubspace](#OCHHFasterDegenSubspace)
+- [HOONOFasterDegen](#HOONOFasterDegen)
+- [HOONOFasterDegenSubspace](#HOONOFasterDegenSubspace)
 - [OCHHVPTRunnerShifted](#OCHHVPTRunnerShifted)
 - [HOONOVPTRunnerShifted](#HOONOVPTRunnerShifted)
 - [CrieegeeVPTRunnerShifted](#CrieegeeVPTRunnerShifted)
@@ -307,9 +339,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-a0bb3c" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-a0bb3c"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-3dbb12" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-3dbb12"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-a0bb3c" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-3dbb12" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -318,6 +350,8 @@ will be necessary for all situations.
 All tests are wrapped in a test class
 ```python
 class VPT2Tests(TestCase):
+    def setUpClass(cls) -> None:
+        np.set_printoptions(linewidth=int(1e8))
     """ Threshold = 0
     
     ::> building ExpansionRepresentation<H(0)>
@@ -518,403 +552,1451 @@ class VPT2Tests(TestCase):
  </div>
 </div>
 
-#### <a name="AnalyticPTOperators">AnalyticPTOperators</a>
+#### <a name="MultdiDegHOH">MultdiDegHOH</a>
 ```python
-    def test_AnalyticPTOperators(self):
+    def test_MultdiDegHOH(self):
 
-        internals = False
-        vpt2 = AnalyticPerturbationTheorySolver.from_order(2, internals=internals)
-        # print(
-        #     vpt2.hamiltonian_expansion[2].get_poly_terms([])
+        # space = VPTStateSpace(
+        #     [
+        #         [0, 1, 0],
+        #         [0, 0, 1]
+        #     ],
+        #     degeneracy_specs=[
+        #         {
+        #             'polyads': [
+        #                 [[0, 0, 1], [1, 1, 0]],
+        #             ]
+        #         },
+        #         {
+        #             'polyads': [
+        #                 [[0, 1, 0], [1, 0, 0]]
+        #             ]
+        #         }
+        #     ]
         # )
-        # raise Exception(...)
         #
-        # H1PH1 = vpt2.energy_correction(2).expressions[1]
-        #
-        # H1 = vpt2.hamiltonian_expansion[1]
-        # H1H1 = H1*H1
-
-        """
-        ==================== V[1](0, 0, 0)V[1](0, 0, 0) 1 ====================
-  :: 1
-   > 1 [array([0.   , 0.   , 0.   , 1.125])]
-   > 1.1249999999999993 [array([1., 3., 3., 1.])]
-   > 0.7499999999999996 [array([1.        , 1.83333333, 1.        , 0.16666667])]
-   > 1 [array([ 0.   ,  0.25 , -0.375,  0.125])]
-   """
-
-        # H1H1.get_poly_terms([],
-        #                     # allowed_paths=[
-        #                     #     ((1,), (-1,)),
-        #                     #     ((3,), (-3,))
-        #                     # ]
-        #                     ).prune_operators([(1, 1)]).print_tree()
-        # raise Exception(...)
-
-        PH1 = vpt2.wavefunction_correction(1).expressions[0]
-        E2 = vpt2.energy_correction(2)
-
-        # # pt_shit = H1PH1.get_poly_terms((4,)).combine()
-        # pt_shit = PH1((1,), simplify=False).expr.combine()
-
-        # raise Exception(
-        #     PH1.get_poly_terms((1,)).terms[((1,0, 0, 0, 0),)].terms[((1,),)].coeffs
+        # space = VPTRunner.run_simple(
+        #     TestManager.test_data('HOH_freq.fchk'),
+        #     1,
+        #     degeneracy_specs=[
+        #          {
+        #             'polyads':[
+        #                 [[0, 0, 1], [1, 1, 0]],
+        #             ]
+        #         },
+        #         {
+        #             'polyads': [
+        #                 [[0, 1, 0], [1, 0, 0]]
+        #             ]
+        #         }
+        #     ]
         # )
 
-        # pt_shit = E2.expressions[1]([], simplify=False).expr
-        # raise Exception(pt_shit)
+        space = VPTRunner.run_simple(
+            TestManager.test_data('HOH_freq.fchk'),
+            2,
+            degeneracy_specs=[
+                {
+                    'polyads': [
+                        [[0, 0, 1], [1, 1, 0]],
+                    ]
+                },
+                {
+                    'wfc_threshold': .3
+                }
+            ]
+        )
 
-        # subpoly = pt_shit.terms[((1, 1, 0, 2, 1), (1, 1, 1, 0, 2))].combine(combine_energies=False).terms[((1, 1, 1),)]
-        # for p in subpoly.polys:
-        #     print(p.prefactor, p.coeffs)
-        # raise Exception(...)
+        raise Exception(...)
+```
 
-        # h3_poly = vpt2.hamiltonian_expansion[1]([3]).expr.terms[((1, 0, 0, 0, 0),)]
-        # raise Exception(
-        #     h3_poly.prefactor,
-        #     h3_poly.coeffs
-        # )
-        # with np.printoptions(linewidth=1e8):
-        #     pt_shit = H1H1([]).expr
-        #     pt_shit.print_tree()
-        #
-        # raise Exception(...)
+#### <a name="HOHAnalytic">HOHAnalytic</a>
+```python
+    def test_HOHAnalytic(self):
 
-        # # raise Exception(
-        # #     Y1.get_poly_terms((1,))
-        # #     # [
-        # #     #     [p.prefactor for p in psum.polys]
-        # #     #     for psum in h1y1.get_poly_terms(()).terms.values()
-        # #     # ]
-        # # )
-        #
-        # h1y1 = E2.expressions[1]
-        # # raise Exception(h1y1, h1y1.gen2, h1y1.gen2.expressions)
-        #
-        # raise Exception(
-        #     h1y1.get_poly_terms(()).combine()
-        #     # [
-        #     #     [p.prefactor for p in psum.polys]
-        #     #     for psum in h1y1.get_poly_terms(()).terms.values()
-        #     # ]
-        # )
-
-        # for _ in vpt2.energy_correction(2).expressions[1].changes[()]:
-        #     print(_)
-
-        # test_sum = list(jesus_fuck.terms.values())[1]
-        # # for poly in test_sum.polys:
-        # #     print(poly.coeffs)
-        # raise Exception(test_sum, test_sum.combine())
-        # raise Exception(test_sum.polys[0].combine(test_sum.polys[1]).coeffs)
-
-
-        # load H20 parameters...
         file_name = "HOH_freq.fchk"
-        from Psience.BasisReps import HarmonicOscillatorMatrixGenerator
-        HarmonicOscillatorMatrixGenerator.default_evaluator_mode = 'rho'
-        runner, _ = VPTRunner.construct(
+
+        runner, states = AnalyticVPTRunner.construct(
+            TestManager.test_data(file_name),
+            # [[
+            #     0,
+            #     [[0, 0, 1]]
+            # ]],
+            2,
+            degeneracy_specs={
+                'polyads':[
+                    [[0,0,1],[0,1,0]]
+                ]
+            }
+            # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5")
+        )
+        classic, _ = runner.construct_classic_runner(states)
+        # classic.print_tables()
+
+        # extra_coupling_ham = 0
+        # extra_coupling_ham = np.diag(runner.eval.freqs) + (
+        #         np.array([
+        #             [0,    100,  100],
+        #             [100,    0,  100],
+        #             [100,  100,    0],
+        #         ]) * UnitsData.convert("Wavenumbers", "Hartrees")
+        # )
+        runner.run_VPT(states,
+                       operator_expansions={
+                           "x1":[0, np.eye(9)[:, 0], np.zeros((9, 9))],
+                           "y1":[0, np.eye(9)[:, 1], np.zeros((9, 9))],
+                           "z1":[0, np.eye(9)[:, 2], np.zeros((9, 9))],
+                       },
+                       calculate_intensities=True,
+                       # degenerate_zero_order_hamiltonian=extra_coupling_ham
+                       )
+
+
+
+        runner, states = AnalyticVPTRunner.construct(
+            TestManager.test_data(file_name),
+            # [[
+            #     0,
+            #     [[0, 0, 1]]
+            # ]],
+            2,
+            internals=[
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  0,  1, -1],
+            ]
+            # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5")
+        )
+        classic2, _ = runner.construct_classic_runner(states, zero_element_warning=False)
+        # classic2.print_tables()
+        runner.run_VPT(states)
+```
+
+#### <a name="HOHLocal">HOHLocal</a>
+```python
+    def test_HOHLocal(self):
+        file_name = "HOH_freq.fchk"
+
+        OHH = Molecule.from_file(
+            TestManager.test_data(file_name),
+            internals=[
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  0,  1, -1]
+            ]
+        )
+
+        # gx = OHH.get_gmatrix(use_internals=False)
+        XR = OHH.get_internals_by_cartesians(1, strip_embedding=True)[0]
+        RX = OHH.get_cartesians_by_internals(1, strip_embedding=True)[0]
+        VPTRunner.run_simple(
             TestManager.test_data(file_name),
             1,
-            internals=(
-                [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
-                    if internals else
-                None
-            ),
-            logger=False,
-            zero_element_warning=False
-            # mode_selection=[0, 1]
+            local_modes={'matrix':XR, 'inverse':RX, 'sort_freqs':True},
+            # internals=[
+            #     [0, -1, -1, -1],
+            #     [1,  0, -1, -1],
+            #     [2,  0,  1, -1]
+            # ],
+            mixed_derivative_handling_mode='analytical',
+            local_mode_couplings=True,
+            degeneracy_specs={
+                'polyads': [
+                    [
+                        [0, 0, 1],
+                        [0, 1, 0]
+                    ],
+                    [
+                        [0, 0, 1],
+                        [2, 0, 0]
+                    ]
+                ]
+            },
+            calculate_intensities=True
         )
-        ham = runner.hamiltonian
-        V = ham.V_terms
-        G = ham.G_terms
-        U = ham.pseudopotential_term
-        g2 = G[2]
+        """
+        ::> Deperturbed IR Data
+          > Initial State: 0 0 0 
+                           Harmonic                  Anharmonic
+        State       Frequency    Intensity       Frequency    Intensity
+          0 0 1    3873.50774     35.31527      3688.68476     35.44348
+          0 1 0    3873.50774     35.31527      3688.97960     35.28916
+          1 0 0    1641.37852     65.14715      1597.32063     67.22674
+          2 0 0    3282.75704      0.00000      3183.94992      0.15040
+        ::> IR Data
+          > Initial State: 0 0 0 
+                           Harmonic                  Anharmonic
+        State       Frequency    Intensity       Frequency    Intensity
+          0 0 1    3873.50774     35.31527      3636.87729      4.18690
+          0 1 0    3873.50774     35.31527      3752.80408     67.80845
+          1 0 0    1641.37852     65.14715      1597.32063     67.22674
+          2 0 0    3282.75704      0.00000      3171.93290      0.00656
+        """
+        return
 
-        if internals:
-            water_expansion = [
-                [V[0]/2,  G[0]/2],
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            1,
+            mode_selection=[0, 2, 1],
+            mixed_derivative_handling_mode='analytical',
+            degeneracy_specs={
+                'polyads': [
+                    [
+                        [0, 0, 1],
+                        [0, 1, 0]
+                    ],
+                    [
+                        [0, 0, 1],
+                        [2, 0, 0]
+                    ]
+                ]
+            },
+            calculate_intensities=True
+        )
+        """
+        ::> Deperturbed IR Data
+          > Initial State: 0 0 0 
+                           Harmonic                  Anharmonic
+        State       Frequency    Intensity       Frequency    Intensity
+          0 0 1    3803.29959      4.14283      3612.43457      3.45008
+          0 1 0    3937.52466     67.02051      3744.73518     64.43622
+          1 0 0    1622.30304     67.45626      1572.70760     68.11278
+          2 0 0    3244.60608      0.00000      3126.93384      1.18410
+        ::> IR Data
+          > Initial State: 0 0 0 
+                           Harmonic                  Anharmonic
+        State       Frequency    Intensity       Frequency    Intensity
+          0 0 1    3803.29959      4.14283      3623.17785      2.78848
+          0 1 0    3937.52466     67.02051      3744.73518     64.43622
+          1 0 0    1622.30304     67.45626      1572.70760     68.11278
+          2 0 0    3244.60608      0.00000      3116.19056      1.75788
+        """
+
+        raise Exception(...)
+
+        runner, states = VPTRunner.construct(
+            OHH,
+            2,
+            degeneracy_specs={
+                'polyads': [
+                    [[0, 0, 1], [0, 1, 0]]
+                ]
+            }
+            # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5")
+        )
+        classic, _ = runner.construct_classic_runner(states)
+        # classic.print_tables()
+
+        # extra_coupling_ham = 0
+        extra_coupling_ham = np.diag(runner.eval.freqs) + (
+                np.array([
+                    [0, 100, 100],
+                    [100, 0, 100],
+                    [100, 100, 0],
+                ]) * UnitsData.convert("Wavenumbers", "Hartrees")
+        )
+        runner.run_VPT(states,
+                       # operator_expansions={
+                       #     "x1":[0, np.eye(9)[:, 0], np.zeros((9, 9))],
+                       #     "y1":[0, np.eye(9)[:, 1], np.zeros((9, 9))],
+                       #     "z1":[0, np.eye(9)[:, 2], np.zeros((9, 9))],
+                       # },
+                       calculate_intensities=False,
+                       degenerate_zero_order_hamiltonian=extra_coupling_ham
+                       )
+
+        raise Exception(...)
+```
+
+#### <a name="QuickAnneTest">QuickAnneTest</a>
+```python
+    def test_QuickAnneTest(self):
+        AnalyticVPTRunner.run_simple(
+            os.path.expanduser("~/Documents/Postdoc/Projects/Anne_Misc/formate/Dformate_OH+ezWeD2z_anh_tz.fchk"),
+            states=2,  # max quanta to be focusing on
+            order=2,  # None, # orderr of VPT
+            operator_chunk_size=100000,
+            degeneracy_specs={'wfc_threshold': .3},
+            logger=os.path.expanduser("~/Documents/Postdoc/Projects/Anne_Misc/formate/formate.out"),
+            internals=VPTRunner.helpers.parse_zmatrix(
+                os.path.expanduser("~/Documents/Postdoc/Projects/Anne_Misc/formate/z_mat_WeD2z.dat")
+            )
+        )
+```
+
+#### <a name="HOHLocalAnalytic">HOHLocalAnalytic</a>
+```python
+    def test_HOHLocalAnalytic(self):
+        file_name = "HOH_freq.fchk"
+
+        OHH = Molecule.from_file(
+            TestManager.test_data(file_name),
+            internals=[
+                [0, -1, -1, -1],
+                [1, 0, -1, -1],
+                [2, 0, 1, -1]
+            ]
+        )
+
+        # gx = OHH.get_gmatrix(use_internals=False)
+        XR = OHH.get_internals_by_cartesians(1, strip_embedding=True)[0]
+        RX = OHH.get_cartesians_by_internals(1, strip_embedding=True)[0]
+
+        AnalyticVPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            1,
+            local_modes={'matrix': XR, 'inverse': RX, 'sort_freqs': True},
+            # local_mode_coupling_order=1,
+            # hamiltonian_correction_type='primary',
+            internals=[
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  0,  1, -1]
+            ],
+            mixed_derivative_handling_mode='analytical',
+            degeneracy_specs={
+                'polyads': [
+                    [
+                        [0, 0, 1],
+                        [0, 1, 0]
+                    ],
+                    [
+                        [0, 0, 1],
+                        [2, 0, 0]
+                    ]
+                ]
+            },
+            calculate_intensities=True
+        )
+        """
+2nd order, Primary
+::        |     Harmonic      |    Anharmonic     |    Deperturbed   
+:: States |  Freq.   |  Int.  |  Freq.   |  Int.  |  Freq.   |  Int. 
+:: ------------------------------------------------------------------
+::     () |    0.000 |  0.000 |    0.000 |  0.000 |    0.000 |  0.000
+::   1(1) | 3873.508 | 35.315 | 3636.877 |  4.658 | 3688.685 | 34.090
+::   2(1) | 3873.508 | 35.315 | 3752.804 | 64.983 | 3688.980 | 33.922
+::   3(1) | 1641.379 | 65.147 | 1597.321 | 69.553 | 1597.321 | 69.553
+::   3(2) | 3282.757 |  0.000 | 3171.933 |  0.413 | 3183.950 |  0.922
+
+2nd order, Degenerate
+::        |     Harmonic      |    Anharmonic     |    Deperturbed   
+:: States |  Freq.   |  Int.  |  Freq.   |  Int.  |  Freq.   |  Int. 
+:: ------------------------------------------------------------------
+::     () |    0.000 |  0.000 |    0.000 |  0.000 |    0.000 |  0.000
+::   1(1) | 3873.508 | 35.315 | 3636.877 |  4.658 | 3688.685 | 34.090
+::   2(1) | 3873.508 | 35.315 | 3752.804 | 64.983 | 3688.980 | 33.922
+::   3(1) | 1641.379 | 65.147 | 1597.321 | 69.553 | 1597.321 | 69.553
+::   3(2) | 3282.757 |  0.000 | 3171.933 |  0.413 | 3183.950 |  0.922
+
+1st order, Degenerate
+::        |     Harmonic      |    Anharmonic     |    Deperturbed   
+:: States |  Freq.   |  Int.  |  Freq.   |  Int.  |  Freq.   |  Int. 
+:: ------------------------------------------------------------------
+::     () |    0.000 |  0.000 |    0.000 |  0.000 |    0.000 |  0.000
+::   1(1) | 3873.508 | 35.315 | 3635.945 |  4.898 | 3688.685 | 34.297
+::   2(1) | 3873.508 | 35.315 | 3752.804 | 65.133 | 3688.980 | 34.113
+::   3(1) | 1641.379 | 65.147 | 1597.321 | 67.286 | 1597.321 | 67.286
+::   3(2) | 3282.757 |  0.000 | 3172.866 |  0.418 | 3183.950 |  0.922
+
+1st order, Primary
+::     () |    0.000 |  0.000 |    0.000 |  0.000 |    0.000 |  0.000
+::   1(1) | 3873.508 | 35.315 | 3629.147 |  4.667 | 3685.563 | 33.922
+::   2(1) | 3873.508 | 35.315 | 3752.794 | 64.662 | 3685.858 | 33.751
+::   3(1) | 1641.379 | 65.147 | 1578.730 | 69.539 | 1578.730 | 69.539
+::   3(2) | 3282.757 |  0.000 | 3136.249 |  0.505 | 3146.768 |  0.996
+
+1st order, Primary, Internals
+::        |     Harmonic      |    Anharmonic     |    Deperturbed   
+:: States |  Freq.   |  Int.  |  Freq.   |  Int.  |  Freq.   |  Int. 
+:: ------------------------------------------------------------------
+::     () |    0.000 |  0.000 |    0.000 |  0.000 |    0.000 |  0.000
+::   1(1) | 3873.508 | 35.315 | 3633.060 |  3.796 | 3692.440 | 33.437
+::   2(1) | 3873.508 | 35.315 | 3753.652 | 63.777 | 3692.745 | 32.936
+::   3(1) | 1641.379 | 65.147 | 1570.743 | 69.153 | 1570.743 | 69.153
+::   3(2) | 3282.757 |  0.000 | 3108.288 |  0.879 | 3109.816 |  1.069
+>>--------------------------------------------------<<
+"""
+```
+
+#### <a name="AnalyticWFC">AnalyticWFC</a>
+```python
+    def test_AnalyticWFC(self):
+
+        file_name = "OCHH_freq.fchk"
+        AnalyticVPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
                 [
-                    # np.zeros(V[1].shape),
-                    np.sum([V[1].transpose(p) for p in itertools.permutations([0, 1, 2])], axis=0)/np.math.factorial(3)/6,
-                    # np.zeros(V[1].shape),
-                    -np.moveaxis(G[1], -1, 0)/2
-                        if isinstance(G[1], np.ndarray) else
-                    np.zeros(V[1].shape)
+                    0,
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 1, 0, 1, 0, 0],
+                        [0, 0, 0, 1, 1, 0],
+                        [0, 0, 0, 0, 1, 0],
+                    ],
                 ],
                 [
-                    # np.zeros(V[2].shape),
-                    V[2]/24,
-                    # np.zeros(V[2].shape),
-                    -np.moveaxis(G[2], -1, 0)/4
-                        if isinstance(G[2], np.ndarray) else
-                    np.zeros(V[2].shape),
-                    # 0
-                    U[0]/8
+                    [0, 0, 0, 0, 1, 0],
+                    [
+                        [0, 0, 0, 0, 1, 1],
+                        [0, 1, 0, 1, 1, 0]
+                    ]
                 ]
-            ]
-        else:
-            Z = ham.coriolis_terms
-            water_expansion = [
-                [V[0] / 2, G[0] / 2],
+            ],
+            expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+            degeneracy_specs='auto',
+            handle_degeneracies=True
+        )
+```
+
+#### <a name="PartialRebuild">PartialRebuild</a>
+```python
+    def test_PartialRebuild(self):
+        state = VPTStateMaker(7)
+        corrs = AnalyticVPTRunner.run_simple(
+            mol,
+            # [
+            #     state(),
+            #     state(21),
+            #     state(20),
+            #     state(19),
+            #     state([21, 2]),
+            #     state([20, 2]),
+            #     state([19, 2]),
+            #     state(21, 19),
+            #     state(21, 20),
+            #     state(20, 19)
+            # ],
+            [
                 [
-                    np.zeros(V[1].shape),
-                    # np.sum(
-                    #     [V[1].transpose(p) for p in itertools.permutations([0, 1, 2])],
-                    #     axis=0
-                    # ) / np.math.factorial(3) / 6,
-                    0 # G
-                ],
-                [
-                    # np.zeros(V[2].shape),
-                    V[2] / 24,
-                    0, # G
-                    0, # V'
-                    # np.zeros(V[2].shape),
-                    -Z[0],
-                    # 0
-                    U[0] / 8 # Watson
+                    [state()],
+                    [
+                        state(1),
+                        state(2),
+                        state(3),
+                        state([1, 2]),
+                        state([2, 2]),
+                        state([3, 2]),
+                        state(1, 2),
+                        state(1, 3),
+                        state(2, 3),
+                    ]
                 ]
-            ]
-        # raise Exception(
-        #     -.25 * np.array([
-        #         Z[0][0, 0, 2, 2],
-        #         Z[0][0, 2, 0, 2],
-        #         Z[0][0, 2, 2, 0],
-        #         Z[0][2, 0, 0, 2],
-        #         Z[0][2, 0, 2, 0],
-        #         Z[0][2, 2, 0, 0]
-        #     ]) * 219475
-        # )
-        # raise Exception(
-        #     -.25*np.array([
-        #             Z[0][0, 0, 2, 2],
-        #             Z[0][0, 2, 0, 2],
-        #             Z[0][0, 2, 2, 0],
-        #             Z[0][2, 0, 0, 2],
-        #             Z[0][2, 0, 2, 0],
-        #             Z[0][2, 2, 0, 0]
-        #     ]) * 219475
-        # )
+            ],
+            full_surface_mode_selection=[108 - 108, 108 - 107, 108 - 106, 108 - 105, 108 - 21, 108 - 20, 108 - 19,
+                                         108 - 1],
+            # degeneracy_specs = [
+            #   {'polyads':[[state(19), state(20, 107)]]},
+            #   {'polyads':[[state(106, 106), state(108, 108)]]},
+            #   {'polyads':[[state(106), state(107)], [state(105), state(107)], [state(105), state(108)]]}
+            # ],
+            mode_selection=[108 - 108, 108 - 107, 108 - 106, 108 - 105, 108 - 21, 108 - 20, 108 - 19],
+            # degeneracy_specs = [
+            #   {'polyads':[[state(1), state(2, 6)]]},
+            #   {'polyads':[[state([5, 2]), state([7, 2])]]},
+            #   {
+            #       'polyads':
+            #         [
+            #           [state(4), state(6)],
+            #           [state(4), state(7)],
+            #           [state(5), state(6)]
+            #         ]
+            #     }
+            # ],
+            # logger=output_file,
+            expressions_file=os.path.expanduser("exprs.hdf5")
+        )
+```
 
-        water_freqs = ham.modes.freqs
+#### <a name="AnalyticOCHHMultiple">AnalyticOCHHMultiple</a>
+```python
+    def test_AnalyticOCHHMultiple(self):
 
-        # raise Exception(list(sorted([
-        #     [p, np.linalg.norm((np.transpose(water_expansion[2][3], p) - water_expansion[2][3]).flatten())]
-        #     for p in itertools.permutations([0, 1, 2, 3])
+        file_name = "OCHH_freq.fchk"
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     degeneracy_specs='auto',
+        #     mixed_derivative_handling_mode='analytical'
+        # )
+        # raise Exception("???")
+        # runner, states = AnalyticVPTRunner.construct(
+        #     TestManager.test_data(file_name),
+        #     # 2,
+        #     [
+        #         [
+        #             0,
+        #             [
+        #                 # [0, 0, 0, 0, 0, 1],
+        #                 [0, 0, 0, 0, 1, 0],
+        #                 # [0, 0, 0, 2, 0, 0],
+        #
+        #                 # [0, 0, 0, 0, 0, 2],
+        #                 [0, 0, 0, 0, 2, 0],
+        #
+        #                 # [0, 0, 0, 0, 1, 1],
+        #                 # [0, 0, 0, 1, 1, 0],
+        #                 # [0, 0, 0, 1, 0, 1],
+        #                 # [0, 1, 0, 1, 0, 0],
+        #                 # [0, 0, 1, 1, 0, 0],
+        #             ],
+        #         ]
         #     ],
-        #     key=lambda x:x[1]
-        # )))
-
-        # solver = runner.hamiltonian.get_solver(runner.states.state_list)
-        # raise Exception(
-        #     solver.representations[1].todense()[0][:4],
-        #     solver.flat_total_space.excitations[:4]
+        #
+        #     mixed_derivative_handling_mode='analytical',
+        #     # handle_strong_couplings=True,  # mixed_derivative_handling_mode="numerical",
+        #     order=2, expansion_order=2
         # )
 
-        # wfns = runner.get_wavefunctions()
+        file_name = "OCHH_freq.fchk"
+        runner = AnalyticVPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            # 2,
+            # [
+            #     [
+            #         0,
+            #         [
+            #             # [0, 0, 0, 0, 0, 1],
+            #             [0, 0, 0, 0, 1, 0],
+            #             # [0, 0, 0, 2, 0, 0],
+            #
+            #             # [0, 0, 0, 0, 0, 2],
+            #             [0, 0, 0, 0, 2, 0],
+            #
+            #             # [0, 0, 0, 0, 1, 1],
+            #             # [0, 0, 0, 1, 1, 0],
+            #             # [0, 0, 0, 1, 0, 1],
+            #             # [0, 1, 0, 1, 0, 0],
+            #             # [0, 0, 1, 1, 0, 0],
+            #         ],
+            #     ]
+            # ],
+            [
+                [
+                    0,
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, 0, 1, 0],
+                        [0, 0, 0, 2, 0, 0]
+                    ],
+                ],
+                [
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                    ],
+                    [
+                        [0, 0, 0, 0, 1, 0],
+                        [0, 0, 0, 2, 0, 0]
+                    ],
+                ]
+            ],
+            # degeneracy_specs='auto'
+            mixed_derivative_handling_mode='analytical',
+            # handle_strong_couplings=True,  # mixed_derivative_handling_mode="numerical",
+            order=2, expansion_order=2
+            # , degeneracy_specs={'wfc_threshold': .3}
+            # , degeneracy_specs={
+            #     'polyads': [
+            #         [
+            #             [0, 0, 2, 0, 0, 0],
+            #             [0, 0, 0, 0, 1, 0]
+            #         ]
+            #     ]
+            # }
+            , degeneracy_specs={
+                'polyads': [
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, 0, 1, 0]
+                    ],
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 1, 0, 1, 0, 0]
+                    ]
+                ]
+            }
+        )
+        raise Exception(...)
+        classic, _ = runner.construct_classic_runner(states,
+                                                     zero_element_warning=False
+                                                     )
+        # classic.print_tables()
+        runner.run_VPT(states)
+        raise Exception(...)
+```
 
-        # ham.G_terms = [
-        #     G[0],
-        #     # G[1],
-        #     np.zeros(G[1].shape),
-        #     # G[2]
-        #     np.zeros(G[2].shape),
-        # ]
-        # ham.V_terms = [
-        #     V[0],
-        #     # np.sum([V[1].transpose(p) for p in itertools.permutations([0, 1, 2])], axis=0) / np.math.factorial(3),
-        #     np.zeros(V[1].shape),
-        #     V[2],
-        #     # np.zeros(V[2].shape)
-        # ]
-        # ham.coriolis_terms = [
-        #     np.zeros(V[2].shape)
-        #     # (Z[0] + np.transpose(Z[0], [0, 3, 2, 1])) / 2
-        # ]
-        # ham.pseudopotential_term = [0]
-        runner.print_tables(print_intensities=False)
+#### <a name="AnalyticOCHH">AnalyticOCHH</a>
+```python
+    def test_AnalyticOCHH(self):
         """
-        :: State    <0|dH(2)|0>  <0|dH(1)|1> 
-          0 0 0      0.00000   -141.74965
-          0 0 1      0.00000   -514.12544
-          0 1 0      0.00000   -509.59810
-          1 0 0      0.00000   -165.17359
-  
-        :: State    <0|dH(2)|0>  <0|dH(1)|1> 
-          0 0 0     81.09533   -156.70145
-          0 0 1    276.68965   -545.08549
-          0 1 0    281.61581   -538.53511
-          1 0 0     88.49014   -213.67502
-          
-        :: State    <0|dH(2)|0>  <0|dH(1)|1>  # Cartesians
-          0 0 0     42.02414   -117.62974
-          0 0 1    199.53514   -467.93034
-          0 1 0    195.87334   -452.78667
-          1 0 0    -32.13943    -93.04841
-        >>--------------------------------------------------<<
-        >>------------------------- States Energies -------------------------
-        :: State     Harmonic   Anharmonic     Harmonic   Anharmonic
-                       ZPE          ZPE    Frequency    Frequency
-        0 0 0   4681.56362   4605.95750            -            - 
-        0 0 1            -            -   3937.52464   3744.73491 
-        0 1 0            -            -   3803.29958   3621.98639 
-        1 0 0            -            -   1622.30304   1572.72428 
-        >>--------------------------------------------------<<
+        Run OCHH, add in the single degeneracy by hand
+        :return:
         """
 
-        # V1 = water_expansion[1][0]
-        # G1 = water_expansion[1][1]
-        # print(G[1]/2)
-        # print(G1)
+        file_name = "OCHH_freq.fchk"
+        AnalyticVPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [
+                    0,
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 1, 0, 1, 0, 0],
+                        [0, 0, 0, 1, 1, 0],
+                        [0, 0, 0, 0, 1, 0],
+                    ],
+                ],
+                [
+                    [0, 0, 0, 0, 1, 0],
+                    [
+                        [0, 0, 0, 0, 1, 1],
+                        [0, 1, 0, 1, 1, 0]
+                    ]
+                ]
+            ],
+            # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+            degeneracy_specs=[
+                [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+            ]
+        )
+```
+
+#### <a name="AnalyticOCHHOperators">AnalyticOCHHOperators</a>
+```python
+    def test_AnalyticOCHHOperators(self):
+        """
+        Run OCHH, add in the single degeneracy by hand
+        :return:
+        """
+
+        file_name = "OCHH_freq.fchk"
+        AnalyticVPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [
+                    0,
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 1, 0, 1, 0, 0],
+                        [0, 0, 0, 1, 1, 0],
+                        [0, 0, 0, 0, 1, 0],
+                    ],
+                ],
+                [
+                    [0, 0, 0, 0, 1, 0],
+                    [
+                        [0, 0, 0, 0, 1, 1],
+                        [0, 1, 0, 1, 1, 0]
+                    ]
+                ]
+            ],
+            calculate_intensities=True,
+            # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+            degeneracy_specs=[
+                [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+            ],
+            operator_terms={
+                'q1':[0, [0, 0, 0, 0, 0, 1]],
+                'q2':[0, [0, 0, 0, 0, 1, 0]]
+            },
+            # operator_terms={
+            #     # 'q1': [0, [0, 0, 0, 0, 0, 1]],
+            #     # 'q2': [0, [0, 0, 0, 0, 1, 0]],
+            #     'I': [0, 0, np.eye(6, k=1)]
+            # },
+            # operator_type='transition_moment'
+        )
+        """
+::> Operator Corrections:
+  > =========================================================== () ===========================================================
+  >            |         Operator          |          Order 0          |          Order 1          |          Order 2         
+  >   States   |     q1      |     q2      |     q1      |     q2      |     q1      |     q2      |     q1      |     q2     
+  > --------------------------------------------------------------------------------------------------------------------------
+  >       1(1) | -0.51944545 |  0.00000107 | -0.70710678 | -0.00000000 | -0.00000000 | -0.00000000 |  0.18766133 |  0.00000107
+  >   3(1)5(1) | -0.50347989 | -0.00005836 | -0.00000000 | -0.00000000 | -0.50347989 | -0.00005836 | -0.00000000 | -0.00000000
+  >   2(1)3(1) | -0.00000000 | -0.00169639 | -0.00000000 | -0.00000000 | -0.00000000 | -0.00169639 | -0.00000000 | -0.00000000
+  >       2(1) |  0.00004036 | -0.68109787 | -0.00000000 | -0.70710678 | -0.00000000 | -0.00000000 |  0.00004036 |  0.02600891
+  > ============================================================ 2(1) ============================================================
+  >                |         Operator          |          Order 0          |          Order 1          |          Order 2         
+  >     States     |     q1      |     q2      |     q1      |     q2      |     q1      |     q2      |     q1      |     q2     
+  > ------------------------------------------------------------------------------------------------------------------------------
+  >       1(1)2(1) | -0.52457444 |  0.00000107 | -0.70710678 | -0.00000000 | -0.00000000 | -0.00000000 |  0.18253234 |  0.00000107
+  >   2(1)3(1)5(1) | -0.50347989 | -0.00005836 | -0.00000000 | -0.00000000 | -0.50347989 | -0.00005836 | -0.00000000 | -0.00000000
+<::
+    """
+```
+
+#### <a name="AnalyticHOONO">AnalyticHOONO</a>
+```python
+    def test_AnalyticHOONO(self):
+
+        file_name = "HOONO_freq.fchk"
+        state = VPTStateMaker(9)
+        with BlockProfiler():
+            AnalyticVPTRunner.run_simple(
+                TestManager.test_data(file_name),
+                2,
+                degeneracy_specs=[
+                    [state(1), state(8, 7)]
+                ],
+                expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+            )
+        raise Exception(...)
+
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     # mode_selection=mode_selection,
+        #     # internals=internals,
+        #     logger=True,
+        #     mixed_derivative_handling_mode='averaged'
+        # )
+
+        runner, states = AnalyticVPTRunner.construct(
+            TestManager.test_data(file_name),
+            2,
+            # mode_selection=[8, 7, 6],
+            # internals=internals,
+            logger=True,
+            # expansion_order = {
+            #     'coriolis':0,
+            #     'pseudopotential':0
+            # },
+            # return_runner=True,
+            # return_states=True,
+            # calculate_intensities=False
+        )
+
+        # raise Exception(
+        #     runner.get_freqs(states)[1] * UnitsData.convert("Hartrees", "Wavenumbers")
+        # )
+
+        # runner.eval.expansions[2][0][:] = 0
+        # v3 = runner.eval.expansions[1][0]
+        # for i in itertools.combinations(range(3), 1):
+        #     for p in itertools.permutations([i, i, i]):
+        #         v3[p] = 0#1e-5
+        # for i,j in itertools.combinations(range(3), 2):
+        #     for p in itertools.permutations([i, i, j]):
+        #         v3[p] = 0#1e-5
+        #     for p in itertools.permutations([i, j, j]):
+        #         v3[p] = 0
+        # for i,j,k in itertools.combinations(range(3), 3):
+        #     for p in itertools.permutations([i, j, k]):
+        #         v3[p] = 1e-4
+
+        og, _ = runner.construct_classic_runner(
+            TestManager.test_data(file_name),
+            states,
+            mode_selection=np.arange(len(states[0])),
+            zero_element_warning=False,
+            logger=False
+            # internals=internals,
+            # degeneracy_specs='auto'
+            # dipole_terms=dips
+        )
+```
+
+#### <a name="TrimerAnalytic">TrimerAnalytic</a>
+```python
+    def test_TrimerAnalytic(self):
+
+        file_name = "water_trimer_freq.fchk"
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     # mode_selection=mode_selection,
+        #     # internals=internals,
+        #     logger=True,
+        #     mixed_derivative_handling_mode='averaged'
+        # )
+
+        runner, states = AnalyticVPTRunner.construct(
+            TestManager.test_data(file_name),
+            2,
+            logger=True
+        )
+
+        og, _ = runner.construct_classic_runner(
+            TestManager.test_data(file_name),
+            states,
+            mode_selection=np.arange(len(states[0])),
+            logger=False
+        )
+
+        # og.print_tables(print_intensities=True)
+        with BlockProfiler(print_options={'show_all':True}):
+            spec = runner.get_spectrum(states, verbose=False)
+        print(np.array(spec).T)
+```
+
+#### <a name="SelAnharmAnalytic">SelAnharmAnalytic</a>
+```python
+    def test_SelAnharmAnalytic(self):
+
+        file_name ="freq_anion.fchk"
+
+        state = VPTStateMaker(108)
+        # with BlockProfiler():
+        corrs = AnalyticVPTRunner.run_simple(
+            file_name,
+            [
+                state(),
+                state(21),
+                state(20),
+                state(19),
+            ],
+            full_surface_mode_selection=[108-21, 108-20, 108-19, 108-1],
+            logger=True,
+            expressions_file=os.path.expanduser("exprs.hdf5")
+        )
+
+        print(corrs)
+
+        raise Exception(...)
+```
+
+#### <a name="PyreneAnalytic">PyreneAnalytic</a>
+```python
+    def test_PyreneAnalytic(self):
+        file_name = "pyrene_try3.fchk"
+        state = VPTStateMaker(72)
+        degs = [
+            [state(8), state(9)],
+            [state(15), state(69)],
+            [state(16), state(39)],
+            [state(19), state(20)],
+            [state(19), state(15)],
+            [state(20), state(16)],
+            [state(21), state(70)],
+            [state(22), state(18)],
+            [state(23), state(24)],
+            [state(24), state(55)],
+            [state(27), state(28)],
+            [state(35), state(66)],
+            [state(36), state(37)],
+            [state(37), state(15)],
+            [state(38), state(69)],
+            [state(39), state(40)],
+            [state(41), state(71)],
+            [state(42), state(43)],
+            [state(67), state(68)],
+            [state(67), state(37)],
+            [state(68), state(69)],
+            [state(71), state(18)],
+            [state(71), state(22)]
+        ]
+        # with BlockProfiler():
+        corrs = AnalyticVPTRunner.run_simple(
+            file_name,
+            # [
+            #     state(8), state(9),
+            #     state(10), state(11)
+            # ],
+            1,
+            # expressions_file="exprs.hdf5",
+            degeneracy_specs=None,
+            logger=True,
+            # zero_cutoff=1e-12
+        )
+```
+
+#### <a name="NewEmbedding">NewEmbedding</a>
+```python
+    def test_NewEmbedding(self):
+        file_name = "HOH_freq.fchk"
+        test_internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
+        # file_name = "water_dimer_freq.fchk"
+        # test_internals = dimer_internals
+        # file_name = "HOONO_freq.fchk"
+        # test_internals = hoono_internals
+        # file_name = "OCHH_freq.fchk"
+
+        mol = Molecule.from_file(
+            TestManager.test_data(file_name),
+            internals=test_internals
+        )#.get_embedded_molecule()
+        h1 = mol.hamiltonian
+
+        runner1, _ = VPTRunner.construct(
+            mol,
+            2,
+            internals=test_internals,
+            logger=False
+        )
+        h2 = runner1.hamiltonian
+
+        t1 = h1.gmatrix_expansion()
+        t2 = h2.G_terms
+
+        # print(t1.embedding.embedding.coords)
+        # print(t2.base_terms.molecule.coords)
         # raise Exception(...)
 
-        # raise Exception(
-        #     wfns.corrs.wfn_corrections[1].todense()[0][:4],
-        #     wfns.corrs.total_basis.excitations[:4],
-        #     -7.14635718e-03 * water_freqs[0],
-        #     -5.83925920e-03 * water_freqs[0],
-        #     0.02061049 * water_freqs[0],
+        # print(...)
+        # # print(
+        # #     t1.embedding.get_internals_by_mw_cartesians(order=2, strip_embedding=True)[0]
+        # # )
+        # # print(
+        # #     t2.base_terms.get_internals_by_cartesians(order=2)[0]
+        # # )
+        # print(
+        #     np.round(
+        #         t1.embedding.get_mw_cartesians_by_internals(order=2, strip_embedding=True)[0],
+        #         8
+        #     )
+        # )
+        # print("="*50)
+        # print(
+        #     np.round(
+        #         t2.base_terms.get_cartesians_by_internals(order=1)[0],
+        #         8
+        #     )
+        # )
+
+        # print(
+        #     np.round(
+        #         t1.embedding.get_internals_by_mw_cartesians(order=2, strip_embedding=True)[0],
+        #         8
+        #     )
+        # )
+        # print(
+        #     np.round(
+        #         t2.base_terms.get_internals_by_cartesians(order=1)[0],
+        #         8
+        #     )
+        # )
+
+        # print(
+        #     np.round(
+        #         t1.embedding.get_internals_by_cartesians(order=2, strip_embedding=True)[1][0],
+        #         8
+        #     )
+        # )
+        # print(
+        #     np.round(
+        #         t2.base_terms.get_modes_by_cartesians(order=2)[1][0],
+        #         8
+        #     )
+        # )
+        # raise Exception(...)
+        # QY_derivs = self.get_modes_by_cartesians(order=order + 1)
+        # YQ_derivs = self.get_cartesians_by_modes(order=order + 1)
+        # g1 = h1.get_VPT_expansions({'kinetic':2})['kinetic']
+        # g2 = h2.G_terms.base_terms
+        # t2.base_terms.gmatrix_tolerance = None
+        # t2.base_terms.freq_tolerance = None
+
+        # print(np.round(g1[1][0] - g2[1][0], 8))
+        # print("_"*20)
+        # print(np.round(g1[2][0, 0], 8))
+        # print("_"*20)
+        # print(np.round(g2[2][0, 0], 8))
+        # # print(np.round(g2[1][0], 8))
+        # # g2.get_terms(2)
+        # # print(g1[2] - g2[2])
+        #
+        # raise Exception(...)
+
+        # G = g1
+        # VPTRunner.construct(
+        #     mol,
+        #     2,
+        #     internals=test_internals,
+        #     kinetic_terms=G,
+        #     # potential_terms=[G[0], 0, 0],
+        #     include_pseudopotential=False,
+        #     include_coriolis_coupling=False,
+        #     logger=False
+        # )[0].print_tables(print_intensities=False)
+        # VPTRunner.construct(
+        #     mol,
+        #     2,
+        #     internals=test_internals,
+        #     kinetic_terms=[h2.G_terms[0], h2.G_terms[1], h2.G_terms[2]],
+        #     # potential_terms=[G[0], 0, 0],
+        #     include_pseudopotential=False,
+        #     include_coriolis_coupling=False,
+        #     logger=False
+        # )[0].print_tables(print_intensities=False)
+
+        import itertools
+        from McUtils.Zachary import TensorDerivativeConverter
+        # def symm(a, k):
+        #     n = 0
+        #     t = 0
+        #     for p in itertools.permutations(range(k)):
+        #         n += 1
+        #         t += a.transpose(p + tuple(range(k, a.ndim)))
+        #     return t / n
+        #
+        # u1 = h1.get_VPT_expansions({'potential': 3})['potential']
+        # print(u1[-1])
+        # u2 = h2.V_terms[1]
+        # print(u2)
+
+        gg = h1.gmatrix_expansion(dimensionless=True)
+        ke, ki = h1.get_kinetic_optmizing_transformation(2, dimensionless=True)
+        woof = gg.get_terms(2, transformation=(ke, ki))
+        print(woof[0])
+        print(woof[1])
+```
+
+#### <a name="HOHNoKE">HOHNoKE</a>
+```python
+    def test_HOHNoKE(self):
+        print()
+
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     # include_pseudopotential=False,
+        #     # include_coriolis_coupling=False,
+        #     # kinetic_terms=[np.zeros((3,)*(i+2)) for i in range(3)],
+        #     potential_terms=[np.zeros((3,)*(i+2)) for i in range(3)],
+        #     zero_element_warning=False
+        # )
+
+
+
+        COM = -3
+        A = -2
+        C = -1
+        X = 1000
+        LHF = 0
+        LO = 1
+        SH = 2
+        RO = 3
+        RH1 = 4
+        RH2 = 5
+
+        dimer_internals = [
+            [LHF, X, X, X],
+            [LO, LHF, X, X],
+            [SH, LO, LHF, X],
+            [RH2, SH, LO, LHF],  # get out of plane
+            [RO, LO, RH2, LHF],
+            [RH1, RO, RH2, LHF]
+        ]
+
+        hoono_internals = [
+            [1, -1, -1, -1],
+            [2,  1, -1, -1],
+            [3,  2,  1, -1],
+            [0,  1,  2,  3],
+            [4,  3,  2,  1]
+        ]
+
+
+        test_internals = None
+        file_name = "HOH_freq.fchk"
+        # test_internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
+        # file_name = "water_dimer_freq.fchk"
+        # test_internals = dimer_internals
+        # file_name = "HOONO_freq.fchk"
+        # test_internals = hoono_internals
+        # file_name = "OCHH_freq.fchk"
+        # file_name = "nh3.fchk"
+        # test_internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1], [3, 0, 1, 2]]
+
+        runner1, _ = VPTRunner.construct(
+            TestManager.test_data(file_name),
+            2,
+            internals=test_internals,
+            # expansion_order={'potential':0},
+            # include_pseudopotential=False,
+            logger=False
+        )
+        # runner1.print_tables()
+        # R2 = np.zeros((3, 3, 3))
+        # for i,j,k in itertools.permutations()
+        # R = [np.eye(3), ]
+        # Q = [np.random.rand(3, 3), np.random.rand(3, 3, 3), np.random.rand(3, 3, 3, 3)]
+
+        G_new = runner1.hamiltonian.G_terms.base_terms.optimize_coordinates()
+        raise Exception([G.shape for G in G_new])
+
+
+        runner2, _ = VPTRunner.construct(
+            TestManager.test_data(file_name),
+            2,
+            internals=[[1, -1, -1, -1], [2, 1, -1, -1], [0, 1, 2, -1]],
+            logger=False
+        )
+
+        # print(runner1.hamiltonian.G_terms[1]+2/3*runner1.hamiltonian.V_terms[1])
+        # print(runner2.hamiltonian.G_terms[1]+2/3*runner2.hamiltonian.V_terms[1])
+        #
+        # raise Exception(...)
+
+        from McUtils.Zachary import TensorDerivativeConverter
+
+        def symm_terms(v_terms):
+            test_V = [0, 0, 0, 0]
+            for i in [3, 2, 1]:
+                test_V[i] = v_terms[i-1]
+            test_V[0] = np.zeros(len(test_V[1]))
+            n = len(test_V[0])
+            for i in range(n):
+                for j in range(n):
+                    for k in range(n):
+                        perms = list(itertools.permutations([i, j, k]))
+                        v3 = sum(test_V[2][p] for p in perms) / len(perms)
+                        for p in perms:
+                            test_V[2][p] = v3
+                        for l in range(n):
+                            perms = list(itertools.permutations([i, j, k, l]))
+                            v4 = sum(test_V[3][p] for p in perms) / len(perms)
+                            for p in perms:
+                                test_V[3][p] = v4
+
+            return test_V
+
+        test_V1 = symm_terms(runner1.hamiltonian.V_terms)
+        n = len(test_V1[0])
+        test_G = [
+            np.zeros((n,) * (i + 2)) if isinstance(g, int) and g == 0 else g
+            for i, g in enumerate(reversed([runner1.hamiltonian.G_terms[n] for n in [2, 1, 0]]))
+        ]
+        # test_V2 = symm_terms(runner2.hamiltonian.V_terms)
+
+        V3 = test_V1[2]
+        freqs = np.diag(test_V1[1])
+
+        V3 = np.tensordot(V3, np.tensordot(V3, np.diag(1/freqs), axes=[2, -1]), axes=[2, -1])
+        V3 = V3 + np.moveaxis(V3, 2, 1) + np.moveaxis(V3, 2, 0)
+
+        ders = [
+            np.eye(len(test_V1[1])),
+            -test_V1[2] / (3*freqs[np.newaxis, np.newaxis, :]),
+            -(test_V1[3] - 5/9*V3) / (4*freqs[np.newaxis, np.newaxis, np.newaxis, :]),
+            0
+        ]
+        # test_V[2] = 0
+        # test_V[3] = 0
+        # corr = wtf + np.moveaxis(wtf, 2, 0) + np.moveaxis(wtf, 1, 0)
+        # print(corr[0])# + test_V[2])
+        # raise Exception(...)
+        # convs = TensorDerivativeConverter(ders, test_V1).convert()#print_transformations=True)
+        convs = TensorDerivativeConverter.convert_fast(ders, test_V1, order=len(ders))
+        # print(convs[2])
+        # print(convs[3])
+
+        R2 = test_V1[2] / (3*freqs[np.newaxis, np.newaxis, :])
+        # R3 = (test_V1[3] - 6/9*V3) / (4*freqs[np.newaxis, np.newaxis, np.newaxis, :])
+        # R2Q2 = np.tensordot(R2, ders[1], axes=[2, 0])
+        # R2Q2 = R2Q2 + R2Q2.transpose(0,2,1,3) + R2Q2.transpose(2,1,0,3)
+        # R3 = -(ders[2] + R2Q2)
+        R3 = (test_V1[3] - 1/9*V3) / (4*freqs[np.newaxis, np.newaxis, np.newaxis, :])
+
+        dersR = [
+            np.eye(len(test_V1[1])),
+            R2,
+            R3,
+            0
+        ]
+        # convs_R = TensorDerivativeConverter(dersR, convs).convert()  # print_transformations=True)
+
+        # print(np.round(convs[2], 7))
+        # print(np.round(convs[3], 7))
+        # print(np.round(convs_R[1] - test_V1[1], 7))
+        # print(np.round(convs_R[2] - test_V1[2], 7))
+        # print(np.round(convs_R[3] - test_V1[3], 7))
+        # raise Exception(...)
+
+        G0 = np.diag(freqs)
+
+        Q1 = ders[0]
+        Q2 = ders[1]
+        Q3 = ders[2]
+
+        R1 = dersR[0]
+
+        G1_Q = np.tensordot(
+            R2,
+            G0,
+            axes=[1, 0]
+        )
+        # G1 = test_G[1] + (G1_Q + G1_Q.transpose(0, 2, 1))
+
+        W = freqs[:, np.newaxis] / freqs[np.newaxis, :]
+        V1 = test_V1[2]
+        VV = test_V1[2][:, :, :, np.newaxis, np.newaxis] * test_V1[2][np.newaxis, np.newaxis, :, :, :]
+        G1 = test_G[1] + test_V1[2] / 3 * (W + W.T)[np.newaxis]
+
+        G2_QR = 2 * np.tensordot(
+            ders[1],
+            test_V1[2]/3,
+            axes=[2,0]
+        )
+
+        # G2_QR_exp = -sum(
         #     (
-        #             V1[0, 0, 0]*1.060660171779821
-        #             +(V1[0, 1, 1] + V1[0, 2, 2])*1.060660171779821
-        #             + G1[0, 0, 0]*-0.35355339
-        #             + (G1[1, 0, 1] + G1[2, 0, 2])*-0.35355339
-        #     ) / water_freqs[0]
-        #     # # wfns.corrs.wfn_corrections[1].todense()[0, 1],
-        #     # # should be .005839259198189573
-        #     # V[1][0, 0, 0]/water_freqs[0]*1.06066017
-        #     # # + G[1][0, 0, 0]/water_freqs[0]*-0.35355339
-        #     # + (V[1][0, 1, 1] + V[1][0, 2, 2])/water_freqs[0]*0.70710678*.5
-        #     # # + (G[1][0, 1, 1] + G[1][0, 2, 2])/water_freqs[0]*0.70710678*-.5
+        #         VV[:, :, a, :, :] / 3 * W[np.newaxis, np.newaxis, :, :]
+        #         #+ V1[:, :, a, np.newaxis, np.newaxis] * test_G[1][np.newaxis, np.newaxis, a, :, :]
+        #     ) / (3 * freqs[a])
+        #     for a in range(3)
         # )
-        # 0.02819074222400865, -0.035337103975354986, [-0.00758025182870669, -0.027756852139690837]
+        #
+        # print(G2_QR - G2_QR_exp)
+        #
+        # raise Exception(...)
 
-        # wfns = runner.get_wavefunctions()
-        # Y1 = vpt2.wavefunction_correction(1)
-        # raise Exception(
-        #     wfns.corrs.wfn_corrections[1].todense()[0][:10],
-        #     wfns.corrs.total_basis.excitations[:10],
-        #     Y1([3,]).evaluate([0, 0, 0], water_expansion, water_freqs),
-        #     Y1([2, 1]).evaluate([0, 0, 0], water_expansion, water_freqs),
-        # )
-
-        with np.printoptions(linewidth=1e8):
-            jesus_fuck = E2([])
-            # jesus_fuck.expr.print_tree()
-            corr = jesus_fuck.evaluate([0, 0, 0], water_expansion, water_freqs, verbose=True) * UnitsData.convert("Hartrees", "Wavenumbers")
-        print(corr)
-        raise Exception(corr)
-            # vpt2.energy_correction(2).expressions[1].changes[()]
-
-        raise Exception(
-            AnalyticPerturbationTheoryDriver.from_order(2).energy_correction_driver(
-                2
-            ).get_poly_evaluator(
-                [ # tensor coeffs
-                    [
-                        np.eye(3),
-                        np.eye(3),
-                    ],
-                    [
-                        np.ones((3, 3, 3)),
-                        np.ones((3, 3, 3))
-                    ],
-                    [
-                        np.ones((3, 3, 3, 3)),
-                        np.ones((3, 3, 3, 3)),
-                        1
-                    ]
-                ],
-                [1, 1, 1] # freqs
-            )
+        G2_RR = np.tensordot(
+            R2,
+            R2 * freqs[np.newaxis, :, np.newaxis],
+            axes=[1,1]
         )
-
-        corrections = AnalyticPTCorrectionGenerator([
-            [
-                ['x', 'x', 'x'],
-                ['p', 'x', 'p']
-            ],
-            # ['x'],
-            [
-                ['x', 'x', 'x'],
-                ['p', 'x', 'p']
+        G2_RR = sum(
+            G2_RR.transpose(*p)
+            for p in [
+                [0, 2, 1, 3],
+                [0, 2, 3, 1]
             ]
-        ]).get_correction([2])
-
-        v1 = np.ones((3, 3, 3))
-        g1 = np.ones((3, 3, 3))
-
-        return corrections.evaluate([0, 0, 0], [[v1, g1], [v1, g1]], [1, 1, 1], 1)
-
-        raise Exception(corrections)
-
-        coeffs = np.array([
-            TensorCoeffPoly({((1, 0, 0),):2, ((0, 1, 0),):1}),
-            TensorCoeffPoly({((0, 0, 1),):1}),
-        ], dtype=object)
-
-        # new_b_poly = np.dot(
-        #             [[1, 3], [2, 1]],
-        #             coeffs
-        #         )
-        # raise Exception(
-        #     np.dot(
-        #         [[-1, 3], [2, -1]],
-        #         np.dot(
-        #             [[1, 3], [2, 1]],
-        #             coeffs
-        #         )
-        #     )/5
-        # )
-
-        # from Psience.AnalyticModels import AnalyticModel
-        #
-        # AnalyticModel(
-        #     [
-        #         AnalyticModel.r(0, 1),
-        #
-        #         ]
-        # ).g()
-
-
-
-
-        from McUtils.Zachary import DensePolynomial
-
-        shifted = DensePolynomial([
-            [1, 2, 3, 4, 5],
-            [1, -2, 0, 6, 8]
-        ]).shift([2, 3])
-
-        # raise Exception(shifted.deriv(1).coeffs)
-
-        self.assertTrue(
-            np.allclose(
-                shifted.coeffs,
-                [
-                    [2157., 2716., 1281., 268., 21.],
-                    [ 805., 1024.,  486., 102.,  8.]
-                ]
-            )
         )
 
-        #
-        new = DensePolynomial(coeffs)*DensePolynomial(coeffs)
-        raise Exception(new)
+        G2_R3 = R3 * freqs[np.newaxis, np.newaxis, :, np.newaxis]
+        G2_R3 = G2_R3 + G2_R3.transpose(0, 1, 3, 2)
 
- #        """
- #        DensePolynomial([TensorCoeffPoly({((1, 0, 0), (1, 0, 0)): 4, ((0, 1, 0), (1, 0, 0)): 4, ((0, 1, 0), (0, 1, 0)): 1},1)
- # TensorCoeffPoly({((0, 0, 1), (0, 1, 0)): 2, ((0, 0, 1), (1, 0, 0)): 4},1)
- # TensorCoeffPoly({((0, 0, 1), (0, 0, 1)): 1},1)], 1)"""
+        G2_RG = np.tensordot(
+            R2,
+            test_G[1],
+            axes=[1,1]
+        )
 
-        # raise Exception(
-        #     PTPoly(coeffs)*
-        #     PTPoly(coeffs)
+        G2_RG = sum(
+            G2_RG.transpose(*p)
+            for p in [
+                [0,2,1,3],
+                [2,0,1,3],
+                [0,2,3,1],
+                [2,0,3,1]
+            ]
+        )
+
+        G2_QG = np.tensordot(
+            Q2,
+            test_G[1],
+            axes=[2,0]
+        )
+
+        G2 = (
+            G2_QR
+            + G2_RR
+            + G2_RG
+            + G2_QG
+            + G2_R3
+            + test_G[2]
+        )
+
+
+        # print((G1_Q[0] + G1_Q.transpose(0, 2, 1))[0])
+        # print(G1_Q[0])
+        # print(test_G[1][0])
+        # print(R2[0])
+        # print(G1[0] - test_G[1][0])
+
+        # print(
+        #     (
+        #             + G2_RR
+        #             # + G2_RG
+        #             + G2_R3
+        #             + test_G[2]
+        #     )[0, 0]
         # )
 
-        base_classes = RaisingLoweringClasses(14, [2, 4, 2])
-        print(list(base_classes))
+        ggg = [G0, G1, G2]
+        ggg_test = runner1.hamiltonian.reexpress_G([Q1, Q2, Q3], [R1, R2, R3])
+
+        # print(ggg[1] - ggg_test[1])
+        # print(ggg[1][0])
+        # print(ggg_test[1][0])
+        # print(ggg[2][0, 0])
+        # print(ggg_test[2][0, 0])
+        # runner1.print_tables()
+        # R = [np.random.rand(3, 3), np.random.rand(3, 3, 3), np.random.rand(3, 3, 3, 3)]
+        # Q = [np.random.rand(3, 3), np.random.rand(3, 3, 3), np.random.rand(3, 3, 3, 3)]
+        #
+        # G_new = runner1.hamiltonian.reexpress_G(R, Q)
+        # raise Exception([G.shape for G in G_new])
+
+        (Q, R), _ = runner1.hamiltonian.get_potential_optimized_coordinates()
+        # print(Q[1][0])
+        # print(Q2[0])
+        # print(R[1] - R2)
+        # print(Q[2][:, :, 0, 0])
+        # print(Q3[:, :, 0, 0])
+
+        # raise Exception(...)
+
+        # print(np.sum(np.abs(G2 - np.moveaxis(G2, 1, 0))))
+        # print(np.sum(np.abs(G2 - np.moveaxis(G2, 3, 2))))
+        # # print(np.max(G2), np.min(G2), np.max(test_G[2]), np.min(test_G[2]))
+        # raise Exception(...)
+
+
+        # runner1.print_tables(print_intensities=False)
+        rrr, _ = VPTRunner.construct(
+            TestManager.test_data(file_name),
+            2,
+            internals=test_internals,
+            kinetic_terms=[G0, test_G[1], test_G[2]],
+            potential_terms=[G0, test_V1[2], test_V1[3]],
+            include_pseudopotential=False,
+            include_coriolis_coupling=True,
+            logger=False
+        )
+        rrr.print_tables(print_intensities=False)
+        """
+        :: State    <0|dH(2)|0>  <0|dH(1)|1> 
+              0 0 0    100.74075   -156.70145
+              0 0 1    296.33507   -545.08549
+              0 1 0    301.26122   -538.53511
+              1 0 0    108.13556   -213.67502
+              0 0 2    587.47448  -1127.09543
+              0 2 0    597.90621  -1104.59990
+              2 0 0    109.32398   -292.47319
+              0 1 1    687.69956  -1284.13087
+              1 0 1    312.98434   -634.36364
+              1 1 0    326.60393   -633.50201
+        """
+        """
+              0 0 0    105.49844   -157.99275
+              0 0 1    335.26400   -580.55272
+              0 1 0    279.87458   -513.67920
+              1 0 0    105.42497   -207.50600
+              0 0 2    703.29509  -1239.45907
+              0 2 0    554.24618  -1057.46833
+              2 0 0    108.34454   -288.04967
+              0 1 1    678.58740  -1271.55370
+              1 0 1    349.24337   -667.17858
+              1 1 0    259.61523   -563.04545
+              """
+
+        """
+            0 0 0     10.85263   -144.38370
+            0 0 1    103.73295   -428.81417
+            0 1 0    102.30966   -416.98116
+            1 0 0    -35.81457   -148.46241
+            0 0 2    249.91709   -862.39340
+            0 2 0    252.94485   -836.86328
+            2 0 0    -83.05123   -180.01127
+            0 1 1    313.14314   -985.39758
+            1 0 1     18.26562   -419.47037
+            1 1 0      2.24708   -387.69952
+            """
+
+        # for i in range(n):
+        #     for j in range(n):
+        #         for k in range(n):
+        #             if not (i==j and j==k):
+        #                 G1[i,j,k] = 0
+
+        rrr, _ = VPTRunner.construct(
+            TestManager.test_data(file_name),
+            2,
+            internals=test_internals,
+            kinetic_terms=ggg_test,#[G0, G1, G2],
+            potential_terms=[G0, 0, 0],
+            include_pseudopotential=False,
+            include_coriolis_coupling=True,
+            logger=False,
+            zero_element_warning=False
+        )
+        rrr.print_tables(print_intensities=False)
+
+        # print(
+        #     # H2       H1
+        #     # 113.097, -305.887
+        #     219475 * runner1.hamiltonian.get_2nd_order_freqs(
+        #         runner1.states.state_list,
+        #         V_terms=[G0, 0, 0],
+        #         G_terms=[G0, G1, G2]
+        #     )
+        # )
+
+        """
+          0 0 0    176.43652   -163.08293
+          0 0 1    289.53377   -468.96990
+          0 1 0    298.51621   -466.47580
+          1 0 0    170.71509   -206.94025
+          """
+        raise Exception(...)
+
+
+        """
+              0 0 0    176.43652   -163.08293
+              0 0 1    289.53377   -468.96990
+              0 1 0    298.51621   -466.47580
+              1 0 0    170.71509   -206.94025
+              0 0 2    455.91832   -926.22498
+              0 2 0    479.53208   -916.91148
+              2 0 0    153.91367   -267.74859
+              0 1 1    529.20837  -1056.32539
+              1 0 1    285.83732   -537.90233
+              1 1 0    301.48690   -539.07068
+        """
+        """
+          0 0 0     88.73554   -172.09145
+          0 0 1    239.96002   -516.11032
+          0 1 0    191.24982   -455.91603
+          1 0 0    108.69731   -241.63993
+          0 0 2    461.67666  -1028.70222
+          0 2 0    353.91552   -887.99927
+          2 0 0    138.27476   -348.84148
+          0 1 1    455.22336  -1079.05125
+          1 0 1    308.63734   -657.43414
+          1 1 0    183.18822   -517.48003
+          """
+
+        raise Exception(...)
+
+        # print(runner1.hamiltonian.V_terms[0])
+        # print(runner2.hamiltonian.V_terms[0])
+        # print(runner1.hamiltonian.G_terms[1])
+        # print(runner1.hamiltonian.G_terms[1])
+        # print(runner1.hamiltonian.V_terms[1])
+        # print(runner2.hamiltonian.G_terms[1])
+        # print(runner2.hamiltonian.V_terms[1])
+        raise Exception(...)
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            # include_pseudopotential=False,
+            # kinetic_terms=[np.zeros((3,)*(i+2)) for i in range(3)],
+            # potential_terms=[np.zeros((3,) * (i + 2)) for i in range(3)],
+            internals=[[1, -1, -1, -1], [2, 1, -1, -1], [0, 1, 2, -1]],
+            # potential_derivatives=[mol.potential_derivatives[0], mol.potential_derivatives[1]] + [
+            #     np.zeros_like(mol.potential_derivatives[2]),
+            #     np.zeros_like(mol.potential_derivatives[3])
+            # ],
+            # expansion_order={'kinetic':0},
+            include_pseudopotential=False,
+            # potential_terms=[0, 0, 0],
+            potential_derivatives=[np.zeros_like(m) if i != 1 else m for i,m in enumerate(mol.potential_derivatives)],
+            zero_element_warning=False,
+            calculate_intensities=False
+        )
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            # include_pseudopotential=False,
+            # kinetic_terms=[np.zeros((3,)*(i+2)) for i in range(3)],
+            # potential_terms=[np.zeros((3,)*(i+2)) for i in range(3)],
+            # potential_derivatives=[mol.potential_derivatives[0], mol.potential_derivatives[1]] + [
+            #     np.zeros_like(mol.potential_derivatives[2]),
+            #     np.zeros_like(mol.potential_derivatives[3])
+            # ],
+            # expansion_order={'kinetic':0},
+            include_pseudopotential=False,
+            # potential_terms=[0, 0, 0],
+            potential_derivatives=[np.zeros_like(m) if i != 1 else m for i,m in enumerate(mol.potential_derivatives)],
+            internals=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]],
+            zero_element_warning=False,
+            calculate_intensities=False
+        )
 ```
 
 #### <a name="HOHVPTRunner">HOHVPTRunner</a>
@@ -922,20 +2004,24 @@ class VPT2Tests(TestCase):
     def test_HOHVPTRunner(self):
 
         file_name = "HOH_freq.fchk"
-        from Psience.BasisReps import HarmonicOscillatorMatrixGenerator
-        HarmonicOscillatorMatrixGenerator.default_evaluator_mode = 'rho'
+
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
             3,
-            memory_constrained=True,
-            logger=True
+            degeneracy_specs='auto',
+            # internals=[[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]]
         )
-        HarmonicOscillatorMatrixGenerator.default_evaluator_mode = 'poly'
+```
+
+#### <a name="HODVPTRunner">HODVPTRunner</a>
+```python
+    def test_HODVPTRunner(self):
+
+        file_name = "HOD_freq.fchk"
+
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
-            3,
-            memory_constrained=True,
-            logger=True
+            3
         )
 ```
 
@@ -1604,6 +2690,228 @@ class VPT2Tests(TestCase):
             degeneracy_specs='auto',
             corrected_fundamental_frequencies=np.array([1600, 3775, 3880])/UnitsData.convert("Hartrees", "Wavenumbers")
         )
+```
+
+#### <a name="OCHHSubspaceTargetProps">OCHHSubspaceTargetProps</a>
+```python
+    def test_OCHHSubspaceTargetProps(self):
+
+        file_name = "OCHH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 1],
+                [0, 1, 2, 0, 0, 0]
+            ],
+            # expansion_order=1,
+            logger=True,
+            target_property='wavefunctions'
+            # , calculate_intensities=False
+            , degeneracy_specs='auto',
+            # extended_space_target_property='frequencies'
+        )
+        """
+State           Harmonic   Anharmonic     Harmonic   Anharmonic
+                     ZPE          ZPE    Frequency    Frequency
+0 0 0 0 0 0   5866.87156   5785.95861            -            - 
+0 0 1 0 0 1            -            -   4588.74227   4415.63305 
+0 1 2 0 0 0            -            -   4306.24556   4191.96329 
+"""
+        """
+::> IR Data
+  > Initial State: 0 0 0 0 0 0 
+                         Harmonic                  Anharmonic
+State             Frequency    Intensity       Frequency    Intensity
+  0 0 1 0 0 1    4588.74227      0.00000      4446.79734      0.00164
+  0 1 2 0 0 0    4306.24556      0.00000      4167.25991      0.30489
+  0 1 1 1 0 0    4506.28742      0.00000      4345.62126      0.48928
+  """
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 1],
+                [0, 1, 2, 0, 0, 0]
+            ],
+            # expansion_order=1,
+            logger=True,
+            target_property='intensities'
+            # , calculate_intensities=False
+            , degeneracy_specs='auto'
+            # extended_space_target_property='frequencies'
+        )
+        """
+::> IR Data
+  > Initial State: 0 0 0 0 0 0 
+                         Harmonic                  Anharmonic
+State             Frequency    Intensity       Frequency    Intensity
+  0 0 1 0 0 1    4588.74227      0.00000      4446.79734      0.00164
+  0 1 2 0 0 0    4306.24556      0.00000      4167.25991      0.30489
+  0 1 1 1 0 0    4506.28742      0.00000      4345.62126      0.48928
+  """
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 1],
+                [0, 1, 2, 0, 0, 0]
+            ],
+            # expansion_order=1,
+            logger=True,
+            target_property='frequencies'
+            # , calculate_intensities=False
+            , degeneracy_specs='auto'
+        )
+        """
+::> IR Data
+  > Initial State: 0 0 0 0 0 0 
+                         Harmonic                  Anharmonic
+State             Frequency    Intensity       Frequency    Intensity
+  0 0 1 0 0 1    4588.74227      0.00000      4458.35353      0.00402
+  0 1 2 0 0 0    4306.24556      0.00000      4170.69772      0.23905
+  0 1 1 1 0 0    4506.28742      0.00000      4330.62726      0.55570
+  """
+```
+
+#### <a name="OCHHFasterDegen">OCHHFasterDegen</a>
+```python
+    def test_OCHHFasterDegen(self):
+
+        file_name = "OCHH_freq.fchk"
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     logger=True,
+        #     degeneracy_specs='auto',
+        #     extended_space_target_property='frequencies'
+        # )
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            logger=True,
+            degeneracy_specs='auto'
+        )
+```
+
+#### <a name="OCHHFasterDegenSubspace">OCHHFasterDegenSubspace</a>
+```python
+    def test_OCHHFasterDegenSubspace(self):
+
+        file_name = "OCHH_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 1]
+            ],
+            logger=True,
+            degeneracy_specs='auto',
+            extended_space_target_property='frequencies'
+        )
+        """
+::> IR Data
+  > Initial State: 0 0 0 0 0 0 
+                         Harmonic                  Anharmonic
+State             Frequency    Intensity       Frequency    Intensity
+  0 0 1 0 0 1    4588.74227      0.00000      4446.79734      0.00134
+  0 1 2 0 0 0    4306.24556      0.00000      4167.25991      0.29964
+  0 1 1 1 0 0    4506.28742      0.00000      4345.62126      0.48923
+  """
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                [0, 0, 0, 0, 0, 0],
+                [0, 0, 1, 0, 0, 1]
+            ],
+            logger=True,
+            degeneracy_specs='auto'
+        )
+        """
+::> IR Data
+  > Initial State: 0 0 0 0 0 0 
+                         Harmonic                  Anharmonic
+State             Frequency    Intensity       Frequency    Intensity
+  0 0 1 0 0 1    4588.74227      0.00000      4446.79734      0.00000
+  0 1 2 0 0 0    4306.24556      0.00000      4167.25991      0.26680
+  0 1 1 1 0 0    4506.28742      0.00000      4345.62126      0.47084
+  """
+```
+
+#### <a name="HOONOFasterDegen">HOONOFasterDegen</a>
+```python
+    def test_HOONOFasterDegen(self):
+
+        file_name = "HOONO_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            logger=True,
+            degeneracy_specs='auto',
+            extended_space_target_property='frequencies'
+        )
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            logger=True,
+            degeneracy_specs='auto'
+        )
+```
+
+#### <a name="HOONOFasterDegenSubspace">HOONOFasterDegenSubspace</a>
+```python
+    def test_HOONOFasterDegenSubspace(self):
+
+        file_name = "HOONO_freq.fchk"
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [[0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [1, 0, 0, 0, 0, 0, 1, 0, 0],
+             [1, 0, 0, 0, 0, 0, 0, 1, 0],
+             [0, 0, 1, 0, 0, 0, 1, 0, 0],
+             [0, 0, 1, 0, 0, 0, 0, 1, 0]],
+            logger=True,
+            degeneracy_specs='auto',
+            extended_space_target_property='frequencies'
+        )
+        """
+State                   Frequency    Intensity       Frequency    Intensity
+  1 0 0 0 0 0 1 0 0    1789.34288      0.00000      1669.11650      0.00850
+  1 0 0 0 0 0 0 1 0    1924.23563      0.00000      1825.06905      0.30108
+  0 0 1 0 0 0 1 0 0    1957.70875      0.00000      1886.51516      0.05466
+  0 0 1 0 0 0 0 1 0    2092.60150      0.00000      2045.13170      0.02941
+  1 0 0 2 0 0 0 0 0    1787.50010      0.00000      2413.94904     80.96353
+  0 0 1 2 0 0 0 0 0    1955.86597      0.00000      1971.94764      2.37340
+  1 0 0 1 1 0 0 0 0    1908.01157      0.00000      2131.62528      0.72881
+  0 0 1 1 1 0 0 0 0    2076.37744      0.00000      2080.76165      2.72838
+  """
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [[0, 0, 0, 0, 0, 0, 0, 0, 0],
+             [1, 0, 0, 0, 0, 0, 1, 0, 0],
+             [1, 0, 0, 0, 0, 0, 0, 1, 0],
+             [0, 0, 1, 0, 0, 0, 1, 0, 0],
+             [0, 0, 1, 0, 0, 0, 0, 1, 0]],
+            logger=True,
+            degeneracy_specs='auto'
+        )
+        """
+State                   Frequency    Intensity       Frequency    Intensity
+  1 0 0 0 0 0 1 0 0    1789.34288      0.00000      1669.11650      0.04924
+  1 0 0 0 0 0 0 1 0    1924.23563      0.00000      1825.06905      0.07528
+  0 0 1 0 0 0 1 0 0    1957.70875      0.00000      1886.51516      0.00766
+  0 0 1 0 0 0 0 1 0    2092.60150      0.00000      2045.13170      0.01768
+  1 0 0 2 0 0 0 0 0    1787.50010      0.00000      2413.94904      0.08504
+  0 0 1 2 0 0 0 0 0    1955.86597      0.00000      1971.94764      0.00159
+  1 0 0 1 1 0 0 0 0    1908.01157      0.00000      2131.62528      0.00035
+  0 0 1 1 1 0 0 0 0    2076.37744      0.00000      2080.76165      0.00332
+        """
 ```
 
 #### <a name="OCHHVPTRunnerShifted">OCHHVPTRunnerShifted</a>

@@ -1,8 +1,8 @@
 ## <a id="Psience.BasisReps.Representations.ExpansionRepresentation">ExpansionRepresentation</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations.py#L906)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations.py#L906?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations.py#L907)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations.py#L907?message=Update%20Docs)]
 </div>
 
 Provides support for terms that look like `1/2 pGp + 1/2 dV/dQdQ QQ` by computing each term on its own
@@ -24,8 +24,8 @@ Provides support for terms that look like `1/2 pGp + 1/2 dV/dQdQ QQ` by computin
 __init__(self, coeffs, computers, basis, name=None, logger=None, memory_constrained=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L910)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L910?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L911)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L911?message=Update%20Docs)]
 </div>
 
   - `coeffs`: `Iterable[float]`
@@ -42,8 +42,8 @@ __init__(self, coeffs, computers, basis, name=None, logger=None, memory_constrai
 is_diagonal(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L923)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L923?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L924)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L924?message=Update%20Docs)]
 </div>
 
 
@@ -53,8 +53,8 @@ is_diagonal(self):
 is_zero(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L929)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L929?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L930)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L930?message=Update%20Docs)]
 </div>
 
 
@@ -64,8 +64,8 @@ is_zero(self):
 skipped_indices(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L936)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L936?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L937)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L937?message=Update%20Docs)]
 </div>
 
   - `:returns`: `_`
@@ -77,8 +77,8 @@ skipped_indices(self):
 clear_cache(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L961)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L961?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L962)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L962?message=Update%20Docs)]
 </div>
 
 
@@ -87,8 +87,8 @@ clear_cache(self):
 __rmul__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L965)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L965?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L966)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L966?message=Update%20Docs)]
 </div>
 
 
@@ -97,8 +97,8 @@ __rmul__(self, other):
 __mul__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L976)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L976?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L977)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L977?message=Update%20Docs)]
 </div>
 
 
@@ -107,8 +107,8 @@ __mul__(self, other):
 __add__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L988)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L988?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L989)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L989?message=Update%20Docs)]
 </div>
 
 
@@ -117,8 +117,8 @@ __add__(self, other):
 get_brakets(self, states, check_orthogonality=True, memory_constrained=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L1066)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L1066?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L1067)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L1067?message=Update%20Docs)]
 </div>
 
 
@@ -127,8 +127,8 @@ get_brakets(self, states, check_orthogonality=True, memory_constrained=False):
 get_element(self, n, m): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L1070)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L1070?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L1071)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L1071?message=Update%20Docs)]
 </div>
 
 
@@ -138,8 +138,8 @@ get_element(self, n, m):
 chunk_size(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L1072)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L1072?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L1073)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L1073?message=Update%20Docs)]
 </div>
 
 
@@ -149,8 +149,8 @@ chunk_size(self):
 selection_rules(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L1080)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L1080?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L1081)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L1081?message=Update%20Docs)]
 </div>
 
   - `:returns`: `_`
@@ -163,8 +163,8 @@ selection_rules(self):
 selection_rule_steps(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L1097)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L1097?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L1098)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L1098?message=Update%20Docs)]
 </div>
 
   - `:returns`: `_`
@@ -176,8 +176,8 @@ selection_rule_steps(self):
 get_transformed_space(self, space, rules=None, parallelizer=None, logger=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L1114)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L1114?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L1115)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L1115?message=Update%20Docs)]
 </div>
 Returns the state space obtained by using the
 held operators to transform `space`
@@ -192,8 +192,8 @@ held operators to transform `space`
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L1149)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L1149?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/Representations/ExpansionRepresentation.py#L1150)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations/ExpansionRepresentation.py#L1150?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -248,7 +248,7 @@ __repr__(self):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/Representations/ExpansionRepresentation.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/Representations/ExpansionRepresentation.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations.py#L906?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/Representations.py#L907?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

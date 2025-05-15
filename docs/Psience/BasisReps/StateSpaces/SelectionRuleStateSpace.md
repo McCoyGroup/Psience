@@ -1,8 +1,8 @@
 ## <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace">SelectionRuleStateSpace</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces.py#L2220)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L2220?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces.py#L2328)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L2328?message=Update%20Docs)]
 </div>
 
 A `BasisMultiStateSpace` subclass that is only built from applying selection rules to an initial space
@@ -28,8 +28,8 @@ direct_sum_chunk_size: int
 __init__(self, init_space, excitations, selection_rules=None, ignore_shapes=False, changes=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2225)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2225?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2333)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2333?message=Update%20Docs)]
 </div>
 
   - `init_space`: `Any`
@@ -45,18 +45,19 @@ __init__(self, init_space, excitations, selection_rules=None, ignore_shapes=Fals
 to_state(self, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2253)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2253?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2363)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2363?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.from_state" class="docs-object-method">&nbsp;</a> 
 ```python
-from_state(data, serializer=None): 
+@classmethod
+from_state(cls, data, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2259)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2259?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L2369)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L2369?message=Update%20Docs)]
 </div>
 
 
@@ -65,8 +66,8 @@ from_state(data, serializer=None):
 as_indices(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2278)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2278?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2388)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2388?message=Update%20Docs)]
 </div>
 Pulls the full set indices out of all of the
 held spaces and returns them as a flat vector
@@ -79,8 +80,8 @@ held spaces and returns them as a flat vector
 as_excitations(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2290)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2290?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2400)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2400?message=Update%20Docs)]
 </div>
 Pulls the full set excitations out of all of the
 held spaces and returns them as a flat vector
@@ -94,8 +95,8 @@ held spaces and returns them as a flat vector
 representative_space(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2304)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2304?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2414)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2414?message=Update%20Docs)]
 </div>
 
 
@@ -105,8 +106,8 @@ representative_space(self):
 nstates(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2308)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2308?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2418)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2418?message=Update%20Docs)]
 </div>
 
 
@@ -115,8 +116,8 @@ nstates(self):
 check_indices(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2312)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2312?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2422)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2422?message=Update%20Docs)]
 </div>
 
 
@@ -125,8 +126,8 @@ check_indices(self):
 take_states(self, states, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2316)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2316?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2426)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2426?message=Update%20Docs)]
 </div>
 Takes the intersection of each held space and the specified states
   - `states`: `Any`
@@ -140,8 +141,8 @@ Takes the intersection of each held space and the specified states
 take_subspace(self, states): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2347)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2347?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2457)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2457?message=Update%20Docs)]
 </div>
 Takes the intersection of each held space and the specified states
   - `states`: `Any`
@@ -155,8 +156,8 @@ Takes the intersection of each held space and the specified states
 take_subdimensions(self, inds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2378)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2378?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2488)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2488?message=Update%20Docs)]
 </div>
 Takes the subdimensions from each space
   - `inds`: `Any`
@@ -170,8 +171,8 @@ Takes the subdimensions from each space
 drop_states(self, states): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2405)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2405?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2515)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2515?message=Update%20Docs)]
 </div>
 Takes the intersection of each held space and the specified states
   - `states`: `Any`
@@ -185,8 +186,8 @@ Takes the intersection of each held space and the specified states
 drop_subspace(self, inds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2429)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2429?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2539)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2539?message=Update%20Docs)]
 </div>
 Takes the intersection of each held space and the specified states
   - `states`: `Any`
@@ -200,8 +201,8 @@ Takes the intersection of each held space and the specified states
 drop_subdimensions(self, inds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2454)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2454?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2564)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2564?message=Update%20Docs)]
 </div>
 Takes the subdimensions from each space
   - `inds`: `Any`
@@ -215,8 +216,8 @@ Takes the subdimensions from each space
 get_representation_indices(self, other=None, freqs=None, freq_threshold=None, selection_rules=None, filter=None, return_filter=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2471)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2471?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2581)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2581?message=Update%20Docs)]
 </div>
 This is where this pays dividends, as we know that only the init_space and the held excitations can couple
 which reduces the combinatoric work by a factor of like 2.
@@ -229,8 +230,8 @@ which reduces the combinatoric work by a factor of like 2.
 filter_representation_inds(self, ind_pairs, q_changes): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2548)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2548?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2658)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2658?message=Update%20Docs)]
 </div>
 Filters representation indices by the allowed #quantum changes.
 Not sure I'll even need this, if `get_representation_indices` is tight enough.
@@ -247,18 +248,19 @@ Not sure I'll even need this, if `get_representation_indices` is tight enough.
 get_representation_brakets(self, freqs=None, freq_threshold=None, other=None, selection_rules=None, filter=None, return_filter=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2577)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2577?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2687)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2687?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.from_rules" class="docs-object-method">&nbsp;</a> 
 ```python
-from_rules(space, selection_rules, target_dimensions=None, filter_space=None, iterations=1, method='new', parallelizer=None, chunk_size=None, logger=None, track_excitations=True, track_indices=True, full_basis=None): 
+@classmethod
+from_rules(cls, space, selection_rules, target_dimensions=None, filter_space=None, iterations=1, method='new', parallelizer=None, chunk_size=None, logger=None, track_excitations=True, track_indices=True, full_basis=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2797)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L2797?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L2907)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L2907?message=Update%20Docs)]
 </div>
 
   - `space`: `BasisStateSpace | BasisMultiStateSpace`
@@ -278,8 +280,18 @@ from_rules(space, selection_rules, target_dimensions=None, filter_space=None, it
 filter_transitions(self, excluded_transitions, in_place=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3025)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3025?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3135)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3135?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.BasisReps.StateSpaces.SelectionRuleStateSpace.generate_change_indices" class="docs-object-method">&nbsp;</a> 
+```python
+generate_change_indices(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3229)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3229?message=Update%20Docs)]
 </div>
 
 
@@ -288,8 +300,8 @@ filter_transitions(self, excluded_transitions, in_place=False):
 union(self, other, handle_subspaces=True, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3119)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3119?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3241)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3241?message=Update%20Docs)]
 </div>
 Returns a merged version of self and other, adding
 any states in other to self and merging where they intersect
@@ -304,8 +316,8 @@ any states in other to self and merging where they intersect
 intersection(self, other, handle_subspaces=True, use_indices=False, track_excitations=True, track_indices=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3269)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3269?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3406)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3406?message=Update%20Docs)]
 </div>
 Returns an intersected self and other
   - `other`: `SelectionRuleStateSpace`
@@ -319,8 +331,8 @@ Returns an intersected self and other
 difference(self, other, handle_subspaces=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3378)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3378?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3515)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3515?message=Update%20Docs)]
 </div>
 Returns an diff'ed self and other.
 We get fundamentally different behaviour for `handle_subspaces` than without it.
@@ -339,8 +351,8 @@ done.
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3447)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3447?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3584)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3584?message=Update%20Docs)]
 </div>
 
 
@@ -349,8 +361,8 @@ __getitem__(self, item):
 __setitem__(self, item, vals): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3455)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3455?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3592)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3592?message=Update%20Docs)]
 </div>
 
 
@@ -359,8 +371,8 @@ __setitem__(self, item, vals):
 map(self, f): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3462)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3462?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3599)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3599?message=Update%20Docs)]
 </div>
 
 
@@ -369,8 +381,8 @@ map(self, f):
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3473)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3473?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3610)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/SelectionRuleStateSpace.py#L3610?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -425,7 +437,7 @@ __repr__(self):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/StateSpaces/SelectionRuleStateSpace.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/StateSpaces/SelectionRuleStateSpace.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L2220?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L2328?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

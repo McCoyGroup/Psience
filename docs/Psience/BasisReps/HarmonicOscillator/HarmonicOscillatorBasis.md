@@ -48,11 +48,12 @@ __eq__(self, other):
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorBasis.pmatrix_ho" class="docs-object-method">&nbsp;</a> 
 ```python
+@staticmethod
 pmatrix_ho(n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L59)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L59?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L59)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L59?message=Update%20Docs)]
 </div>
 There's one big subtlety to what we're doing here, which is that
 for efficiency reasons we return an entirely real matrix
@@ -68,11 +69,12 @@ We actually use this assumption across _all_ of our representations
 
 <a id="Psience.BasisReps.HarmonicOscillator.HarmonicOscillatorBasis.qmatrix_ho" class="docs-object-method">&nbsp;</a> 
 ```python
+@staticmethod
 qmatrix_ho(n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L84)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/HarmonicOscillator/HarmonicOscillatorBasis.py#L84?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L84)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L84?message=Update%20Docs)]
 </div>
 
   - `n`: `Any`
@@ -115,178 +117,8 @@ __repr__(self):
 
 
 
-## Examples
 
 
-
-
-
-
-
-
-
-
-
-
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-64503d" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-64503d"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-64503d" markdown="1">
- - [HOBasis1DX](#HOBasis1DX)
-- [HOBasis1DXX](#HOBasis1DXX)
-- [HOBasis1DPXP](#HOBasis1DPXP)
-- [HOBasis1DPP](#HOBasis1DPP)
-- [HOBasis1DXXX](#HOBasis1DXXX)
-- [HOBasis1DPPXX](#HOBasis1DPPXX)
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-38daec" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-38daec"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-38daec" markdown="1">
- 
-Before we can run our examples we should get a bit of setup out of the way.
-Since these examples were harvested from the unit tests not all pieces
-will be necessary for all situations.
-
-All tests are wrapped in a test class
-```python
-class BasisSetTests(TestCase):
-    def get_states(self, n_quanta, n_modes, max_quanta=None):
-        return [np.flip(x) for x in BasisStateSpace.from_quanta(
-            HarmonicOscillatorProductBasis(n_modes),
-            range(n_quanta)
-        ).excitations]
-```
-
- </div>
-</div>
-
-#### <a name="HOBasis1DX">HOBasis1DX</a>
-```python
-    def test_HOBasis1DX(self):
-        n = 7
-        basis = HarmonicOscillatorBasis(n)
-
-        term = ['x']
-        iphase = (-1) ** (term.count("p") // 2)
-        rep1 = basis.representation(*term)
-        rep2 = Representation(super(HarmonicOscillatorBasis, basis).operator(*term), basis)
-        xx = rep1[:, :].todense()
-        x2 = iphase * rep2[:, :].todense()
-
-        self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
-```
-
-#### <a name="HOBasis1DXX">HOBasis1DXX</a>
-```python
-    def test_HOBasis1DXX(self):
-
-        n = 7
-        basis = HarmonicOscillatorBasis(n)
-
-        rep1 = basis.representation('x', 'x')
-        rep2 = Representation(super(HarmonicOscillatorBasis, basis).operator('x', 'x'), basis)
-        xx = rep1[:, :].todense()
-        x2 = rep2[:, :].todense()
-        targ =np.zeros((n, n))
-        targ[np.arange(n), np.arange(n)] = np.arange(n) + 1/2
-        targ[np.arange(n-2), np.arange(2, n)] = np.sqrt(np.arange(1, n-1)*(np.arange(1, n-1)+1)/4)
-        targ[np.arange(2, n), np.arange(n-2)] = np.sqrt(np.arange(1, n-1)*(np.arange(1, n-1)+1)/4)
-
-        # raise Exception([
-        #     targ**2,
-        #     xx**2
-        #     ])
-
-        self.assertLess(np.average(np.abs(x2 - targ)), 1e-14)
-        self.assertLess(np.average(np.abs(xx - targ)), 1e-14)
-```
-
-#### <a name="HOBasis1DPXP">HOBasis1DPXP</a>
-```python
-    def test_HOBasis1DPXP(self):
-        n = 7
-        basis = HarmonicOscillatorBasis(n)
-
-        term = ['p', 'x', 'p']
-        iphase = (-1) ** (term.count("p") // 2)
-        rep1 = basis.representation(*term)
-        rep2 = Representation(super(HarmonicOscillatorBasis, basis).operator(*term), basis)
-        xx = rep1[:, :].todense()
-        x2 = iphase * rep2[:, :].todense()
-
-        self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
-```
-
-#### <a name="HOBasis1DPP">HOBasis1DPP</a>
-```python
-    def test_HOBasis1DPP(self):
-        n = 7
-        basis = HarmonicOscillatorBasis(n)
-
-        rep1 = basis.representation('p', 'p')
-        rep2 = Representation(super(HarmonicOscillatorBasis, basis).operator('p', 'p'), basis)
-        xx = rep1[:, :].todense()
-        x2 = -rep2[:, :].todense()
-        # targ = np.zeros((n, n))
-        # targ[np.arange(n), np.arange(n)] = np.arange(n) + 1 / 2
-        # targ[np.arange(n - 2), np.arange(2, n)] = np.sqrt(np.arange(1, n - 1) * (np.arange(1, n - 1) + 1) / 4)
-        # targ[np.arange(2, n), np.arange(n - 2)] = np.sqrt(np.arange(1, n - 1) * (np.arange(1, n - 1) + 1) / 4)
-
-        # raise Exception([
-        #     targ**2,
-        #     xx**2
-        #     ])
-
-        self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
-```
-
-#### <a name="HOBasis1DXXX">HOBasis1DXXX</a>
-```python
-    def test_HOBasis1DXXX(self):
-        n = 7
-        basis = HarmonicOscillatorBasis(n)
-
-        term = ['x', 'x', 'x']
-        iphase = (-1) ** (term.count("p") // 2)
-        rep1 = basis.representation(*term)
-        rep2 = Representation(super(HarmonicOscillatorBasis, basis).operator(*term), basis)
-        xx = rep1[:, :].todense()
-        x2 = iphase * rep2[:, :].todense()
-
-        self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
-```
-
-#### <a name="HOBasis1DPPXX">HOBasis1DPPXX</a>
-```python
-    def test_HOBasis1DPPXX(self):
-        n = 7
-        basis = HarmonicOscillatorBasis(n)
-
-        term = ['p', 'p', 'x', 'x']
-        iphase = (-1) ** (term.count("p") // 2)
-        rep1 = basis.representation(*term)
-        rep2 = Representation(super(HarmonicOscillatorBasis, basis).operator(*term), basis)
-        xx = rep1[:, :].todense()
-        x2 = iphase * rep2[:, :].todense()
-        # targ = np.zeros((n, n))
-        # targ[np.arange(n), np.arange(n)] = np.arange(n) + 1 / 2
-        # targ[np.arange(n - 2), np.arange(2, n)] = np.sqrt(np.arange(1, n - 1) * (np.arange(1, n - 1) + 1) / 4)
-        # targ[np.arange(2, n), np.arange(n - 2)] = np.sqrt(np.arange(1, n - 1) * (np.arange(1, n - 1) + 1) / 4)
-
-        # raise Exception([
-        #     targ**2,
-        #     xx**2
-        #     ])
-
-        self.assertLess(np.average(np.abs(xx - x2)), 1e-14)
-```
-
- </div>
-</div>
 
 
 

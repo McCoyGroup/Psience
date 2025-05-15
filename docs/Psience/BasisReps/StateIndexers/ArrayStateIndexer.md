@@ -42,11 +42,12 @@ to_state(self, serializer=None):
 
 <a id="Psience.BasisReps.StateIndexers.ArrayStateIndexer.from_state" class="docs-object-method">&nbsp;</a> 
 ```python
-from_state(data, serializer=None): 
+@classmethod
+from_state(cls, data, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateIndexers/ArrayStateIndexer.py#L55)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateIndexers/ArrayStateIndexer.py#L55?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L55)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L55?message=Update%20Docs)]
 </div>
 
 

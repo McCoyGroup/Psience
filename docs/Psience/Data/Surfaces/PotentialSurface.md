@@ -1,12 +1,12 @@
 ## <a id="Psience.Data.Surfaces.PotentialSurface">PotentialSurface</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces.py#L167)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces.py#L167?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces.py#L209)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces.py#L209?message=Update%20Docs)]
 </div>
 
 A potential surface structure to go along with the DipoleSurface.
-Provides convenient access to dipole data + a unified interface to things like energy minimization
+Provides convenient access to potential data + a unified interface to things like energy minimization
 
 
 
@@ -22,21 +22,23 @@ Provides convenient access to dipole data + a unified interface to things like e
  
 <a id="Psience.Data.Surfaces.PotentialSurface.get_log_values" class="docs-object-method">&nbsp;</a> 
 ```python
+@staticmethod
 get_log_values(log_file, keys=('StandardCartesianCoordinates', 'ScanEnergies')): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/PotentialSurface.py#L173)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/PotentialSurface.py#L173?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L215)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L215?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.Data.Surfaces.PotentialSurface.from_log_file" class="docs-object-method">&nbsp;</a> 
 ```python
-from_log_file(log_file, coord_transf, keys=('StandardCartesianCoordinates', 'ScanEnergies'), tol=0.001, **opts): 
+@classmethod
+from_log_file(cls, log_file, coord_transf, keys=('StandardCartesianCoordinates', 'ScanEnergies'), tol=0.001, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/PotentialSurface.py#L189)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/PotentialSurface.py#L189?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L231)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L231?message=Update%20Docs)]
 </div>
 Loads dipoles from a Gaussian log file and builds a potential surface by interpolating.
 Obviously this only really works if we have a subset of "scan" coordinates, so at this stage the user is obligated
@@ -48,28 +50,58 @@ Coordinerds can be helpful with this, as it provides a convenient syntax for Car
     >
 
 
-<a id="Psience.Data.Surfaces.PotentialSurface.get_fchk_values" class="docs-object-method">&nbsp;</a> 
-```python
-get_fchk_values(fchk_file): 
-```
-<div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/PotentialSurface.py#L242)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/PotentialSurface.py#L242?message=Update%20Docs)]
-</div>
-
-
 <a id="Psience.Data.Surfaces.PotentialSurface.from_fchk_file" class="docs-object-method">&nbsp;</a> 
 ```python
-from_fchk_file(fchk_file, **opts): 
+@classmethod
+from_fchk_file(cls, fchk_file, ref=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/PotentialSurface.py#L255)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/PotentialSurface.py#L255?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L299)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L299?message=Update%20Docs)]
 </div>
 Loads potential from a Gaussian formatted checkpoint file and builds a potential surface via a quartic approximation
   - `fchk_file`: `Any`
     > a Gaussian fchk file to pull from
   - `log_file`: `str`
+    > 
+  - `:returns`: `_`
+    >
+
+
+<a id="Psience.Data.Surfaces.PotentialSurface.from_mol" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_mol(cls, mol, expansion=None, center=None, transforms=None, transformed_derivatives=False, use_internals=True, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L322)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L322?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Data.Surfaces.PotentialSurface.from_derivatives" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_derivatives(cls, expansion, center=None, ref=None, transforms=None, transformed_derivatives=False, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L344)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L344?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Data.Surfaces.PotentialSurface.__call__" class="docs-object-method">&nbsp;</a> 
+```python
+__call__(self, gridpoints, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/PotentialSurface.py#L360)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/PotentialSurface.py#L360?message=Update%20Docs)]
+</div>
+Explicitly overrides the Surface-level evaluation because we know the Taylor surface needs us to flatten our gridpoints
+  - `gridpoints`: `Any`
+    > 
+  - `opts`: `Any`
     > 
   - `:returns`: `_`
     >
@@ -79,58 +111,8 @@ Loads potential from a Gaussian formatted checkpoint file and builds a potential
 
 
 
-## Examples
 
 
-
-
-
-
-
-
-
-
-
-
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-769a04" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-769a04"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-769a04" markdown="1">
- - [LogFilePotentialSurface](#LogFilePotentialSurface)
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-ca6e58" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-ca6e58"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-ca6e58" markdown="1">
- 
-Before we can run our examples we should get a bit of setup out of the way.
-Since these examples were harvested from the unit tests not all pieces
-will be necessary for all situations.
-
-All tests are wrapped in a test class
-```python
-class DataTests(TestCase):
-    maxDiff = None
-```
-
- </div>
-</div>
-
-#### <a name="LogFilePotentialSurface">LogFilePotentialSurface</a>
-```python
-    def test_LogFilePotentialSurface(self):
-        log = TestManager.test_data("water_OH_scan.log")
-        conv = lambda x: np.linalg.norm(x[:, 0] - x[:, 1], axis=1)
-        surf = PotentialSurface.from_log_file(log, conv)
-        pots = surf(np.arange(.5, 2, .1))
-        self.assertEquals(pots.shape, ((2-.5)/.1,))
-```
-
- </div>
-</div>
 
 
 
@@ -176,7 +158,7 @@ class DataTests(TestCase):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Data/Surfaces/PotentialSurface.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Data/Surfaces/PotentialSurface.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces.py#L167?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces.py#L209?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

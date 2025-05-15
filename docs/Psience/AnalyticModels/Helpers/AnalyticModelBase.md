@@ -1,8 +1,8 @@
 ## <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase">AnalyticModelBase</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers.py#L41)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers.py#L41?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers.py#L44)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers.py#L44?message=Update%20Docs)]
 </div>
 
 Provides a base class for analytic models
@@ -20,15 +20,26 @@ Provides a base class for analytic models
  <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
  ```python
 sym: SympyShim
-numeric_types: tuple
 ```
-<a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.take_derivs" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.get_numeric_types" class="docs-object-method">&nbsp;</a> 
 ```python
-take_derivs(expr, vars): 
+@classmethod
+get_numeric_types(cls): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L47)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L47?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L49)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L49?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.take_derivs" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+take_derivs(cls, expr, vars): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L52)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L52?message=Update%20Docs)]
 </div>
 Takes derivatives of `expr` with respect to `vars` even if `expr` is an array
   - `expr`: `Any`
@@ -41,11 +52,12 @@ Takes derivatives of `expr` with respect to `vars` even if `expr` is an array
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.eval_exprs" class="docs-object-method">&nbsp;</a> 
 ```python
-eval_exprs(expr, subs): 
+@classmethod
+eval_exprs(cls, expr, subs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L63)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L63?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L68)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L68?message=Update%20Docs)]
 </div>
 Evaluates `expr` with the given substitutions
   - `expr`: `Any`
@@ -58,11 +70,12 @@ Evaluates `expr` with the given substitutions
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.symbol_list" class="docs-object-method">&nbsp;</a> 
 ```python
-symbol_list(names, instance=None): 
+@classmethod
+symbol_list(cls, names, instance=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L98)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L98?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L103)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L103?message=Update%20Docs)]
 </div>
 Gets a list of symbols for `names` with a given instance number
   - `names`: `Any`
@@ -73,13 +86,46 @@ Gets a list of symbols for `names` with a given instance number
     >
 
 
+<a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.symbolic_x" class="docs-object-method">&nbsp;</a> 
+```python
+@staticmethod
+symbolic_x(i): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L117)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L117?message=Update%20Docs)]
+</div>
+Provides a symbolic representation of a position
+  - `i`: `Any`
+    > 
+  - `:returns`: `_`
+    >
+
+
+<a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.symbolic_n" class="docs-object-method">&nbsp;</a> 
+```python
+@staticmethod
+symbolic_n(i, j, k): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L128)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L128?message=Update%20Docs)]
+</div>
+Provides a symbolic representation of a normal to a plane
+  - `i`: `Any`
+    > 
+  - `:returns`: `_`
+    >
+
+
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.symbolic_m" class="docs-object-method">&nbsp;</a> 
 ```python
+@staticmethod
 symbolic_m(i): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L112)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L112?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L139)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L139?message=Update%20Docs)]
 </div>
 Provides a symbolic representation of a mass
   - `i`: `Any`
@@ -90,21 +136,23 @@ Provides a symbolic representation of a mass
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.symbol" class="docs-object-method">&nbsp;</a> 
 ```python
+@staticmethod
 symbol(base, *args, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L123)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L123?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L150)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L150?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.symbolic_r" class="docs-object-method">&nbsp;</a> 
 ```python
+@staticmethod
 symbolic_r(i, j): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L130)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L130?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L157)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L157?message=Update%20Docs)]
 </div>
 Provides a symbolic representation of a bond length
   - `i`: `Any`
@@ -117,11 +165,12 @@ Provides a symbolic representation of a bond length
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.symbolic_a" class="docs-object-method">&nbsp;</a> 
 ```python
+@staticmethod
 symbolic_a(i, j, k): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L145)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L145?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L172)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L172?message=Update%20Docs)]
 </div>
 Provides a symbolic representation of a bond angle
   - `i`: `Any`
@@ -136,11 +185,12 @@ Provides a symbolic representation of a bond angle
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.symbolic_t" class="docs-object-method">&nbsp;</a> 
 ```python
+@staticmethod
 symbolic_t(i, j, k, l): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L162)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L162?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L189)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L189?message=Update%20Docs)]
 </div>
 Provides a symbolic representation of a dihedral angle
   - `i`: `Any`
@@ -157,11 +207,12 @@ Provides a symbolic representation of a dihedral angle
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.symbolic_y" class="docs-object-method">&nbsp;</a> 
 ```python
+@staticmethod
 symbolic_y(i, j, k, l): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L181)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L181?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L208)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L208?message=Update%20Docs)]
 </div>
 Provides a symbolic representation of a book angle
   - `i`: `Any`
@@ -176,23 +227,36 @@ Provides a symbolic representation of a book angle
     >
 
 
-<a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.var" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.infer_coord_type" class="docs-object-method">&nbsp;</a> 
 ```python
-var(*args): 
+@classmethod
+infer_coord_type(cls, inds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L198)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L198?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L228)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L228?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.var" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+var(cls, *args, coord_type=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L244)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L244?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.reindex_symbol" class="docs-object-method">&nbsp;</a> 
 ```python
-reindex_symbol(symbol, mapping, target_symbols=None): 
+@classmethod
+reindex_symbol(cls, symbol, mapping, target_symbols=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L213)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L213?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L264)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L264?message=Update%20Docs)]
 </div>
 Changes the indices on symbols using the given mapping
   - `symbol`: `Any`
@@ -205,11 +269,12 @@ Changes the indices on symbols using the given mapping
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.lam" class="docs-object-method">&nbsp;</a> 
 ```python
-lam(i, j, k): 
+@classmethod
+lam(cls, i, j, k): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L250)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L250?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L301)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L301?message=Update%20Docs)]
 </div>
 Provides the `lambda` expression from Frederick and Woywood
   - `i`: `Any`
@@ -224,51 +289,56 @@ Provides the `lambda` expression from Frederick and Woywood
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.is_identity" class="docs-object-method">&nbsp;</a> 
 ```python
-is_identity(A): 
+@classmethod
+is_identity(cls, A): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L269)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L269?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L320)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L320?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.transpose" class="docs-object-method">&nbsp;</a> 
 ```python
-transpose(A): 
+@classmethod
+transpose(cls, A): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L280)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L280?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L331)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L331?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.dot" class="docs-object-method">&nbsp;</a> 
 ```python
-dot(a, b, axes=None): 
+@classmethod
+dot(cls, a, b, axes=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L285)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L285?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L336)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L336?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.contract" class="docs-object-method">&nbsp;</a> 
 ```python
-contract(a, axes): 
+@classmethod
+contract(cls, a, axes): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L317)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L317?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L368)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L368?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase.transform_coordinates" class="docs-object-method">&nbsp;</a> 
 ```python
-transform_coordinates(rotation, coord_vec=None, coord_name_fmt='q{id}[{num}]'): 
+@classmethod
+transform_coordinates(cls, rotation, coord_vec=None, coord_name_fmt='q{id}[{num}]'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/AnalyticModelBase.py#L323)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/AnalyticModelBase.py#L323?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L374)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L374?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -323,7 +393,7 @@ transform_coordinates(rotation, coord_vec=None, coord_name_fmt='q{id}[{num}]'):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/AnalyticModels/Helpers/AnalyticModelBase.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/AnalyticModels/Helpers/AnalyticModelBase.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers.py#L41?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers.py#L44?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

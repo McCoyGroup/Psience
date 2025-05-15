@@ -1,8 +1,8 @@
 ## <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor">AnalyticPotentialConstructor</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors.py#L19)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L19?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors.py#L20)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L20?message=Update%20Docs)]
 </div>
 
 Provides a set of symbolic potentials for use in models
@@ -21,11 +21,12 @@ Provides a set of symbolic potentials for use in models
  
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.morse" class="docs-object-method">&nbsp;</a> 
 ```python
-morse(i, j, De=None, a=None, re=None, eq=None, w=None, wx=None): 
+@classmethod
+morse(cls, i, j, De=None, a=None, re=None, eq=None, w=None, wx=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L25)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L25?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L26)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L26?message=Update%20Docs)]
 </div>
 Returns a fully symbolic form of a Morse potential
   - `:returns`: `_`
@@ -34,31 +35,34 @@ Returns a fully symbolic form of a Morse potential
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.calc_morse" class="docs-object-method">&nbsp;</a> 
 ```python
+@staticmethod
 calc_morse(De, a, r, re): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L54)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L54?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L55)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L55?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.harm" class="docs-object-method">&nbsp;</a> 
 ```python
+@staticmethod
 harm(k, x, x_e): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L58)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L58?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L59)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L59?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.harmonic" class="docs-object-method">&nbsp;</a> 
 ```python
-harmonic(*args, k=None, eq=None, qe=None): 
+@classmethod
+harmonic(cls, *args, k=None, eq=None, qe=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L61)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L61?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L62)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L62?message=Update%20Docs)]
 </div>
 Returns a fully symbolic form of a Morse potential
   - `:returns`: `_`
@@ -67,21 +71,23 @@ Returns a fully symbolic form of a Morse potential
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.lin" class="docs-object-method">&nbsp;</a> 
 ```python
+@staticmethod
 lin(k, x, x_e): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L79)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L79?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L80)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L80?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.linear" class="docs-object-method">&nbsp;</a> 
 ```python
-linear(*args, k=1, eq=None, xe=None): 
+@classmethod
+linear(cls, *args, k=1, eq=None, xe=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L82)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L82?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L83)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L83?message=Update%20Docs)]
 </div>
 Returns a fully symbolic form of a linear function
   - `:returns`: `_`
@@ -90,21 +96,23 @@ Returns a fully symbolic form of a linear function
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.pow" class="docs-object-method">&nbsp;</a> 
 ```python
+@staticmethod
 pow(k, x, x_e, n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L97)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L97?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L98)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L98?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.power" class="docs-object-method">&nbsp;</a> 
 ```python
-power(*args, k=1, eq=None, n=None, xe=None): 
+@classmethod
+power(cls, *args, k=1, eq=None, n=None, xe=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L100)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L100?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L101)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L101?message=Update%20Docs)]
 </div>
 Returns a fully symbolic form of a linear function
   - `:returns`: `_`
@@ -113,11 +121,12 @@ Returns a fully symbolic form of a linear function
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.cos" class="docs-object-method">&nbsp;</a> 
 ```python
-cos(*args, eq=None, qe=None): 
+@classmethod
+cos(cls, *args, eq=None, qe=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L116)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L116?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L117)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L117?message=Update%20Docs)]
 </div>
 Returns a fully symbolic form of cos
   - `:returns`: `_`
@@ -126,11 +135,12 @@ Returns a fully symbolic form of cos
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.sin" class="docs-object-method">&nbsp;</a> 
 ```python
-sin(*args, eq=None, qe=None): 
+@classmethod
+sin(cls, *args, eq=None, qe=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L130)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L130?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L131)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L131?message=Update%20Docs)]
 </div>
 Returns a fully symbolic form of sin
   - `:returns`: `_`
@@ -139,11 +149,12 @@ Returns a fully symbolic form of sin
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor.multiwell" class="docs-object-method">&nbsp;</a> 
 ```python
-multiwell(*args, turning_points=None, origin=None, eq=None, minimum=0, depth=None): 
+@classmethod
+multiwell(cls, *args, turning_points=None, origin=None, eq=None, minimum=0, depth=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L144)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.py#L144?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L145)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L145?message=Update%20Docs)]
 </div>
 
   - `args`: `Any`
@@ -207,7 +218,7 @@ multiwell(*args, turning_points=None, origin=None, eq=None, minimum=0, depth=Non
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L19?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L20?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -24,15 +24,15 @@
 [MolecularModel](AnalyticModels/AnalyticModelConstructors/MolecularModel.md)   
 </div>
    <div class="col" markdown="1">
-[SymbolicCaller](AnalyticModels/Helpers/SymbolicCaller.md)   
+[GeometricFunction](AnalyticModels/AnalyticModelConstructors/GeometricFunction.md)   
 </div>
    <div class="col" markdown="1">
-[AnalyticModelBase](AnalyticModels/Helpers/AnalyticModelBase.md)   
+[SymbolicCaller](AnalyticModels/Helpers/SymbolicCaller.md)   
 </div>
 </div>
   <div class="row">
    <div class="col" markdown="1">
-   
+[AnalyticModelBase](AnalyticModels/Helpers/AnalyticModelBase.md)   
 </div>
    <div class="col" markdown="1">
    
@@ -63,16 +63,17 @@
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-fb4a90" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-fb4a90"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-57cfb0" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-57cfb0"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-fb4a90" markdown="1">
- - [GmatrixElements](#GmatrixElements)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-57cfb0" markdown="1">
+ - [RedundantG](#RedundantG)
+- [GmatrixElements](#GmatrixElements)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-1882e8" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-1882e8"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-89cfd5" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-89cfd5"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-1882e8" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-89cfd5" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -81,6 +82,8 @@ will be necessary for all situations.
 All tests are wrapped in a test class
 ```python
 class AnalyticModelsTests(TestCase):
+    def setUpClass(cls) -> None:
+        np.set_printoptions(linewidth=int(1e8))
     maxDiff = None
     def check_expr(self, test, real, raise_error=True):
         if not isinstance(test, int):
@@ -99,6 +102,146 @@ class AnalyticModelsTests(TestCase):
 
  </div>
 </div>
+
+#### <a name="RedundantG">RedundantG</a>
+```python
+    def test_RedundantG(self):
+        from Psience.Molecools import Molecule
+        from Psience.Psience.AnalyticModels.AnalyticJacobianDotCalculator import InternalJacobianDisplacements
+        from Psience.AnalyticModels import AnalyticKineticEnergyConstructor, GeometricFunction
+
+        file_name = "nh3.fchk"
+        test_internals = [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1], [3, 0, 1, 2]]
+        mol = Molecule.from_file(TestManager.test_data(file_name), internals=test_internals)
+
+        coords = [
+            (0, 1)
+            , (2, 0)
+            , (0, 3)
+            , (2, 0, 1)
+            , (3, 0, 1)
+            , (2, 0, 3)
+            , (2, 1, 0)
+            , (3, 1, 0)
+            , (3, 1, 2)
+            , (1, 2)
+            , (1, 3)
+            , (2, 3)
+            , (3, 0, 1, 2)
+            , (1, 0, 2, 3)
+            , (2, 0, 3, 1)
+            , (0, 1, 3, 2)
+        ]
+
+        B = np.array([
+            (
+                nput.dist_vec(mol.coords, *inds)
+                if len(inds) == 2 else
+                nput.angle_vec(mol.coords, inds[1], inds[0], inds[2])
+                if len(inds) == 3 else
+                nput.dihed_vec(mol.coords, *inds)
+                if len(inds) == 4 else
+                nput.book_vec(mol.coords, *inds)
+                if len(inds) == 5 and inds[-1] == -1 else
+                None
+            )
+            for inds in coords
+        ])
+
+        M = np.diag(np.repeat(1 / np.sqrt(mol.atomic_masses)[:, np.newaxis], 3))
+
+        # 2.41247616e-05
+        # raise Exception(
+        #     (lambda b: b @ M @ M @ b.T)(np.array([
+        #             nput.angle_vec(mol.coords, 1, 2, 0),
+        #             nput.dihed_vec(mol.coords, 2, 0, 3, 1)
+        #         ])),
+        #     # AnalyticKineticEnergyConstructor.g(
+        #     #     (2, 0), (3, 0, 1, 2),
+        #     #     return_function=True,
+        #     #     method='direct'
+        #     # )(mol.atomic_masses, mol.coords),
+        #     AnalyticKineticEnergyConstructor.g(
+        #         (2, 1, 0), (2, 0, 3, 1),
+        #         return_function=True,
+        #         method='direct'
+        #     )(mol.atomic_masses, mol.coords)
+        # )
+
+        raise Exception(
+            AnalyticKineticEnergyConstructor.g(
+                    (1, 3), (1, 2, 3),
+                    method='direct'
+                )
+        )
+
+        # raise Exception(
+        #     (lambda b:b@M@M@b.T)(np.array([
+        #         nput.angle_vec(mol.coords, 0, 3, 1),
+        #         nput.dihed_vec(mol.coords, 3, 0, 1, 2)
+        #     ])),
+        #     # AnalyticKineticEnergyConstructor.g(
+        #     #     (3, 0), (3, 0),
+        #     #     return_function=True,
+        #     #     method='direct'
+        #     # )(mol.atomic_masses, mol.coords),
+        #     # AnalyticKineticEnergyConstructor.g(
+        #     #     (3, 0, 1, 2), (3, 0, 1, 2),
+        #     #     return_function=True,
+        #     #     method='direct'
+        #     # )(mol.atomic_masses, mol.coords),
+        #     AnalyticKineticEnergyConstructor.g(
+        #         (2, 3), (3, 0, 1, 2),
+        #         return_function=True,
+        #         method='direct'
+        #     )(mol.atomic_masses, mol.coords),
+        #     # AnalyticKineticEnergyConstructor.g(
+        #     #     (2, 3), (3, 0, 1, 2),
+        #     #     method='direct'
+        #     # ),
+        #     # AnalyticKineticEnergyConstructor.g(
+        #     #     (3, 0, 1), (3, 0, 1, 2),
+        #     #     return_function=True,
+        #     #     method='direct'
+        #     # )(mol.atomic_masses, mol.coords),
+        #     # AnalyticKineticEnergyConstructor.g(
+        #     #     (3, 0, 1), (3, 0, 1, 2),
+        #     #     method='direct'
+        #     # )
+        # )
+
+        # print(B)
+        # for c in coords:
+        #     print(
+        #         [
+        #             GeometricFunction.from_expr(e.as_expr())(
+        #                 mol.atomic_masses, mol.coords
+        #             )
+        #             for e in InternalJacobianDisplacements.displacement_vectors(c)
+        #         ]
+        #     )
+        # raise Exception(...)
+
+        B = B @ M
+
+        g_direct = B @ B.T
+
+        g_red = AnalyticKineticEnergyConstructor.g_matrix(
+            coords,
+            return_function=True,
+            method='direct'
+        )(mol.atomic_masses, mol.coords)
+
+        # print(mol.g_matrix)
+        print((g_direct,))
+        print((g_red,))
+        print(np.round(g_red - g_direct, 8))
+
+        print(np.linalg.eigvalsh(g_direct))
+        print(np.linalg.eigvalsh(g_red))
+
+        raise Exception(...)
+```
 
 #### <a name="GmatrixElements">GmatrixElements</a>
 ```python

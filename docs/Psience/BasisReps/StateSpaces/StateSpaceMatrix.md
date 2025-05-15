@@ -1,8 +1,8 @@
 ## <a id="Psience.BasisReps.StateSpaces.StateSpaceMatrix">StateSpaceMatrix</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces.py#L4397)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L4397?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces.py#L4534)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L4534?message=Update%20Docs)]
 </div>
 
 A `SparseArray` that holds onto a `BasisStateSpace` that keeps track of the
@@ -30,8 +30,8 @@ We'll need to test to see how slow
 __init__(self, initial_basis, initial_vals=None, column_space=None, symmetric=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4408)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4408?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4545)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4545?message=Update%20Docs)]
 </div>
 
   - `initial_basis`: `BasisStateSpace | RepresentationBasis`
@@ -44,8 +44,8 @@ __init__(self, initial_basis, initial_vals=None, column_space=None, symmetric=Tr
 shape(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4467)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4467?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4604)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4604?message=Update%20Docs)]
 </div>
 
 
@@ -55,8 +55,8 @@ shape(self):
 basis(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4473)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4473?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4610)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4610?message=Update%20Docs)]
 </div>
 Returns the basis for the matrix rep
   - `:returns`: `_`
@@ -69,8 +69,8 @@ Returns the basis for the matrix rep
 brakets(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4483)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4483?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4620)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4620?message=Update%20Docs)]
 </div>
 Returns the BraKetSpace for the held indices
   - `:returns`: `_`
@@ -79,11 +79,12 @@ Returns the BraKetSpace for the held indices
 
 <a id="Psience.BasisReps.StateSpaces.StateSpaceMatrix.identity_from_space" class="docs-object-method">&nbsp;</a> 
 ```python
-identity_from_space(space, column_space=None): 
+@classmethod
+identity_from_space(cls, space, column_space=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4494)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4494?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L4631)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L4631?message=Update%20Docs)]
 </div>
 Returns a StateSpaceMatrix where the diagonal is filled with 1s
   - `space`: `Any`
@@ -99,8 +100,8 @@ Returns a StateSpaceMatrix where the diagonal is filled with 1s
 extend_basis(self, states, extend_columns=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4532)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4532?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4669)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4669?message=Update%20Docs)]
 </div>
 Extends the held state space and resizes the held array if need be
   - `states`: `BasisStateSpace`
@@ -114,8 +115,8 @@ Extends the held state space and resizes the held array if need be
 compute_values(self, func, brakets): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4615)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4615?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4752)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4752?message=Update%20Docs)]
 </div>
 Computes new values into the held `SparseArray` based on the function and brakets provided
 and returns the entire array of values
@@ -132,8 +133,8 @@ and returns the entire array of values
 dot(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4667)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4667?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4804)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4804?message=Update%20Docs)]
 </div>
 Performs a dot product between the held SparseArray and another
 StateSpaceMatrix
@@ -148,8 +149,8 @@ StateSpaceMatrix
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4703)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4703?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4840)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4840?message=Update%20Docs)]
 </div>
 
 
@@ -158,8 +159,8 @@ __getitem__(self, item):
 __setitem__(self, item, vals): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4714)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4714?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4851)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4851?message=Update%20Docs)]
 </div>
 
 
@@ -168,8 +169,8 @@ __setitem__(self, item, vals):
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4725)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4725?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4862)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces/StateSpaceMatrix.py#L4862?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -177,103 +178,8 @@ __repr__(self):
 
 
 
-## Examples
 
 
-
-
-
-
-
-
-
-
-
-
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-340e75" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-340e75"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-340e75" markdown="1">
- - [BasisRepMatrixOps](#BasisRepMatrixOps)
-- [ImprovedRepresentations](#ImprovedRepresentations)
-
-<div class="collapsible-section">
- <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-5da05d" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-5da05d"><i class="fa fa-chevron-down"></i></a>
- </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-5da05d" markdown="1">
- 
-Before we can run our examples we should get a bit of setup out of the way.
-Since these examples were harvested from the unit tests not all pieces
-will be necessary for all situations.
-
-All tests are wrapped in a test class
-```python
-class BasisSetTests(TestCase):
-    def get_states(self, n_quanta, n_modes, max_quanta=None):
-        return [np.flip(x) for x in BasisStateSpace.from_quanta(
-            HarmonicOscillatorProductBasis(n_modes),
-            range(n_quanta)
-        ).excitations]
-```
-
- </div>
-</div>
-
-#### <a name="BasisRepMatrixOps">BasisRepMatrixOps</a>
-```python
-    def test_BasisRepMatrixOps(self):
-
-        n = 15 # totally meaningless these days
-        m = 4
-        basis = HarmonicOscillatorProductBasis((n,) * m)
-
-        mat = StateSpaceMatrix(basis)
-
-        self.assertEquals(mat.array.shape[0], 0)
-
-        states = BasisStateSpace.from_quanta(basis, range(10))
-        brakets = BraKetSpace(states, states)
-        vals = np.ones(len(brakets))
-        mat_2 = StateSpaceMatrix(brakets, vals)
-
-        def wat(state_space):
-            return np.ones(len(state_space))
-        sub_brakets = BasisStateSpace.from_quanta(basis, range(4)).get_representation_brakets()
-        mat2_vals = mat_2.compute_values(wat, sub_brakets)
-
-        self.assertEquals(mat2_vals.tolist(), mat_2[sub_brakets].tolist())
-```
-
-#### <a name="ImprovedRepresentations">ImprovedRepresentations</a>
-```python
-    def test_ImprovedRepresentations(self):
-        n = 15  # totally meaningless these days
-        m = 4
-        basis = HarmonicOscillatorProductBasis((n,) * m)
-
-        x_rep = basis.representation('x', coeffs=np.ones((m,)))
-        initial_space = basis.get_state_space(range(4))
-        initial_states = StateSpaceMatrix.identity_from_space(initial_space)
-
-        x = x_rep.apply(initial_states)
-        x2 = x_rep.apply(x)
-        # plt.ArrayPlot(x.array.asarray(), aspect_ratio=x.shape[0]/x.shape[1], image_size=300)
-        # plt.ArrayPlot(x2.array.asarray(), aspect_ratio=x2.shape[0]/x2.shape[1], image_size=300).show()
-
-        x2_rep = basis.representation('x', 'x', coeffs=np.ones((m, m)))
-        x22 = x2_rep.apply(initial_states)
-
-        plt.ArrayPlot(x2.array.asarray(), aspect_ratio=x2.shape[0]/x2.shape[1], image_size=200)
-        plt.ArrayPlot(x22.array.asarray(), aspect_ratio=x22.shape[0]/x22.shape[1], image_size=200).show()
-
-        self.assertTrue(np.allclose(x2.array.asarray(), x22.array.asarray()))
-```
-
- </div>
-</div>
 
 
 
@@ -319,7 +225,7 @@ class BasisSetTests(TestCase):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/StateSpaces/StateSpaceMatrix.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/StateSpaces/StateSpaceMatrix.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L4397?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/BasisReps/StateSpaces.py#L4534?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
