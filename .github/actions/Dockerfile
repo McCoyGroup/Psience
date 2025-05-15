@@ -17,8 +17,7 @@ LABEL "com.github.actions.color"="orange"
 
 RUN \
     pip install --upgrade pip && \
-    pip install git+https://github.com/McCoyGroup/McUtils.git \
-                git+https://github.com/McCoyGroup/Psience.git
+    pip install git+https://github.com/McCoyGroup/McUtils.git
 
 RUN \
     cd /home && \
