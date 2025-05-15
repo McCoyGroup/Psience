@@ -9,18 +9,7 @@ There are also a number of helper packages implementing things like a wavefuncti
 and spectrum handling.
 """
 
-__all__ = [
-    "Molecools",
-    "Wavefun",
-    "DVR",
-    "VPT2",
-    "DGB",
-    "Modes",
-    "Vibronic",
-    "Spectra",
-    "Data",
-    "AnalyticModels"
-]
+__all__ = []
 
 from . import Molecools
 __all__ += ["Molecools"]
