@@ -17,12 +17,13 @@ LABEL "com.github.actions.color"="orange"
 
 RUN \
     pip install --upgrade pip && \
-    pip install git+https://github.com/McCoyGroup/Psience.git \
-                git+https://github.com/McCoyGroup/McUtils.git
+    pip install git+https://github.com/McCoyGroup/McUtils.git \
+                git+https://github.com/McCoyGroup/Psience.git
 
 RUN \
     cd /home && \
     git config --system --add safe.directory /github/workspace && \
+    git clone https://github.com/McCoyGroup/McUtils.git && \
     git clone https://github.com/McCoyGroup/Psience.git
 
 ENTRYPOINT ["/bin/bash", "/home/Psience/ci/run_ci.sh"]
