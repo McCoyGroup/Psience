@@ -22,7 +22,7 @@ RUN \
 RUN \
     cd /home && \
     git config --system --add safe.directory /github/workspace && \
-    git clone https://github.com/McCoyGroup/McUtils.git &&
+    git clone https://github.com/McCoyGroup/McUtils.git && \
     git clone https://github.com/McCoyGroup/Psience.git
 
 ENTRYPOINT ["/bin/bash", "/home/Psience/ci/run_ci.sh"]
