@@ -13,6 +13,10 @@ import Psience.Molecools as Molecools
 import Psience.Wavefun as Wavefun
 import Psience.DVR as DVR
 import Psience.VPT2 as VPT2
+import Psience.DGB as DGB
+import Psience.Modes as Modes
+import Psience.Spectra as Spectra
+import Psience.Vibronic as Vibronic
 import Psience.Data as Data
 import Psience.BasisReps as BasisReps
 import Psience.AnalyticModels as AnalyticModels
@@ -23,9 +27,11 @@ __all__ = [
     "Wavefun",
     "DVR",
     "VPT2",
+    "DGB",
+    "Modes",
+    "Vibronic",
+    "Spectra",
     "Data",
     "BasisReps",
-    "Spectra",
-    "AnalyticModels",
-    "Modes"
+    "AnalyticModels"
 ]

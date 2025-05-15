@@ -651,10 +651,14 @@ class Molecule(AbstractMolecule):
         atoms = [ats[i] for i in pos]
         masses = self.masses[pos,]
         coords = self.coords[..., pos, :]
-        pos = set(pos)
+        pos = {p:i for i,p in enumerate(pos)}
         if self.bonds is not None:
             bonds = [
-                b for b in self.bonds
+                (
+                    [pos[b[0]], pos[b[1]]]
+                        if len(b) == 2 else
+                    [pos[b[0]], pos[b[1]], b[2]]
+                ) for b in self.bonds
                 if b[0] in pos and b[1] in pos
             ]
         else:
@@ -857,8 +861,9 @@ class Molecule(AbstractMolecule):
                  reembed=True,
                  **opts):
         opts = dev.OptionsSet(opts)
-        optimizer_opts = opts.filter(None, props=EnergyEvaluator.get_optimizer_options())
-        eval_opts = opts.exclude(None, props=EnergyEvaluator.get_optimizer_options())
+        base_opts = EnergyEvaluator.get_optimizer_options() + ('force_field_type',)
+        optimizer_opts = opts.filter(None, props=base_opts)
+        eval_opts = opts.exclude(None, props=base_opts)
         evaluator = self.get_energy_evaluator(evaluator, **eval_opts)
         conv = UnitsData.convert("BohrRadius", evaluator.distance_units)
         opt_params = dict(
@@ -1999,9 +2004,11 @@ class Molecule(AbstractMolecule):
             raise ValueError(f"couldn't get `rdmol` for {mol}")
 
     @classmethod
-    def _to_xyz_string(cls, mol, comment=None, num_prec=8):
+    def _to_xyz_string(cls, mol, comment=None, units=None, num_prec=8):
         ats = mol.atoms
         crds = mol.coords
+        if units is not None:
+            crds = crds * UnitsData.convert("BohrRadius", units)
         num_ats = len(ats)
         x_width = 1 + np.ceil(np.max(np.log10(np.abs(crds.flatten()))))
         total_width = int(2 + x_width + num_prec)
@@ -2009,7 +2016,7 @@ class Molecule(AbstractMolecule):
             str(num_ats),
             repr(mol) if comment is None else comment
         ] + [
-            f"{at}  {c[0]:>{total_width}.{num_prec}f} {c[1]:>{total_width}.{num_prec}f} {c[2]:>{total_width}.{num_prec}f}"
+            f"{at:<3} {c[0]:>{total_width}.{num_prec}f} {c[1]:>{total_width}.{num_prec}f} {c[2]:>{total_width}.{num_prec}f}"
             for at, c in zip(ats, crds)
         ])
 
@@ -2061,7 +2068,7 @@ class Molecule(AbstractMolecule):
         import os
 
         format_dispatcher = self.get_file_export_dispatchers()
-        string_format_dispatcher = self.get_string_format_dispatchers()
+        string_format_dispatcher = self.get_string_export_dispatchers()
 
         if mode == None:
             path, ext = os.path.splitext(file)
@@ -2072,7 +2079,7 @@ class Molecule(AbstractMolecule):
             exporter = format_dispatcher[mode]
             return exporter(self, file, **opts)
         elif mode in string_format_dispatcher:
-            exporter = format_dispatcher[mode]
+            exporter = string_format_dispatcher[mode]
             data = exporter(self, **opts)
             return dev.write_file(file, data)
         else:
