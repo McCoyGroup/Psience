@@ -9,19 +9,6 @@ There are also a number of helper packages implementing things like a wavefuncti
 and spectrum handling.
 """
 
-import Psience.Molecools as Molecools
-import Psience.Wavefun as Wavefun
-import Psience.DVR as DVR
-import Psience.VPT2 as VPT2
-import Psience.DGB as DGB
-import Psience.Modes as Modes
-import Psience.Spectra as Spectra
-import Psience.Vibronic as Vibronic
-import Psience.Data as Data
-import Psience.BasisReps as BasisReps
-import Psience.AnalyticModels as AnalyticModels
-
-# getting the full list of symbols explicitly in an __all__ variable
 __all__ = [
     "Molecools",
     "Wavefun",
@@ -32,6 +19,24 @@ __all__ = [
     "Vibronic",
     "Spectra",
     "Data",
-    "BasisReps",
     "AnalyticModels"
 ]
+
+from . import Molecools
+__all__ += ["Molecools"]
+from . import DVR
+__all__ += ["DVR"]
+from . import VPT2
+__all__ += ["VPT2"]
+from . import DGB
+__all__ += ["DGB"]
+from . import Modes
+__all__ += ["Modes"]
+from . import Vibronic
+__all__ += ["Vibronic"]
+from . import Spectra
+__all__ += ["Spectra"]
+from . import Data
+__all__ += ["Data"]
+from . import AnalyticModels
+__all__ += ["AnalyticModels"]
