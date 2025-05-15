@@ -50,10 +50,10 @@ and spectrum handling.
 </div>
   <div class="row">
    <div class="col" markdown="1">
-[BasisReps](BasisReps.md)   
+[AnalyticModels](AnalyticModels.md)   
 </div>
    <div class="col" markdown="1">
-[AnalyticModels](AnalyticModels.md)   
+   
 </div>
    <div class="col" markdown="1">
    
