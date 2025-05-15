@@ -1,5 +1,5 @@
 # GitHub Actions container to support doing CI
-FROM python:3.8-slim
+FROM python:3.9-slim
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends git \
