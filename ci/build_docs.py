@@ -26,4 +26,6 @@ doc_config = {
     'examples_directory': os.path.join(root, 'ci',  'docs', 'examples'),
     'tests_directory': os.path.join(root, "ci", "tests")
 }
+
+ExamplesParser.IGNORE_UNHANDLED_STATEMENTS = True
 DocBuilder(**doc_config).build()
