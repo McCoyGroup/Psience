@@ -7,7 +7,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 LABEL "name"="McCoyGroup/PsienceCI"
-LABEL "maintainer"="Mark Boyer <b3m2a1uw.edu>"
+LABEL "maintainer"="Mark Boyer <maboyer@tamu.edu>"
 LABEL "version"="0.0.1"
 
 LABEL "com.github.actions.name"="Psience Continuous Integration"
@@ -16,14 +16,13 @@ LABEL "com.github.actions.icon"="git"
 LABEL "com.github.actions.color"="orange"
 
 RUN \
-    cd /home && \
-    git config --system --add safe.directory /github/workspace && \
-    git clone https://github.com/McCoyGroup/Peeves.git && \
-    git clone https://github.com/McCoyGroup/McUtils.git && \
-    git clone https://github.com/McCoyGroup/Psience.git
+    pip install --upgrade pip && \
+    pip install git+https://github.com/McCoyGroup/Psience.git
 
 RUN \
-    cd /home/Psience && \
-    pip install -r requirements.txt
+    cd /home && \
+    git config --system --add safe.directory /github/workspace && \
+    git clone https://github.com/McCoyGroup/McUtils.git &&
+    git clone https://github.com/McCoyGroup/Psience.git
 
 ENTRYPOINT ["/bin/bash", "/home/Psience/ci/run_ci.sh"]
