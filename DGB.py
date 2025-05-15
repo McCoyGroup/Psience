@@ -6,3 +6,4 @@ Mostly useful during development
 from .Psience.DGB import *
 from .Psience.DGB import __all__
 from .Psience.DGB import __doc__
+__identifier__ = 'Psience.Psience.DGB'

@@ -6,3 +6,4 @@ Mostly useful during development
 from .Psience.Spectra import *
 from .Psience.Spectra import __all__
 from .Psience.Spectra import __doc__
+__identifier__ = 'Psience.Psience.Spectra'

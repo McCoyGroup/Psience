@@ -6,3 +6,4 @@ Mostly useful during development
 from .Psience.Vibronic import *
 from .Psience.Vibronic import __all__
 from .Psience.Vibronic import __doc__
+__identifier__ = 'Psience.Psience.Vibronic'

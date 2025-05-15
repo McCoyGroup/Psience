@@ -6,3 +6,4 @@ Mostly useful during development
 from .Psience.AnalyticModels import *
 from .Psience.AnalyticModels import __all__
 from .Psience.AnalyticModels import __doc__
+__identifier__ = 'Psience.Psience.AnalyticalModels'
