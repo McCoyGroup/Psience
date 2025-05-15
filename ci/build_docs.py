@@ -1,4 +1,4 @@
-from Peeves.Doc import *
+from McUtils.Docs import *
 import os, sys
 
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
