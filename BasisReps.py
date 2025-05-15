@@ -6,3 +6,4 @@ Mostly useful during development
 from .Psience.BasisReps import *
 from .Psience.BasisReps import __all__
 from .Psience.BasisReps import __doc__
+__identifier__ = 'Psience.Psience.BasisReps'

@@ -45,7 +45,6 @@ if [[ "$build_docs" == "true" ]]; then
   if [[ "$branch" == "master" ]]; then
     # build docs and push
     PYTHONPATH=/home python3 Psience/ci/build_docs.py
-#    rm -rf Psience/docs
     cp -r Psience/ci/docs Psience/
     rm -rf Psience/ci/docs/Psience
     rm Psience/ci/docs/_config.yml

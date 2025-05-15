@@ -6,3 +6,4 @@ Mostly useful during development
 from .Psience.DVR import *
 from .Psience.DVR import __all__
 from .Psience.DVR import __doc__
+__identifier__ = 'Psience.Psience.DVR'

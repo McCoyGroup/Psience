@@ -6,3 +6,4 @@ Mostly useful during development
 from .Psience.Modes import *
 from .Psience.Modes import __all__
 from .Psience.Modes import __doc__
+__identifier__ = 'Psience.Psience.Modes'
