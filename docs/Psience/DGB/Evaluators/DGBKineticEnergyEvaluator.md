@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.Evaluators.DGBKineticEnergyEvaluator">DGBKineticEnergyEvaluator</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Evaluators.py#L930)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Evaluators.py#L930?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators.py#L930)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L930?message=Update%20Docs)]
 </div>
 
 
@@ -24,8 +24,8 @@
 evaluate_ke(self, overlap_data: 'OverlapGaussianData', logger=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Evaluators/DGBKineticEnergyEvaluator.py#L1126)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Evaluators/DGBKineticEnergyEvaluator.py#L1126?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators/DGBKineticEnergyEvaluator.py#L1126)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators/DGBKineticEnergyEvaluator.py#L1126?message=Update%20Docs)]
 </div>
 
 
@@ -35,8 +35,8 @@ evaluate_ke(self, overlap_data: 'OverlapGaussianData', logger=None, **opts):
 evaluate_diagonal_rotated_momentum_contrib(self, overlap_data: 'OverlapGaussianData', masses): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1130)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1130?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1130)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1130?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -91,7 +91,7 @@ evaluate_diagonal_rotated_momentum_contrib(self, overlap_data: 'OverlapGaussianD
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Evaluators/DGBKineticEnergyEvaluator.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Evaluators/DGBKineticEnergyEvaluator.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Evaluators.py#L930?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L930?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

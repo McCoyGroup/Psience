@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.Evaluators.DGBEvaluator">DGBEvaluator</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Evaluators.py#L334)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Evaluators.py#L334?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators.py#L334)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L334?message=Update%20Docs)]
 </div>
 
 An object that supports evaluating matrix elements in a distributed Gaussian basis.
@@ -26,8 +26,8 @@ Provides support for integrating a function via quadrature or as an expansion in
 get_inverse_covariances(cls, alphas, transformations): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L340)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L340?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L340)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L340?message=Update%20Docs)]
 </div>
 Transforms the alphas into proper inverse covariance matrices.
 Chosen so that in the case that the transformations, Q, diagonalize S we can write
@@ -42,8 +42,8 @@ QT S Q = A
 get_covariances(cls, alphas, transformations): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L363)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L363?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L363)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L363?message=Update%20Docs)]
 </div>
 Transforms the alphas into proper inverse covariance matrices.
 Chosen so that in the case that the transformations, Q, diagonalize S we can write
@@ -58,8 +58,8 @@ QT S Q = A
 get_momentum_vectors(cls, phases, transformations): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L386)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L386?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L386)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L386?message=Update%20Docs)]
 </div>
 Transforms the momenta so that they're aligned along the Gaussian axes
   - `:returns`: `_`
@@ -72,8 +72,8 @@ Transforms the momenta so that they're aligned along the Gaussian axes
 get_phase_vectors(cls, momenta, transformations): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L406)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L406?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L406)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L406?message=Update%20Docs)]
 </div>
 Transforms the momenta so that they're aligned along the Gaussian axes
   - `:returns`: `_`
@@ -86,8 +86,8 @@ Transforms the momenta so that they're aligned along the Gaussian axes
 get_overlap_gaussians(cls, centers, alphas, transformations, momenta, *, chunk_size=None, rows_cols=None, logger=None, parallelizer=None) -> 'OverlapGaussianData': 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L426)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L426?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L426)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L426?message=Update%20Docs)]
 </div>
 
 
@@ -97,8 +97,8 @@ get_overlap_gaussians(cls, centers, alphas, transformations, momenta, *, chunk_s
 poch(cls, n, m): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L445)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L445?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L445)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L445?message=Update%20Docs)]
 </div>
 
 
@@ -108,8 +108,8 @@ poch(cls, n, m):
 polyint_1D(cls, centers, alphas, n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L460)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L460?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L460)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L460?message=Update%20Docs)]
 </div>
 
 
@@ -119,8 +119,8 @@ polyint_1D(cls, centers, alphas, n):
 momentum_coeffient(cls, k, n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L471)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L471?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L471)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L471?message=Update%20Docs)]
 </div>
 
 
@@ -130,8 +130,8 @@ momentum_coeffient(cls, k, n):
 momentum_integral(cls, p, a, k): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L480)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L480?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L480)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L480?message=Update%20Docs)]
 </div>
 
 
@@ -141,8 +141,8 @@ momentum_integral(cls, p, a, k):
 simple_poly_int(cls, n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L490)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L490?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L490)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L490?message=Update%20Docs)]
 </div>
 
 
@@ -152,8 +152,8 @@ simple_poly_int(cls, n):
 tensor_expansion_integrate(cls, npts, derivs, overlap_data: 'OverlapGaussianData', expansion_type='multicenter', logger=None, reweight=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L493)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L493?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L493)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L493?message=Update%20Docs)]
 </div>
 provides an integral from a polynomial expansion with derivs as an expansion in tensors
   - `npts`: `Any`
@@ -182,8 +182,8 @@ provides an integral from a polynomial expansion with derivs as an expansion in 
 quad_weight_eval(cls, function, d_chunk, w_chunk, ndim, centers, squa): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L648)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L648?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L648)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L648?message=Update%20Docs)]
 </div>
 
 
@@ -193,8 +193,8 @@ quad_weight_eval(cls, function, d_chunk, w_chunk, ndim, centers, squa):
 quad_nd(cls, centers, alphas, function, flatten=False, degree=3, chunk_size=1000000, normalize=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L667)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L667?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L667)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L667?message=Update%20Docs)]
 </div>
 N-dimensional quadrature
   - `centers`: `Any`
@@ -215,8 +215,8 @@ N-dimensional quadrature
 rotated_gaussian_quadrature(cls, function, alphas, centers, rotations, inverse, momenta, normalize=True, degree=2): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L784)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L784?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L784)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L784?message=Update%20Docs)]
 </div>
 
 
@@ -226,8 +226,8 @@ rotated_gaussian_quadrature(cls, function, alphas, centers, rotations, inverse, 
 quad_integrate(cls, function, overlap_data: 'OverlapGaussianData', degree=2, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L821)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L821?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L821)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L821?message=Update%20Docs)]
 </div>
 Integrate potential over all pairs of Gaussians at once
   - `degree`: `Any`
@@ -242,8 +242,8 @@ Integrate potential over all pairs of Gaussians at once
 evaluate_overlap(cls, overlap_data: 'OverlapGaussianData', logger=None, return_prefactor=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L926)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L926?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L926)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L926?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -298,7 +298,7 @@ evaluate_overlap(cls, overlap_data: 'OverlapGaussianData', logger=None, return_p
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Evaluators/DGBEvaluator.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Evaluators/DGBEvaluator.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Evaluators.py#L334?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L334?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

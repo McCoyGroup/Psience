@@ -1,7 +1,7 @@
 # <a id="Psience.DVR.DVR">Psience.DVR.DVR</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/DVR/__init__.py#L1)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/DVR/__init__.py#L1?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DVR.py#L1)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DVR.py#L1?message=Update%20Docs)]
 </div>
     
 
@@ -41,9 +41,9 @@
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-d4e2b8" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-d4e2b8"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-d5c0a7" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-d5c0a7"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-d4e2b8" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-d5c0a7" markdown="1">
  - [1D](#1D)
 - [energies_1D](#energies_1D)
 - [energies_2D](#energies_2D)
@@ -60,9 +60,9 @@
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-0c2481" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-0c2481"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-337d7f" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-337d7f"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-0c2481" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-337d7f" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -524,7 +524,7 @@ class DVRTests(TestCase):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/DVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/DVR.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/DVR/__init__.py#L1?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DVR.py#L1?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

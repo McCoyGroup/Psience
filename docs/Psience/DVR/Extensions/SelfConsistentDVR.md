@@ -1,8 +1,8 @@
 ## <a id="Psience.DVR.Extensions.SelfConsistentDVR">SelfConsistentDVR</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Extensions.py#L32)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Extensions.py#L32?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions.py#L32)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L32?message=Update%20Docs)]
 </div>
 
 
@@ -24,8 +24,8 @@
 __init__(self, base_dvr: 'DirectProductDVR', **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Extensions/SelfConsistentDVR.py#L33)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Extensions/SelfConsistentDVR.py#L33?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions.py#L33)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L33?message=Update%20Docs)]
 </div>
 
 
@@ -34,8 +34,8 @@ __init__(self, base_dvr: 'DirectProductDVR', **opts):
 create_grid_vals(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Extensions/SelfConsistentDVR.py#L46)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Extensions/SelfConsistentDVR.py#L46?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L46)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L46?message=Update%20Docs)]
 </div>
 
 
@@ -44,8 +44,8 @@ create_grid_vals(self):
 create_solvers(self, grid, pe): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Extensions/SelfConsistentDVR.py#L56)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Extensions/SelfConsistentDVR.py#L56?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L56)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L56?message=Update%20Docs)]
 </div>
 
 
@@ -54,8 +54,8 @@ create_solvers(self, grid, pe):
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Extensions/SelfConsistentDVR.py#L105)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Extensions/SelfConsistentDVR.py#L105?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L105)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L105?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -110,7 +110,7 @@ __repr__(self):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/Extensions/SelfConsistentDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/Extensions/SelfConsistentDVR.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Extensions.py#L32?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L32?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

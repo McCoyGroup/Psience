@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.Interpolation.DGBCartesianWatsonInterpolator">DGBCartesianWatsonInterpolator</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Interpolation.py#L408)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation.py#L408?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Interpolation.py#L408)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation.py#L408?message=Update%20Docs)]
 </div>
 
 
@@ -24,8 +24,8 @@
 __init__(self, centers, potential_derivatives, modes, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Interpolation/DGBCartesianWatsonInterpolator.py#L409)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation/DGBCartesianWatsonInterpolator.py#L409?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Interpolation.py#L409)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation.py#L409?message=Update%20Docs)]
 </div>
 
 
@@ -34,8 +34,8 @@ __init__(self, centers, potential_derivatives, modes, **opts):
 __call__(self, points, deriv_order=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Interpolation/DGBCartesianWatsonInterpolator.py#L418)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation/DGBCartesianWatsonInterpolator.py#L418?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Interpolation/DGBCartesianWatsonInterpolator.py#L418)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation/DGBCartesianWatsonInterpolator.py#L418?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -90,7 +90,7 @@ __call__(self, points, deriv_order=None, **kwargs):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Interpolation/DGBCartesianWatsonInterpolator.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Interpolation/DGBCartesianWatsonInterpolator.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation.py#L408?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation.py#L408?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

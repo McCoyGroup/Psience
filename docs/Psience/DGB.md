@@ -1,7 +1,7 @@
 # <a id="Psience.DGB">Psience.DGB</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/__init__.py#L1)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/__init__.py#L1?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/__init__.py#L1)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/__init__.py#L1?message=Update%20Docs)]
 </div>
     
 Provides an implementation of the distributed Gaussian basis method of Light and I think Hamilton?
@@ -119,9 +119,9 @@ extending an implementation by Jeremy Park
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-738057" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-738057"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-793325" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-793325"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-738057" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-793325" markdown="1">
  - [Harmonic](#Harmonic)
 - [Morse](#Morse)
 - [SampleRotated](#SampleRotated)
@@ -146,9 +146,9 @@ extending an implementation by Jeremy Park
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-3041e8" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-3041e8"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-94c9b1" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-94c9b1"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-3041e8" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-94c9b1" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -4734,7 +4734,7 @@ State       Frequency    Intensity       Frequency    Intensity
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/__init__.py#L1?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/__init__.py#L1?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

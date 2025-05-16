@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Wavefunctions.PerturbationTheoryWavefunctions">PerturbationTheoryWavefunctions</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions.py#L56)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions.py#L56?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L56)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L56?message=Update%20Docs)]
 </div>
 
 These things are fed the first and second order corrections
@@ -27,8 +27,8 @@ DipolePartitioningMethod: DipolePartitioningMethod
 __init__(self, mol, basis, corrections, initial_states=None, modes=None, mode_selection=None, logger=None, checkpoint=None, results=None, operator_settings=None, expansion_options=None, degenerate_transformation_layout=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L61)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L61?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions.py#L61)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L61?message=Update%20Docs)]
 </div>
 
   - `mol`: `Molecule`
@@ -44,8 +44,8 @@ __init__(self, mol, basis, corrections, initial_states=None, modes=None, mode_se
 get_dimension(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L118)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L118?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L118)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L118?message=Update%20Docs)]
 </div>
 
 
@@ -55,8 +55,8 @@ get_dimension(self):
 energies(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L121)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L121?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L121)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L121?message=Update%20Docs)]
 </div>
 
 
@@ -65,8 +65,8 @@ energies(self):
 to_state(self, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L129)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L129?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L129)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L129?message=Update%20Docs)]
 </div>
 
 
@@ -76,8 +76,8 @@ to_state(self, serializer=None):
 from_state(cls, data, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L142)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L142?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L142)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L142?message=Update%20Docs)]
 </div>
 
 
@@ -87,8 +87,8 @@ from_state(cls, data, serializer=None):
 degenerate_transformation(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L154)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L154?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L154)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L154?message=Update%20Docs)]
 </div>
 
 
@@ -98,8 +98,8 @@ degenerate_transformation(self):
 initial_state_indices(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L158)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L158?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L158)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L158?message=Update%20Docs)]
 </div>
 
 
@@ -108,8 +108,8 @@ initial_state_indices(self):
 energies_to_order(self, order=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L167)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L167?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L167)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L167?message=Update%20Docs)]
 </div>
 
 
@@ -119,8 +119,8 @@ energies_to_order(self, order=None):
 deperturbed_energies(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L171)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L171?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L171)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L171?message=Update%20Docs)]
 </div>
 
 
@@ -129,8 +129,8 @@ deperturbed_energies(self):
 deperturbed_frequencies(self, order=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L174)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L174?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L174)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L174?message=Update%20Docs)]
 </div>
 
 
@@ -140,8 +140,8 @@ deperturbed_frequencies(self, order=None):
 order(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L180)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L180?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L180)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L180?message=Update%20Docs)]
 </div>
 
 
@@ -150,8 +150,8 @@ order(self):
 expectation(self, operator, other=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L187)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L187?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L187)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L187?message=Update%20Docs)]
 </div>
 
 
@@ -161,8 +161,8 @@ expectation(self, operator, other=None):
 zero_order_energies(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L190)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L190?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L190)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L190?message=Update%20Docs)]
 </div>
 
 
@@ -171,8 +171,8 @@ zero_order_energies(self):
 get_M0(self, mu_0): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L194)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L194?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L194)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L194?message=Update%20Docs)]
 </div>
 
 
@@ -181,8 +181,8 @@ get_M0(self, mu_0):
 get_M1(self, mu_1): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L199)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L199?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L199)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L199?message=Update%20Docs)]
 </div>
 
 
@@ -191,8 +191,8 @@ get_M1(self, mu_1):
 get_M2(self, mu_2): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L204)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L204?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L204)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L204?message=Update%20Docs)]
 </div>
 
 
@@ -201,8 +201,8 @@ get_M2(self, mu_2):
 get_M3(self, mu_3): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L210)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L210?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L210)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L210?message=Update%20Docs)]
 </div>
 
 
@@ -211,8 +211,8 @@ get_M3(self, mu_3):
 get_Mi(self, i, mu, base_sym='M'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L215)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L215?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L215)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L215?message=Update%20Docs)]
 </div>
 
 
@@ -222,8 +222,8 @@ get_Mi(self, i, mu, base_sym='M'):
 dipole_terms(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1044)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1044?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1044)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1044?message=Update%20Docs)]
 </div>
 
 
@@ -233,8 +233,8 @@ dipole_terms(self):
 dipole_partitioning(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1074)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1074?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1074)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1074?message=Update%20Docs)]
 </div>
 
 
@@ -244,8 +244,8 @@ dipole_partitioning(self):
 transition_moments(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1092)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1092?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1092)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1092?message=Update%20Docs)]
 </div>
 Computes the transition moments between wavefunctions stored in the object
   - `:returns`: `_`
@@ -258,8 +258,8 @@ Computes the transition moments between wavefunctions stored in the object
 deperturbed_transition_moments(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1107)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1107?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1107)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1107?message=Update%20Docs)]
 </div>
 Computes the transition moments between wavefunctions stored in the object
   - `:returns`: `_`
@@ -272,8 +272,8 @@ Computes the transition moments between wavefunctions stored in the object
 transition_moment_corrections(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1119)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1119?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1119)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1119?message=Update%20Docs)]
 </div>
 Computes the transition moment corrections between wavefunctions stored in the object
   - `:returns`: `_`
@@ -286,8 +286,8 @@ Computes the transition moment corrections between wavefunctions stored in the o
 deperturbed_transition_moment_corrections(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1134)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1134?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1134)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1134?message=Update%20Docs)]
 </div>
 Computes the transition moment corrections between wavefunctions stored in the object
   - `:returns`: `_`
@@ -300,8 +300,8 @@ Computes the transition moment corrections between wavefunctions stored in the o
 oscillator_strengths(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1146)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1146?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1146)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1146?message=Update%20Docs)]
 </div>
 Computes the oscillator strengths for transitions from the ground state to the other states
   - `:returns`: `_`
@@ -314,8 +314,8 @@ Computes the oscillator strengths for transitions from the ground state to the o
 deperturbed_oscillator_strengths(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1158)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1158?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1158)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1158?message=Update%20Docs)]
 </div>
 Computes the oscillator strengths for transitions from the ground state to the other states
   - `:returns`: `_`
@@ -327,8 +327,8 @@ Computes the oscillator strengths for transitions from the ground state to the o
 oscillator_strengths_to_order(self, order): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1170)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1170?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1170)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1170?message=Update%20Docs)]
 </div>
 
   - `tms`: `Any`
@@ -342,8 +342,8 @@ oscillator_strengths_to_order(self, order):
 deperturbed_oscillator_strengths_to_order(self, order): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1184)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1184?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1184)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1184?message=Update%20Docs)]
 </div>
 
   - `tms`: `Any`
@@ -358,8 +358,8 @@ deperturbed_oscillator_strengths_to_order(self, order):
 intensities(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1209)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1209?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1209)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1209?message=Update%20Docs)]
 </div>
 Computes the intensities for transitions from the ground state to the other states
   - `:returns`: `_`
@@ -372,8 +372,8 @@ Computes the intensities for transitions from the ground state to the other stat
 deperturbed_intensities(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1224)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1224?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1224)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1224?message=Update%20Docs)]
 </div>
 Computes the intensities for transitions from the ground state to the other states
   - `:returns`: `_`
@@ -385,8 +385,8 @@ Computes the intensities for transitions from the ground state to the other stat
 intensities_to_order(self, order, return_freqs=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1234)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1234?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1234)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1234?message=Update%20Docs)]
 </div>
 Computes the intensities for transitions from the ground state to the other states
   - `:returns`: `_`
@@ -398,8 +398,8 @@ Computes the intensities for transitions from the ground state to the other stat
 deperturbed_intensities_to_order(self, order, return_freqs=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1246)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1246?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1246)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1246?message=Update%20Docs)]
 </div>
 Computes the intensities for transitions from the ground state to the other states
   - `:returns`: `_`
@@ -412,8 +412,8 @@ Computes the intensities for transitions from the ground state to the other stat
 zero_order_intensities(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1296)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1296?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1296)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1296?message=Update%20Docs)]
 </div>
 Computes the harmonic intensities for transitions from the ground state to the other states
   - `:returns`: `_`
@@ -425,8 +425,8 @@ Computes the harmonic intensities for transitions from the ground state to the o
 prep_operator_terms(self, coeffs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1311)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1311?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1311)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1311?message=Update%20Docs)]
 </div>
 
 
@@ -435,8 +435,8 @@ prep_operator_terms(self, coeffs):
 operator_correction_data(self, operator_coeffs, order=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1338)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1338?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1338)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1338?message=Update%20Docs)]
 </div>
 
 
@@ -445,8 +445,8 @@ operator_correction_data(self, operator_coeffs, order=None):
 generate_intensity_breakdown(self, include_wavefunctions=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1358)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1358?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1358)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1358?message=Update%20Docs)]
 </div>
 Generates a breakdown of the terms that contribute to the intensity
 Returns in a format that can be directly exported to JSON if desired.
@@ -460,8 +460,8 @@ Returns in a format that can be directly exported to JSON if desired.
 write_CSV_breakdown(cls, file, intensity_breakdown, padding=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1443)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1443?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1443)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1443?message=Update%20Docs)]
 </div>
 Writes an intensity breakdown to a CSV by annoyingly flattening all the arrays
   - `file`: `Any`
@@ -477,8 +477,8 @@ Writes an intensity breakdown to a CSV by annoyingly flattening all the arrays
 format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1620)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1620?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1620)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1620?message=Update%20Docs)]
 </div>
 
 
@@ -487,8 +487,8 @@ format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5
 format_deperturbed_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1629)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1629?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1629)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1629?message=Update%20Docs)]
 </div>
 
 
@@ -497,8 +497,8 @@ format_deperturbed_energies_table(self, states=None, zpe=None, freqs=None, real_
 format_property_matrices(self, states, prop_corrs, real_fmt='{:>.8e}', padding_fmt='{:>16}'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1638)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1638?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1638)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1638?message=Update%20Docs)]
 </div>
 
 
@@ -507,8 +507,8 @@ format_property_matrices(self, states, prop_corrs, real_fmt='{:>.8e}', padding_f
 format_dipole_contribs_tables(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1694)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1694?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1694)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1694?message=Update%20Docs)]
 </div>
 
 
@@ -517,8 +517,8 @@ format_dipole_contribs_tables(self):
 format_deperturbed_dipole_contribs_tables(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1705)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1705?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1705)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1705?message=Update%20Docs)]
 </div>
 
 
@@ -527,8 +527,8 @@ format_deperturbed_dipole_contribs_tables(self):
 format_energy_corrections_table(self, real_fmt='{:>12.5f}'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1716)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1716?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1716)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1716?message=Update%20Docs)]
 </div>
 
 
@@ -537,8 +537,8 @@ format_energy_corrections_table(self, real_fmt='{:>12.5f}'):
 format_intensities_table(self, real_fmt='{:>12.5f}'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1832)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1832?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1832)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1832?message=Update%20Docs)]
 </div>
 
 
@@ -547,8 +547,8 @@ format_intensities_table(self, real_fmt='{:>12.5f}'):
 format_deperturbed_intensities_table(self, real_fmt='{:>12.5f}'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1840)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1840?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1840)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1840?message=Update%20Docs)]
 </div>
 
 
@@ -557,8 +557,8 @@ format_deperturbed_intensities_table(self, real_fmt='{:>12.5f}'):
 get_spectrum(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1880)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1880?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1880)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1880?message=Update%20Docs)]
 </div>
 
 
@@ -567,8 +567,8 @@ get_spectrum(self):
 get_deperturbed_spectrum(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1885)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1885?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1885)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1885?message=Update%20Docs)]
 </div>
 
 
@@ -577,8 +577,8 @@ get_deperturbed_spectrum(self):
 format_operator_table(self, operators, real_fmt='{:>12.5f}'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1961)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1961?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1961)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.py#L1961?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -633,7 +633,7 @@ format_operator_table(self, operators, real_fmt='{:>12.5f}'):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Wavefunctions/PerturbationTheoryWavefunctions.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Wavefunctions.py#L56?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Wavefunctions.py#L56?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

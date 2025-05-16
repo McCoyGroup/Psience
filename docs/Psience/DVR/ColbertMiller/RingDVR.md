@@ -1,8 +1,8 @@
 ## <a id="Psience.DVR.ColbertMiller.RingDVR">RingDVR</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller.py#L91)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller.py#L91?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller.py#L91)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L91?message=Update%20Docs)]
 </div>
 
 Provides a DVR for working on the (0, 2Pi) range with periodicity from Colbert and Miller
@@ -24,8 +24,8 @@ Provides a DVR for working on the (0, 2Pi) range with periodicity from Colbert a
 __init__(self, domain=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/RingDVR.py#L96)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/RingDVR.py#L96?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller.py#L96)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L96?message=Update%20Docs)]
 </div>
 
 
@@ -34,8 +34,8 @@ __init__(self, domain=None, **opts):
 get_grid(self, domain=None, divs=None, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/RingDVR.py#L101)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/RingDVR.py#L101?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller/RingDVR.py#L101)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller/RingDVR.py#L101?message=Update%20Docs)]
 </div>
 Provides the Colbert-Miller 1D grid for the [0, 2Pi] range
   - `domain`: `Any`
@@ -53,8 +53,8 @@ Provides the Colbert-Miller 1D grid for the [0, 2Pi] range
 get_kinetic_energy(self, grid=None, mass=1, hb=1, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/RingDVR.py#L119)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/RingDVR.py#L119?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller/RingDVR.py#L119)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller/RingDVR.py#L119?message=Update%20Docs)]
 </div>
 Colbert-Miller kinetic energy for the [0, 2pi] range
   - `grid`: `Any`
@@ -74,8 +74,8 @@ Colbert-Miller kinetic energy for the [0, 2pi] range
 real_momentum(self, grid=None, hb=1, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/RingDVR.py#L153)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/RingDVR.py#L153?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller/RingDVR.py#L153)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller/RingDVR.py#L153?message=Update%20Docs)]
 </div>
 Provides the real part of the momentum for the [0, 2pi] range
   - `grid`: `Any`
@@ -139,7 +139,7 @@ Provides the real part of the momentum for the [0, 2pi] range
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/ColbertMiller/RingDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/ColbertMiller/RingDVR.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller.py#L91?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L91?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.DGB.DGB">DGB</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/DGB.py#L23)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/DGB.py#L23?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/DGB.py#L23)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/DGB.py#L23?message=Update%20Docs)]
 </div>
 
 
@@ -27,8 +27,8 @@ default_solver_mode: str
 run_simple(cls, centers, potential_function, *, masses=None, atoms=None, modes=None, transformations=None, alphas=None, logger=True, clustering_radius=None, min_singular_value=None, num_svd_vectors=None, svd_contrib_cutoff=None, optimize_centers=None, quadrature_degree=None, expansion_degree=None, expansion_type=None, pairwise_potential_functions=None, dipole_function=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L28)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L28?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L28)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L28?message=Update%20Docs)]
 </div>
 
 
@@ -37,8 +37,8 @@ run_simple(cls, centers, potential_function, *, masses=None, atoms=None, modes=N
 run(self, quiet=False, calculate_spectrum=True, dipole_degree=0, num_print=20, **wavefunction_options): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/DGB/DGB.py#L78)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/DGB/DGB.py#L78?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/DGB/DGB.py#L78)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/DGB/DGB.py#L78?message=Update%20Docs)]
 </div>
 The default case...
   - `:returns`: `_`
@@ -51,8 +51,8 @@ The default case...
 construct(cls, centers, potential_function, gmat_function=None, masses=None, atoms=None, alphas=None, transformations=None, internals=None, modes=None, coordinate_selection=None, cartesians=None, logger=False, parallelizer=None, optimize_centers=False, quadrature_degree=3, expansion_degree=None, expansion_type='multicenter', momenta=None, poly_coeffs=None, pairwise_potential_functions=None, dipole_function=None, kinetic_options=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L144)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L144?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L144)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L144?message=Update%20Docs)]
 </div>
 
 
@@ -62,8 +62,8 @@ construct(cls, centers, potential_function, gmat_function=None, masses=None, ato
 construct_gaussians(cls, centers, alphas, potential_spec, gmat_function=None, masses=None, atoms=None, internals=None, coordinate_selection=None, cartesians=None, modes=None, kinetic_options=None, transformations=None, momenta=None, pairwise_potential_functions=None, poly_coeffs=None, logger=None, parallelizer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L221)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L221?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L221)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L221?message=Update%20Docs)]
 </div>
 
 
@@ -73,8 +73,8 @@ construct_gaussians(cls, centers, alphas, potential_spec, gmat_function=None, ma
 construct_potential(cls, potential_function, coords, quadrature_degree=None, expansion_degree=None, expansion_type=None, pairwise_potential_functions=None, logger=None, parallelizer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L286)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L286?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L286)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L286?message=Update%20Docs)]
 </div>
 
 
@@ -83,8 +83,8 @@ construct_potential(cls, potential_function, coords, quadrature_degree=None, exp
 __init__(self, gaussians: Psience.DGB.Gaussians.DGBGaussians, potential: Psience.DGB.Evaluators.DGBPotentialEnergyEvaluator, logger=None, parallelizer=None, wavefunction_options=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/DGB/DGB.py#L312)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/DGB/DGB.py#L312?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/DGB.py#L312)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/DGB.py#L312?message=Update%20Docs)]
 </div>
 
 
@@ -93,8 +93,8 @@ __init__(self, gaussians: Psience.DGB.Gaussians.DGBGaussians, potential: Psience
 as_cartesian_dgb(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/DGB/DGB.py#L327)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/DGB/DGB.py#L327?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/DGB/DGB.py#L327)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/DGB/DGB.py#L327?message=Update%20Docs)]
 </div>
 
 
@@ -103,8 +103,8 @@ as_cartesian_dgb(self):
 get_S(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/DGB/DGB.py#L355)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/DGB/DGB.py#L355?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/DGB/DGB.py#L355)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/DGB/DGB.py#L355?message=Update%20Docs)]
 </div>
 
 
@@ -114,8 +114,8 @@ get_S(self):
 S(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/DGB/DGB.py#L359)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/DGB/DGB.py#L359?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/DGB/DGB.py#L359)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/DGB/DGB.py#L359?message=Update%20Docs)]
 </div>
 
 
@@ -124,8 +124,8 @@ S(self):
 get_T(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/DGB/DGB.py#L365)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/DGB/DGB.py#L365?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/DGB/DGB.py#L365)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/DGB/DGB.py#L365?message=Update%20Docs)]
 </div>
 
 
@@ -135,8 +135,8 @@ get_T(self):
 T(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/DGB/DGB.py#L370)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/DGB/DGB.py#L370?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/DGB/DGB.py#L370)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/DGB/DGB.py#L370?message=Update%20Docs)]
 </div>
 
 
@@ -145,8 +145,8 @@ T(self):
 get_V(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/DGB/DGB.py#L379)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/DGB/DGB.py#L379?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/DGB/DGB.py#L379)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/DGB/DGB.py#L379?message=Update%20Docs)]
 </div>
 
 
@@ -156,8 +156,8 @@ get_V(self):
 V(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/DGB/DGB.py#L391)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/DGB/DGB.py#L391?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/DGB/DGB.py#L391)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/DGB/DGB.py#L391?message=Update%20Docs)]
 </div>
 
 
@@ -166,8 +166,8 @@ V(self):
 evaluate_multiplicative_operator(self, function, embed=True, expansion_degree=None, expansion_type=None, quadrature_degree=None, pairwise_functions=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/DGB/DGB.py#L401)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/DGB/DGB.py#L401?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/DGB/DGB.py#L401)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/DGB/DGB.py#L401?message=Update%20Docs)]
 </div>
 
 
@@ -176,8 +176,8 @@ evaluate_multiplicative_operator(self, function, embed=True, expansion_degree=No
 diagonalize(self, *, mode=None, similarity_cutoff=None, similarity_chunk_size=None, similar_det_cutoff=None, similarity_shift=None, subspace_size=None, min_singular_value=None, nodeless_ground_state=True, low_rank_energy_cutoff=None, low_rank_overlap_cutoff=None, low_rank_shift=None, stable_eigenvalue_epsilon=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/DGB/DGB.py#L430)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/DGB/DGB.py#L430?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/DGB/DGB.py#L430)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/DGB/DGB.py#L430?message=Update%20Docs)]
 </div>
 
 
@@ -186,8 +186,8 @@ diagonalize(self, *, mode=None, similarity_cutoff=None, similarity_chunk_size=No
 get_similarity_matrix(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/DGB/DGB.py#L521)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/DGB/DGB.py#L521?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/DGB/DGB.py#L521)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/DGB/DGB.py#L521?message=Update%20Docs)]
 </div>
 
 
@@ -196,8 +196,8 @@ get_similarity_matrix(self):
 get_wavefunctions(self, mode=None, similarity_cutoff=None, similarity_chunk_size=None, similar_det_cutoff=None, subspace_size=None, min_singular_value=None, nodeless_ground_state=None, stable_eigenvalue_epsilon=None, **wfn_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/DGB/DGB.py#L531)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/DGB/DGB.py#L531?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/DGB/DGB.py#L531)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/DGB/DGB.py#L531?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -221,9 +221,9 @@ get_wavefunctions(self, mode=None, similarity_cutoff=None, similarity_chunk_size
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-c05309" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-c05309"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-9f9072" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-9f9072"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-c05309" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-9f9072" markdown="1">
  - [Harmonic](#Harmonic)
 - [Morse](#Morse)
 - [SampleRotated](#SampleRotated)
@@ -248,9 +248,9 @@ get_wavefunctions(self, mode=None, similarity_cutoff=None, similarity_chunk_size
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-ac2098" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-ac2098"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-4774eb" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-4774eb"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-ac2098" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-4774eb" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -4836,7 +4836,7 @@ State       Frequency    Intensity       Frequency    Intensity
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/DGB/DGB.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/DGB/DGB.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/DGB.py#L23?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/DGB.py#L23?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

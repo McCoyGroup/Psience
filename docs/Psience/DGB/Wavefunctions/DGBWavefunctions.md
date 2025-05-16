@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.Wavefunctions.DGBWavefunctions">DGBWavefunctions</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Wavefunctions.py#L220)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Wavefunctions.py#L220?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions.py#L220)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions.py#L220?message=Update%20Docs)]
 </div>
 
 
@@ -26,8 +26,8 @@ wavefunction_class: DGBWavefunction
 __init__(self, energies=None, wavefunctions=None, hamiltonian=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Wavefunctions/DGBWavefunctions.py#L222)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Wavefunctions/DGBWavefunctions.py#L222?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions.py#L222)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions.py#L222?message=Update%20Docs)]
 </div>
 
 
@@ -36,8 +36,8 @@ __init__(self, energies=None, wavefunctions=None, hamiltonian=None, **opts):
 as_cartesian_wavefunction(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Wavefunctions/DGBWavefunctions.py#L226)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Wavefunctions/DGBWavefunctions.py#L226?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions/DGBWavefunctions.py#L226)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions/DGBWavefunctions.py#L226?message=Update%20Docs)]
 </div>
 Projects the wavefunction back to Cartesians
   - `:returns`: `_`
@@ -50,8 +50,8 @@ Projects the wavefunction back to Cartesians
 hamiltonian(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Wavefunctions/DGBWavefunctions.py#L251)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Wavefunctions/DGBWavefunctions.py#L251?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions/DGBWavefunctions.py#L251)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions/DGBWavefunctions.py#L251?message=Update%20Docs)]
 </div>
 
 
@@ -60,8 +60,8 @@ hamiltonian(self):
 operator_representation(self, op, embed=True, expansion_degree=None, quadrature_degree=None, expansion_type=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Wavefunctions/DGBWavefunctions.py#L265)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Wavefunctions/DGBWavefunctions.py#L265?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions/DGBWavefunctions.py#L265)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions/DGBWavefunctions.py#L265?message=Update%20Docs)]
 </div>
 
 
@@ -70,8 +70,8 @@ operator_representation(self, op, embed=True, expansion_degree=None, quadrature_
 expectation(self, op, expansion_degree=None, quadrature_degree=None, expansion_type=None, embed=True, other=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Wavefunctions/DGBWavefunctions.py#L280)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Wavefunctions/DGBWavefunctions.py#L280?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions/DGBWavefunctions.py#L280)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions/DGBWavefunctions.py#L280?message=Update%20Docs)]
 </div>
 Computes the expectation value of operator op over the wavefunction other and self
   - `other`: `Wavefunction | np.ndarray`
@@ -87,8 +87,8 @@ Computes the expectation value of operator op over the wavefunction other and se
 localize(self, criterion, which=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Wavefunctions/DGBWavefunctions.py#L326)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Wavefunctions/DGBWavefunctions.py#L326?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions/DGBWavefunctions.py#L326)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions/DGBWavefunctions.py#L326?message=Update%20Docs)]
 </div>
 Find a transformation that maximally localizes the wavefunctions in the Boys' sense
 by minimizing <r^2> - <r>^2 over unitary transformations
@@ -105,8 +105,8 @@ by minimizing <r^2> - <r>^2 over unitary transformations
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Wavefunctions/DGBWavefunctions.py#L350)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Wavefunctions/DGBWavefunctions.py#L350?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions/DGBWavefunctions.py#L350)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions/DGBWavefunctions.py#L350?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -161,7 +161,7 @@ __repr__(self):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Wavefunctions/DGBWavefunctions.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Wavefunctions/DGBWavefunctions.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Wavefunctions.py#L220?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions.py#L220?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

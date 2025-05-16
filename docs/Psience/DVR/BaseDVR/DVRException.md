@@ -1,8 +1,8 @@
 ## <a id="Psience.DVR.BaseDVR.DVRException">DVRException</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/BaseDVR.py#L456)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/BaseDVR.py#L456?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L456)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L456?message=Update%20Docs)]
 </div>
 
 Base exception class for working with DVRs
@@ -73,7 +73,7 @@ Base exception class for working with DVRs
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/BaseDVR/DVRException.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/BaseDVR/DVRException.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/BaseDVR.py#L456?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L456?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

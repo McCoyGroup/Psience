@@ -1,7 +1,7 @@
 # <a id="Psience.Modes">Psience.Modes</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/__init__.py#L1)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/__init__.py#L1?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/__init__.py#L1)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/__init__.py#L1?message=Update%20Docs)]
 </div>
     
 Developed to decoupled molecules and vibrations, intended to become the
@@ -84,7 +84,7 @@ replacement for the already developed `MolecularNormalModes` / `MolecularVibrati
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Modes.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Modes.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/__init__.py#L1?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/__init__.py#L1?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

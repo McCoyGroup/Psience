@@ -1,7 +1,7 @@
 # <a id="Psience.Vibronic.ezFCFInterface">Psience.Vibronic.ezFCFInterface</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Vibronic/ezFCFInterface/__init__.py#L1)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Vibronic/ezFCFInterface/__init__.py#L1?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Vibronic/ezFCFInterface.py#L1)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/ezFCFInterface.py#L1?message=Update%20Docs)]
 </div>
     
 
@@ -72,7 +72,7 @@
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Vibronic/ezFCFInterface.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Vibronic/ezFCFInterface.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Vibronic/ezFCFInterface/__init__.py#L1?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/ezFCFInterface.py#L1?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

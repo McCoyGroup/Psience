@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Corrections.PTCorrections">PTCorrections</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections.py#L)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L?message=Update%20Docs)]
 </div>
 
 PTCorrections(initial_states, final_states, corrections)
@@ -29,8 +29,8 @@ corrections: _tuplegetter
 __new__(_cls, initial_states, final_states, corrections): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L?message=Update%20Docs)]
 </div>
 Create new instance of PTCorrections(initial_states, final_states, corrections)
 
@@ -92,7 +92,7 @@ Create new instance of PTCorrections(initial_states, final_states, corrections)
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Corrections/PTCorrections.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Corrections/PTCorrections.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections.py#L?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -1,7 +1,7 @@
 # <a id="Psience.Spectra.HarmonicSpectrum">Psience.Spectra.HarmonicSpectrum</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/HarmonicSpectrum/__init__.py#L1)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/HarmonicSpectrum/__init__.py#L1?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/HarmonicSpectrum.py#L1)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/HarmonicSpectrum.py#L1?message=Update%20Docs)]
 </div>
     
 
@@ -72,7 +72,7 @@
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Spectra/HarmonicSpectrum.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Spectra/HarmonicSpectrum.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/HarmonicSpectrum/__init__.py#L1?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/HarmonicSpectrum.py#L1?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

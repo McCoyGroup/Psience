@@ -1,8 +1,8 @@
 ## <a id="Psience.DVR.DirectProduct.RingNDDVR">RingNDDVR</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/DirectProduct.py#L284)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/DirectProduct.py#L284?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L284)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L284?message=Update%20Docs)]
 </div>
 
 Provides an ND-DVR for products of periodic (0, 2Pi) ranges
@@ -24,8 +24,8 @@ Provides an ND-DVR for products of periodic (0, 2Pi) ranges
 __init__(self, divs, **base_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/DirectProduct/RingNDDVR.py#L289)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/DirectProduct/RingNDDVR.py#L289?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L289)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L289?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -80,7 +80,7 @@ __init__(self, divs, **base_opts):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/DirectProduct/RingNDDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/DirectProduct/RingNDDVR.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/DirectProduct.py#L284?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L284?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

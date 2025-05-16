@@ -1,8 +1,8 @@
 ## <a id="Psience.AnalyticModels.Helpers.AnalyticModelBase">AnalyticModelBase</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers.py#L44)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers.py#L44?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L44)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L44?message=Update%20Docs)]
 </div>
 
 Provides a base class for analytic models
@@ -27,8 +27,8 @@ sym: SympyShim
 get_numeric_types(cls): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L49)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L49?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L49)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L49?message=Update%20Docs)]
 </div>
 
 
@@ -38,8 +38,8 @@ get_numeric_types(cls):
 take_derivs(cls, expr, vars): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L52)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L52?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L52)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L52?message=Update%20Docs)]
 </div>
 Takes derivatives of `expr` with respect to `vars` even if `expr` is an array
   - `expr`: `Any`
@@ -56,8 +56,8 @@ Takes derivatives of `expr` with respect to `vars` even if `expr` is an array
 eval_exprs(cls, expr, subs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L68)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L68?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L68)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L68?message=Update%20Docs)]
 </div>
 Evaluates `expr` with the given substitutions
   - `expr`: `Any`
@@ -74,8 +74,8 @@ Evaluates `expr` with the given substitutions
 symbol_list(cls, names, instance=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L103)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L103?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L103)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L103?message=Update%20Docs)]
 </div>
 Gets a list of symbols for `names` with a given instance number
   - `names`: `Any`
@@ -92,8 +92,8 @@ Gets a list of symbols for `names` with a given instance number
 symbolic_x(i): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L117)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L117?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L117)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L117?message=Update%20Docs)]
 </div>
 Provides a symbolic representation of a position
   - `i`: `Any`
@@ -108,8 +108,8 @@ Provides a symbolic representation of a position
 symbolic_n(i, j, k): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L128)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L128?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L128)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L128?message=Update%20Docs)]
 </div>
 Provides a symbolic representation of a normal to a plane
   - `i`: `Any`
@@ -124,8 +124,8 @@ Provides a symbolic representation of a normal to a plane
 symbolic_m(i): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L139)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L139?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L139)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L139?message=Update%20Docs)]
 </div>
 Provides a symbolic representation of a mass
   - `i`: `Any`
@@ -140,8 +140,8 @@ Provides a symbolic representation of a mass
 symbol(base, *args, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L150)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L150?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L150)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L150?message=Update%20Docs)]
 </div>
 
 
@@ -151,8 +151,8 @@ symbol(base, *args, **kwargs):
 symbolic_r(i, j): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L157)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L157?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L157)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L157?message=Update%20Docs)]
 </div>
 Provides a symbolic representation of a bond length
   - `i`: `Any`
@@ -169,8 +169,8 @@ Provides a symbolic representation of a bond length
 symbolic_a(i, j, k): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L172)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L172?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L172)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L172?message=Update%20Docs)]
 </div>
 Provides a symbolic representation of a bond angle
   - `i`: `Any`
@@ -189,8 +189,8 @@ Provides a symbolic representation of a bond angle
 symbolic_t(i, j, k, l): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L189)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L189?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L189)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L189?message=Update%20Docs)]
 </div>
 Provides a symbolic representation of a dihedral angle
   - `i`: `Any`
@@ -211,8 +211,8 @@ Provides a symbolic representation of a dihedral angle
 symbolic_y(i, j, k, l): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L208)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L208?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L208)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L208?message=Update%20Docs)]
 </div>
 Provides a symbolic representation of a book angle
   - `i`: `Any`
@@ -233,8 +233,8 @@ Provides a symbolic representation of a book angle
 infer_coord_type(cls, inds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L228)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L228?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L228)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L228?message=Update%20Docs)]
 </div>
 
 
@@ -244,8 +244,8 @@ infer_coord_type(cls, inds):
 var(cls, *args, coord_type=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L244)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L244?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L244)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L244?message=Update%20Docs)]
 </div>
 
 
@@ -255,8 +255,8 @@ var(cls, *args, coord_type=None):
 reindex_symbol(cls, symbol, mapping, target_symbols=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L264)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L264?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L264)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L264?message=Update%20Docs)]
 </div>
 Changes the indices on symbols using the given mapping
   - `symbol`: `Any`
@@ -273,8 +273,8 @@ Changes the indices on symbols using the given mapping
 lam(cls, i, j, k): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L301)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L301?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L301)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L301?message=Update%20Docs)]
 </div>
 Provides the `lambda` expression from Frederick and Woywood
   - `i`: `Any`
@@ -293,8 +293,8 @@ Provides the `lambda` expression from Frederick and Woywood
 is_identity(cls, A): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L320)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L320?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L320)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L320?message=Update%20Docs)]
 </div>
 
 
@@ -304,8 +304,8 @@ is_identity(cls, A):
 transpose(cls, A): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L331)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L331?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L331)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L331?message=Update%20Docs)]
 </div>
 
 
@@ -315,8 +315,8 @@ transpose(cls, A):
 dot(cls, a, b, axes=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L336)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L336?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L336)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L336?message=Update%20Docs)]
 </div>
 
 
@@ -326,8 +326,8 @@ dot(cls, a, b, axes=None):
 contract(cls, a, axes): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L368)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L368?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L368)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L368?message=Update%20Docs)]
 </div>
 
 
@@ -337,8 +337,8 @@ contract(cls, a, axes):
 transform_coordinates(cls, rotation, coord_vec=None, coord_name_fmt='q{id}[{num}]'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L374)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L374?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L374)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L374?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -393,7 +393,7 @@ transform_coordinates(cls, rotation, coord_vec=None, coord_name_fmt='q{id}[{num}
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/AnalyticModels/Helpers/AnalyticModelBase.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/AnalyticModels/Helpers/AnalyticModelBase.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers.py#L44?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L44?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Analytic.AnalyticPerturbationTheorySolver">AnalyticPerturbationTheorySolver</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Analytic.py#L41)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Analytic.py#L41?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L41)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L41?message=Update%20Docs)]
 </div>
 
 A re-attempt at using the recursive expressions
@@ -27,8 +27,8 @@ operator_expansion_index: int
 __init__(self, hamiltonian_expansion, logger=None, checkpoint=None, allowed_terms=None, allowed_coefficients=None, disallowed_coefficients=None, allowed_energy_changes=None, intermediate_normalization=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L46)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L46?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L46)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L46?message=Update%20Docs)]
 </div>
 
 
@@ -38,8 +38,8 @@ __init__(self, hamiltonian_expansion, logger=None, checkpoint=None, allowed_term
 from_order(cls, order, internals=True, logger=None, checkpoint=None, allowed_terms=None, allowed_coefficients=None, disallowed_coefficients=None, allowed_energy_changes=None, intermediate_normalization=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L62)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L62?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L62)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L62?message=Update%20Docs)]
 </div>
 
 
@@ -48,8 +48,8 @@ from_order(cls, order, internals=True, logger=None, checkpoint=None, allowed_ter
 modify_hamiltonian(self, hamiltonian_corrections): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L126)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L126?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L126)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L126?message=Update%20Docs)]
 </div>
 
 
@@ -58,8 +58,8 @@ modify_hamiltonian(self, hamiltonian_corrections):
 get_correction(self, key, cls, order, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L145)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L145?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L145)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L145?message=Update%20Docs)]
 </div>
 
 
@@ -68,8 +68,8 @@ get_correction(self, key, cls, order, **kw):
 shifted_hamiltonian_correction(self, order, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L164)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L164?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L164)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L164?message=Update%20Docs)]
 </div>
 
 
@@ -78,8 +78,8 @@ shifted_hamiltonian_correction(self, order, **kw):
 energy_correction(self, order, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L167)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L167?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L167)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L167?message=Update%20Docs)]
 </div>
 
 
@@ -88,8 +88,8 @@ energy_correction(self, order, **kw):
 wavefunction_correction(self, order, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L170)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L170?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L170)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L170?message=Update%20Docs)]
 </div>
 
 
@@ -98,8 +98,8 @@ wavefunction_correction(self, order, **kw):
 overlap_correction(self, order, degenerate_changes=None, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L173)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L173?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L173)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L173?message=Update%20Docs)]
 </div>
 
 
@@ -108,8 +108,8 @@ overlap_correction(self, order, degenerate_changes=None, **kw):
 full_wavefunction_correction(self, order, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L180)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L180?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L180)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L180?message=Update%20Docs)]
 </div>
 
 
@@ -118,8 +118,8 @@ full_wavefunction_correction(self, order, **kw):
 operator_correction(self, order, operator_type=None, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L183)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L183?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L183)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L183?message=Update%20Docs)]
 </div>
 
 
@@ -128,8 +128,8 @@ operator_correction(self, order, operator_type=None, **kw):
 operator_degenerate_correction(self, order, /, degenerate_changes, operator_type=None, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L186)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L186?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L186)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L186?message=Update%20Docs)]
 </div>
 
 
@@ -138,8 +138,8 @@ operator_degenerate_correction(self, order, /, degenerate_changes, operator_type
 reexpressed_hamiltonian(self, order, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L191)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L191?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L191)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L191?message=Update%20Docs)]
 </div>
 
 
@@ -148,8 +148,8 @@ reexpressed_hamiltonian(self, order, **kw):
 reexpressed_hamiltonian_degenerate_correction(self, order, /, degenerate_changes, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L193)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L193?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L193)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.py#L193?message=Update%20Docs)]
 </div>
 
 
@@ -159,8 +159,8 @@ reexpressed_hamiltonian_degenerate_correction(self, order, /, degenerate_changes
 operator_expansion_terms(cls, order, logger=None, base_index=None, operator_type=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L198)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L198?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L198)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L198?message=Update%20Docs)]
 </div>
 
 
@@ -170,8 +170,8 @@ operator_expansion_terms(cls, order, logger=None, base_index=None, operator_type
 clear_caches(cls): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L249)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L249?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L249)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L249?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -226,7 +226,7 @@ clear_caches(cls):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Analytic/AnalyticPerturbationTheorySolver.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Analytic.py#L41?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L41?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

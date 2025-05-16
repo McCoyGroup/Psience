@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Corrections.AnalyticPerturbationTheoryCorrections">AnalyticPerturbationTheoryCorrections</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections.py#L941)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections.py#L941?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L941)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L941?message=Update%20Docs)]
 </div>
 
 AnalyticPerturbationTheoryCorrections(states: Psience.BasisReps.StateSpaces.BasisStateSpace, state_lists: 'list[tuple[np.ndarray, np.ndarray]]', _energies: numpy.ndarray = None, _transition_moments: 'Iterable[np.ndarray]' = None, _spectra: 'Iterable[DiscreteSpectrum]' = None, _deperturbed_energies: numpy.ndarray = None, _deperturbed_transition_moments: 'Iterable[np.ndarray]' = None, _deperturbed_spectra: Psience.Spectra.BaseSpectrum.DiscreteSpectrum = None, degenerate_states: 'Iterable[BasisStateSpace]' = None, only_degenerate_terms: 'bool' = True, _degenerate_hamiltonians: 'Iterable[np.ndarray]' = None, _degenerate_coefficients: 'Iterable[np.ndarray]' = None, _degenerate_state_list_transformations: 'Iterable[list[np.ndarray, np.ndarray]]' = None, energy_corrections: Psience.VPT2.Corrections.PTCorrections = None, transition_moment_corrections: 'Iterable[BasicAPTCorrections]' = None, degenerate_hamiltonian_corrections: 'Iterable[BasicAPTCorrections]' = None, operator_corrections: 'Iterable[BasicAPTCorrections]' = None, _deperturbed_operator_values: 'Iterable[np.ndarray]' = None, _operator_values: 'Iterable[np.ndarray]' = None, operator_keys: 'Iterable[Any]' = None, logger: 'Logger' = None, _zpe_pos: int = None)
@@ -33,8 +33,8 @@ logger: NoneType
 get_zpe_pos(self) -> int: 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L967)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L967?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L967)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L967?message=Update%20Docs)]
 </div>
 
 
@@ -44,8 +44,8 @@ get_zpe_pos(self) -> int:
 energies(self) -> numpy.ndarray: 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L979)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L979?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L979)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L979?message=Update%20Docs)]
 </div>
 
 
@@ -55,8 +55,8 @@ energies(self) -> numpy.ndarray:
 deperturbed_energies(self) -> numpy.ndarray: 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L991)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L991?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L991)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L991?message=Update%20Docs)]
 </div>
 
 
@@ -66,8 +66,8 @@ deperturbed_energies(self) -> numpy.ndarray:
 handle_degenerate_transformation(cls, degenerate_ham): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L997)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L997?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L997)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L997?message=Update%20Docs)]
 </div>
 
 
@@ -76,8 +76,8 @@ handle_degenerate_transformation(cls, degenerate_ham):
 get_degenerate_transformations(self, basis, energies): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1028)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1028?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1028)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1028?message=Update%20Docs)]
 </div>
 
 
@@ -87,8 +87,8 @@ get_degenerate_transformations(self, basis, energies):
 degenerate_hamiltonians(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1067)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1067?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1067)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1067?message=Update%20Docs)]
 </div>
 
 
@@ -98,8 +98,8 @@ degenerate_hamiltonians(self):
 degenerate_coefficients(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1072)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1072?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1072)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1072?message=Update%20Docs)]
 </div>
 
 
@@ -108,8 +108,8 @@ degenerate_coefficients(self):
 get_freqs(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1078)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1078?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1078)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1078?message=Update%20Docs)]
 </div>
 
 
@@ -118,8 +118,8 @@ get_freqs(self):
 get_deperturbed_freqs(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1081)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1081?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1081)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1081?message=Update%20Docs)]
 </div>
 
 
@@ -129,8 +129,8 @@ get_deperturbed_freqs(self):
 degenerate_transformation_pairs(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1087)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1087?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1087)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1087?message=Update%20Docs)]
 </div>
 
 
@@ -140,8 +140,8 @@ degenerate_transformation_pairs(self):
 transition_moments(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1219)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1219?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1219)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1219?message=Update%20Docs)]
 </div>
 
 
@@ -151,8 +151,8 @@ transition_moments(self):
 harmonic_transition_moments(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1236)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1236?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1236)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1236?message=Update%20Docs)]
 </div>
 
 
@@ -162,8 +162,8 @@ harmonic_transition_moments(self):
 deperturbed_transition_moments(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1245)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1245?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1245)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1245?message=Update%20Docs)]
 </div>
 
 
@@ -172,8 +172,8 @@ deperturbed_transition_moments(self):
 get_spectra(self, energies, transition_moments): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1256)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1256?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1256)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1256?message=Update%20Docs)]
 </div>
 
 
@@ -183,8 +183,8 @@ get_spectra(self, energies, transition_moments):
 harmonic_spectra(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1272)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1272?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1272)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1272?message=Update%20Docs)]
 </div>
 
 
@@ -194,8 +194,8 @@ harmonic_spectra(self):
 deperturbed_spectra(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1279)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1279?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1279)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1279?message=Update%20Docs)]
 </div>
 
 
@@ -205,8 +205,8 @@ deperturbed_spectra(self):
 spectra(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1288)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1288?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1288)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1288?message=Update%20Docs)]
 </div>
 
 
@@ -216,8 +216,8 @@ spectra(self):
 deperturbed_operator_values(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1300)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1300?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1300)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1300?message=Update%20Docs)]
 </div>
 
 
@@ -227,8 +227,8 @@ deperturbed_operator_values(self):
 operator_values(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1309)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1309?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1309)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.py#L1309?message=Update%20Docs)]
 </div>
 
 
@@ -237,8 +237,8 @@ operator_values(self):
 __init__(self, states: Psience.BasisReps.StateSpaces.BasisStateSpace, state_lists: 'list[tuple[np.ndarray, np.ndarray]]', _energies: numpy.ndarray = None, _transition_moments: 'Iterable[np.ndarray]' = None, _spectra: 'Iterable[DiscreteSpectrum]' = None, _deperturbed_energies: numpy.ndarray = None, _deperturbed_transition_moments: 'Iterable[np.ndarray]' = None, _deperturbed_spectra: Psience.Spectra.BaseSpectrum.DiscreteSpectrum = None, degenerate_states: 'Iterable[BasisStateSpace]' = None, only_degenerate_terms: 'bool' = True, _degenerate_hamiltonians: 'Iterable[np.ndarray]' = None, _degenerate_coefficients: 'Iterable[np.ndarray]' = None, _degenerate_state_list_transformations: 'Iterable[list[np.ndarray, np.ndarray]]' = None, energy_corrections: Psience.VPT2.Corrections.PTCorrections = None, transition_moment_corrections: 'Iterable[BasicAPTCorrections]' = None, degenerate_hamiltonian_corrections: 'Iterable[BasicAPTCorrections]' = None, operator_corrections: 'Iterable[BasicAPTCorrections]' = None, _deperturbed_operator_values: 'Iterable[np.ndarray]' = None, _operator_values: 'Iterable[np.ndarray]' = None, operator_keys: 'Iterable[Any]' = None, logger: 'Logger' = None, _zpe_pos: int = None) -> None: 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/__create_fn__/<locals>.py#L)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/__create_fn__/<locals>.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/__create_fn__.py#L)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/__create_fn__.py#L?message=Update%20Docs)]
 </div>
 
 
@@ -247,8 +247,8 @@ __init__(self, states: Psience.BasisReps.StateSpaces.BasisStateSpace, state_list
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/__create_fn__/<locals>.py#L363)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/__create_fn__/<locals>.py#L363?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/__create_fn__/<locals>.py#L363)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/__create_fn__/<locals>.py#L363?message=Update%20Docs)]
 </div>
 
 
@@ -257,8 +257,8 @@ __repr__(self):
 __eq__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/__create_fn__/<locals>.py#L)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/__create_fn__/<locals>.py#L?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/__create_fn__/<locals>.py#L)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/__create_fn__/<locals>.py#L?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -313,7 +313,7 @@ __eq__(self, other):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Corrections/AnalyticPerturbationTheoryCorrections.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections.py#L941?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L941?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

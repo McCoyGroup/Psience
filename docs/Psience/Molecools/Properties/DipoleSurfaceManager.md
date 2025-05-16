@@ -1,8 +1,8 @@
 ## <a id="Psience.Molecools.Properties.DipoleSurfaceManager">DipoleSurfaceManager</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties.py#L1646)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties.py#L1646?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L1646)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L1646?message=Update%20Docs)]
 </div>
 
 
@@ -26,8 +26,8 @@ name: str
 __init__(self, mol, surface=None, derivatives=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/DipoleSurfaceManager.py#L1648)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/DipoleSurfaceManager.py#L1648?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L1648)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L1648?message=Update%20Docs)]
 </div>
 
 
@@ -37,8 +37,8 @@ __init__(self, mol, surface=None, derivatives=None):
 from_data(cls, mol, data): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1663)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1663?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1663)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1663?message=Update%20Docs)]
 </div>
 
 
@@ -48,8 +48,8 @@ from_data(cls, mol, data):
 surface(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/DipoleSurfaceManager.py#L1667)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/DipoleSurfaceManager.py#L1667?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1667)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1667?message=Update%20Docs)]
 </div>
 
 
@@ -59,8 +59,8 @@ surface(self):
 numerical_derivatives(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/DipoleSurfaceManager.py#L1672)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/DipoleSurfaceManager.py#L1672?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1672)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1672?message=Update%20Docs)]
 </div>
 
 
@@ -70,8 +70,8 @@ numerical_derivatives(self):
 derivatives(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/DipoleSurfaceManager.py#L1683)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/DipoleSurfaceManager.py#L1683?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1683)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1683?message=Update%20Docs)]
 </div>
 
 
@@ -80,8 +80,8 @@ derivatives(self):
 load(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/DipoleSurfaceManager.py#L1703)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/DipoleSurfaceManager.py#L1703?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1703)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1703?message=Update%20Docs)]
 </div>
 
 
@@ -90,8 +90,8 @@ load(self):
 update(self, val): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/DipoleSurfaceManager.py#L1708)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/DipoleSurfaceManager.py#L1708?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1708)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1708?message=Update%20Docs)]
 </div>
 Updates the held values
   - `val`: `Any`
@@ -105,8 +105,8 @@ Updates the held values
 load_dipole_surface(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/DipoleSurfaceManager.py#L1719)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/DipoleSurfaceManager.py#L1719?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1719)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1719?message=Update%20Docs)]
 </div>
 
 
@@ -115,8 +115,8 @@ load_dipole_surface(self):
 load_dipole_derivatives(self, file=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/DipoleSurfaceManager.py#L1778)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/DipoleSurfaceManager.py#L1778?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1778)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1778?message=Update%20Docs)]
 </div>
 Loads dipole derivatives from a file (or from `source_file` if set)
   - `file`: `Any`
@@ -130,8 +130,8 @@ Loads dipole derivatives from a file (or from `source_file` if set)
 apply_transformation(self, transf): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/DipoleSurfaceManager.py#L1809)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/DipoleSurfaceManager.py#L1809?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1809)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1809?message=Update%20Docs)]
 </div>
 
 
@@ -140,8 +140,8 @@ apply_transformation(self, transf):
 insert_atoms(self, atoms, coords, where): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/DipoleSurfaceManager.py#L1836)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/DipoleSurfaceManager.py#L1836?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1836)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1836?message=Update%20Docs)]
 </div>
 Handles the insertion of new atoms into the structure
   - `atoms`: `tuple[str]`
@@ -159,8 +159,8 @@ Handles the insertion of new atoms into the structure
 delete_atoms(self, where): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/DipoleSurfaceManager.py#L1859)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/DipoleSurfaceManager.py#L1859?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1859)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/DipoleSurfaceManager.py#L1859?message=Update%20Docs)]
 </div>
 Handles the deletion from the structure
   - `atoms`: `tuple[str]`
@@ -224,7 +224,7 @@ Handles the deletion from the structure
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/Properties/DipoleSurfaceManager.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/Properties/DipoleSurfaceManager.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties.py#L1646?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L1646?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

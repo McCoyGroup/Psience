@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Runner.VPTSystem">VPTSystem</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner.py#L41)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner.py#L41?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L41)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L41?message=Update%20Docs)]
 </div>
 
 Provides a little helper for setting up the input
@@ -25,8 +25,8 @@ system for a VPT job
 __init__(self, mol, internals=None, dummy_atoms=None, modes=None, local_modes=None, mode_selection=None, full_surface_mode_selection=None, potential_derivatives=None, potential_function=None, order=2, dipole_derivatives=None, eckart_embed=False, copy_mol=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTSystem.py#L73)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTSystem.py#L73?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L73)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L73?message=Update%20Docs)]
 </div>
 
   - `mol`: `str | list | Molecule`
@@ -54,8 +54,8 @@ To supply a conversion function, provide a `dict` like so
 prep_local_modes(self, dRdX, dXdR=None, sort_freqs=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTSystem.py#L204)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTSystem.py#L204?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTSystem.py#L204)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTSystem.py#L204?message=Update%20Docs)]
 </div>
 
 
@@ -65,8 +65,8 @@ prep_local_modes(self, dRdX, dXdR=None, sort_freqs=False):
 nmodes(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTSystem.py#L234)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTSystem.py#L234?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTSystem.py#L234)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTSystem.py#L234?message=Update%20Docs)]
 </div>
 Provides the number of modes in the system
   - `:returns`: `_`
@@ -78,8 +78,8 @@ Provides the number of modes in the system
 get_potential_derivatives(self, potential_function, order=2, **fd_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Runner/VPTSystem.py#L253)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner/VPTSystem.py#L253?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTSystem.py#L253)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTSystem.py#L253?message=Update%20Docs)]
 </div>
 Computes potential derivatives for the given function through finite difference
   - `potential_function`: `Any`
@@ -98,8 +98,8 @@ Computes potential derivatives for the given function through finite difference
 from_harmonic_scan(cls, scan_array): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L274)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L274?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L274)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L274?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -108,9 +108,9 @@ from_harmonic_scan(cls, scan_array):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-324aef" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-324aef"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Details-6d7eae" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-6d7eae"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Details-324aef" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Details-6d7eae" markdown="1">
  When using functions of internal (Z-matrix/polyspherical) coordinates, a sample form of the conversion function is
 ```python
 def conv(r, t, f, **kwargs):
@@ -173,7 +173,7 @@ and then the inverse function will take the output of `conv` and return the orig
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTSystem.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTSystem.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Runner.py#L41?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L41?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Analyzer.VPTResultsSource">VPTResultsSource</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Analyzer.py#L24)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Analyzer.py#L24?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer.py#L24)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer.py#L24?message=Update%20Docs)]
 </div>
 
 Enum of sources to load PT results from
@@ -76,7 +76,7 @@ Checkpoint: VPTResultsSource
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Analyzer/VPTResultsSource.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Analyzer/VPTResultsSource.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Analyzer.py#L24?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer.py#L24?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

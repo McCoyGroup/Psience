@@ -1,8 +1,8 @@
 ## <a id="Psience.Modes.MixtureModes.MixtureModes">MixtureModes</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes.py#L15)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes.py#L15?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes.py#L15)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes.py#L15?message=Update%20Docs)]
 </div>
 
 A `McUtils.Coordinerds.CoordinateSystem` object that expresses coordinates as
@@ -27,8 +27,8 @@ name: str
 __init__(self, basis, coeffs, freqs=None, origin=None, masses=None, inverse=None, mass_weighted=False, frequency_scaled=False, g_matrix=None, name=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L21)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L21?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes.py#L21)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes.py#L21?message=Update%20Docs)]
 </div>
 
 
@@ -38,8 +38,8 @@ __init__(self, basis, coeffs, freqs=None, origin=None, masses=None, inverse=None
 prep_modes(cls, modes): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L58)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L58?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L58)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L58?message=Update%20Docs)]
 </div>
 
 
@@ -48,8 +48,8 @@ prep_modes(cls, modes):
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L110)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L110?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L110)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L110?message=Update%20Docs)]
 </div>
 Takes a slice of the modes
   - `item`: `Any`
@@ -63,8 +63,8 @@ Takes a slice of the modes
 modify(self, matrix=None, *, freqs=None, origin=None, masses=None, inverse=None, name=None, mass_weighted=None, frequency_scaled=None, g_matrix=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L135)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L135?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L135)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L135?message=Update%20Docs)]
 </div>
 
 
@@ -73,8 +73,8 @@ modify(self, matrix=None, *, freqs=None, origin=None, masses=None, inverse=None,
 rotate(self, rot, in_place=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L160)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L160?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L160)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L160?message=Update%20Docs)]
 </div>
 
 
@@ -83,8 +83,8 @@ rotate(self, rot, in_place=False):
 transform(self, tf, inv=None, origin=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L163)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L163?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L163)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L163?message=Update%20Docs)]
 </div>
 
 
@@ -94,8 +94,8 @@ transform(self, tf, inv=None, origin=None):
 cartesian_modes(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L192)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L192?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L192)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L192?message=Update%20Docs)]
 </div>
 
 
@@ -104,8 +104,8 @@ cartesian_modes(self):
 embed_coords(self, carts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L196)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L196?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L196)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L196?message=Update%20Docs)]
 </div>
 
 
@@ -114,8 +114,8 @@ embed_coords(self, carts):
 unembed_coords(self, mode_coords): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L202)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L202?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L202)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L202?message=Update%20Docs)]
 </div>
 
 
@@ -125,8 +125,8 @@ unembed_coords(self, mode_coords):
 total_transformation(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L210)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L210?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L210)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L210?message=Update%20Docs)]
 </div>
 
 
@@ -136,8 +136,8 @@ total_transformation(self):
 inverse_transformation(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L213)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L213?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L213)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L213?message=Update%20Docs)]
 </div>
 
 
@@ -146,8 +146,8 @@ inverse_transformation(self):
 embed_derivs(self, derivs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L220)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L220?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L220)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L220?message=Update%20Docs)]
 </div>
 
 
@@ -156,8 +156,8 @@ embed_derivs(self, derivs):
 unembed_derivs(self, derivs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L222)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L222?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L222)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L222?message=Update%20Docs)]
 </div>
 
 
@@ -167,8 +167,8 @@ unembed_derivs(self, derivs):
 is_cartesian(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L225)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L225?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L225)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L225?message=Update%20Docs)]
 </div>
 
 
@@ -178,8 +178,8 @@ is_cartesian(self):
 coords_by_modes(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L231)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L231?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L231)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L231?message=Update%20Docs)]
 </div>
 
 
@@ -189,8 +189,8 @@ coords_by_modes(self):
 modes_by_coords(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L234)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L234?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L234)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L234?message=Update%20Docs)]
 </div>
 
 
@@ -199,8 +199,8 @@ modes_by_coords(self):
 make_mass_weighted(self, masses=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L264)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L264?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L264)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L264?message=Update%20Docs)]
 </div>
 
 
@@ -209,8 +209,8 @@ make_mass_weighted(self, masses=None):
 remove_mass_weighting(self, masses=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L277)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L277?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L277)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L277?message=Update%20Docs)]
 </div>
 
 
@@ -219,8 +219,8 @@ remove_mass_weighting(self, masses=None):
 make_frequency_scaled(self, freqs=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L298)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L298?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L298)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L298?message=Update%20Docs)]
 </div>
 
 
@@ -229,8 +229,8 @@ make_frequency_scaled(self, freqs=None):
 remove_frequency_scaling(self, freqs=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L310)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L310?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L310)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L310?message=Update%20Docs)]
 </div>
 
 
@@ -239,8 +239,8 @@ remove_frequency_scaling(self, freqs=None):
 make_dimensionless(self, freqs=None, masses=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L322)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L322?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L322)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L322?message=Update%20Docs)]
 </div>
 
 
@@ -249,8 +249,8 @@ make_dimensionless(self, freqs=None, masses=None):
 make_dimensioned(self, freqs=None, masses=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/MixtureModes/MixtureModes.py#L329)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes/MixtureModes.py#L329?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/MixtureModes/MixtureModes.py#L329)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes/MixtureModes.py#L329?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -305,7 +305,7 @@ make_dimensioned(self, freqs=None, masses=None):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Modes/MixtureModes/MixtureModes.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Modes/MixtureModes/MixtureModes.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/MixtureModes.py#L15?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/MixtureModes.py#L15?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

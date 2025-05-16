@@ -1,8 +1,8 @@
 ## <a id="Psience.DVR.ColbertMiller.PolarDVR">PolarDVR</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller.py#L193)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller.py#L193?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller.py#L193)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L193?message=Update%20Docs)]
 </div>
 
 Provides a DVR for working on the (0, pi) range from Colbert and Miller
@@ -24,8 +24,8 @@ Provides a DVR for working on the (0, pi) range from Colbert and Miller
 __init__(self, domain=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/PolarDVR.py#L198)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/PolarDVR.py#L198?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller.py#L198)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L198?message=Update%20Docs)]
 </div>
 
 
@@ -34,8 +34,8 @@ __init__(self, domain=None, **opts):
 get_grid(self, domain=(0, 3.141592653589793), divs=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/PolarDVR.py#L203)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/PolarDVR.py#L203?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller/PolarDVR.py#L203)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller/PolarDVR.py#L203?message=Update%20Docs)]
 </div>
 Provides the grid appropriate for the Colbert-Miller (0, Pi) range
   - `domain`: `Any`
@@ -53,8 +53,8 @@ Provides the grid appropriate for the Colbert-Miller (0, Pi) range
 get_kinetic_energy(self, grid=None, mass=None, hb=1, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/PolarDVR.py#L222)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/PolarDVR.py#L222?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller/PolarDVR.py#L222)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller/PolarDVR.py#L222?message=Update%20Docs)]
 </div>
 Colbert-Miller kinetic energy for the [0, pi] range
   - `grid`: `Any`
@@ -120,7 +120,7 @@ Colbert-Miller kinetic energy for the [0, pi] range
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/ColbertMiller/PolarDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/ColbertMiller/PolarDVR.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller.py#L193?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L193?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

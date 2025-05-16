@@ -1,8 +1,8 @@
 ## <a id="Psience.DVR.BaseDVR.DVRResults">DVRResults</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/BaseDVR.py#L380)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/BaseDVR.py#L380?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L380)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L380?message=Update%20Docs)]
 </div>
 
 A subclass that can wrap all of the DVR run parameters and results into a clean interface for reuse and extension
@@ -24,8 +24,8 @@ A subclass that can wrap all of the DVR run parameters and results into a clean 
 __init__(self, grid=None, kinetic_energy=None, potential_energy=None, hamiltonian=None, wavefunctions=None, parent=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/BaseDVR/DVRResults.py#L384)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/BaseDVR/DVRResults.py#L384?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L384)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L384?message=Update%20Docs)]
 </div>
 
 
@@ -35,8 +35,8 @@ __init__(self, grid=None, kinetic_energy=None, potential_energy=None, hamiltonia
 dimension(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/BaseDVR/DVRResults.py#L403)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/BaseDVR/DVRResults.py#L403?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR/DVRResults.py#L403)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR/DVRResults.py#L403?message=Update%20Docs)]
 </div>
 
 
@@ -45,8 +45,8 @@ dimension(self):
 plot_potential(self, plot_class=None, figure=None, plot_units=None, energy_threshold=None, zero_shift=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/BaseDVR/DVRResults.py#L410)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/BaseDVR/DVRResults.py#L410?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR/DVRResults.py#L410)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR/DVRResults.py#L410?message=Update%20Docs)]
 </div>
 Simple plotting function for the potential.
 Should be updated to deal with higher dimensional cases
@@ -109,7 +109,7 @@ Should be updated to deal with higher dimensional cases
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/BaseDVR/DVRResults.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/BaseDVR/DVRResults.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/BaseDVR.py#L380?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L380?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

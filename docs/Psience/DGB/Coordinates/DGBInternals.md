@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.Coordinates.DGBInternals">DGBInternals</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates.py#L330)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates.py#L330?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates.py#L330)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates.py#L330?message=Update%20Docs)]
 </div>
 
 
@@ -24,8 +24,8 @@
 __init__(self, coords, gmat_function=None, vprime_function=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBInternals.py#L331)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBInternals.py#L331?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates.py#L331)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates.py#L331?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -80,7 +80,7 @@ __init__(self, coords, gmat_function=None, vprime_function=None):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Coordinates/DGBInternals.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Coordinates/DGBInternals.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates.py#L330?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates.py#L330?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

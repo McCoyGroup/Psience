@@ -1,8 +1,8 @@
 ## <a id="Psience.Data.Surfaces.DipoleSurface">DipoleSurface</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces.py#L16)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces.py#L16?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces.py#L16)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces.py#L16?message=Update%20Docs)]
 </div>
 
 Provides a unified interface to working with dipole surfaces.
@@ -26,8 +26,8 @@ stuff could come
 __init__(self, mu_x, mu_y, mu_z): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/DipoleSurface.py#L22)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/DipoleSurface.py#L22?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces.py#L22)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces.py#L22?message=Update%20Docs)]
 </div>
 
   - `mu_x`: `Surface`
@@ -44,8 +44,8 @@ __init__(self, mu_x, mu_y, mu_z):
 center(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/DipoleSurface.py#L42)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/DipoleSurface.py#L42?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces/DipoleSurface.py#L42)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces/DipoleSurface.py#L42?message=Update%20Docs)]
 </div>
 
 
@@ -55,8 +55,8 @@ center(self):
 ref(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/DipoleSurface.py#L45)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/DipoleSurface.py#L45?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces/DipoleSurface.py#L45)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces/DipoleSurface.py#L45?message=Update%20Docs)]
 </div>
 
 
@@ -66,8 +66,8 @@ ref(self):
 expansion_tensors(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/DipoleSurface.py#L48)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/DipoleSurface.py#L48?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces/DipoleSurface.py#L48)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces/DipoleSurface.py#L48?message=Update%20Docs)]
 </div>
 
 
@@ -77,8 +77,8 @@ expansion_tensors(self):
 get_log_values(log_file, keys=('StandardCartesianCoordinates', 'DipoleMoments')): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L57)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L57?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L57)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L57?message=Update%20Docs)]
 </div>
 
 
@@ -88,8 +88,8 @@ get_log_values(log_file, keys=('StandardCartesianCoordinates', 'DipoleMoments'))
 from_log_file(cls, log_file, coord_transf, keys=('StandardCartesianCoordinates', 'DipoleMoments'), tol=0.001, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L67)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L67?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L67)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L67?message=Update%20Docs)]
 </div>
 Loads dipoles from a Gaussian log file and builds a dipole surface by interpolating.
 Obviously this only really works if we have a subset of "scan" coordinates, so at this stage the user is obligated
@@ -107,8 +107,8 @@ Coordinerds can be helpful with this, as it provides a convenient syntax for Car
 from_fchk_file(cls, fchk_file, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L134)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L134?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L134)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L134?message=Update%20Docs)]
 </div>
 Loads dipoles from a Gaussian formatted checkpoint file and builds a dipole surface via a linear approximation
   - `fchk_file`: `Any`
@@ -125,8 +125,8 @@ Loads dipoles from a Gaussian formatted checkpoint file and builds a dipole surf
 from_derivatives(cls, expansion, center=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L151)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L151?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L151)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L151?message=Update%20Docs)]
 </div>
 
 
@@ -136,8 +136,8 @@ from_derivatives(cls, expansion, center=None, **opts):
 from_mol(cls, mol, expansion=None, center=None, transforms=None, use_internals=True, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L175)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L175?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L175)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L175?message=Update%20Docs)]
 </div>
 
 
@@ -146,8 +146,8 @@ from_mol(cls, mol, expansion=None, center=None, transforms=None, use_internals=T
 __call__(self, gridpoints, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/Surfaces/DipoleSurface.py#L190)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces/DipoleSurface.py#L190?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces/DipoleSurface.py#L190)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces/DipoleSurface.py#L190?message=Update%20Docs)]
 </div>
 Explicitly overrides the Surface-level evaluation because we know the Taylor surface needs us to flatten our gridpoints
   - `gridpoints`: `Any`
@@ -209,7 +209,7 @@ Explicitly overrides the Surface-level evaluation because we know the Taylor sur
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Data/Surfaces/DipoleSurface.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Data/Surfaces/DipoleSurface.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Data/Surfaces.py#L16?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces.py#L16?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

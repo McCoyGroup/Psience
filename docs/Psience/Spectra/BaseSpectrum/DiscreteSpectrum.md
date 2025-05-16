@@ -1,8 +1,8 @@
 ## <a id="Psience.Spectra.BaseSpectrum.DiscreteSpectrum">DiscreteSpectrum</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/BaseSpectrum.py#L142)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum.py#L142?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L142)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L142?message=Update%20Docs)]
 </div>
 
 Concrete implementation of `BaseSpectrum` that exists
@@ -26,8 +26,8 @@ solely to allow for plotting and broadening.
 from_transition_moments(cls, frequencies, transition_moments, **meta): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L148)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L148?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L148)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L148?message=Update%20Docs)]
 </div>
 Assumes frequencies and transition moments in a.u.
   - `frequencies`: `Any`
@@ -43,8 +43,8 @@ Assumes frequencies and transition moments in a.u.
 normalize(self, which=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/BaseSpectrum/DiscreteSpectrum.py#L170)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum/DiscreteSpectrum.py#L170?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L170)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L170?message=Update%20Docs)]
 </div>
 
 
@@ -53,8 +53,8 @@ normalize(self, which=None):
 plot(self, figure=None, plot_style=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/BaseSpectrum/DiscreteSpectrum.py#L177)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum/DiscreteSpectrum.py#L177?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L177)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L177?message=Update%20Docs)]
 </div>
 Plots a spectrum using `McUtils.Plots.StickSpectrum`
   - `figure`: `None | McUtils.Plots.Graphics`
@@ -70,8 +70,8 @@ Plots a spectrum using `McUtils.Plots.StickSpectrum`
 broaden(self, broadening_type='gaussian', breadth=10): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/BaseSpectrum/DiscreteSpectrum.py#L200)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum/DiscreteSpectrum.py#L200?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L200)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L200?message=Update%20Docs)]
 </div>
 Applies a broadening to the spectrum
   - `broadening_type`: `Any`
@@ -133,7 +133,7 @@ Applies a broadening to the spectrum
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum.py#L142?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L142?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

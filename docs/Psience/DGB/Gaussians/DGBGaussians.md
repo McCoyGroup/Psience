@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.Gaussians.DGBGaussians">DGBGaussians</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Gaussians.py#L53)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Gaussians.py#L53?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Gaussians.py#L53)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Gaussians.py#L53?message=Update%20Docs)]
 </div>
 
 A class to set up the actual N-dimensional Gaussians used in a DGB
@@ -29,8 +29,8 @@ bad_scaling_limit: float
 __init__(self, coords, alphas, transformations=None, *, momenta=None, poly_coeffs=None, kinetic_options=None, logger=None, parallelizer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Gaussians/DGBGaussians.py#L58)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Gaussians/DGBGaussians.py#L58?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Gaussians.py#L58)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Gaussians.py#L58?message=Update%20Docs)]
 </div>
 
 
@@ -40,8 +40,8 @@ __init__(self, coords, alphas, transformations=None, *, momenta=None, poly_coeff
 overlap_data(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Gaussians/DGBGaussians.py#L104)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Gaussians/DGBGaussians.py#L104?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Gaussians/DGBGaussians.py#L104)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Gaussians/DGBGaussians.py#L104?message=Update%20Docs)]
 </div>
 
 
@@ -50,8 +50,8 @@ overlap_data(self):
 get_S(self, return_prefactor=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Gaussians/DGBGaussians.py#L116)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Gaussians/DGBGaussians.py#L116?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Gaussians/DGBGaussians.py#L116)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Gaussians/DGBGaussians.py#L116?message=Update%20Docs)]
 </div>
 
 
@@ -60,8 +60,8 @@ get_S(self, return_prefactor=False):
 get_T(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Gaussians/DGBGaussians.py#L121)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Gaussians/DGBGaussians.py#L121?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Gaussians/DGBGaussians.py#L121)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Gaussians/DGBGaussians.py#L121?message=Update%20Docs)]
 </div>
 
 
@@ -70,8 +70,8 @@ get_T(self):
 optimize(self, optimizer_options, potential_function=None, logger=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Gaussians/DGBGaussians.py#L127)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Gaussians/DGBGaussians.py#L127?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Gaussians/DGBGaussians.py#L127)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Gaussians/DGBGaussians.py#L127?message=Update%20Docs)]
 </div>
 
 
@@ -80,8 +80,8 @@ optimize(self, optimizer_options, potential_function=None, logger=None, **opts):
 take_gaussian_selection(self, full_good_pos): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Gaussians/DGBGaussians.py#L154)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Gaussians/DGBGaussians.py#L154?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Gaussians/DGBGaussians.py#L154)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Gaussians/DGBGaussians.py#L154?message=Update%20Docs)]
 </div>
 
 
@@ -91,8 +91,8 @@ take_gaussian_selection(self, full_good_pos):
 construct(cls, coords, alphas, *, potential_expansion=None, potential_function=None, transformations=None, masses=None, atoms=None, modes=None, kinetic_options=None, internals=None, coordinate_selection=None, cartesians=None, gmat_function=None, momenta=None, poly_coeffs=None, logger=None, pairwise_potential_functions=None, parallelizer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L557)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L557?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L557)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L557?message=Update%20Docs)]
 </div>
 
 
@@ -102,8 +102,8 @@ construct(cls, coords, alphas, *, potential_expansion=None, potential_function=N
 get_normal_modes(cls, coords, potential_function, masses=None, atoms=None, internals=None, gmat_function=None, reference_structure=None, stationary_point_norm=0.01, project_transrot=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L719)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L719?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L719)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L719?message=Update%20Docs)]
 </div>
 
 
@@ -113,8 +113,8 @@ get_normal_modes(cls, coords, potential_function, masses=None, atoms=None, inter
 get_reaction_path_transformations(cls, coords, potential_function, gmat_function, stationary_point_norm=0.0001, sort_alphas=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L787)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L787?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L787)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L787?message=Update%20Docs)]
 </div>
 
 
@@ -124,8 +124,8 @@ get_reaction_path_transformations(cls, coords, potential_function, gmat_function
 get_hessian_diagonalizing_transformations(cls, coords, potential_function, gmat_function, *, masses=None, project_transrot=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L855)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L855?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L855)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L855?message=Update%20Docs)]
 </div>
 
 
@@ -135,8 +135,8 @@ get_hessian_diagonalizing_transformations(cls, coords, potential_function, gmat_
 dispatch_get_alphas(self, alphas, centers, **extra_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L914)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L914?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L914)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L914?message=Update%20Docs)]
 </div>
 
 
@@ -146,8 +146,8 @@ dispatch_get_alphas(self, alphas, centers, **extra_opts):
 get_mass_alphas(cls, centers, *, masses, scaling=10, use_mean=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L964)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L964?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L964)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L964?message=Update%20Docs)]
 </div>
 
 
@@ -157,8 +157,8 @@ get_mass_alphas(cls, centers, *, masses, scaling=10, use_mean=False):
 get_min_distance_alphas(cls, masses, centers, scaling=0.25, use_mean=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L974)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L974?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L974)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L974?message=Update%20Docs)]
 </div>
 
 
@@ -168,8 +168,8 @@ get_min_distance_alphas(cls, masses, centers, scaling=0.25, use_mean=False):
 get_virial_alphas(cls, coords, *, potential_function, gmat_function, transformations, scaling=0.5): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L994)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L994?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L994)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L994?message=Update%20Docs)]
 </div>
 
 
@@ -179,8 +179,8 @@ get_virial_alphas(cls, coords, *, potential_function, gmat_function, transformat
 canonicalize_poly_coeffs(cls, coeffs, alphas): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1079)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1079?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1079)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1079?message=Update%20Docs)]
 </div>
 
 
@@ -190,8 +190,8 @@ canonicalize_poly_coeffs(cls, coeffs, alphas):
 transformations(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Gaussians/DGBGaussians.py#L1091)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Gaussians/DGBGaussians.py#L1091?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Gaussians/DGBGaussians.py#L1091)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Gaussians/DGBGaussians.py#L1091?message=Update%20Docs)]
 </div>
 
 
@@ -201,8 +201,8 @@ transformations(self):
 canonicalize_transforms(self, coords, tfs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1097)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1097?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1097)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1097?message=Update%20Docs)]
 </div>
 
 
@@ -212,8 +212,8 @@ canonicalize_transforms(self, coords, tfs):
 prefactor(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Gaussians/DGBGaussians.py#L1136)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Gaussians/DGBGaussians.py#L1136?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Gaussians/DGBGaussians.py#L1136)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Gaussians/DGBGaussians.py#L1136?message=Update%20Docs)]
 </div>
 
 
@@ -223,8 +223,8 @@ prefactor(self):
 S(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Gaussians/DGBGaussians.py#L1141)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Gaussians/DGBGaussians.py#L1141?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Gaussians/DGBGaussians.py#L1141)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Gaussians/DGBGaussians.py#L1141?message=Update%20Docs)]
 </div>
 
 
@@ -234,8 +234,8 @@ S(self):
 T(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Gaussians/DGBGaussians.py#L1149)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Gaussians/DGBGaussians.py#L1149?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Gaussians/DGBGaussians.py#L1149)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Gaussians/DGBGaussians.py#L1149?message=Update%20Docs)]
 </div>
 
 
@@ -244,8 +244,8 @@ T(self):
 marginalize_out(self, indices, *, bad_alpha_limit=None, bad_scaling_limit=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Gaussians/DGBGaussians.py#L1160)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Gaussians/DGBGaussians.py#L1160?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Gaussians/DGBGaussians.py#L1160)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Gaussians/DGBGaussians.py#L1160?message=Update%20Docs)]
 </div>
 
 
@@ -254,8 +254,8 @@ marginalize_out(self, indices, *, bad_alpha_limit=None, bad_scaling_limit=None):
 as_cartesians(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Gaussians/DGBGaussians.py#L1218)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Gaussians/DGBGaussians.py#L1218?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Gaussians/DGBGaussians.py#L1218)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Gaussians/DGBGaussians.py#L1218?message=Update%20Docs)]
 </div>
 
 
@@ -264,8 +264,8 @@ as_cartesians(self):
 plot_centers(self, figure=None, xyz_sel=None, **plot_styles): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Gaussians/DGBGaussians.py#L1246)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Gaussians/DGBGaussians.py#L1246?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Gaussians/DGBGaussians.py#L1246)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Gaussians/DGBGaussians.py#L1246?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -320,7 +320,7 @@ plot_centers(self, figure=None, xyz_sel=None, **plot_styles):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Gaussians/DGBGaussians.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Gaussians/DGBGaussians.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Gaussians.py#L53?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Gaussians.py#L53?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

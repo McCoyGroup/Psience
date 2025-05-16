@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.Coordinates.DGBCartesians">DGBCartesians</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates.py#L200)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates.py#L200?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates.py#L200)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates.py#L200?message=Update%20Docs)]
 </div>
 
 
@@ -24,8 +24,8 @@
 __init__(self, coords, masses, *, natoms=None, atom_sel=None, ndim=None, xyz_sel=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCartesians.py#L201)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCartesians.py#L201?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates.py#L201)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates.py#L201?message=Update%20Docs)]
 </div>
 
 
@@ -35,8 +35,8 @@ __init__(self, coords, masses, *, natoms=None, atom_sel=None, ndim=None, xyz_sel
 centers(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCartesians.py#L214)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCartesians.py#L214?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCartesians.py#L214)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCartesians.py#L214?message=Update%20Docs)]
 </div>
 
 
@@ -46,8 +46,8 @@ centers(self):
 cart_shape(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCartesians.py#L217)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCartesians.py#L217?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCartesians.py#L217)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCartesians.py#L217?message=Update%20Docs)]
 </div>
 
 
@@ -57,8 +57,8 @@ cart_shape(self):
 kinetic_energy_evaluator(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCartesians.py#L220)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCartesians.py#L220?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCartesians.py#L220)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCartesians.py#L220?message=Update%20Docs)]
 </div>
 
 
@@ -68,8 +68,8 @@ kinetic_energy_evaluator(self):
 pairwise_potential_evaluator_type(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCartesians.py#L225)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCartesians.py#L225?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCartesians.py#L225)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCartesians.py#L225?message=Update%20Docs)]
 </div>
 
 
@@ -79,8 +79,8 @@ pairwise_potential_evaluator_type(self):
 resolve_masses(cls, coords, masses=None, atoms=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L228)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L228?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L228)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L228?message=Update%20Docs)]
 </div>
 
 
@@ -90,8 +90,8 @@ resolve_masses(cls, coords, masses=None, atoms=None):
 from_cartesians(cls, centers, masses=None, atoms=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L245)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L245?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L245)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L245?message=Update%20Docs)]
 </div>
 
 
@@ -100,8 +100,8 @@ from_cartesians(cls, centers, masses=None, atoms=None):
 infer_shape_sel(self, selector): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCartesians.py#L251)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCartesians.py#L251?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCartesians.py#L251)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCartesians.py#L251?message=Update%20Docs)]
 </div>
 
 
@@ -110,8 +110,8 @@ infer_shape_sel(self, selector):
 __getitem__(self, item) -> 'DGBCartesians': 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCartesians.py#L275)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCartesians.py#L275?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCartesians.py#L275)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCartesians.py#L275?message=Update%20Docs)]
 </div>
 
 
@@ -120,8 +120,8 @@ __getitem__(self, item) -> 'DGBCartesians':
 take_indices(self, subinds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCartesians.py#L302)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCartesians.py#L302?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCartesians.py#L302)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCartesians.py#L302?message=Update%20Docs)]
 </div>
 
 
@@ -130,8 +130,8 @@ take_indices(self, subinds):
 embed_function(self, function): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCartesians.py#L307)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCartesians.py#L307?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCartesians.py#L307)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCartesians.py#L307?message=Update%20Docs)]
 </div>
 Embeds assuming we got a function in Cartesians _before_ any selections happened
   - `function`: `Any`
@@ -145,8 +145,8 @@ Embeds assuming we got a function in Cartesians _before_ any selections happened
 gmatrix(self, coords: numpy.ndarray) -> numpy.ndarray: 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCartesians.py#L326)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCartesians.py#L326?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCartesians.py#L326)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCartesians.py#L326?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -201,7 +201,7 @@ gmatrix(self, coords: numpy.ndarray) -> numpy.ndarray:
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Coordinates/DGBCartesians.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Coordinates/DGBCartesians.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates.py#L200?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates.py#L200?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

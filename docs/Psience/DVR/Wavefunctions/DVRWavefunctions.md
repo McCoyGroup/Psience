@@ -1,8 +1,8 @@
 ## <a id="Psience.DVR.Wavefunctions.DVRWavefunctions">DVRWavefunctions</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions.py#L75)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions.py#L75?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions.py#L75)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions.py#L75?message=Update%20Docs)]
 </div>
 
 
@@ -26,8 +26,8 @@ wavefunction_class: DVRWavefunction
 __init__(self, energies=None, wavefunctions=None, grid=None, results: Psience.DVR.BaseDVR.DVRResults = None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunctions.py#L78)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunctions.py#L78?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions.py#L78)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions.py#L78?message=Update%20Docs)]
 </div>
 
 
@@ -36,8 +36,8 @@ __init__(self, energies=None, wavefunctions=None, grid=None, results: Psience.DV
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunctions.py#L82)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunctions.py#L82?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L82)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L82?message=Update%20Docs)]
 </div>
 
 
@@ -46,8 +46,8 @@ __repr__(self):
 plot(self, figure=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunctions.py#L119)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunctions.py#L119?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L119)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L119?message=Update%20Docs)]
 </div>
 Plots the held wavefunctions
   - `figure`: `Any`
@@ -71,8 +71,8 @@ Plots the held wavefunctions
 expectation(self, op, other=None, multiplicative=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunctions.py#L151)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunctions.py#L151?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L151)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L151?message=Update%20Docs)]
 </div>
 Computes the expectation value of operator op over the wavefunction other and self
   - `other`: `DVRWavefunctions | np.ndarray`
@@ -88,8 +88,8 @@ Computes the expectation value of operator op over the wavefunction other and se
 transform_operator(self, M): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunctions.py#L180)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunctions.py#L180?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L180)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L180?message=Update%20Docs)]
 </div>
 
 
@@ -98,8 +98,8 @@ transform_operator(self, M):
 coordinate(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunctions.py#L185)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunctions.py#L185?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L185)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L185?message=Update%20Docs)]
 </div>
 
 
@@ -108,8 +108,8 @@ coordinate(self):
 momentum(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunctions.py#L187)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunctions.py#L187?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L187)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L187?message=Update%20Docs)]
 </div>
 
 
@@ -118,8 +118,8 @@ momentum(self):
 laplacian(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunctions.py#L191)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunctions.py#L191?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L191)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L191?message=Update%20Docs)]
 </div>
 
 
@@ -128,8 +128,8 @@ laplacian(self):
 kinetic_energy(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunctions.py#L196)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunctions.py#L196?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L196)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L196?message=Update%20Docs)]
 </div>
 
 
@@ -138,8 +138,8 @@ kinetic_energy(self):
 potential_energy(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Wavefunctions/DVRWavefunctions.py#L202)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions/DVRWavefunctions.py#L202?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L202)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L202?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -194,7 +194,7 @@ potential_energy(self):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/Wavefunctions/DVRWavefunctions.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/Wavefunctions/DVRWavefunctions.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Wavefunctions.py#L75?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions.py#L75?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

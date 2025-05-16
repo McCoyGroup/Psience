@@ -1,7 +1,7 @@
 # <a id="Psience.Molecools.Molecule">Psience.Molecools.Molecule</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Molecule/__init__.py#L1)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/__init__.py#L1?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule.py#L1)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L1?message=Update%20Docs)]
 </div>
     
 Provides a simple Molecule class that we can adapt as we need
@@ -74,7 +74,7 @@ Uses AtomData to get properties and whatnot
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/Molecule.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/Molecule.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Molecule/__init__.py#L1?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule.py#L1?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

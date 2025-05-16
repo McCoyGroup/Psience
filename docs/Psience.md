@@ -1,7 +1,7 @@
 # <a id="Psience">Psience</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/__init__.py#L1)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/__init__.py#L1?message=Update%20Docs)]
 </div>
     
 The main package for working with core coordinate/molecule/wavefunction stuff.
@@ -112,7 +112,7 @@ and spectrum handling.
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/__init__.py#L1?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

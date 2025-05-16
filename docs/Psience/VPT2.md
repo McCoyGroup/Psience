@@ -1,7 +1,7 @@
 # <a id="Psience.VPT2">Psience.VPT2</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/__init__.py#L1)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/__init__.py#L1?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/__init__.py#L1)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/__init__.py#L1?message=Update%20Docs)]
 </div>
     
 An implementation of vibrational perturbation theory (VPT) that uses sparse matrix methods to obtain
@@ -280,9 +280,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-553e50" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-553e50"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-31af8f" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-31af8f"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-553e50" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-31af8f" markdown="1">
  - [MultdiDegHOH](#MultdiDegHOH)
 - [HOHAnalytic](#HOHAnalytic)
 - [HOHLocal](#HOHLocal)
@@ -339,9 +339,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-e3383a" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-e3383a"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-26d23a" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-26d23a"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-e3383a" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-26d23a" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3958,7 +3958,7 @@ State             Frequency    Intensity       Frequency    Intensity
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/__init__.py#L1?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/__init__.py#L1?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

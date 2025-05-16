@@ -1,8 +1,8 @@
 ## <a id="Psience.Molecools.Properties.NormalModesManager">NormalModesManager</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties.py#L2065)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties.py#L2065?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L2065)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L2065?message=Update%20Docs)]
 </div>
 
 
@@ -26,8 +26,8 @@ recalc_normal_mode_tolerance: float
 __init__(self, mol, normal_modes=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/NormalModesManager.py#L2066)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/NormalModesManager.py#L2066?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L2066)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L2066?message=Update%20Docs)]
 </div>
 
 
@@ -37,8 +37,8 @@ __init__(self, mol, normal_modes=None):
 from_data(cls, mol, data): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L2089)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L2089?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L2089)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L2089?message=Update%20Docs)]
 </div>
 
 
@@ -47,8 +47,8 @@ from_data(cls, mol, data):
 set_molecule(self, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/NormalModesManager.py#L2113)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/NormalModesManager.py#L2113?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L2113)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L2113?message=Update%20Docs)]
 </div>
 
 
@@ -58,8 +58,8 @@ set_molecule(self, mol):
 modes(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/NormalModesManager.py#L2118)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/NormalModesManager.py#L2118?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L2118)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L2118?message=Update%20Docs)]
 </div>
 
   - `:returns`: `MolecularVibrations`
@@ -71,8 +71,8 @@ modes(self):
 construct_normal_modes(self, modes): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/NormalModesManager.py#L2138)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/NormalModesManager.py#L2138?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L2138)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L2138?message=Update%20Docs)]
 </div>
 
 
@@ -81,8 +81,8 @@ construct_normal_modes(self, modes):
 load(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/NormalModesManager.py#L2156)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/NormalModesManager.py#L2156?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L2156)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L2156?message=Update%20Docs)]
 </div>
 
 
@@ -91,8 +91,8 @@ load(self):
 update(self, modes): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/NormalModesManager.py#L2158)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/NormalModesManager.py#L2158?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L2158)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L2158?message=Update%20Docs)]
 </div>
 
   - `:returns`: `_`
@@ -104,8 +104,8 @@ update(self, modes):
 load_normal_modes(self, file=None, rephase=True, recalculate=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/NormalModesManager.py#L2173)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/NormalModesManager.py#L2173?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L2173)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L2173?message=Update%20Docs)]
 </div>
 Loads potential derivatives from a file (or from `source_file` if set)
   - `file`: `Any`
@@ -121,8 +121,8 @@ Loads potential derivatives from a file (or from `source_file` if set)
 get_normal_modes(self, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/NormalModesManager.py#L2251)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/NormalModesManager.py#L2251?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L2251)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L2251?message=Update%20Docs)]
 </div>
 Loads normal modes from file or calculates
 from force constants
@@ -137,8 +137,8 @@ from force constants
 get_force_constants(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/NormalModesManager.py#L2272)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/NormalModesManager.py#L2272?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L2272)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L2272?message=Update%20Docs)]
 </div>
 
 
@@ -148,8 +148,8 @@ get_force_constants(self):
 get_dipole_derivative_based_rephasing(cls, modes, analytic_dipoles, numerical_dipoles): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L2281)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L2281?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L2281)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L2281?message=Update%20Docs)]
 </div>
 
 
@@ -158,8 +158,8 @@ get_dipole_derivative_based_rephasing(cls, modes, analytic_dipoles, numerical_di
 get_fchk_normal_mode_rephasing(self, modes=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/NormalModesManager.py#L2341)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/NormalModesManager.py#L2341?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L2341)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L2341?message=Update%20Docs)]
 </div>
 Returns the necessary rephasing to make the numerical dipole derivatives
 agree with the analytic dipole derivatives as pulled from a Gaussian FChk file
@@ -172,8 +172,8 @@ agree with the analytic dipole derivatives as pulled from a Gaussian FChk file
 apply_transformation(self, transf): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/NormalModesManager.py#L2355)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/NormalModesManager.py#L2355?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L2355)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L2355?message=Update%20Docs)]
 </div>
 
 
@@ -182,8 +182,8 @@ apply_transformation(self, transf):
 insert_atoms(self, atoms, coords, where): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/NormalModesManager.py#L2365)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/NormalModesManager.py#L2365?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L2365)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L2365?message=Update%20Docs)]
 </div>
 Handles the insertion of new atoms into the structure
   - `atoms`: `tuple[str]`
@@ -201,8 +201,8 @@ Handles the insertion of new atoms into the structure
 delete_atoms(self, where): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties/NormalModesManager.py#L2388)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties/NormalModesManager.py#L2388?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L2388)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L2388?message=Update%20Docs)]
 </div>
 Handles the deletion from the structure
   - `atoms`: `tuple[str]`
@@ -266,7 +266,7 @@ Handles the deletion from the structure
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/Properties/NormalModesManager.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/Properties/NormalModesManager.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties.py#L2065?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L2065?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

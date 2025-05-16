@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.Coordinates.DGBCoords">DGBCoords</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates.py#L19)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates.py#L19?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates.py#L19)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates.py#L19?message=Update%20Docs)]
 </div>
 
 
@@ -27,8 +27,8 @@ DGBEmbeddedFunction: DGBEmbeddedFunction
 centers(self) -> 'np.ndarray': 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCoords.py#L21)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCoords.py#L21?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCoords.py#L21)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCoords.py#L21?message=Update%20Docs)]
 </div>
 
 
@@ -38,8 +38,8 @@ centers(self) -> 'np.ndarray':
 shape(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCoords.py#L25)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCoords.py#L25?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCoords.py#L25)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCoords.py#L25?message=Update%20Docs)]
 </div>
 
 
@@ -49,8 +49,8 @@ shape(self):
 kinetic_energy_evaluator(self) -> 'DGBKineticEnergyEvaluator': 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCoords.py#L29)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCoords.py#L29?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCoords.py#L29)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCoords.py#L29?message=Update%20Docs)]
 </div>
 
 
@@ -60,8 +60,8 @@ kinetic_energy_evaluator(self) -> 'DGBKineticEnergyEvaluator':
 pairwise_potential_evaluator_type(self) -> 'type[DGBPairwisePotentialEvaluator]': 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCoords.py#L34)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCoords.py#L34?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCoords.py#L34)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCoords.py#L34?message=Update%20Docs)]
 </div>
 
 
@@ -70,8 +70,8 @@ pairwise_potential_evaluator_type(self) -> 'type[DGBPairwisePotentialEvaluator]'
 pairwise_potential_evaluator(self, potential_functions) -> 'DGBPairwisePotentialEvaluator': 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCoords.py#L38)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCoords.py#L38?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCoords.py#L38)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCoords.py#L38?message=Update%20Docs)]
 </div>
 
 
@@ -80,8 +80,8 @@ pairwise_potential_evaluator(self, potential_functions) -> 'DGBPairwisePotential
 __getitem__(self, item) -> 'DGBCoords': 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCoords.py#L48)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCoords.py#L48?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCoords.py#L48)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCoords.py#L48?message=Update%20Docs)]
 </div>
 
 
@@ -90,8 +90,8 @@ __getitem__(self, item) -> 'DGBCoords':
 take_indices(self, subinds) -> 'DGBCoords': 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCoords.py#L51)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCoords.py#L51?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCoords.py#L51)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCoords.py#L51?message=Update%20Docs)]
 </div>
 
 
@@ -100,8 +100,8 @@ take_indices(self, subinds) -> 'DGBCoords':
 drop_indices(self, subinds) -> 'DGBCoords': 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCoords.py#L53)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCoords.py#L53?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCoords.py#L53)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCoords.py#L53?message=Update%20Docs)]
 </div>
 
 
@@ -110,8 +110,8 @@ drop_indices(self, subinds) -> 'DGBCoords':
 gmatrix(self, coords: numpy.ndarray) -> numpy.ndarray: 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCoords.py#L56)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCoords.py#L56?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCoords.py#L56)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCoords.py#L56?message=Update%20Docs)]
 </div>
 
 
@@ -121,8 +121,8 @@ gmatrix(self, coords: numpy.ndarray) -> numpy.ndarray:
 embedded_mode_function(cls, func, modes, masses=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L60)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L60?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L60)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L60?message=Update%20Docs)]
 </div>
 
 
@@ -132,8 +132,8 @@ embedded_mode_function(cls, func, modes, masses=None):
 embedded_subcoordinate_function(cls, func, sel, ndim): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L79)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L79?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L79)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L79?message=Update%20Docs)]
 </div>
 
 
@@ -143,8 +143,8 @@ embedded_subcoordinate_function(cls, func, sel, ndim):
 embedded_cartesian_function(cls, func, atom_sel, xyz_sel, natoms, ndim): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L104)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L104?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L104)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L104?message=Update%20Docs)]
 </div>
 
 
@@ -153,8 +153,8 @@ embedded_cartesian_function(cls, func, atom_sel, xyz_sel, natoms, ndim):
 embed_function(self, fn) -> 'DGBEmbeddedFunction': 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCoords.py#L191)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCoords.py#L191?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCoords.py#L191)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCoords.py#L191?message=Update%20Docs)]
 </div>
 
 
@@ -163,8 +163,8 @@ embed_function(self, fn) -> 'DGBEmbeddedFunction':
 as_cartesians(self) -> 'tuple[DGBCartesians, tuple[np.ndarray, np.ndarray]]': 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBCoords.py#L195)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBCoords.py#L195?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBCoords.py#L195)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBCoords.py#L195?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -219,7 +219,7 @@ as_cartesians(self) -> 'tuple[DGBCartesians, tuple[np.ndarray, np.ndarray]]':
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Coordinates/DGBCoords.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Coordinates/DGBCoords.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates.py#L19?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates.py#L19?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

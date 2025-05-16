@@ -1,8 +1,8 @@
 ## <a id="Psience.DVR.DirectProduct.DirectProductDVR">DirectProductDVR</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/DirectProduct.py#L17)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/DirectProduct.py#L17?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L17)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L17?message=Update%20Docs)]
 </div>
 
 
@@ -24,8 +24,8 @@
 __init__(self, dvrs_1D, zero_threshold=1e-14, **base_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/DirectProduct/DirectProductDVR.py#L18)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/DirectProduct/DirectProductDVR.py#L18?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L18)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L18?message=Update%20Docs)]
 </div>
 
   - `dvrs_1D`: `Iterable[AbstractDVR]`
@@ -39,8 +39,8 @@ __init__(self, dvrs_1D, zero_threshold=1e-14, **base_opts):
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/DirectProduct/DirectProductDVR.py#L32)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/DirectProduct/DirectProductDVR.py#L32?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct/DirectProductDVR.py#L32)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct/DirectProductDVR.py#L32?message=Update%20Docs)]
 </div>
 
 
@@ -49,8 +49,8 @@ __repr__(self):
 get_grid(self, domain=None, divs=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/DirectProduct/DirectProductDVR.py#L39)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/DirectProduct/DirectProductDVR.py#L39?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct/DirectProductDVR.py#L39)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct/DirectProductDVR.py#L39?message=Update%20Docs)]
 </div>
 
 
@@ -59,8 +59,8 @@ get_grid(self, domain=None, divs=None, **kwargs):
 grid(self, domain=None, divs=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/DirectProduct/DirectProductDVR.py#L55)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/DirectProduct/DirectProductDVR.py#L55?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct/DirectProductDVR.py#L55)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct/DirectProductDVR.py#L55?message=Update%20Docs)]
 </div>
 
 
@@ -69,8 +69,8 @@ grid(self, domain=None, divs=None, **kwargs):
 get_kinetic_energy(self, grid=None, mass=None, hb=1, g=None, g_deriv=None, logger=None, include_kinetic_coupling=True, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/DirectProduct/DirectProductDVR.py#L68)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/DirectProduct/DirectProductDVR.py#L68?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct/DirectProductDVR.py#L68)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct/DirectProductDVR.py#L68?message=Update%20Docs)]
 </div>
 
 
@@ -79,8 +79,8 @@ get_kinetic_energy(self, grid=None, mass=None, hb=1, g=None, g_deriv=None, logge
 kinetic_energy(self, grid=None, mass=None, hb=1, g=None, g_deriv=None, logger=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/DirectProduct/DirectProductDVR.py#L246)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/DirectProduct/DirectProductDVR.py#L246?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct/DirectProductDVR.py#L246)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct/DirectProductDVR.py#L246?message=Update%20Docs)]
 </div>
 Computes the N-dimensional kinetic energy
   - `grid`: `Any`
@@ -148,7 +148,7 @@ Computes the N-dimensional kinetic energy
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/DirectProduct/DirectProductDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/DirectProduct/DirectProductDVR.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/DirectProduct.py#L17?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L17?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

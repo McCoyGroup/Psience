@@ -1,8 +1,8 @@
 ## <a id="Psience.DVR.Extensions.PotentialOptimizedDVR">PotentialOptimizedDVR</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Extensions.py#L111)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Extensions.py#L111?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions.py#L111)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L111?message=Update%20Docs)]
 </div>
 
 
@@ -24,8 +24,8 @@
 __init__(self, wfns_1D: 'Iterable[DVRWavefunctions]', **base_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/Extensions/PotentialOptimizedDVR.py#L112)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Extensions/PotentialOptimizedDVR.py#L112?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions.py#L112)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L112?message=Update%20Docs)]
 </div>
 
 
@@ -35,8 +35,8 @@ __init__(self, wfns_1D: 'Iterable[DVRWavefunctions]', **base_opts):
 from_minimum(cls, base_dvr: 'DirectProductDVR|SelfConsistentDVR', **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L122)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L122?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L122)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L122?message=Update%20Docs)]
 </div>
 
 
@@ -46,8 +46,8 @@ from_minimum(cls, base_dvr: 'DirectProductDVR|SelfConsistentDVR', **opts):
 from_scf(cls, scf_dvr: 'DirectProductDVR|SelfConsistentDVR', wfns=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L135)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L135?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L135)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L135?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -102,7 +102,7 @@ from_scf(cls, scf_dvr: 'DirectProductDVR|SelfConsistentDVR', wfns=None, **opts):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/Extensions/PotentialOptimizedDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/Extensions/PotentialOptimizedDVR.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/Extensions.py#L111?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L111?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

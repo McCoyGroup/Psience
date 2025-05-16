@@ -1,8 +1,8 @@
 ## <a id="Psience.Molecools.Properties.MolecularPropertyError">MolecularPropertyError</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Molecools/Properties.py#L31)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties.py#L31?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L31)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L31?message=Update%20Docs)]
 </div>
 
 General error class for MolecularProperties
@@ -73,7 +73,7 @@ General error class for MolecularProperties
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/Properties/MolecularPropertyError.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/Properties/MolecularPropertyError.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Molecools/Properties.py#L31?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L31?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

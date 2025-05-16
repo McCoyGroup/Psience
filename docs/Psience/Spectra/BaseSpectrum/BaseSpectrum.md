@@ -1,8 +1,8 @@
 ## <a id="Psience.Spectra.BaseSpectrum.BaseSpectrum">BaseSpectrum</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/BaseSpectrum.py#L19)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum.py#L19?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L19)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L19?message=Update%20Docs)]
 </div>
 
 Base class to support spectral operation
@@ -24,8 +24,8 @@ Base class to support spectral operation
 __init__(self, frequencies, intensities, **meta): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/BaseSpectrum/BaseSpectrum.py#L23)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum/BaseSpectrum.py#L23?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L23)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L23?message=Update%20Docs)]
 </div>
 
   - `frequencies`: `np.ndarray`
@@ -41,8 +41,8 @@ __init__(self, frequencies, intensities, **meta):
 take_subspectrum(self, pos): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/BaseSpectrum/BaseSpectrum.py#L36)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum/BaseSpectrum.py#L36?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L36)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L36?message=Update%20Docs)]
 </div>
 Takes a subset of frequencies/intensities specified by `pos`
   - `pos`: `Any`
@@ -56,8 +56,8 @@ Takes a subset of frequencies/intensities specified by `pos`
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/BaseSpectrum/BaseSpectrum.py#L48)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum/BaseSpectrum.py#L48?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L48)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L48?message=Update%20Docs)]
 </div>
 
 
@@ -66,8 +66,8 @@ __getitem__(self, item):
 frequency_filter(self, freq_min, freq_max): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/BaseSpectrum/BaseSpectrum.py#L56)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum/BaseSpectrum.py#L56?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L56)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L56?message=Update%20Docs)]
 </div>
 Filters by frequencies >= `freq_min` and <= `freq_max`
   - `freq_min`: `float`
@@ -93,8 +93,8 @@ m
 intensity_filter(self, int_min, int_max): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/BaseSpectrum/BaseSpectrum.py#L71)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum/BaseSpectrum.py#L71?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L71)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L71?message=Update%20Docs)]
 </div>
 Filters by intensities >= `int_min` and <= `int_max`
   - `int_min`: `float`
@@ -120,8 +120,8 @@ m
 save(self, file): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/BaseSpectrum/BaseSpectrum.py#L87)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum/BaseSpectrum.py#L87?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L87)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L87?message=Update%20Docs)]
 </div>
 Saves the spectrum in JSON format
   - `file`: `Any`
@@ -136,8 +136,8 @@ Saves the spectrum in JSON format
 load(cls, file): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L108)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L108?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L108)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L108?message=Update%20Docs)]
 </div>
 Saves a spectrum from a JSON file
   - `file`: `Any`
@@ -151,8 +151,8 @@ Saves a spectrum from a JSON file
 plot(self, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/BaseSpectrum/BaseSpectrum.py#L127)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum/BaseSpectrum.py#L127?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L127)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L127?message=Update%20Docs)]
 </div>
 A stub so that subclasses can implement their own `plot` methods
   - `opts`: `Any`
@@ -212,7 +212,7 @@ A stub so that subclasses can implement their own `plot` methods
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Spectra/BaseSpectrum/BaseSpectrum.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Spectra/BaseSpectrum/BaseSpectrum.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum.py#L19?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L19?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

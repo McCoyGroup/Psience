@@ -1,7 +1,7 @@
 # <a id="Psience.Modes.LocalizedModes">Psience.Modes.LocalizedModes</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/LocalizedModes/__init__.py#L1)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/LocalizedModes/__init__.py#L1?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes.py#L1)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes.py#L1?message=Update%20Docs)]
 </div>
     
 Provides a general class of localized modes using a potentially non-linear
@@ -73,7 +73,7 @@ transformation of normal modes
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Modes/LocalizedModes.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Modes/LocalizedModes.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/LocalizedModes/__init__.py#L1?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes.py#L1?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

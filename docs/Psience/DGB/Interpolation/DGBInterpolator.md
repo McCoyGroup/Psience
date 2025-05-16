@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.Interpolation.DGBInterpolator">DGBInterpolator</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Interpolation.py#L16)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation.py#L16?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Interpolation.py#L16)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation.py#L16?message=Update%20Docs)]
 </div>
 
 
@@ -28,8 +28,8 @@ default_declustering_overlap: float
 __init__(self, centers, potential_derivatives, declustering_alpha=None, declustering_overlap=None, neighborhood_size=None, logger=None, pairwise_potential_functions=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Interpolation/DGBInterpolator.py#L20)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation/DGBInterpolator.py#L20?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Interpolation.py#L20)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation.py#L20?message=Update%20Docs)]
 </div>
 
 
@@ -38,8 +38,8 @@ __init__(self, centers, potential_derivatives, declustering_alpha=None, decluste
 __call__(self, points, deriv_order=None, **kwargs) -> 'np.ndarray | list[np.ndarray]': 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Interpolation/DGBInterpolator.py#L47)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation/DGBInterpolator.py#L47?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Interpolation/DGBInterpolator.py#L47)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation/DGBInterpolator.py#L47?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -94,7 +94,7 @@ __call__(self, points, deriv_order=None, **kwargs) -> 'np.ndarray | list[np.ndar
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Interpolation/DGBInterpolator.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Interpolation/DGBInterpolator.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation.py#L16?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation.py#L16?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

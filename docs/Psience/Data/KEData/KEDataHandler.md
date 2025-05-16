@@ -1,8 +1,8 @@
 ## <a id="Psience.Data.KEData.KEDataHandler">KEDataHandler</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/KEData.py#L10)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/KEData.py#L10?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/KEData.py#L10)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/KEData.py#L10?message=Update%20Docs)]
 </div>
 
 A DataHandler that's built for use with the G-matrix and V' terms
@@ -29,8 +29,8 @@ equivalent_perms: dict
 __init__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/KEData/KEDataHandler.py#L18)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/KEData/KEDataHandler.py#L18?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/KEData.py#L18)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/KEData.py#L18?message=Update%20Docs)]
 </div>
 
 
@@ -39,8 +39,8 @@ __init__(self):
 find_expressions(self, k, return_permutation=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/KEData/KEDataHandler.py#L50)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/KEData/KEDataHandler.py#L50?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/KEData/KEDataHandler.py#L50)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/KEData/KEDataHandler.py#L50?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -95,7 +95,7 @@ find_expressions(self, k, return_permutation=False):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Data/KEData/KEDataHandler.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Data/KEData/KEDataHandler.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Data/KEData.py#L10?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/KEData.py#L10?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.Evaluators.DGBWatsonEvaluator">DGBWatsonEvaluator</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Evaluators.py#L1203)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Evaluators.py#L1203?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators.py#L1203)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L1203?message=Update%20Docs)]
 </div>
 
 
@@ -24,8 +24,8 @@
 __init__(self, modes, coriolis_inertia_function): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Evaluators/DGBWatsonEvaluator.py#L1206)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Evaluators/DGBWatsonEvaluator.py#L1206?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators.py#L1206)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L1206?message=Update%20Docs)]
 </div>
 
 
@@ -35,8 +35,8 @@ __init__(self, modes, coriolis_inertia_function):
 annoying_coriolis_term(n, u, m, v, Xc, Dx, Sc, Sp, Gi, Gj, DG): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1217)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1217?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L1217)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L1217?message=Update%20Docs)]
 </div>
 
 
@@ -46,8 +46,8 @@ annoying_coriolis_term(n, u, m, v, Xc, Dx, Sc, Sp, Gi, Gj, DG):
 annoying_coriolis_momentum_term(n, u, m, v, Xc, r, Jp, Dx, Sc, Sp, DG): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1229)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1229?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L1229)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L1229?message=Update%20Docs)]
 </div>
 
 
@@ -57,8 +57,8 @@ annoying_coriolis_momentum_term(n, u, m, v, Xc, r, Jp, Dx, Sc, Sp, DG):
 annoying_imaginary_momentum_term(n, u, m, v, Xc, r, Jp, Dx, Sc, Sp, DG): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1243)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1243?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L1243)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L1243?message=Update%20Docs)]
 </div>
 
 
@@ -68,8 +68,8 @@ annoying_imaginary_momentum_term(n, u, m, v, Xc, r, Jp, Dx, Sc, Sp, DG):
 evaluate_coriolis_contrib(cls, coriolis_tensors, overlap_data: 'OverlapGaussianData'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1257)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1257?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1257)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1257?message=Update%20Docs)]
 </div>
 
 
@@ -79,8 +79,8 @@ evaluate_coriolis_contrib(cls, coriolis_tensors, overlap_data: 'OverlapGaussianD
 evaluate_watson_term(cls, B_e, overlap_data: 'OverlapGaussianData'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L1367)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L1367?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1367)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1367?message=Update%20Docs)]
 </div>
 
 
@@ -89,8 +89,8 @@ evaluate_watson_term(cls, B_e, overlap_data: 'OverlapGaussianData'):
 evaluate_ke(self, overlap_data: 'OverlapGaussianData', logger=None, include_diagonal_contribution=True, include_coriolis_coupling=True, include_watson_term=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Evaluators/DGBWatsonEvaluator.py#L1391)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Evaluators/DGBWatsonEvaluator.py#L1391?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators/DGBWatsonEvaluator.py#L1391)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators/DGBWatsonEvaluator.py#L1391?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -145,7 +145,7 @@ evaluate_ke(self, overlap_data: 'OverlapGaussianData', logger=None, include_diag
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Evaluators/DGBWatsonEvaluator.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Evaluators/DGBWatsonEvaluator.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Evaluators.py#L1203?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L1203?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

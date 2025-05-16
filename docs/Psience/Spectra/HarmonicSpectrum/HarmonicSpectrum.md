@@ -1,8 +1,8 @@
 ## <a id="Psience.Spectra.HarmonicSpectrum.HarmonicSpectrum">HarmonicSpectrum</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/HarmonicSpectrum.py#L9)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/HarmonicSpectrum.py#L9?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/HarmonicSpectrum.py#L9)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/HarmonicSpectrum.py#L9?message=Update%20Docs)]
 </div>
 
 
@@ -25,8 +25,8 @@
 from_normal_modes(cls, nms, dipole_derivatives, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L11)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L11?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L11)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L11?message=Update%20Docs)]
 </div>
 
 
@@ -36,8 +36,8 @@ from_normal_modes(cls, nms, dipole_derivatives, **opts):
 from_mol(cls, mol, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L22)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L22?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L22)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L22?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -92,7 +92,7 @@ from_mol(cls, mol, **opts):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Spectra/HarmonicSpectrum/HarmonicSpectrum.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Spectra/HarmonicSpectrum/HarmonicSpectrum.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/HarmonicSpectrum.py#L9?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/HarmonicSpectrum.py#L9?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

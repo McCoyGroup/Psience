@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.Coordinates.DGBWatsonModes">DGBWatsonModes</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates.py#L333)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates.py#L333?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates.py#L333)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates.py#L333?message=Update%20Docs)]
 </div>
 
 
@@ -24,8 +24,8 @@
 __init__(self, coords, modes, *, coriolis_inertia_function=None, masses=None, subselection=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBWatsonModes.py#L334)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBWatsonModes.py#L334?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates.py#L334)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates.py#L334?message=Update%20Docs)]
 </div>
 
 
@@ -35,8 +35,8 @@ __init__(self, coords, modes, *, coriolis_inertia_function=None, masses=None, su
 centers(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBWatsonModes.py#L346)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBWatsonModes.py#L346?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBWatsonModes.py#L346)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBWatsonModes.py#L346?message=Update%20Docs)]
 </div>
 
 
@@ -46,8 +46,8 @@ centers(self):
 kinetic_energy_evaluator(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBWatsonModes.py#L349)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBWatsonModes.py#L349?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBWatsonModes.py#L349)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBWatsonModes.py#L349?message=Update%20Docs)]
 </div>
 
 
@@ -57,8 +57,8 @@ kinetic_energy_evaluator(self):
 pairwise_potential_evaluator_type(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBWatsonModes.py#L352)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBWatsonModes.py#L352?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBWatsonModes.py#L352)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBWatsonModes.py#L352?message=Update%20Docs)]
 </div>
 
 
@@ -68,8 +68,8 @@ pairwise_potential_evaluator_type(self):
 zeta_momi(watson_coords, modes, masses): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L355)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L355?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L355)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L355?message=Update%20Docs)]
 </div>
 
 
@@ -79,8 +79,8 @@ zeta_momi(watson_coords, modes, masses):
 default_coriolis_inertia_function(cls, modes, masses): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L377)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L377?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L377)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L377?message=Update%20Docs)]
 </div>
 
 
@@ -90,8 +90,8 @@ default_coriolis_inertia_function(cls, modes, masses):
 embed_coords(cls, carts, modes, shift=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L398)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L398?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L398)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L398?message=Update%20Docs)]
 </div>
 
 
@@ -101,8 +101,8 @@ embed_coords(cls, carts, modes, shift=True):
 unembed_coords(cls, mode_coords, modes, masses=None, shift=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L409)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L409?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L409)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L409?message=Update%20Docs)]
 </div>
 
 
@@ -112,8 +112,8 @@ unembed_coords(cls, mode_coords, modes, masses=None, shift=True):
 embed_derivs(cls, derivs, modes): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L425)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L425?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L425)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L425?message=Update%20Docs)]
 </div>
 
 
@@ -123,8 +123,8 @@ embed_derivs(cls, derivs, modes):
 from_cartesians(cls, coords, modes, masses=None, coriolis_inertia_function=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L434)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L434?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L434)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L434?message=Update%20Docs)]
 </div>
 
 
@@ -133,8 +133,8 @@ from_cartesians(cls, coords, modes, masses=None, coriolis_inertia_function=None)
 as_cartesians(self, masses=None) -> 'tuple[DGBCartesians, tuple[np.ndarray, np.ndarray]]': 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBWatsonModes.py#L449)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBWatsonModes.py#L449?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBWatsonModes.py#L449)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBWatsonModes.py#L449?message=Update%20Docs)]
 </div>
 
 
@@ -143,8 +143,8 @@ as_cartesians(self, masses=None) -> 'tuple[DGBCartesians, tuple[np.ndarray, np.n
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBWatsonModes.py#L462)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBWatsonModes.py#L462?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBWatsonModes.py#L462)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBWatsonModes.py#L462?message=Update%20Docs)]
 </div>
 
 
@@ -153,8 +153,8 @@ __getitem__(self, item):
 gmatrix(self, coords: numpy.ndarray) -> numpy.ndarray: 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBWatsonModes.py#L492)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBWatsonModes.py#L492?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBWatsonModes.py#L492)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBWatsonModes.py#L492?message=Update%20Docs)]
 </div>
 
 
@@ -163,8 +163,8 @@ gmatrix(self, coords: numpy.ndarray) -> numpy.ndarray:
 embed_function(self, fn): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Coordinates/DGBWatsonModes.py#L496)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates/DGBWatsonModes.py#L496?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Coordinates/DGBWatsonModes.py#L496)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates/DGBWatsonModes.py#L496?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -219,7 +219,7 @@ embed_function(self, fn):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Coordinates/DGBWatsonModes.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Coordinates/DGBWatsonModes.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Coordinates.py#L333?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Coordinates.py#L333?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -1,8 +1,8 @@
 ## <a id="Psience.Spectra.BaseSpectrum.ContinuousSpectrum">ContinuousSpectrum</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/BaseSpectrum.py#L216)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum.py#L216?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L216)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L216?message=Update%20Docs)]
 </div>
 
 Concrete implementation of `BaseSpectrum` that exists
@@ -25,8 +25,8 @@ solely to allow for plotting & maybe some day for interchange with like experime
 plot(self, figure=None, filled=False, plot_style=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Spectra/BaseSpectrum/ContinuousSpectrum.py#L222)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum/ContinuousSpectrum.py#L222?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/ContinuousSpectrum.py#L222)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/ContinuousSpectrum.py#L222?message=Update%20Docs)]
 </div>
 Plots a spectrum using `McUtils.Plots.Plot`
   - `figure`: `None | McUtils.Plots.Graphics`
@@ -88,7 +88,7 @@ Plots a spectrum using `McUtils.Plots.Plot`
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Spectra/BaseSpectrum/ContinuousSpectrum.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Spectra/BaseSpectrum/ContinuousSpectrum.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Spectra/BaseSpectrum.py#L216?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L216?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

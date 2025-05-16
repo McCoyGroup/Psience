@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Corrections.PerturbationTheoryCorrections">PerturbationTheoryCorrections</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections.py#L23)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections.py#L23?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L23)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L23?message=Update%20Docs)]
 </div>
 
 Represents a set of corrections from perturbation theory.
@@ -25,8 +25,8 @@ Can be used to correct other operators in the basis of the original calculation.
 __init__(self, states, coupled_states, total_basis, energy_corrs, wfn_corrections, all_energy_corrections=None, degenerate_states=None, degenerate_transformation=None, degenerate_energies=None, degenerate_hamiltonians=None, nondeg_hamiltonian_precision=3, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L29)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L29?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections.py#L29)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L29?message=Update%20Docs)]
 </div>
 
   - `states`: `BasisStateSpace`
@@ -53,8 +53,8 @@ __init__(self, states, coupled_states, total_basis, energy_corrs, wfn_correction
 from_dicts(cls, states, corrections, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L74)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L74?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L74)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L74?message=Update%20Docs)]
 </div>
 
   - `states`: `dict`
@@ -69,8 +69,8 @@ from_dicts(cls, states, corrections, **opts):
 degenerate(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L120)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L120?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L120)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L120?message=Update%20Docs)]
 </div>
 
   - `:returns`: `_`
@@ -83,8 +83,8 @@ degenerate(self):
 energies(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L129)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L129?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L129)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L129?message=Update%20Docs)]
 </div>
 
   - `:returns`: `_`
@@ -97,8 +97,8 @@ energies(self):
 order(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L141)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L141?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L141)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L141?message=Update%20Docs)]
 </div>
 
   - `:returns`: `_`
@@ -110,8 +110,8 @@ order(self):
 take_subspace(self, space): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L150)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L150?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L150)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L150?message=Update%20Docs)]
 </div>
 Takes only those elements that are in space
   - `space`: `Any`
@@ -126,8 +126,8 @@ Takes only those elements that are in space
 create_coupling_matrix(cls, corrs, states: Psience.BasisReps.StateSpaces.BasisStateSpace, flat_total_space: Psience.BasisReps.StateSpaces.BasisStateSpace, nstates, order, filters=None, non_zero_cutoff=1e-14, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L174)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L174?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L174)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L174?message=Update%20Docs)]
 </div>
 
   - `corrs`: `Any`
@@ -153,8 +153,8 @@ create_coupling_matrix(cls, corrs, states: Psience.BasisReps.StateSpaces.BasisSt
 prune(self, threshold=0.1, in_place=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L315)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L315?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L315)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L315?message=Update%20Docs)]
 </div>
 Returns corrections with couplings less than the given cutoff set to zero
   - `threshold`: `Any`
@@ -168,8 +168,8 @@ Returns corrections with couplings less than the given cutoff set to zero
 get_transformed_Hamiltonians(self, hams, deg_group=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L354)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L354?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L354)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L354?message=Update%20Docs)]
 </div>
 
   - `corrs`: `Any`
@@ -185,8 +185,8 @@ get_transformed_Hamiltonians(self, hams, deg_group=None):
 get_degenerate_rotation(self, deg_group, hams, label=None, zero_point_energy=None, local_coupling_hamiltonian=None, local_coupling_order=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L384)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L384?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L384)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L384?message=Update%20Docs)]
 </div>
 
   - `deg_group`: `Any`
@@ -202,8 +202,8 @@ get_degenerate_rotation(self, deg_group, hams, label=None, zero_point_energy=Non
 get_degenerate_transformation(self, group, hams, gaussian_resonance_handling=False, label=None, zero_point_energy=None, local_coupling_hamiltonian=None, local_coupling_order=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L508)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L508?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L508)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L508?message=Update%20Docs)]
 </div>
 
 
@@ -213,8 +213,8 @@ get_degenerate_transformation(self, group, hams, gaussian_resonance_handling=Fal
 default_state_filter(state, couplings, energy_cutoff=None, energies=None, basis=None, target_modes=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L546)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L546?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L546)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L546?message=Update%20Docs)]
 </div>
 Excludes modes that differ in only one position, prioritizing states with fewer numbers of quanta
 (potentially add restrictions to high frequency modes...?)
@@ -231,8 +231,8 @@ Excludes modes that differ in only one position, prioritizing states with fewer 
 find_strong_couplings(self, threshold=0.1, state_filter=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L590)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L590?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L590)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L590?message=Update%20Docs)]
 </div>
 Finds positions in the expansion matrices where the couplings are too large
   - `threshold`: `Any`
@@ -246,8 +246,8 @@ Finds positions in the expansion matrices where the couplings are too large
 format_strong_couplings_report(self, couplings=None, threshold=0.1, int_fmt='{:>3.0f}', padding='{:<8}', join=True, use_excitations=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L623)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L623?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L623)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L623?message=Update%20Docs)]
 </div>
 
 
@@ -256,8 +256,8 @@ format_strong_couplings_report(self, couplings=None, threshold=0.1, int_fmt='{:>
 collapse_strong_couplings(self, sc: dict): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L643)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L643?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L643)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L643?message=Update%20Docs)]
 </div>
 
   - `sc`: `Any`
@@ -271,8 +271,8 @@ collapse_strong_couplings(self, sc: dict):
 operator_representation(self, operator_expansion, order=None, subspace=None, contract=True, logger_symbol='A', logger_conversion=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L713)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L713?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L713)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L713?message=Update%20Docs)]
 </div>
 Generates the representation of the operator in the basis of stored states
   - `operator_expansion`: `Iterable[float] | Iterable[np.ndarray]`
@@ -341,8 +341,8 @@ r
 get_overlap_matrices(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L795)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L795?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L795)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L795?message=Update%20Docs)]
 </div>
 Returns the overlap matrices for the set of corrections
 at each order of correction
@@ -355,8 +355,8 @@ at each order of correction
 savez(self, file): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L870)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L870?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L870)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L870?message=Update%20Docs)]
 </div>
 
 
@@ -366,8 +366,8 @@ savez(self, file):
 loadz(cls, file): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L886)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L886?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L886)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L886?message=Update%20Docs)]
 </div>
 
 
@@ -376,8 +376,8 @@ loadz(cls, file):
 to_state(self, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L906)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections/PerturbationTheoryCorrections.py#L906?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L906)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L906?message=Update%20Docs)]
 </div>
 
 
@@ -387,8 +387,8 @@ to_state(self, serializer=None):
 from_state(cls, data, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L918)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L918?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L918)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L918?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -443,7 +443,7 @@ from_state(cls, data, serializer=None):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Corrections/PerturbationTheoryCorrections.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Corrections/PerturbationTheoryCorrections.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/VPT2/Corrections.py#L23?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections.py#L23?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

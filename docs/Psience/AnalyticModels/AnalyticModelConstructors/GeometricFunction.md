@@ -1,8 +1,8 @@
 ## <a id="Psience.AnalyticModels.AnalyticModelConstructors.GeometricFunction">GeometricFunction</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors.py#L188)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L188?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L188)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L188?message=Update%20Docs)]
 </div>
 
 
@@ -24,8 +24,8 @@
 __init__(self, coords, coord_funcs, val_func): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/GeometricFunction.py#L189)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/GeometricFunction.py#L189?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L189)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L189?message=Update%20Docs)]
 </div>
 
 
@@ -34,8 +34,8 @@ __init__(self, coords, coord_funcs, val_func):
 __call__(self, masses, coords): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors/GeometricFunction.py#L193)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors/GeometricFunction.py#L193?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/AnalyticModelConstructors/GeometricFunction.py#L193)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors/GeometricFunction.py#L193?message=Update%20Docs)]
 </div>
 
 
@@ -45,8 +45,8 @@ __call__(self, masses, coords):
 position_function(cls, i): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L197)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L197?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L197)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L197?message=Update%20Docs)]
 </div>
 
 
@@ -56,8 +56,8 @@ position_function(cls, i):
 normal_function(cls, i, j, k): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L200)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L200?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L200)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L200?message=Update%20Docs)]
 </div>
 
 
@@ -67,8 +67,8 @@ normal_function(cls, i, j, k):
 mass_function(cls, i): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L207)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L207?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L207)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L207?message=Update%20Docs)]
 </div>
 
 
@@ -78,8 +78,8 @@ mass_function(cls, i):
 distance_function(cls, i, j): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L210)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L210?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L210)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L210?message=Update%20Docs)]
 </div>
 
 
@@ -89,8 +89,8 @@ distance_function(cls, i, j):
 angle_function(cls, i, j, k): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L213)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L213?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L213)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L213?message=Update%20Docs)]
 </div>
 
 
@@ -100,8 +100,8 @@ angle_function(cls, i, j, k):
 dihedral_function(cls, i, j, k, l): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L219)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L219?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L219)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L219?message=Update%20Docs)]
 </div>
 
 
@@ -111,8 +111,8 @@ dihedral_function(cls, i, j, k, l):
 book_function(cls, i, j, k, l): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L222)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L222?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L222)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L222?message=Update%20Docs)]
 </div>
 
 
@@ -122,8 +122,8 @@ book_function(cls, i, j, k, l):
 create_symbol_function(cls, sym): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L226)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L226?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L226)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L226?message=Update%20Docs)]
 </div>
 
 
@@ -133,8 +133,8 @@ create_symbol_function(cls, sym):
 sorted_vars(cls, vars): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L239)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L239?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L239)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L239?message=Update%20Docs)]
 </div>
 
 
@@ -144,8 +144,8 @@ sorted_vars(cls, vars):
 from_expr(cls, expr): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L254)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L254?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L254)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L254?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -200,7 +200,7 @@ from_expr(cls, expr):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/AnalyticModels/AnalyticModelConstructors/GeometricFunction.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/AnalyticModels/AnalyticModelConstructors/GeometricFunction.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L188?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L188?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

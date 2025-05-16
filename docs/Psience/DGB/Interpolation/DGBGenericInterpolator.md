@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.Interpolation.DGBGenericInterpolator">DGBGenericInterpolator</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Interpolation.py#L50)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation.py#L50?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Interpolation.py#L50)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation.py#L50?message=Update%20Docs)]
 </div>
 
 
@@ -24,8 +24,8 @@
 __init__(self, centers, potential_derivatives, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Interpolation/DGBGenericInterpolator.py#L52)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation/DGBGenericInterpolator.py#L52?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Interpolation.py#L52)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation.py#L52?message=Update%20Docs)]
 </div>
 
 
@@ -34,8 +34,8 @@ __init__(self, centers, potential_derivatives, **opts):
 __call__(self, points, deriv_order=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Interpolation/DGBGenericInterpolator.py#L61)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation/DGBGenericInterpolator.py#L61?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Interpolation/DGBGenericInterpolator.py#L61)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation/DGBGenericInterpolator.py#L61?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -90,7 +90,7 @@ __call__(self, points, deriv_order=None, **kwargs):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Interpolation/DGBGenericInterpolator.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Interpolation/DGBGenericInterpolator.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation.py#L50?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation.py#L50?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

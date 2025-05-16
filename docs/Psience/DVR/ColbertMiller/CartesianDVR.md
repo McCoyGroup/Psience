@@ -1,8 +1,8 @@
 ## <a id="Psience.DVR.ColbertMiller.CartesianDVR">CartesianDVR</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller.py#L17)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller.py#L17?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller.py#L17)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L17?message=Update%20Docs)]
 </div>
 
 Provides the Colbert Miller DVR on the Cartesian [-inf, inf] range
@@ -24,8 +24,8 @@ Provides the Colbert Miller DVR on the Cartesian [-inf, inf] range
 get_grid(self, domain=None, divs=None, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/CartesianDVR.py#L22)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/CartesianDVR.py#L22?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller/CartesianDVR.py#L22)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller/CartesianDVR.py#L22?message=Update%20Docs)]
 </div>
 Provides the Colbert-Miller DVR grid for the [-inf, inf] range
   - `domain`: `Any`
@@ -45,8 +45,8 @@ Provides the Colbert-Miller DVR grid for the [-inf, inf] range
 get_kinetic_energy(self, grid=None, mass=None, hb=1, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/CartesianDVR.py#L39)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/CartesianDVR.py#L39?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller/CartesianDVR.py#L39)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller/CartesianDVR.py#L39?message=Update%20Docs)]
 </div>
 
 
@@ -55,8 +55,8 @@ get_kinetic_energy(self, grid=None, mass=None, hb=1, **kwargs):
 real_momentum(self, grid=None, mass=None, hb=1, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DVR/ColbertMiller/CartesianDVR.py#L63)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller/CartesianDVR.py#L63?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller/CartesianDVR.py#L63)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller/CartesianDVR.py#L63?message=Update%20Docs)]
 </div>
 Provides the real part of the momentum for the [-inf, inf] range
   - `grid`: `Any`
@@ -120,7 +120,7 @@ Provides the real part of the momentum for the [-inf, inf] range
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/ColbertMiller/CartesianDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/ColbertMiller/CartesianDVR.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DVR/ColbertMiller.py#L17?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller.py#L17?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

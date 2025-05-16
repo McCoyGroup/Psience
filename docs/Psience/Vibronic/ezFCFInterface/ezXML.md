@@ -1,8 +1,8 @@
 ## <a id="Psience.Vibronic.ezFCFInterface.ezXML">ezXML</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Vibronic/ezFCFInterface.py#L19)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Vibronic/ezFCFInterface.py#L19?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Vibronic/ezFCFInterface.py#L19)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/ezFCFInterface.py#L19?message=Update%20Docs)]
 </div>
 
 
@@ -95,7 +95,7 @@ input: input
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Vibronic/ezFCFInterface/ezXML.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Vibronic/ezFCFInterface/ezXML.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Vibronic/ezFCFInterface.py#L19?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/ezFCFInterface.py#L19?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

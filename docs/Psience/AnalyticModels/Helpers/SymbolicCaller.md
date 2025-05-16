@@ -1,8 +1,8 @@
 ## <a id="Psience.AnalyticModels.Helpers.SymbolicCaller">SymbolicCaller</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers.py#L32)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers.py#L32?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L32)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L32?message=Update%20Docs)]
 </div>
 
 Delegates to `__call__` through `__getitem__` for symbolics
@@ -24,8 +24,8 @@ Delegates to `__call__` through `__getitem__` for symbolics
 __init__(self, sym): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/SymbolicCaller.py#L36)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/SymbolicCaller.py#L36?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers.py#L36)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L36?message=Update%20Docs)]
 </div>
 
 
@@ -34,8 +34,8 @@ __init__(self, sym):
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/Helpers/SymbolicCaller.py#L38)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers/SymbolicCaller.py#L38?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/Helpers/SymbolicCaller.py#L38)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers/SymbolicCaller.py#L38?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -90,7 +90,7 @@ __getitem__(self, item):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/AnalyticModels/Helpers/SymbolicCaller.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/AnalyticModels/Helpers/SymbolicCaller.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/Helpers.py#L32?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/Helpers.py#L32?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

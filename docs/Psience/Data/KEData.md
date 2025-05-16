@@ -1,7 +1,7 @@
 # <a id="Psience.Data.KEData">Psience.Data.KEData</a> 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/KEData/__init__.py#L1)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/KEData/__init__.py#L1?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/KEData.py#L1)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/KEData.py#L1?message=Update%20Docs)]
 </div>
     
 Provides a class for handling a compiled set of atomic data
@@ -72,7 +72,7 @@ Provides a class for handling a compiled set of atomic data
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Data/KEData.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Data/KEData.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Data/KEData/__init__.py#L1?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/KEData.py#L1?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

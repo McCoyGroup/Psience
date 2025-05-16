@@ -1,8 +1,8 @@
 ## <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticPotentialConstructor">AnalyticPotentialConstructor</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors.py#L20)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L20?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L20)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L20?message=Update%20Docs)]
 </div>
 
 Provides a set of symbolic potentials for use in models
@@ -25,8 +25,8 @@ Provides a set of symbolic potentials for use in models
 morse(cls, i, j, De=None, a=None, re=None, eq=None, w=None, wx=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L26)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L26?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L26)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L26?message=Update%20Docs)]
 </div>
 Returns a fully symbolic form of a Morse potential
   - `:returns`: `_`
@@ -39,8 +39,8 @@ Returns a fully symbolic form of a Morse potential
 calc_morse(De, a, r, re): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L55)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L55?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L55)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L55?message=Update%20Docs)]
 </div>
 
 
@@ -50,8 +50,8 @@ calc_morse(De, a, r, re):
 harm(k, x, x_e): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L59)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L59?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L59)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L59?message=Update%20Docs)]
 </div>
 
 
@@ -61,8 +61,8 @@ harm(k, x, x_e):
 harmonic(cls, *args, k=None, eq=None, qe=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L62)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L62?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L62)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L62?message=Update%20Docs)]
 </div>
 Returns a fully symbolic form of a Morse potential
   - `:returns`: `_`
@@ -75,8 +75,8 @@ Returns a fully symbolic form of a Morse potential
 lin(k, x, x_e): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L80)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L80?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L80)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L80?message=Update%20Docs)]
 </div>
 
 
@@ -86,8 +86,8 @@ lin(k, x, x_e):
 linear(cls, *args, k=1, eq=None, xe=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L83)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L83?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L83)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L83?message=Update%20Docs)]
 </div>
 Returns a fully symbolic form of a linear function
   - `:returns`: `_`
@@ -100,8 +100,8 @@ Returns a fully symbolic form of a linear function
 pow(k, x, x_e, n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L98)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L98?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L98)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L98?message=Update%20Docs)]
 </div>
 
 
@@ -111,8 +111,8 @@ pow(k, x, x_e, n):
 power(cls, *args, k=1, eq=None, n=None, xe=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L101)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L101?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L101)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L101?message=Update%20Docs)]
 </div>
 Returns a fully symbolic form of a linear function
   - `:returns`: `_`
@@ -125,8 +125,8 @@ Returns a fully symbolic form of a linear function
 cos(cls, *args, eq=None, qe=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L117)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L117?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L117)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L117?message=Update%20Docs)]
 </div>
 Returns a fully symbolic form of cos
   - `:returns`: `_`
@@ -139,8 +139,8 @@ Returns a fully symbolic form of cos
 sin(cls, *args, eq=None, qe=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L131)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L131?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L131)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L131?message=Update%20Docs)]
 </div>
 Returns a fully symbolic form of sin
   - `:returns`: `_`
@@ -153,8 +153,8 @@ Returns a fully symbolic form of sin
 multiwell(cls, *args, turning_points=None, origin=None, eq=None, minimum=0, depth=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L145)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L145?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L145)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L145?message=Update%20Docs)]
 </div>
 
   - `args`: `Any`
@@ -218,7 +218,7 @@ multiwell(cls, *args, turning_points=None, origin=None, eq=None, minimum=0, dept
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/AnalyticModels/AnalyticModelConstructors/AnalyticPotentialConstructor.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L20?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L20?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

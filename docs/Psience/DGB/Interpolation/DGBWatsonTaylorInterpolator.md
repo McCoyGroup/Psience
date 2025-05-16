@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.Interpolation.DGBWatsonTaylorInterpolator">DGBWatsonTaylorInterpolator</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Interpolation.py#L202)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation.py#L202?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Interpolation.py#L202)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation.py#L202?message=Update%20Docs)]
 </div>
 
 
@@ -24,8 +24,8 @@
 __init__(self, centers, potential_derivatives, modes, power=4, include_harmonic_basis=False, harmonic_distance_cutoff=None, pairwise_potential_functions=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L203)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L203?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Interpolation.py#L203)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation.py#L203?message=Update%20Docs)]
 </div>
 
 
@@ -34,8 +34,8 @@ __init__(self, centers, potential_derivatives, modes, power=4, include_harmonic_
 take_remainder_potential(self, centers, potential_derivatives, modes): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L258)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L258?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L258)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L258?message=Update%20Docs)]
 </div>
 
 
@@ -44,8 +44,8 @@ take_remainder_potential(self, centers, potential_derivatives, modes):
 take_ppf_remainder(self, centers, potential_derivatives): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L269)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L269?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L269)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L269?message=Update%20Docs)]
 </div>
 
 
@@ -54,8 +54,8 @@ take_ppf_remainder(self, centers, potential_derivatives):
 taylor_interp(self, points, dists, neighbors, derivs, power=None, deriv_order=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L277)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L277?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L277)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L277?message=Update%20Docs)]
 </div>
 
 
@@ -64,8 +64,8 @@ taylor_interp(self, points, dists, neighbors, derivs, power=None, deriv_order=No
 __call__(self, points, deriv_order=None, *, neighborhood_size=None, power=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L340)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L340?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L340)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation/DGBWatsonTaylorInterpolator.py#L340?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -120,7 +120,7 @@ __call__(self, points, deriv_order=None, *, neighborhood_size=None, power=None, 
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Interpolation/DGBWatsonTaylorInterpolator.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Interpolation/DGBWatsonTaylorInterpolator.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/DGB/Interpolation.py#L202?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Interpolation.py#L202?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

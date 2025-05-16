@@ -1,8 +1,8 @@
 ## <a id="Psience.Data.PotentialRegistry.PotentialRegistryAPI">PotentialRegistryAPI</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/PotentialRegistry.py#L14)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/PotentialRegistry.py#L14?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/PotentialRegistry.py#L14)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/PotentialRegistry.py#L14?message=Update%20Docs)]
 </div>
 
 
@@ -28,8 +28,8 @@ blacklist_repos: list
 __init__(self, token=None, request_delay_time=None, release_manager=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/PotentialRegistry/PotentialRegistryAPI.py#L17)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/PotentialRegistry/PotentialRegistryAPI.py#L17?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/PotentialRegistry.py#L17)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/PotentialRegistry.py#L17?message=Update%20Docs)]
 </div>
 
 
@@ -38,8 +38,8 @@ __init__(self, token=None, request_delay_time=None, release_manager=None, **opts
 list_repos(self, owner=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/PotentialRegistry/PotentialRegistryAPI.py#L28)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/PotentialRegistry/PotentialRegistryAPI.py#L28?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/PotentialRegistry/PotentialRegistryAPI.py#L28)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/PotentialRegistry/PotentialRegistryAPI.py#L28?message=Update%20Docs)]
 </div>
 
 
@@ -48,8 +48,8 @@ list_repos(self, owner=None):
 list_potentials(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/PotentialRegistry/PotentialRegistryAPI.py#L32)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/PotentialRegistry/PotentialRegistryAPI.py#L32?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/PotentialRegistry/PotentialRegistryAPI.py#L32)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/PotentialRegistry/PotentialRegistryAPI.py#L32?message=Update%20Docs)]
 </div>
 
 
@@ -58,8 +58,8 @@ list_potentials(self):
 list_releases(self, repo_or_owner, repo=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/PotentialRegistry/PotentialRegistryAPI.py#L35)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/PotentialRegistry/PotentialRegistryAPI.py#L35?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/PotentialRegistry/PotentialRegistryAPI.py#L35)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/PotentialRegistry/PotentialRegistryAPI.py#L35?message=Update%20Docs)]
 </div>
 
 
@@ -68,8 +68,8 @@ list_releases(self, repo_or_owner, repo=None):
 latest_release(self, repo_or_owner, repo=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/PotentialRegistry/PotentialRegistryAPI.py#L40)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/PotentialRegistry/PotentialRegistryAPI.py#L40?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/PotentialRegistry/PotentialRegistryAPI.py#L40)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/PotentialRegistry/PotentialRegistryAPI.py#L40?message=Update%20Docs)]
 </div>
 
 
@@ -78,8 +78,8 @@ latest_release(self, repo_or_owner, repo=None):
 get_release_list(self, repo_or_owner, repo=None, update=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/PotentialRegistry/PotentialRegistryAPI.py#L46)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/PotentialRegistry/PotentialRegistryAPI.py#L46?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/PotentialRegistry/PotentialRegistryAPI.py#L46)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/PotentialRegistry/PotentialRegistryAPI.py#L46?message=Update%20Docs)]
 </div>
 
 
@@ -88,8 +88,8 @@ get_release_list(self, repo_or_owner, repo=None, update=None):
 get_potential(self, name, update=None, version=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Data/PotentialRegistry/PotentialRegistryAPI.py#L76)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Data/PotentialRegistry/PotentialRegistryAPI.py#L76?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/PotentialRegistry/PotentialRegistryAPI.py#L76)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/PotentialRegistry/PotentialRegistryAPI.py#L76?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -144,7 +144,7 @@ get_potential(self, name, update=None, version=None):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Data/PotentialRegistry/PotentialRegistryAPI.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Data/PotentialRegistry/PotentialRegistryAPI.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Data/PotentialRegistry.py#L14?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/PotentialRegistry.py#L14?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

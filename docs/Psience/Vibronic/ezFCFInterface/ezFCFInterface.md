@@ -1,8 +1,8 @@
 ## <a id="Psience.Vibronic.ezFCFInterface.ezFCFInterface">ezFCFInterface</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Vibronic/ezFCFInterface.py#L147)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Vibronic/ezFCFInterface.py#L147?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Vibronic/ezFCFInterface.py#L147)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/ezFCFInterface.py#L147?message=Update%20Docs)]
 </div>
 
 
@@ -26,8 +26,8 @@ ezFCFRunner: ezFCFRunner
 __init__(self, atoms, gs_nms, es_nms, excitations, masses=None, ground_states=None, include_rotation=True, rotation_order='gs', rotation_blocks=None, rotation_center=None, logger=None, mode_reordering=None, rotation_method='duschinsky', mass_weight=False, dimensionless=False, always_run_parallel=True, print_all=True, embed=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Vibronic/ezFCFInterface/ezFCFInterface.py#L148)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Vibronic/ezFCFInterface/ezFCFInterface.py#L148?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Vibronic/ezFCFInterface.py#L148)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/ezFCFInterface.py#L148?message=Update%20Docs)]
 </div>
 
 
@@ -36,8 +36,8 @@ __init__(self, atoms, gs_nms, es_nms, excitations, masses=None, ground_states=No
 format(self, job_type='harmonic_pes', temperature=0, spectrum_intensity_threshold=1e-08): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Vibronic/ezFCFInterface/ezFCFInterface.py#L196)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Vibronic/ezFCFInterface/ezFCFInterface.py#L196?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Vibronic/ezFCFInterface/ezFCFInterface.py#L196)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/ezFCFInterface/ezFCFInterface.py#L196?message=Update%20Docs)]
 </div>
 
 
@@ -46,8 +46,8 @@ format(self, job_type='harmonic_pes', temperature=0, spectrum_intensity_threshol
 prep_masses(self, atoms, masses, units=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Vibronic/ezFCFInterface/ezFCFInterface.py#L235)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Vibronic/ezFCFInterface/ezFCFInterface.py#L235?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Vibronic/ezFCFInterface/ezFCFInterface.py#L235)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/ezFCFInterface/ezFCFInterface.py#L235?message=Update%20Docs)]
 </div>
 
 
@@ -56,8 +56,8 @@ prep_masses(self, atoms, masses, units=None):
 format_masses_file(self, atom_map): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Vibronic/ezFCFInterface/ezFCFInterface.py#L273)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Vibronic/ezFCFInterface/ezFCFInterface.py#L273?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Vibronic/ezFCFInterface/ezFCFInterface.py#L273)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/ezFCFInterface/ezFCFInterface.py#L273?message=Update%20Docs)]
 </div>
 
 
@@ -66,8 +66,8 @@ format_masses_file(self, atom_map):
 run(self, ezFCF_binary, dir=None, dir_prefix=None, dir_suffix=None, mode='w', prefix='ezFCF-', suffix='.xml', delete=True, raise_errors=True, **job_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Vibronic/ezFCFInterface/ezFCFInterface.py#L304)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Vibronic/ezFCFInterface/ezFCFInterface.py#L304?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Vibronic/ezFCFInterface/ezFCFInterface.py#L304)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/ezFCFInterface/ezFCFInterface.py#L304?message=Update%20Docs)]
 </div>
 
 
@@ -77,8 +77,8 @@ run(self, ezFCF_binary, dir=None, dir_prefix=None, dir_suffix=None, mode='w', pr
 canonicalize_excitation_options(cls, nms, threshold=None, fixed_modes=None, ground_states=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L357)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L357?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L357)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L357?message=Update%20Docs)]
 </div>
 
 
@@ -88,8 +88,8 @@ canonicalize_excitation_options(cls, nms, threshold=None, fixed_modes=None, grou
 prep_excitations(cls, nms, ground_states, excitations): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L410)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L410?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L410)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L410?message=Update%20Docs)]
 </div>
 Dispatcher to get appropriate state spaces
   - `excitations`: `Any`
@@ -106,8 +106,8 @@ Dispatcher to get appropriate state spaces
 prep_state_str(cls, nms, state): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L508)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L508?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L508)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L508?message=Update%20Docs)]
 </div>
 
 
@@ -116,8 +116,8 @@ prep_state_str(cls, nms, state):
 prep_parallel(self, *elems, rotation_order='gs', max_vibr_excitations_in_initial_el_state=0, max_vibr_excitations_in_target_el_state=0, **etc): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Vibronic/ezFCFInterface/ezFCFInterface.py#L520)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Vibronic/ezFCFInterface/ezFCFInterface.py#L520?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Vibronic/ezFCFInterface/ezFCFInterface.py#L520)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/ezFCFInterface/ezFCFInterface.py#L520?message=Update%20Docs)]
 </div>
 
 
@@ -126,8 +126,8 @@ prep_parallel(self, *elems, rotation_order='gs', max_vibr_excitations_in_initial
 prep_duschinsky(self, *elems, rotation_order='gs', max_vibr_excitations_in_initial_el_state=0, max_vibr_excitations_in_target_el_state=0, **etc): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Vibronic/ezFCFInterface/ezFCFInterface.py#L539)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Vibronic/ezFCFInterface/ezFCFInterface.py#L539?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Vibronic/ezFCFInterface/ezFCFInterface.py#L539)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/ezFCFInterface/ezFCFInterface.py#L539?message=Update%20Docs)]
 </div>
 
 
@@ -137,8 +137,8 @@ prep_duschinsky(self, *elems, rotation_order='gs', max_vibr_excitations_in_initi
 prep_initial_state(cls, atoms, nms, autoembed=False, excitation_energy_units='cm-1'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L557)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L557?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L557)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L557?message=Update%20Docs)]
 </div>
 
 
@@ -148,8 +148,8 @@ prep_initial_state(cls, atoms, nms, autoembed=False, excitation_energy_units='cm
 prep_target_state(cls, atoms, nms, autoembed=False, mode_reordering=None, excitation_energy_units='cm-1'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L574)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L574?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L574)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L574?message=Update%20Docs)]
 </div>
 
   - `atoms`: `Any`
@@ -168,8 +168,8 @@ prep_target_state(cls, atoms, nms, autoembed=False, mode_reordering=None, excita
 prep_state(cls, tag, atoms, nms, *elems): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L605)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L605?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L605)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L605?message=Update%20Docs)]
 </div>
 
 
@@ -179,8 +179,8 @@ prep_state(cls, tag, atoms, nms, *elems):
 prep_geometry(cls, atoms, nms, linear=False, units='BohrRadius'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L614)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L614?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L614)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L614?message=Update%20Docs)]
 </div>
 
 
@@ -190,8 +190,8 @@ prep_geometry(cls, atoms, nms, linear=False, units='BohrRadius'):
 format_modes_block(cls, modes): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L629)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L629?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L629)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L629?message=Update%20Docs)]
 </div>
 
 
@@ -201,8 +201,8 @@ format_modes_block(cls, modes):
 parse_modes_block(cls, modes_str, num_atoms=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L652)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L652?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L652)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L652?message=Update%20Docs)]
 </div>
 
 
@@ -212,8 +212,8 @@ parse_modes_block(cls, modes_str, num_atoms=None):
 prep_normal_modes(cls, atoms, nms): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L671)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L671?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L671)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L671?message=Update%20Docs)]
 </div>
 
 
@@ -223,8 +223,8 @@ prep_normal_modes(cls, atoms, nms):
 format_freqs_block(cls, freqs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L682)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L682?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L682)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L682?message=Update%20Docs)]
 </div>
 
 
@@ -234,8 +234,8 @@ format_freqs_block(cls, freqs):
 parse_freqs_block(cls, freqs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L691)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L691?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L691)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L691?message=Update%20Docs)]
 </div>
 
 
@@ -245,8 +245,8 @@ parse_freqs_block(cls, freqs):
 prep_frequencies(cls, nms): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L695)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L695?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L695)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L695?message=Update%20Docs)]
 </div>
 
 
@@ -256,8 +256,8 @@ prep_frequencies(cls, nms):
 parse_state(self, state_xml): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L701)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L701?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L701)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L701?message=Update%20Docs)]
 </div>
 
 
@@ -267,8 +267,8 @@ parse_state(self, state_xml):
 parse_fc_model(cls, input_xml, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L760)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L760?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L760)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L760?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -323,7 +323,7 @@ parse_fc_model(cls, input_xml, **opts):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Vibronic/ezFCFInterface/ezFCFInterface.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Vibronic/ezFCFInterface/ezFCFInterface.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Vibronic/ezFCFInterface.py#L147?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/ezFCFInterface.py#L147?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -1,8 +1,8 @@
 ## <a id="Psience.AnalyticModels.AnalyticModelConstructors.AnalyticKineticEnergyConstructor">AnalyticKineticEnergyConstructor</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/AnalyticModels/AnalyticModelConstructors.py#L266)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L266?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L266)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L266?message=Update%20Docs)]
 </div>
 
 Provides G and V' elements from Frederick and Woywood
@@ -25,8 +25,8 @@ Provides G and V' elements from Frederick and Woywood
 kinetic_exprs(cls, inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target_symbols=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L364)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L364?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L364)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L364?message=Update%20Docs)]
 </div>
 
 
@@ -36,8 +36,8 @@ kinetic_exprs(cls, inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=N
 kinetic_exprs_direct(cls, inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, return_vp=True, target_symbols=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L487)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L487?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L487)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L487?message=Update%20Docs)]
 </div>
 Evaluated using the simple expressions in Table 1 from Frederick and Woywood
   - `inds1`: `Any`
@@ -56,8 +56,8 @@ Evaluated using the simple expressions in Table 1 from Frederick and Woywood
 g(cls, inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target_symbols=None, return_function=False, method='lookup'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L529)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L529?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L529)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L529?message=Update%20Docs)]
 </div>
 
 
@@ -67,8 +67,8 @@ g(cls, inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target_
 vp(cls, inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target_symbols=None, return_function=False, method='lookup'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L539)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L539?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L539)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L539?message=Update%20Docs)]
 </div>
 
 
@@ -78,8 +78,8 @@ vp(cls, inds1: 'Iterable[int]', inds2: 'Iterable[int]', coord_types=None, target
 g_matrix(cls, coord_specs, return_function=False, return_matrix=True, method='lookup'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L550)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L550?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L550)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L550?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -134,7 +134,7 @@ g_matrix(cls, coord_specs, return_function=False, return_matrix=True, method='lo
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/AnalyticModels/AnalyticModelConstructors/AnalyticKineticEnergyConstructor.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/AnalyticModels/AnalyticModelConstructors.py#L266?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors.py#L266?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

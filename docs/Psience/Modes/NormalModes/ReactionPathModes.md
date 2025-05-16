@@ -1,8 +1,8 @@
 ## <a id="Psience.Modes.NormalModes.ReactionPathModes">ReactionPathModes</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/NormalModes.py#L511)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/NormalModes.py#L511?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes.py#L511)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes.py#L511?message=Update%20Docs)]
 </div>
 
 
@@ -24,8 +24,8 @@
 get_rp_modes(cls, gradient, f_matrix, mass_spec, mass_units='AtomicMassUnits', remove_transrot=True, dimensionless=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/NormalModes/ReactionPathModes.py#L512)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/NormalModes/ReactionPathModes.py#L512?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/ReactionPathModes.py#L512)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/ReactionPathModes.py#L512?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -80,7 +80,7 @@ get_rp_modes(cls, gradient, f_matrix, mass_spec, mass_units='AtomicMassUnits', r
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Modes/NormalModes/ReactionPathModes.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Modes/NormalModes/ReactionPathModes.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/NormalModes.py#L511?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes.py#L511?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

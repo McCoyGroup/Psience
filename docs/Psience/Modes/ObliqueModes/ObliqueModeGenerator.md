@@ -1,8 +1,8 @@
 ## <a id="Psience.Modes.ObliqueModes.ObliqueModeGenerator">ObliqueModeGenerator</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/ObliqueModes.py#L11)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/ObliqueModes.py#L11?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/ObliqueModes.py#L11)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/ObliqueModes.py#L11?message=Update%20Docs)]
 </div>
 
 
@@ -24,8 +24,8 @@
 __init__(self, f, g, dimensionless=False, sel=None, frequency_scaled=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/ObliqueModes/ObliqueModeGenerator.py#L13)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/ObliqueModes/ObliqueModeGenerator.py#L13?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/ObliqueModes.py#L13)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/ObliqueModes.py#L13?message=Update%20Docs)]
 </div>
 
 
@@ -35,8 +35,8 @@ __init__(self, f, g, dimensionless=False, sel=None, frequency_scaled=True):
 from_molecule(cls, mol, dimensionless=True, sel=None, use_internals=None, frequency_scaled=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/__init__.py#L48)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/__init__.py#L48?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L48)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L48?message=Update%20Docs)]
 </div>
 
 
@@ -45,8 +45,8 @@ from_molecule(cls, mol, dimensionless=True, sel=None, use_internals=None, freque
 run(self, scaling_type='normal'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Modes/ObliqueModes/ObliqueModeGenerator.py#L71)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/ObliqueModes/ObliqueModeGenerator.py#L71?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/ObliqueModes/ObliqueModeGenerator.py#L71)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/ObliqueModes/ObliqueModeGenerator.py#L71?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -101,7 +101,7 @@ run(self, scaling_type='normal'):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Modes/ObliqueModes/ObliqueModeGenerator.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Modes/ObliqueModes/ObliqueModeGenerator.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Modes/ObliqueModes.py#L11?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/ObliqueModes.py#L11?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
