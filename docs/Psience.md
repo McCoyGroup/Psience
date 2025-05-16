@@ -17,35 +17,35 @@ and spectrum handling.
 <div class="container alert alert-secondary bg-light">
   <div class="row">
    <div class="col" markdown="1">
-[Molecools](Molecools.md)   
+[Molecools](Psience/Molecools.md)   
 </div>
    <div class="col" markdown="1">
-[DVR](DVR.md)   
+[DVR](Psience/DVR.md)   
 </div>
    <div class="col" markdown="1">
-[VPT2](VPT2.md)   
+[VPT2](Psience/VPT2.md)   
 </div>
 </div>
   <div class="row">
    <div class="col" markdown="1">
-[DGB](DGB.md)   
+[DGB](Psience/DGB.md)   
 </div>
    <div class="col" markdown="1">
-[Modes](Modes.md)   
+[Modes](Psience/Modes.md)   
 </div>
    <div class="col" markdown="1">
-[Vibronic](Vibronic.md)   
+[Vibronic](Psience/Vibronic.md)   
 </div>
 </div>
   <div class="row">
    <div class="col" markdown="1">
-[Spectra](Spectra.md)   
+[Spectra](Psience/Spectra.md)   
 </div>
    <div class="col" markdown="1">
-[Data](Data.md)   
+[Data](Psience/Data.md)   
 </div>
    <div class="col" markdown="1">
-[AnalyticModels](AnalyticModels.md)   
+[AnalyticModels](Psience/AnalyticModels.md)   
 </div>
 </div>
   <div class="row">
