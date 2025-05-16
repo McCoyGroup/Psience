@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 set -e
 
 ##
@@ -15,7 +15,7 @@ git config user.email ${GITHUB_ACTOR}@users.noreply.github.com
 repo="https://$GITHUB_ACTOR:$GITHUB_TOKEN@github.com/McCoyGroup/Psience.git"
 git checkout gh-pages
 git pull
-git merge -X theirs $branch
+git merge $branch
 git push -u $repo gh-pages
 ## run the test script
 cd /home
