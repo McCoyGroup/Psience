@@ -1,6 +1,5 @@
-from McUtils.Docs import *
-import os, sys
 
+import os, sys
 root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 target = os.path.join(root, "ci", "docs")
 sys.path.insert(0, root)
@@ -26,5 +25,8 @@ doc_config = {
     'templates_directory': os.path.join(root, 'ci', 'docs', 'templates'),
     'examples_directory': os.path.join(root, 'ci',  'docs', 'examples')
 }
-ExamplesParser.IGNORE_UNHANDLED_STATEMENTS = True
-DocBuilder(**doc_config).build()
+
+if __name__ == "__main__":
+    from McUtils.Docs import *
+    ExamplesParser.IGNORE_UNHANDLED_STATEMENTS = True
+    DocBuilder(**doc_config).build()
