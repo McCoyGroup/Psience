@@ -170,7 +170,7 @@ class DGB:
                   dipole_function=None,
                   kinetic_options=None
                   ):
-        logger = Logger.lookup(logger)
+        logger = Logger.lookup(logger, construct=True)
         parallelizer = Parallelizer.lookup(parallelizer)
 
         coords, potential_function = cls.construct_gaussians(
