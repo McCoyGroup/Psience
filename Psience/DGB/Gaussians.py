@@ -99,7 +99,7 @@ class DGBGaussians:
         self.kinetic_options = kinetic_options
 
         self.parallelizer = Parallelizer.lookup(parallelizer)
-        self.logger = Logger.lookup(logger)
+        self.logger = Logger.lookup(logger, construct=True)
 
     @property
     def overlap_data(self):

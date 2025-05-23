@@ -163,7 +163,7 @@ class OverlapGaussianData:
                           parallelizer=None
                           ):
         parallelizer = Parallelizer.lookup(parallelizer)
-        logger = Logger.lookup(logger)
+        logger = Logger.lookup(logger, construct=True)
 
         if rows_cols is None:
             rows, cols = np.triu_indices(len(alphas))
@@ -1180,7 +1180,7 @@ class DGBCartesianEvaluator(DGBKineticEnergyEvaluator):
         self.masses = masses
 
     def evaluate_ke(self, overlap_data:'OverlapGaussianData', logger=None):
-        logger = Logger.lookup(logger)
+        logger = Logger.lookup(logger, construct=True)
         start = time.time()
         logger.log_print("evaluating Cartesian kinetic energy contribution")
 
@@ -1395,7 +1395,7 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
                     include_watson_term=True
                     ):
 
-        logger = Logger.lookup(logger)
+        logger = Logger.lookup(logger, construct=True)
 
         if include_diagonal_contribution:
             logger.log_print("evaluating Watson diagonal momentum contribution")
@@ -1462,7 +1462,7 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
         self.quadrature_degree = quadrature_degree
         self.pairwise_handler = pairwise_functions
 
-        self.logger = Logger.lookup(logger)
+        self.logger = Logger.lookup(logger, construct=True)
 
     def analytic_integrate(self):
         raise NotImplementedError("flooped up")
@@ -1498,7 +1498,7 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
             deriv_corrs = None
 
         if not isinstance(logger, Logger):
-            logger = Logger.lookup(logger)
+            logger = Logger.lookup(logger, construct=True)
 
         if expansion_degree > -1:
             deriv_order = expansion_degree # renamed for consistency
@@ -1592,8 +1592,7 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
             else:
                 integral_handler = 'quad'
 
-        if not isinstance(logger, Logger):
-            logger = Logger.lookup(logger)
+        logger = Logger.lookup(logger, construct=True)
 
 
         if integral_handler == 'quad':
