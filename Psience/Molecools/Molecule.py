@@ -903,7 +903,8 @@ class Molecule(AbstractMolecule):
             if coords is None:
                 coords = self.coords
             expansion = evaluator.evaluate(
-                np.asanyarray(coords) * UnitsData.convert("BohrRadius", evaluator.distance_units),
+                np.asanyarray(coords)
+                    * UnitsData.convert("BohrRadius", evaluator.distance_units),
                 order=order
             )
             if smol: expansion = expansion[0]
@@ -2021,12 +2022,30 @@ class Molecule(AbstractMolecule):
         ])
 
     @classmethod
+    def _to_zmat_string(cls, mol, units='Angstroms', float_fmt="{:8.4f}"):
+        from McUtils.Coordinerds import format_zmatrix_string
+        ics = mol.internal_coordinates
+        if ics is None:
+            raise ValueError("can't write ZMatrix without internal coordinates")
+        if 'ZMatrix' not in mol.internal_coordinates.system.name:
+            raise ValueError(f"{mol.internal_coordinates.system} isn't a Z-matrix coordinate system")
+
+        return format_zmatrix_string(
+            mol.atoms,
+            mol.internal_coordinates,
+            ordering=mol.internals.get('zmatrix'),
+            units=units,
+            float_fmt=float_fmt
+        )
+
+    @classmethod
     def get_string_export_dispatchers(cls):
         return {
             "smi": cls._to_smiles,
             # "mol": cls._to_molblock,
             # "sdf": cls._to_sdf,
-            "xyz": cls._to_xyz_string
+            "xyz": cls._to_xyz_string,
+            "zmat": cls._to_zmat_string,
         }
     def to_string(self, fmt, **opts):
         format_dispatcher = self.get_string_export_dispatchers()
@@ -2111,11 +2130,14 @@ class Molecule(AbstractMolecule):
         return (atoms, coords), opts
 
     @classmethod
-    def construct(cls, spec, **opts):
+    def construct(cls, spec, fmt=None, **opts):
         if isinstance(spec, Molecule):
             return spec.modify(**opts)
 
-        fmt, subopts = cls._infer_spec_format(spec, **opts)
+        if fmt is None:
+            fmt, subopts = cls._infer_spec_format(spec, **opts)
+        else:
+            subopts = {}
         if fmt == 'rdmol':
             return cls.from_rdmol(spec, **opts)
         elif fmt == 'file':

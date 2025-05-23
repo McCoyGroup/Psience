@@ -5,6 +5,7 @@ __all__ = [
 
 import numpy as np, itertools
 import McUtils.Numputils as nput
+import McUtils.Iterators as itut
 from McUtils.Combinatorics import UniquePermutations
 from McUtils.Zachary import TensorDerivativeConverter
 
@@ -109,6 +110,25 @@ class MolecularHamiltonian:
         exp = ScalarExpansion(embedding, ders)
         if order is not None:
             exp = exp.get_terms(order)
+        return exp
+    def dipole_expansion(self,
+                            order=None,
+                            *,
+                            expansion=None,
+                            dimensionless=False,
+                            embedding=None,
+                            exclude_gradient=False,
+                            **embedding_opts
+                            ):
+        if embedding is None:
+            embedding = self.get_embedding(dimensionless=dimensionless, **embedding_opts)
+
+        if expansion is None:
+            expansion = self.dipole.derivatives
+
+        exp = DipoleExpansion(embedding, expansion)
+        if order is not None:
+            exp = exp.get_terms(order, shared=1)
         return exp
     def get_potential_optmizing_transformation(self,
                                                order,
@@ -294,58 +314,99 @@ class ScalarExpansion:
         self.embedding = embedding
         self.derivs = derivs
 
-    def canonicalize_derivs(self, derivs, symmetrize=True):
+    def canonicalize_derivs(self, derivs, shared=0):
         if self.embedding.modes is None: return derivs
-        in_modes = False
+        # in_modes = False
+        # for d in derivs:
+        #     if not nput.is_zero(d):
+        #         in_modes = d.shape[0] != d.shape[-1]
+        #         if in_modes: break
+        YX = self.embedding.mw_inverse()
+        _ = []
         for d in derivs:
             if not nput.is_zero(d):
-                in_modes = d.shape[0] != d.shape[-1]
-                if in_modes: break
-        YX = self.embedding.mw_inverse()
-        if in_modes:
-            QX = self.embedding.modes.coords_by_modes @ YX
-            Qq = np.diag(1/np.sqrt(self.embedding.modes.freqs))
-            _ = []
-            for d in derivs:
-                if not nput.is_zero(d):
-                    for j in range(d.ndim):
-                        if d.shape[j] == QX.shape[1]:
-                            d = np.tensordot(QX, d, axes=[1, j])
-                        else:
-                            d = np.tensordot(Qq, d, axes=[1, j])
-                        d = np.moveaxis(d, 0, j)
-                    # # symmetrize d
-                    if symmetrize:
-                        n = 0
-                        t = 0
-                        for p in itertools.permutations(range(d.ndim-1)):
-                            n += 1
-                            t += d.transpose(p + (d.ndim-1,))
-                        d = t / n
-                _.append(d)
-            derivs = _
-        else:
-            derivs = nput.tensor_reexpand([YX], derivs, len(derivs))
+                for i,x in enumerate(d.shape[shared:]):
+                    if x == YX.shape[-1]:
+                        d = np.moveaxis(
+                            np.tensordot(YX, d, axes=[-1, shared+i]),
+                            0,
+                            shared + i
+                        )
+            _.append(d)
+        # if in_modes:
+        #     QX = self.embedding.modes.coords_by_modes @ YX
+        #     Qq = np.diag(1/np.sqrt(self.embedding.modes.freqs))
+        #     _ = []
+        #     for d in derivs:
+        #         if not nput.is_zero(d):
+        #             for j in range(d.ndim):
+        #                 if d.shape[j] == QX.shape[1]:
+        #                     d = np.tensordot(QX, d, axes=[1, j])
+        #                 else:
+        #                     d = np.tensordot(Qq, d, axes=[1, j])
+        #                 d = np.moveaxis(d, 0, j)
+        #             # # symmetrize d
+        #             if symmetrization_mode is not None and symmetrization_mode != 'unhandled':
+        #                 nput.symmetrize_array(d, symmetrization_mode=symmetrization_mode)
+        #                 # n = 0
+        #                 # t = 0
+        #                 # for p in itertools.permutations(range(d.ndim-1)):
+        #                 #     n += 1
+        #                 #     t += d.transpose(p + (d.ndim-1,))
+        #                 # d = t / n
+        #         _.append(d)
+        #     derivs = _
+        # else:
+        #     derivs = nput.tensor_reexpand([YX], derivs, len(derivs))
         return derivs
 
-    def get_terms(self, order=None, *, derivs=None, transformation=None):
+    @classmethod
+    def check_mixed_expansion(self, derivs, shared=0):
+        real_ders = [d for d in derivs if not nput.is_zero(d)]
+        if any(d.shape[shared] != d.shape[-1] for d in real_ders):
+            shp = real_ders[-1].shape
+            mixed_axes = itut.counts(shp)[shp[-1]]
+            return True, mixed_axes
+        else:
+            return False, None
+
+    def get_scalar_transformation(self, order, transformation=None):
+        base_tf = self.embedding.get_internals_by_cartesians(order)
+        rev_tf = self.embedding.get_cartesians_by_internals(order)
         if transformation is not None:
             forward_derivs, reverse_derivs = MolecularHamiltonian.prep_transformation(transformation)
-            V = self.get_terms(order, derivs=derivs)
-            return nput.tensor_reexpand(forward_derivs, V, order, axes=[-1, 0])
+            base_tf = nput.tensor_reexpand(forward_derivs, base_tf)
+            rev_tf = nput.tensor_reexpand(reverse_derivs, rev_tf)
+        return base_tf, rev_tf
+
+    def get_terms(self,
+                  order=None,
+                  *,
+                  derivs=None,
+                  transformation=None,
+                  mixed_transformation=None,
+                  mixed_derivative_handling_mode='high',
+                  modes=None,
+                  shared=0
+                  ):
+        if transformation is not None:
+            forward_derivs, reverse_derivs = MolecularHamiltonian.prep_transformation(transformation)
+            V = self.get_terms(order, derivs=derivs, shared=shared)
+            return nput.tensor_reexpand(forward_derivs, V, order, axes=[-1, shared])
 
         if derivs is None:
             derivs = self.derivs
         if order is None:
-            order = len(self.derivs)
+            order = len(derivs)
         if len(derivs) < order:
             derivs = tuple(derivs) + (0,) * (order - len(derivs))
 
-        derivs = self.canonicalize_derivs(derivs)
+        derivs = self.canonicalize_derivs(derivs, shared=shared)
+        is_mixed, num_base = self.check_mixed_expansion(derivs)
 
         zero_derivs = 0
         for d in derivs:
-            if isinstance(d, (int, np.integer, float, np.floating)) and d == 0:
+            if nput.is_numeric(d) and d == 0:
                 d+=1
             else:
                 break
@@ -361,8 +422,87 @@ class ScalarExpansion:
             YX = self.embedding.mw_inverse()
             QX = [np.tensordot(q, YX, axes=[-1, 0]) for q in QX]
 
-        # return TensorDerivativeConverter(QX, derivs).convert()
-        return nput.tensor_reexpand(QX, derivs, order, axes=[-1, 0])
+
+        if is_mixed:
+            canonical_derivs = nput.tensor_reexpand(
+                QX[:num_base], derivs[:num_base], num_base,
+                axes=[-1, -1]
+            ) + [
+                nput.tensor_reexpand(QX, [0] * (num_base-1) + [d], num_base, axes=[-1, -1])[-1]
+                for d in derivs[num_base:]
+            ]
+            if mixed_transformation is None:
+                if modes is None:
+                    modes = self.embedding.modes
+                if modes.is_cartesian:
+                    if self.embedding.embedding.internals is not None:
+                        mixed_transformation = nput.tensor_reexpand(
+                            QX,
+                            [modes.modes_by_coords]
+                        )
+            if mixed_transformation is None:
+                return canonical_derivs
+            else:
+                tf_base = nput.tensor_reexpand(mixed_transformation, canonical_derivs, order, axes=[-1, -1])
+                return [
+                    nput.symmetrize_array(t, symmetrization_mode=mixed_derivative_handling_mode)
+                    for t in tf_base
+                ]
+        else:
+            # return TensorDerivativeConverter(QX, derivs).convert()
+            return nput.tensor_reexpand(QX, derivs, order, axes=[-1, shared])
+
+class DipoleExpansion(ScalarExpansion):
+    def __init__(self,
+                 embedding: ModeEmbedding,
+                 derivs
+                 ):
+        ders = [
+            np.moveaxis(d, -1, 0)
+                if not nput.is_zero(d) and d.shape[-1] == 3 else
+            d
+            for d in derivs
+        ]
+        super().__init__(embedding, ders)
+    def get_terms(self,
+                  order=None,
+                  *,
+                  derivs=None,
+                  transformation=None,
+                  mixed_transformation=None,
+                  mixed_derivative_handling_mode='high',
+                  modes=None,
+                  shared=0
+                  ):
+        if derivs is not None:
+            derivs = [
+                np.moveaxis(d, -1, 0)
+                if not nput.is_zero(d) and d.shape[-1] == 3 else
+                d
+                for d in derivs
+            ]
+        else:
+            derivs = self.derivs
+        ref = derivs[0]
+        derivs = derivs[1:]
+        terms = super().get_terms(
+            order=order,
+            derivs=derivs,
+            transformation=transformation,
+            mixed_transformation=mixed_transformation,
+            mixed_derivative_handling_mode=mixed_derivative_handling_mode,
+            modes=modes,
+            shared=shared
+        )
+        expansion = [ref] + terms
+        new_exp = [
+            np.moveaxis(d, 0, -1)
+                if not nput.is_zero(d) and d.shape[0] == 3 else
+            d
+            for d in expansion
+        ]
+        return new_exp
+
 
 class GMatrixExpansion:
     # I thought about having this be a generic "tensor product" expansion, but this is cleaner
@@ -384,7 +524,7 @@ class GMatrixExpansion:
 
     @classmethod
     def _dRGQ_partition_contrib(cls, partition, R, G):
-        print(partition)
+        # print(partition)
         r1, r2, s = partition
         if s >= len(G): return 0
         if r1 >= len(R) or r2 >= len(R): return 0

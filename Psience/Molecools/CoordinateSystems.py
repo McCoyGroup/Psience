@@ -15,6 +15,7 @@ from McUtils.Coordinerds import (
     PrimitiveCoordinatePicker, RedundantCoordinateGenerator
 )
 
+from ..Modes import NormalModes
 from .Properties import StructuralProperties
 # from .MoleculeInterface import AbstractMolecule
 
@@ -825,6 +826,7 @@ class ModeEmbedding:
     Provides a specialization on a `MoleculaEmbedding` to express all properties
     in terms of the attendant normal modes
     """
+    modes: NormalModes
     def __init__(self,
                  embedding: MolecularEmbedding,
                  modes,  #:#NormalModesManager,
@@ -832,6 +834,7 @@ class ModeEmbedding:
                  dimensionless=None,
                  masses=None
                  ):
+
         self.embedding = embedding
         self.masses = masses
         if hasattr(modes, 'modes'):
@@ -873,24 +876,28 @@ class ModeEmbedding:
             ).flatten()
         return np.diag(np.sign(mvec) / np.sqrt(np.abs(mvec)))
 
-    def get_mw_cartesians_by_internals(self, order=None, strip_embedding=True):
+    def get_mw_cartesians_by_internals(self, order=None, mass_weighted=None, strip_embedding=True):
         RX = self.embedding.get_cartesians_by_internals(
                 order=order,
                 strip_embedding=strip_embedding
             )
-        if self.mass_weighted:
+        if mass_weighted is None:
+            mass_weighted = self.mass_weighted
+        if mass_weighted:
             XY = self.mw_conversion()
             RX = [
                 np.tensordot(tf_X, XY, axes=[-1, 0])
                 for tf_X in RX
             ]
         return RX
-    def get_internals_by_mw_cartesians(self, order=None, strip_embedding=True):
+    def get_internals_by_mw_cartesians(self, order=None, mass_weighted=None, strip_embedding=True):
         XR = self.embedding.get_internals_by_cartesians(
                 order=order,
                 strip_embedding=strip_embedding
             )
-        if self.mass_weighted:
+        if mass_weighted is None:
+            mass_weighted = self.mass_weighted
+        if mass_weighted:
             YX = self.mw_inverse()
             YR = []
             for X_tf in XR:
@@ -1003,6 +1010,43 @@ class ModeEmbedding:
 
     def get_inertial_frame(self):
         return self.embedding.inertial_frame
+
+    def get_modes_by_coords(self, mass_weighted=None, frequency_scaled=None):
+        if self.modes is None:
+            return None
+        else:
+            clean_modes = self.modes
+            if mass_weighted is True:
+                clean_modes = clean_modes.make_mass_weighted()
+            elif mass_weighted is False:
+                clean_modes = clean_modes.remove_mass_weighting()
+            if frequency_scaled is True:
+                clean_modes = clean_modes.remove_frequency_scaling()
+            elif frequency_scaled is False:
+                clean_modes = clean_modes.remove_frequency_scaling()
+            if self.modes.is_cartesian and self.embedding.internals is not None:
+                exp = self.get_mw_cartesians_by_internals(1, mass_weighted=mass_weighted)[0]
+                return exp @ clean_modes.modes_by_coords
+            else:
+                return clean_modes.modes_by_coords
+    def get_coords_by_modes(self, mass_weighted=None, frequency_scaled=None):
+        if self.modes is None:
+            return None
+        else:
+            clean_modes = self.modes
+            if mass_weighted is True:
+                clean_modes = clean_modes.make_mass_weighted()
+            elif mass_weighted is False:
+                clean_modes = clean_modes.remove_mass_weighting()
+            if frequency_scaled is True:
+                clean_modes = clean_modes.remove_frequency_scaling()
+            elif frequency_scaled is False:
+                clean_modes = clean_modes.remove_frequency_scaling()
+            if self.modes.is_cartesian and self.embedding.internals is not None:
+                exp = self.get_internals_by_mw_cartesians(1, mass_weighted=mass_weighted)[0]
+                return clean_modes.coords_by_modes @ exp
+            else:
+                return clean_modes.coords_by_modes
 
 def _get_best_axes(first_pos, axes):
     """

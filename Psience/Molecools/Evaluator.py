@@ -736,7 +736,7 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
         if property_function is None:
             property_function = cls.default_property_function
             cls.default_property_function = None
-        property_function = cls.get_property_function(property_function, mol, **opts)
+        property_function, opts = cls.get_property_function(property_function, mol, **opts)
         if property_function is None:
             raise ValueError(f"can't evaluate with property function {property_function}")
         init_opts = {
@@ -1482,7 +1482,7 @@ class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
 
     @classmethod
     def get_property_function(cls, prop_func, mol, **opts):
-        return prop_func
+        return prop_func, opts
 
     @classmethod
     def from_mol(cls,
@@ -1572,7 +1572,7 @@ class PotentialExpansionEnergyEvaluator(PotentialFunctionEnergyEvaluator):
                                                   transforms=transforms,
                                                   transformed_derivatives=transformed_derivatives
                                                   )
-        return expansion
+        return expansion, ignored
 
 class DipoleEvaluator(PropertyEvaluator):
     target_property_units = ("ElementaryCharge", "BohrRadius")
@@ -1643,7 +1643,7 @@ class DipoleFunctionDipoleEvaluator(DipoleEvaluator):
 
     @classmethod
     def get_property_function(cls, prop_func, mol, **opts):
-        return prop_func
+        return prop_func, opts
 
     @classmethod
     def from_mol(cls,
@@ -1719,37 +1719,55 @@ class DipoleExpansionEnergyEvaluator(DipoleFunctionDipoleEvaluator):
             **opts
         )
     @classmethod
-    def get_property_function(cls, expansion, mol, transforms=None, **ignored):
+    def get_property_function(cls, expansion, mol, center=None, transforms=None, **ignored):
         if not callable(expansion):
-            transforms = transforms
             transformed_derivatives = False
             if expansion is None:
                 expansion = mol.dipole_derivatives
                 if expansion is None:
                     expansion = cls.expansion_from_mol_charges(mol)
                 # handle partial quatics
-            if len(expansion) > 2 and expansion[2].shape[0] < expansion[1].shape[0]:
-                if transforms is None:
-                    modes = mol.get_normal_modes(use_internals=False, project_transrot=False).remove_mass_weighting()
-                    transforms = [[modes.coords_by_modes], [modes.modes_by_coords]]
-                if nput.is_numeric_array_like(transforms[0]):
-                    tf = np.asanyarray(transforms[0])
-                    if tf.ndim > 2:
-                        tf = tf[0]
-                else:
-                    tf = np.asanyarray(transforms[0][0])
-                _ = []
-                for i, e in enumerate(expansion[1:]):
-                    e = np.tensordot(tf, e, axes=[1, -2])
-                    _.append(e)
-                expansion = [expansion[0]] + _
-                transformed_derivatives = True
+
+            dip_exp = mol.hamiltonian.dipole_expansion(expansion=expansion)
+            expansion = dip_exp.get_terms(transformation=transforms)
+            transformed_derivatives = True
+            if transforms is None:
+                transforms = [
+                    [dip_exp.embedding.get_coords_by_modes(mass_weighted=False)],
+                    [dip_exp.embedding.get_modes_by_coords(mass_weighted=False)]
+                ]
+                # print("FWD:", [f.shape for f in transforms[0]])
+                # print("REV:", [f.shape for f in transforms[1]])
+            # for e in expansion:
+            #     print(e)
+            # print("-"*10)
+
+
+            # if len(expansion) > 2 and expansion[2].shape[0] < expansion[1].shape[0]:
+            #     raise Exception("?")
+            #     if transforms is None:
+            #         modes = mol.get_normal_modes(use_internals=False, project_transrot=False).remove_mass_weighting()
+            #         transforms = [[modes.coords_by_modes], [modes.modes_by_coords]]
+            #     if nput.is_numeric_array_like(transforms[0]):
+            #         tf = np.asanyarray(transforms[0])
+            #         if tf.ndim > 2:
+            #             tf = tf[0]
+            #     else:
+            #         tf = np.asanyarray(transforms[0][0])
+            #     _ = []
+            #     for i, e in enumerate(expansion[1:]):
+            #         e = np.tensordot(tf, e, axes=[1, -2])
+            #         _.append(e)
+            #     expansion = [expansion[0]] + _
+            #     transformed_derivatives = True
+
             expansion = DipoleSurface.from_mol(mol,
+                                               center=center,
                                                expansion=expansion,
                                                transforms=transforms,
                                                transformed_derivatives=transformed_derivatives
                                                )
-        return expansion
+        return expansion, ignored
 
 
 class ChargeEvaluator(PropertyEvaluator):
