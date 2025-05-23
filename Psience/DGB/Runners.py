@@ -50,6 +50,7 @@ class DGBRunner:
                                       *,
                                       potential_function=None,
                                       dipole_function=None,
+                                      use_dipole_embedding=True,
                                       use_cartesians=False,
                                       use_momenta=False,
                                       quadrature_degree=3,
@@ -86,7 +87,7 @@ class DGBRunner:
             mol = mol.modify(
                 potential_derivatives=mol.calculate_energy(mol.coords, order=2)[1:]
             )
-        if dipole_function is not None:
+        if dipole_function is not None and use_dipole_embedding:
             mol = mol.modify(dipole_evaluator=dipole_function)
         potential_function = mol.get_energy_function()
         nms = mol.get_normal_modes()
@@ -132,7 +133,10 @@ class DGBRunner:
                         return conv
                     pairwise_potential_functions[k] = ppf
 
-        dipole = mol.get_dipole_function()
+        if use_dipole_embedding or dipole_function is None:
+            dipole = mol.get_dipole_function()
+        else:
+            dipole = dipole_function
         def dipole_data(coords, deriv_order=None):
             exp = dipole(coords, order=deriv_order)
             return exp
@@ -433,7 +437,9 @@ class DGBRunner:
                    ):
 
         base_opts = dev.OptionsSet(opts)
-        opts, run_opts = base_opts.split(None, props=AIMDSimulator.__props__ + DGB.__props__)
+        opts, run_opts = base_opts.split(None, props=AIMDSimulator.__props__ + DGB.__props__ + (
+            'use_dipole_embedding',
+        ))
         opts.update(
             trajectories=trajectories,
             propagation_time=propagation_time,
@@ -457,7 +463,7 @@ class DGBRunner:
 
         if isinstance(system_spec, (str, dict, tuple)):
             system_spec = Molecule.construct(system_spec)
-            system_spec.get_dipole_evaluator()
+            # system_spec.get_dipole_evaluator()
         if hasattr(system_spec, 'potential'): # analyt
             dgb = cls.construct_from_model(system_spec, sim=sim, **opts)
             mol = system_spec.mol

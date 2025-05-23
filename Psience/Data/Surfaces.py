@@ -114,7 +114,7 @@ class DipoleSurface(MultiSurface):
         return DipoleSurface(*(
             Surface(
                 ((scan_coords, d), opts),
-                base = InterpolatedSurface,
+                base=InterpolatedSurface,
                 dipole_component = "x" if i == 0 else "y" if i == 1 else "z"
             ) for i,d in enumerate(dipoles)
         ))
@@ -174,8 +174,15 @@ class DipoleSurface(MultiSurface):
 
     @classmethod
     def from_mol(cls, mol, expansion=None, center=None, transforms=None, use_internals=True, **opts):
-        if use_internals and transforms is None and mol.internals is not None:
-            transforms = mol.get_cartesians_by_internals(len(mol.dipole_derivatives) - 1)
+        if use_internals and mol.internals is not None:
+            if transforms is None:
+                transforms = [
+                    mol.get_cartesians_by_internals(len(mol.dipole_derivatives) - 1, strip_embedding=True),
+                    mol.get_internals_by_cartesians(len(mol.dipole_derivatives) - 1, strip_embedding=True)
+                ]
+            if center is None:
+                center = mol.get_internals(strip_embedding=True)
+
         if center is None:
             center = mol.coords
         if expansion is None:
@@ -327,8 +334,14 @@ class PotentialSurface(Surface):
                  transformed_derivatives=False,
                  use_internals=True,
                  **opts):
-        if use_internals and transforms is None and mol.internals is not None:
-            transforms = mol.get_cartesians_by_internals(len(mol.potential_derivatives))
+        if use_internals and mol.internals is not None:
+            if transforms is None:
+                transforms = [
+                    mol.get_cartesians_by_internals(len(mol.dipole_derivatives) - 1, strip_embedding=True),
+                    mol.get_internals_by_cartesians(len(mol.dipole_derivatives) - 1, strip_embedding=True)
+                ]
+            if center is None:
+                center = mol.get_internals(strip_embedding=True)
         if center is None:
             center = mol.coords
         if expansion is None:
