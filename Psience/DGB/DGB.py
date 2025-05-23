@@ -322,7 +322,7 @@ class DGB:
         self._V = None
         self._T = None
         self._S = None
-        self.logger = Logger.lookup(logger)
+        self.logger = Logger.lookup(logger, construct=True)
         self.parallelizer = Parallelizer.lookup(parallelizer)
     def as_cartesian_dgb(self):
         if isinstance(self.gaussians.coords, DGBCartesians):
