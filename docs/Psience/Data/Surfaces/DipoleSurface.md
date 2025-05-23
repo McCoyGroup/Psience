@@ -146,8 +146,8 @@ from_mol(cls, mol, expansion=None, center=None, transforms=None, use_internals=T
 __call__(self, gridpoints, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces/DipoleSurface.py#L190)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces/DipoleSurface.py#L190?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces/DipoleSurface.py#L197)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces/DipoleSurface.py#L197?message=Update%20Docs)]
 </div>
 Explicitly overrides the Surface-level evaluation because we know the Taylor surface needs us to flatten our gridpoints
   - `gridpoints`: `Any`

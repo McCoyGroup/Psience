@@ -1,8 +1,8 @@
 ## <a id="Psience.Data.Surfaces.PotentialSurface">PotentialSurface</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces.py#L209)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces.py#L209?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces.py#L216)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces.py#L216?message=Update%20Docs)]
 </div>
 
 A potential surface structure to go along with the DipoleSurface.
@@ -26,8 +26,8 @@ Provides convenient access to potential data + a unified interface to things lik
 get_log_values(log_file, keys=('StandardCartesianCoordinates', 'ScanEnergies')): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L215)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L215?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L222)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L222?message=Update%20Docs)]
 </div>
 
 
@@ -37,8 +37,8 @@ get_log_values(log_file, keys=('StandardCartesianCoordinates', 'ScanEnergies')):
 from_log_file(cls, log_file, coord_transf, keys=('StandardCartesianCoordinates', 'ScanEnergies'), tol=0.001, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L231)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L231?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L238)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L238?message=Update%20Docs)]
 </div>
 Loads dipoles from a Gaussian log file and builds a potential surface by interpolating.
 Obviously this only really works if we have a subset of "scan" coordinates, so at this stage the user is obligated
@@ -56,8 +56,8 @@ Coordinerds can be helpful with this, as it provides a convenient syntax for Car
 from_fchk_file(cls, fchk_file, ref=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L299)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L299?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L306)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L306?message=Update%20Docs)]
 </div>
 Loads potential from a Gaussian formatted checkpoint file and builds a potential surface via a quartic approximation
   - `fchk_file`: `Any`
@@ -74,8 +74,8 @@ Loads potential from a Gaussian formatted checkpoint file and builds a potential
 from_mol(cls, mol, expansion=None, center=None, transforms=None, transformed_derivatives=False, use_internals=True, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L322)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L322?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L329)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L329?message=Update%20Docs)]
 </div>
 
 
@@ -85,8 +85,8 @@ from_mol(cls, mol, expansion=None, center=None, transforms=None, transformed_der
 from_derivatives(cls, expansion, center=None, ref=None, transforms=None, transformed_derivatives=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L344)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L344?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L357)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L357?message=Update%20Docs)]
 </div>
 
 
@@ -95,8 +95,8 @@ from_derivatives(cls, expansion, center=None, ref=None, transforms=None, transfo
 __call__(self, gridpoints, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces/PotentialSurface.py#L360)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces/PotentialSurface.py#L360?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/Surfaces/PotentialSurface.py#L373)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces/PotentialSurface.py#L373?message=Update%20Docs)]
 </div>
 Explicitly overrides the Surface-level evaluation because we know the Taylor surface needs us to flatten our gridpoints
   - `gridpoints`: `Any`
@@ -158,7 +158,7 @@ Explicitly overrides the Surface-level evaluation because we know the Taylor sur
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Data/Surfaces/PotentialSurface.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Data/Surfaces/PotentialSurface.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces.py#L209?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/Surfaces.py#L216?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

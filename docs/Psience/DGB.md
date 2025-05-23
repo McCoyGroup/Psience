@@ -119,9 +119,9 @@ extending an implementation by Jeremy Park
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-793325" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-793325"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-ba4e84" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-ba4e84"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-793325" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-ba4e84" markdown="1">
  - [Harmonic](#Harmonic)
 - [Morse](#Morse)
 - [SampleRotated](#SampleRotated)
@@ -146,9 +146,9 @@ extending an implementation by Jeremy Park
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-94c9b1" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-94c9b1"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-be7329" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-be7329"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-94c9b1" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-be7329" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -1493,9 +1493,10 @@ class DGBTests(TestCase):
         #     mol.modify(dipole_evaluator='expansion')
 
         return mol
-    def setup_OCHH(cls, optimize=False, use_internals=True, **fd_opts):
-        loader = ModuleLoader(os.path.expanduser("~/Documents/Postdoc/Projects/DGB"))
-        h2co_mod = loader.load("H2COPot")
+    def setup_OCHH(cls, optimize=False, use_internals=True, load_potential=True, embed=True, **fd_opts):
+        if load_potential:
+            loader = ModuleLoader(os.path.expanduser("~/Documents/Postdoc/Projects/DGB"))
+            h2co_mod = loader.load("H2COPot")
 
         def pot(coords, order=None):
             if coords.shape[-1] == 12:
@@ -1504,6 +1505,27 @@ class DGBTests(TestCase):
                 base_shape = coords.shape[:-2]
             vals = h2co_mod.Potential.get_pot(coords.reshape(-1, 4, 3), order=(3, 2, 1, 0))
             return vals.reshape(base_shape)
+
+        # ochh = Molecule.from_file(
+        #     TestManager.test_data('OCHH_freq.fchk'),
+        #     energy_evaluator=dict(
+        #         {
+        #             'potential_function': pot,
+        #             "distance_units": "Angstroms",
+        #             "energy_units": "Wavenumbers"
+        #         },
+        #         **fd_opts
+        #     ),
+        #     internals=[
+        #         [0, -1, -1, -1],
+        #         [1,  0, -1, -1],
+        #         [2,  1,  0, -1],
+        #         [3,  1,  0,  2],
+        #     ]
+        # )
+        # for e in ochh.calculate_dipole(order=2):
+        #     print(e.shape)
+        # return
 
         if not use_internals:
             ochh = Molecule.from_file(
@@ -1540,13 +1562,16 @@ class DGBTests(TestCase):
                     [3,  1,  0,  2],
                 ]
             )
-        base_dip = ochh.dipole_derivatives
+        base_dip = ochh.dipole_derivatives[:2]
         ochh = ochh.modify(
             coords=[[0,               0,  1.27603352e+00],
                     [0,               0, -9.98625259e-01],
                     [0,  1.77174246e+00, -2.09630576e+00],
-                    [0, -1.77174246e+00, -2.09630576e+00]]
+                    [0, -1.77174246e+00, -2.09630576e+00]],
+            dipole_derivatives=base_dip
         )
+        if embed:
+            ochh = ochh.get_embedded_molecule(embed_properties=True)
         if optimize:
             ochh = ochh.optimize(
                 # method='quasi-newton'
@@ -1560,7 +1585,7 @@ class DGBTests(TestCase):
                 , restart_interval=15
             )
             print(ochh.coords)
-        ochh = ochh.modify(dipole_derivatives=base_dip)
+        # ochh = ochh.modify(dipole_derivatives=base_dip)
 
         return ochh
 ```
@@ -4175,14 +4200,75 @@ class DGBTests(TestCase):
     def test_NewRunnerOCHH(self):
         from Psience.Modes import LocalizedModes
 
-        ochh = self.setup_OCHH(optimize=False, use_internals=True, stencil=7)
-        # runner, _ = ochh.setup_VPT(degeneracy_specs='auto')
-        # runner.print_tables()
+        embed_struct = False
+        ochh_int = self.setup_OCHH(optimize=False, use_internals=True, stencil=7,
+                                   load_potential=True,
+                                    embed=embed_struct)
+        ochh_cart = self.setup_OCHH(optimize=False, use_internals=False, stencil=7,
+                                    load_potential=True,
+                                    embed=embed_struct)
+        # # runner, _ = ochh.setup_VPT(degeneracy_specs='auto')
+        # # runner.print_tables()
+        #
+        # scan_pos = np.linspace(-.2, .2, 11)
+        # scan_coords = ochh.get_displaced_coordinates(
+        #         np.random.rand(5, 4, 3) / 2,
+        #         use_internals=False
+        #     )
+        # # scan_coords = ochh.get_displaced_coordinates(
+        # #     scan_pos[:, np.newaxis],
+        # #     use_internals='reembed',
+        # #     which=[7]
+        # # )
+        # vals = ochh.get_dipole_function()(scan_coords)
+        # print("-"*20)
+        # vals_cart = ochh_cart.get_dipole_function()(scan_coords)
+        # print("-"*20)
+        # print(vals)
+        # print("-"*20)
+        # print(vals_cart)
+        # print("-"*20)
+        # print(vals - vals_cart)
+        # return
+        # dip = ochh.calculate_dipole()
+        #
+        # # print(
+        # #     vals
+        # # )
+        # # return
+        #
+        # dists = nput.internal_coordinate_tensors(
+        #     scan_coords,
+        #     [(2, 1, 0)],
+        #     order=0
+        # )[0][:, 0]
+        # dip_plot = plt.Plot(
+        #     dists,
+        #     vals[:, 0] - dip[0]
+        # )
+        # plt.Plot(
+        #     dists,
+        #     vals[:, 1] - dip[1],
+        #     figure=dip_plot
+        # )
+        # plt.Plot(
+        #     dists,
+        #     vals[:, 2] - dip[2],
+        #     figure=dip_plot
+        # )
+        # dip_plot.show()
         # return
 
+        plot_dir = os.path.expanduser("~/Documents/Postdoc/Projects/DGB/ochh/figs/int_1800_50")
+        os.makedirs(plot_dir, exist_ok=True)
         dgb, res = DGBRunner.run_simple(
-            ochh,
-            plot_wavefunctions={'cartesians': [1, 2], 'num': 15},
+            ochh_int,
+            dipole_function=ochh_cart.get_dipole_function(),
+            use_dipole_embedding=False,
+            plot_wavefunctions={
+                'cartesians':[0, 1] if embed_struct else [1, 2],
+                'num': 8
+            },
             initial_mode_directions=[
                 # [0, 0, 0, 0, 0, 1],
                 # [0, 0, 0, 0, 1, 0],
@@ -4197,14 +4283,14 @@ class DGBTests(TestCase):
             total_energy=1200 * UnitsData.convert("Wavenumbers", "Hartrees"),
             trajectories=25,
             sampled_modes=[4, 5],
-            timestep=25,
+            timestep=15,
             propagation_time=50,
             optimize_centers=[
                 {
                     'method': 'energy-cutoff',
                     'probabilities': [
-                        [1600 / UnitsData.hartrees_to_wavenumbers, 50],
-                        # [3000 / UnitsData.hartrees_to_wavenumbers, 300]
+                        [1800 / UnitsData.hartrees_to_wavenumbers, 100],
+                        # [3000 / UnitsData.hartrees_to_wavenumbers, 25]
                     ],
                     'cutoff': None
                 }
@@ -4219,6 +4305,9 @@ class DGBTests(TestCase):
                 include_watson_term=True
             ),
             use_interpolation=False,
+            padding=[[50, 0], [50, 30]],
+            plot_dir=plot_dir,
+            axes_labels=["$x$ (a.u.)", "$y$ (a.u.)"]
             # pairwise_potential_functions={
             #     (0, 1): 'auto',
             #     (1, 2): 'auto',
@@ -4226,9 +4315,11 @@ class DGBTests(TestCase):
             # }
         )
 
+        from Psience.Spectra import DiscreteSpectrum
+
         (wnfs, plots), spec = res
         # plots[0].show()
-        spec.plot().show()
+        # spec.frequency_filter(0, 3500).plot().show()
 
         return
 ```
