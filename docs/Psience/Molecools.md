@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-5159cc" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-5159cc"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-615af5" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-615af5"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-5159cc" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-615af5" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -126,6 +126,8 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [RDKitSpectrum](#RDKitSpectrum)
 - [ExpansionPotential](#ExpansionPotential)
 - [OpenBabel](#OpenBabel)
+- [MethanolTorsionScan](#MethanolTorsionScan)
+- [MultiGMatrix](#MultiGMatrix)
 - [1DPotentialReps](#1DPotentialReps)
 - [Constructors](#Constructors)
 - [InternalConv](#InternalConv)
@@ -134,9 +136,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-9ab550" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-9ab550"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-21534c" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-21534c"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-9ab550" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-21534c" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -1131,6 +1133,87 @@ class MolecoolsTests(TestCase):
         mol = Molecule.from_file(TestManager.test_data("nh3.fchk"))
         print(mol.to_string("pdb"))
         return
+```
+
+#### <a name="MethanolTorsionScan">MethanolTorsionScan</a>
+```python
+    def test_MethanolTorsionScan(self):
+        import McUtils.Coordinerds as coordops
+
+        methanol_zmatrix = coordops.reindex_zmatrix(
+            coordops.functionalized_zmatrix(
+                3,
+                {
+                    (2, 1, 0): [
+                        [0, -1, -2, -3],
+                        [1, -1, 0, -2],
+                        [2, -1, 0, 1],
+                    ]
+                }
+            ),
+            [5, 1, 0, 2, 3, 4]
+        )
+        methanol = Molecule(
+            ['C', 'O', 'H', 'H', 'H', 'H'],
+            [[-0.6988896,  0.00487717, 0.00528378],
+                    [ 1.69694605, -1.08628154, -0.22505594],
+                    [-1.27384807, -0.22559494, 1.98568702],
+                    [-0.59371792,  2.01534286, -0.59617633],
+                    [-2.04665278, -0.99128091, -1.21504054],
+                    [ 2.91616232,  0.28293736, 0.04530201]],
+            energy_evaluator='aimnet2'
+        )
+
+
+        # rpnms = methanol.get_reaction_path_modes(zero_gradient_cutoff=zero_gradient_cutoff=.1)
+        rpnms = methanol.get_reaction_path_modes()
+        print(rpnms.freqs * 219474.6)
+        # print(np.round(rpnms.coords_by_modes @ rpnms.modes_by_coords, 4))
+
+        return
+
+
+        methanol = methanol.optimize()
+
+        # me_opt_scipy = methanol_1.optimize(mode='scipy')
+        # methanol = methanol_1.optimize()
+
+        # print(me_opt_scipy.coords)
+
+        # print(methanol.calculate_energy() - me_opt_scipy.calculate_energy())
+        # return
+
+        #.optimize(mode='scipy')
+        me_int = methanol.modify(
+            internals=methanol_zmatrix,
+        )
+        scan_spec = [-np.deg2rad(180), np.deg2rad(180), 72]
+        me_coords = me_int.get_scan_coordinates(
+            [scan_spec],
+            which=[11],
+            internals='reembed'
+        )
+        me_pot = methanol.get_energy_function()(me_coords)
+```
+
+#### <a name="MultiGMatrix">MultiGMatrix</a>
+```python
+    def test_MultiGMatrix(self):
+
+
+        mol = Molecule.from_file(
+            TestManager.test_data("nh3.fchk"),
+            internals=[
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  0,  1, -1],
+                [3,  0,  1,  2]
+            ]
+        )
+        other_structs = mol.get_displaced_coordinates(
+            np.random.rand(5, 4, 3) / 5
+        )
+        gms = mol.get_gmatrix(coords=other_structs)
 ```
 
 #### <a name="1DPotentialReps">1DPotentialReps</a>

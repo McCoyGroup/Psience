@@ -21,11 +21,49 @@
  
 <a id="Psience.Modes.NormalModes.ReactionPathModes.get_rp_modes" class="docs-object-method">&nbsp;</a> 
 ```python
-get_rp_modes(cls, gradient, f_matrix, mass_spec, mass_units='AtomicMassUnits', remove_transrot=True, dimensionless=False): 
+@classmethod
+get_rp_modes(cls, gradient, f_matrix, mass_spec, remove_transrot=True, dimensionless=False, mass_weighted=None, zero_freq_cutoff=None, return_gmatrix=False, projector=None, zero_gradient_cutoff=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/ReactionPathModes.py#L512)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/ReactionPathModes.py#L512?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L513)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L513?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Modes.NormalModes.ReactionPathModes.from_grad_fg" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_grad_fg(cls, basis, gradient, f_matrix, mass_spec, remove_transrot=True, dimensionless=False, zero_freq_cutoff=None, mass_weighted=None, origin=None, projector=None, zero_gradient_cutoff=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L605)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L605?message=Update%20Docs)]
+</div>
+Generates normal modes from the specified F and G matrices
+  - `basis`: `Any`
+    > 
+  - `f_matrix`: `Any`
+    > second derivatives of the potential
+  - `mass_spec`: `Any`
+    > 
+  - `mass_units`: `Any`
+    > 
+  - `remove_transrot`: `Any`
+    > 
+  - `opts`: `Any`
+    > 
+  - `:returns`: `_`
+    >
+
+
+<a id="Psience.Modes.NormalModes.ReactionPathModes.from_molecule" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_molecule(cls, mol, dimensionless=False, use_internals=None, potential_derivatives=None, project_transrot=True, zero_freq_cutoff=None, masses=None, zero_gradient_cutoff=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L662)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L662?message=Update%20Docs)]
 </div>
  </div>
 </div>

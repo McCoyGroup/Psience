@@ -75,7 +75,7 @@ dipole(self):
 
 <a id="Psience.AnalyticModels.AnalyticModelConstructors.MolecularModel.setup_AIMD" class="docs-object-method">&nbsp;</a> 
 ```python
-setup_AIMD(self, timestep=0.5, initial_energies=None, initial_displacements=None, displaced_coords=None, track_kinetic_energy=False, track_velocities=False): 
+setup_AIMD(self, timestep=0.5, initial_energies=None, initial_displacements=None, displaced_coords=None, track_kinetic_energy=False, track_velocities=False, **aimd_opts): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/AnalyticModelConstructors/MolecularModel.py#L1354)/
@@ -88,8 +88,8 @@ setup_AIMD(self, timestep=0.5, initial_energies=None, initial_displacements=None
 setup_DGB(self, centers, *, masses=None, modes='normal', transformations=None, alphas='auto', cartesians=None, potential_function=None, dipole_function=None, optimize_centers=None, quadrature_degree=None, expansion_degree=None, pairwise_potential_functions=None, internals=False, logger=True, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/AnalyticModelConstructors/MolecularModel.py#L1377)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors/MolecularModel.py#L1377?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/AnalyticModels/AnalyticModelConstructors/MolecularModel.py#L1379)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/AnalyticModels/AnalyticModelConstructors/MolecularModel.py#L1379?message=Update%20Docs)]
 </div>
  </div>
 </div>

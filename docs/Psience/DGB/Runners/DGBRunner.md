@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.Runners.DGBRunner">DGBRunner</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Runners.py#L21)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Runners.py#L21?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Runners.py#L22)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Runners.py#L22?message=Update%20Docs)]
 </div>
 
 
@@ -19,7 +19,14 @@
  </div>
  <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
  ```python
+plot_potential_cutoff: int
+plot_potential_units: str
+gaussian_plot_name: str
 default_num_plot_wfns: int
+wavefunction_plot_name: str
+potential_plot_name: str
+similarity_plot_name: str
+spectrum_plot_name: str
 ```
 <a id="Psience.DGB.Runners.DGBRunner.prep_interpolation" class="docs-object-method">&nbsp;</a> 
 ```python
@@ -27,8 +34,8 @@ default_num_plot_wfns: int
 prep_interpolation(cls, nms, coords, potential_function, symmetrizations=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L26)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L26?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L27)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L27?message=Update%20Docs)]
 </div>
 
 
@@ -38,8 +45,8 @@ prep_interpolation(cls, nms, coords, potential_function, symmetrizations=None):
 construct_from_mol_simulation(cls, sim, mol, *, potential_function=None, dipole_function=None, use_dipole_embedding=True, use_cartesians=False, use_momenta=False, quadrature_degree=3, expansion_degree=2, use_interpolation=True, use_quadrature=False, symmetrizations=None, momentum_scaling=None, skip_initial_configurations=True, alphas='virial', modes='normal', transformations='diag', pairwise_potential_functions=None, logger=True, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L47)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L47?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L48)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L48?message=Update%20Docs)]
 </div>
 
 
@@ -49,30 +56,30 @@ construct_from_mol_simulation(cls, sim, mol, *, potential_function=None, dipole_
 construct_from_model_simulation(cls, sim, model, mol=None, *, use_cartesians=False, use_momenta=False, quadrature_degree=3, expansion_degree=2, use_interpolation=True, use_quadrature=False, symmetrizations=None, momentum_scaling=None, skip_initial_configurations=True, modes='normal', transformations='diag', **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L167)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L167?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L169)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L169?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.DGB.Runners.DGBRunner.construct_from_model" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-construct_from_model(cls, model, trajectories=10, *, sim=None, propagation_time=10, timestep=50, use_cartesians=False, use_momenta=False, pairwise_potential_functions=None, use_interpolation=True, use_quadrature=False, symmetrizations=None, momentum_scaling=None, track_velocities=True, **aimd_options): 
+construct_from_model(cls, model, trajectories=10, *, sim=None, propagation_time=10, timestep=50, use_cartesians=False, use_momenta=False, pairwise_potential_functions=None, use_interpolation=True, use_quadrature=False, symmetrizations=None, momentum_scaling=None, total_energy=None, total_energy_scaling=None, sampled_modes=None, initial_energies=None, initial_displacements=None, initial_mode_directions=None, displaced_coords=None, track_velocities=True, logger=None, **aimd_options): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L250)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L250?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L257)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L257?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.DGB.Runners.DGBRunner.from_mol" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-from_mol(cls, mol, sim=None, *, potential_function=None, dipole_function=None, trajectories=10, propagation_time=10, timestep=50, use_cartesians=False, use_momenta=False, pairwise_potential_functions=None, use_interpolation=True, use_quadrature=False, symmetrizations=None, momentum_scaling=None, trajectory_seed=None, total_energy=None, total_energy_scaling=None, sampled_modes=None, initial_energies=None, initial_displacements=None, initial_mode_directions=None, displaced_coords=None, track_velocities=True, **aimd_options): 
+from_mol(cls, mol, sim=None, *, potential_function=None, dipole_function=None, trajectories=10, propagation_time=10, timestep=50, use_cartesians=False, use_momenta=False, pairwise_potential_functions=None, use_interpolation=True, use_quadrature=False, symmetrizations=None, momentum_scaling=None, trajectory_seed=None, total_energy=None, total_energy_scaling=None, sampled_modes=None, initial_energies=None, initial_displacements=None, initial_mode_directions=None, displaced_coords=None, track_velocities=True, logger=None, **aimd_options): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L289)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L289?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L350)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L350?message=Update%20Docs)]
 </div>
 
 
@@ -82,41 +89,41 @@ from_mol(cls, mol, sim=None, *, potential_function=None, dipole_function=None, t
 run_simple(cls, system_spec, sim=None, plot_wavefunctions=True, plot_spectrum=True, trajectories=10, propagation_time=10, timestep=50, use_cartesians=False, use_momenta=False, pairwise_potential_functions=None, use_interpolation=True, use_quadrature=False, symmetrizations=None, momentum_scaling=None, trajectory_seed=None, total_energy=None, total_energy_scaling=None, sampled_modes=None, initial_energies=None, initial_mode_directions=None, initial_displacements=None, displaced_coords=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L412)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L412?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L516)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L516?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.DGB.Runners.DGBRunner.plot_dgb_potential" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-plot_dgb_potential(cls, dgb, mol, potential, coordinate_sel=None, domain=None, domain_padding=1, potential_cutoff=17000, potential_units='Wavenumbers', potential_min=0, plot_cartesians=None, plot_atoms=True, cmap=None, modes_nearest=False, plot_points=100, levels=24, **plot_styles): 
+plot_dgb_potential(cls, dgb, mol, potential, coordinate_sel=None, domain=None, domain_padding=1, potential_cutoff=None, potential_units=None, potential_min=0, plot_cartesians=None, plot_atoms=True, cmap=None, modes_nearest=False, plot_points=100, levels=24, **plot_styles): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L482)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L482?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L588)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L588?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.DGB.Runners.DGBRunner.plot_gaussians" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-plot_gaussians(cls, dgb, mol, *, domain=None, domain_padding=1, cmap='RdBu', plot_dir=None, plot_name='gaussian_{i}.pdf', **plot_options): 
+plot_gaussians(cls, dgb, mol, *, domain=None, domain_padding=1, cmap='RdBu', plot_dir=None, plot_name=None, **plot_options): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L553)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L553?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L665)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L665?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.DGB.Runners.DGBRunner.plot_wavefunctions" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-plot_wavefunctions(cls, wfns, dgb, mol, which=True, coordinate_sel=None, cartesians=None, plot_dir=None, plot_name='wfn_{i}.pdf', plot_label='{e} cm-1', plot_potential=True, potential_units='Wavenumbers', plot_atoms=None, plot_centers=True, potential_styles=None, scaling=None, **plot_options): 
+plot_wavefunctions(cls, wfns, dgb, mol, which=True, coordinate_sel=None, cartesians=None, plot_dir=None, plot_name=None, plot_label='{e:.2f} cm-1', plot_potential=True, separate_potential=False, potential_plot_name=None, potential_units='Wavenumbers', plot_atoms=None, plot_centers=True, potential_styles=None, scaling=None, ticks=None, padding=None, aspect_ratio=None, plot_range=None, image_size=None, **plot_options): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L585)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L585?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L701)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L701?message=Update%20Docs)]
 </div>
 
 
@@ -126,8 +133,8 @@ plot_wavefunctions(cls, wfns, dgb, mol, which=True, coordinate_sel=None, cartesi
 plot_potential_from_spec(cls, dgb, mol, spec, plot_centers=True, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L705)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L705?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L856)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L856?message=Update%20Docs)]
 </div>
 
 
@@ -137,19 +144,19 @@ plot_potential_from_spec(cls, dgb, mol, spec, plot_centers=True, **opts):
 prep_plot_wavefunctions_spec(cls, dgb, spec): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L731)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L731?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L882)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L882?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.DGB.Runners.DGBRunner.run_dgb" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-run_dgb(cls, dgb: Psience.DGB.DGB.DGB, mol, plot_centers=True, plot_wavefunctions=True, plot_spectrum=False, pot_cmap='viridis', wfn_cmap='RdBu', wfn_points=100, wfn_contours=12, plot_dir=None, plot_potential=True, pot_points=100, domain=None, domain_padding=1, wavefunction_scaling=None, potential_cutoff=15000, potential_units='Wavenumbers', mode=None, nodeless_ground_state=None, min_singular_value=None, subspace_size=None, plot_similarity=False, similarity_cutoff=None, similarity_chunk_size=None, similar_det_cutoff=None, **plot_options): 
+run_dgb(cls, dgb: Psience.DGB.DGB.DGB, mol, plot_centers=True, plot_wavefunctions=True, plot_spectrum=False, spectrum_plot_name=None, pot_cmap='viridis', wfn_cmap='RdBu', wfn_points=100, wfn_contours=12, plot_dir=None, plot_potential=True, pot_points=100, domain=None, domain_padding=1, wavefunction_scaling=None, potential_cutoff=None, potential_units='Wavenumbers', mode=None, nodeless_ground_state=None, min_singular_value=None, subspace_size=None, plot_similarity=False, similarity_plot_name=None, similarity_cutoff=None, similarity_chunk_size=None, similar_det_cutoff=None, num_print=None, **plot_options): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L748)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L748?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L901)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L901?message=Update%20Docs)]
 </div>
 
 
@@ -159,8 +166,8 @@ run_dgb(cls, dgb: Psience.DGB.DGB.DGB, mol, plot_centers=True, plot_wavefunction
 getMorseParameters(cls, w=None, wx=None, m1=None, m2=None, re=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L878)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L878?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1067)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1067?message=Update%20Docs)]
 </div>
 
 
@@ -170,8 +177,8 @@ getMorseParameters(cls, w=None, wx=None, m1=None, m2=None, re=None):
 setupMorseFunction(cls, model, i, j, w=None, wx=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L899)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L899?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1088)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1088?message=Update%20Docs)]
 </div>
 
 
@@ -181,8 +188,8 @@ setupMorseFunction(cls, model, i, j, w=None, wx=None):
 plot_interpolation_error(cls, dgb, pot): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L926)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L926?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1115)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1115?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -237,7 +244,7 @@ plot_interpolation_error(cls, dgb, pot):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Runners/DGBRunner.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Runners/DGBRunner.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Runners.py#L21?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Runners.py#L22?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

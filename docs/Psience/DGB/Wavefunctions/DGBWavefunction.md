@@ -41,7 +41,7 @@ get_dimension(self):
 
 <a id="Psience.DGB.Wavefunctions.DGBWavefunction.plot" class="docs-object-method">&nbsp;</a> 
 ```python
-plot(self, figure=None, domain=None, plot_centers=False, **opts): 
+plot(self, figure=None, domain=None, plot_centers=False, return_values=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L28)/
@@ -54,8 +54,8 @@ plot(self, figure=None, domain=None, plot_centers=False, **opts):
 to_cartesian_wavefunction(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L64)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L64?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L81)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L81?message=Update%20Docs)]
 </div>
 Projects the wavefunction back to Cartesians
   - `:returns`: `_`
@@ -64,11 +64,11 @@ Projects the wavefunction back to Cartesians
 
 <a id="Psience.DGB.Wavefunctions.DGBWavefunction.plot_cartesians" class="docs-object-method">&nbsp;</a> 
 ```python
-plot_cartesians(self, xyz_sel=None, *, atom_sel=None, figure=None, plot_centers=False, atom_styles=None, **plot_styles): 
+plot_cartesians(self, xyz_sel=None, *, atom_sel=None, figure=None, plot_centers=False, atom_styles=None, adjust_levels=False, projection_plot_density_cutoff=None, return_values=False, **plot_styles): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L80)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L80?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L97)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L97?message=Update%20Docs)]
 </div>
 
 
@@ -77,18 +77,18 @@ plot_cartesians(self, xyz_sel=None, *, atom_sel=None, figure=None, plot_centers=
 evaluate(self, points): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L146)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L146?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L210)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L210?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.DGB.Wavefunctions.DGBWavefunction.marginalize_out" class="docs-object-method">&nbsp;</a> 
 ```python
-marginalize_out(self, dofs, rescale=True) -> 'DGBWavefunction': 
+marginalize_out(self, dofs, rescale=True, return_scaling=False) -> 'DGBWavefunction': 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L203)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L203?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L267)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions/DGBWavefunction.py#L267?message=Update%20Docs)]
 </div>
 Computes the projection of the current wavefunction onto a set of degrees
 of freedom, returning a projected wave function object
