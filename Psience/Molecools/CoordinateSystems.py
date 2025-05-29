@@ -876,11 +876,12 @@ class ModeEmbedding:
             ).flatten()
         return np.diag(np.sign(mvec) / np.sqrt(np.abs(mvec)))
 
-    def get_mw_cartesians_by_internals(self, order=None, mass_weighted=None, strip_embedding=True):
+    def get_mw_cartesians_by_internals(self, order=None, mass_weighted=None, coords=None, strip_embedding=True):
         RX = self.embedding.get_cartesians_by_internals(
-                order=order,
-                strip_embedding=strip_embedding
-            )
+            order=order,
+            coords=coords,
+            strip_embedding=strip_embedding
+        )
         if mass_weighted is None:
             mass_weighted = self.mass_weighted
         if mass_weighted:
@@ -890,9 +891,10 @@ class ModeEmbedding:
                 for tf_X in RX
             ]
         return RX
-    def get_internals_by_mw_cartesians(self, order=None, mass_weighted=None, strip_embedding=True):
+    def get_internals_by_mw_cartesians(self, order=None, mass_weighted=None, coords=None, strip_embedding=True):
         XR = self.embedding.get_internals_by_cartesians(
                 order=order,
+                coords=coords,
                 strip_embedding=strip_embedding
             )
         if mass_weighted is None:
@@ -900,15 +902,21 @@ class ModeEmbedding:
         if mass_weighted:
             YX = self.mw_inverse()
             YR = []
+            if coords is not None:
+                pad_dim = coords.ndim - 2
+            else:
+                pad_dim = 0
             for X_tf in XR:
-                for d in range(X_tf.ndim-1):
-                    X_tf = np.tensordot(YX, X_tf, axes=[1, d])
+                for d in range(X_tf.ndim-(1 + pad_dim)):
+                    X_tf = np.tensordot(YX, X_tf, axes=[1, d+pad_dim])
+                    for j in range(pad_dim):
+                        X_tf = np.moveaxis(X_tf, 1+j, 0)
                 YR.append(X_tf)
         else:
             YR = XR
         return YR
 
-    def get_internals_by_cartesians(self, order=None, strip_embedding=True):
+    def get_internals_by_cartesians(self, order=None, coords=None, strip_embedding=True):
         """
         expresses raw internals or modes (internals or Cartesian) in terms of mass-weighted Cartesians
 
@@ -925,11 +933,13 @@ class ModeEmbedding:
                 if self.mass_weighted:
                     YR = self.get_internals_by_mw_cartesians(
                         order=order,
+                        coords=coords,
                         strip_embedding=strip_embedding
                     )
                 else:
                     YR = self.embedding.get_internals_by_cartesians(
                         order=order,
+                        coords=coords,
                         strip_embedding=strip_embedding
                     )
                 if self.modes is not None:
@@ -944,18 +954,21 @@ class ModeEmbedding:
                             order=1,
                             strip_embedding=strip_embedding
                         )[0]
-                    RQ = RY @ YQ
+                    RQ = np.tensordot(RY, YQ, axes=[-1, -2])
+                    padding = RQ.ndim-2
+                    for j in range(padding):
+                        RQ = np.moveaxis(RQ, padding+j, 0)
                     YR = nput.tensor_reexpand(YR, [RQ], order=order)
                 return YR
             else:
-                tens = self.embedding.get_internals_by_cartesians(order)
+                tens = self.embedding.get_internals_by_cartesians(order, coords=coords)
                 return nput.tensor_reexpand(
                     tens,
                     [self.modes.modes_by_coords],
                     order=order if order is not None else len(tens)
                 )
 
-    def get_cartesians_by_internals(self, order=None, strip_embedding=True):
+    def get_cartesians_by_internals(self, order=None, coords=None, strip_embedding=True):
         """
         expresses raw internals or modes (internals or Cartesian) in terms of mass-weighted Cartesians
 
@@ -973,30 +986,37 @@ class ModeEmbedding:
                 if self.mass_weighted:
                     RY = self.get_mw_cartesians_by_internals(
                         order=order,
-                        strip_embedding=strip_embedding
+                        strip_embedding=strip_embedding,
+                        coords=coords
                     )
                 else:
                     RY = self.embedding.get_cartesians_by_internals(
                         order=order,
-                        strip_embedding=strip_embedding
+                        strip_embedding=strip_embedding,
+                        coords=coords
                     )
                 if self.modes is not None:
                     QY = self.modes.coords_by_modes
                     if self.mass_weighted:
                         YR = self.get_internals_by_mw_cartesians(
                             order=1,
-                            strip_embedding=strip_embedding
+                            strip_embedding=strip_embedding,
+                            coords=coords
                         )[0]
                     else:
                         YR = self.embedding.get_internals_by_cartesians(
                             order=1,
-                            strip_embedding=strip_embedding
+                            strip_embedding=strip_embedding,
+                            coords=coords
                         )[0]
-                    QR = QY @ YR
+                    QR = np.tensordot(QY, YR, axes=[-1, -2])
+                    padding = QR.ndim-2
+                    for j in range(padding):
+                        QR = np.moveaxis(QR, padding+j, 0)
                     RY = nput.tensor_reexpand([QR], RY, order=order)
                 return RY
             else:
-                tens = self.embedding.get_cartesians_by_internals(order),
+                tens = self.embedding.get_cartesians_by_internals(order, coords=coords),
                 return nput.tensor_reexpand(
                     [self.modes.coords_by_modes],
                     tens,

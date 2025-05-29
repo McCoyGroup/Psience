@@ -78,7 +78,7 @@ class NormalModes(MixtureModes):
             freq2, modes = slag.eigh(f_matrix, mass_spec, type=3)
             V = gi12 @ modes
         else:
-            pG12 = projector @ gi12
+            pG12 = projector @ g12
             mw_F = pG12 @ f_matrix @ pG12.T
             freq2, V = np.linalg.eigh(mw_F)
             modes = g12 @ V
@@ -509,12 +509,225 @@ class NormalModes(MixtureModes):
         return LocalizedModes(self, tf, inverse=inv)
 
 class ReactionPathModes(NormalModes):
+
+    @classmethod
     def get_rp_modes(cls,
-                  gradient,
-                  f_matrix,
-                  mass_spec,
-                  mass_units="AtomicMassUnits",
-                  remove_transrot=True,
-                  dimensionless=False
-                  ):
-        ...
+                     gradient,
+                     f_matrix,
+                     mass_spec,
+                     # mass_units="AtomicMassUnits",
+                     remove_transrot=True,
+                     dimensionless=False,
+                     mass_weighted=None,
+                     zero_freq_cutoff=None,
+                     return_gmatrix=False,
+                     projector=None,
+                     zero_gradient_cutoff=None
+                     ):
+        #TODO: handle multiple structures at once
+        if isinstance(mass_spec[0], str):  # atoms were supplied
+            mass_spec = np.array([AtomData[a, "Mass"] for a in mass_spec]) * UnitsData.convert(
+                "AtomicMassUnits",
+                "AtomicUnitOfMass"
+            )
+        mass_spec = np.asanyarray(mass_spec)
+
+        if mass_spec.ndim == 1:
+            if mass_weighted is None: mass_weighted = dimensionless # generally do the right thing for Cartesians
+            mass_spec = np.broadcast_to(mass_spec[:, np.newaxis], (len(mass_spec), 3)).flatten()
+            mass_spec = np.diag(1 / mass_spec)
+
+
+        gi12 = nput.fractional_power(mass_spec, -1 / 2)
+        g12 = nput.fractional_power(mass_spec, 1 / 2)
+        gradient = np.asanyarray(gradient)
+        if gradient.ndim == 1:
+            gradient = gradient[:, np.newaxis]
+        gradient = g12 @ gradient
+
+        grad_norm = nput.vec_norms(gradient, axis=0)
+        if zero_gradient_cutoff is not None and grad_norm < zero_gradient_cutoff:
+            return None
+
+        gradient = nput.vec_normalize(gradient, norms=grad_norm, axis=0)
+        grad_projector = nput.orthogonal_projection_matrix(gradient, orthornomal=True)
+        if projector is not None:
+            projector = grad_projector @ projector
+        else:
+            projector = grad_projector
+
+        (freqs, modes, inv), g_matrix = cls.get_normal_modes(
+            f_matrix,
+            mass_spec,
+            # mass_units="AtomicMassUnits",
+            remove_transrot=remove_transrot,
+            dimensionless=dimensionless,
+            mass_weighted=mass_weighted,
+            zero_freq_cutoff=zero_freq_cutoff,
+            return_gmatrix=True,
+            projector=projector
+        )
+
+        gradient_inv = gradient.T
+        f_grad = gradient_inv @ f_matrix @  gradient_inv.T
+        grad_g = gradient.T @ g_matrix @ gradient
+        if not mass_weighted:
+            gradient = gi12 @ gradient
+            gradient_inv = gradient_inv @ g12
+
+        a = np.diag(np.power(np.diag(grad_g) / np.diag(f_grad), 1/4))
+        h_loc = a @ f_grad @ a
+        freq = np.diag(h_loc)
+        freqs = np.concatenate([freq, freqs])
+
+        modes = np.concatenate(
+            [
+                gradient,
+                modes
+            ],
+            axis=1
+        )
+
+        inv = np.concatenate(
+            [
+                gradient_inv,
+                inv
+            ],
+            axis=0
+        )
+
+        mode_data = cls.ModeData(freqs, modes, inv)
+        if return_gmatrix:
+            return mode_data, mass_spec
+        else:
+            return mode_data
+
+    @classmethod
+    def from_grad_fg(
+            cls,
+            basis,
+            gradient,
+            f_matrix,
+            mass_spec,
+            remove_transrot=True,
+            dimensionless=False,
+            zero_freq_cutoff=None,
+            mass_weighted=None,
+            origin=None,
+            projector=None,
+                     zero_gradient_cutoff=None,
+            **opts
+    ):
+        """
+        Generates normal modes from the specified F and G matrices
+
+        :param basis:
+        :param f_matrix: second derivatives of the potential
+        :param mass_spec:
+        :param mass_units:
+        :param remove_transrot:
+        :param opts:
+        :return:
+        """
+
+        mode_data = cls.get_rp_modes(
+            gradient, f_matrix, mass_spec,
+            remove_transrot=remove_transrot,
+            dimensionless=dimensionless,
+            zero_freq_cutoff=zero_freq_cutoff,
+            mass_weighted=mass_weighted,
+            return_gmatrix=True,
+            projector=projector,
+            zero_gradient_cutoff=zero_gradient_cutoff
+        )
+        if mode_data is None:
+            return None
+
+        (freqs, modes, inv), g_matrix = mode_data
+
+        mass_weighted = mass_weighted or dimensionless
+
+        if mass_weighted and origin is not None:
+            origin = np.asanyarray(origin)
+            origin = (origin.flatten() @ nput.fractional_power(g_matrix, -1 / 2)).reshape(origin.shape)
+
+        return cls(basis, modes, inverse=inv, freqs=freqs,
+                   mass_weighted=mass_weighted,
+                   frequency_scaled=dimensionless,
+                   g_matrix=g_matrix,
+                   origin=origin,
+                   **opts
+                   )
+
+    @classmethod
+    def from_molecule(cls, mol,
+                      dimensionless=False,
+                      use_internals=None,
+                      potential_derivatives=None,
+                      project_transrot=True,
+                      zero_freq_cutoff=None,
+                      masses=None,
+                      zero_gradient_cutoff=None,
+                      **opts
+                      ):
+        from ..Molecools import Molecule
+        #TODO: cut down on duplication
+
+        mol = mol  # type:Molecule
+        if use_internals is None:
+            use_internals = mol.internal_coordinates is not None
+        if potential_derivatives is None:
+            potential_derivatives = mol.potential_derivatives
+            if potential_derivatives is None and mol.energy_evaluator is not None:
+                potential_derivatives = mol.calculate_energy(order=2)[1:]
+        if use_internals:
+            hess = nput.tensor_reexpand(
+                mol.get_cartesians_by_internals(1, strip_embedding=True, reembed=True),
+                [0, potential_derivatives[1]],
+                order=2
+            )[1]
+            if zero_freq_cutoff is None:
+                zero_freq_cutoff = cls.default_projected_zero_freq_cutoff
+                if zero_freq_cutoff is None:
+                    zero_freq_cutoff = 1 * UnitsData.convert("Wavenumbers", "Hartrees")
+            return cls.from_grad_fg(
+                mol.internal_coordinates.system,
+                potential_derivatives[0],
+                hess,
+                mol.get_gmatrix(masses=masses),
+                dimensionless=dimensionless,
+                origin=mol.get_internals(strip_embedding=True),
+                zero_freq_cutoff=zero_freq_cutoff,
+                zero_gradient_cutoff=zero_gradient_cutoff,
+                **opts
+            )
+        else:
+            if not project_transrot and mol.normal_modes.modes is not None:
+                return mol.normal_modes.modes.basis.to_new_modes()
+
+            if masses is None:
+                masses = mol.atomic_masses
+            hess = potential_derivatives[1]
+            if project_transrot:
+                proj = mol.get_translation_rotation_projector(mass_weighted=True)
+                mw = np.diag(np.repeat(1 / np.sqrt(masses), 3))
+                mw_inv = np.diag(np.repeat(np.sqrt(masses), 3))
+                proj = mw_inv @ proj @ mw
+                hess = proj @ hess @ proj.T
+                if zero_freq_cutoff is None:
+                    zero_freq_cutoff = cls.default_projected_zero_freq_cutoff
+                    if zero_freq_cutoff is None:
+                        zero_freq_cutoff = 1 * UnitsData.convert("Wavenumbers", "Hartrees")
+
+            return cls.from_grad_fg(
+                mol.coords.system,
+                potential_derivatives[0],
+                hess,
+                masses,
+                dimensionless=dimensionless,
+                masses=masses,
+                origin=mol.coords,
+                zero_freq_cutoff=zero_freq_cutoff,
+                zero_gradient_cutoff=zero_gradient_cutoff,
+                **opts
+            )

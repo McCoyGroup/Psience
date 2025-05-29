@@ -1358,7 +1358,8 @@ class MolecularModel(AnalyticModel):
             initial_displacements=None,
             displaced_coords=None,
             track_kinetic_energy=False,
-            track_velocities=False
+            track_velocities=False,
+            **aimd_opts
     ):
 
         mol = self.mol
@@ -1371,7 +1372,8 @@ class MolecularModel(AnalyticModel):
             initial_displacements=initial_displacements,
             displaced_coords=displaced_coords,
             track_kinetic_energy=track_kinetic_energy,
-            track_velocities=track_velocities
+            track_velocities=track_velocities,
+            **aimd_opts
         )
 
     def setup_DGB(
