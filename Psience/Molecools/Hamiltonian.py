@@ -151,6 +151,7 @@ class MolecularHamiltonian:
     def _get_ke_expansion(self, cls,
                           order=None,
                           *,
+                          coords=None,
                           masses=None,
                           dimensionless=False,
                           embedding=None,
@@ -161,16 +162,18 @@ class MolecularHamiltonian:
 
         exp = cls(embedding)
         if order is not None:
-            exp = exp.get_terms(order)
+            exp = exp.get_terms(order, coords=coords)
         return exp
     def gmatrix_expansion(self,
                           order=None,
                           *,
+                          coords=None,
                           dimensionless=False,
                           embedding=None,
                           **embedding_opts
                           ) -> "GMatrixExpansion|np.ndarray":
         return self._get_ke_expansion(GMatrixExpansion,
+                                      coords=coords,
                                       order=order,
                                       dimensionless=dimensionless,
                                       embedding=embedding,
@@ -509,15 +512,15 @@ class GMatrixExpansion:
     def __init__(self, embedding:ModeEmbedding):
         self.embedding = embedding
 
-    def get_terms(self, order, transformation=None):
+    def get_terms(self, order, coords=None, transformation=None):
         if transformation is not None:
             forward_derivs, reverse_derivs = MolecularHamiltonian.prep_transformation(transformation)
             return self.reexpress(order, forward_derivs, reverse_derivs)
-        XQ = self.embedding.get_internals_by_cartesians(order=order+1)
-        XG = nput.tensordot_deriv(XQ, XQ, order, axes=[0, 0])#, identical=False)
+        XQ = self.embedding.get_internals_by_cartesians(order=order+1, coords=coords)
+        XG = nput.tensordot_deriv(XQ, XQ, order, axes=[-2, -2], shared=XQ[0].ndim-2)#, identical=False)
 
         if order > 0:
-            QX = self.embedding.get_cartesians_by_internals(order=order+1)
+            QX = self.embedding.get_cartesians_by_internals(order=order+1, coords=coords)
             # XG = self.reexpress_G(XG, QX, XQ, order=order)
             XG = [XG[0]] + nput.tensor_reexpand(QX, XG[1:], order)
         return XG

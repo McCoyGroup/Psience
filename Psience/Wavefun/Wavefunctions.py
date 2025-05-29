@@ -65,7 +65,7 @@ class Wavefunction:
     def plot(self,
              figure=None, domain=None, *, domain_padding=None, grid=None, values=None, plot_points=100,
              which=None,
-             index=0, scaling=1, shift='auto', plotter=None, plot_density=False,
+             index=0, scaling=1, shift='auto', plotter=None, plot_density=False, return_values=False,
              zero_tol=1e-8, contour_levels=None,
              **opts
              ):
@@ -136,7 +136,16 @@ class Wavefunction:
             else:
                 plotter = TriContourPlot
 
-        return plotter(*np.moveaxis(grid, -1, 0), values, figure=figure, **opts)
+        if return_values:
+            return {
+                'plotter':plotter,
+                'grid':grid,
+                'values':values,
+                'figure':figure,
+                'opts':opts
+            }
+        else:
+            return plotter(*np.moveaxis(grid, -1, 0), values, figure=figure, **opts)
 
     def projection_plot(self,
                         coords,
@@ -276,7 +285,7 @@ class Wavefunctions:
         for i in range(len(self)):
             yield self.__getitem__(i)
 
-    def frequencies(self, start_at = 0):
+    def frequencies(self, start_at=0):
         return np.concatenate([self.energies[:start_at], self.energies[1+start_at:]]) - self.energies[start_at]
 
     def get_spectrum(self,

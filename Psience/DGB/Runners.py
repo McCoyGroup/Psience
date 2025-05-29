@@ -4,6 +4,7 @@ from McUtils.Data import AtomData, UnitsData
 import McUtils.Devutils as dev
 import McUtils.Plots as plt
 import McUtils.Numputils as nput
+from McUtils.Scaffolding import Logger
 
 from ..Molecools import Molecule
 from ..AIMD import AIMDSimulator
@@ -90,7 +91,7 @@ class DGBRunner:
         if dipole_function is not None and use_dipole_embedding:
             mol = mol.modify(dipole_evaluator=dipole_function)
         potential_function = mol.get_energy_function()
-        nms = mol.get_normal_modes()
+        nms = mol.get_normal_modes(project_transrot=False, use_internals=False).remove_mass_weighting()
 
         if use_interpolation:
             potential_data = cls.prep_interpolation(
@@ -142,7 +143,8 @@ class DGBRunner:
             return exp
 
         if dev.str_is(modes, 'normal'):
-            modes = mol.get_normal_modes(use_internals=False, project_transrot=True)
+            modes = nms
+            # modes = mol.get_normal_modes(use_internals=False, project_transrot=True).remove_mass_weighting()
         return DGB.construct(
             coords,
             **dict(
@@ -184,12 +186,17 @@ class DGBRunner:
         if mol is None:
             mol = model.mol.get_embedded_molecule()
 
-        coords, velocities = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        coords = sim.extract_trajectory(flatten=True, embed=mol.coords)
+        if sim.track_velocities:
+            coords, velocities = coords
+        else:
+            velocities = None
         if skip_initial_configurations:
             nconf = len(sim.coords)
             coords = coords[nconf - 1:]
-            velocities = velocities[nconf - 1:]
-        if use_momenta:
+            if velocities is not None:
+                velocities = velocities[nconf - 1:]
+        if use_momenta and velocities is not None:
             momenta = velocities * mol.masses[np.newaxis, :, np.newaxis]
             if momentum_scaling is not None:
                 momenta = momentum_scaling * momenta
@@ -262,29 +269,83 @@ class DGBRunner:
                              use_quadrature=False,
                              symmetrizations=None,
                              momentum_scaling=None,
+                             total_energy=None,
+                             total_energy_scaling=None,
+                             sampled_modes=None,
+                             initial_energies=None,
+                             initial_displacements=None,
+                             initial_mode_directions=None,
+                             displaced_coords=None,
                              track_velocities=True,
+                             logger=None,
                              **aimd_options
                              ):
+        from ..AnalyticModels import MolecularModel
+        model: MolecularModel
 
+        logger = Logger.lookup(logger, construct=True)
         if sim is None:
-            sim = model.setup_AIMD(
-                trajectories=trajectories,
-                timestep=timestep,
-                track_velocities=True,
-                **aimd_options
-            )
-            sim.propagate(propagation_time)
+            with logger.block(tag="Running AIMD"):
+                logger.log_print(
+                    "Normal mode frequencies: {freqs}",
+                    freqs=model.normal_modes()[0] * UnitsData.convert("Hartrees", "Wavenumbers")
+                )
+                aimd_opts = dict(
+                    trajectories=trajectories,
+                    timestep=timestep,
+                    track_velocities=True,
+                    total_energy=total_energy,
+                    total_energy_scaling=total_energy_scaling,
+                    sampled_modes=sampled_modes,
+                    initial_energies=initial_energies,
+                    initial_displacements=initial_displacements,
+                    initial_mode_directions=initial_mode_directions,
+                    displaced_coords=displaced_coords,
+                    **aimd_options
+                )
+                for k,v in aimd_opts.items():
+                    if v is not None:
+                        logger.log_print("{k} = {v}", k=k, v=v)
+                sim = model.setup_AIMD(
+                    trajectories=trajectories,
+                    timestep=timestep,
+                    track_velocities=True,
+                    total_energy=total_energy,
+                    total_energy_scaling=total_energy_scaling,
+                    sampled_modes=sampled_modes,
+                    initial_energies=initial_energies,
+                    initial_displacements=initial_displacements,
+                    initial_mode_directions=initial_mode_directions,
+                    displaced_coords=displaced_coords,
+                    **aimd_options
+                )
+                sim.propagate(propagation_time)
 
-        return cls.construct_from_model_simulation(
-            sim, model,
-            use_cartesians=use_cartesians,
-            use_momenta=use_momenta,
-            pairwise_potential_functions=pairwise_potential_functions,
-            use_interpolation=use_interpolation,
-            use_quadrature=use_quadrature,
-            momentum_scaling=momentum_scaling,
-            symmetrizations=symmetrizations,
-        )
+        with logger.block(tag="Constructing DGB"):
+            print_opts = dict(
+                use_cartesians=use_cartesians,
+                use_momenta=use_momenta,
+                pairwise_potential_functions=pairwise_potential_functions,
+                use_interpolation=use_interpolation,
+                use_quadrature=use_quadrature,
+                momentum_scaling=momentum_scaling,
+                symmetrizations=symmetrizations,
+            )
+            for k, v in print_opts.items():
+                if v is not None:
+                    logger.log_print("{k} = {v}", k=k, v=v)
+            dgb = cls.construct_from_model_simulation(
+                sim, model,
+                use_cartesians=use_cartesians,
+                use_momenta=use_momenta,
+                pairwise_potential_functions=pairwise_potential_functions,
+                use_interpolation=use_interpolation,
+                use_quadrature=use_quadrature,
+                momentum_scaling=momentum_scaling,
+                symmetrizations=symmetrizations,
+                logger=logger
+            )
+        return dgb
 
     @classmethod
     def from_mol(cls,
@@ -311,6 +372,7 @@ class DGBRunner:
                  initial_mode_directions=None,
                  displaced_coords=None,
                  track_velocities=True,
+                 logger=None,
                  **aimd_options
                  ):
 
@@ -318,7 +380,30 @@ class DGBRunner:
 
         if potential_function is not None:
             mol = mol.modify(energy_evaluator=potential_function)
+
+        logger = Logger.lookup(logger, construct=True)
         if sim is None:
+            with logger.block(tag="Running AIMD"):
+                logger.log_print(
+                    "Normal mode frequencies: {freqs}",
+                    freqs=mol.get_normal_modes().freqs * UnitsData.convert("Hartrees", "Wavenumbers")
+                )
+                aimd_opts = dict(
+                    trajectories=trajectories,
+                    timestep=timestep,
+                    seed=trajectory_seed,
+                    total_energy=total_energy,
+                    total_energy_scaling=total_energy_scaling,
+                    sampled_modes=sampled_modes,
+                    initial_energies=initial_energies,
+                    initial_displacements=initial_displacements,
+                    initial_mode_directions=initial_mode_directions,
+                    displaced_coords=displaced_coords,
+                    **aimd_options
+                )
+                for k,v in aimd_opts.items():
+                    if v is not None:
+                        logger.log_print("{k} = {v}", k=k, v=v)
             sim = mol.setup_AIMD(
                 trajectories=trajectories,
                 timestep=timestep,
@@ -329,24 +414,43 @@ class DGBRunner:
                 sampled_modes=sampled_modes,
                 initial_energies=initial_energies,
                 initial_displacements=initial_displacements,
+                initial_mode_directions=initial_mode_directions,
                 displaced_coords=displaced_coords,
                 **aimd_options
             )
             sim.propagate(propagation_time)
 
-        return cls.construct_from_mol_simulation(
-            sim, mol,
-            potential_function=None,
-            use_cartesians=use_cartesians,
-            use_momenta=use_momenta,
-            pairwise_potential_functions=pairwise_potential_functions,
-            use_interpolation=use_interpolation,
-            use_quadrature=use_quadrature,
-            symmetrizations=symmetrizations,
-            momentum_scaling=momentum_scaling,
-            dipole_function=dipole_function,
-            **dgb_opts
-        )
+        with logger.block(tag="Constructing DGB"):
+            print_opts = dict(
+                use_cartesians=use_cartesians,
+                use_momenta=use_momenta,
+                pairwise_potential_functions=pairwise_potential_functions,
+                use_interpolation=use_interpolation,
+                use_quadrature=use_quadrature,
+                symmetrizations=symmetrizations,
+                momentum_scaling=momentum_scaling,
+                dipole_function=dipole_function,
+                **dgb_opts
+            )
+            for k, v in print_opts.items():
+                if v is not None:
+                    logger.log_print("{k} = {v}", k=k, v=v)
+
+            dgb = cls.construct_from_mol_simulation(
+                sim, mol,
+                potential_function=None,
+                use_cartesians=use_cartesians,
+                use_momenta=use_momenta,
+                pairwise_potential_functions=pairwise_potential_functions,
+                use_interpolation=use_interpolation,
+                use_quadrature=use_quadrature,
+                symmetrizations=symmetrizations,
+                momentum_scaling=momentum_scaling,
+                dipole_function=dipole_function,
+                logger=logger,
+                **dgb_opts
+            )
+        return dgb
 
     # @classmethod
     # def from_coord(cls,
@@ -479,13 +583,15 @@ class DGBRunner:
             **run_opts
         )
 
+    plot_potential_cutoff = 17000
+    plot_potential_units = 'Wavenumbers'
     @classmethod
     def plot_dgb_potential(cls,
                            dgb, mol, potential,
                            coordinate_sel=None,
                            domain=None, domain_padding=1,
-                           potential_cutoff=17000,
-                           potential_units='Wavenumbers',
+                           potential_cutoff=None,
+                           potential_units=None,
                            potential_min=0,
                            plot_cartesians=None,
                            plot_atoms=True,
@@ -495,6 +601,11 @@ class DGBRunner:
                            levels=24,
                            **plot_styles
                            ):
+
+        if potential_cutoff is None:
+            potential_cutoff = cls.plot_potential_cutoff
+        if potential_units is None:
+            potential_units = cls.plot_potential_units
         def cutoff_pot(points,
                        cutoff=potential_cutoff,
                        cutmin=potential_min
@@ -550,6 +661,7 @@ class DGBRunner:
 
         return figure
 
+    gaussian_plot_name = 'gaussian_{i}.pdf'
     @classmethod
     def plot_gaussians(cls,
                        dgb, mol,
@@ -558,7 +670,7 @@ class DGBRunner:
                        domain_padding=1,
                        cmap='RdBu',
                        plot_dir=None,
-                       plot_name='gaussian_{i}.pdf',
+                       plot_name=None,
                        **plot_options
                        ):
         n = len(dgb.gaussians.coords.centers)
@@ -567,6 +679,8 @@ class DGBRunner:
             np.eye(n),
             dgb
         )
+        if plot_name is None:
+            plot_name = cls.gaussian_plot_name
         cls.plot_wavefunctions(
             wfns, dgb, mol,
             cmap=cmap,
@@ -582,6 +696,8 @@ class DGBRunner:
         )
 
     default_num_plot_wfns = 5
+    wavefunction_plot_name = 'wfn_{i}.pdf'
+    potential_plot_name = 'pot.png'
     @classmethod
     def plot_wavefunctions(cls,
                            wfns, dgb, mol,
@@ -589,14 +705,21 @@ class DGBRunner:
                            coordinate_sel=None,
                            cartesians=None,
                            plot_dir=None,
-                           plot_name='wfn_{i}.pdf',
-                           plot_label='{e} cm-1',
+                           plot_name=None,
+                           plot_label='{e:.2f} cm-1',
                            plot_potential=True,
+                           separate_potential=False,
+                           potential_plot_name=None,
                            potential_units='Wavenumbers',
                            plot_atoms=None,
                            plot_centers=True,
                            potential_styles=None,
                            scaling=None,
+                           ticks=None,
+                           padding=None,
+                           aspect_ratio=None,
+                           plot_range=None,
+                           image_size=None,
                            **plot_options
                            ):
 
@@ -614,7 +737,24 @@ class DGBRunner:
         if coordinate_sel is None:
             coordinate_sel = list(range(dgb.gaussians.alphas.shape[-1]))
 
+        if plot_name is None:
+            plot_name = cls.wavefunction_plot_name
+
+        layout_opts = dict(
+            ticks=ticks,
+            padding=padding,
+            aspect_ratio=aspect_ratio,
+            plot_range=plot_range,
+            image_size=image_size
+        )
+        plot_options.update(layout_opts)
+        if potential_styles is None:
+            potential_styles = {}
+        for k,v in layout_opts.items():
+            if k not in potential_styles:
+                potential_styles[k] = v
         figs = []
+        pot_figure = None
         if which is True:
             which = cls.default_num_plot_wfns
         if isinstance(which, int):
@@ -624,8 +764,6 @@ class DGBRunner:
             if plot_potential:
                 if plot_atoms is None:
                     plot_atoms = bool(plot_centers)
-                if potential_styles is None:
-                    potential_styles = {}
                 pot_figure = cls.plot_dgb_potential(
                     dgb, mol, pot,
                     coordinate_sel=coordinate_sel,
@@ -633,8 +771,11 @@ class DGBRunner:
                     potential_units=potential_units,
                     **potential_styles
                 )
-            else:
-                pot_figure = None
+                if separate_potential and plot_dir is not None:
+                    if potential_plot_name is None:
+                        potential_plot_name = cls.potential_plot_name
+                    pot_figure.savefig(os.path.join(plot_dir, potential_plot_name))
+                    pot_figure.close()
 
             if plot_dir is not None:
                 os.makedirs(plot_dir, exist_ok=True)
@@ -647,7 +788,9 @@ class DGBRunner:
                     if k in potential_styles: del potential_styles[k]
             for i in which:
                 if i < len(wfns):
-                    if pot_figure is not None:
+                    if separate_potential:
+                        figure = None
+                    elif pot_figure is not None:
                         figure = pot_figure.copy()
                     w = wfns[i]
                     if i == 0:
@@ -694,13 +837,21 @@ class DGBRunner:
 
                     if plot_dir is not None:
                         fig = figs.pop()
-                        fig.savefig(os.path.join(plot_dir, plot_name.format(i=i)))
+                        fig.background = "#ffffff00"
+                        fig.savefig(
+                            os.path.join(plot_dir, plot_name.format(i=i)),
+                            transparent=True,
+                            # facecolor="#ffffff00"
+                        )
                         fig.close()
 
             # if plot_dir is None:
             #     figs[0].show()
 
-        return figs
+        if separate_potential:
+            return pot_figure, figs
+        else:
+            return figs
 
     @classmethod
     def plot_potential_from_spec(cls, dgb, mol, spec,
@@ -745,6 +896,8 @@ class DGBRunner:
 
         return spec
 
+    similarity_plot_name = 'similarity.png'
+    spectrum_plot_name = 'spec.png'
     @classmethod
     def run_dgb(cls,
                 dgb: DGB,
@@ -752,6 +905,7 @@ class DGBRunner:
                 plot_centers=True,
                 plot_wavefunctions=True,
                 plot_spectrum=False,
+                spectrum_plot_name=None,
                 pot_cmap='viridis',
                 wfn_cmap='RdBu',
                 wfn_points=100,
@@ -762,16 +916,18 @@ class DGBRunner:
                 domain=None,
                 domain_padding=1,
                 wavefunction_scaling=None,
-                potential_cutoff=15000,
+                potential_cutoff=None,
                 potential_units='Wavenumbers',
                 mode=None,
                 nodeless_ground_state=None,
                 min_singular_value=None,
                 subspace_size=None,
                 plot_similarity=False,
+                similarity_plot_name=None,
                 similarity_cutoff=None,
                 similarity_chunk_size=None,
                 similar_det_cutoff=None,
+                num_print=None,
                 **plot_options
                 ):
 
@@ -781,6 +937,18 @@ class DGBRunner:
             # print(dgb.S[:5, :5])
             # print(dgb.T[:5, :5])
             # print(dgb.V[:5, :5])
+            dgb_opts = dict(
+                mode=mode,
+                nodeless_ground_state=nodeless_ground_state,
+                subspace_size=subspace_size,
+                min_singular_value=min_singular_value,
+                similarity_cutoff=similarity_cutoff,
+                similarity_chunk_size=similarity_chunk_size,
+                similar_det_cutoff=similar_det_cutoff
+            )
+            for k,v in dgb_opts.items():
+                if v is not None:
+                    logger.log_print("{k} = {v}", k=k, v=v)
 
             try:
                 wfns, spec = dgb.run(
@@ -791,7 +959,8 @@ class DGBRunner:
                     min_singular_value=min_singular_value,
                     similarity_cutoff=similarity_cutoff,
                     similarity_chunk_size=similarity_chunk_size,
-                    similar_det_cutoff=similar_det_cutoff
+                    similar_det_cutoff=similar_det_cutoff,
+                    num_print=num_print
                 )
             except Exception as e:
                 if plot_wavefunctions is not False:
@@ -805,7 +974,15 @@ class DGBRunner:
                 raise e
             else:
                 if plot_similarity:
-                    plt.ArrayPlot(dgb.get_similarity_matrix()).show()
+                    sim_plot = plt.ArrayPlot(dgb.get_similarity_matrix())
+                    if plot_dir is not None:
+                        os.makedirs(plot_dir, exist_ok=True)
+                        if similarity_plot_name is None:
+                            similarity_plot_name = cls.similarity_plot_name
+                        sim_plot.savefig(os.path.join(plot_dir, similarity_plot_name))
+                        sim_plot.close()
+                    else:
+                        sim_plot.show()
 
                 if plot_spectrum:
                     # which = plot_wavefunctions
@@ -814,11 +991,16 @@ class DGBRunner:
                     # if isinstance(which, int):
                     #     which = list(range(which))
                     # print(which, spec.intensities, spec.frequencies, spec[which])
+                    spec_plot = spec.plot()
                     if plot_dir is not None:
-                        spec_plot = spec.plot()
                         os.makedirs(plot_dir, exist_ok=True)
-                        spec_plot.savefig(os.path.join(plot_dir, 'spec.png'))
+                        if spectrum_plot_name is None:
+                            spectrum_plot_name = cls.spectrum_plot_name
+                        spec_plot.savefig(os.path.join(plot_dir, spectrum_plot_name))
                         spec_plot.close()
+                    else:
+                        spec_plot.show()
+
 
                 plot_wavefunctions = cls.prep_plot_wavefunctions_spec(dgb, plot_wavefunctions)
                 use_cartesians = False
@@ -840,10 +1022,7 @@ class DGBRunner:
                         # else:
                         #     raise ValueError(plot_wavefunctions)
 
-                    wfns_plots = cls.plot_wavefunctions(
-                        wfns,
-                        dgb,
-                        mol,
+                    plot_wfns_opts = dict(
                         which=plot_wavefunctions,
                         cartesians=use_cartesians,
                         coordinate_sel=coordinate_sel,
@@ -866,6 +1045,16 @@ class DGBRunner:
                         ),
                         **plot_options
                     )
+                    with dgb.logger.block(tag="Plotting wavefunctions"):
+                        for k,v in plot_wfns_opts.items():
+                            dgb.logger.log_print("{k} = {v}", k=k,v=v)
+
+                        wfns_plots = cls.plot_wavefunctions(
+                            wfns,
+                            dgb,
+                            mol,
+                            **plot_wfns_opts
+                        )
                 else:
                     wfns_plots = None
 

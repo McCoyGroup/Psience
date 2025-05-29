@@ -29,6 +29,7 @@ class DGBWavefunction(Wavefunction):
              figure=None,
              domain=None,
              plot_centers=False,
+             return_values=False,
              **opts
              ):
 
@@ -36,7 +37,7 @@ class DGBWavefunction(Wavefunction):
         if domain is None:
             domain = Mesh(centers).bounding_box
 
-        fig = super().plot(figure=figure, domain=domain, **opts)
+        fig = super().plot(figure=figure, domain=domain, return_values=return_values, **opts)
         if isinstance(plot_centers, dict):
             plot_centers_opts = plot_centers.copy()
             plot_centers = True
@@ -46,17 +47,33 @@ class DGBWavefunction(Wavefunction):
             plot_centers_opts['figure'] = fig
         if plot_centers:
             if self.ndim == 1:
-                plt.ScatterPlot(
-                    centers[:, 0],
-                    np.zeros(len(centers)),
-                    **plot_centers_opts
-                )
+                if return_values:
+                    fig['centers'] = {
+                        'plotter':plt.ScatterPlot,
+                        'centers':centers[:, 0],
+                        'values':np.zeros(len(centers)),
+                        'opts':plot_centers_opts
+                    }
+                else:
+                    plt.ScatterPlot(
+                        centers[:, 0],
+                        np.zeros(len(centers)),
+                        **plot_centers_opts
+                    )
             elif self.ndim == 2:
-                plt.ScatterPlot(
-                    centers[:, 0],
-                    centers[:, 1],
-                    **plot_centers_opts
-                )
+                if return_values:
+                    fig['centers'] = {
+                        'plotter':plt.ScatterPlot,
+                        'centers':centers[:, 0],
+                        'values':centers[:, 1],
+                        'opts':plot_centers_opts
+                    }
+                else:
+                    plt.ScatterPlot(
+                        centers[:, 0],
+                        centers[:, 1],
+                        **plot_centers_opts
+                    )
             else:
                 raise ValueError("can't plot centers for more than 2D data...?")
         return fig
@@ -84,6 +101,9 @@ class DGBWavefunction(Wavefunction):
                         figure=None,
                         plot_centers=False,
                         atom_styles=None,
+                        adjust_levels=False,
+                        projection_plot_density_cutoff=None,
+                        return_values=False,
                         **plot_styles
                         ):
 
@@ -117,6 +137,8 @@ class DGBWavefunction(Wavefunction):
             xyz_remv = np.setdiff1d(np.arange(nxyz), xyz_sel)
         else:
             xyz_remv = None
+
+        projection_data = []
         for i,atom in enumerate(atom_sel):
             rem = np.setdiff1d(all_ats, [atom])
             subspec = full_spec[rem, :].flatten()
@@ -124,24 +146,66 @@ class DGBWavefunction(Wavefunction):
                 subspec = np.sort(
                     np.concatenate([subspec, full_spec[atom][xyz_remv]])
                 )
-            proj = self.marginalize_out(subspec)  # what we're projecting _out_
+            proj, scaling = self.marginalize_out(subspec, return_scaling=True)  # what we're projecting _out_
 
-            ps = dict(plot_styles, **atom_styles[i])
-            ps['plotter'] = ps.get(
-                'plotter',
-                plt.TriContourLinesPlot if proj.ndim == 2 else None
-            )
+            diff = 1 - scaling
 
-            figure = proj.plot(
-                figure=figure,
-                plot_centers=plot_centers,
-                # levels=np.linspace(-max_val, max_val, 16),
-                # domain=[[-2, 2], [-2, .2]],
-                # cmap='RdBu'
-                **ps
-            )
+            do_plot = projection_plot_density_cutoff is None or diff > projection_plot_density_cutoff
+            if do_plot:
+                ps = dict(plot_styles, **atom_styles[i])
+                ps['plotter'] = ps.get(
+                    'plotter',
+                    plt.TriContourLinesPlot if proj.ndim == 2 else None
+                )
+                if adjust_levels or return_values:
+                    projection_data.append(
+                        proj.plot(
+                            plot_centers=plot_centers,
+                            return_values=True if adjust_levels else return_values,
+                            # levels=np.linspace(-max_val, max_val, 16),
+                            # domain=[[-2, 2], [-2, .2]],
+                            # cmap='RdBu'
+                            **ps
+                        )
+                    )
+                else:
+                    figure = proj.plot(
+                        figure=figure,
+                        plot_centers=plot_centers,
+                        **ps
+                    )
 
-        return figure
+        if adjust_levels:
+            level_specs = [
+                pd['opts'].get('levels')
+                for pd in projection_data
+            ]
+            if len(level_specs) > 0:
+                level_specs = np.sort(np.concatenate([ls for ls in level_specs if ls is not None]))
+            else:
+                level_specs = None
+
+            for pd in projection_data:
+                plotter = pd['plotter']
+                grid = pd['grid']
+                values = pd['values']
+                opts = pd['opts']
+                centers = pd.get('centers')
+                if level_specs is not None:
+                    opts['levels'] = level_specs
+                figure = plotter(*np.moveaxis(grid, -1, 0), values, figure=figure, **opts)
+                if centers is not None:
+                    plotter = centers['plotter']
+                    grid = centers['centers']
+                    values = centers['values']
+                    opts = centers['opts']
+                    opts['figure'] = figure
+                    plotter(grid, values, **opts)
+            return figure
+        elif return_values:
+            return projection_data
+        else:
+            return figure
 
     def evaluate(self, points):
         # raise NotImplementedError(...)
@@ -200,7 +264,7 @@ class DGBWavefunction(Wavefunction):
             vals = vals.reshape(reshape)
         return vals
 
-    def marginalize_out(self, dofs, rescale=True) -> 'DGBWavefunction':
+    def marginalize_out(self, dofs, rescale=True, return_scaling=False) -> 'DGBWavefunction':
         """
         Computes the projection of the current wavefunction onto a set of degrees
         of freedom, returning a projected wave function object
@@ -211,11 +275,16 @@ class DGBWavefunction(Wavefunction):
 
         scaling, subgaussians = self.gaussians.marginalize_out(dofs)
 
-        return type(self)(
-            self.energy,
-            self.data * scaling,
-            subgaussians
-            )
+        if rescale:
+            data = self.data * scaling
+        else:
+            data = self.data
+
+        proj_wnf = type(self)(self.energy, data, subgaussians)
+        if return_scaling:
+            return proj_wnf, scaling
+        else:
+            return proj_wnf
 
 class DGBWavefunctions(Wavefunctions):
     wavefunction_class = DGBWavefunction

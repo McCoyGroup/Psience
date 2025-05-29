@@ -9,6 +9,7 @@ from McUtils.Zachary import TensorDerivativeConverter, FiniteDifferenceDerivativ
 import McUtils.Numputils as nput
 import McUtils.Devutils as dev
 import McUtils.Coordinerds as coordops
+from McUtils.Scaffolding import Logger
 
 from ..Data import PotentialSurface, DipoleSurface
 from .CoordinateSystems import MolecularEmbedding
@@ -801,7 +802,7 @@ class EnergyEvaluator(PropertyEvaluator):
         return self.minimizer_function_by_order(2, **opts)
 
     optimizer_defaults = dict(
-        method='conjugate-gradient',
+        method='quasi-newton',
         unitary=False,
         # generate_rotation=False,
         # dtype='float64',
@@ -840,7 +841,7 @@ class EnergyEvaluator(PropertyEvaluator):
                  **opts
                  ):
         from McUtils.Numputils import iterative_step_minimize
-        opts = dict(self.optimizer_defaults, **opts)
+        opts = dict(self.optimizer_defaults, **{o:k for o,k in opts.items() if k is not None})
 
         (
             method,
@@ -901,6 +902,8 @@ class EnergyEvaluator(PropertyEvaluator):
         if hessian is None:
             hessian = self.minimizer_hessian(**fopts)
 
+        logger = Logger.lookup(logger, construct=True)
+
         if mode == 'scipy':
             from scipy.optimize import minimize
 
@@ -915,15 +918,36 @@ class EnergyEvaluator(PropertyEvaluator):
             else:
                 shessian = None
 
+            callback = optimizer_settings.pop('callback', None)
+            if logger.active:
+                if callback is None:
+                    callback = lambda intermediate_result: logger.log_print(
+                        "Step: {intermediate_result}",
+                        intermediate_result=intermediate_result
+                    )
+                else:
+                    callback = lambda intermediate_result, cb=callback: [
+                        logger.log_print(
+                            "Step: {intermediate_result}",
+                            intermediate_result=intermediate_result
+                        ),
+                        cb(intermediate_result)
+                    ][-1]
+
+
+            method = 'bfgs' if method=='quasi-newton' else method
+            if method in {'bfgs'}:
+                shessian = None
             min = minimize(sfunc,
                            coords.flatten(),
-                           method='bfgs' if method == 'quasi-newton' else method,
+                           method='bfgs' if method=='quasi-newton' else method,
                            tol=tol,
                            jac=sjacobian,
                            hess=shessian,
+                           callback=callback,
                            options=dict({'maxiter':max_iterations}, **optimizer_settings)
                            )
-            return True, min.x
+            return True, min.x.reshape(coords.shape)
         else:
             if method is None or isinstance(method, str):
                 method = dict(
@@ -1087,7 +1111,10 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
 
         arg_dict = {
             'coord': torch.tensor(coords.reshape(-1, 3), dtype=torch.float32, device=self.eval.device),
-            'numbers': torch.tensor(np.array(self.numbers), dtype=torch.int64, device=self.eval.device),
+            'numbers': torch.tensor(
+                np.repeat(np.array([self.numbers]), coords.shape[0], axis=0).flatten(),
+                dtype=torch.int64, device=self.eval.device
+            ),
             'charge': torch.tensor(self.charge, dtype=torch.float32, device=self.eval.device),
             'cell': None,
             'mol_idx': torch.tensor(
@@ -1201,6 +1228,7 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                 method=method,
                 tol=tol,
                 max_iterations=max_iterations,
+                max_displacement=max_displacement,
                 **opts
             )
 

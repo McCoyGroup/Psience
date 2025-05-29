@@ -21,6 +21,7 @@ import McUtils.Coordinerds as coordops
 from McUtils.Zachary import Mesh
 import McUtils.Plots as plt
 from McUtils.ExternalPrograms import RDMolecule
+from McUtils.Scaffolding import Logger
 
 from .MoleculeInterface import *
 
@@ -515,6 +516,9 @@ class Molecule(AbstractMolecule):
     def get_normal_modes(self, masses=None, **opts):
         from ..Modes import NormalModes
         return NormalModes.from_molecule(self, masses=masses, **opts)
+    def get_reaction_path_modes(self, masses=None, **opts):
+        from ..Modes import ReactionPathModes
+        return ReactionPathModes.from_molecule(self, masses=masses, **opts)
     @property
     def metadata(self):
         return self._meta
@@ -1292,7 +1296,7 @@ class Molecule(AbstractMolecule):
                    initial_mode_directions=None,
                    displaced_coords=None,
                    track_kinetic_energy=False,
-                   track_velocities=False,
+                   track_velocities=False
                    ):
         from ..AIMD import AIMDSimulator
 
@@ -1422,9 +1426,9 @@ class Molecule(AbstractMolecule):
                 **opts
             )
 
-    def get_gmatrix(self, masses=None, use_internals=None):
+    def get_gmatrix(self, masses=None, coords=None, use_internals=None):
         if use_internals is None:
-            use_internals = self.internal_coordinates is not None
+            use_internals = self.internals is not None
 
         if not use_internals:
             if masses is None:
@@ -1432,10 +1436,15 @@ class Molecule(AbstractMolecule):
             else:
                 masses = np.asanyarray(masses)
             mass_spec = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten()
-            return np.diag(1 / mass_spec)
+            g = np.diag(1 / mass_spec)
+            if coords is not None:
+                g = np.expand_dims(g, list(range(coords.ndim-2)))
+                return np.broadcast_to(g, coords.shape[:-2] + g.shape[-2:])
+            else:
+                return g
             # raise ValueError("need internal coordinates to calculate the G-matrix")
         else:
-            return self.hamiltonian.gmatrix_expansion(0, masses=masses, modes=None)[0]
+            return self.hamiltonian.gmatrix_expansion(0, masses=masses, coords=coords, modes=None)[0]
     @property
     def g_matrix(self):
         """
@@ -1549,11 +1558,19 @@ class Molecule(AbstractMolecule):
 
         if not hasattr(transformation, 'apply'): # To support affine transformations
             transformation = MolecularTransformation(transformation)
+        if load_properties:
+            pot_derivs = self.potential_derivatives
+            dip_derivs = self.dipole_derivatives
+            modes = self.normal_modes.modes.basis
         new = transformation.apply(self)
         if embed_properties:
             if load_properties or new._normal_modes._modes is not None:
                 new.normal_modes = new.normal_modes.apply_transformation(transformation)
-            if load_properties or new._pes._surf is not None or new._pes._derivs is not None:
+            if (
+                    load_properties
+                    or new._pes._surf is not None
+                    or new._pes._derivs is not None
+            ):
                 new.potential_surface = new.potential_surface.apply_transformation(transformation)
             if load_properties or new._dips._surf is not None or new._dips._derivs is not None:
                 new.dipole_surface = new.dipole_surface.apply_transformation(transformation)
@@ -2167,22 +2184,36 @@ class Molecule(AbstractMolecule):
              atom_radius_scaling=.25,
              atom_style=None,
              bond_style=None,
+             vector_style=None,
              highlight_atoms=None,
              highlight_bonds=None,
              highlight_rings=None,
              highlight_styles=None,
+             mode_vectors=None,
+             mode_vector_origins=None,
+             mode_vector_origin_mode='set',
+             mode_vector_display_cutoff=1e-2,
+             dipole=None,
+             dipole_origin=None,
+             dipole_origin_mode='set',
+             render_multiple_bonds=True,
+             up_vector=None,
+             multiple_bond_spacing=None,
              mode=None,#'quality',
              backend=None,
              objects=False,
              graphics_class=None,
              cylinder_class=None,
              sphere_class=None,
+             arrow_class=None,
              animate=None,
              animation_options=None,
              jsmol_load_script=None,
              units="Angstroms",
              **plot_ops
              ):
+
+        from McUtils.Plots import Graphics3D, Sphere, Cylinder, Line, Disk, Arrow
 
         if backend is None:
             backend = self.display_mode
@@ -2191,7 +2222,17 @@ class Molecule(AbstractMolecule):
         if mode is None:
             mode = backend
 
-        if len(geometries) > 0:
+        if len(geometries) > 0 or any(
+            opt is not None
+            for opt in [
+                highlight_atoms,
+                highlight_bonds,
+                highlight_rings,
+                highlight_styles,
+                mode_vectors,
+                dipole
+            ]
+        ):
             if mode in {'jupyter', 'jsmol'}:
                 mode = 'x3d'
 
@@ -2203,8 +2244,6 @@ class Molecule(AbstractMolecule):
         if backend in {'jupyter', 'jsmol'}:
             backend = 'x3d'
 
-        from McUtils.Plots import Graphics3D, Sphere, Cylinder, Line, Disk
-
         graphics_keys = Graphics3D.known_keys | Graphics3D.opt_keys | Graphics3D.figure_keys
         graphics_opts = {k:plot_ops[k] for k in plot_ops.keys() & graphics_keys}
         plot_ops = {k:plot_ops[k] for k in plot_ops.keys() - graphics_keys}
@@ -2215,6 +2254,8 @@ class Molecule(AbstractMolecule):
             cylinder_class = Line if mode == 'fast' else Cylinder
         if sphere_class is None:
             sphere_class = Disk if mode == 'fast' else Sphere
+        if arrow_class is None:
+            arrow_class = Arrow
 
         if len(geometries) == 0:
             geometries = self.coords
@@ -2231,6 +2272,47 @@ class Molecule(AbstractMolecule):
         if animate is None:
             animate = geometries.shape[0] > 1
 
+        if dipole is not None:
+            dipole = np.asanyarray(dipole)
+            if dipole.ndim == 1:
+                dipole = np.broadcast_to(dipole[np.newaxis], (len(geometries),) + dipole.shape)
+
+            if units is not None:
+                dipole = dipole * UnitsData.convert("BohrRadius", units)
+
+
+        if dipole_origin is not None:
+            dipole_origin = np.asanyarray(dipole_origin)
+            if dipole_origin.ndim == 1:
+                dipole_origin = np.broadcast_to(
+                    dipole_origin[np.newaxis],
+                    (len(geometries),) + dipole_origin.shape
+                )
+
+            if units is not None:
+                dipole_origin = dipole_origin * UnitsData.convert("BohrRadius", units)
+
+        if mode_vectors is not None:
+            mode_vectors = np.asanyarray(mode_vectors)
+            if mode_vectors.ndim == 1:
+                mode_vectors = np.reshape(mode_vectors, (-1, 3))
+            if mode_vectors.ndim == 2:
+                mode_vectors = np.broadcast_to(mode_vectors[np.newaxis], (len(geometries),) + mode_vectors.shape)
+
+            if units is not None:
+                mode_vectors = mode_vectors * UnitsData.convert("BohrRadius", units)
+
+        if mode_vector_origins is not None:
+            mode_vector_origins = np.asanyarray(mode_vector_origins)
+            if mode_vector_origins.ndim == 1:
+                mode_vector_origins = np.reshape(mode_vector_origins, (-1, 3))
+            if mode_vector_origins.ndim == 2:
+                mode_vector_origins = np.broadcast_to(mode_vector_origins[np.newaxis],
+                                                      (len(geometries),) + mode_vector_origins.shape)
+
+            if units is not None:
+                mode_vector_origins = mode_vector_origins * UnitsData.convert("BohrRadius", units)
+
         geometries = geometries.convert(CartesianCoordinates3D)
 
         if figure is None:
@@ -2241,7 +2323,10 @@ class Molecule(AbstractMolecule):
 
         bonds = [None] * len(geometries)
         atoms = [None] * len(geometries)
+        arrows = [None] * len(geometries)
 
+        if vector_style is None:
+            vector_style = {'color':'#000000', 'radius':.1}
         if atom_style is None:
             atom_style = {}
         elif not isinstance(atom_style, dict):
@@ -2308,15 +2393,9 @@ class Molecule(AbstractMolecule):
                 for j, b in enumerate(bond_list):
                     atom1 = b[0]
                     atom2 = b[1]
-                    # i'm not supporting double or triple bonds for not because they're just too much of a pain...
-                    # in Mathematica I have some clever code for finding the midpoint between the vectors to draw to
-                    # I'm not gonna do that for now because it's not worth it for the quick-and-dirty stuff I want to do
-                    p1 = geom[atom1]
-                    p2 = geom[atom2]
-                    midpoint = (p2 - p1)/2 + p1
+
                     c1 = colors[atom1]
                     c2 = colors[atom2]
-
                     base_bstyle = dict(
                         bond_style.get((atom2, atom1), {}),
                         **bond_style.get((atom1, atom2), {})
@@ -2327,37 +2406,75 @@ class Molecule(AbstractMolecule):
                     )
                     if b_sty_1.get('color') is None:
                         b_sty_1['color'] = c1
-                    cc1 = cylinder_class(
-                        p1,
-                        midpoint,
-                        bond_radius,
-                        **plot_ops,
-                        **b_sty_1
-                    )
-
                     b_sty_2 = dict(
                         bond_style.get(atom2, {}),
                         **base_bstyle
                     )
                     if b_sty_2.get('color') is None:
                         b_sty_2['color'] = c2
-                    cc2 = cylinder_class(
-                        midpoint,
-                        p2,
-                        bond_radius,
-                        **plot_ops,
-                        **b_sty_2
-                    )
-                    if objects:
-                        bonds[i][j] = (( cc1, cc2 ))
-                    else:
-                        cyl_1 = cc1.plot(figure)
-                        cyl_2 = cc2.plot(figure)
-                        if isinstance(cyl_1, (list, tuple)):
-                            cyl_1 = cyl_1[0]
-                        if isinstance(cyl_2, (list, tuple)):
-                            cyl_2 = cyl_2[0]
-                        bonds[i][j] = (( cyl_1, cyl_2 ))
+
+                    p1 = geom[atom1]
+                    p2 = geom[atom2]
+                    disp_vector = p2 - p1
+                    midpoint = disp_vector/2 + p1
+
+                    if not render_multiple_bonds or len(b) == 2 or b[2] < 2 or b[2] > 3:
+                        bond_point_list = [
+                            [p1, p2, midpoint]
+                        ]
+                    elif b[2] == 2:
+                        if up_vector is None:
+                            up_vector = [0, 0, 1]
+                        if multiple_bond_spacing is None:
+                            multiple_bond_spacing = bond_radius * 1.1
+
+                        axis = nput.vec_normalize(
+                            np.cross(disp_vector, up_vector)
+                        )
+
+                        p11 = p1 - axis * multiple_bond_spacing
+                        p21 = p2 - axis * multiple_bond_spacing
+                        mp1 = midpoint - axis * multiple_bond_spacing
+
+
+                        p12 = p1 + axis * multiple_bond_spacing
+                        p22 = p2 + axis * multiple_bond_spacing
+                        mp2 = midpoint + axis * multiple_bond_spacing
+                        bond_point_list = [
+                            [p11, p21, mp1],
+                            [p12, p22, mp2]
+                        ]
+
+
+                    bond_objs = []
+                    for pp1, pp2, mp in bond_point_list:
+                        cc1 = cylinder_class(
+                            pp1,
+                            mp,
+                            bond_radius,
+                            **plot_ops,
+                            **b_sty_1
+                        )
+                        cc2 = cylinder_class(
+                            mp,
+                            pp2,
+                            bond_radius,
+                            **plot_ops,
+                            **b_sty_2
+                        )
+
+                        if objects:
+                            bond_objs.extend(( cc1, cc2 ))
+                        else:
+                            cyl_1 = cc1.plot(figure)
+                            cyl_2 = cc2.plot(figure)
+                            if isinstance(cyl_1, (list, tuple)):
+                                cyl_1 = cyl_1[0]
+                            if isinstance(cyl_2, (list, tuple)):
+                                cyl_2 = cyl_2[0]
+                            bond_objs.extend(( cyl_1, cyl_2 ))
+
+                    bonds[i][j] = bond_objs
 
             if atom_style is not False:
                 atoms[i] = [None] * len(geom)
@@ -2377,18 +2494,70 @@ class Molecule(AbstractMolecule):
                         else:
                             atoms[i][j] = plops
 
+            if dipole is not None:
+                arrows[i] = []
+                dip = dipole[i]
+                if np.linalg.norm(dip) > mode_vector_display_cutoff:
+                    if dipole_origin is None or dipole_origin_mode == 'shift':
+                        com = np.tensordot(self.masses, geom, axes=[0, 0]) / np.sum(self.masses)
+                        if dipole_origin is not None:
+                            com = com + dipole_origin[i]
+                    else:
+                        com = dipole_origin[i]
+                    print(com, dip)
+                    dipole_arrow = arrow_class(
+                        com,
+                        com + dip,
+                        **vector_style
+                    )
+                    if objects:
+                        arrows[i].append(dipole_arrow)
+                    else:
+                        plops = dipole_arrow.plot(figure)
+                        if isinstance(plops, tuple):
+                            arrows[i].append(plops[0])
+                        else:
+                            arrows[i].append(plops)
+
+            if mode_vectors is not None:
+                if arrows[i] is None:
+                    arrows[i] = []
+                for j,v in enumerate(mode_vectors[i]):
+                    if np.linalg.norm(v) > mode_vector_display_cutoff:
+                        if mode_vector_origins is None or mode_vector_origin_mode == 'shift':
+                            com = geom[j]
+                            if mode_vector_origins is not None:
+                                com = com + mode_vector_origins[i][j]
+                        else:
+                            com = mode_vector_origins[i][j]
+                        mode_arrow = arrow_class(
+                            com,
+                            com + v,
+                            **vector_style
+                        )
+                        if objects:
+                            arrows[i].append(mode_arrow)
+                        else:
+                            plops = mode_arrow.plot(figure)
+                            if isinstance(plops, tuple):
+                                arrows[i].append(plops[0])
+                            else:
+                                arrows[i].append(plops)
+
         if animate:
             if animation_options is None: animation_options = {}
             figure = figure.animate_frames(
                 [
-                    a + sum([list(b) for b in bl], [])
-                    for a,bl in zip(atoms, bonds)
+                    (a if a is not None else [])
+                    + (sum([list(b) for b in bl], []) if bl is not None else [])
+                    + (ar if ar is not None else [])
+                    for a,bl,ar in zip(atoms, bonds, arrows)
                 ],
                 **animation_options
             )
 
         if return_objects:
-            return figure, atoms, bonds
+            return figure, atoms, bonds, arrows
         else:
             return figure
 

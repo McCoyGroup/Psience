@@ -522,7 +522,7 @@ class DGBGaussians:
                                 sel = [np.arange(pivot_pos-1)]
                         if len(sel) > 0 and len(sel[0]) > 0:
                             new_pivs = cur_pivot + sel[0]
-                    cur_pivot = pivot_pos
+                    cur_pivot += pivot_pos
                     pivots.append(new_pivs)
                 full_good_pos = np.concatenate(pivots)
                 logger.log_print("pruned {nD} Gaussians", nD=len(potential_values) - len(full_good_pos))

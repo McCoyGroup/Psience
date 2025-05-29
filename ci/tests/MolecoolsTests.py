@@ -16,7 +16,6 @@ import numpy as np, scipy
 import McUtils.Numputils as nput
 
 class MolecoolsTests(TestCase):
-
     def setUp(self):
         self.test_log_water = TestManager.test_data("water_OH_scan.log")
         self.test_log_freq = TestManager.test_data("water_freq.log")
@@ -966,11 +965,112 @@ class MolecoolsTests(TestCase):
 
         return ochh
 
-    @debugTest
+    @validationTest
     def test_OpenBabel(self):
         mol = Molecule.from_file(TestManager.test_data("nh3.fchk"))
         print(mol.to_string("pdb"))
         return
+
+    @debugTest
+    def test_MethanolTorsionScan(self):
+        import McUtils.Coordinerds as coordops
+
+        methanol_zmatrix = coordops.reindex_zmatrix(
+            coordops.functionalized_zmatrix(
+                3,
+                {
+                    (2, 1, 0): [
+                        [0, -1, -2, -3],
+                        [1, -1, 0, -2],
+                        [2, -1, 0, 1],
+                    ]
+                }
+            ),
+            [5, 1, 0, 2, 3, 4]
+        )
+        methanol = Molecule(
+            ['C', 'O', 'H', 'H', 'H', 'H'],
+            [[-0.6988896,  0.00487717, 0.00528378],
+                    [ 1.69694605, -1.08628154, -0.22505594],
+                    [-1.27384807, -0.22559494, 1.98568702],
+                    [-0.59371792,  2.01534286, -0.59617633],
+                    [-2.04665278, -0.99128091, -1.21504054],
+                    [ 2.91616232,  0.28293736, 0.04530201]],
+            energy_evaluator='aimnet2'
+        )
+
+
+        # rpnms = methanol.get_reaction_path_modes(zero_gradient_cutoff=zero_gradient_cutoff=.1)
+        rpnms = methanol.get_reaction_path_modes()
+        print(rpnms.freqs * 219474.6)
+        # print(np.round(rpnms.coords_by_modes @ rpnms.modes_by_coords, 4))
+
+        return
+
+
+        methanol = methanol.optimize()
+
+        # me_opt_scipy = methanol_1.optimize(mode='scipy')
+        # methanol = methanol_1.optimize()
+
+        # print(me_opt_scipy.coords)
+
+        # print(methanol.calculate_energy() - me_opt_scipy.calculate_energy())
+        # return
+
+        #.optimize(mode='scipy')
+        me_int = methanol.modify(
+            internals=methanol_zmatrix,
+        )
+        scan_spec = [-np.deg2rad(180), np.deg2rad(180), 72]
+        me_coords = me_int.get_scan_coordinates(
+            [scan_spec],
+            which=[11],
+            internals='reembed'
+        )
+        me_pot = methanol.get_energy_function()(me_coords)
+
+        # me_aimnet2 = methanol.get_energy_function()
+        # me_pot = np.array([me_aimnet2(x) for x in me_coords])
+
+        # base_pot = plt.Plot(
+        #     np.rad2deg(np.linspace(*scan_spec)),
+        #     (me_pot - methanol.calculate_energy()) * UnitsData.convert("Hartrees", "Wavenumbers")
+        # )
+        # subpot = plt.Plot(
+        #     [-60, -60],
+        #     [0, 500],
+        #     linestyle='dashed',
+        #     figure=base_pot,
+        #     color='green'
+        # )
+        # subpot = plt.Plot(
+        #     [60, 60],
+        #     [0, 500],
+        #     linestyle='dashed',
+        #     figure=base_pot,
+        #     color='green'
+        # )
+        #
+        # base_pot.show()
+
+    @validationTest
+    def test_MultiGMatrix(self):
+
+
+        mol = Molecule.from_file(
+            TestManager.test_data("nh3.fchk"),
+            internals=[
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  0,  1, -1],
+                [3,  0,  1,  2]
+            ]
+        )
+        other_structs = mol.get_displaced_coordinates(
+            np.random.rand(5, 4, 3) / 5
+        )
+        gms = mol.get_gmatrix(coords=other_structs)
 
     @validationTest
     def test_1DPotentialReps(self):

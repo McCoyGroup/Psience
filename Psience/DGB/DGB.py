@@ -75,11 +75,12 @@ class DGB:
         ham = cls.construct(centers, potential_function, **opts)
         return ham.run()
 
+    printed_frequencies_number = 20
     def run(self,
             quiet=False,
             calculate_spectrum=True,
             dipole_degree=0,
-            num_print=20,
+            num_print=None,
             **wavefunction_options
             ):
         """
@@ -87,6 +88,9 @@ class DGB:
 
         :return:
         """
+
+        if num_print is None:
+            num_print = self.printed_frequencies_number
 
         old_logger = self.logger
         try:
