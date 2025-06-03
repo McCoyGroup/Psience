@@ -1036,16 +1036,23 @@ class EnergyEvaluator(PropertyEvaluator):
         )
 
     def get_coordinate_projector(self, coord_spec, mask=None):
-        tf_fun = nput.internal_conversion_function(coord_spec, order=1)
+        # tf_fun = nput.internal_conversion_function(coord_spec, order=1)
         def constraint(coords):
             coords = coords.reshape((-1, len(self.embedding.masses), 3))
-            base_tensors = tf_fun(coords)
-            if mask is not None:
-                checks = mask(base_tensors[0])
-                #TODO: handle the mixed-shape case
-                base_tensors = base_tensors[1][..., :, checks]
+            bases, _, _ = nput.internal_basis(coords, coord_spec)
+            # base_tensors = tf_fun(coords)
+            # if mask is not None:
+            #     checks = mask(base_tensors[0])
+            #     #TODO: handle the mixed-shape case
+            #     base_tensors = base_tensors[1][..., :, checks]
+            base_tensors = np.concatenate(bases, axis=1)
 
-            return nput.orthogonal_projection_matrix(base_tensors)
+            # print(bases[0])
+            proj = nput.orthogonal_projection_matrix(base_tensors, orthonormal=True)
+            # print(proj)
+            # raise Exception(...)
+
+            return proj
 
         return constraint
 

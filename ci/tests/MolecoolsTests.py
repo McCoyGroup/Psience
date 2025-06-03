@@ -1097,14 +1097,14 @@ class MolecoolsTests(TestCase):
             internals=methanol_zmatrix,
         )
         ints0 = meth_int.internal_coordinates
-        meth_int = meth_int.optimize(max_displacement=.1, max_iterations=55,
+        meth_int = meth_int.optimize(max_displacement=.5, max_iterations=500,
                    coordinate_constraints=[(0,1)],
-                   logger=True
+                   # logger=True
                    )
         eng1 = meth_int.calculate_energy()
         ints1 = meth_int.internal_coordinates
 
-        meth_opt = methanol.optimize(max_displacement=.01, max_iterations=55,
+        meth_opt = methanol.optimize(max_displacement=.5, max_iterations=500,
                                      coordinate_constraints=[(0, 1)],
                                      # logger=True,
                                      # method='scipy'
