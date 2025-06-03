@@ -971,7 +971,7 @@ class MolecoolsTests(TestCase):
         print(mol.to_string("pdb"))
         return
 
-    @debugTest
+    @validationTest
     def test_MethanolTorsionScan(self):
         import McUtils.Coordinerds as coordops
 
@@ -1053,6 +1053,77 @@ class MolecoolsTests(TestCase):
         # )
         #
         # base_pot.show()
+
+    @debugTest
+    def test_MethanolConstrainedOpt(self):
+        import McUtils.Coordinerds as coordops
+
+        # methanol = Molecule.from_string(
+        #     'methanol',
+        #     # energy_evaluator='aimnet2'
+        # )
+
+
+        methanol = Molecule(
+            ['C', 'O', 'H', 'H', 'H', 'H'],
+            [[-0.6988896 ,  0.00487717,  0.00528378],
+             [ 1.69694605, -1.08628154, -0.22505594],
+             [-1.27384807, -0.22559494,  1.98568702],
+             [-0.59371792,  2.01534286, -0.59617633],
+             [-2.04665278, -0.99128091, -1.21504054],
+             [ 2.91616232,  0.28293736,  0.04530201]],
+            # energy_evaluator='aimnet2'
+        )
+
+        eng0 = methanol.calculate_energy()
+
+        methanol_zmatrix = coordops.reindex_zmatrix(
+            coordops.functionalized_zmatrix(
+                3,
+                {
+                    (2, 1, 0): [
+                        [0, -1, -2, -3],
+                        [1, -1, 0, -2],
+                        [2, -1, 0, 1],
+                    ]
+                }
+            ),
+            [5, 1, 0, 2, 3, 4]
+        )
+
+        meth_int = methanol.modify(
+            # evaluator=lambda c:
+            # energy_evaluator='aimnet2',
+            internals=methanol_zmatrix,
+        )
+        ints0 = meth_int.internal_coordinates
+        meth_int = meth_int.optimize(max_displacement=.1, max_iterations=55,
+                   coordinate_constraints=[(0,1)],
+                   logger=True
+                   )
+        eng1 = meth_int.calculate_energy()
+        ints1 = meth_int.internal_coordinates
+
+        meth_opt = methanol.optimize(max_displacement=.01, max_iterations=55,
+                                     coordinate_constraints=[(0, 1)],
+                                     # logger=True,
+                                     # method='scipy'
+                                     )
+        eng2 = meth_opt.calculate_energy()
+        ints2 = meth_opt.modify(
+            internals=methanol_zmatrix,
+        ).internal_coordinates
+        # ints3 = huh2.modify(
+        #     internals=methanol_zmatrix,
+        # ).internal_coordinates
+        #
+        # # print(methanol.coords)
+        print(eng1, eng2, eng0, eng2 - eng1)
+        print(ints0)
+        print(ints1)
+        print(ints2)
+        # print(ints3)
+
 
     @validationTest
     def test_MultiGMatrix(self):

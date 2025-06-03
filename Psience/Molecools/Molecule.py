@@ -71,7 +71,7 @@ class Molecule(AbstractMolecule):
         :param atoms: atoms specified by name, either full name or short
         :type atoms: Iterable[str]
         :param coords: coordinates for the molecule, assumed to be in Bohr by default
-        :type coords: np.ndarray
+        :type coords: np.ndarray | Iterable[Iterable[float]]
         :param bonds: bond specification for the molecule
         :type bonds: Iterable[Iterable[int]] | None
         :param obmol: OpenBabel molecule for doing conversions
@@ -159,7 +159,8 @@ class Molecule(AbstractMolecule):
                dipole_surface=dev.default,
                potential_surface=dev.default,
                dipole_derivatives=dev.default,
-               potential_derivatives=dev.default
+               potential_derivatives=dev.default,
+               meta=dev.default
                ):
         return type(self)(
             self.atoms if atoms is dev.default else atoms,
@@ -181,8 +182,8 @@ class Molecule(AbstractMolecule):
                     and dipole_evaluator is dev.default
             ) else (
                 None
-                    if dipole_surface is dev.default
-                else dipole_surface
+                    if dipole_surface is dev.default else
+                dipole_surface
             ),
             dipole_derivatives=None if dipole_derivatives is dev.default else dipole_derivatives ,
             potential_surface=self.potential_surface if (
@@ -192,10 +193,15 @@ class Molecule(AbstractMolecule):
                     and energy_evaluator is dev.default
             ) else (
                 None
-                    if potential_surface is dev.default
-                else potential_surface
+                    if potential_surface is dev.default else
+                potential_surface
             ),
-            potential_derivatives=None if potential_derivatives is dev.default else potential_derivatives
+            potential_derivatives=None if potential_derivatives is dev.default else potential_derivatives,
+            meta=(
+                     self._meta
+                        if meta is dev.default else
+                     dev.merge_dicts(self._meta, meta)
+            )
         )
 
     @classmethod
@@ -876,7 +882,7 @@ class Molecule(AbstractMolecule):
             max_iterations=max_iterations,
             logger=logger
         )
-        opt, opt_coords = evaluator.optimize(
+        opt, opt_coords, settings = evaluator.optimize(
             self.coords * conv,
             **{k:v for k,v in opt_params.items() if v is not None},
             **optimizer_opts
@@ -886,7 +892,7 @@ class Molecule(AbstractMolecule):
             opt_coords = nput.eckart_embedding(
                 self.coords, opt_coords, masses=self.masses
             ).coordinates
-        return self.modify(coords=opt_coords)
+        return self.modify(coords=opt_coords, meta=settings)
 
     def get_dipole_evaluator(self, evaluator=None, **opts):
         if evaluator is None:
@@ -2201,6 +2207,7 @@ class Molecule(AbstractMolecule):
              multiple_bond_spacing=None,
              mode=None,#'quality',
              backend=None,
+             include_save_buttons=False,
              objects=False,
              graphics_class=None,
              cylinder_class=None,
@@ -2504,7 +2511,6 @@ class Molecule(AbstractMolecule):
                             com = com + dipole_origin[i]
                     else:
                         com = dipole_origin[i]
-                    print(com, dip)
                     dipole_arrow = arrow_class(
                         com,
                         com + dip,
@@ -2555,6 +2561,10 @@ class Molecule(AbstractMolecule):
                 ],
                 **animation_options
             )
+
+        if include_save_buttons:
+            plt.X3D.include_export_button = True
+            plt.X3D.include_record_button = True
 
         if return_objects:
             return figure, atoms, bonds, arrows
