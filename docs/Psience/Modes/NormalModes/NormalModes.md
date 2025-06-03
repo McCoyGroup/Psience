@@ -52,8 +52,8 @@ get_normal_modes(cls, f_matrix, mass_spec, remove_transrot=True, dimensionless=F
 from_fg(cls, basis, f_matrix, mass_spec, remove_transrot=True, dimensionless=False, zero_freq_cutoff=None, mass_weighted=None, origin=None, projector=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L136)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L136?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L229)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L229?message=Update%20Docs)]
 </div>
 Generates normal modes from the specified F and G matrices
   - `basis`: `Any`
@@ -78,8 +78,8 @@ Generates normal modes from the specified F and G matrices
 from_molecule(cls, mol, dimensionless=False, use_internals=None, potential_derivatives=None, project_transrot=True, zero_freq_cutoff=None, masses=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L185)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L185?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L278)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L278?message=Update%20Docs)]
 </div>
 
 
@@ -88,8 +88,8 @@ from_molecule(cls, mol, dimensionless=False, use_internals=None, potential_deriv
 get_nearest_mode_transform(self, alternate_modes: numpy.ndarray, mass_weighted=False, atoms=None, maximum_similarity=True, unitarize=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L261)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L261?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L354)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L354?message=Update%20Docs)]
 </div>
 
 
@@ -98,8 +98,8 @@ get_nearest_mode_transform(self, alternate_modes: numpy.ndarray, mass_weighted=F
 get_atom_localized_mode_transformation(self, atoms, masses=None, origin=None, localization_type='ned', allow_mode_mixing=False, maximum_similarity=False, unitarize=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L292)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L292?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L385)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L385?message=Update%20Docs)]
 </div>
 
 
@@ -108,8 +108,8 @@ get_atom_localized_mode_transformation(self, atoms, masses=None, origin=None, lo
 get_internal_localized_mode_transformation(self, expansion_coordinates: 'Iterable[Iterable[int]|dict]', fixed_atoms=None, mass_weighted=False, project_transrot=True, atoms=None, maximum_similarity=False, unitarize=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L359)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L359?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L452)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L452?message=Update%20Docs)]
 </div>
 
 
@@ -118,8 +118,8 @@ get_internal_localized_mode_transformation(self, expansion_coordinates: 'Iterabl
 get_displacement_localized_mode_transformation(self, mode_blocks=None, atoms=None, mass_weighted=True, unitarize=True, **maximizer_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L399)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L399?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L492)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L492?message=Update%20Docs)]
 </div>
 
 
@@ -129,8 +129,8 @@ get_displacement_localized_mode_transformation(self, mode_blocks=None, atoms=Non
 localizer_dispatch(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L438)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L438?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L531)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L531?message=Update%20Docs)]
 </div>
 
 
@@ -139,8 +139,8 @@ localizer_dispatch(self):
 localize(self, method=None, *, atoms=None, target_modes=None, internals=None, mode_blocks=None, reorthogonalize=None, unitarize=True, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L447)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L447?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L540)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L540?message=Update%20Docs)]
 </div>
  </div>
 </div>
