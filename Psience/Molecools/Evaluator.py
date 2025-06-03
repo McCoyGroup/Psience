@@ -388,8 +388,130 @@ class MolecularEvaluator:
 
 class PropertyEvaluator(metaclass=abc.ABCMeta):
 
-    def __init__(self, **defaults):
+    def __init__(self,
+                 embedding=None,
+                 permutation=None,
+                 use_internals=True,
+                 strip_embedding=True,
+                 flatten_internals=True,
+                 reembed_cartesians=False,
+                 **defaults):
         self.defaults = defaults
+        self.embedding = embedding
+        if use_internals and not self.supports_internals:
+            use_internals = 'reembed'
+        self.use_internals = use_internals
+        self.strip_embedding = strip_embedding
+        self.flatten_internals = flatten_internals
+        self.reembed_cartesians = reembed_cartesians
+        self.permutation = permutation
+
+    def use_internal_coordinate_handlers(self):
+        return (self.use_internals and self.embedding.internals is not None)
+
+    def embed_coords(self, coords, embed_reembedded=True):
+        coords = np.asanyarray(coords)
+        if self.embedding is not None:
+            if (
+                    self.use_internals
+                    and self.embedding.internals is not None
+                    and (embed_reembedded or not dev.str_is(self.use_internals, "reembed"))
+            ):
+                base_coords = coords
+                coords = self.embedding.get_internals(coords=coords, strip_embedding=self.strip_embedding)
+                if not self.strip_embedding and self.flatten_internals:
+                    if base_coords.ndim == coords.ndim:
+                        coords = coords.reshape(base_coords.shape[:-2] + (-1,))
+            elif self.reembed_cartesians:
+                coords = self.embedding.embed_coords(coords)
+        if self.permutation is not None:
+            if self.use_internals and self.embedding.internals is not None:
+                if not self.strip_embedding and not self.flatten_internals:
+                    raise NotImplementedError("don't know how to permute not-flat internals...")
+                coords = coords[..., self.permutation]
+            else:
+                coords = coords[..., self.permutation, :]
+        return coords
+
+    def unembed_coords(self, coords, embed_reembedded=True):
+        # coords = np.asanyarray(coords)
+        if self.embedding is not None:
+            if (
+                    self.use_internals
+                    and self.embedding.internals is not None
+                    and (embed_reembedded or not dev.str_is(self.use_internals, "reembed"))
+            ):
+                coords = self.embedding.get_cartesians(coords=coords, strip_embedding=self.strip_embedding)
+
+        if self.permutation is not None:
+            inv = np.argsort(self.permutation)
+            if self.use_internals and self.embedding.internals is not None:
+                if not self.strip_embedding and not self.flatten_internals:
+                    raise NotImplementedError("don't know how to permute not-flat internals...")
+                coords = coords[..., inv]
+            else:
+                coords = coords[..., inv, :]
+        return coords
+
+    def embed_derivs(self, coords, derivs, embed_reembedded=True):
+        if len(derivs) == 0: return derivs
+
+        if self.embedding is not None:
+            if (
+                    self.use_internals
+                    and self.embedding.internals is not None
+                    and (embed_reembedded or not dev.str_is(self.use_internals, "reembed"))
+            ):
+                expansion = self.embedding.get_cartesians_by_internals(
+                    order=len(derivs),
+                    coords=coords,
+                    strip_embedding=self.strip_embedding
+                )
+                derivs = nput.tensor_reexpand(expansion, derivs, len(derivs))
+
+        return derivs
+
+    def unembed_derivs(self, base_coords, coords, derivs, embed_reembedded=True):
+        if len(derivs) == 0: return derivs
+
+        if self.permutation is not None:
+            inv = np.argsort(self.permutation)
+            new_derivs = []
+            base_shape = base_coords.shape[:-2]
+            ndim = len(base_shape)
+            f_shape = derivs[0].shape[ndim + 1:]
+            fdim = len(f_shape)
+            ncoord = derivs[0].shape[ndim]
+            nat = ncoord // 3  # not always used, but never an error
+            for i, d in enumerate(derivs):
+                # TODO: fix assumption that we always request all orders
+                if self.use_internals and self.embedding.internals is not None:
+                    for ax in range(-(i + 1), 0):
+                        d = np.take(d, inv, axis=(ax - fdim))
+                else:
+                    for ax in range(i + 1):
+                        coord_shape = tuple(ncoord for _ in range(ax)) + (nat, 3) + tuple(ncoord for _ in range(i - ax))
+                        d_shape = d.shape
+                        d = d.reshape(base_shape + coord_shape + f_shape)
+                        d = np.take(d, inv, axis=ndim + ax).reshape(d_shape)
+                new_derivs.append(d)
+            derivs = new_derivs
+
+        if self.embedding is not None:
+            if (
+                    self.use_internals
+                    and self.embedding.internals is not None
+                    and (embed_reembedded or not dev.str_is(self.use_internals, "reembed"))
+            ):
+                expansion = self.embedding.get_internals_by_cartesians(
+                    order=len(derivs),
+                    coords=base_coords,
+                    strip_embedding=self.strip_embedding
+                )
+                derivs = nput.tensor_reexpand(expansion, derivs, len(derivs))
+            elif self.reembed_cartesians:
+                derivs = self.embedding.unembed_derivs(coords, derivs)
+        return derivs
 
     @abc.abstractmethod
     def evaluate_term(self, coords, order, **opts):
@@ -451,12 +573,62 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
 
         return res
 
+    def internal_finite_difference_derivs(self, coords, order, batched_orders=None, **opts):
+        opts = dev.OptionsSet(opts)
+        fd_opts = opts.filter(FiniteDifferenceDerivative)
+        opts = opts.exclude(FiniteDifferenceDerivative)
+
+        if batched_orders is None:
+            batched_orders = self.batched_orders
+
+        base_shape = coords.shape[:-1]
+        coord_shape = coords.shape[-1:]
+        flat_coords = coords.reshape(-1, np.prod(coord_shape, dtype=int))
+        reembed = dev.str_is(self.use_internals, 'reembed')
+        def derivs(structs):
+            reconst = structs.reshape(structs.shape[:-1] + coord_shape)
+            if reembed:
+                reconst = self.unembed_coords(reconst)
+                if not batched_orders:
+                    res = [
+                        self.evaluate_term(reconst, o, **opts)
+                        for o in range(self.analytic_derivative_order + 1)
+                    ]
+                else:
+                    res = self.evaluate_term(reconst, self.analytic_derivative_order, **opts)
+                return res[0] + self.embed_derivs(reconst, res[1:])
+            else:
+                ders = self.evaluate_term(reconst, self.analytic_derivative_order, **opts)
+                if batched_orders:
+                    return ders[-1]
+                else:
+                    return ders
+
+        der = FiniteDifferenceDerivative(derivs,
+                                         function_shape=((0,), (0,) * self.analytic_derivative_order),
+                                         **self.get_fd_opts(**fd_opts)
+                                         )
+        tensors = der.derivatives(flat_coords).derivative_tensor(
+            list(range(1, (order - self.analytic_derivative_order) + 1))
+        )
+        if flat_coords.shape[0] > 1:
+            tensors = [np.moveaxis(d, n+1, 0) for n,d in enumerate(tensors)]
+        res = [
+            t.reshape(base_shape + t.shape[1:])
+                if t.ndim > 0 and flat_coords.shape[0] != 1 else
+            t
+            for t in tensors
+        ]
+
+        return res
+
+    supports_internals = False
     property_units = None
     target_property_units = None
     distance_units = 'Angstroms'
     batched_orders = False
     analytic_derivative_order = 1
-    def evaluate(self,
+    def evaluate_expansion(self,
                  coords,
                  order=0,
                  analytic_derivative_order=None,
@@ -507,6 +679,37 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
             e * eng_conv / (bohr_conv ** o)
             for o,e in zip(order, expansion)
         ]
+
+    def evaluate(self,
+                 coords,
+                 order=0,
+                 logger=None,
+                 **opts):
+        use_internals = self.use_internals
+        reembed = self.reembed_cartesians
+        perm = self.permutation
+        base_coords = coords
+        coords = self.embed_coords(coords, embed_reembedded=False)
+
+        try:
+            self.use_internals = False
+            self.reembed_cartesians = False
+            self.permutation = None
+
+            # TODO: make this less hacky...
+            expansion = self.evaluate_expansion(
+                coords,
+                order=order,
+                logger=logger,
+                **opts
+            )
+        finally:
+            self.use_internals = use_internals
+            self.reembed_cartesians = reembed
+            self.permutation = perm
+
+        expansion = [expansion[0]] + self.unembed_derivs(base_coords, coords, expansion[1:], embed_reembedded=False)
+        return expansion
 
     # evaluator_types = {}
     @classmethod
@@ -570,145 +773,23 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
 
     def __init__(self,
                  potential_function,
-                 embedding=None,
-                 permutation=None,
-                 use_internals=True,
-                 strip_embedding=True,
-                 flatten_internals=True,
-                 reembed_cartesians=False,
                  property_units=None,
                  distance_units='Angstroms',
                  batched_orders=False,
+                 supports_internals=True,
                  analytic_derivative_order=0,
                  **defaults
                  ):
         super(type(self).__bases__[0], self).__init__(**defaults)
         self.property_function = potential_function
-        self.embedding = embedding
         self.batched_orders = batched_orders
         self.analytic_derivative_order = analytic_derivative_order
         self.property_units = property_units
         self.distance_units = distance_units
-        self.use_internals = use_internals
-        self.strip_embedding = strip_embedding
-        self.flatten_internals = flatten_internals
-        self.reembed_cartesians = reembed_cartesians
-        self.permutation = permutation
-
-    def use_internal_coordinate_handlers(self):
-        return (self.use_internals and self.embedding.internals is not None)
-
-    def embed_coords(self, coords):
-        coords = np.asanyarray(coords)
-        if self.embedding is not None:
-            if self.use_internals and self.embedding.internals is not None:
-                base_coords = coords
-                coords = self.embedding.get_internals(coords=coords, strip_embedding=self.strip_embedding)
-                if not self.strip_embedding and self.flatten_internals:
-                    if base_coords.ndim == coords.ndim:
-                        coords = coords.reshape(base_coords.shape[:-2]+(-1,))
-            elif self.reembed_cartesians:
-                coords = self.embedding.embed_coords(coords)
-        if self.permutation is not None:
-            if self.use_internals and self.embedding.internals is not None:
-                if not self.strip_embedding and not self.flatten_internals:
-                    raise NotImplementedError("don't know how to permute not-flat internals...")
-                coords = coords[..., self.permutation]
-            else:
-                coords = coords[..., self.permutation, :]
-        return coords
-
-    def unembed_coords(self, coords):
-        # coords = np.asanyarray(coords)
-        if self.embedding is not None:
-            if self.use_internals and self.embedding.internals is not None:
-                if self.strip_embedding:
-                    coords = self.embedding.restore_embedding_coordinates(coords)
-                elif self.flatten_internals:
-                    coords = np.reshape(coords, coords.shape[:-1] + self.embedding.internal_coordinates.shape[-2:])
-                coords = coords.convert(self.embedding.coords.system)
-        if self.permutation is not None:
-            inv = np.argsort(self.permutation)
-            if self.use_internals and self.embedding.internals is not None:
-                if not self.strip_embedding and not self.flatten_internals:
-                    raise NotImplementedError("don't know how to permute not-flat internals...")
-                coords = coords[..., inv]
-            else:
-                coords = coords[..., inv, :]
-        return coords
-
-    def unembed_derivs(self, base_coords, coords, derivs):
-        if len(derivs) == 0: return derivs
-
-        if self.permutation is not None:
-            inv = np.argsort(self.permutation)
-            new_derivs = []
-            base_shape = base_coords.shape[:-2]
-            ndim = len(base_shape)
-            f_shape = derivs[0].shape[ndim+1:]
-            fdim = len(f_shape)
-            ncoord = derivs[0].shape[ndim]
-            nat = ncoord // 3 # not always used, but never an error
-            for i,d in enumerate(derivs):
-                #TODO: fix assumption that we always request all orders
-                if self.use_internals and self.embedding.internals is not None:
-                    for ax in range(-(i+1), 0):
-                        d = np.take(d, inv, axis=(ax-fdim))
-                else:
-                    for ax in range(i+1):
-                        coord_shape = tuple(ncoord for _ in range(ax)) + (nat, 3) + tuple(ncoord for _ in range(i-ax))
-                        d_shape = d.shape
-                        d = d.reshape(base_shape + coord_shape + f_shape)
-                        d = np.take(d, inv, axis=ndim+ax).reshape(d_shape)
-                new_derivs.append(d)
-            derivs = new_derivs
-
-        if self.embedding is not None:
-            if self.use_internals and self.embedding.internals is not None:
-                expansion = self.embedding.get_internals_by_cartesians(
-                    order=len(derivs),
-                    coords=base_coords,
-                    strip_embedding=self.strip_embedding
-                )
-                derivs = nput.tensor_reexpand(expansion, derivs, len(derivs))
-            elif self.reembed_cartesians:
-                derivs = self.embedding.unembed_derivs(coords, derivs)
-        return derivs
+        self.supports_internals = supports_internals
 
     def evaluate_term(self, coords, order, **opts):
-        emb = self.embed_coords(coords)
-        return self.property_function(emb, order=order, **opts)
-
-    def evaluate(self,
-                 coords,
-                 order=0,
-                 logger=None,
-                 **opts):
-        use_internals = self.use_internals
-        reembed = self.reembed_cartesians
-        perm = self.permutation
-        base_coords = coords
-        coords = self.embed_coords(coords)
-
-        try:
-            self.use_internals = False
-            self.reembed_cartesians = False
-            self.permutation = None
-
-            # TODO: make this less hacky...
-            expansion = super(type(self).__bases__[0], self).evaluate(
-                coords,
-                order=order,
-                logger=logger,
-                **opts
-            )
-        finally:
-            self.use_internals = use_internals
-            self.reembed_cartesians = reembed
-            self.permutation = perm
-
-        expansion = [expansion[0]] + self.unembed_derivs(base_coords, coords, expansion[1:])
-        return expansion
+        return self.property_function(coords, order=order, **opts)
 
     default_property_function = None
     @classmethod
@@ -786,7 +867,7 @@ class EnergyEvaluator(PropertyEvaluator):
                 if self.batched_orders:
                     return res[-1] * conv
                 else:
-                    return res
+                    return res * conv
         elif allow_fd:
             def func(crd, _):
                 res = self.finite_difference_derivs(crd.reshape(1, -1, 3), order, **opts)[-1]
@@ -800,6 +881,119 @@ class EnergyEvaluator(PropertyEvaluator):
         return self.minimizer_function_by_order(1, allow_fd=True, **opts)
     def minimizer_hessian(self, **opts):
         return self.minimizer_function_by_order(2, **opts)
+
+    def minimizer_internal_function_by_order(self, order, allow_fd=False, **opts):
+        conv = UnitsData.convert(self.property_units, "Hartrees")
+        if self.analytic_derivative_order >= order:
+            opts = dev.OptionsSet(opts)
+            # fd_opts = opts.filter(FiniteDifferenceDerivative)
+            opts = opts.exclude(FiniteDifferenceDerivative)
+
+            reembed = dev.str_is(self.use_internals, 'reembed')
+            def func(crd, _):
+                # res = self.evaluate_term(crd, order, **opts)
+                if reembed:
+                    crd = self.unembed_coords(crd)
+                    if not self.batched_orders:
+                        res = [
+                            self.evaluate_term(crd, o, **opts)
+                            for o in range(order + 1)
+                        ]
+                    else:
+                        res = self.evaluate_term(crd, order, **opts)
+                    dist_conv = UnitsData.convert("BohrRadius", self.distance_units)
+                    res = [res[0]] + self.embed_derivs(crd, [r*dist_conv**(n+1) for n,r in enumerate(res[1:])])
+                    if not self.batched_orders:
+                        res = res[-1]
+                else:
+                    res = self.evaluate_term(crd, order, **opts)
+                if self.batched_orders:
+                    return res[-1] * conv
+                else:
+                    return res * conv
+        elif allow_fd:
+            def func(crd, _):
+                res = self.internal_finite_difference_derivs(crd, order, **opts)[-1]
+                return res[np.newaxis] * conv  # it obliterates the 1
+        else:
+            func = None
+        return func
+
+    def get_internal_coordinate_projector(self, coord_spec, mask=None):
+
+        base_internals = self.embedding.internals
+        if base_internals.get('specs') is not None:
+            specs = base_internals.get('specs')
+            sidx = [tuple(s) for s in specs]
+            cpos = [tuple(c) for c in coord_spec]
+            inds = [sidx.index(c) for c in cpos]
+            num_coords = len(inds)
+            redundant_transformation = base_internals.get('redundant_transformation')
+            base_tensor = np.zeros((len(specs), num_coords))
+            for n, i in enumerate(inds):
+                base_tensor[..., i, n] = 1
+
+            if redundant_transformation is not None:
+                base_tensor = nput.maximum_similarity_transformation(
+                    redundant_transformation,
+                    base_tensor,
+                    apply_transformation=True
+                )
+
+            proj = nput.orthogonal_projection_matrix(base_tensor)
+            def constraint(coords):
+                nstruct = len(coords.shape[:-1])
+                return np.broadcast_to(
+                    np.expand_dims(proj, list(range(nstruct))),
+                    coords.shape[:-1] + proj.shape
+                )
+
+        elif base_internals.get('zmatrix') is not None:
+            zmat = base_internals.get('zmatrix')
+            num_specs = coordops.num_zmatrix_coords(
+                zmat,
+                coord_spec
+            )
+            inds = coordops.zmatrix_indices(
+                zmat,
+                coord_spec
+            )
+            num_coords = len(inds)
+
+            base_tensor = np.zeros((num_specs, num_coords))
+            for n, i in enumerate(inds):
+                base_tensor[..., i, n] = 1
+            proj = nput.orthogonal_projection_matrix(base_tensor)
+
+            def constraint(coords):
+                nstruct = len(coords.shape[:-1])
+                return np.broadcast_to(
+                    np.expand_dims(proj, list(range(nstruct))),
+                    coords.shape[:-1] + proj.shape
+                )
+        else:
+            raise ValueError(f"can't get {coord_spec} for {base_internals}")
+
+        return constraint
+
+    def get_internal_coordinate_constraints(self, constraints):
+        if dev.is_dict_like(constraints):
+            coord_list = list(constraints.keys())
+            funs = list(constraints.values())
+
+            def mask_func(internal_vals):
+                return (f(i) for i, f in zip(internal_vals, funs))
+
+            return self.get_internal_coordinate_projector(coord_list, mask=mask_func)
+        elif coordops.is_coordinate_list_like(constraints):
+            return self.get_internal_coordinate_projector(constraints)
+        elif nput.is_numeric_array_like(constraints):
+            return nput.orthogonal_projection_matrix(constraints)
+        else:
+            return constraints
+    internal_optimizer_defaults = dict(
+        max_displacement=.01
+    )
 
     optimizer_defaults = dict(
         method='quasi-newton',
@@ -835,9 +1029,45 @@ class EnergyEvaluator(PropertyEvaluator):
     )
     @classmethod
     def get_optimizer_options(self):
-        return tuple(self.optimizer_defaults.keys()) + FiniteDifferenceDerivative.__props__
-    def optimize(self,
+        return (
+                tuple(self.optimizer_defaults.keys())
+                + ('coordinate_constraints',)
+                + FiniteDifferenceDerivative.__props__
+        )
+
+    def get_coordinate_projector(self, coord_spec, mask=None):
+        tf_fun = nput.internal_conversion_function(coord_spec, order=1)
+        def constraint(coords):
+            coords = coords.reshape((-1, len(self.embedding.masses), 3))
+            base_tensors = tf_fun(coords)
+            if mask is not None:
+                checks = mask(base_tensors[0])
+                #TODO: handle the mixed-shape case
+                base_tensors = base_tensors[1][..., :, checks]
+
+            return nput.orthogonal_projection_matrix(base_tensors)
+
+        return constraint
+
+    def get_coordinate_constraints(self, constraints):
+        if dev.is_dict_like(constraints):
+            coord_list = list(constraints.keys())
+            funs = list(constraints.values())
+            def mask_func(internal_vals):
+                return (f(i) for i,f in zip(internal_vals, funs))
+
+            return self.get_coordinate_projector(coord_list, mask=mask_func)
+        elif coordops.is_coordinate_list_like(constraints):
+            return self.get_coordinate_projector(constraints)
+        elif nput.is_numeric_array_like(constraints):
+            return nput.orthogonal_projection_matrix(constraints)
+        else:
+            return constraints
+
+    scipy_no_hessian_methods = {'bfgs'}
+    def optimize_iterative(self,
                  coords,
+                 coordinate_constraints=None,
                  **opts
                  ):
         from McUtils.Numputils import iterative_step_minimize
@@ -849,6 +1079,7 @@ class EnergyEvaluator(PropertyEvaluator):
             # generate_rotation=False,
             # dtype='float64',
             orthogonal_directions,
+            orthogonal_projection_generator,
             convergence_metric,
             tol,
             max_iterations,
@@ -871,6 +1102,7 @@ class EnergyEvaluator(PropertyEvaluator):
                 # generate_rotation=False,
                 # dtype='float64',
                 "orthogonal_directions",
+                "orthogonal_projection_generator",
                 "convergence_metric",
                 "tol",
                 "max_iterations",
@@ -904,7 +1136,7 @@ class EnergyEvaluator(PropertyEvaluator):
 
         logger = Logger.lookup(logger, construct=True)
 
-        if mode == 'scipy':
+        if mode == 'scipy' or method == 'scipy':
             from scipy.optimize import minimize
 
             def sfunc(crd):
@@ -934,9 +1166,13 @@ class EnergyEvaluator(PropertyEvaluator):
                         cb(intermediate_result)
                     ][-1]
 
-
+            method = (
+                method
+                    if dev.str_is(mode, 'scipy') else
+                opts.pop('scipy_method', self.optimizer_defaults.get('method', 'bfgs'))
+            )
             method = 'bfgs' if method=='quasi-newton' else method
-            if method in {'bfgs'}:
+            if method in self.scipy_no_hessian_methods:
                 shessian = None
             min = minimize(sfunc,
                            coords.flatten(),
@@ -947,7 +1183,7 @@ class EnergyEvaluator(PropertyEvaluator):
                            callback=callback,
                            options=dict({'maxiter':max_iterations}, **optimizer_settings)
                            )
-            return True, min.x.reshape(coords.shape)
+            return True, min.x.reshape(coords.shape), min
         else:
             if method is None or isinstance(method, str):
                 method = dict(
@@ -964,6 +1200,8 @@ class EnergyEvaluator(PropertyEvaluator):
                     **optimizer_settings
                 )
                 method = {k:v for k,v in method.items() if v is not None}
+            if orthogonal_projection_generator is None:
+                orthogonal_projection_generator = self.get_coordinate_constraints(coordinate_constraints)
             opt_coords, converged, (errs, its) = iterative_step_minimize(
                 coords.flatten(),
                 method,
@@ -974,9 +1212,58 @@ class EnergyEvaluator(PropertyEvaluator):
                 max_iterations=max_iterations,
                 max_displacement=max_displacement,
                 logger=logger,
+                orthogonal_projection_generator=orthogonal_projection_generator,
                 **opt_opts
             )
-            return converged, opt_coords.reshape(coords.shape)
+            return converged, opt_coords.reshape(coords.shape), {'errors':errs, 'iterations':its}
+
+
+    def optimize(self,
+                 coords,
+                 use_internals=None,
+                 func=None,
+                 jacobian=None,
+                 hessian=None,
+                 logger=None,
+                 coordinate_constraints=None,
+                 orthogonal_projection_generator=None,
+                 **opts
+                 ):
+        if use_internals is None: use_internals = self.use_internals
+        if use_internals and self.embedding.internals is not None:
+            opts = dict(self.internal_optimizer_defaults, **opts)
+            fopts = dev.OptionsSet(opts).exclude(None, props=self.optimizer_defaults.keys())
+            if func is None:
+                func = self.minimizer_internal_function_by_order(0, **fopts)
+            if jacobian is None:
+                jacobian = self.minimizer_internal_function_by_order(1, allow_fd=True, **fopts)
+            if hessian is None:
+                hessian = self.minimizer_internal_function_by_order(2, **fopts)
+            try:
+                self.use_internals = use_internals
+                coords = self.embed_coords(coords)
+                if orthogonal_projection_generator is None:
+                    orthogonal_projection_generator = self.get_internal_coordinate_constraints(coordinate_constraints)
+                convergence, opt_coords, opt_settings = self.optimize_iterative(coords,
+                                                                         func=func,
+                                                                         jacobian=jacobian,
+                                                                         hessian=hessian,
+                                                                         logger=logger,
+                                                                         orthogonal_projection_generator=orthogonal_projection_generator,
+                                                                         **opts
+                                                                         )
+                coords = self.unembed_coords(opt_coords)
+                return convergence, coords, opt_settings
+            finally:
+                self.use_internals = use_internals
+
+        else:
+            return self.optimize_iterative(coords,
+                                    logger=logger,
+                                    coordinate_constraints=coordinate_constraints,
+                                    orthogonal_projection_generator=orthogonal_projection_generator,
+                                    **opts
+                                    )
 
 class RDKitEnergyEvaluator(EnergyEvaluator):
     def __init__(self, rdmol, force_field='mmff', **defaults):
@@ -988,7 +1275,7 @@ class RDKitEnergyEvaluator(EnergyEvaluator):
 
     @classmethod
     def from_mol(cls, mol, **opts):
-        return cls(mol.rdmol, **opts)
+        return cls(mol.rdmol, embedding=mol.embedding, **opts)
 
     property_units = 'Kilocalories/Mole'
     analytic_derivative_order = 1
@@ -1020,15 +1307,25 @@ class RDKitEnergyEvaluator(EnergyEvaluator):
                  ):
         if force_field_type is None:
             force_field_type = self.force_field
-        maxIters = opts.pop('maxIters', max_iterations)
-        optimizer = opts.pop('optimizer', method)
-        return self.rdmol.optimize_structure(
-            geoms=coords,
-            force_field_type=force_field_type,
-            optimizer=optimizer,
-            maxIters=maxIters,
-            **opts
-        )
+
+        if method == 'rdkit':
+            maxIters = opts.pop('maxIters', max_iterations)
+            optimizer = opts.pop('optimizer', method)
+            return self.rdmol.optimize_structure(
+                geoms=coords,
+                force_field_type=force_field_type,
+                optimizer=optimizer,
+                maxIters=maxIters,
+                **opts
+            )
+        else:
+            return super().optimize(
+                coords,
+                method=method,
+                tol=tol,
+                max_iterations=max_iterations,
+                **opts
+            )
 
 class AIMNet2EnergyEvaluator(EnergyEvaluator):
     """
@@ -1046,7 +1343,7 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
 
     @classmethod
     def from_mol(cls, mol, charge=None, multiplicity=None, **opts):
-        return cls(mol.atoms, multiplicity=multiplicity, **opts)
+        return cls(mol.atoms, embedding=mol.embedding, multiplicity=multiplicity, **opts)
 
     @classmethod
     def setup_aimnet(cls, model):
@@ -1251,7 +1548,7 @@ class XTBEnergyEvaluator(EnergyEvaluator):
 
     @classmethod
     def from_mol(cls, mol, **opts):
-        return cls(mol.atoms, charge=mol.charge, **opts)
+        return cls(mol.atoms, embedding=mol.embedding, charge=mol.charge, **opts)
 
     def get_single_point(self, coords):
         from xtb.interface import Calculator
@@ -1360,26 +1657,6 @@ class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
             **opts
         )
 
-    def embed_coords(self, coords):
-        return PropertyFunctionEvaluator.embed_coords(
-            self,
-            coords
-        )
-
-    def unembed_coords(self, coords):
-        return PropertyFunctionEvaluator.unembed_coords(
-            self,
-            coords
-        )
-
-    def unembed_derivs(self, base_coords, coords, derivs):
-        return PropertyFunctionEvaluator.unembed_derivs(
-            self,
-            base_coords,
-            coords,
-            derivs
-        )
-
     def evaluate_term(self, coords, order, **opts):
         return PropertyFunctionEvaluator.evaluate_term(
             self,
@@ -1406,107 +1683,6 @@ class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
             fd_handler=fd_handler,
             **opts
         )
-
-    def internal_finite_difference_derivs(self, coords, order, batched_orders=None, **opts):
-        opts = dev.OptionsSet(opts)
-        fd_opts = opts.filter(FiniteDifferenceDerivative)
-        opts = opts.exclude(FiniteDifferenceDerivative)
-
-        if batched_orders is None:
-            batched_orders = self.batched_orders
-
-        base_shape = coords.shape[:-1]
-        coord_shape = coords.shape[-1:]
-        flat_coords = coords.reshape(-1, np.prod(coord_shape, dtype=int))
-
-        def derivs(structs):
-            reconst = structs.reshape(structs.shape[:-1] + coord_shape)
-            ders = self.property_function(reconst, self.analytic_derivative_order, **opts)
-            if batched_orders:
-                return ders[-1]
-            else:
-                return ders
-
-        der = FiniteDifferenceDerivative(derivs,
-                                         function_shape=((0,), (0,) * self.analytic_derivative_order),
-                                         **self.get_fd_opts(**fd_opts)
-                                         )
-        tensors = der.derivatives(flat_coords).derivative_tensor(
-            list(range(1, (order - self.analytic_derivative_order) + 1))
-        )
-        if flat_coords.shape[0] > 1:
-            tensors = [np.moveaxis(d, n+1, 0) for n,d in enumerate(tensors)]
-        res = [
-            t.reshape(base_shape + t.shape[1:])
-                if t.ndim > 0 and flat_coords.shape[0] != 1 else
-            t
-            for t in tensors
-        ]
-
-        return res
-
-    def minimizer_internal_function_by_order(self, order, allow_fd=False, **opts):
-        conv = UnitsData.convert(self.property_units, "Hartrees")
-        if self.analytic_derivative_order >= order:
-            opts = dev.OptionsSet(opts)
-            # fd_opts = opts.filter(FiniteDifferenceDerivative)
-            opts = opts.exclude(FiniteDifferenceDerivative)
-            def func(crd, _):
-                res = self.property_function(crd, order, **opts)
-                if self.batched_orders:
-                    return res[-1] * conv
-                else:
-                    return res * conv
-        elif allow_fd:
-            def func(crd, _):
-                res = self.internal_finite_difference_derivs(crd, order, **opts)[-1]
-                return res[np.newaxis] * conv  # it obliterates the 1
-        else:
-            func = None
-        return func
-
-    internal_optimizer_defaults = dict(
-        max_displacement=.01
-    )
-    def optimize(self,
-                 coords,
-                 use_internals=None,
-                 func=None,
-                 jacobian=None,
-                 hessian=None,
-                 logger=None,
-                 **opts
-                 ):
-        if use_internals is None: use_internals = self.use_internals
-        if use_internals and self.embedding.internals is not None:
-            opts = dict(self.internal_optimizer_defaults, **opts)
-            fopts = dev.OptionsSet(opts).exclude(None, props=self.optimizer_defaults.keys())
-            if func is None:
-                func = self.minimizer_internal_function_by_order(0, **fopts)
-            if jacobian is None:
-                jacobian = self.minimizer_internal_function_by_order(1, allow_fd=True, **fopts)
-            if hessian is None:
-                hessian = self.minimizer_internal_function_by_order(2, **fopts)
-            try:
-                self.use_internals = True
-                coords = self.embed_coords(coords)
-                convergence, opt_coords = super().optimize(coords,
-                                                           func=func,
-                                                           jacobian=jacobian,
-                                                           hessian=hessian,
-                                                           logger=logger,
-                                                           **opts
-                                                           )
-                coords = self.unembed_coords(opt_coords)
-                return convergence, coords
-            finally:
-                self.use_internals = use_internals
-
-        else:
-            return super().optimize(coords,
-                                    logger=logger,
-                                    **opts
-                                    )
 
     @classmethod
     def get_property_function(cls, prop_func, mol, **opts):
@@ -1766,9 +1942,6 @@ class DipoleExpansionEnergyEvaluator(DipoleFunctionDipoleEvaluator):
                 ]
                 # print("FWD:", [f.shape for f in transforms[0]])
                 # print("REV:", [f.shape for f in transforms[1]])
-            # for e in expansion:
-            #     print(e)
-            # print("-"*10)
 
 
             # if len(expansion) > 2 and expansion[2].shape[0] < expansion[1].shape[0]:

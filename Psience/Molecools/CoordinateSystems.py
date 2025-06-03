@@ -291,11 +291,13 @@ class MolecularEmbedding:
                 fc_shape = self.internal_coordinates.shape
                 new_coords = type(self.internal_coordinates)(
                     np.zeros(coord_shape + fc_shape, dtype=self.internal_coordinates.dtype),
-                    self.internal_coordinates.system
+                    self.internal_coordinates.system,
+                    converter_options=self.internal_coordinates.converter_options
                 )
                 flat_coords = new_coords.reshape(coord_shape + (-1,))
                 good_coords = np.setdiff1d(np.arange(np.prod(fc_shape, dtype=int)), embedding_coords)
                 flat_coords[..., good_coords] = coords
+                flat_coords[..., embedding_coords] = self.internal_coordinates.flatten()[embedding_coords,][np.newaxis]
                 coords = new_coords
         return coords
 
@@ -329,6 +331,19 @@ class MolecularEmbedding:
         if strip_embedding:
             ics = self.strip_embedding_coordinates(ics)
         return ics
+    def get_cartesians(self, *, coords=None, strip_embedding=True):
+        if coords is None:
+            return self.coords
+        else:
+            if strip_embedding:
+                coords = self.restore_embedding_coordinates(coords)
+            else:
+                coords = type(self.internal_coordinates)(coords,
+                                                         self.internal_coordinates.system,
+                                                         converter_options=self.internal_coordinates.converter_options
+                                                         )
+            return coords.convert(self.coords.system)
+
 
     @property
     def redundant_internal_transformation(self):
@@ -638,10 +653,10 @@ class MolecularEmbedding:
                                                                                 mass_weighted=False,
                                                                                 coords=coords)
                 jacs_1 = self.get_internals_by_cartesians(order, strip_embedding=strip_embedding, coords=coords)
-                new_tf = nput.tensor_reexpand([np.moveaxis(L_base, -1, 0)], jacs_1, order)
+                new_tf = nput.tensor_reexpand([np.moveaxis(L_base, -1, -2)], jacs_1, axes=[-1, -2], order=order)
                 inverse_tf = nput.inverse_transformation(new_tf, order, allow_pseudoinverse=True)
                 fast_ints[:] = [
-                    np.tensordot(j, L_base, axes=[-1, -1])
+                    nput.vec_tensordot(j, L_base, axes=[-1, -1], shared=L_base.ndim-2)
                     for j in inverse_tf
                 ]
             return fast_ints
@@ -1309,7 +1324,6 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
                 if skip_dim > 0:
                     j = np.moveaxis(j, -3, 0) # skip_dim == 1 by construction so only need 1 move...
                 ext_dim = j.ndim - 2 - skip_dim
-                # print("????", j.shape, coords.shape, skip_dim)
                 shp = og_shape + sum(
                     ((j.shape[i] // 3, 3) for i in range(skip_dim, ext_dim+skip_dim)),
                     ()
