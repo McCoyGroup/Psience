@@ -256,7 +256,6 @@ class MixtureModes(CoordinateSystem):
                 G = self.g_matrix = self._eval_G(self.masses)
             else:
                 G = self._eval_G(self.masses)
-
         g12 = nput.fractional_power(G, 1/2)
         gi12 = nput.fractional_power(G, -1/2)
         return masses, g12, gi12
@@ -264,8 +263,8 @@ class MixtureModes(CoordinateSystem):
     def make_mass_weighted(self, masses=None):
         if self.mass_weighted: return self
         masses, g12, gi12 = self._get_gmatrix(masses=masses)
-        L = g12 @ self.matrix
-        Linv = self.inverse @ gi12
+        L = g12 @ self.modes_by_coords
+        Linv = self.coords_by_modes @ gi12
         origin = (self.origin.flatten()[np.newaxis, :] @ gi12).reshape(self.origin.shape)
 
         return self.modify(L,
@@ -277,8 +276,8 @@ class MixtureModes(CoordinateSystem):
     def remove_mass_weighting(self, masses=None):
         if not self.mass_weighted: return self
         masses, g12, gi12 = self._get_gmatrix(masses=masses)
-        L = gi12 @ self.matrix
-        Linv = self.inverse @ g12
+        L = gi12 @ self.modes_by_coords
+        Linv = self.coords_by_modes @ g12
         origin = (self.origin.flatten()[np.newaxis, :] @ g12).reshape(self.origin.shape)
 
         return self.modify(L,

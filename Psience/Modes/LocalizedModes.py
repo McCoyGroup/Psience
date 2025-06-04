@@ -123,3 +123,9 @@ class LocalizedModes(MixtureModes):
         g = self.g_matrix
         a = np.diag(np.power(np.diag(g) / np.diag(f), 1/4))
         return a @ f @ a
+
+    def localize(self,
+                 method=None,
+                 **opts
+                 ):
+        return NormalModes.localize(self, method=method, **opts)
