@@ -23,6 +23,8 @@ name: str
 ModeData: ModeData
 default_zero_freq_cutoff: float
 default_projected_zero_freq_cutoff: NoneType
+localization_type: str
+zero_freq_cutoff: float
 LocalizationMethods: LocalizationMethods
 ```
 <a id="Psience.Modes.NormalModes.NormalModes.__init__" class="docs-object-method">&nbsp;</a> 
@@ -85,31 +87,51 @@ from_molecule(cls, mol, dimensionless=False, use_internals=None, potential_deriv
 
 <a id="Psience.Modes.NormalModes.NormalModes.get_nearest_mode_transform" class="docs-object-method">&nbsp;</a> 
 ```python
-get_nearest_mode_transform(self, alternate_modes: numpy.ndarray, mass_weighted=False, atoms=None, maximum_similarity=True, unitarize=True): 
+get_nearest_mode_transform(self, alternate_modes: numpy.ndarray, mass_weighted=False, atoms=None, maximum_similarity=True, unitarize=True, masses=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L354)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L354?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L345)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L345?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Modes.NormalModes.NormalModes.get_projected_localized_mode_transformation" class="docs-object-method">&nbsp;</a> 
+```python
+get_projected_localized_mode_transformation(self, projectors, masses=None, origin=None, localization_type=None, allow_mode_mixing=False, maximum_similarity=False, unitarize=True, zero_freq_cutoff=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L390)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L390?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.Modes.NormalModes.NormalModes.get_atom_localized_mode_transformation" class="docs-object-method">&nbsp;</a> 
 ```python
-get_atom_localized_mode_transformation(self, atoms, masses=None, origin=None, localization_type='ned', allow_mode_mixing=False, maximum_similarity=False, unitarize=True): 
+get_atom_localized_mode_transformation(self, atoms, masses=None, origin=None, localization_type='ned', allow_mode_mixing=False, maximum_similarity=False, unitarize=True, zero_freq_cutoff=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L385)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L385?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L470)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L470?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Modes.NormalModes.NormalModes.get_coordinate_projected_localized_mode_transformation" class="docs-object-method">&nbsp;</a> 
+```python
+get_coordinate_projected_localized_mode_transformation(self, coordinate_constraints, atoms=None, masses=None, origin=None, localization_type='ned', allow_mode_mixing=False, maximum_similarity=False, orthogonal_projection=True, unitarize=True): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L506)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L506?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.Modes.NormalModes.NormalModes.get_internal_localized_mode_transformation" class="docs-object-method">&nbsp;</a> 
 ```python
-get_internal_localized_mode_transformation(self, expansion_coordinates: 'Iterable[Iterable[int]|dict]', fixed_atoms=None, mass_weighted=False, project_transrot=True, atoms=None, maximum_similarity=False, unitarize=True): 
+get_internal_localized_mode_transformation(self, expansion_coordinates: 'Iterable[Iterable[int]|dict]', fixed_atoms=None, mass_weighted=False, project_transrot=True, atoms=None, maximum_similarity=False, orthogonal_projection=False, projection=False, allow_mode_mixing=False, unitarize=True, origin=None, masses=None, localization_type='ned'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L452)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L452?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L564)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L564?message=Update%20Docs)]
 </div>
 
 
@@ -118,8 +140,8 @@ get_internal_localized_mode_transformation(self, expansion_coordinates: 'Iterabl
 get_displacement_localized_mode_transformation(self, mode_blocks=None, atoms=None, mass_weighted=True, unitarize=True, **maximizer_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L492)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L492?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L681)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L681?message=Update%20Docs)]
 </div>
 
 
@@ -129,18 +151,18 @@ get_displacement_localized_mode_transformation(self, mode_blocks=None, atoms=Non
 localizer_dispatch(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L531)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L531?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L721)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L721?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.Modes.NormalModes.NormalModes.localize" class="docs-object-method">&nbsp;</a> 
 ```python
-localize(self, method=None, *, atoms=None, target_modes=None, internals=None, mode_blocks=None, reorthogonalize=None, unitarize=True, **opts): 
+localize(self, method=None, *, atoms=None, target_modes=None, internals=None, mode_blocks=None, coordinate_constraints=None, reorthogonalize=None, unitarize=True, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L540)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L540?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L731)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L731?message=Update%20Docs)]
 </div>
  </div>
 </div>

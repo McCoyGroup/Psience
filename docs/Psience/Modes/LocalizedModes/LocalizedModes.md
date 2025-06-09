@@ -112,10 +112,10 @@ remove_frequency_scaling(self, **kwargs):
 </div>
 
 
-<a id="Psience.Modes.LocalizedModes.LocalizedModes.local_freqs" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.Modes.LocalizedModes.LocalizedModes.local_hessian" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
-local_freqs(self): 
+local_hessian(self): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L110)/
@@ -123,25 +123,13 @@ local_freqs(self):
 </div>
 
 
-<a id="Psience.Modes.LocalizedModes.LocalizedModes.compute_local_hessian" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.Modes.LocalizedModes.LocalizedModes.localize" class="docs-object-method">&nbsp;</a> 
 ```python
-@classmethod
-compute_local_hessian(cls, f, g): 
+localize(self, method=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L114)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L114?message=Update%20Docs)]
-</div>
-
-
-<a id="Psience.Modes.LocalizedModes.LocalizedModes.local_hessian" class="docs-object-method">&nbsp;</a> 
-```python
-@property
-local_hessian(self): 
-```
-<div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L119)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L119?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L118)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L118?message=Update%20Docs)]
 </div>
  </div>
 </div>

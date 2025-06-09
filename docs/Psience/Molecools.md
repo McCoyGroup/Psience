@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-78c04d" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-78c04d"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-78ae7d" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-78ae7d"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-78c04d" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-78ae7d" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -128,6 +128,7 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [OpenBabel](#OpenBabel)
 - [MethanolTorsionScan](#MethanolTorsionScan)
 - [MethanolConstrainedOpt](#MethanolConstrainedOpt)
+- [ProjectedLocalModes](#ProjectedLocalModes)
 - [MultiGMatrix](#MultiGMatrix)
 - [1DPotentialReps](#1DPotentialReps)
 - [Constructors](#Constructors)
@@ -137,9 +138,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-cfb002" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-cfb002"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-e57922" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-e57922"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-cfb002" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-e57922" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -1241,31 +1242,83 @@ class MolecoolsTests(TestCase):
             internals=methanol_zmatrix,
         )
         ints0 = meth_int.internal_coordinates
-        meth_int = meth_int.optimize(max_displacement=.1, max_iterations=55,
+        meth_int = meth_int.optimize(max_displacement=.5, max_iterations=500,
                    coordinate_constraints=[(0,1)],
-                   logger=True
+                   # logger=True
                    )
         eng1 = meth_int.calculate_energy()
         ints1 = meth_int.internal_coordinates
+```
 
-        meth_opt = methanol.optimize(max_displacement=.01, max_iterations=55,
-                                     coordinate_constraints=[(0, 1)],
-                                     # logger=True,
-                                     # method='scipy'
-                                     )
-        eng2 = meth_opt.calculate_energy()
-        ints2 = meth_opt.modify(
-            internals=methanol_zmatrix,
-        ).internal_coordinates
-        # ints3 = huh2.modify(
-        #     internals=methanol_zmatrix,
-        # ).internal_coordinates
-        #
-        # # print(methanol.coords)
-        print(eng1, eng2, eng0, eng2 - eng1)
-        print(ints0)
-        print(ints1)
-        print(ints2)
+#### <a name="ProjectedLocalModes">ProjectedLocalModes</a>
+```python
+    def test_ProjectedLocalModes(self):
+        import McUtils.Coordinerds as coordops
+
+        # methanol = Molecule.from_string(
+        #     'methanol',
+        #     # energy_evaluator='aimnet2'
+        # )
+
+        methanol = Molecule(
+            ['C', 'O', 'H', 'H', 'H', 'H'],
+            [[-0.6988896, 0.00487717, 0.00528378],
+             [1.69694605, -1.08628154, -0.22505594],
+             [-1.27384807, -0.22559494, 1.98568702],
+             [-0.59371792, 2.01534286, -0.59617633],
+             [-2.04665278, -0.99128091, -1.21504054],
+             [2.91616232, 0.28293736, 0.04530201]],
+            energy_evaluator='rdkit'
+        ).optimize(max_iterations=50)
+        # methanol.optimize(mode='scipy')
+        nms = methanol.get_normal_modes(zero_freq_cutoff=1e-4)
+
+        def do_the_thing(lms, freqs):
+            print(len(freqs))
+            disps = []
+            print(freqs * 219474.56)
+            for i in range(len(freqs)):
+                scans = methanol.get_scan_coordinates(
+                    [[-75, 75, 3]],
+                    which=[i],
+                    modes=lms
+                )
+                disps.append(
+                    np.diff(nput.internal_coordinate_tensors(scans, [(0, 1)], order=0)[0][:, 0], axis=0)
+                )
+            print(np.round(np.array(disps), 4))
+
+        print()
+        # lms = nms.localize(coordinate_constraints=[(0,1)], orthogonal_projection=False)
+        lfs = nms.freqs
+        do_the_thing(nms, lfs)
+
+
+        print()
+        lms = nms.localize(coordinate_constraints=[(0,1)], orthogonal_projection=False)
+        lfs = lms.local_freqs
+        do_the_thing(lms, lfs)
+
+        print()
+        lms = nms.localize(coordinate_constraints=[(0,1)], orthogonal_projection=True)
+        lfs = lms.local_freqs
+        do_the_thing(lms, lfs)
+        # print(nms.localize(atoms=[0,1]).local_freqs * 219474.56)
+
+        print()
+        lms = nms.localize(internals=[(0, 1)])
+        lfs = lms.local_freqs
+        do_the_thing(lms, lfs)
+
+        print()
+        lms = nms.localize(internals=[(0, 1)], projection=True, orthogonal_projection=False)
+        lfs = lms.local_freqs
+        do_the_thing(lms, lfs)
+
+        print()
+        lms = nms.localize(internals=[(0, 1)], projection=True, orthogonal_projection=True)
+        lfs = lms.local_freqs
+        do_the_thing(lms, lfs)
 ```
 
 #### <a name="MultiGMatrix">MultiGMatrix</a>
