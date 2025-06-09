@@ -237,10 +237,13 @@ class MixtureModes(CoordinateSystem):
 
     def _eval_G(self, masses):
         if not self.is_cartesian:  # a hack
-            if self.origin is None:
-                raise ValueError("can't get mass weighting matrix (G^-1/2) without structure")
-            G = self.inverse.T @ self.inverse
-            # raise NotImplementedError("will add at some point")
+            if self.mass_weighted:
+                G = self.inverse.T @ self.inverse
+            else:
+                # if self.origin is None:
+                #     raise ValueError("can't get mass weighting matrix (G^-1/2) without structure")
+                # G = self.modes_by_coords @
+                raise NotImplementedError("non-mass-weighted internal G-matrix not supported")
         else:
             G = np.diag(1 / np.repeat(masses, 3))
         return G
@@ -259,6 +262,33 @@ class MixtureModes(CoordinateSystem):
         g12 = nput.fractional_power(G, 1/2)
         gi12 = nput.fractional_power(G, -1/2)
         return masses, g12, gi12
+
+    @classmethod
+    def compute_local_hessian(cls, f, g):
+        a = np.diag(np.power(np.diag(g) / np.diag(f), 1 / 4))
+        return a @ f @ a
+
+    def compute_hessian(self):
+        pinv = self.coords_by_modes @ self.modes_by_coords
+        return pinv @ np.diag(self.freqs ** 2) @ pinv.T
+    def compute_gmatrix(self):
+        if self.mass_weighted:
+            return self.modes_by_coords.T @ self.modes_by_coords
+        elif self.is_cartesian:
+            return self.modes_by_coords.T @ np.diag(np.repeat(1/self.masses, 3)) @ self.modes_by_coords
+        else:
+            raise NotImplementedError("non-mass-weighted internal G-matrix not supported")
+
+    @property
+    def local_hessian(self):
+        f = self.compute_hessian()
+        g = self.compute_gmatrix()
+        a = np.diag(np.power(np.diag(g) / np.diag(f), 1 / 4))
+        return a @ f @ a
+
+    @property
+    def local_freqs(self):
+        return np.diag(self.local_hessian)
 
     def make_mass_weighted(self, masses=None):
         if self.mass_weighted: return self
@@ -344,3 +374,73 @@ class MixtureModes(CoordinateSystem):
     #         self.g_matrix[np.ix_(pos, pos)],
     #         ...
     #     )
+
+    def apply_projection(self, proj, projection_type='direct'):
+        if projection_type != 'inverse':
+            cbm = self.coords_by_modes @ proj
+            mbc = nput.fractional_power(proj, -1) @ self.modes_by_coords
+        else:
+            mbc = proj @ self.modes_by_coords
+            cbm = self.coords_by_modes @ nput.fractional_power(proj, -1)
+
+        return self.modify(
+            matrix=mbc,
+            inverse=cbm
+        )
+
+    @classmethod
+    def _atom_projector(cls, n, i, orthogonal_projection=False):
+        if nput.is_numeric(i):
+            i = [i]
+        z = np.zeros((3 * n, 3 * n))
+        for i in i:
+            x = np.arange(3 * i, 3 * (i + 1))
+            z[x, x] = 1
+        if orthogonal_projection:
+            z = np.eye(3 * n) - z
+        return z
+    def apply_constraints(self,
+                          coordinate_constraints,
+                          atoms=None,
+                          masses=None,
+                          origin=None,
+                          orthogonal_projection=True,
+                          ):
+
+        if nput.is_numeric(coordinate_constraints[0]):
+            coordinate_constraints = [coordinate_constraints]
+
+        nmw = self.remove_mass_weighting()
+        basis, _, _ = nput.internal_basis(nmw.origin.reshape((-1, 3)), coordinate_constraints)
+        if masses is None:
+            m = self.masses
+        else:
+            m = masses
+
+        gi12 = np.diag(np.repeat(1 / np.sqrt(m), 3))
+        projections = [
+            nput.projection_matrix(gi12 @ b)
+                if not orthogonal_projection else
+            nput.orthogonal_projection_matrix(gi12 @ b)
+            for b in basis
+        ]
+
+        # if orthogonal_projection:
+        #     projections = [proj @ gi12 for proj in projections]
+        # else:
+        #     projections = [proj @ gi12 for proj in projections]
+
+        if atoms is not None:
+            if nput.is_numeric(atoms):
+                atoms = [atoms]
+            nats = len(m)
+            a_proj = self._atom_projector(nats, atoms)
+            projections = [
+                a_proj @ proj @ a_proj
+                for proj in projections
+            ]
+
+        proj = np.sum(projections, axis=0)
+        return self.make_mass_weighted(masses=masses).apply_projection(proj)
+
+

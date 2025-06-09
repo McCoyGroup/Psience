@@ -342,17 +342,6 @@ class NormalModes(MixtureModes):
                 **opts
             )
 
-    @classmethod
-    def _atom_projector(cls, n, i, orthogonal_projection=False):
-        if nput.is_numeric(i):
-            i = [i]
-        z = np.zeros((3 * n, 3 * n))
-        for i in i:
-            x = np.arange(3 * i, 3 * (i + 1))
-            z[x, x] = 1
-        if orthogonal_projection:
-            z = np.eye(3*n) - z
-        return z
     def get_nearest_mode_transform(self,
                                    alternate_modes:np.ndarray,
                                    mass_weighted=False,
@@ -378,6 +367,9 @@ class NormalModes(MixtureModes):
         modes = modes.matrix
         if atoms is not None:
             proj = self._atom_projector(modes.shape[0], atoms)
+            # if mass_weighted:
+            #     gi12 = np.diag(np.repeat(1/np.sqrt(masses), 3))
+            #     proj = nput.find_basis(gi12 @ proj @ gi12)
             modes = proj @ modes
             alternate_modes = proj @ alternate_modes
 
@@ -487,14 +479,21 @@ class NormalModes(MixtureModes):
         if nput.is_numeric(atoms):
             atoms = [atoms]
         if masses is None:
-            nats = len(self.masses)
+            m = self.masses
         else:
-            nats = len(masses)
+            m = masses
+        nats = len(m)
 
-        return self.get_projected_localized_mode_transformation(
+        proj = (
             [self._atom_projector(nats, atoms)]
                 if allow_mode_mixing else
-            [self._atom_projector(nats, a) for a in atoms],
+            [self._atom_projector(nats, a) for a in atoms]
+        )
+        # gi12 = np.diag(np.repeat(1 / np.sqrt(m), 3))
+        # proj = nput.find_basis(gi12 @ proj @ gi12)
+
+        return self.get_projected_localized_mode_transformation(
+            proj,
             origin=origin,
             masses=masses,
             localization_type=localization_type,
@@ -511,7 +510,7 @@ class NormalModes(MixtureModes):
                                                                localization_type='ned',
                                                                allow_mode_mixing=False,
                                                                maximum_similarity=False,
-                                                               orthogonal_projection=False,
+                                                               orthogonal_projection=True,
                                                                unitarize=True
                                                                ):
 

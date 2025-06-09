@@ -108,20 +108,11 @@ class LocalizedModes(MixtureModes):
         return self.modify(self.base_modes.remove_frequency_scaling(**kwargs))
 
     @property
-    def local_freqs(self):
-        return np.diag(self.local_hessian)
-
-    @classmethod
-    def compute_local_hessian(cls, f, g):
-        a = np.diag(np.power(np.diag(g) / np.diag(f), 1/4))
-        return a @ f @ a
-
-    @property
     def local_hessian(self):
         tf, inv = self.localizing_transformation
         f = inv @ np.diag(self.freqs ** 2) @ inv.T
         g = self.g_matrix
-        a = np.diag(np.power(np.diag(g) / np.diag(f), 1/4))
+        a = np.diag(np.power(np.diag(g) / np.diag(f), 1 / 4))
         return a @ f @ a
 
     def localize(self,
