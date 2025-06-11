@@ -375,17 +375,34 @@ class MixtureModes(CoordinateSystem):
     #         ...
     #     )
 
-    def apply_projection(self, proj, projection_type='direct'):
-        if projection_type != 'inverse':
-            cbm = self.coords_by_modes @ proj
-            mbc = nput.fractional_power(proj, -1) @ self.modes_by_coords
-        else:
-            mbc = proj @ self.modes_by_coords
-            cbm = self.coords_by_modes @ nput.fractional_power(proj, -1)
+    def apply_projection(self, proj, project_transrot=True, masses=None, origin=None):
+        if project_transrot:
+            if masses is None:
+                m = self.masses
+            else:
+                m = masses
+            if origin is None:
+                o = self.origin
+            else:
+                o = origin
+
+            tr_proj = nput.translation_rotation_projector(
+                np.asanyarray(o).reshape((-1, 3)),
+                masses=m,
+                mass_weighted=self.mass_weighted
+            )
+            proj = tr_proj @ proj @ tr_proj
+
+
+
+        mbc = proj @ self.modes_by_coords
+        cbm = self.coords_by_modes @ proj
 
         return self.modify(
             matrix=mbc,
-            inverse=cbm
+            inverse=cbm,
+            masses=masses,
+            origin=origin
         )
 
     @classmethod
@@ -410,37 +427,58 @@ class MixtureModes(CoordinateSystem):
         if nput.is_numeric(coordinate_constraints[0]):
             coordinate_constraints = [coordinate_constraints]
 
-        nmw = self.remove_mass_weighting()
-        basis, _, _ = nput.internal_basis(nmw.origin.reshape((-1, 3)), coordinate_constraints)
-        if masses is None:
-            m = self.masses
-        else:
+        if masses is not None:
             m = masses
+        else:
+            m = self.masses
+        if origin is not None:
+            o = origin
+        else:
+            o = self.remove_mass_weighting().origin
+        basis, _, _ = nput.internal_basis(
+            np.asanyarray(o).reshape((-1, 3)),
+            coordinate_constraints,
+            masses=m,
+            project_transrot=False
+            )
 
         gi12 = np.diag(np.repeat(1 / np.sqrt(m), 3))
-        projections = [
-            nput.projection_matrix(gi12 @ b)
-                if not orthogonal_projection else
-            nput.orthogonal_projection_matrix(gi12 @ b)
-            for b in basis
-        ]
-
-        # if orthogonal_projection:
-        #     projections = [proj @ gi12 for proj in projections]
-        # else:
-        #     projections = [proj @ gi12 for proj in projections]
+        if self.mass_weighted:
+            projections = [
+                nput.projection_matrix(gi12 @ b)
+                    if not orthogonal_projection else
+                nput.orthogonal_projection_matrix(gi12 @ b)
+                for b in basis
+            ]
+        else:
+            projections = [
+                nput.projection_matrix(b)
+                    if not orthogonal_projection else
+                nput.orthogonal_projection_matrix(b)
+                for b in basis
+            ]
 
         if atoms is not None:
             if nput.is_numeric(atoms):
                 atoms = [atoms]
-            nats = len(m)
+            nats = len(self.masses)
             a_proj = self._atom_projector(nats, atoms)
             projections = [
                 a_proj @ proj @ a_proj
                 for proj in projections
             ]
 
-        proj = np.sum(projections, axis=0)
-        return self.make_mass_weighted(masses=masses).apply_projection(proj)
+        if orthogonal_projection:
+            proj = projections[0]
+            for p in projections[1:]:
+                proj = p @ proj @ p
+        else:
+            proj = np.sum(projections, axis=0)
+
+        new = self.apply_projection(proj, masses=m, origin=o, project_transrot=False)
+        # if self.mass_weighted:
+        #     new = new.make_mass_weighted(masses=m)
+
+        return new
 
 

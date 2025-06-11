@@ -519,11 +519,11 @@ class NormalModes(MixtureModes):
 
 
         nmw = self.remove_mass_weighting()
-        basis, _, _ = nput.internal_basis(nmw.origin.reshape((-1, 3)), coordinate_constraints)
         if masses is None:
             m = self.masses
         else:
             m = masses
+        basis, _, _ = nput.internal_basis(nmw.origin.reshape((-1, 3)), coordinate_constraints, masses=m)
 
         # g12 = np.diag(np.repeat(np.sqrt(m), 3))
         gi12 = np.diag(np.repeat(1/np.sqrt(m), 3))
@@ -533,6 +533,12 @@ class NormalModes(MixtureModes):
             nput.orthogonal_projection_matrix(gi12 @ b)
             for b in basis
         ]
+
+        if allow_mode_mixing and orthogonal_projection:
+            proj = projections[0]
+            for p in projections[1:]:
+                proj = p @ proj @ p
+            projections = [proj]
 
         # if orthogonal_projection:
         #     projections = [proj @ gi12 for proj in projections]
@@ -863,7 +869,7 @@ class ReactionPathModes(NormalModes):
             return None
 
         gradient = nput.vec_normalize(gradient, norms=grad_norm, axis=1)
-        grad_projector = nput.orthogonal_projection_matrix(gradient, orthornomal=True)
+        grad_projector = nput.orthogonal_projection_matrix(gradient, orthonormal=True)
         if projector is not None:
             projector = grad_projector @ projector
         else:
