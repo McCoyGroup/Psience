@@ -1124,7 +1124,7 @@ class MolecoolsTests(TestCase):
         # print(ints2)
         # print(ints3)
 
-    @debugTest
+    @validationTest
     def test_ProjectedLocalModes(self):
         import McUtils.Coordinerds as coordops
 
@@ -1192,6 +1192,88 @@ class MolecoolsTests(TestCase):
         lms = nms.localize(internals=[(0, 1)], projection=True, orthogonal_projection=True)
         lfs = lms.local_freqs
         do_the_thing(lms, lfs)
+
+    @debugTest
+    def test_ProjectedConstrainedModes(self):
+        methanol = Molecule(
+            ['C', 'O', 'H', 'H', 'H', 'H'],
+            [[-0.6988896, 0.00487717, 0.00528378],
+             [1.69694605, -1.08628154, -0.22505594],
+             [-1.27384807, -0.22559494, 1.98568702],
+             [-0.59371792, 2.01534286, -0.59617633],
+             [-2.04665278, -0.99128091, -1.21504054],
+             [2.91616232, 0.28293736, 0.04530201]],
+            energy_evaluator='rdkit'
+        ).optimize(max_iterations=50)
+
+        # fixed_coord = [(0, 1, 5)]
+        fixed_coord = [(2, 0, 1, 5)]
+
+        # b, i, _ = nput.internal_basis(methanol.coords, fixed_coord,
+        #                               masses=methanol.atomic_masses)
+        # import McUtils.McUtils.Numputils.CoordOps as coop
+        # ii = coop.fixed_angle_basis(methanol.coords, *fixed_coord[0])
+        # _, i = nput.translation_rotation_eigenvectors(methanol.coords,
+        #                                               masses=methanol.atomic_masses,
+        #                                               mass_weighted=False)
+        # i = [nput.find_basis(i, method='svd')]
+        # i = [i]
+        # def do_the_other_thing(expansion):
+        #     print()
+        #     # print(len(freqs))
+        #     disps = []
+        #     # print(freqs * 219474.56)
+        #     for i in range(expansion[0].shape[0]):
+        #         scans = methanol.get_scan_coordinates(
+        #             [[-.5, .5, 3]],
+        #             which=[i],
+        #             coordinate_expansion=expansion
+        #         )
+        #         ints = nput.internal_coordinate_tensors(scans, fixed_coord, order=0)[0][:, 0]
+        #         diffs = np.diff(ints, axis=0)
+        #         disps.append(ints)
+        #     print(np.round(np.array(disps), 4))
+
+        # do_the_other_thing([i[0].T])
+        # return
+
+        # methanol.animate_coordinate(1, coordinate_expansion=[i[0].T])
+
+        # b, i = nput.internal_coordinate_tensors(methanol.coords, [(0, 1, 2)], return_inverse=True)
+        # return
+        # methanol.animate_coordinate(0, coordinate_expansion=[i.T])
+
+        # methanol.optimize(mode='scipy')
+        nms = methanol.get_normal_modes(zero_freq_cutoff=1e-4)#.make_mass_weighted()
+        cnms = nms.apply_constraints(fixed_coord, orthogonal_projection=True)
+        # print(nms.local_freqs * UnitsData.hartrees_to_wavenumbers)
+        # print(cnms.local_freqs * UnitsData.hartrees_to_wavenumbers)
+
+        def do_the_thing(lms, freqs):
+            print()
+            print(len(freqs))
+            disps = []
+            print(freqs * 219474.56)
+            for i in range(len(freqs)):
+                scans = methanol.get_scan_coordinates(
+                    [[-75, 75, 3]],
+                    which=[i],
+                    modes=lms
+                )
+                disps.append(
+                    np.diff(nput.internal_coordinate_tensors(scans, fixed_coord, order=0)[0][:, 0], axis=0)
+                )
+            print(np.round(np.array(disps), 4))
+
+        do_the_thing(nms, nms.local_freqs)
+        do_the_thing(cnms, cnms.local_freqs)
+
+        # scans = methanol.get_scan_coordinates(
+        #     [[-100, 100, 3]],
+        #     which=[4],
+        #     modes=cnms
+        # )
+        # print(nput.internal_coordinate_tensors(scans, [(0, 1)], order=0))
 
 
 

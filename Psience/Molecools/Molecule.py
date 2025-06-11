@@ -1007,8 +1007,8 @@ class Molecule(AbstractMolecule):
 
         if modes is not None:
             if modes is True:
-                modes = self.normal_modes.modes.basis.to_new_modes()
-            modes = NormalModes.prep_modes(modes)
+                modes = self.get_normal_modes(project_transrot=False, use_internals=False)
+            modes = NormalModes.prep_modes(modes).remove_mass_weighting()
             # if order is None:
             #     base_expansion = [modes.coords_by_modes]
             # else:
