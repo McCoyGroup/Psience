@@ -130,8 +130,8 @@ get_coordinate_projected_localized_mode_transformation(self, coordinate_constrai
 get_internal_localized_mode_transformation(self, expansion_coordinates: 'Iterable[Iterable[int]|dict]', fixed_atoms=None, mass_weighted=False, project_transrot=True, atoms=None, maximum_similarity=False, orthogonal_projection=False, projection=False, allow_mode_mixing=False, unitarize=True, origin=None, masses=None, localization_type='ned'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L564)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L564?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L570)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L570?message=Update%20Docs)]
 </div>
 
 
@@ -140,8 +140,8 @@ get_internal_localized_mode_transformation(self, expansion_coordinates: 'Iterabl
 get_displacement_localized_mode_transformation(self, mode_blocks=None, atoms=None, mass_weighted=True, unitarize=True, **maximizer_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L681)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L681?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L687)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L687?message=Update%20Docs)]
 </div>
 
 
@@ -151,8 +151,8 @@ get_displacement_localized_mode_transformation(self, mode_blocks=None, atoms=Non
 localizer_dispatch(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L721)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L721?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L727)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L727?message=Update%20Docs)]
 </div>
 
 
@@ -161,8 +161,8 @@ localizer_dispatch(self):
 localize(self, method=None, *, atoms=None, target_modes=None, internals=None, mode_blocks=None, coordinate_constraints=None, reorthogonalize=None, unitarize=True, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L731)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L731?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L737)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L737?message=Update%20Docs)]
 </div>
  </div>
 </div>
