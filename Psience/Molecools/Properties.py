@@ -2144,10 +2144,13 @@ class NormalModesManager(PropertyManager):
         elif isinstance(modes, np.ndarray):
             modes = MolecularNormalModes(self.mol, modes)
         elif not isinstance(modes, MolecularNormalModes):
-            raise ValueError("don't know how to construct `{}` from {}".format(
-                MolecularNormalModes.__name__,
-                modes
-            ))
+            if all(hasattr(modes, a) for a in ['modes_by_coords', 'coords_by_modes']):
+                modes = MolecularNormalModes.from_new_modes(self.mol, modes)
+            else:
+                raise ValueError("don't know how to construct `{}` from {}".format(
+                    MolecularNormalModes.__name__,
+                    modes
+                ))
         if isinstance(modes, MolecularNormalModes):
             modes = MolecularVibrations(self.mol, modes)
 

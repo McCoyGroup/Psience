@@ -105,7 +105,10 @@ class NormalModes(MixtureModes):
         if remove_transrot:
             if zero_freq_cutoff is None:
                 zero_freq_cutoff = cls.default_zero_freq_cutoff
-            nonzero = np.abs(freq2) > zero_freq_cutoff**2
+            if zero_freq_cutoff > 0:
+                nonzero = np.abs(freq2) >= zero_freq_cutoff**2
+            else:
+                nonzero = np.full(freq2.shape, True)
 
             if gi12.shape[0] != modes.shape[0]:
                 gi12 = np.broadcast_to(gi12, f_matrix.shape)
@@ -816,7 +819,9 @@ class ReactionPathModes(NormalModes):
                      zero_freq_cutoff=None,
                      return_gmatrix=False,
                      projector=None,
-                     zero_gradient_cutoff=None
+                     zero_gradient_cutoff=2.5e-5, #5 cm-1
+                     use_max_gradient_cutoff=True,
+                     return_indices=False
                      ):
 
         gradient = np.asanyarray(gradient)
@@ -841,6 +846,9 @@ class ReactionPathModes(NormalModes):
                 gradient = gradient[np.newaxis]
 
         f_matrix = f_matrix.reshape((-1,) + f_matrix.shape[-2:])
+        if projector is not None:
+            projector = np.asanyarray(projector)
+            projector = projector.reshape((-1,) + projector.shape[-2:])
 
         if isinstance(mass_spec[0], str):  # atoms were supplied
             mass_spec = np.array([AtomData[a, "Mass"] for a in mass_spec]) * UnitsData.convert(
@@ -862,65 +870,194 @@ class ReactionPathModes(NormalModes):
 
         gi12 = nput.fractional_power(mass_spec, -1 / 2)
         g12 = nput.fractional_power(mass_spec, 1 / 2)
+        raw_grad = gradient
         gradient = g12 @ gradient
 
         grad_norm = nput.vec_norms(gradient, axis=1)
-        if zero_gradient_cutoff is not None and grad_norm < zero_gradient_cutoff:
-            return None
+        if zero_gradient_cutoff is not None:
+            if use_max_gradient_cutoff:
+                regular_mode_pos = np.where(np.max(np.abs(raw_grad), axis=1) < zero_gradient_cutoff)
+            else:
+                regular_mode_pos = np.where(grad_norm < zero_gradient_cutoff)
+            if len(regular_mode_pos) > 0:
+                regular_mode_pos = regular_mode_pos[0]
+            rem_pos = np.delete(np.arange(len(grad_norm)), regular_mode_pos)
+        else:
+            regular_mode_pos = []
+            rem_pos = np.arange(len(f_matrix))
 
-        gradient = nput.vec_normalize(gradient, norms=grad_norm, axis=1)
+        if len(regular_mode_pos) > 0:
+
+            reg_modes = cls.get_normal_modes(
+                f_matrix[regular_mode_pos,],
+                og_mass,
+                # mass_units="AtomicMassUnits",
+                remove_transrot=remove_transrot,
+                dimensionless=dimensionless,
+                mass_weighted=mass_weighted,
+                zero_freq_cutoff=zero_freq_cutoff,
+                # return_gmatrix=True,
+                projector=projector[regular_mode_pos,] if projector is not None else projector
+            )
+        else:
+            reg_modes = None
+
+        # if zero_gradient_cutoff is not None and grad_norm < zero_gradient_cutoff:
+        #     return None
+
+
+        gradient = nput.vec_normalize(gradient[rem_pos,], norms=grad_norm[rem_pos,], axis=1)
         grad_projector = nput.orthogonal_projection_matrix(gradient, orthonormal=True)
         if projector is not None:
-            projector = grad_projector @ projector
+            projector = grad_projector @ projector[rem_pos,] @ grad_projector
         else:
             projector = grad_projector
 
+        if len(rem_pos) > 0:
+            f_matrix = f_matrix[rem_pos,]
+            (freqs, modes, inv), g_matrix = cls.get_normal_modes(
+                f_matrix,
+                og_mass,
+                # mass_units="AtomicMassUnits",
+                remove_transrot=remove_transrot,
+                dimensionless=dimensionless,
+                mass_weighted=mass_weighted,
+                zero_freq_cutoff=zero_freq_cutoff,
+                return_gmatrix=True,
+                projector=projector
+            )
 
-        f_matrix = np.reshape(f_matrix, (-1,) + f_matrix.shape[-2:])
 
-        (freqs, modes, inv), g_matrix = cls.get_normal_modes(
-            f_matrix,
-            og_mass,
-            # mass_units="AtomicMassUnits",
-            remove_transrot=remove_transrot,
-            dimensionless=dimensionless,
-            mass_weighted=mass_weighted,
-            zero_freq_cutoff=zero_freq_cutoff,
-            return_gmatrix=True,
-            projector=projector
-        )
+            gi12 = gi12[rem_pos,]
+            g12 = g12[rem_pos,]
+            gradient_inv = np.moveaxis(gradient, -1, -2)
+            f_grad = gradient_inv @ f_matrix @ np.moveaxis(gradient_inv, -1, -2)
+            grad_g = np.moveaxis(gradient, -1, -2) @ g_matrix @ gradient
+            if not mass_weighted:
+                gradient = gi12 @ gradient
+                gradient_inv = gradient_inv @ g12
 
-        gradient_inv = np.moveaxis(gradient, -1, -2)
-        f_grad = gradient_inv @ f_matrix @ np.moveaxis(gradient_inv, -1, -2)
-        grad_g = np.moveaxis(gradient, -1, -2) @ g_matrix @ gradient
-        if not mass_weighted:
-            gradient = gi12 @ gradient
-            gradient_inv = gradient_inv @ g12
+            if not remove_transrot:
+                # if isinstance(freqs, list):
+                    freqs_ = []
+                    modes_ = []
+                    inv_ = []
+                    for g,f,m,i in zip(gradient, freqs, modes, inv):
+                        zero_pos = np.where(np.abs(f) < 1e-6)[0] # projected out
+                        overlaps = (i[zero_pos, :] @ g)**2
+                        max_sim_pos = np.argmax(overlaps)
+                        # print(max_sim_pos)
+                        del_idx = zero_pos[max_sim_pos]
+                        freqs_.append(np.delete(f, del_idx))
+                        modes_.append(np.delete(m, del_idx, axis=-1))
+                        inv_.append(np.delete(i, del_idx, axis=-2))
+                    if isinstance(freqs, list):
+                        freqs, modes, inv = freqs_, modes_, inv_
+                    else:
+                        freqs, modes, inv = np.array(freqs_), np.array(modes_), np.array(inv_)
 
-        rows, cols = np.diag_indices(grad_g.shape[-1])
-        loc_2 = f_grad[..., rows, cols] * grad_g[..., rows, cols]
-        freq = np.sign(loc_2) * np.sqrt(np.abs(loc_2))
-        freqs = np.concatenate([freq, freqs], axis=1)
+            rows, cols = np.diag_indices(grad_g.shape[-1])
+            loc_2 = f_grad[..., rows, cols] * grad_g[..., rows, cols]
+            freq = np.sign(loc_2) * np.sqrt(np.abs(loc_2))
 
-        modes = np.concatenate(
-            [
-                gradient,
-                modes
-            ],
-            axis=2
-        )
+            if isinstance(freqs, list):
+                freqs = [
+                    np.concatenate([f1, f2], axis=0)
+                    for f1, f2 in zip(freq, freqs)
+                ]
 
-        inv = np.concatenate(
-            [
-                gradient_inv,
-                inv
-            ],
-            axis=1
-        )
+                modes = [
+                    np.concatenate([g, m], axis=1)
+                    for g,m in zip(gradient, modes)
+                ]
+
+                inv = [
+                    np.concatenate([gi, i], axis=0)
+                    for gi,i in zip(gradient_inv, inv)
+                ]
+
+                if reg_modes is not None:
+                    reg_freqs, reg_modes, reg_inv = reg_modes
+                    full_freqs:list[np.ndarray] = [None] * (len(reg_freqs) + len(freqs))
+                    full_modes:list[np.ndarray] = [None] * (len(reg_freqs) + len(freqs))
+                    full_inv:list[np.ndarray] = [None] * (len(reg_freqs) + len(freqs))
+                    for r,f,m,i in zip(regular_mode_pos, reg_freqs, reg_modes, reg_inv):
+                        full_freqs[r] = f
+                        full_modes[r] = m
+                        full_inv[r] = i
+                    for r,f,m,i in zip(rem_pos, freqs, modes, inv):
+                        full_freqs[r] = f
+                        full_modes[r] = m
+                        full_inv[r] = i
+
+                    freqs, modes, inv = full_freqs, full_modes, full_inv
+
+                if len(base_shape) == 0:
+                    freqs = freqs[0]
+                    modes = modes[0]
+                    inv = inv[0]
+                # elif len(base_shape) > 1:
+                #     ...
+            else:
+                freqs = np.concatenate([freq, freqs], axis=1)
+
+                modes = np.concatenate(
+                    [
+                        gradient,
+                        modes
+                    ],
+                    axis=2
+                )
+
+                inv = np.concatenate(
+                    [
+                        gradient_inv,
+                        inv
+                    ],
+                    axis=1
+                )
+
+                if reg_modes is not None:
+                    reg_freqs, reg_modes, reg_inv = reg_modes
+                    full_freqs:np.ndarray = np.empty(
+                        (len(reg_freqs) + len(freqs),) + freqs.shape[1:],
+                        dtype=freqs.dtype
+                    )
+                    full_freqs[regular_mode_pos,] = reg_freqs
+                    full_freqs[rem_pos,] = freqs
+
+                    full_modes:np.ndarray = np.empty(
+                        (len(reg_modes) + len(modes),) + modes.shape[1:],
+                        dtype=modes.dtype
+                    )
+                    full_modes[regular_mode_pos,] = reg_modes
+                    full_modes[rem_pos,] = modes
+
+
+                    full_inv:np.ndarray = np.empty(
+                        (len(reg_inv) + len(inv),) + inv.shape[1:],
+                        dtype=inv.dtype
+                    )
+                    full_inv[regular_mode_pos,] = reg_inv
+                    full_inv[rem_pos,] = inv
+
+                    freqs, modes, inv = full_freqs, full_modes, full_inv
+
+                freqs = freqs.reshape(base_shape + freqs.shape[1:])
+                modes = modes.reshape(base_shape + modes.shape[1:])
+                inv = inv.reshape(base_shape + inv.shape[1:])
+
+        else:
+            freqs, modes, inv = reg_modes
 
         mode_data = cls.ModeData(freqs, modes, inv)
-        if return_gmatrix:
-            return mode_data, mass_spec
+        if return_gmatrix or return_indices:
+            res = (mode_data,)
+            if return_gmatrix:
+                res = res + (mass_spec,)
+            if return_indices:
+                res = res + ((regular_mode_pos, rem_pos),)
+            return res
         else:
             return mode_data
 
@@ -937,7 +1074,8 @@ class ReactionPathModes(NormalModes):
             mass_weighted=None,
             origin=None,
             projector=None,
-                     zero_gradient_cutoff=None,
+            zero_gradient_cutoff=None,
+            return_status=False,
             **opts
     ):
         """
@@ -960,12 +1098,13 @@ class ReactionPathModes(NormalModes):
             mass_weighted=mass_weighted,
             return_gmatrix=True,
             projector=projector,
-            zero_gradient_cutoff=zero_gradient_cutoff
+            zero_gradient_cutoff=zero_gradient_cutoff,
+            return_indices=True
         )
         if mode_data is None:
             return None
 
-        (freqs, modes, inv), g_matrix = mode_data
+        (freqs, modes, inv), g_matrix, inds = mode_data
 
         mass_weighted = mass_weighted or dimensionless
 
@@ -973,13 +1112,18 @@ class ReactionPathModes(NormalModes):
             origin = np.asanyarray(origin)
             origin = (origin.flatten() @ nput.fractional_power(g_matrix, -1 / 2)).reshape(origin.shape)
 
-        return cls(basis, modes, inverse=inv, freqs=freqs,
+        new = cls(basis, modes, inverse=inv, freqs=freqs,
                    mass_weighted=mass_weighted,
                    frequency_scaled=dimensionless,
                    g_matrix=g_matrix,
                    origin=origin,
                    **opts
                    )
+        if return_status:
+            reg, rp = inds
+            return new, len(rp) > 0
+        else:
+            return new
 
     @classmethod
     def from_molecule(cls, mol,
@@ -990,6 +1134,7 @@ class ReactionPathModes(NormalModes):
                       zero_freq_cutoff=None,
                       masses=None,
                       zero_gradient_cutoff=None,
+                      return_status=False,
                       **opts
                       ):
         from ..Molecools import Molecule
@@ -1021,6 +1166,7 @@ class ReactionPathModes(NormalModes):
                 origin=mol.get_internals(strip_embedding=True),
                 zero_freq_cutoff=zero_freq_cutoff,
                 zero_gradient_cutoff=zero_gradient_cutoff,
+                return_status=return_status,
                 **opts
             )
         else:
@@ -1051,5 +1197,6 @@ class ReactionPathModes(NormalModes):
                 origin=mol.coords,
                 zero_freq_cutoff=zero_freq_cutoff,
                 zero_gradient_cutoff=zero_gradient_cutoff,
+                return_status=return_status,
                 **opts
             )
