@@ -1,8 +1,8 @@
 ## <a id="Psience.Modes.NormalModes.ReactionPathModes">ReactionPathModes</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes.py#L805)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes.py#L805?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes.py#L808)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes.py#L808?message=Update%20Docs)]
 </div>
 
 
@@ -22,22 +22,22 @@
 <a id="Psience.Modes.NormalModes.ReactionPathModes.get_rp_modes" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-get_rp_modes(cls, gradient, f_matrix, mass_spec, remove_transrot=True, dimensionless=False, mass_weighted=None, zero_freq_cutoff=None, return_gmatrix=False, projector=None, zero_gradient_cutoff=None): 
+get_rp_modes(cls, gradient, f_matrix, mass_spec, remove_transrot=True, dimensionless=False, mass_weighted=None, zero_freq_cutoff=None, return_gmatrix=False, projector=None, zero_gradient_cutoff=2.5e-05, use_max_gradient_cutoff=True, return_indices=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L807)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L807?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L810)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L810?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.Modes.NormalModes.ReactionPathModes.from_grad_fg" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-from_grad_fg(cls, basis, gradient, f_matrix, mass_spec, remove_transrot=True, dimensionless=False, zero_freq_cutoff=None, mass_weighted=None, origin=None, projector=None, zero_gradient_cutoff=None, **opts): 
+from_grad_fg(cls, basis, gradient, f_matrix, mass_spec, remove_transrot=True, dimensionless=False, zero_freq_cutoff=None, mass_weighted=None, origin=None, projector=None, zero_gradient_cutoff=None, return_status=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L927)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L927?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1064)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1064?message=Update%20Docs)]
 </div>
 Generates normal modes from the specified F and G matrices
   - `basis`: `Any`
@@ -59,11 +59,11 @@ Generates normal modes from the specified F and G matrices
 <a id="Psience.Modes.NormalModes.ReactionPathModes.from_molecule" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-from_molecule(cls, mol, dimensionless=False, use_internals=None, potential_derivatives=None, project_transrot=True, zero_freq_cutoff=None, masses=None, zero_gradient_cutoff=None, **opts): 
+from_molecule(cls, mol, dimensionless=False, use_internals=None, potential_derivatives=None, project_transrot=True, zero_freq_cutoff=None, masses=None, zero_gradient_cutoff=None, return_status=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L984)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L984?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1128)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1128?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -118,7 +118,7 @@ from_molecule(cls, mol, dimensionless=False, use_internals=None, potential_deriv
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Modes/NormalModes/ReactionPathModes.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Modes/NormalModes/ReactionPathModes.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes.py#L805?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes.py#L808?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
