@@ -274,17 +274,19 @@ class MixtureModes(CoordinateSystem):
     def compute_gmatrix(self):
         if self.mass_weighted:
             return self.modes_by_coords.T @ self.modes_by_coords
+        elif self.g_matrix is not None:
+            return self.modes_by_coords.T @ self.g_matrix @ self.modes_by_coords
         elif self.is_cartesian:
-            return self.modes_by_coords.T @ np.diag(np.repeat(1/self.masses, 3)) @ self.modes_by_coords
+            return self.modes_by_coords.T @ np.diag(np.repeat(1/self.masses, 3))  @ self.modes_by_coords
         else:
-            raise NotImplementedError("non-mass-weighted internal G-matrix not supported")
+            return None
+            # raise NotImplementedError("non-mass-weighted internal G-matrix not supported")
 
     @property
     def local_hessian(self):
         f = self.compute_hessian()
         g = self.compute_gmatrix()
-        a = np.diag(np.power(np.diag(g) / np.diag(f), 1 / 4))
-        return a @ f @ a
+        return self.compute_local_hessian(f, g)
 
     @property
     def local_freqs(self):

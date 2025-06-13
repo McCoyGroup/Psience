@@ -1000,12 +1000,12 @@ class MolecoolsTests(TestCase):
         )
 
 
-        # rpnms = methanol.get_reaction_path_modes(zero_gradient_cutoff=zero_gradient_cutoff=.1)
-        rpnms = methanol.get_reaction_path_modes()
-        print(rpnms.freqs * 219474.6)
-        # print(np.round(rpnms.coords_by_modes @ rpnms.modes_by_coords, 4))
-
-        return
+        # # rpnms = methanol.get_reaction_path_modes(zero_gradient_cutoff=zero_gradient_cutoff=.1)
+        # rpnms = methanol.get_reaction_path_modes()
+        # print(rpnms.freqs * 219474.6)
+        # # print(np.round(rpnms.coords_by_modes @ rpnms.modes_by_coords, 4))
+        #
+        # return
 
 
         methanol = methanol.optimize()
@@ -1193,7 +1193,7 @@ class MolecoolsTests(TestCase):
         lfs = lms.local_freqs
         do_the_thing(lms, lfs)
 
-    @debugTest
+    @validationTest
     def test_ProjectedConstrainedModes(self):
         methanol = Molecule(
             ['C', 'O', 'H', 'H', 'H', 'H'],
@@ -1275,8 +1275,156 @@ class MolecoolsTests(TestCase):
         # )
         # print(nput.internal_coordinate_tensors(scans, [(0, 1)], order=0))
 
+    @validationTest
+    def test_DihedConstrainedOpt(self):
+        import McUtils.Coordinerds as coordops
+
+        # methanol = Molecule.from_string(
+        #     'methanol',
+        #     # energy_evaluator='aimnet2'
+        # )
 
 
+        methanol = Molecule(
+            ['C', 'O', 'H', 'H', 'H', 'H'],
+            [[-0.6988896, 0.00487717, 0.00528378],
+             [1.69694605, -1.08628154, -0.22505594],
+             [-1.27384807, -0.22559494, 1.98568702],
+             [-0.59371792, 2.01534286, -0.59617633],
+             [-2.04665278, -0.99128091, -1.21504054],
+             [2.91616232, 0.28293736, 0.04530201]],
+            # energy_evaluator='aimnet2'
+        )
+
+        constraints = [(2, 0, 1, 5)]
+        meth_opt = methanol.optimize(
+            max_displacement=.5,
+            max_iterations=10,
+            coordinate_constraints=constraints,
+            # logger=True
+        )
+
+        eng0 = methanol.calculate_energy() * UnitsData.hartrees_to_wavenumbers
+        eng1 = meth_opt.calculate_energy() * UnitsData.hartrees_to_wavenumbers
+
+        print(eng1 - eng0)
+
+        ints0 = nput.internal_coordinate_tensors(methanol.coords, constraints, order=0)[0]
+        ints1 = nput.internal_coordinate_tensors(meth_opt.coords, constraints, order=0)[0]
+        print(ints0)
+        print(ints1)
+
+        methanol_zmatrix = coordops.reindex_zmatrix(
+            coordops.functionalized_zmatrix(
+                3,
+                {
+                    (2, 1, 0): [
+                        [0, -1, -2, -3],
+                        [1, -1, 0, -2],
+                        [2, -1, 0, 1],
+                    ]
+                }
+            ),
+            [5, 1, 0, 2, 3, 4]
+        )
+
+        print(
+            coordops.zmatrix_unit_convert(
+                coordops.cartesian_to_zmatrix(methanol.coords, methanol_zmatrix).coords,
+                UnitsData.convert("BohrRadius", "Angstroms"),
+                rad2deg=True
+            )
+        )
+        print(
+            coordops.zmatrix_unit_convert(
+                coordops.cartesian_to_zmatrix(meth_opt.coords, methanol_zmatrix).coords,
+                UnitsData.convert("BohrRadius", "Angstroms"),
+                rad2deg=True
+            )
+        )
+
+    @validationTest
+    def test_DihedOptRPNMScan(self):
+        import McUtils.Coordinerds as coordops
+        from Psience.Modes import ReactionPathModes
+
+        methanol = Molecule.from_string(
+            'methanol',
+            energy_evaluator='aimnet2'
+        ).optimize(max_iterations=250)
+
+        methanol_zmatrix = coordops.reindex_zmatrix(
+            coordops.functionalized_zmatrix(
+                3,
+                {
+                    (2, 1, 0): [
+                        [0, -1, -2, -3],
+                        [1, -1, 0, -2],
+                        [2, -1, 0, 1],
+                    ]
+                }
+            ),
+            [5, 1, 0, 2, 3, 4]
+        )
+        me_int = methanol.modify(
+            internals=methanol_zmatrix,
+        )
+
+        scan_coord = [(2, 0, 1, 5)]
+
+        scan_spec = [-np.deg2rad(180), np.deg2rad(0), 6]
+        me_coords = me_int.get_scan_coordinates(
+            [scan_spec],
+            which=coordops.zmatrix_indices(methanol_zmatrix, scan_coord),
+            internals='reembed',
+            strip_embedding=True
+        )
+
+        opt_mols = [
+            methanol.modify(coords=c).optimize(coordinate_constraints=scan_coord)
+            for c in me_coords
+        ]
+        opt_coords = np.array([o.coords for o in opt_mols])
+
+        me_aimnet2 = methanol.get_energy_function('aimnet2')
+        # me_base_expansions = [me_aimnet2(c, order=2) for c in me_coords]
+        me_expansions = [me_aimnet2(c, order=2) for c in opt_coords]
+
+        me_grads = [exp[1] for exp in me_expansions]
+        me_hesss = [exp[2] for exp in me_expansions]
+        me_proj = nput.translation_rotation_projector(
+            opt_coords,
+            methanol.atomic_masses,
+            mass_weighted=True
+        )
+        # me_proj_grads = me_proj @ np.array(me_grads)[:, :, np.newaxis]
+
+        rpnms_opt = ReactionPathModes.get_rp_modes(
+            me_grads,
+            me_hesss,
+            methanol.atomic_masses,
+            projector=me_proj
+        )
+
+    @validationTest
+    def test_AIMNetExpansions(self):
+        methanol = Molecule(
+            ['C', 'O', 'H', 'H', 'H', 'H'],
+            [[-0.71174571, 0.0161939, 0.02050266],
+             [1.71884591, -1.07310118, -0.2778059],
+             [-1.30426891, 0.02589585, 1.99632677],
+             [-0.77962613, 1.94036941, -0.7197672],
+             [-2.02413643, -1.14525287, -1.05166036],
+             [2.91548382, -0.08353621, 0.65084457]],
+            energy_evaluator='aimnet2'
+        )
+
+        expansion = methanol.calculate_energy(order=3)
+
+    @debugTest
+    def test_RPNMVPT(self):
+        methanol = Molecule.from_file(TestManager.test_data('methanol_vpt_3.fchk'))
+        methanol.setup_VPT(use_reaction_path=True)
 
     @validationTest
     def test_MultiGMatrix(self):

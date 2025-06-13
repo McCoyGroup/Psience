@@ -62,6 +62,7 @@ class Molecule(AbstractMolecule):
                  guess_bonds=True,
                  charge=None,
                  display_mode=None,
+                 energy=None,
                  energy_evaluator=None,
                  dipole_evaluator=None,
                  charge_evaluator=None,
@@ -138,6 +139,7 @@ class Molecule(AbstractMolecule):
         self._meta = metadata
 
         self.display_mode = display_mode
+        self._energy = energy
         self.energy_evaluator = energy_evaluator
         self.dipole_evaluator = dipole_evaluator
         self.charge_evaluator = charge_evaluator
@@ -150,6 +152,7 @@ class Molecule(AbstractMolecule):
                masses=dev.default,
                bonds=dev.default,
                guess_bonds=dev.default,
+               energy=dev.default,
                energy_evaluator=dev.default,
                dipole_evaluator=dev.default,
                charge_evaluator=dev.default,
@@ -175,6 +178,11 @@ class Molecule(AbstractMolecule):
             charge=self.charge if charge is dev.default else charge,
             internals=self.internals if internals is dev.default else internals,
             normal_modes=self.normal_modes if normal_modes is dev.default else normal_modes,
+            energy=self.energy if (
+                    energy is dev.default
+                    and coords is dev.default
+                    and energy_evaluator is dev.default
+            ) else energy,
             dipole_surface=self.dipole_surface if (
                     dipole_surface is dev.default
                     and dipole_derivatives is dev.default
@@ -185,7 +193,7 @@ class Molecule(AbstractMolecule):
                     if dipole_surface is dev.default else
                 dipole_surface
             ),
-            dipole_derivatives=None if dipole_derivatives is dev.default else dipole_derivatives ,
+            dipole_derivatives=None if dipole_derivatives is dev.default else dipole_derivatives,
             potential_surface=self.potential_surface if (
                     potential_surface is dev.default
                     and potential_derivatives is dev.default
@@ -819,6 +827,27 @@ class Molecule(AbstractMolecule):
 
     #region Evaluation
 
+    def _load_energy(self):
+        if self.source_file is None:
+            return None
+        elif os.path.splitext(self.source_file)[1] == '.fchk':
+            from McUtils.GaussianInterface import GaussianFChkReader
+            with GaussianFChkReader(self.source_file) as gr:
+                parse = gr.parse(
+                    ['Total Energy']
+                )
+            return parse['Total Energy']
+        else:
+            return None
+
+    @property
+    def energy(self):
+        if self._energy is None:
+            self._energy = self._load_energy()
+            if self._energy is None and self.energy_evaluator is not None:
+                self._energy = self.calculate_energy()
+        return self._energy
+
     default_energy_evalutor = 'rdkit'
     def get_energy_evaluator(self, evaluator=None, **opts):
         if evaluator is None:
@@ -1387,6 +1416,7 @@ class Molecule(AbstractMolecule):
                   dipole_derivatives=None,
                   dipole_evaluator=None,
                   runner='matrix',
+                  use_reaction_path=False,
                   modes=None,
                   **opts
                   ):
@@ -1396,6 +1426,7 @@ class Molecule(AbstractMolecule):
         elif not hasattr(runner, 'construct'):
             runner = AnalyticVPTRunner
 
+        og_pot_der = potential_derivatives
         if potential_derivatives is None:
             potential_derivatives = self.get_cartesian_potential_derivatives(
                 evaluator=energy_evaluator,
@@ -1408,12 +1439,53 @@ class Molecule(AbstractMolecule):
                 include_constant_term=True
             )
 
-        if modes is None and potential_derivatives[2].shape[0] != (3*len(self._ats)):
-            modes = self.normal_modes.modes.basis
+        if modes is None:
+            modes = self.get_normal_modes(
+                potential_derivatives=og_pot_der,
+                use_internals=False, project_transrot=False
+            )
+            if use_reaction_path:
+                from ..Modes import NormalModes
 
+                rpnms, rpnm_status = self.get_reaction_path_modes(
+                    potential_derivatives=og_pot_der,
+                    return_status=True
+                )
+                if rpnm_status:
+                    if modes.mass_weighted:
+                        rpnms = rpnms.make_mass_weighted()
+                    loc = modes.localize(target_modes=rpnms.modes_by_coords)
+                    modes = NormalModes(
+                        loc.basis,
+                        loc.matrix,
+                        inverse=loc.inverse,
+                        masses=loc.masses,
+                        freqs=loc.freqs,
+                        mass_weighted=loc.mass_weighted
+                    )[list(range(1, len(loc.freqs)))]
+
+                    if potential_derivatives[2].shape[0] < potential_derivatives[0].shape[0]:
+                        potential_derivatives = list(potential_derivatives[:2]) + (
+                            nput.tensor_reexpand(
+                                [loc.localizing_transformation[0]],
+                                potential_derivatives[2:]
+                            )
+                        )
+                        potential_derivatives[2] = potential_derivatives[2][1:]
+                        potential_derivatives[3] = potential_derivatives[3][1:, 1:]
+
+                    if dipole_derivatives[2].shape[0] < dipole_derivatives[1].shape[0]:
+                        dipole_derivatives = list(dipole_derivatives[:2]) + (
+                            nput.tensor_reexpand(
+                                [loc.localizing_transformation[0]],
+                                dipole_derivatives[2:]
+                            )
+                        )
+                        dipole_derivatives[2] = dipole_derivatives[2][1:]
+                        dipole_derivatives[3] = dipole_derivatives[3][1:, 1:]
 
         if use_internals or use_internals is None:
-            return runner.construct(self,
+            return runner.construct(self.modify(),
                                     states,
                                     order=order,
                                     potential_derivatives=potential_derivatives,

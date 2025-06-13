@@ -23,12 +23,12 @@ class LocalizedModes(MixtureModes):
                  frequency_scaled=None,
                  **etc
                  ):
-        mat = normal_modes.matrix @ transformation
+        mat = normal_modes.modes_by_coords @ transformation
         if inverse is None:
             inverse = transformation.T
         self.localizing_transformation = (transformation, inverse)
         self.base_modes = normal_modes
-        inverse = inverse @ normal_modes.inverse
+        inverse = inverse @ normal_modes.coords_by_modes
         if origin is None:
             origin = normal_modes.origin
         if masses is None:
@@ -67,12 +67,20 @@ class LocalizedModes(MixtureModes):
                 or not new and self.base_modes.frequency_scaled
         ):
             raise ValueError("can't set `frequency_scaled` directly")
-    @property
-    def g_matrix(self):
-        return self.matrix.T @ self.base_modes.g_matrix @ self.matrix
-    @g_matrix.setter
-    def g_matrix(self, g):
-        ...
+    # @property
+    # def g_matrix(self):
+    #     if self.base_modes.g_matrix is not None:
+    #         tf, inv = self.localizing_transformation
+    #         base_gm = self.base_modes.g_matrix
+    #         if base_gm is None:
+    #             base_gm = self.base_modes.compute_gmatrix()
+    #         pinv = self.modes_by_coords @ inv.T
+    #         return self.coords_by_modes @ inv.T @ base_gm @ inv
+    #     else:
+    #         return None
+    # @g_matrix.setter
+    # def g_matrix(self, g):
+    #     ...
 
     def modify(self,
                base_modes=None,
@@ -107,13 +115,17 @@ class LocalizedModes(MixtureModes):
     def remove_frequency_scaling(self, **kwargs):
         return self.modify(self.base_modes.remove_frequency_scaling(**kwargs))
 
-    @property
-    def local_hessian(self):
+    # @property
+    # def local_hessian(self):
+    #     tf, inv = self.localizing_transformation
+    #     f = inv @ np.diag(self.freqs ** 2) @ inv.T
+    #     g = self.g_matrix
+    #     a = np.diag(np.power(np.diag(g) / np.diag(f), 1 / 4))
+    #     return a @ f @ a
+
+    def compute_hessian(self):
         tf, inv = self.localizing_transformation
-        f = inv @ np.diag(self.freqs ** 2) @ inv.T
-        g = self.g_matrix
-        a = np.diag(np.power(np.diag(g) / np.diag(f), 1 / 4))
-        return a @ f @ a
+        return inv @ np.diag(self.base_modes.freqs ** 2) @ inv.T
 
     def localize(self,
                  method=None,

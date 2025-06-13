@@ -1,4 +1,5 @@
 import abc
+import itertools
 import math
 import sys, os
 import numpy as np
@@ -1364,19 +1365,39 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
         return calc
 
     @staticmethod
-    def autodiff(expr, coord):
+    def autodiff(expr, coord, create_graph=False, retain_graph=False):
         import torch
         # here forces have shape (N, 3) and coord has shape (N+1, 3)
         # return hessian with shape (N, 3, N, 3)
         shape = coord.shape + expr.shape
-        deriv = - torch.stack([
-            torch.autograd.grad(_f, coord, retain_graph=True)[0]
-            for _f in expr.flatten().unbind()
-        ])
-        deriv = deriv.view(shape)
+        grads = []
+        # N = coord.shape[0] - 1
+        # for p in itertools.combinations(coord.shape, expr.ndim):
+        rav_shape = tuple(
+            (expr.shape[2*i]*expr.shape[2*i+1])
+            for i in range(expr.ndim // 2)
+        )
+        cache = {}
+        inds = np.array(np.unravel_index(np.arange(np.prod(expr.shape, dtype=int)), rav_shape)).T
+        shinds = np.sort(inds, axis=1)
+        for i,_f in enumerate(expr.flatten()):
+            ravioli = tuple(inds[i])
+            key = tuple(shinds[i])
+            if ravioli == key:
+                g = torch.autograd.grad(_f,
+                                        coord,
+                                        # allow_unused=True,
+                                        retain_graph=True,
+                                        create_graph=create_graph)
+                g = g[0]
+                grads.append(g)
+                cache[key] = g
+            else:
+                grads.append(cache[key])
+
+        deriv = torch.stack(grads).view(shape)
         shape_tuple = (slice(None, -1), slice(None)) * (len(shape) // 2)
-        # return deriv[:-1, :, :-1, :]
-        return deriv.__getitem__(shape_tuple)
+        return deriv, shape_tuple
 
     # def calculate(self, atoms=None, properties=['energy'], system_changes=all_changes):
     #     super().calculate(atoms, properties, system_changes)
@@ -1452,17 +1473,30 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
     def process_aimnet_derivs(self, base_shape, coords, data, root_key, order, deriv_key=None, property_shape=()):
         if order > 0:
             if deriv_key is not None:
-                data['deriv_1'] = data[deriv_key]
+                data['deriv_1'] = (-data[deriv_key], (slice(None,), slice(None,)))
                 for o in range(2, order+1):
-                    data[f'deriv_{o}'] = self.autodiff(data[f'deriv_{o-1}'], self.eval._saved_for_grad['coord'])
+                    data[f'deriv_{o}'] = self.autodiff(data[f'deriv_{o-1}'][0],
+                                                       self.eval._saved_for_grad['coord'],
+                                                       # create_graph=(o==1),
+                                                       create_graph=(o < order),
+                                                       retain_graph=(o < order)
+                                                       )
             else:
-                data['deriv_0'] = data[root_key]
-                for o in range(2, order+1):
-                    data[f'deriv_{o}'] = self.autodiff(data[f'deriv_{o-1}'], self.eval._saved_for_grad['coord'])
+                data['deriv_0'] = (data[root_key], slice(None,))
+                for o in range(1, order+1):
+                    data[f'deriv_{o}'] = self.autodiff(data[f'deriv_{o - 1}'][0],
+                                                       self.eval._saved_for_grad['coord'],
+                                                       create_graph=(o==1),
+                                                       retain_graph=(o < order)
+                                                       )
+
         deriv_keys = [
             f'deriv_{o}'
             for o in range(1, order + 1)
         ]
+        for key in deriv_keys:
+            deriv,subshape = data[key]
+            data[key] = deriv.__getitem__(subshape)
         ko = self.eval.keys_out
         afk = self.eval.atom_feature_keys
         try:
@@ -1481,8 +1515,6 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
             )
             for o,k in enumerate([root_key] + deriv_keys)
         ]
-        if order > 0:
-            expansion[1] = -expansion[1]
 
         return expansion
     def evaluate_term(self, coords, order, **opts):
