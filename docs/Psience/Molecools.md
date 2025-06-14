@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-ba026f" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-ba026f"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-47ba46" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-47ba46"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-ba026f" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-47ba46" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -134,6 +134,7 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [DihedOptRPNMScan](#DihedOptRPNMScan)
 - [AIMNetExpansions](#AIMNetExpansions)
 - [RPNMVPT](#RPNMVPT)
+- [LocalModeCHModel](#LocalModeCHModel)
 - [MultiGMatrix](#MultiGMatrix)
 - [1DPotentialReps](#1DPotentialReps)
 - [Constructors](#Constructors)
@@ -143,9 +144,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-9de246" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-9de246"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-e72632" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-e72632"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-9de246" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-e72632" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -1559,7 +1560,79 @@ class MolecoolsTests(TestCase):
 ```python
     def test_RPNMVPT(self):
         methanol = Molecule.from_file(TestManager.test_data('methanol_vpt_3.fchk'))
-        methanol.setup_VPT(use_reaction_path=True)
+        runner, _ = methanol.setup_VPT(use_reaction_path=True, degeneracy_specs='auto')
+        runner.print_tables()
+```
+
+#### <a name="LocalModeCHModel">LocalModeCHModel</a>
+```python
+    def test_LocalModeCHModel(self):
+        from Psience.BasisReps import modify_internal_hamiltonian
+
+        methanol = Molecule.from_file(TestManager.test_data('methanol_vpt_3.fchk'))
+        base_nms = methanol.get_normal_modes()
+
+        internals = {
+                (0, 1):"OH",  # OH
+                (1, 2):"CO",  # CO
+                (2, 3):"CH3_stretch",  # CH1
+                (2, 4):"CH3_stretch",  # CH2
+                (2, 5):"CH3_stretch",  # CH3
+                (1, 2, 3):"CH3_bend",  # OCH1
+                (1, 2, 4):"CH3_bend",  # OCH2
+                (1, 2, 5):"CH3_bend",  # OCH3
+        }
+        loc_modes = base_nms.localize(
+            internals=internals
+        )
+
+        base_hess = loc_modes.local_hessian
+        new_hess = modify_internal_hamiltonian(
+            base_hess,
+            {
+                (0, 1): "OH",
+                (1, 2): "CO",
+                (2, 3): "CH3_stretch",
+                (2, 4): "CH3_stretch",
+                (2, 5): "CH3_stretch",
+                (1, 2, 3): "CH3_bend",
+                (1, 2, 4): "CH3_bend",
+                (1, 2, 5): "CH3_bend",
+            },
+            scaling_types={
+                "OH":.93,
+                "CH3_stretch":.96,
+            },
+            coupling_types={
+                ("CH3_stretch", "CH3_stretch"):-22 * UnitsData.convert("Wavenumbers", "Hartrees")
+            }
+        )
+
+
+        g_mat = loc_modes.local_gmatrix
+        def print_arr(header, array=None):
+            from McUtils.Formatters import TableFormatter
+            if array is None:
+                array = header
+                header = []
+            elif isinstance(header, str):
+                header = [header]
+            if array.ndim == 1:
+                array = array[np.newaxis]
+            print(*header,  TableFormatter('{:.0f}').format(array * UnitsData.hartrees_to_wavenumbers) )
+
+        print()
+        print("="*25, "Unscaled", "="*25)
+        freqs_old, _ = scipy.linalg.eigh(base_hess, g_mat, type=3)
+        print_arr("Freqs:", np.sqrt(freqs_old))
+        print("Hessian:")
+        print_arr(base_hess)
+
+        print("="*25, "Scaled", "="*25)
+        freqs_new, _ = scipy.linalg.eigh(new_hess, g_mat, type=3)
+        print_arr("Freqs:", np.sqrt(freqs_new))
+        print("Hessian:")
+        print_arr(new_hess)
 ```
 
 #### <a name="MultiGMatrix">MultiGMatrix</a>

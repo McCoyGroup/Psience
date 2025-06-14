@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Analyzer.VPTAnalyzer">VPTAnalyzer</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer.py#L418)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer.py#L418?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer.py#L729)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer.py#L729?message=Update%20Docs)]
 </div>
 
 Provides analysis tools on VPT results
@@ -24,8 +24,8 @@ Provides analysis tools on VPT results
 __init__(self, res): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer.py#L423)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer.py#L423?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer.py#L734)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer.py#L734?message=Update%20Docs)]
 </div>
 
   - `res`: `Any`
@@ -38,8 +38,8 @@ __init__(self, res):
 run_VPT(cls, *args, logger=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L433)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L433?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L744)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L744?message=Update%20Docs)]
 </div>
 Runs a VPT calculation through `VPTRunner.run_simple` and
 stores the output wave functions to use
@@ -57,8 +57,8 @@ stores the output wave functions to use
 potential_terms(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L457)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L457?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L768)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L768?message=Update%20Docs)]
 </div>
 Returns the expansion of the potential
   - `:returns`: `_`
@@ -71,8 +71,8 @@ Returns the expansion of the potential
 kinetic_terms(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L465)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L465?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L776)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L776?message=Update%20Docs)]
 </div>
 Returns the expansion of the kinetic energy
   - `:returns`: `_`
@@ -85,8 +85,8 @@ Returns the expansion of the kinetic energy
 dipole_terms(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L473)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L473?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L784)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L784?message=Update%20Docs)]
 </div>
 Returns the expansion of the dipole moment
   - `:returns`: `_`
@@ -99,8 +99,8 @@ Returns the expansion of the dipole moment
 basis(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L482)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L482?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L793)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L793?message=Update%20Docs)]
 </div>
 Returns the basis for the calculation
   - `:returns`: `_`
@@ -113,8 +113,8 @@ Returns the basis for the calculation
 target_states(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L490)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L490?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L801)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L801?message=Update%20Docs)]
 </div>
 Returns the target states for the calculation
   - `:returns`: `_`
@@ -127,8 +127,8 @@ Returns the target states for the calculation
 spectrum(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L499)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L499?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L810)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L810?message=Update%20Docs)]
 </div>
 Returns the IR spectrum calculated from perturbation theory
   - `:returns`: `_`
@@ -141,8 +141,8 @@ Returns the IR spectrum calculated from perturbation theory
 energy_corrections(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L507)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L507?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L818)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L818?message=Update%20Docs)]
 </div>
 Returns the corrections to the energies
   - `:returns`: `_`
@@ -155,8 +155,8 @@ Returns the corrections to the energies
 energies(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L515)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L515?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L826)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L826?message=Update%20Docs)]
 </div>
 
   - `:returns`: `_`
@@ -169,8 +169,8 @@ energies(self):
 frequencies(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L526)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L526?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L837)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L837?message=Update%20Docs)]
 </div>
 
   - `:returns`: `_`
@@ -183,8 +183,8 @@ frequencies(self):
 zero_order_spectrum(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L535)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L535?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L846)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L846?message=Update%20Docs)]
 </div>
 Returns the zero-order IR spectrum calculated from perturbation theory
   - `:returns`: `_`
@@ -197,8 +197,8 @@ Returns the zero-order IR spectrum calculated from perturbation theory
 deperturbed_spectrum(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L543)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L543?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L854)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L854?message=Update%20Docs)]
 </div>
 
   - `:returns`: `_`
@@ -211,8 +211,8 @@ deperturbed_spectrum(self):
 deperturbed_frequencies(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L558)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L558?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L869)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L869?message=Update%20Docs)]
 </div>
 
   - `:returns`: `_`
@@ -225,8 +225,8 @@ deperturbed_frequencies(self):
 wavefunction_corrections(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L566)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L566?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L877)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L877?message=Update%20Docs)]
 </div>
 Returns the corrections to the wavefunctions
   - `:returns`: `_`
@@ -239,8 +239,8 @@ Returns the corrections to the wavefunctions
 transition_moment_corrections(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L574)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L574?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L885)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L885?message=Update%20Docs)]
 </div>
 Returns the corrections to the wavefunctions
   - `:returns`: `_`
@@ -253,8 +253,8 @@ Returns the corrections to the wavefunctions
 transition_moments(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L582)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L582?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L893)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L893?message=Update%20Docs)]
 </div>
 
 
@@ -264,8 +264,8 @@ transition_moments(self):
 deperturbed_transition_moment_corrections(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L590)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L590?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L901)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L901?message=Update%20Docs)]
 </div>
 Returns the corrections to the wavefunctions
   - `:returns`: `_`
@@ -278,8 +278,8 @@ Returns the corrections to the wavefunctions
 deperturbed_transition_moments(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L598)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L598?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L909)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L909?message=Update%20Docs)]
 </div>
 
   - `:returns`: `_`
@@ -292,8 +292,8 @@ deperturbed_transition_moments(self):
 deperturbed_hamiltonians(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L606)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L606?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L917)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L917?message=Update%20Docs)]
 </div>
 Returns the deperturbed Hamiltonians used to make the degenerate transform
   - `:returns`: `_`
@@ -306,8 +306,8 @@ Returns the deperturbed Hamiltonians used to make the degenerate transform
 deperturbed_energies(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L614)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L614?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L925)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L925?message=Update%20Docs)]
 </div>
 
   - `:returns`: `_`
@@ -320,8 +320,8 @@ deperturbed_energies(self):
 degenerate_states(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L622)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L622?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L933)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L933?message=Update%20Docs)]
 </div>
 Returns the deperturbed states used to make the degenerate transform
   - `:returns`: `_`
@@ -334,8 +334,8 @@ Returns the deperturbed states used to make the degenerate transform
 degenerate_energies(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L630)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L630?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L941)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L941?message=Update%20Docs)]
 </div>
 Returns the deperturbed states used to make the degenerate transform
   - `:returns`: `_`
@@ -347,8 +347,8 @@ Returns the deperturbed states used to make the degenerate transform
 shift_and_transform_hamiltonian(self, hams, shifts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L639)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L639?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L950)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L950?message=Update%20Docs)]
 </div>
 
   - `hams`: `Any`
@@ -364,8 +364,8 @@ shift_and_transform_hamiltonian(self, hams, shifts):
 get_shifted_transformed_transition_moments(self, deg_states, target_states, hams, shifts, tmoms, handling_mode='transpose'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L692)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L692?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1003)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1003?message=Update%20Docs)]
 </div>
 
   - `deg_states`: `Any`
@@ -389,8 +389,8 @@ get_shifted_transformed_transition_moments(self, deg_states, target_states, hams
 get_shifted_transformed_spectrum(self, zpe, deg_states, target_states, hams, shifts, tmoms, handling_mode='transpose'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L722)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L722?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1033)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1033?message=Update%20Docs)]
 </div>
 
   - `zpe`: `Any`
@@ -416,8 +416,8 @@ get_shifted_transformed_spectrum(self, zpe, deg_states, target_states, hams, shi
 shifted_transformed_spectrum(self, deg_states, hams, shifts, return_transformation=False, handling_mode='transpose'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L755)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L755?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1066)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1066?message=Update%20Docs)]
 </div>
 
   - `deg_states`: `Any`
@@ -439,8 +439,8 @@ shifted_transformed_spectrum(self, deg_states, hams, shifts, return_transformati
 transition_data(self, states, keys=['frequency', 'transition_moment', 'intensity'], data='deperturbed'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L781)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L781?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1092)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1092?message=Update%20Docs)]
 </div>
 
   - `states`: `Any`
@@ -458,8 +458,8 @@ transition_data(self, states, keys=['frequency', 'transition_moment', 'intensity
 transition_moment_term_sums(self, states, terms=None, rotation=None, data='deperturbed'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L846)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L846?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1157)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1157?message=Update%20Docs)]
 </div>
 
   - `states`: `Any`
@@ -479,8 +479,8 @@ transition_moment_term_sums(self, states, terms=None, rotation=None, data='deper
 transition_moment_term_sums_first_order(self, states, rotation=None, data='deperturbed'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L893)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L893?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1204)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1204?message=Update%20Docs)]
 </div>
 
   - `states`: `Any`
@@ -498,8 +498,8 @@ transition_moment_term_sums_first_order(self, states, rotation=None, data='deper
 intensity_breakdown(self, states, terms=None, data='deperturbed'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L916)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L916?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1227)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1227?message=Update%20Docs)]
 </div>
 
   - `states`: `Any`
@@ -517,8 +517,8 @@ intensity_breakdown(self, states, terms=None, data='deperturbed'):
 degenerate_coupling_element(self, state1, state2): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L941)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L941?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1252)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1252?message=Update%20Docs)]
 </div>
 
   - `state1`: `Any`
@@ -534,8 +534,8 @@ degenerate_coupling_element(self, state1, state2):
 format_deperturbed_hamiltonian(self, which): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L964)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L964?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1275)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1275?message=Update%20Docs)]
 </div>
 
   - `which`: `Any`
@@ -550,8 +550,8 @@ format_deperturbed_hamiltonian(self, which):
 log_parser(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L975)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L975?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1286)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1286?message=Update%20Docs)]
 </div>
 
 
@@ -560,8 +560,8 @@ log_parser(self):
 print_output_tables(self, print_energy_corrections=False, print_energies=False, print_transition_moments=False, print_intensities=True, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L993)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L993?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1290)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTAnalyzer.py#L1290?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -616,7 +616,7 @@ print_output_tables(self, print_energy_corrections=False, print_energies=False, 
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Analyzer/VPTAnalyzer.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Analyzer/VPTAnalyzer.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer.py#L418?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer.py#L729?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
