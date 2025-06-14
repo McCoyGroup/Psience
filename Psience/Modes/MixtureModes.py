@@ -268,6 +268,11 @@ class MixtureModes(CoordinateSystem):
         a = np.diag(np.power(np.diag(g) / np.diag(f), 1 / 4))
         return a @ f @ a
 
+    @classmethod
+    def compute_local_gmatrix(cls, f, g):
+        a = np.diag(np.power(np.diag(f) / np.diag(g), 1 / 4))
+        return a @ g @ a
+
     def compute_hessian(self):
         pinv = self.coords_by_modes @ self.modes_by_coords
         return pinv @ np.diag(self.freqs ** 2) @ pinv.T
@@ -287,6 +292,12 @@ class MixtureModes(CoordinateSystem):
         f = self.compute_hessian()
         g = self.compute_gmatrix()
         return self.compute_local_hessian(f, g)
+
+    @property
+    def local_gmatrix(self):
+        f = self.compute_hessian()
+        g = self.compute_gmatrix()
+        return self.compute_local_gmatrix(f, g)
 
     @property
     def local_freqs(self):
