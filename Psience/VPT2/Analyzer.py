@@ -3,12 +3,14 @@ Provides analyzer class to handle common VPT analyses
 """
 
 import enum, weakref, functools, numpy as np, itertools as ip, io
+import itertools
 import os.path
 import tempfile
 
 from McUtils.Data import UnitsData
 import McUtils.Numputils as nput
 from McUtils.Scaffolding import Checkpointer, Logger, LogParser
+from McUtils.Parsers import StringLineByLineReader
 from ..Spectra import DiscreteSpectrum
 from .Wavefunctions import PerturbationTheoryWavefunctions
 from .Runner import VPTRunner
@@ -27,6 +29,7 @@ class VPTResultsSource(enum.Enum):
     """
     Wavefunctions = "wavefunctions"
     Checkpoint = "checkpoint"
+    LogFile = 'log_file'
 
 def property_dispatcher(basefn):
     registry = weakref.WeakKeyDictionary()
@@ -47,6 +50,259 @@ def property_dispatcher(basefn):
 
     return dispatch
 
+class VPTAnalyzerLogParser(LogParser):
+    def __init__(self, log_file, **opts):
+        if isinstance(log_file, str):
+            lf = log_file
+        elif isinstance(log_file, io.StringIO):
+            with tempfile.NamedTemporaryFile(delete=False) as tf:
+                lf = tf.name
+            with open(lf, 'w+') as tf:
+                log_file.seek(0)
+                tf.write(log_file.read())
+        else:
+            lf = None
+
+        if lf is None:
+            raise ValueError("log file {} can't be parsed".format(log_file))
+
+        super().__init__(lf, **opts)
+        self._tree = None
+        self._energies = None
+        self._deperturbed_energies = None
+        self._spectra = None
+        self._deperturbed_spectra = None
+        self._tms = None
+        self._deperturbed_tms = None
+
+    @property
+    def tree(self):
+        if self._tree is None:
+            with self:
+                self._tree = self.to_tree(depth=-1)
+        return self._tree
+
+    class EnergiesBlockParser(StringLineByLineReader):
+        def __init__(self, spec_str, **opts):
+            self.label_width = None
+            super().__init__(spec_str, max_nesting_depth=0, **opts)
+        def check_tag(self, line:str, depth: int = 0, active_tag=None, label: str = None, history: list[str] = None):
+            ls = line.lstrip()
+            if len(ls) == 0 or ls.startswith("State") or line.startswith(" "*5):
+                return self.LineReaderTags.SKIP
+        def handle_block_line(self, label, line, depth=0, history:list[str]=None):
+            if self.label_width is None:
+                self.label_width = len(line.split("  ", 1)[0])
+            n = self.label_width
+            line = line.strip()
+            state = line[:n]
+            return state, line[n:].split()
+
+    @classmethod
+    def reformat_eng_block(cls, sb):
+        states = []
+        sb = sb[0]
+        harm = np.empty((len(sb),), dtype=float)
+        anh = np.empty((len(sb),), dtype=float)
+        for i,(state, sublist) in enumerate(sb):
+            states.append(state)
+            if sublist[0] == '-':
+                harm[i] = float(sublist[2])
+                anh[i] = float(sublist[3])
+            else:
+                harm[i] = float(sublist[0])
+                anh[i] = float(sublist[1])
+        return states, harm, anh
+
+    def parse_energies_blocks(self, spec_str):
+        with self.EnergiesBlockParser(spec_str) as parser:
+            base_specs = list(parser)
+
+        return self.reformat_eng_block(base_specs)
+    @property
+    def harmonic_energies(self):
+        if self._energies is None:
+            try:
+                eng_str = self.tree[0, "State Energies"]
+            except KeyError:
+                eng_str = self.tree[0, "Degenerate Energies"]
+            self._energies = self.parse_energies_blocks(eng_str)
+        return self._energies[0], self._energies[1]
+
+    @property
+    def energies(self):
+        if self._energies is None:
+            try:
+                eng_str = self.tree[0, "State Energies"]
+            except KeyError:
+                eng_str = self.tree[0, "Degenerate Energies"]
+            self._energies = self.parse_energies_blocks(eng_str)
+        return self._energies[0], self._energies[2]
+
+    @property
+    def deperturbed_energies(self):
+        if self._deperturbed_energies is None:
+            self._deperturbed_energies = self.parse_energies_blocks(self.tree[0, "Deperturbed Energies"])
+        return self._deperturbed_energies[0], self._deperturbed_energies[2]
+
+    @property
+    def spectra(self):
+        if self._spectra is None:
+            self._spectra = self.parse_spectrum_blocks(self.tree[0, "IR Data"])
+        return self._spectra
+
+    @property
+    def deperturbed_spectra(self):
+        if self._deperturbed_spectra is None:
+            self._deperturbed_spectra = self.parse_spectrum_blocks(self.tree[0, "Deperturbed IR Data"])
+        return self._deperturbed_spectra
+
+    # @property
+    # def harmonic_spectra(self):
+    #     if self._spectra is None:
+    #
+    #         self._harmonic_spectra, self._spectra = self.parse_spectrum_blocks(
+    #             self.tree[0, "IR Data"]
+    #         )
+    #     return self._spectra
+
+    class SpectrumBlockParser(StringLineByLineReader):
+        def __init__(self, spec_str, **opts):
+            super().__init__(spec_str, max_nesting_depth=0, **opts)
+        def check_tag(self, line:str, depth: int = 0, active_tag=None, label: str = None, history: list[str] = None):
+            block_tag = ' Initial State:'
+            if len(line) == 0 or line.startswith("State") or line.startswith(" "*5):
+                return self.LineReaderTags.SKIP
+            elif line.startswith(block_tag):
+                return self.LineReaderTags.BLOCK_START, line[len(block_tag):].strip(), None
+        def handle_block_line(self, label, line, depth=0, history:list[str]=None):
+            n = len(label)
+            line = line.strip()
+            state = line[:n]
+            return state, line[n:].split()
+
+    @classmethod
+    def reformat_spec_block(cls, sb):
+        res = []
+        for init, sublist in sb.items():
+            harm = np.empty((len(sublist), 2), dtype=float)
+            anh = np.empty((len(sublist), 2), dtype=float)
+            states = []
+            for i,(state, vals) in enumerate(sublist):
+                states.append(state)
+                harm[i][0] = float(vals[0])
+                harm[i][1] = float(vals[1])
+                anh[i][0] = float(vals[2])
+                anh[i][1] = float(vals[3])
+
+            res.append({
+                'states':states,
+                'harmonic':harm,
+                'anharmonic':anh
+            })
+        if len(res) == 1:
+            res = res[0]
+        return res
+    def parse_spectrum_blocks(self, spec_str):
+        with self.SpectrumBlockParser(spec_str) as parser:
+            base_specs = list(parser)
+
+        return [self.reformat_spec_block(sb) for sb in base_specs]
+
+    class TransitionMomentBlockParser(StringLineByLineReader):
+        def __init__(self, spec_str, **opts):
+            super().__init__(spec_str, max_nesting_depth=0, **opts)
+        def check_tag(self, line:str, depth: int = 0, active_tag=None, label: str = None, history: list[str] = None):
+            block_tag = ' Initial State:'
+            if len(line) == 0 or line.startswith("State") or line.startswith(" "*5):
+                return self.LineReaderTags.SKIP
+            elif line.startswith(block_tag):
+                return self.LineReaderTags.BLOCK_START, line[len(block_tag):].strip(), None
+        def handle_block_line(self, label, line, depth=0, history:list[str]=None):
+            n = len(label)
+            line = line.strip()
+            state = line[:n]
+            return state, line[n:].split()
+
+    _indexer = None
+    @classmethod
+    def load_term_counts(cls, nterms):
+        import McUtils.Combinatorics as comb
+
+        if cls._indexer is None:
+            cls._indexer = comb.SymmetricGroupGenerator(3)
+
+        cls._indexer.load_to_size(nterms)
+        return [c for c in cls._indexer._cumtotals if c < nterms]
+
+    @classmethod
+    def reformat_tm_block(cls, sb):
+        res = []
+        for init, sublist in sb.items():
+            counts = cls.load_term_counts(len(sublist[0][1]))
+            blocks = [
+                np.empty((len(sublist), n), dtype=float)
+                for n in counts
+            ]
+            states = []
+            for i,(state, vals) in enumerate(sublist):
+                states.append(state)
+                s = 0
+                for n,p in enumerate(counts):
+                    blocks[n][i, :] = [float(v) for v in vals[s:s+p]]
+                    s += p
+            res.append({
+                'states':states,
+                'corrections':blocks
+            })
+        if len(res) == 1:
+            res = res[0]
+        return res
+    def parse_tm_blocks(self, spec_str):
+        with self.TransitionMomentBlockParser(spec_str) as parser:
+            base_specs = list(parser)
+
+        return [self.reformat_tm_block(sb) for sb in base_specs]
+
+    @property
+    def transition_moment_corrections(self):
+        if self._tms is None:
+            blocks = [
+                self.parse_tm_blocks(self.tree[0, "X Dipole Contributions"]),
+                self.parse_tm_blocks(self.tree[0, "Y Dipole Contributions"]),
+                self.parse_tm_blocks(self.tree[0, "Z Dipole Contributions"]),
+            ]
+            self._tms = [
+                {
+                    'states':x['states'],
+                    'corrections':[
+                        x, y, z
+                    ]
+                }
+                for x,y,z in zip(*blocks)
+            ]
+        return self._tms
+
+    @property
+    def deperturbed_transition_moment_corrections(self):
+        if self._deperturbed_tms is None:
+            blocks = [
+                self.parse_tm_blocks(self.tree[0, "X Deperturbed Dipole Contributions"]),
+                self.parse_tm_blocks(self.tree[0, "Y Deperturbed Dipole Contributions"]),
+                self.parse_tm_blocks(self.tree[0, "Z Deperturbed Dipole Contributions"]),
+            ]
+            self._deperturbed_tms = [
+                {
+                    'states': x['states'],
+                    'corrections': [
+                        x, y, z
+                    ]
+                }
+                for x, y, z in zip(*blocks)
+            ]
+        return self._deperturbed_tms
+
+
 class VPTResultsLoader:
     """
     Provides tools for loading results into canonical
@@ -61,10 +317,26 @@ class VPTResultsLoader:
         :param res_type:
         :type res_type:
         """
+        if isinstance(res_type, str):
+            res_type = VPTResultsSource(res_type)
         if isinstance(res, str):
-            res = Checkpointer.from_file(res)
+            if res_type is None:
+                res_type = self.resolve_file_res_type(res)
+            if res_type == VPTResultsSource.Checkpoint:
+                res = Checkpointer.from_file(res)
+            else:
+                res = VPTAnalyzerLogParser(res)
         self.data = res
         self.res_type = self.get_res_type(res) if res_type is None else res_type
+
+    checkpoint_file_types = {'.npz', '.json', '.hdf5'}
+    @classmethod
+    def resolve_file_res_type(cls, res):
+        _, ext = os.path.splitext(res)
+        if ext in cls.checkpoint_file_types:
+            return VPTResultsSource.Checkpoint
+        else:
+            return VPTResultsSource.LogFile
 
     def get_res_type(self, res):
         """
@@ -97,6 +369,9 @@ class VPTResultsLoader:
     @potential_terms.register("wavefunctions")
     def _(self):
         return self.data.corrs.hamiltonian.V_terms
+    @potential_terms.register("log_file")
+    def _(self):
+        raise ValueError("potential terms not in log file")
 
     @property_dispatcher
     def kinetic_terms(self):
@@ -129,6 +404,9 @@ class VPTResultsLoader:
             "coriolis": self.data.corrs.hamiltonian.coriolis_terms,
             "pseudopotential": self.data.corrs.hamiltonian.coriolis_terms
         }
+    @kinetic_terms.register("log_file")
+    def _(self):
+        raise ValueError("kinetic terms not in log file")
 
     @property_dispatcher
     def dipole_terms(self):
@@ -145,6 +423,9 @@ class VPTResultsLoader:
     @dipole_terms.register("wavefunctions")
     def _(self):
         return self.data.dipole_terms
+    @dipole_terms.register("log_file")
+    def _(self):
+        raise ValueError("dipole terms not in log file")
 
     @property_dispatcher
     def basis(self):
@@ -162,6 +443,9 @@ class VPTResultsLoader:
     def _(self):
         data = self.data #type:PerturbationTheoryWavefunctions
         return data.corrs.total_basis
+    @basis.register("log_file")
+    def _(self):
+        raise ValueError("total basis not in log file")
 
     @property_dispatcher
     def target_states(self):
@@ -196,6 +480,10 @@ class VPTResultsLoader:
     @spectrum.register("wavefunctions")
     def _(self):
         return DiscreteSpectrum(self.data.frequencies() * UnitsData.convert("Hartrees", "Wavenumbers"), self.data.intensities[1:])
+    @spectrum.register("log_file")
+    def _(self):
+        freq, ints = self.data.spectra[0]["anharmonic"].T
+        return DiscreteSpectrum(freq, ints)
 
     @property_dispatcher
     def zero_order_spectrum(self):
@@ -215,6 +503,10 @@ class VPTResultsLoader:
         return DiscreteSpectrum(self.data.deperturbed_frequencies(order=0) * UnitsData.convert("Hartrees", "Wavenumbers"),
                                 self.data.deperturbed_intensities_to_order(order=0)[1:]
                                 )
+    @zero_order_spectrum.register("log_file")
+    def _(self):
+        freq, ints = self.data.spectra[0]["harmonic"].T
+        return DiscreteSpectrum(freq, ints)
 
     @property_dispatcher
     def energy_corrections(self):
@@ -239,7 +531,10 @@ class VPTResultsLoader:
         :return:
         :rtype:
         """
-        return np.sum(self.energy_corrections(), axis=1)
+        if hasattr(self.data, 'energies'):
+            return self.data.energies
+        else:
+            return np.sum(self.energy_corrections(), axis=1)
 
     @property_dispatcher
     def wavefunction_corrections(self):
@@ -269,6 +564,9 @@ class VPTResultsLoader:
     @transition_moment_corrections.register("checkpoint")
     def _(self):
         return self.data["transition_moments"]
+    @transition_moment_corrections.register("wavefunctions")
+    def _(self):
+        return self.data.transition_moment_corrections
     @transition_moment_corrections.register("wavefunctions")
     def _(self):
         return self.data.transition_moment_corrections
@@ -399,17 +697,30 @@ class VPTResultsLoader:
         :rtype:
         """
         raise ValueError("no dispatch")
+    log_file_extension = '.txt'
     @log_file.register("checkpoint")
     def _(self):
         tf = self.data.checkpoint_file
         tf, _ = os.path.splitext(tf)
-        tf = tf+'.txt' #could be more sophisticated in the future maybe...
+        tf = tf + self.log_file_extension #could be more sophisticated in the future maybe...
         if not os.path.exists(tf):
             tf = None
         return tf
     @log_file.register("wavefunctions")
     def _(self):
         return self.data.logger.log_file
+    @log_file.register("log_file")
+    def _(self):
+        return self.data
+
+    @property
+    def log_parser(self):
+        if isinstance(self.data, VPTAnalyzerLogParser):
+            return self.data
+        else:
+            lf = self.log_file()
+            if lf is None: return None
+            return VPTAnalyzerLogParser(lf)
 
 def loaded_prop(fn):
     name = fn.__name__
@@ -974,21 +1285,7 @@ class VPTAnalyzer:
 
     @property
     def log_parser(self):
-        log_file = self.loader.log_file()
-        if isinstance(log_file, str):
-            lf = log_file
-        elif isinstance(log_file, io.StringIO):
-            with tempfile.NamedTemporaryFile(delete=False) as tf:
-                lf = tf.name
-            with open(lf, 'w+') as tf:
-                log_file.seek(0)
-                tf.write(log_file.read())
-        else:
-            lf = None
-        if lf is not None:
-            return LogParser(lf)
-        else:
-            raise ValueError("log file {} can't be parsed".format(log_file))
+        return self.loader.log_parser
 
     def print_output_tables(self,
                             print_energy_corrections=False,
