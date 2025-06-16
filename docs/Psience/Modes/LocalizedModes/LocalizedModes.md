@@ -21,11 +21,22 @@
  
 <a id="Psience.Modes.LocalizedModes.LocalizedModes.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
-__init__(self, normal_modes: Psience.Modes.NormalModes.NormalModes, transformation, inverse=None, origin=None, masses=None, freqs=None, mass_weighted=None, frequency_scaled=None, **etc): 
+__init__(self, normal_modes: Psience.Modes.MixtureModes.MixtureModes, transformation, inverse=None, origin=None, masses=None, freqs=None, mass_weighted=None, frequency_scaled=None, **etc): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes.py#L15)/
 [edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes.py#L15?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Modes.LocalizedModes.LocalizedModes.freqs" class="docs-object-method">&nbsp;</a> 
+```python
+@property
+freqs(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L58)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L58?message=Update%20Docs)]
 </div>
 
 
@@ -35,19 +46,19 @@ __init__(self, normal_modes: Psience.Modes.NormalModes.NormalModes, transformati
 mass_weighted(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L50)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L50?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L70)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L70?message=Update%20Docs)]
 </div>
 
 
-<a id="Psience.Modes.LocalizedModes.LocalizedModes.frequency_scaled" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.Modes.LocalizedModes.LocalizedModes.g_matrix" class="docs-object-method">&nbsp;</a> 
 ```python
 @property
-frequency_scaled(self): 
+g_matrix(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L60)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L60?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L90)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L90?message=Update%20Docs)]
 </div>
 
 
@@ -56,8 +67,8 @@ frequency_scaled(self):
 modify(self, base_modes=None, *, transformation=None, freqs=None, origin=None, masses=None, inverse=None, name=None, mass_weighted=None, frequency_scaled=None, g_matrix=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L85)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L85?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L106)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L106?message=Update%20Docs)]
 </div>
 
 
@@ -66,8 +77,8 @@ modify(self, base_modes=None, *, transformation=None, freqs=None, origin=None, m
 make_mass_weighted(self, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L109)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L109?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L142)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L142?message=Update%20Docs)]
 </div>
 
 
@@ -76,28 +87,28 @@ make_mass_weighted(self, **kwargs):
 remove_mass_weighting(self, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L111)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L111?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L144)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L144?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.Modes.LocalizedModes.LocalizedModes.make_frequency_scaled" class="docs-object-method">&nbsp;</a> 
 ```python
-make_frequency_scaled(self, **kwargs): 
+make_frequency_scaled(self, freqs=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L113)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L113?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L146)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L146?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.Modes.LocalizedModes.LocalizedModes.remove_frequency_scaling" class="docs-object-method">&nbsp;</a> 
 ```python
-remove_frequency_scaling(self, **kwargs): 
+remove_frequency_scaling(self, freqs=None, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L115)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L115?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L155)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L155?message=Update%20Docs)]
 </div>
 
 
@@ -106,8 +117,8 @@ remove_frequency_scaling(self, **kwargs):
 compute_hessian(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L126)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L126?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L173)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L173?message=Update%20Docs)]
 </div>
 
 
@@ -116,8 +127,18 @@ compute_hessian(self):
 localize(self, method=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L130)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L130?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L177)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L177?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Modes.LocalizedModes.LocalizedModes.apply_transformation" class="docs-object-method">&nbsp;</a> 
+```python
+apply_transformation(self, transformation, inverse=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L183)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L183?message=Update%20Docs)]
 </div>
  </div>
 </div>

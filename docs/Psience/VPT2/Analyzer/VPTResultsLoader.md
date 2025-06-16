@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Analyzer.VPTResultsLoader">VPTResultsLoader</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer.py#L306)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer.py#L306?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer.py#L309)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer.py#L309?message=Update%20Docs)]
 </div>
 
 Provides tools for loading results into canonical
@@ -29,8 +29,8 @@ log_file_extension: str
 __init__(self, res, res_type=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer.py#L313)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer.py#L313?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer.py#L316)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer.py#L316?message=Update%20Docs)]
 </div>
 
   - `res`: `Any`
@@ -45,8 +45,8 @@ __init__(self, res, res_type=None):
 resolve_file_res_type(cls, res): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L333)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L333?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L336)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L336?message=Update%20Docs)]
 </div>
 
 
@@ -55,8 +55,8 @@ resolve_file_res_type(cls, res):
 get_res_type(self, res): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L341)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L341?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L344)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L344?message=Update%20Docs)]
 </div>
 
   - `res`: `Any`
@@ -174,8 +174,8 @@ Returns the corrections to the energies
 energies(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L528)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L528?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L531)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L531?message=Update%20Docs)]
 </div>
 
   - `:returns`: `_`
@@ -213,8 +213,8 @@ Returns the corrections to the wavefunctions
 transition_moments(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L573)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L573?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L576)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L576?message=Update%20Docs)]
 </div>
 
 
@@ -236,8 +236,8 @@ Returns the corrections to the wavefunctions
 deperturbed_transition_moments(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L602)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L602?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L605)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L605?message=Update%20Docs)]
 </div>
 
   - `:returns`: `_`
@@ -315,8 +315,8 @@ Returns the log_file for the run
 log_parser(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L716)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L716?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L719)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer/VPTResultsLoader.py#L719?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -371,7 +371,7 @@ log_parser(self):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Analyzer/VPTResultsLoader.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Analyzer/VPTResultsLoader.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer.py#L306?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analyzer.py#L309?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
