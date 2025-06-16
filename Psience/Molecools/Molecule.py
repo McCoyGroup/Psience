@@ -1418,6 +1418,8 @@ class Molecule(AbstractMolecule):
                   runner='matrix',
                   use_reaction_path=False,
                   modes=None,
+                  projected_modes=None,
+                  mode_transformation=None,
                   **opts
                   ):
         from ..VPT2 import VPTRunner, AnalyticVPTRunner
@@ -1445,44 +1447,28 @@ class Molecule(AbstractMolecule):
                 use_internals=False, project_transrot=False
             )
             if use_reaction_path:
-                from ..Modes import NormalModes
-
                 rpnms, rpnm_status = self.get_reaction_path_modes(
                     potential_derivatives=og_pot_der,
                     return_status=True
                 )
-                if rpnm_status:
-                    if modes.mass_weighted:
-                        rpnms = rpnms.make_mass_weighted()
-                    loc = modes.localize(target_modes=rpnms.modes_by_coords)
-                    modes = NormalModes(
-                        loc.basis,
-                        loc.matrix,
-                        inverse=loc.inverse,
-                        masses=loc.masses,
-                        freqs=loc.freqs,
-                        mass_weighted=loc.mass_weighted
-                    )[list(range(1, len(loc.freqs)))]
+                if rpnms.status:
+                    projected_modes = rpnms[1:]
 
-                    if potential_derivatives[2].shape[0] < potential_derivatives[0].shape[0]:
-                        potential_derivatives = list(potential_derivatives[:2]) + (
-                            nput.tensor_reexpand(
-                                [loc.localizing_transformation[0]],
-                                potential_derivatives[2:]
-                            )
-                        )
-                        potential_derivatives[2] = potential_derivatives[2][1:]
-                        potential_derivatives[3] = potential_derivatives[3][1:, 1:]
+        if projected_modes is not None:
+            #TODO: integrate this into the VPT infrastructure directly...
+            from ..Modes import NormalModes
 
-                    if dipole_derivatives[2].shape[0] < dipole_derivatives[1].shape[0]:
-                        dipole_derivatives = list(dipole_derivatives[:2]) + (
-                            nput.tensor_reexpand(
-                                [loc.localizing_transformation[0]],
-                                dipole_derivatives[2:]
-                            )
-                        )
-                        dipole_derivatives[2] = dipole_derivatives[2][1:]
-                        dipole_derivatives[3] = dipole_derivatives[3][1:, 1:]
+            if modes.mass_weighted:
+                projected_modes = modes.make_mass_weighted()
+            modes = modes.localize(target_modes=projected_modes.modes_by_coords)
+            # modes = NormalModes(
+            #     loc.basis,
+            #     loc.matrix,
+            #     inverse=loc.inverse,
+            #     masses=loc.masses,
+            #     freqs=loc.freqs,
+            #     mass_weighted=loc.mass_weighted
+            # )[list(range(1, len(loc.freqs)))]
 
         if use_internals or use_internals is None:
             return runner.construct(self.modify(),
@@ -1491,8 +1477,10 @@ class Molecule(AbstractMolecule):
                                     potential_derivatives=potential_derivatives,
                                     dipole_derivatives=dipole_derivatives,
                                     modes=modes,
+                                    mode_transformation=mode_transformation,
                                     **opts
                                     )
+
         else:
             return runner.construct(
                 [self.atoms, self.coords],
@@ -1500,6 +1488,7 @@ class Molecule(AbstractMolecule):
                 potential_derivatives=potential_derivatives,
                 dipole_derivatives=dipole_derivatives,
                 modes=modes,
+                mode_transformation=mode_transformation,
                 order=order,
                 **opts
             )

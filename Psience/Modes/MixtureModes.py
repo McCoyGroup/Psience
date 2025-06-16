@@ -2,7 +2,7 @@
 Provides support for handling modes that arise from
 """
 
-import numpy as np
+import numpy as np, scipy
 import McUtils.Numputils as nput
 from McUtils.Coordinerds import CoordinateSystem, CartesianCoordinateSystem3D, InternalCoordinateSystem
 
@@ -286,15 +286,22 @@ class MixtureModes(CoordinateSystem):
         else:
             return None
             # raise NotImplementedError("non-mass-weighted internal G-matrix not supported")
-
+    def compute_freqs(self):
+        # self = self.remove_frequency_scaling().remove_mass_weighting()
+        f = self.compute_hessian()
+        g = self.compute_gmatrix()
+        freqs2, _ = scipy.linalg.eigh(f, g, type=3)
+        return np.sign(freqs2) * np.sqrt(np.abs(freqs2))
     @property
     def local_hessian(self):
+        # self = self.remove_frequency_scaling()
         f = self.compute_hessian()
         g = self.compute_gmatrix()
         return self.compute_local_hessian(f, g)
 
     @property
     def local_gmatrix(self):
+        # self = self.remove_frequency_scaling()
         f = self.compute_hessian()
         g = self.compute_gmatrix()
         return self.compute_local_gmatrix(f, g)
@@ -494,4 +501,7 @@ class MixtureModes(CoordinateSystem):
 
         return new
 
+    def apply_transformation(self, tf, **opts):
+        from .LocalizedModes import LocalizedModes
 
+        return LocalizedModes(self, tf, **opts)

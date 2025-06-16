@@ -37,6 +37,7 @@ class PerturbationTheoryHamiltonian:
                  n_quanta=None,
                  modes=None,
                  mode_selection=None,
+                 mode_transformation=None,
                  local_mode_couplings=False,
                  local_mode_coupling_order=None,
                  full_surface_mode_selection=None,
@@ -116,7 +117,29 @@ class PerturbationTheoryHamiltonian:
 
         if mode_selection is not None:
             mode_selection = tuple(mode_selection)
-        mode_n = modes.basis.coords_by_modes.shape[0] if mode_selection is None else len(mode_selection)
+        if mode_transformation is not None:
+            transformation = mode_transformation
+            if len(transformation) == 2 and nput.is_array_like(transformation[0]):
+                tf, inv = transformation
+                tf = np.asanyarray(tf)
+                if tf.ndim == 1:
+                    transformation = np.asanyarray(transformation)
+                    inverse = transformation.T
+                else:
+                    transformation = tf
+                    inverse = np.asanyarray(inv)
+            else:
+                transformation = np.asanyarray(transformation)
+                inverse = transformation.T
+            mode_transformation = (transformation, inverse)
+
+        mode_n = (
+            len(mode_selection)
+                if mode_selection is not None else
+            mode_transformation[0].shape[1]
+                if mode_transformation is not None else
+            modes.basis.coords_by_modes.shape[0]
+        )
         if mode_n == 0:
             raise ValueError("empty normal modes supplied")
         self.mode_n = mode_n
@@ -128,6 +151,7 @@ class PerturbationTheoryHamiltonian:
         self.local_mode_couplings = self.prep_local_couplings(local_mode_couplings)
         self.local_mode_coupling_order = local_mode_coupling_order
         self.mode_selection = mode_selection
+        self.mode_transformation = mode_transformation
         self.full_surface_mode_selection = full_surface_mode_selection
 
 
@@ -149,6 +173,7 @@ class PerturbationTheoryHamiltonian:
             V_terms = PotentialTerms(self.molecule,
                                      modes=modes,
                                      mode_selection=mode_selection,
+                                     mode_transformation=mode_transformation,
                                      full_surface_mode_selection=full_surface_mode_selection,
                                      potential_derivatives=potential_derivatives,
                                      allow_higher_potential_terms=allow_higher_potential_terms,
@@ -162,7 +187,10 @@ class PerturbationTheoryHamiltonian:
             g_params = expansion_params.filter(KineticTerms)
             if self.local_mode_couplings and 'gmatrix_tolerance' not in g_params:
                 g_params['gmatrix_tolerance'] = None
-            G_terms = KineticTerms(self.molecule, modes=modes, mode_selection=mode_selection,
+            G_terms = KineticTerms(self.molecule,
+                                   modes=modes,
+                                   mode_selection=mode_selection,
+                                   mode_transformation=mode_transformation,
                                    **g_params
                                    )
         self.G_terms = self.TermGetter(G_terms, kinetic_terms, mode_selection=mode_selection)
@@ -176,9 +204,12 @@ class PerturbationTheoryHamiltonian:
                         ]
                 ))
         ):
-            Z_terms = CoriolisTerm(self.molecule, modes=modes, mode_selection=mode_selection,
-                                               **expansion_params.filter(CoriolisTerm)
-                                               )
+            Z_terms = CoriolisTerm(self.molecule,
+                                   modes=modes,
+                                   mode_selection=mode_selection,
+                                   mode_transformation=mode_transformation,
+                                   **expansion_params.filter(CoriolisTerm)
+                                   )
         else:
             # raise Exception(self.molecule.internal_coordinates)
             Z_terms = None
@@ -188,9 +219,12 @@ class PerturbationTheoryHamiltonian:
             u_params = expansion_params.filter(PotentialLikeTerm)
             if self.local_mode_couplings:
                 u_params['gmatrix_tolerance'] = u_params.get('gmatrix_tolerance', None)
-            U_terms = PotentialLikeTerm(self.molecule, modes=modes, mode_selection=mode_selection,
-                                                          **u_params
-                                                          )
+            U_terms = PotentialLikeTerm(self.molecule,
+                                        modes=modes,
+                                        mode_selection=mode_selection,
+                                        mode_transformation=mode_transformation,
+                                        **u_params
+                                        )
         else:
             U_terms = None
         self.pseudopotential_term = self.TermGetter(U_terms, pseudopotential_terms, mode_selection=mode_selection)
@@ -286,7 +320,9 @@ class PerturbationTheoryHamiltonian:
     def dipole_terms(self):
         if self._dipole_terms is None:
             self._dipole_terms = DipoleTerms(
-                self.molecule, modes=self.modes, mode_selection=self.mode_selection,
+                self.molecule, modes=self.modes,
+                mode_selection=self.mode_selection,
+                mode_transformation=self.mode_transformation,
                 full_surface_mode_selection=self.full_surface_mode_selection,
                 **ParameterManager(self.expansion_options).filter(DipoleTerms)
             )
@@ -1020,6 +1056,8 @@ class PerturbationTheoryHamiltonian:
                                                initial_states=initial_states,
                                                modes=self.modes,
                                                mode_selection=self.mode_selection,
+                                               mode_transformation=self.mode_transformation,
+                                               full_surface_mode_selection=self.full_surface_mode_selection,
                                                logger=self.logger,
                                                checkpoint=self.checkpointer,
                                                results=self.results,

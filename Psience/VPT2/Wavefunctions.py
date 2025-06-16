@@ -63,6 +63,8 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                  initial_states=None,
                  modes=None,
                  mode_selection=None,
+                 mode_transformation=None,
+                 full_surface_mode_selection=None,
                  logger=None,
                  checkpoint=None,
                  results=None,
@@ -84,6 +86,8 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         self.corrs = corrections
         self.modes = modes
         self.mode_selection = mode_selection
+        self.mode_transformation = mode_transformation
+        self.full_surface_mode_selection = full_surface_mode_selection,
         self.rep_basis = basis  # temporary hack until I decided how to merge the idea of
         # AnalyticWavefunctions with a RepresentationBasis
         self.initial_states = initial_states # For tracking where to start when calculating properties
@@ -1048,13 +1052,19 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                 self._dipole_terms = self.TermHolder(self.expansion_options['dipole_terms'])
             else:
                 self._dipole_terms = self.TermHolder(
-                    DipoleTerms(self.mol, modes=self.modes, mode_selection=self.mode_selection,
+                    DipoleTerms(self.mol, modes=self.modes,
+                                mode_selection=self.mode_selection,
+                                mode_transformation=self.mode_transformation,
+                                full_surface_mode_selection=self.full_surface_mode_selection,
                                 **ParameterManager(self.expansion_options).filter(DipoleTerms)
                                 ).get_terms()
                 )
         elif not isinstance(self._dipole_terms, self.TermHolder):
             self._dipole_terms = self.TermHolder(
-                DipoleTerms(self.mol, modes=self.modes, mode_selection=self.mode_selection,
+                DipoleTerms(self.mol, modes=self.modes,
+                            mode_selection=self.mode_selection,
+                            mode_transformation=self.mode_transformation,
+                            full_surface_mode_selection=self.full_surface_mode_selection,
                             dipole_derivatives=self._dipole_terms,
                             **ParameterManager(self.expansion_options).filter(DipoleTerms)
                             ).get_terms()

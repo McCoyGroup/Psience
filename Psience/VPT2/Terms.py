@@ -192,6 +192,7 @@ class ExpansionTerms:
         "cartesian_fd_mesh_spacing",
         "cartesian_fd_stencil",
         "cartesian_analytic_deriv_order",
+        "internal_by_cartesian_derivative_method",
         "internal_by_cartesian_order",
         "cartesian_by_internal_order",
         "jacobian_warning_threshold",
@@ -203,6 +204,7 @@ class ExpansionTerms:
                  molecule,
                  modes=None,
                  mode_selection=None,
+                 mode_transformation=None,
                  use_internal_modes=None,
                  logger=None,
                  parallelizer=None,
@@ -222,6 +224,7 @@ class ExpansionTerms:
                  cartesian_fd_mesh_spacing=1.0e-2,
                  cartesian_fd_stencil=None,
                  cartesian_analytic_deriv_order=0,
+                 internal_by_cartesian_derivative_method='old',
                  internal_by_cartesian_order=3,
                  cartesian_by_internal_order=4,
                  jacobian_warning_threshold=1e4,
@@ -250,6 +253,7 @@ class ExpansionTerms:
 
         self.internal_fd_mesh_spacing = internal_fd_mesh_spacing
         self.internal_fd_stencil = internal_fd_stencil
+        self.internal_by_cartesian_derivative_method = internal_by_cartesian_derivative_method
         self.cartesian_fd_mesh_spacing = cartesian_fd_mesh_spacing
         self.cartesian_fd_stencil = cartesian_fd_stencil
         self.cartesian_analytic_deriv_order = cartesian_analytic_deriv_order
@@ -268,6 +272,8 @@ class ExpansionTerms:
             modes = modes.basis
         if hasattr(modes, 'to_new_modes'):
             modes = modes.to_new_modes()
+        if mode_transformation is not None:
+            modes = modes.apply_transformation(mode_transformation)
         self._modes = modes#.basis
         if undimensionalize is None:
             undimensionalize = not self._check_internal_modes(clean=False)
@@ -278,11 +284,13 @@ class ExpansionTerms:
         else:
             self.raw_modes = None
             modes = self._modes
-        self._presel_dim = len(self.modes.freqs)
+        self._presel_dim = len(self._modes.freqs)
+        self._pretf_dim = mode_transformation[0].shape[0]
         if mode_selection is not None:
             modes = modes[mode_selection]
         self._modes = modes
         self.mode_sel = mode_selection
+        self.mode_tf = mode_transformation
         self.freqs = self.modes.freqs
         self._inert_frame = None
 
@@ -497,7 +505,9 @@ class ExpansionTerms:
                                              # odd behaves better
                                              mesh_spacing=self.internal_fd_mesh_spacing,
                                              stencil=stencil,
-                                             all_numerical=self.all_numerical,
+                                             # all_numerical=self.all_numerical,
+                                             # all_numerical=True,
+                                             # analytic_deriv_order=self.cartesian_analytic_deriv_order,
                                              converter_options=dict(
                                                  reembed=self.reembed,
                                                  planar_ref_tolerance=self.reembed_tol,
@@ -543,13 +553,13 @@ class ExpansionTerms:
                 new_jacs = [
                     x.squeeze() if isinstance(x, np.ndarray) else x
                     for x in ccoords.jacobian(internals, need_jacs,
-                                                          mesh_spacing=self.cartesian_fd_mesh_spacing,
-                                                          stencil=stencil,
-                                                          # all_numerical=True,
-                                                          analytic_deriv_order=self.cartesian_analytic_deriv_order,
-                                                          converter_options=dict(strip_dummies=self.strip_dummies),
-                                                          parallelizer=par
-                                                          )
+                                              mesh_spacing=self.cartesian_fd_mesh_spacing,
+                                              stencil=stencil,
+                                              # all_numerical=True,
+                                              analytic_deriv_order=self.cartesian_analytic_deriv_order,
+                                              converter_options=dict(strip_dummies=self.strip_dummies),
+                                              parallelizer=par
+                                              )
                 ]
                 if need_jacs[0] > self.cartesian_analytic_deriv_order:
                     new_jacs = new_jacs[self.cartesian_analytic_deriv_order:]
@@ -694,6 +704,98 @@ class ExpansionTerms:
                 self.logger.log_print(msg, **opt)
 
             embedding_coords = self._get_embedding_coords() if self.strip_embedding else None
+
+
+            if (
+                    JacobianKeys.InternalsByCartesians not in current_cache
+                    or len(current_cache[JacobianKeys.InternalsByCartesians]) < internal_by_cartesian_order
+            ):
+                if self.logger is not None:
+                    start = time.time()
+                    self.logger.log_print(
+                        "Getting d^nR/dX^n up to order {o}...",
+                        o=internal_by_cartesian_order
+                    )
+                def_1 = self.molecule.embedding.cart_fd_defaults
+                try:
+                    self.molecule.embedding.cart_fd_defaults = def_1.copy()
+                    self.molecule.embedding.cart_fd_defaults['analytic_deriv_order'] = self.cartesian_analytic_deriv_order
+                    int_by_cartesian_jacobs = self.molecule.get_internals_by_cartesians(
+                        internal_by_cartesian_order,
+                        strip_embedding=self.strip_embedding
+                    )#self.get_cart_jacobs(list(range(1, internal_by_cartesian_order + 1)))
+                finally:
+                    self.molecule.embedding.cart_fd_defaults = def_1
+                # m = np.max([np.max(np.abs(x)) for x in int_by_cartesian_jacobs])
+                if self.logger is not None:
+                    end = time.time()
+                    self.logger.log_print(
+                        "took {t}s",
+                        t=round(end-start, 3)
+                    )
+
+                # raise Exception([x.shape for x in int_by_cartesian_jacobs])
+
+                _contract_dim = DumbTensor._contract_dim
+                _ = []
+                for i,x in enumerate(int_by_cartesian_jacobs):
+                    if isinstance(x, int) or x.ndim == 2+i:
+                        _.append(x)
+                    elif x.ndim > 2+i:
+                        _.append(_contract_dim(x, 2+i))
+                    else:
+                        raise ValueError("bad shape for internal by Cartesian jacobian {} ({})".format(
+                            i, x.shape
+                        ))
+                int_by_cartesian_jacobs = _
+
+                # we'll strip off the embedding coords just in case
+                # if embedding_coords is not None:
+                #     good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
+
+                for i,x in enumerate(int_by_cartesian_jacobs):
+                    bad_spots = np.where(np.abs(x) > self.jacobian_warning_threshold)
+                    bad_bad_spots = bad_spots # so we don't lose it
+                    if len(bad_spots) > 0: # numpy fuckery
+                        bad_spots = bad_spots[0]
+                    if len(bad_spots) > 0:
+                        m = np.max(np.abs(x[bad_bad_spots]))
+                        self.logger.log_print('WARNING: maximum d^{i}R/dX^{i} term is {m}. '
+                                              'This will likely mess up G-matrix terms and is probably coming from a planar structure. '
+                                              'Setting to zero, but `jacobian_warning_threshold` can be increased if this is expected. '
+                                              'All terms >{t} (base shape:{s}): {b}',
+                                              i=i+1,
+                                              m=m,
+                                              s=x.shape,
+                                              b=np.array(bad_bad_spots).T,
+                                              t=self.jacobian_warning_threshold
+                                              )
+                        x[bad_bad_spots] = 0.
+
+                # Need to then mass weight
+                masses = self.masses
+                mass_conv = np.sqrt(self._tripmass(masses))
+                # mass weight the derivs w.r.t cartesians
+                cartesian_weighting = mass_conv
+                mc = mass_conv
+                _ = []
+                for i, x in enumerate(int_by_cartesian_jacobs):
+                    cartesian_weighting = np.expand_dims(cartesian_weighting, -1)#[..., np.newaxis]
+                    if isinstance(x, int):
+                        _.append(x)
+                    else:
+                        x = x / cartesian_weighting
+                        # if embedding_coords is not None:
+                        #     x = np.take(x, good_coords, axis=-1)
+                        _.append(x)
+                    mc = np.expand_dims(mc, 0)
+                    cartesian_weighting = cartesian_weighting * mc
+                int_by_cartesian_jacobs = _
+
+                current_cache[JacobianKeys.InternalsByCartesians] = int_by_cartesian_jacobs
+            else:
+                int_by_cartesian_jacobs = current_cache[JacobianKeys.InternalsByCartesians]
+
             # fill out
             if (
                     JacobianKeys.CartesiansByInternals not in current_cache
@@ -706,7 +808,12 @@ class ExpansionTerms:
                         "Getting d^nX/dR^n up to order {o}...",
                         o=cartesian_by_internal_order
                     )
-                cart_by_internal_jacobs = self.get_int_jacobs(list(range(1, cartesian_by_internal_order+1)))
+                cart_by_internal_jacobs = self.molecule.get_cartesians_by_internals(
+                    cartesian_by_internal_order,
+                    strip_embedding=self.strip_embedding,
+                    method=self.internal_by_cartesian_derivative_method
+                )
+                #self.get_int_jacobs(list(range(1, cartesian_by_internal_order+1)))
 
                 if self.logger is not None:
                     end = time.time()
@@ -730,8 +837,8 @@ class ExpansionTerms:
                 cart_by_internal_jacobs = _
 
                 # we'll strip off the embedding coords just in case
-                if embedding_coords is not None:
-                    good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
+                # if embedding_coords is not None:
+                #     good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
 
                 for i, x in enumerate(cart_by_internal_jacobs):
                     bad_spots = np.where(np.abs(x) > self.jacobian_warning_threshold)
@@ -766,9 +873,9 @@ class ExpansionTerms:
                         _.append(x)
                     else:
                         x = x * internal_weighting
-                        if embedding_coords is not None:
-                            for j in range(i+1):
-                                x = np.take(x, good_coords, axis=j)
+                        # if embedding_coords is not None:
+                        #     for j in range(i+1):
+                        #         x = np.take(x, good_coords, axis=j)
                         _.append(x)
                 cart_by_internal_jacobs = _
 
@@ -776,87 +883,6 @@ class ExpansionTerms:
 
             else:
                 cart_by_internal_jacobs = current_cache[JacobianKeys.CartesiansByInternals]
-
-            if (
-                    JacobianKeys.InternalsByCartesians not in current_cache
-                    or len(current_cache[JacobianKeys.InternalsByCartesians]) < internal_by_cartesian_order
-            ):
-                if self.logger is not None:
-                    start = time.time()
-                    self.logger.log_print(
-                        "Getting d^nR/dX^n up to order {o}...",
-                        o=internal_by_cartesian_order
-                    )
-                int_by_cartesian_jacobs = self.get_cart_jacobs(list(range(1, internal_by_cartesian_order + 1)))
-                # m = np.max([np.max(np.abs(x)) for x in int_by_cartesian_jacobs])
-                if self.logger is not None:
-                    end = time.time()
-                    self.logger.log_print(
-                        "took {t}s",
-                        t=round(end-start, 3)
-                    )
-
-                # raise Exception([x.shape for x in int_by_cartesian_jacobs])
-
-                _contract_dim = DumbTensor._contract_dim
-                _ = []
-                for i,x in enumerate(int_by_cartesian_jacobs):
-                    if isinstance(x, int) or x.ndim == 2+i:
-                        _.append(x)
-                    elif x.ndim > 2+i:
-                        _.append(_contract_dim(x, 2+i))
-                    else:
-                        raise ValueError("bad shape for internal by Cartesian jacobian {} ({})".format(
-                            i, x.shape
-                        ))
-                int_by_cartesian_jacobs = _
-
-                # we'll strip off the embedding coords just in case
-                if embedding_coords is not None:
-                    good_coords = np.setdiff1d(np.arange(3*self.num_atoms), embedding_coords)
-
-                for i,x in enumerate(int_by_cartesian_jacobs):
-                    bad_spots = np.where(np.abs(x) > self.jacobian_warning_threshold)
-                    bad_bad_spots = bad_spots # so we don't lose it
-                    if len(bad_spots) > 0: # numpy fuckery
-                        bad_spots = bad_spots[0]
-                    if len(bad_spots) > 0:
-                        m = np.max(np.abs(x[bad_bad_spots]))
-                        self.logger.log_print('WARNING: maximum d^{i}R/dX^{i} term is {m}. '
-                                              'This will likely mess up G-matrix terms and is probably coming from a planar structure. '
-                                              'Setting to zero, but `jacobian_warning_threshold` can be increased if this is expected. '
-                                              'All terms >{t} (base shape:{s}): {b}',
-                                              i=i+1,
-                                              m=m,
-                                              s=x.shape,
-                                              b=np.array(bad_bad_spots).T,
-                                              t=self.jacobian_warning_threshold
-                                              )
-                        x[bad_bad_spots] = 0.
-
-                # Need to then mass weight
-                masses = self.masses
-                mass_conv = np.sqrt(self._tripmass(masses))
-                # mass weight the derivs w.r.t cartesians
-                cartesian_weighting = mass_conv
-                mc = mass_conv
-                _ = []
-                for i, x in enumerate(int_by_cartesian_jacobs):
-                    cartesian_weighting = np.expand_dims(cartesian_weighting, -1)#[..., np.newaxis]
-                    if isinstance(x, int):
-                        _.append(x)
-                    else:
-                        x = x / cartesian_weighting
-                        if embedding_coords is not None:
-                            x = np.take(x, good_coords, axis=-1)
-                        _.append(x)
-                    mc = np.expand_dims(mc, 0)
-                    cartesian_weighting = cartesian_weighting * mc
-                int_by_cartesian_jacobs = _
-
-                current_cache[JacobianKeys.InternalsByCartesians] = int_by_cartesian_jacobs
-            else:
-                int_by_cartesian_jacobs = current_cache[JacobianKeys.InternalsByCartesians]
 
             if self._check_internal_modes():
                 self.use_internal_modes = True
@@ -1260,6 +1286,7 @@ class PotentialTerms(ExpansionTerms):
                  modes=None,
                  potential_derivatives=None,
                  mode_selection=None,
+                 mode_transformation=None,
                  full_surface_mode_selection=None,
                  logger=None,
                  parallelizer=None,
@@ -1284,7 +1311,9 @@ class PotentialTerms(ExpansionTerms):
 
         self.full_mode_sel = full_surface_mode_selection
 
-        super().__init__(molecule, modes, mode_selection=mode_selection,
+        super().__init__(molecule, modes,
+                         mode_selection=mode_selection,
+                         mode_transformation=mode_transformation,
                          logger=logger, parallelizer=parallelizer, checkpointer=checkpointer,
                          **opts
                          )
@@ -1304,7 +1333,9 @@ class PotentialTerms(ExpansionTerms):
         if self._v_derivs is None:
             if self._input_derivs is None:
                 self._input_derivs = self.molecule.potential_surface.derivatives
-            self._v_derivs = self._canonicalize_derivs(self.freqs, self.masses, self._input_derivs, self.full_mode_sel)
+            self._v_derivs = self._canonicalize_derivs(self.freqs, self.masses, self._input_derivs,
+                                                       self.full_mode_sel,
+                                                       self.mode_tf)
 
         return self._v_derivs
     @v_derivs.setter
@@ -1313,14 +1344,14 @@ class PotentialTerms(ExpansionTerms):
 
 
     def _check_mode_terms(self, derivs=None):
-        modes_n = len(self.modes.freqs)
+        modes_n = len(self.freqs)
         if derivs is None:
             derivs = self.v_derivs
         for d in derivs:
             if d.shape != (modes_n,) * len(d.shape):
                 return False
         return True
-    def _canonicalize_derivs(self, freqs, masses, derivs, full_mode_sel):
+    def _canonicalize_derivs(self, freqs, masses, derivs, full_mode_sel, mode_transformation):
 
         if self._check_mode_terms(derivs):
             return derivs
@@ -1345,7 +1376,8 @@ class PotentialTerms(ExpansionTerms):
 
         n = self.num_atoms
         full_modes_n = self._presel_dim
-        modes_n = len(self.modes.freqs)
+        modes_n = self._pretf_dim
+        tf_n = len(freqs)
         internals_n = 3 * n - 6
         coord_n = 3 * n
 
@@ -1438,6 +1470,25 @@ class PotentialTerms(ExpansionTerms):
                 )
             )
 
+
+        if (
+                mode_transformation is not None
+                and (
+                        len(derivs) > 2
+                        and thirds.shape == (modes_n, coord_n, coord_n)
+                )
+        ):
+            if len(derivs) > 3:
+                thirds, fourths = nput.tensor_reexpand(
+                    [mode_transformation[1]],
+                    [thirds, fourths]
+                )
+            else:
+                thirds, = nput.tensor_reexpand(
+                    [mode_transformation[1]],
+                    [thirds]
+                )
+
         for i in range(4, len(derivs)):
             if (
                     derivs[i].shape != (coord_n,) * (i+1)
@@ -1476,7 +1527,7 @@ class PotentialTerms(ExpansionTerms):
                 _, v2x = TensorDerivativeConverter((xQ2, 0), (grad, fcs)).convert(order=2)
 
                 real_freqs = np.diag(v2x)
-                nominal_freqs = self.modes.freqs
+                nominal_freqs = self.freqs
                 # deviation on the order of a wavenumber can happen in low-freq stuff from numerical shiz
                 if self.freq_tolerance is not None:
                     if np.max(np.abs(nominal_freqs - real_freqs)) > self.freq_tolerance:
@@ -1491,7 +1542,7 @@ class PotentialTerms(ExpansionTerms):
 
             all_derivs = [grad, fcs]
             if len(derivs) > 2:
-                if thirds.shape == (modes_n, coord_n, coord_n):
+                if thirds.shape == (tf_n, coord_n, coord_n):
                     if self.mixed_derivs is None:
                         self.mixed_derivs = True
                     undimension_3 = (
@@ -1507,7 +1558,7 @@ class PotentialTerms(ExpansionTerms):
                             * m_conv[np.newaxis, :, np.newaxis]
                             * m_conv[np.newaxis, np.newaxis, :]
                     )
-                elif thirds.shape == (modes_n, modes_n, modes_n):
+                elif thirds.shape == (tf_n, tf_n, tf_n):
                     if self.mixed_derivs is None:
                         self.mixed_derivs = False
                     undimension_3 = (
@@ -1523,7 +1574,7 @@ class PotentialTerms(ExpansionTerms):
                 all_derivs.append(thirds)
 
             if len(derivs) > 3:
-                if fourths.shape == (modes_n, modes_n, coord_n, coord_n):
+                if fourths.shape == (tf_n, tf_n, coord_n, coord_n):
                     undimension_4 = (
                             f_conv[:, np.newaxis, np.newaxis, np.newaxis]
                             * f_conv[np.newaxis, :, np.newaxis, np.newaxis]
@@ -1537,7 +1588,7 @@ class PotentialTerms(ExpansionTerms):
                             * m_conv[np.newaxis, np.newaxis, :, np.newaxis]
                             * m_conv[np.newaxis, np.newaxis, np.newaxis, :]
                     )
-                elif fourths.shape == (modes_n, modes_n, modes_n, modes_n):
+                elif fourths.shape == (tf_n, tf_n, tf_n, tf_n):
                     undimension_4 = (
                             f_conv[:, np.newaxis, np.newaxis, np.newaxis]
                             * f_conv[np.newaxis, :, np.newaxis, np.newaxis]
@@ -1701,11 +1752,24 @@ class PotentialTerms(ExpansionTerms):
                 x_derivs = [xQ] + [0] * (order-1)
                 # terms = self._get_tensor_derivs(x_derivs, V_derivs, mixed_terms=False, mixed_XQ=self.mixed_derivs)
                 if mixed_derivs:
-                    terms = TensorDerivativeConverter(x_derivs, V_derivs, mixed_terms=[
-                        [None, v] for v in V_derivs[2:]
-                    ]).convert(order=order)#, check_arrays=True)
+                    terms_base = nput.tensor_reexpand(
+                        x_derivs,
+                        V_derivs[:2]
+                    )
+                    terms_mixed = [
+                        nput.tensor_reexpand(
+                            x_derivs,
+                            [0, v],
+                            axes=[-1, n+1]
+                        )[-1]
+                        for n,v in enumerate(V_derivs[2:])
+                    ]
+                    terms = terms_base + terms_mixed
+                    # terms = TensorDerivativeConverter(x_derivs, V_derivs, mixed_terms=[
+                    #     [None, v] for v in V_derivs[2:]
+                    # ]).convert(order=order)#, check_arrays=True)
                 else:
-                    terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order)#, check_arrays=True)
+                    terms = nput.tensor_reexpand(x_derivs, V_derivs)
 
                 if mixed_derivs:
                     logger.log_print("handling mixed derivative symmetry ({mode})...", mode=self.mixed_derivative_handling_mode)
@@ -1920,10 +1984,15 @@ class PotentialTerms(ExpansionTerms):
 
             logger.log_print("checking Hessian...")
             if self.hessian_tolerance is not None and np.linalg.norm(np.abs(terms[0] - np.diag(np.diag(terms[0])))) > self.hessian_tolerance:
-                raise ValueError("F-matrix is not diagonal (got {})".format(terms[0]))
+                raise ValueError(
+                    "F-matrix<{}> is not diagonal (got {})".format(
+                        terms[0].shape,
+                        terms[0] * UnitsData.hartrees_to_wavenumbers
+                    )
+                )
 
             new_freqs = np.diag(terms[0])
-            old_freqs = self.modes.freqs
+            old_freqs = self.freqs
             # deviation on the order of a wavenumber can happen in low-freq stuff from numerical shiz
             if self.freq_tolerance is not None:
                 if np.max(np.abs(new_freqs - old_freqs)) > self.freq_tolerance:
@@ -2077,7 +2146,7 @@ class KineticTerms(ExpansionTerms):
                 for i,t in enumerate(terms):
                     if i == 0:
                         if self.gmatrix_tolerance is not None and np.linalg.norm(np.abs(terms[0] - np.diag(np.diag(terms[0])))) > self.gmatrix_tolerance:
-                            raise ValueError("G-matrix is not diagonal (got {})".format(terms[0]))
+                            raise ValueError("G-matrix is not diagonal (got {})".format(terms[0] * UnitsData.hartrees_to_wavenumbers))
                         continue
                     m = np.max(np.abs(t))
                     if m > self.g_derivative_threshold:
@@ -2106,7 +2175,7 @@ class KineticTerms(ExpansionTerms):
 
             if self.freq_tolerance is not None and self.check_input_gmatrix:
                 real_freqs = np.diag(G_terms[0])
-                nominal_freqs = self.modes.freqs
+                nominal_freqs = self.freqs
                 # deviation on the order of a wavenumber can happen in low-freq stuff from numerical shiz
                 if self.freq_tolerance is not None:
                     if np.max(np.abs(nominal_freqs - real_freqs)) > self.freq_tolerance:
@@ -2549,6 +2618,7 @@ class DipoleTerms(ExpansionTerms):
                  mixed_derivs=None,
                  modes=None,
                  mode_selection=None,
+                 mode_transformation=None,
                  full_surface_mode_selection=None,
                  logger=None,
                  parallelizer=None,
@@ -2567,7 +2637,7 @@ class DipoleTerms(ExpansionTerms):
         """
         self.derivs = None
         self.full_mode_sel = full_surface_mode_selection
-        super().__init__(molecule, modes=modes, mode_selection=mode_selection,
+        super().__init__(molecule, modes=modes, mode_selection=mode_selection, mode_transformation=mode_transformation,
                          logger=logger, parallelizer=parallelizer, checkpointer=checkpointer,
                          **opts
                          )
@@ -2576,9 +2646,10 @@ class DipoleTerms(ExpansionTerms):
             self.mixed_derivs = mixed_derivs
         if dipole_derivatives is None:
             dipole_derivatives = molecule.dipole_derivatives
-        self.derivs = self._canonicalize_derivs(self.freqs, self.masses, dipole_derivatives, self.full_mode_sel)
+        self.derivs = self._canonicalize_derivs(self.freqs, self.masses, dipole_derivatives,
+                                                self.full_mode_sel, self.mode_tf)
 
-    def _canonicalize_derivs(self, freqs, masses, derivs, full_mode_sel):
+    def _canonicalize_derivs(self, freqs, masses, derivs, full_mode_sel, mode_transformation):
         """
         Makes sure all of the dipole moments are clean and ready to rotate
         """
@@ -2632,7 +2703,8 @@ class DipoleTerms(ExpansionTerms):
 
         n = len(masses)
         full_mode_n = self._presel_dim
-        modes_n = len(self.modes.freqs)
+        modes_n = self._pretf_dim
+        tf_n = len(freqs)
         internals_n = 3 * n - 6
         coord_n = 3 * n
 
@@ -2716,6 +2788,24 @@ class DipoleTerms(ExpansionTerms):
                 )
             )
 
+        if (
+                mode_transformation is not None
+                and (
+                        len(derivs) > 2
+                        and seconds.shape == (modes_n, coord_n, 3)
+                )
+        ):
+            if len(derivs) > 3:
+                seconds, thirds = nput.tensor_reexpand(
+                    [mode_transformation[1]],
+                    [seconds, thirds]
+                )
+            else:
+                seconds, = nput.tensor_reexpand(
+                    [mode_transformation[1]],
+                    [seconds]
+                )
+
         for i in range(4, len(derivs)):
             if (
                     derivs[i].shape != (coord_n,) * (i+1) + (3,)
@@ -2748,7 +2838,7 @@ class DipoleTerms(ExpansionTerms):
 
         all_derivs = [mom, grad]
         if len(derivs) > 2:
-            if seconds.shape == (modes_n, coord_n, 3):
+            if seconds.shape == (tf_n, coord_n, 3):
                 if self.mixed_derivs is None:
                     self.mixed_derivs = True
                 undimension_2 = (
@@ -2768,7 +2858,7 @@ class DipoleTerms(ExpansionTerms):
             all_derivs.append(seconds)
 
         if len(derivs) > 3:
-            if thirds.shape == (modes_n, modes_n, coord_n, 3):
+            if thirds.shape == (tf_n, tf_n, coord_n, 3):
                 if self.mixed_derivs is None:
                     self.mixed_derivs = True
                 undimension_3 = (
@@ -2784,7 +2874,7 @@ class DipoleTerms(ExpansionTerms):
                         * m_conv[np.newaxis, :, np.newaxis, np.newaxis]
                         * m_conv[np.newaxis, np.newaxis, :, np.newaxis]
                 )
-            elif thirds.shape == (modes_n, modes_n, modes_n, 3):
+            elif thirds.shape == (tf_n, tf_n, tf_n, 3):
                 if self.mixed_derivs is None:
                     self.mixed_derivs = False
                 undimension_3 = (
@@ -2820,7 +2910,7 @@ class DipoleTerms(ExpansionTerms):
         return all_derivs
 
     def _check_mode_terms(self, derivs=None):
-        modes_n = len(self.modes.freqs)
+        modes_n = self._pretf_dim
         if derivs is None:
             derivs = self.derivs[1:]
         for d in derivs:
@@ -2999,7 +3089,7 @@ class OperatorTerms(ExpansionTerms):
         self.derivs = self._canonicalize_derivs(self.freqs, self.masses, operator_derivatives)
 
     def _check_mode_terms(self, derivs=None):
-        modes_n = len(self.modes.freqs)
+        modes_n = self._pretf_dim
         if derivs is None:
             derivs = self.derivs
         for d in derivs:
@@ -3012,7 +3102,7 @@ class OperatorTerms(ExpansionTerms):
             return derivs
 
         n = self.num_atoms
-        modes_n = len(self.modes.freqs)
+        modes_n = self._pretf_dim
         internals_n = 3 * n - 6
         coord_n = 3 * n
 

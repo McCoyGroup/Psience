@@ -3127,7 +3127,6 @@ State                   Frequency    Intensity       Frequency    Intensity
     @debugTest
     def test_LogFileAnalysis(self):
 
-
         analyzer = VPTAnalyzer(TestManager.test_data('methanol_vpt_3.out'))
         # print(
         #     analyzer.log_parser.energies[1]
