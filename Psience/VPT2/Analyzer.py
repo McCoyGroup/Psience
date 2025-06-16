@@ -80,6 +80,9 @@ class VPTAnalyzerLogParser(LogParser):
         if self._tree is None:
             with self:
                 self._tree = self.to_tree(depth=-1)
+                if len(self._tree) > 1:
+                    #TODO: decide how a TreeWrapper will handle this kind of slice operation
+                    self._tree = type(self._tree)(self._tree[-1])
         return self._tree
 
     class EnergiesBlockParser(StringLineByLineReader):
@@ -124,7 +127,7 @@ class VPTAnalyzerLogParser(LogParser):
         if self._energies is None:
             try:
                 eng_str = self.tree[0, "State Energies"]
-            except KeyError:
+            except IndexError:
                 eng_str = self.tree[0, "Degenerate Energies"]
             self._energies = self.parse_energies_blocks(eng_str)
         return self._energies[0], self._energies[1]
@@ -134,7 +137,7 @@ class VPTAnalyzerLogParser(LogParser):
         if self._energies is None:
             try:
                 eng_str = self.tree[0, "State Energies"]
-            except KeyError:
+            except IndexError:
                 eng_str = self.tree[0, "Degenerate Energies"]
             self._energies = self.parse_energies_blocks(eng_str)
         return self._energies[0], self._energies[2]

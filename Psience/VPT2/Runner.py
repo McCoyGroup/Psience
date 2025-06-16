@@ -62,6 +62,7 @@ class VPTSystem:
         "modes",
         "local_modes",
         "mode_selection",
+        "mode_transformation",
         "full_surface_mode_selection",
         "potential_derivatives",
         "potential_function",
@@ -77,6 +78,7 @@ class VPTSystem:
                  modes=None,
                  local_modes=None,
                  mode_selection=None,
+                 mode_transformation=None,
                  full_surface_mode_selection=None,
                  potential_derivatives=None,
                  potential_function=None,
@@ -190,6 +192,22 @@ class VPTSystem:
         if modes is not None:
             self.mol.normal_modes.modes = modes
         self.mode_selection = mode_selection
+        if mode_transformation is not None: #TODO: make consistent with imp in Hamiltonian
+            if (
+                    len(mode_transformation) == 2
+                    and nput.is_array_like(mode_transformation[0])
+            ):
+                tf, inv = mode_transformation
+                tf = np.asanyarray(tf)
+                if tf.ndim == 2:
+                    mode_transformation = (mode_transformation, np.asanyarray(inv))
+                else:
+                    mode_transformation = np.asanyarray(mode_transformation)
+                    mode_transformation = (mode_transformation, mode_transformation.T)
+            else:
+                mode_transformation = np.asanyarray(mode_transformation)
+                mode_transformation = (mode_transformation, mode_transformation.T)
+        self.mode_transformation = mode_transformation
 
         if eckart_embed is True:
             self.mol = self.mol.get_embedded_molecule()
@@ -247,6 +265,8 @@ class VPTSystem:
             else:
                 mode_spec = self.mode_selection
             return len(mode_spec)
+        elif self.mode_transformation is not None:
+            return self.mode_transformation[0].shape[1]
         else:
             return len(self.mol.normal_modes.modes.freqs)
 
@@ -656,6 +676,7 @@ class VPTHamiltonianOptions:
 
     __props__ = (
         "mode_selection",
+        "mode_transformation",
         "local_mode_couplings",
         "local_mode_coupling_order",
         "full_surface_mode_selection",
@@ -686,6 +707,7 @@ class VPTHamiltonianOptions:
         "cartesian_fd_mesh_spacing",
         "cartesian_fd_stencil",
         "cartesian_analytic_deriv_order",
+        "internal_by_cartesian_derivative_method",
         "internal_by_cartesian_order",
         "cartesian_by_internal_order",
         "jacobian_warning_threshold",
@@ -701,6 +723,7 @@ class VPTHamiltonianOptions:
 
     def __init__(self,
                  mode_selection=None,
+                 mode_transformation=None,
                  local_mode_couplings=None,
                  local_mode_coupling_order=None,
                  full_surface_mode_selection=None,
@@ -730,6 +753,7 @@ class VPTHamiltonianOptions:
                  cartesian_fd_mesh_spacing=None,
                  cartesian_fd_stencil=None,
                  cartesian_analytic_deriv_order=None,
+                 internal_by_cartesian_derivative_method=None,
                  internal_by_cartesian_order=None,
                  cartesian_by_internal_order=None,
                  jacobian_warning_threshold=None,
@@ -799,6 +823,7 @@ class VPTHamiltonianOptions:
         """
         all_opts = dict(
             mode_selection=mode_selection,
+            mode_transformation=mode_transformation,
             local_mode_couplings=local_mode_couplings,
             local_mode_coupling_order=local_mode_coupling_order,
             full_surface_mode_selection=full_surface_mode_selection,
@@ -829,6 +854,7 @@ class VPTHamiltonianOptions:
             cartesian_fd_mesh_spacing=cartesian_fd_mesh_spacing,
             cartesian_fd_stencil=cartesian_fd_stencil,
             cartesian_analytic_deriv_order=cartesian_analytic_deriv_order,
+            internal_by_cartesian_derivative_method=internal_by_cartesian_derivative_method,
             internal_by_cartesian_order=internal_by_cartesian_order,
             cartesian_by_internal_order=cartesian_by_internal_order,
             jacobian_warning_threshold=jacobian_warning_threshold,

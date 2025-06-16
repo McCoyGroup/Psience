@@ -347,28 +347,31 @@ class NormalModes(MixtureModes):
 
     def get_nearest_mode_transform(self,
                                    alternate_modes:np.ndarray,
-                                   mass_weighted=False,
+                                   mass_weighted=None,
                                    atoms=None,
                                    maximum_similarity=True,
                                    unitarize=True,
                                    masses=None
                                    ):
-        if not mass_weighted:
-            if masses is None:
-                masses = self.masses
-                modes = self.remove_mass_weighting()
+        if mass_weighted is not None:
+            if not mass_weighted:
+                if masses is None:
+                    masses = self.masses
+                    modes = self.remove_mass_weighting()
+                else:
+                    modes = self.remove_mass_weighting(masses)
             else:
-                modes = self.remove_mass_weighting(masses)
+                if masses is None:
+                    masses = self.masses
+                    modes = self.make_mass_weighted()
+                else:
+                    modes = self.make_mass_weighted(masses)
         else:
-            if masses is None:
-                masses = self.masses
-                modes = self.make_mass_weighted()
-            else:
-                modes = self.make_mass_weighted(masses)
+            modes = self
 
-        inv = modes.inverse
-        modes = modes.matrix
-        if atoms is not None:
+        inv = modes.coords_by_modes
+        modes = modes.modes_by_coords
+        if self.is_cartesian and atoms is not None:
             proj = self._atom_projector(modes.shape[0], atoms)
             # if mass_weighted:
             #     gi12 = np.diag(np.repeat(1/np.sqrt(masses), 3))
@@ -410,12 +413,11 @@ class NormalModes(MixtureModes):
         else:
             mw = self.make_mass_weighted(masses=masses)
 
-        if origin is None:
-            origin = mw.remove_mass_weighting().origin
-
         f = mw.modes_by_coords @ np.diag(self.freqs ** 2) @ mw.modes_by_coords.T
 
-        if localization_type == 'direct':
+        if self.is_cartesian and localization_type == 'direct':
+            if origin is None:
+                origin = mw.remove_mass_weighting().origin
             tr_tf, tr_inv = nput.translation_rotation_invariant_transformation(
                 origin.reshape(-1, 3),
                 masses,
@@ -423,6 +425,7 @@ class NormalModes(MixtureModes):
             )
         else:
             tr_tf = tr_inv = np.eye(mw.matrix.shape[0])
+
 
         g_matrix = tr_tf.T @ tr_tf
         if allow_mode_mixing:
@@ -441,8 +444,6 @@ class NormalModes(MixtureModes):
             modes = []
             # inv = []
             for proj in projectors:
-                # proj = proj @ g12
-                # proj = self._atom_projector(len(masses), atom)
                 f_matrix = tr_inv @ proj @ f @ proj.T @ tr_inv.T
                 sub_freqs, sub_modes, sub_inv = self.get_normal_modes(
                     f_matrix,
@@ -517,47 +518,67 @@ class NormalModes(MixtureModes):
                                                                unitarize=True
                                                                ):
 
-        if nput.is_numeric(coordinate_constraints[0]):
-            coordinate_constraints = [coordinate_constraints]
 
+        if self.is_cartesian:
+            if nput.is_numeric(coordinate_constraints[0]):
+                coordinate_constraints = [coordinate_constraints]
+            nmw = self.remove_mass_weighting()
+            if masses is None:
+                m = self.masses
+            else:
+                m = masses
+            basis, _, _ = nput.internal_basis(nmw.origin.reshape((-1, 3)), coordinate_constraints, masses=m)
 
-        nmw = self.remove_mass_weighting()
-        if masses is None:
-            m = self.masses
+            g12 = np.diag(np.repeat(1/np.sqrt(m), 3))
+            projections = [
+                nput.projection_matrix(g12 @ b)
+                    if not orthogonal_projection else
+                nput.orthogonal_projection_matrix(g12 @ b)
+                for b in basis
+            ]
+
+            if allow_mode_mixing and orthogonal_projection:
+                proj = projections[0]
+                for p in projections[1:]:
+                    proj = p @ proj @ p
+                projections = [proj]
+
+            if atoms is not None:
+                if nput.is_numeric(atoms):
+                    atoms = [atoms]
+                nats = len(m)
+                a_proj = self._atom_projector(nats, atoms)
+                projections = [
+                    a_proj @ proj @ a_proj
+                    for proj in projections
+                ]
         else:
-            m = masses
-        basis, _, _ = nput.internal_basis(nmw.origin.reshape((-1, 3)), coordinate_constraints, masses=m)
+            if nput.is_numeric(coordinate_constraints):
+                coordinate_constraints = [coordinate_constraints]
+            if not (
+                # Fast check
+                isinstance(coordinate_constraints, np.ndarray)
+                and np.issubdtype(coordinate_constraints.dtype, np.integer)
+            ) and not all(nput.is_int(c) for c in coordinate_constraints):
+                raise ValueError(f"internal modes can only be constrained by coordinate index (got {coordinate_constraints})")
+            basis = np.zeros((len(coordinate_constraints),self.coords_by_modes.shape[1] ), dtype=float)
+            coordinate_constraints = np.asanyarray(coordinate_constraints)
+            for n,i in enumerate(coordinate_constraints):
+                basis[n, i] = 1
 
-        # g12 = np.diag(np.repeat(np.sqrt(m), 3))
-        gi12 = np.diag(np.repeat(1/np.sqrt(m), 3))
-        projections = [
-            nput.projection_matrix(gi12 @ b)
-                if not orthogonal_projection else
-            nput.orthogonal_projection_matrix(gi12 @ b)
-            for b in basis
-        ]
-
-        if allow_mode_mixing and orthogonal_projection:
-            proj = projections[0]
-            for p in projections[1:]:
-                proj = p @ proj @ p
-            projections = [proj]
+            g12 = nput.fractional_power(self.g_matrix, 1/2)
+            projections = [
+                nput.projection_matrix(g12 @ b[:, np.newaxis])
+                    if not orthogonal_projection else
+                nput.orthogonal_projection_matrix(g12 @ b[:, np.newaxis])
+                for b in basis
+            ]
 
         # if orthogonal_projection:
         #     projections = [proj @ gi12 for proj in projections]
         # else:
         #     projections = [proj @ gi12 for proj in projections]
 
-
-        if atoms is not None:
-            if nput.is_numeric(atoms):
-                atoms = [atoms]
-            nats = len(m)
-            a_proj = self._atom_projector(nats, atoms)
-            projections = [
-                a_proj @ proj @ a_proj
-                for proj in projections
-            ]
 
         return self.get_projected_localized_mode_transformation(
             projections,
@@ -568,7 +589,6 @@ class NormalModes(MixtureModes):
             unitarize=unitarize,
             allow_mode_mixing=allow_mode_mixing
         )
-
 
     def get_internal_localized_mode_transformation(
             self,
@@ -726,6 +746,7 @@ class NormalModes(MixtureModes):
         DisplacmentMinimized = 'displacements'
         Internals = 'coordinates'
         CoordinateConstraints = 'constraints'
+        Projected = 'projections'
 
     @property
     def localizer_dispatch(self):
@@ -735,6 +756,7 @@ class NormalModes(MixtureModes):
             self.LocalizationMethods.DisplacmentMinimized.value:(self.get_displacement_localized_mode_transformation, 'mode_blocks'),
             self.LocalizationMethods.Internals.value:(self.get_internal_localized_mode_transformation, 'internals'),
             self.LocalizationMethods.CoordinateConstraints.value:(self.get_coordinate_projected_localized_mode_transformation, 'coordinate_constraints'),
+            self.LocalizationMethods.Projected.value:(self.get_projected_localized_mode_transformation, 'projections'),
         }
 
     def localize(self,
@@ -745,6 +767,7 @@ class NormalModes(MixtureModes):
                  internals=None,
                  mode_blocks=None,
                  coordinate_constraints=None,
+                 projections=None,
                  reorthogonalize=None,
                  unitarize=True,
                  **opts
@@ -763,6 +786,8 @@ class NormalModes(MixtureModes):
                 method = 'atoms'
             elif coordinate_constraints is not None:
                 method = 'constraints'
+            elif projections is not None:
+                method = 'projections'
             else:
                 method = 'displacements'
 

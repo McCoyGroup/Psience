@@ -1427,7 +1427,7 @@ class MolecoolsTests(TestCase):
         runner, _ = methanol.setup_VPT(use_reaction_path=True, degeneracy_specs='auto')
         runner.print_tables()
 
-    @debugTest
+    @validationTest
     def test_LocalModeCHModel(self):
         from Psience.BasisReps import modify_internal_hamiltonian
 
@@ -1495,6 +1495,99 @@ class MolecoolsTests(TestCase):
         print_arr("Freqs:", np.sqrt(freqs_new))
         print("Hessian:")
         print_arr(new_hess)
+
+    @debugTest
+    def test_InternalProjectedModes(self):
+        import McUtils.Coordinerds as crops
+
+        methanol_zmatrix = crops.functionalized_zmatrix(
+            3,
+            {
+                (2, 1, 0): [
+                    [0, -1, -2, -3],
+                    [1, -1, 0, -2],
+                    [2, -1, 0, 1],
+                ]
+            }
+        )
+        methanol_zmatrix = crops.set_zmatrix_embedding(methanol_zmatrix)
+
+        me_ints = Molecule.from_file(
+            TestManager.test_data('methanol_vpt_1.fchk'),
+            internals=methanol_zmatrix
+        )
+        nms = me_ints.get_normal_modes(project_transrot=False)
+        locs = nms.localize(coordinate_constraints=crops.zmatrix_indices(
+            methanol_zmatrix,
+            [(3, 2, 1, 0)]
+        ))
+
+        from McUtils.Formatters import TableFormatter
+        # print(TableFormatter('{:.0f}').format(nms.freqs[np.newaxis] * UnitsData.hartrees_to_wavenumbers))
+        # print(
+        #     TableFormatter('{:.0f}').format(locs.local_hessian * UnitsData.hartrees_to_wavenumbers)
+        # )
+        # print(
+        #     TableFormatter('{:.0f}').format(locs.compute_gmatrix())
+        # )
+
+        me_carts = Molecule.from_file(
+            TestManager.test_data('methanol_vpt_1.fchk')
+        )
+        nms_carts = me_carts.get_normal_modes(project_transrot=False, use_internals=False)
+
+        print()
+        # locs = nms.localize(internals=[(3, 2, 1, 0)], orthogonal_projection=True)
+        # print(TableFormatter('{:.0f}').format(nms.freqs[np.newaxis] * UnitsData.hartrees_to_wavenumbers))
+        # print(
+        #     TableFormatter('{:.0f}').format(locs.local_hessian * UnitsData.hartrees_to_wavenumbers)
+        # )
+        # loc_2 = nms_carts.apply_transformation(locs.localizing_transformation[0])
+        # print(TableFormatter('{:.0f}').format(nms_carts.freqs[np.newaxis] * UnitsData.hartrees_to_wavenumbers))
+        # print(
+        #     TableFormatter('{:.0f}').format(loc_2.local_hessian * UnitsData.hartrees_to_wavenumbers)
+        # )
+        # print(
+        #     TableFormatter('{:.0f}').format(loc_2.compute_gmatrix())
+        # )
+        # return
+
+        # loc_2 = nms_carts.apply_transformation(locs.localizing_transformation).make_dimensionless()
+        # # cart_udim = nms_carts.make_dimensionless()
+        # f_nmw = me_carts.potential_derivatives[1]
+        # g12 = nput.fractional_power(me_carts.g_matrix, 1/2)
+        # f_mw = g12 @ f_nmw @ g12
+        # f_cart = nput.tensor_reexpand(
+        #     [loc_2.coords_by_modes],
+        #     [0, f_mw]
+        # )[-1]
+        # # g_cart = nms_carts.compute_gmatrix()
+        # # print(
+        # #     TableFormatter('{:.3f}').format(locs.localizing_transformation[1] @ locs.localizing_transformation[0])
+        # # )
+        # # f_loc = locs.localizing_transformation[1] @ f_cart @ locs.localizing_transformation[1].T
+        # # print(f_loc.shape)
+        # print(
+        #     TableFormatter('{:.3f}').format(
+        #         f_cart * (UnitsData.hartrees_to_wavenumbers)
+        #     )
+        # )
+        # # print(locs.localizing_transformation[1] @ locs.localizing_transformation[0])
+        # return
+
+        runner, _ = me_carts.setup_VPT(states=2,
+                                       degeneracy_specs='auto',
+                                       cartesian_analytic_deriv_order=-1,
+                                       internal_by_cartesian_derivative_method='fast',
+                                       modes=nms_carts,
+                                       mode_transformation=locs.localizing_transformation[0]
+                                       )
+        runner.print_tables()
+
+
+
+
+
 
     @validationTest
     def test_MultiGMatrix(self):

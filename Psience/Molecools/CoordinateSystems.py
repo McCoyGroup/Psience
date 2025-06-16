@@ -504,9 +504,11 @@ class MolecularEmbedding:
 
     cart_fd_defaults=dict(
         strip_dummies=False,
-        stencil=None, mesh_spacing=1.0e-3,
+        stencil=None,
+        mesh_spacing=1.0e-3,
         all_numerical=None,
-        parallelizer=None
+        parallelizer=None,
+        analytic_deriv_order=-1
     )
     def _get_cart_fd_opts(self, **opts):
         return dict(
@@ -518,6 +520,7 @@ class MolecularEmbedding:
         )
     def _get_cart_jacobs(self, jacs,
                          coords=None,
+                         strip_embedding=False,
                          **fd_opts
                          ):
         """
@@ -541,16 +544,20 @@ class MolecularEmbedding:
 
         fd_opts = self._get_cart_fd_opts(**fd_opts)
         (
-            all_numerical, strip_dummies, mesh_spacing, stencil, parallelizer
+            all_numerical, strip_dummies, mesh_spacing, stencil, parallelizer,
+            analytic_deriv_order
         ) = [
             fd_opts[k] for k in
             (
-                "all_numerical", "strip_dummies", "mesh_spacing", "stencil", "parallelizer"
+                "all_numerical", "strip_dummies", "mesh_spacing", "stencil", "parallelizer",
+                "analytic_deriv_order"
             )
         ]
+        if zmatrix and not strip_embedding:
+            analytic_deriv_order = 0
 
         if all_numerical is None:
-            all_numerical = zmatrix
+            all_numerical = zmatrix and (analytic_deriv_order is not None and analytic_deriv_order == 0)
 
         converter_options = (
             dict(strip_dummies=strip_dummies)
@@ -574,6 +581,7 @@ class MolecularEmbedding:
                                          # mesh_spacing=mesh_spacing,
                                          # stencil=stencil,
                                          # all_numerical=all_numerical,
+                                         analytic_deriv_order=analytic_deriv_order,
                                          converter_options=converter_options
                                          )
                     ]
@@ -584,11 +592,12 @@ class MolecularEmbedding:
                         exist_jacs = [
                             x.squeeze() if isinstance(x, np.ndarray) else x
                             for x in ccoords.jacobian(internals,
-                                                      order=list(range(1, max_jac+1)),
+                                                      order=list(range(1, max_jac + 1)),
                                                       mesh_spacing=mesh_spacing,
                                                       stencil=stencil,
                                                       all_numerical=all_numerical,
                                                       converter_options=converter_options,
+                                                      analytic_deriv_order=analytic_deriv_order,
                                                       parallelizer=par
                                                       )
                         ]
@@ -604,6 +613,7 @@ class MolecularEmbedding:
                                      # mesh_spacing=mesh_spacing,
                                      # stencil=stencil,
                                      # all_numerical=all_numerical,
+                                     analytic_deriv_order=analytic_deriv_order,
                                      converter_options=converter_options
                                      )
                 ]
@@ -618,6 +628,7 @@ class MolecularEmbedding:
                                                   mesh_spacing=mesh_spacing,
                                                   stencil=stencil,
                                                   all_numerical=all_numerical,
+                                                  analytic_deriv_order=analytic_deriv_order,
                                                   converter_options=converter_options,
                                                   parallelizer=par
                                                   )
@@ -694,7 +705,9 @@ class MolecularEmbedding:
             nr = len(sh)
             n = -2 if base[0].shape[-2:] == (len(self.masses), 3) else -1
             for i, b in enumerate(base):
-                rem = int(np.power(np.prod(b.shape[nr:n], dtype=int), 1 / (i+1)))
+                rem = round(
+                    np.power(np.prod(b.shape[nr:n], dtype=int), 1 / (i+1))
+                )
                 b = b.reshape(sh + (rem,) * (i+1) + (nc,))
                 _.append(b)
             base = _
@@ -709,7 +722,11 @@ class MolecularEmbedding:
         if coords is not None:
             coords = np.asanyarray(coords)
             if order is None: order = 1
-        base = self._get_cart_jacobs(order, coords=coords) if order is not None else self._jacobians['cartesian']
+        base = (
+                   self._get_cart_jacobs(order, coords=coords, strip_embedding=strip_embedding)
+                    if order is not None else
+                   self._jacobians['cartesian']
+        )
         if order is not None:
             if len(base) < order:
                 raise ValueError("insufficient {} (have {} but expected {})".format(
@@ -1422,7 +1439,11 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
             strip_dummies = False
 
         try:
-            analytic_deriv_order = merged_convert_options['analytic_deriv_order'] if analytic_deriv_order is None else analytic_deriv_order
+            analytic_deriv_order = (
+                merged_convert_options['analytic_deriv_order']
+                    if analytic_deriv_order is None else
+                analytic_deriv_order
+            )
         except KeyError:
             if zmat_conv:
                 analytic_deriv_order = 0
@@ -1445,7 +1466,6 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
             )
         else:
             main_excludes = None
-
         jacs = super().jacobian(coords, system,
                                 order=order,
                                 analytic_deriv_order=analytic_deriv_order,
@@ -1453,6 +1473,9 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
                                 **kwargs)
         if isinstance(jacs, np.ndarray):
             jacs = [jacs]
+
+        if analytic_deriv_order < 0:
+            analytic_deriv_order = len(jacs)
 
         if zmat_conv:
             raw_jacs = []
@@ -1557,7 +1580,7 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
         :return:
         :rtype:
         """
-        return_derivs=False
+        # return_derivs=False
 
         n_sys = coords.shape[0]
         n_coords = coords.shape[1]
@@ -1600,7 +1623,7 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
             if len(ordering) > 2:
                 ordering[2, 3] = -2
             ordering = ordering + 3
-            ordering = np.concatenate([ [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]], ordering])
+            ordering = np.concatenate([ [[0, -1, -2, -3], [1, 0, -1, -2], [2, 0, 1, -1]], ordering])
         res = CoordinateSet(coords, self.base_cartesian_type).convert(self.base_internal_type,
                                                                       ordering=ordering,
                                                                       origins=origins,
@@ -1780,7 +1803,7 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
             if ordering is not None:
                 ordering = np.array(ordering, dtype=int).reshape(-1, 4)
                 ordering = ordering + 3
-                ordering = np.concatenate([ [[0, -1, -1, -1], [1, 0, -1, -1], [2, 0, 1, -1]], ordering])
+                ordering = np.concatenate([ [[0, -1, -2, -3], [1, 0, -1, -2], [2, 0, 1, -1]], ordering])
 
         if embedding_masses is None:
             embedding_masses = masses
