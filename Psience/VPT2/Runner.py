@@ -200,7 +200,7 @@ class VPTSystem:
                 tf, inv = mode_transformation
                 tf = np.asanyarray(tf)
                 if tf.ndim == 2:
-                    mode_transformation = (mode_transformation, np.asanyarray(inv))
+                    mode_transformation = (tf, np.asanyarray(inv))
                 else:
                     mode_transformation = np.asanyarray(mode_transformation)
                     mode_transformation = (mode_transformation, mode_transformation.T)

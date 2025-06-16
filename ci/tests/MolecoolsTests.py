@@ -1521,22 +1521,19 @@ class MolecoolsTests(TestCase):
             methanol_zmatrix,
             [(3, 2, 1, 0)]
         ))
+        print()
 
         from McUtils.Formatters import TableFormatter
-        # print(TableFormatter('{:.0f}').format(nms.freqs[np.newaxis] * UnitsData.hartrees_to_wavenumbers))
-        # print(
-        #     TableFormatter('{:.0f}').format(locs.local_hessian * UnitsData.hartrees_to_wavenumbers)
-        # )
-        # print(
-        #     TableFormatter('{:.0f}').format(locs.compute_gmatrix())
-        # )
+        print(TableFormatter('{:.0f}').format(nms.freqs[np.newaxis] * UnitsData.hartrees_to_wavenumbers))
+        print(
+            TableFormatter('{:.0f}').format(locs.local_hessian * UnitsData.hartrees_to_wavenumbers)
+        )
 
         me_carts = Molecule.from_file(
             TestManager.test_data('methanol_vpt_1.fchk')
         )
         nms_carts = me_carts.get_normal_modes(project_transrot=False, use_internals=False)
 
-        print()
         # locs = nms.localize(internals=[(3, 2, 1, 0)], orthogonal_projection=True)
         # print(TableFormatter('{:.0f}').format(nms.freqs[np.newaxis] * UnitsData.hartrees_to_wavenumbers))
         # print(
@@ -1575,12 +1572,12 @@ class MolecoolsTests(TestCase):
         # # print(locs.localizing_transformation[1] @ locs.localizing_transformation[0])
         # return
 
-        runner, _ = me_carts.setup_VPT(states=2,
+        runner, _ = me_ints.setup_VPT(states=2,
                                        degeneracy_specs='auto',
                                        cartesian_analytic_deriv_order=-1,
                                        internal_by_cartesian_derivative_method='fast',
                                        modes=nms_carts,
-                                       mode_transformation=locs.localizing_transformation[0]
+                                       mode_transformation=locs.localizing_transformation
                                        )
         runner.print_tables()
 
