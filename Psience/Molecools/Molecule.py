@@ -32,6 +32,7 @@ from .Evaluator import (
 )
 from .Hamiltonian import MolecularHamiltonian
 from .Properties import *
+from .Serializers import MoleculePropertyCache
 
 __all__ = [
     "Molecule",
@@ -66,6 +67,7 @@ class Molecule(AbstractMolecule):
                  energy_evaluator=None,
                  dipole_evaluator=None,
                  charge_evaluator=None,
+                 checkpoint_file=None,
                  **metadata
                  ):
         """
@@ -144,6 +146,10 @@ class Molecule(AbstractMolecule):
         self.dipole_evaluator = dipole_evaluator
         self.charge_evaluator = charge_evaluator
 
+        if checkpoint_file is True:
+            checkpoint_file = self.molecule_hash() # TODO: define this based on DB work
+        self.checkpoint = MoleculePropertyCache(self, checkpoint_file)
+
     def modify(self,
                atoms=dev.default,
                coords=dev.default,
@@ -210,6 +216,70 @@ class Molecule(AbstractMolecule):
                         if meta is dev.default else
                      dev.merge_dicts(self._meta, meta)
             )
+        )
+
+    def to_state(self, serializer=None):
+        internals = self.internals
+        if internals is not None:
+            internals = internals.copy()
+            converter_options = internals.get('converter_options')
+            if converter_options is not None:
+                converter_options = converter_options.copy()
+                for k in [
+                    'embedding_coords',
+                    'jacobian_prep',
+                    'origin',
+                    'axes'
+                ]:
+                    converter_options.pop(k, None)
+                internals['converter_options'] = converter_options
+
+            # if internals.get('zmatrix') is not None: # stores a jacobian prepper we don't need to serialize
+            #     internals = {
+            #         'zmatrix':internals['zmatrix']
+            #     }
+            # elif internals.get('specs') is not None:
+            #     if 'redundant_transformation' in internals:
+            #
+            #         internals = {
+            #             'primitives':internals['specs']
+            #         }
+            #     else:
+            #         internals = {
+            #             'specs':internals['specs']
+            #         }
+            #     converter_options = internals.get('converter_options')
+
+        data = {
+            'atoms':self.atoms,
+            'masses':self.masses,
+            'coords':self.coords,
+            'bonds':self.bonds,
+            'internals':internals,
+            'energy_evaluator':self.energy_evaluator,
+            'dipole_evaluator':self.dipole_evaluator,
+            'charge_evaluator':self.charge_evaluator,
+            'potential_derivatives':self.potential_derivatives,
+            'dipole_derivatives':self.dipole_derivatives,
+            'charge':self.charge
+        }
+        return data
+    @classmethod
+    def from_state(cls, data, serializer=None):
+        return cls(**data)
+
+    def cached_eval(self,
+                    key, generator,
+                    *,
+                    condition=None,
+                    args=(),
+                    kwargs=None):
+        return self.checkpoint.cached_eval(
+            key,
+            generator,
+            condition=condition,
+            args=args,
+            kwargs=kwargs
         )
 
     @classmethod
@@ -482,7 +552,7 @@ class Molecule(AbstractMolecule):
     def potential_derivatives(self, derivs):
         self.potential_surface.derivatives = derivs
 
-    def get_cartesian_potential_derivatives(self, order=None, evaluator=None):
+    def get_cartesian_potential_derivatives(self, order=None, evaluator=None, use_cached=True):
         potential_derivatives = self.potential_derivatives
         if potential_derivatives is None or (order is not None and len(potential_derivatives) < order):
             if evaluator is None: evaluator = self.energy_evaluator
@@ -527,12 +597,12 @@ class Molecule(AbstractMolecule):
             #     NormalModesManager.__name__
             # ))
         self._normal_modes = val
-    def get_normal_modes(self, masses=None, **opts):
+    def get_normal_modes(self, masses=None, potential_derivatives=None, **opts):
         from ..Modes import NormalModes
-        return NormalModes.from_molecule(self, masses=masses, **opts)
-    def get_reaction_path_modes(self, masses=None, **opts):
+        return NormalModes.from_molecule(self, masses=masses, potential_derivatives=potential_derivatives, **opts)
+    def get_reaction_path_modes(self, masses=None, potential_derivatives=None, **opts):
         from ..Modes import ReactionPathModes
-        return ReactionPathModes.from_molecule(self, masses=masses, **opts)
+        return ReactionPathModes.from_molecule(self, masses=masses, potential_derivatives=potential_derivatives, **opts)
     @property
     def metadata(self):
         return self._meta
@@ -888,6 +958,26 @@ class Molecule(AbstractMolecule):
             order=order
         )
         if smol: expansion = expansion[0]
+        return expansion
+    def partial_force_field(self,
+                            coords=None, modes=None, *,
+                            evaluator=None,
+                            order=4,
+                            mesh_spacing=1,
+                            analytic_derivative_order=None,
+                            **opts):
+        if modes is None:
+            modes = self.get_normal_modes()
+        evaluator = self.get_energy_evaluator(evaluator, **opts)
+        if coords is None:
+            coords = self.coords
+        expansion = evaluator.partial_force_field(
+            np.asanyarray(coords) * UnitsData.convert("BohrRadius", evaluator.distance_units),
+            order=order,
+            modes=modes,
+            mesh_spacing=mesh_spacing,
+            analytic_derivative_order=analytic_derivative_order
+        )
         return expansion
 
     def optimize(self,
@@ -1530,46 +1620,6 @@ class Molecule(AbstractMolecule):
         """
         return self.prop('coriolis_constants')
 
-    def bond_length(self, i, j):
-        """
-        Returns the bond length of the coordinates
-
-        :param i:
-        :type i:
-        :param j:
-        :type j:
-        :return:
-        :rtype:
-        """
-        return nput.pts_norms(self.coords[..., i, :], self.coords[..., j, :])
-    def bond_angle(self, i, j, k):
-        """
-        Returns the bond angle of the specified coordinates
-
-        :param i:
-        :type i:
-        :param j:
-        :type j:
-        :return:
-        :rtype:
-        """
-        return nput.pts_angles(self.coords[..., i, :], self.coords[..., j, :], self.coords[..., k, :])[0]
-    def dihedral(self, i, j, k, l):
-        """
-        Returns the dihedral angle of the specified coordinates
-
-        :param i:
-        :type i:
-        :param j:
-        :type j:
-        :return:
-        :rtype:
-        """
-        return nput.pts_dihedrals(
-            self.coords[..., i, :], self.coords[..., j, :],
-            self.coords[..., k, :], self.coords[..., l, :]
-        )[0]
-
     def principle_axis_frame(self, sel=None, inverse=False):
         """
         Gets the principle axis frame(s) for the molecule
@@ -1594,22 +1644,9 @@ class Molecule(AbstractMolecule):
         """
         return self.prop('principle_axis_data')
 
-    # def apply_coordinate_transformation(self,
-    #                                     forward_transformations,
-    #                                     reverse_transformation=None
-    #                                     ):
-    #     if nput.is_numeric_array_like(forward_transformations):
-    #         forward_transformations = np.asanyarray(forward_transformations)
-    #         if forward_transformations.ndim == 2:
-    #             forward_transformations = [forward_transformations]
-    #
-    #     if reverse_transformation is None:
-    #         reverse_transformation = nput.inverse_transformation(forward_transformations, len(forward_transformations))
-    #
-    #     new_coords = Molecular
-
     def permute_atoms(self, perm):
         inv_perm = np.argsort(perm)
+        #TODO: handle applying affine transformation to permute
         return self.modify(
             atoms=[self._ats[i] for i in perm],
             masses=[self._mass[i] for i in perm],
@@ -1811,8 +1848,6 @@ class Molecule(AbstractMolecule):
         #                                         load_properties=load_properties)
 
         return other
-
-
     #endregion
 
     #region Input Formats

@@ -877,9 +877,9 @@ class VPT2Tests(TestCase):
 
         raise Exception(...)
 
-    @validationTest
+    @debugTest
     def test_PyreneAnalytic(self):
-        file_name = "pyrene_try3.fchk"
+        file_name = os.path.expanduser("~/Documents/Postdoc/Projects/VPT/anne_tests/pyrene_try3.fchk")
         state = VPTStateMaker(72)
         degs = [
             [state(8), state(9)],
@@ -913,7 +913,10 @@ class VPT2Tests(TestCase):
             #     state(8), state(9),
             #     state(10), state(11)
             # ],
-            1,
+            [
+                state(1),
+                state(2)
+            ],
             # expressions_file="exprs.hdf5",
             degeneracy_specs=None,
             logger=True,
@@ -3124,7 +3127,7 @@ State                   Frequency    Intensity       Frequency    Intensity
             operator_coefficient_threshold=1.00 / 219475
         )
 
-    @debugTest
+    @validationTest
     def test_LogFileAnalysis(self):
 
         analyzer = VPTAnalyzer(TestManager.test_data('methanol_vpt_3.out'))

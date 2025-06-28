@@ -9,6 +9,7 @@ import tempfile
 
 from McUtils.Data import UnitsData
 import McUtils.Numputils as nput
+import McUtils.Devutils as dev
 from McUtils.Scaffolding import Checkpointer, Logger, LogParser
 from McUtils.Parsers import StringLineByLineReader
 from ..Spectra import DiscreteSpectrum
@@ -81,8 +82,14 @@ class VPTAnalyzerLogParser(LogParser):
             with self:
                 self._tree = self.to_tree(depth=-1)
                 if len(self._tree) > 1:
-                    #TODO: decide how a TreeWrapper will handle this kind of slice operation
-                    self._tree = type(self._tree)(self._tree[-1])
+                    if (
+                                    self._tree.keys() is not None
+                                    and list(self._tree.keys())[0] != "Computing PT corrections:"
+                        ):
+                        #TODO: decide how a TreeWrapper will handle this kind of slice operation
+                        self._tree = type(self._tree)(self._tree[-1])
+                    else:
+                        self._tree = self._tree.condense_subtrees()
         return self._tree
 
     class EnergiesBlockParser(StringLineByLineReader):
@@ -145,19 +152,19 @@ class VPTAnalyzerLogParser(LogParser):
     @property
     def deperturbed_energies(self):
         if self._deperturbed_energies is None:
-            self._deperturbed_energies = self.parse_energies_blocks(self.tree[0, "Deperturbed Energies"])
+            self._deperturbed_energies = self.parse_energies_blocks(self.tree["Deperturbed Energies"])
         return self._deperturbed_energies[0], self._deperturbed_energies[2]
 
     @property
     def spectra(self):
         if self._spectra is None:
-            self._spectra = self.parse_spectrum_blocks(self.tree[0, "IR Data"])
+            self._spectra = self.parse_spectrum_blocks(self.tree["IR Data"])
         return self._spectra
 
     @property
     def deperturbed_spectra(self):
         if self._deperturbed_spectra is None:
-            self._deperturbed_spectra = self.parse_spectrum_blocks(self.tree[0, "Deperturbed IR Data"])
+            self._deperturbed_spectra = self.parse_spectrum_blocks(self.tree["Deperturbed IR Data"])
         return self._deperturbed_spectra
 
     # @property
@@ -271,9 +278,9 @@ class VPTAnalyzerLogParser(LogParser):
     def transition_moment_corrections(self):
         if self._tms is None:
             blocks = [
-                self.parse_tm_blocks(self.tree[0, "X Dipole Contributions"]),
-                self.parse_tm_blocks(self.tree[0, "Y Dipole Contributions"]),
-                self.parse_tm_blocks(self.tree[0, "Z Dipole Contributions"]),
+                self.parse_tm_blocks(self.tree["X Dipole Contributions"]),
+                self.parse_tm_blocks(self.tree["Y Dipole Contributions"]),
+                self.parse_tm_blocks(self.tree["Z Dipole Contributions"]),
             ]
             self._tms = [
                 {
@@ -290,9 +297,9 @@ class VPTAnalyzerLogParser(LogParser):
     def deperturbed_transition_moment_corrections(self):
         if self._deperturbed_tms is None:
             blocks = [
-                self.parse_tm_blocks(self.tree[0, "X Deperturbed Dipole Contributions"]),
-                self.parse_tm_blocks(self.tree[0, "Y Deperturbed Dipole Contributions"]),
-                self.parse_tm_blocks(self.tree[0, "Z Deperturbed Dipole Contributions"]),
+                self.parse_tm_blocks(self.tree["X Deperturbed Dipole Contributions"]),
+                self.parse_tm_blocks(self.tree["Y Deperturbed Dipole Contributions"]),
+                self.parse_tm_blocks(self.tree["Z Deperturbed Dipole Contributions"]),
             ]
             self._deperturbed_tms = [
                 {

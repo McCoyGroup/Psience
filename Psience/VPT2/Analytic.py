@@ -10,7 +10,7 @@ import numpy as np, scipy.signal, time
 from McUtils.Zachary import DensePolynomial, TensorCoefficientPoly
 import McUtils.Numputils as nput
 from McUtils.Combinatorics import SymmetricGroupGenerator, IntegerPartitioner, UniquePartitions, UniquePermutations
-from McUtils.Scaffolding import Logger, Checkpointer
+from McUtils.Scaffolding import Logger, Checkpointer, MaxSizeCache
 from ..BasisReps import (
     BasisStateSpace, HarmonicOscillatorProductBasis,
     HarmonicOscillatorMatrixGenerator, HarmonicOscillatorRaisingLoweringPolyTerms
@@ -5825,8 +5825,18 @@ class PerturbationTheoryExpressionEvaluator:
         return all_degs
 
 
-    _poly_cache = {} # temporary hack, but these are in principle shared/reused
-    _ecoeff_cache = {}
+    @classmethod
+    def set_cache_size(cls, max_size):
+        cls._max_cache_size = max_size
+        _poly_cache = MaxSizeCache(cls._max_cache_size, cache_type='fifo')  # temporary hack, but these are in principle shared/reused
+        _ecoeff_cache = MaxSizeCache(cls._max_cache_size, cache_type='fifo')
+    @classmethod
+    def get_cache(self):
+        return MaxSizeCache(max_items=self._max_cache_size, cache_type='fifo')
+
+    _max_cache_size = 1e7
+    _poly_cache = MaxSizeCache(_max_cache_size, cache_type='fifo') # temporary hack, but these are in principle shared/reused
+    _ecoeff_cache = MaxSizeCache(_max_cache_size, cache_type='fifo')
     default_zero_cutoff = 1e-18
     @classmethod
     def evaluate_polynomial_expression(cls,
@@ -5967,10 +5977,10 @@ class PerturbationTheoryExpressionEvaluator:
                     np.zeros([len(coeffs), len(perms)])
                     for state, perms in state_perms
                 )
-                counts_cache = {}  # so we don't hit some coeff sets too many times
+                counts_cache = cls.get_cache() # so we don't hit some coeff sets too many times
                 poly_cache = cls._poly_cache # so we can avoid redoing the same polynomials a bunch of times
-                take_cache = {} # shockingly beneficial...
-                energy_cache = {}
+                take_cache = cls.get_cache() # shockingly beneficial...
+                energy_cache = cls.get_cache()
                 for free_inds, cind_sets in free_ind_groups.items():
                     # now we iterate over every subset of inds (outside of the fixed ones)
                     # excluding replacement (since that corresponds to a different coeff/poly)

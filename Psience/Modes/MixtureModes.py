@@ -38,6 +38,14 @@ class MixtureModes(CoordinateSystem):
         coeffs = [np.asanyarray(c) for c in coeffs]
         full_coeffs = coeffs
         coeffs = coeffs[0]
+        if inverse is not None:
+            inverse = np.asanyarray(inverse)
+        if masses is not None:
+            masses = np.asanyarray(masses)
+        if freqs is not None:
+            freqs = np.asanyarray(freqs)
+        if g_matrix is not None:
+            g_matrix = np.asanyarray(g_matrix)
 
         super().__init__(
             matrix=coeffs,
@@ -54,6 +62,31 @@ class MixtureModes(CoordinateSystem):
         self.g_matrix = g_matrix
         self._extended_coeffs = full_coeffs
         self._inverse_coeffs = None
+
+
+    def to_state(self, serializer=None):
+        return {
+            'basis':serializer.serialize(self.basis),
+            'matrix':self.matrix,
+            'inverse':self.inverse,
+            'freqs':self.freqs,
+            'masses':self.masses,
+            'mass_weighted':self.mass_weighted,
+            'frequency_scaled':self.frequency_scaled,
+            'g_matrix':self.g_matrix
+        }
+    @classmethod
+    def from_state(cls, data, serializer=None):
+        return cls(
+            serializer.deserialize(data['basis']),
+            data['matrix'],
+            inverse=data['inverse'],
+            freqs=data['freqs'],
+            masses=data['masses'],
+            mass_weighted=data['mass_weighted'],
+            frequency_scaled=data['frequency_scaled'],
+            g_matrix=data['g_matrix']
+        )
 
     @classmethod
     def prep_modes(cls, modes):
