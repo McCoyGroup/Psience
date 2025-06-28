@@ -285,9 +285,12 @@ class ExpansionTerms:
             self.raw_modes = None
             modes = self._modes
         self._presel_dim = len(self._modes.freqs)
-        self._pretf_dim = mode_transformation[0].shape[0]
         if mode_selection is not None:
             modes = modes[mode_selection]
+        if mode_transformation is not None:
+            self._pretf_dim = mode_transformation[0].shape[0]
+        else:
+            self._pretf_dim = len(modes.freqs)
         self._modes = modes
         self.mode_sel = mode_selection
         self.mode_tf = mode_transformation

@@ -286,6 +286,7 @@ class NormalModes(MixtureModes):
                       project_transrot=True,
                       zero_freq_cutoff=None,
                       masses=None,
+                      energy_evaluator=None,
                       **opts
                       ):
         from ..Molecools import Molecule
@@ -295,8 +296,11 @@ class NormalModes(MixtureModes):
             use_internals = mol.internal_coordinates is not None
         if potential_derivatives is None:
             potential_derivatives = mol.potential_derivatives
-            if potential_derivatives is None and mol.energy_evaluator is not None:
-                potential_derivatives = mol.calculate_energy(order=2)[1:]
+            if potential_derivatives is None and (
+                    energy_evaluator is not None or
+                    mol.energy_evaluator is not None
+            ):
+                potential_derivatives = mol.calculate_energy(evaluator=energy_evaluator, order=2)[1:]
         if use_internals:
             hess = nput.tensor_reexpand(
                 mol.get_cartesians_by_internals(1, strip_embedding=True, reembed=True),
@@ -445,6 +449,12 @@ class NormalModes(MixtureModes):
             # inv = []
             for proj in projectors:
                 f_matrix = tr_inv @ proj @ f @ proj.T @ tr_inv.T
+                # import McUtils.Formatters as mfmt
+                # print(
+                #     mfmt.TableFormatter("{:.3f}").format(
+                #         f_matrix * 219474.56
+                #     )
+                # )
                 sub_freqs, sub_modes, sub_inv = self.get_normal_modes(
                     f_matrix,
                     g_matrix,
@@ -566,11 +576,19 @@ class NormalModes(MixtureModes):
             for n,i in enumerate(coordinate_constraints):
                 basis[n, i] = 1
 
-            g12 = nput.fractional_power(self.g_matrix, 1/2)
+
+            # g12 = nput.fractional_power(self.g_matrix, 1/2)
+            # projections = [
+            #     nput.projection_matrix(g12 @ b[:, np.newaxis])
+            #         if not orthogonal_projection else
+            #     nput.orthogonal_projection_matrix(g12 @ b[:, np.newaxis])
+            #     for b in basis
+            # ]
+
             projections = [
-                nput.projection_matrix(g12 @ b[:, np.newaxis])
+                nput.projection_matrix(b[:, np.newaxis])
                     if not orthogonal_projection else
-                nput.orthogonal_projection_matrix(g12 @ b[:, np.newaxis])
+                nput.orthogonal_projection_matrix(b[:, np.newaxis])
                 for b in basis
             ]
 
@@ -832,6 +850,7 @@ class NormalModes(MixtureModes):
 
 class ReactionPathModes(NormalModes):
 
+    zero_gradient_cutoff = 2.5e-5#5 cm-1
     @classmethod
     def get_rp_modes(cls,
                      gradient,
@@ -844,10 +863,12 @@ class ReactionPathModes(NormalModes):
                      zero_freq_cutoff=None,
                      return_gmatrix=False,
                      projector=None,
-                     zero_gradient_cutoff=2.5e-5, #5 cm-1
+                     zero_gradient_cutoff=None,
                      use_max_gradient_cutoff=True,
                      return_indices=False
                      ):
+        if zero_gradient_cutoff is None:
+            zero_gradient_cutoff = cls.zero_gradient_cutoff
 
         gradient = np.asanyarray(gradient)
         f_matrix = np.asanyarray(f_matrix)
@@ -1074,6 +1095,16 @@ class ReactionPathModes(NormalModes):
 
         else:
             freqs, modes, inv = reg_modes
+
+            if isinstance(freqs, list):
+                if len(base_shape) == 0:
+                    freqs = freqs[0]
+                    modes = modes[0]
+                    inv = inv[0]
+            else:
+                freqs = freqs.reshape(base_shape + freqs.shape[1:])
+                modes = modes.reshape(base_shape + modes.shape[1:])
+                inv = inv.reshape(base_shape + inv.shape[1:])
 
         mode_data = cls.ModeData(freqs, modes, inv)
         if return_gmatrix or return_indices:

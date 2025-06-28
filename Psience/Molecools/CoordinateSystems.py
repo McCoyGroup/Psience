@@ -658,7 +658,10 @@ class MolecularEmbedding:
                 method = self.cartesian_by_internals_method
 
         if reembed and method == 'fast':
-            fast_ints = self._jacobians['fast-internals']["reembed"]
+            if coords is None:
+                fast_ints = self._jacobians['fast-internals']["reembed"]
+            else:
+                fast_ints = []
             if len(fast_ints) < order:
                 L_base = self.get_translation_rotation_invariant_transformation(strip_embedding=strip_embedding,
                                                                                 mass_weighted=False,
@@ -1371,6 +1374,8 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         :param opts:
         :type opts:
         """
+        masses = np.asanyarray(masses)
+        coords = np.asanyarray(coords)
         self.masses = masses
         self.coords = coords
         self.dummy_positions = [i for i,m in enumerate(masses) if m < 0] if dummy_positions is None else dummy_positions
@@ -1381,7 +1386,22 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
             converter_options = opts
             opts = {}
         super().__init__(converter_options=converter_options, dimension=(nats, 3), coordinate_shape=(nats, 3), opts=opts)
-
+    def to_state(self, serializer=None):
+        base_data = super().to_state(serializer=serializer)
+        base_data['masses'] = self.masses
+        base_data['coords'] = self.coords
+        base_data['dummy_positions'] = self.dummy_positions
+        return base_data
+    @classmethod
+    def from_state(cls, data, serializer=None):
+        # dim = data.pop('dimension', None)
+        # coordinate_shape = data.pop('coordinate_shape', None)
+        return cls(
+            data['masses'],
+            data['coords'],
+            dummy_positions=data['dummy_positions'],
+            converter_options=data['converter_options']
+        )
     def pre_convert(self, system):
         self.converter_options['masses'] = self.masses
         if 'ZMatrix' in system.name:
@@ -1478,25 +1498,28 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
             analytic_deriv_order = len(jacs)
 
         if zmat_conv:
-            raw_jacs = []
-            for n,j in enumerate(jacs): # this expects a full filling of the jacobians which maybe I need to not expect...
-                baseline = 2*analytic_deriv_order + len(coords.shape)
-                ext_dim = j.ndim - baseline
-                shp = sum(
-                    ((j.shape[i] // 3, 3) for i in range(ext_dim)),
-                    ()
-                ) + j.shape[-baseline:]
-                j = j.reshape(shp)
-                if dummies is not None:
-                    for i in range(ext_dim):
-                        j = np.take(j, main_excludes, axis=2*i)
-                    for i in range(analytic_deriv_order):
-                        j = np.take(j, main_excludes, axis=-2*(i+2))
-
-                if len(coords.shape) > 2:
-                    j = np.moveaxis(j, -3, 0)
-
-                raw_jacs.append(j)
+            raw_jacs = jacs
+            # for n,j in enumerate(jacs): # this expects a full filling of the jacobians which maybe I need to not expect...
+            #     print("???", j.shape)
+            #     baseline = 2*analytic_deriv_order + len(coords.shape)
+            #     ext_dim = j.ndim - baseline
+            #     shp = sum(
+            #         ((j.shape[i] // 3, 3) for i in range(ext_dim)),
+            #         ()
+            #     ) + j.shape[-baseline:]
+            #     j = j.reshape(shp)
+            #     if dummies is not None:
+            #         for i in range(ext_dim):
+            #             j = np.take(j, main_excludes, axis=2*i)
+            #         for i in range(analytic_deriv_order):
+            #             j = np.take(j, main_excludes, axis=-2*(i+2))
+            #
+            #     base_shape = coords.shape[:-2]
+            #     if base_shape != j.shape[:len(base_shape)]:
+            #         j = np.moveaxis(j, -3, 0)
+            #
+            #     raw_jacs.append(j)
+            #     print("???...", j.shape)
             jacs = raw_jacs
         return jacs
 

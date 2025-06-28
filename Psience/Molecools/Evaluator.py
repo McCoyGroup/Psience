@@ -535,7 +535,12 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
     def get_fd_opts(self, **opts):
         return dict(self.fd_defaults, **opts)
 
-    def finite_difference_derivs(self, coords, order, batched_orders=None, **opts):
+    def finite_difference_derivs(self, coords, order,
+                                 batched_orders=None,
+                                 displacement_generator=None,
+                                 coordinate_prep=None,
+                                 index_filter=None,
+                                 **opts):
         opts = dev.OptionsSet(opts)
         fd_opts = opts.filter(FiniteDifferenceDerivative)
         opts = opts.exclude(FiniteDifferenceDerivative)
@@ -547,7 +552,9 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         coord_shape = coords.shape[-2:]
         flat_coords = coords.reshape(-1, np.prod(coord_shape, dtype=int))
 
-        def derivs(structs):
+        def derivs(structs, center=flat_coords):
+            if displacement_generator is not None:
+                structs = displacement_generator(structs, evaluator=self, center=center)
             reconst = structs.reshape(structs.shape[:-1] + coord_shape)
             ders = self.evaluate_term(reconst, self.analytic_derivative_order, **opts)
             if batched_orders:
@@ -559,8 +566,11 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                                          function_shape=((0,), (0,) * self.analytic_derivative_order),
                                          **self.get_fd_opts(**fd_opts)
                                          )
+        if coordinate_prep is not None:
+            flat_coords = coordinate_prep(flat_coords, evaluator=self)
         tensors = der.derivatives(flat_coords).derivative_tensor(
-            list(range(1, (order - self.analytic_derivative_order) + 1))
+            list(range(1, (order - self.analytic_derivative_order) + 1)),
+            pos_filter=index_filter
         )
         if flat_coords.shape[0] > 1:
             tensors = [np.moveaxis(d, n + 1, 0) for n, d in enumerate(tensors)]
@@ -574,7 +584,14 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
 
         return res
 
-    def internal_finite_difference_derivs(self, coords, order, batched_orders=None, **opts):
+    def internal_finite_difference_derivs(self,
+                                          coords,
+                                          order,
+                                          batched_orders=None,
+                                          displacement_generator=None,
+                                          coordinate_prep=None,
+                                          index_filter=None,
+                                          **opts):
         opts = dev.OptionsSet(opts)
         fd_opts = opts.filter(FiniteDifferenceDerivative)
         opts = opts.exclude(FiniteDifferenceDerivative)
@@ -582,11 +599,23 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         if batched_orders is None:
             batched_orders = self.batched_orders
 
-        base_shape = coords.shape[:-1]
-        coord_shape = coords.shape[-1:]
-        flat_coords = coords.reshape(-1, np.prod(coord_shape, dtype=int))
         reembed = dev.str_is(self.use_internals, 'reembed')
-        def derivs(structs):
+        if (
+                reembed
+                and coords.ndim > 1
+                and coords.shape[-2:] == (len(self.embedding.masses), 3)
+        ):
+            internals = self.embedding.get_internals(coords=coords, strip_embedding=self.strip_embedding)
+        else:
+            internals = coords
+
+        base_shape = internals.shape[:-1]
+        coord_shape = internals.shape[-1:]
+        flat_coords = internals.reshape(-1, np.prod(coord_shape, dtype=int))
+
+        def derivs(structs, center=flat_coords):
+            if displacement_generator is not None:
+                structs = displacement_generator(structs, evaluator=self, center=center)
             reconst = structs.reshape(structs.shape[:-1] + coord_shape)
             if reembed:
                 reconst = self.unembed_coords(reconst)
@@ -597,7 +626,8 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                     ]
                 else:
                     res = self.evaluate_term(reconst, self.analytic_derivative_order, **opts)
-                return res[0] + self.embed_derivs(reconst, res[1:])
+                res = res[:1] + self.embed_derivs(reconst, res[1:])
+                return res[-1]
             else:
                 ders = self.evaluate_term(reconst, self.analytic_derivative_order, **opts)
                 if batched_orders:
@@ -609,8 +639,13 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                                          function_shape=((0,), (0,) * self.analytic_derivative_order),
                                          **self.get_fd_opts(**fd_opts)
                                          )
+
+        if coordinate_prep is not None:
+            flat_coords  = coordinate_prep(flat_coords, evaluator=self)
+
         tensors = der.derivatives(flat_coords).derivative_tensor(
-            list(range(1, (order - self.analytic_derivative_order) + 1))
+            list(range(1, (order - self.analytic_derivative_order) + 1)),
+            pos_filter=index_filter
         )
         if flat_coords.shape[0] > 1:
             tensors = [np.moveaxis(d, n+1, 0) for n,d in enumerate(tensors)]
@@ -630,13 +665,16 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
     batched_orders = False
     analytic_derivative_order = 1
     def evaluate_expansion(self,
-                 coords,
-                 order=0,
-                 analytic_derivative_order=None,
-                 batched_orders=None,
-                 logger=None,
-                 fd_handler=None,
-                 **opts):
+                           coords,
+                           order=0,
+                           analytic_derivative_order=None,
+                           batched_orders=None,
+                           logger=None,
+                           fd_displacement_generator=None,
+                           fd_coordinate_prep=None,
+                           fd_index_filter=None,
+                           fd_handler=None,
+                           **opts):
 
         opts = dev.OptionsSet(dict(self.defaults, **opts))
         fd_opts = opts.filter(FiniteDifferenceDerivative)
@@ -663,7 +701,11 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
             # self.fd_derivs(**opts)
             #TODO: handle disjoin list of orders...
             expansion.extend(
-                fd_handler(coords, order[-1], batched_orders=batched_orders, **fd_opts)
+                fd_handler(coords, order[-1], batched_orders=batched_orders,
+                           displacement_generator=fd_displacement_generator,
+                           coordinate_prep=fd_coordinate_prep,
+                           index_filter=fd_index_filter,
+                           **fd_opts)
             )
 
         if self.property_units is None:
@@ -685,15 +727,26 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                  coords,
                  order=0,
                  logger=None,
+                 fd_handler=None,
+                 analytic_derivative_order=None,
+                 unembed_derivatives=True,
                  **opts):
         use_internals = self.use_internals
         reembed = self.reembed_cartesians
         perm = self.permutation
         base_coords = coords
         coords = self.embed_coords(coords, embed_reembedded=False)
+        in_internals = self.use_internal_coordinate_handlers()
+
+        if fd_handler is None and self.use_internal_coordinate_handlers():
+            fd_handler = self.internal_finite_difference_derivs
+
+        if analytic_derivative_order is None:
+            analytic_derivative_order = self.analytic_derivative_order
 
         try:
-            self.use_internals = False
+            if not dev.str_is(self.use_internals, 'reembed'):
+                self.use_internals = False
             self.reembed_cartesians = False
             self.permutation = None
 
@@ -702,15 +755,85 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                 coords,
                 order=order,
                 logger=logger,
+                fd_handler=fd_handler,
+                analytic_derivative_order=analytic_derivative_order,
                 **opts
             )
+            if in_internals and analytic_derivative_order > 0:
+                tf = self.embedding.get_cartesians_by_internals(
+                    coords=base_coords,
+                    order=analytic_derivative_order,
+                    strip_embedding=self.strip_embedding
+                )
+
+                expansion = expansion[:1] + nput.tensor_reexpand(
+                    tf,
+                    expansion[1:analytic_derivative_order+1]
+                ) + expansion[analytic_derivative_order+1:]
+
         finally:
             self.use_internals = use_internals
             self.reembed_cartesians = reembed
             self.permutation = perm
 
-        expansion = [expansion[0]] + self.unembed_derivs(base_coords, coords, expansion[1:], embed_reembedded=False)
+        if unembed_derivatives:
+            expansion = [expansion[0]] + self.unembed_derivs(base_coords, coords, expansion[1:], embed_reembedded=True)
         return expansion
+
+    @staticmethod
+    def _diag_inds(pos):
+        return [p for p in pos if len(np.unique(p)) == 1]
+    def partial_force_field(self,
+                            coords:np.ndarray,
+                            modes,
+                            mode_distance_units='BohrRadius',
+                            which=None,
+                            analytic_derivative_order=None,
+                            order=4,
+                            index_filter=None,
+                            logger=None,
+                            fd_handler=None,
+                            mesh_spacing=0.5, # nms require much larger steps
+                            **opts
+                            ):
+        conv = UnitsData.convert(mode_distance_units, self.distance_units)
+        if index_filter is None:
+            index_filter = self._diag_inds
+
+        if analytic_derivative_order is None:
+            analytic_derivative_order = self.analytic_derivative_order
+
+        def get_displacements(displacements, *, evaluator, center):
+            disps = conv * np.tensordot(displacements, modes.coords_by_modes, axes=[-1, 0])
+            dd = disps.ndim - center.ndim
+            if dd > 0:
+                center = np.expand_dims(center, list(range(dd)))
+            return center + disps
+        def prep_coordinates(flat_coords, *, evaluator):
+            return np.zeros(
+                flat_coords.shape[:-1] +(modes.coords_by_modes.shape[0],),
+                dtype=float
+            )
+
+        base_expansion = self.evaluate(coords,
+                                       order=order,
+                                       fd_displacement_generator=get_displacements,
+                                       fd_coordinate_prep=prep_coordinates,
+                                       fd_index_filter=index_filter,
+                                       fd_handler=fd_handler,
+                                       analytic_derivative_order=analytic_derivative_order,
+                                       mesh_spacing=mesh_spacing,
+                                       **opts
+                                       )
+
+        expansion = base_expansion[:(analytic_derivative_order+1)] + [
+            e / (conv**(n+1))
+            for n,e in enumerate(base_expansion[analytic_derivative_order+1:])
+        ]
+
+        return expansion
+
+
 
     # evaluator_types = {}
     @classmethod
@@ -1420,7 +1543,7 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
 
     property_units = 'ElectronVolts'
     batched_orders = True
-    analytic_derivative_order = 6
+    analytic_derivative_order = 2
     def prep_eval(self, coords, order, **opts):
         import torch
 
@@ -1518,15 +1641,26 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
 
         return expansion
     def evaluate_term(self, coords, order, **opts):
+        if coords.ndim == 2 or order < 2:
+            base_shape, coords, data = self.prep_eval(coords, order, **opts)
 
-        base_shape, coords, data = self.prep_eval(coords, order, **opts)
-
-        return self.process_aimnet_derivs(
-            base_shape, coords, data,
-            'energy',
-            order,
-            deriv_key='forces'
-        )
+            return self.process_aimnet_derivs(
+                base_shape, coords, data,
+                'energy',
+                order,
+                deriv_key='forces'
+            )
+        else:
+            base_shape = coords.shape[:-2]
+            coords = coords.reshape((-1,) + coords.shape[-2:])
+            expansions = [
+                self.evaluate_term(c, order, **opts)
+                for c in coords
+            ]
+            return [
+                np.array(e).reshape(base_shape + e[0].shape)
+                for e in zip(*expansions)
+            ]
 
     def optimize(self,
                  coords,
