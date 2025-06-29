@@ -2549,7 +2549,8 @@ class AnalyticVPTRunner:
                  allowed_energy_changes=None,
                  intermediate_normalization=None,
                  local_mode_couplings=None,
-                 local_mode_coupling_order=None
+                 local_mode_coupling_order=None,
+                 parallelizer=None
                  ):
         # self.expansions = expansions
         # if order is None: order = len(expansions) - 1
@@ -2572,7 +2573,8 @@ class AnalyticVPTRunner:
                     intermediate_normalization=intermediate_normalization
                 ),
                 expansions,
-                freqs=freqs
+                freqs=freqs,
+                parallelizer=parallelizer
             )
         else:
             self.eval = expansions
@@ -2592,6 +2594,7 @@ class AnalyticVPTRunner:
                          expansion_order=None,
                          logger=None,
                          checkpoint=None,
+                         parallelizer=None,
                          allowed_terms=None,
                          allowed_coefficients=None,
                          disallowed_coefficients=None,
@@ -2658,6 +2661,7 @@ class AnalyticVPTRunner:
             hamiltonian=ham,
             expansion_order=exp_orders,
             logger=ham.logger if logger is None else logger,
+            parallelizer=parallelizer,
             checkpoint=ham.checkpointer if checkpoint is None else checkpoint,
             allowed_terms=allowed_terms,
             allowed_coefficients=allowed_coefficients,
@@ -2682,6 +2686,7 @@ class AnalyticVPTRunner:
                   mixed_derivative_handling_mode='analytical',
                   degeneracy_specs=None,
                   corrected_fundamental_frequencies=None,
+                  parallelizer=None,
                   **settings
                   ) -> "(AnalyticVPTRunner, VPTMultiStateSpace)":
 
@@ -2700,6 +2705,7 @@ class AnalyticVPTRunner:
                 runner.hamiltonian,
                 opts.get('order', order),
                 checkpoint=expressions_file,
+                parallelizer=parallelizer,
                 expansion_order=opts.get('expansion_order', None),
                 allowed_terms=allowed_terms,
                 allowed_coefficients=allowed_coefficients,
@@ -3475,6 +3481,31 @@ class AnalyticVPTRunner:
             logger=self.logger
         )
 
+    @classmethod
+    def _prep_deg_pair_msg(cls, pairs, max_pairs=1000, fmt="{l} <-> {r}"):
+        if len(pairs) > max_pairs:
+            w = max_pairs // 2
+            return [
+                fmt.format(
+                    l=StateMaker.parse_state(l),
+                    r=StateMaker.parse_state(r),
+                )
+                for l, r in pairs[:w]
+            ] + [str(...)] + [
+                fmt.format(
+                    l=StateMaker.parse_state(l),
+                    r=StateMaker.parse_state(r),
+                )
+                for l, r in pairs[-w:]
+            ]
+        return [
+            fmt.format(
+                l=StateMaker.parse_state(l),
+                r=StateMaker.parse_state(r),
+            )
+            for l, r in pairs
+        ]
+
     hamiltonian_correction_modification_type = 'degenerate'
     def run_VPT(self,
                 states,
@@ -3523,10 +3554,10 @@ class AnalyticVPTRunner:
             basis = states.flat_space.state_space
             if states.flat_space.degenerate_pairs is not None:
                 with self.logger.block(tag="Using degenerate pairs:"):
-                    for pair in states.flat_space.degenerate_pairs:
-                        self.logger.log_print(
-                            str(pair).splitlines()
-                        )
+                    self.logger.log_print(
+                        states.flat_space.degenerate_pairs,
+                        message_prepper=lambda a:self._prep_deg_pair_msg(a)
+                    )
 
             try:
                 zpe_pos = basis.find([[0] * basis.ndim])

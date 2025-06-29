@@ -1,6 +1,6 @@
 import itertools
 
-import McUtils.Numputils
+# import McUtils.Numputils
 
 try:
     from Peeves.TestUtils import *
@@ -17,7 +17,8 @@ from McUtils.Data import UnitsData
 import McUtils.Plots as plt
 import McUtils.Numputils as nput
 from McUtils.Scaffolding import *
-from McUtils.Parallelizers import SerialNonParallelizer, MultiprocessingParallelizer
+from McUtils.Profilers import Timer
+from McUtils.Parallelizers import Parallelizer, SerialNonParallelizer, MultiprocessingParallelizer
 from McUtils.Zachary import FiniteDifferenceDerivative
 
 import sys, os, numpy as np, itertools as ip
@@ -747,16 +748,36 @@ class VPT2Tests(TestCase):
 
         file_name = "HOONO_freq.fchk"
         state = VPTStateMaker(9)
-        with BlockProfiler():
-            AnalyticVPTRunner.run_simple(
-                TestManager.test_data(file_name),
-                2,
-                degeneracy_specs=[
-                    [state(1), state(8, 7)]
-                ],
-                expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
-            )
-        raise Exception(...)
+        # with BlockProfiler():
+        from McUtils.Parallelizers import Parallelizer
+        from McUtils.Profilers import Timer
+        # with  as par:
+        #     print(par.nprocs)
+        # return
+        par = Parallelizer.lookup((
+                'multiprocessing',
+                {
+                    'initialization_timeout':25,
+                    # # 'logger': Logger(log_level=Logger.LogLevel.MoreDebug),
+                    'processes': 6
+                }
+            ))
+        with par:
+            with Timer():
+                AnalyticVPTRunner.run_simple(
+                    TestManager.test_data(file_name),
+                    2,
+                    # degeneracy_specs=[
+                    #     [state(1), state(8, 7)],
+                    #     [state(3), state([6, 2])],
+                    #     [state(6), state([9, 2])],
+                    # ],
+                    # degeneracy_specs='auto',
+                    # parallelizer='multiprocessing'
+                    parallelizer=par
+                    # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+                )
+        return
 
         # VPTRunner.run_simple(
         #     TestManager.test_data(file_name),
@@ -906,22 +927,36 @@ class VPT2Tests(TestCase):
             [state(71), state(18)],
             [state(71), state(22)]
         ]
-        # with BlockProfiler():
-        corrs = AnalyticVPTRunner.run_simple(
-            file_name,
-            # [
-            #     state(8), state(9),
-            #     state(10), state(11)
-            # ],
-            [
-                state(1),
-                state(2)
-            ],
-            # expressions_file="exprs.hdf5",
-            degeneracy_specs=None,
-            logger=True,
-            # zero_cutoff=1e-12
-        )
+
+        par = Parallelizer.lookup((
+            'multiprocessing',
+            {
+                'initialization_timeout': 25,
+                # 'logger': Logger(log_level=Logger.LogLevel.MoreDebug),
+                # 'processes': 8
+            }
+        ))
+        # with par:
+
+        with par:
+            with Timer():
+                corrs = AnalyticVPTRunner.run_simple(
+                    file_name,
+                    # [
+                    #     state(8), state(9),
+                    #     state(10), state(11)
+                    # ],
+                    # [
+                    #     state(1),
+                    #     state(2)
+                    # ],
+                    1,
+                    # expressions_file="exprs.hdf5",
+                    degeneracy_specs=None,
+                    logger=True,
+                    parallelizer=par
+                    # zero_cutoff=1e-12
+                )
 
     @validationTest
     def test_NewEmbedding(self):
