@@ -280,9 +280,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-ef1a78" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-ef1a78"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-5d0a21" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-5d0a21"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-ef1a78" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-5d0a21" markdown="1">
  - [MultdiDegHOH](#MultdiDegHOH)
 - [HOHAnalytic](#HOHAnalytic)
 - [HOHLocal](#HOHLocal)
@@ -340,9 +340,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-a546ea" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-a546ea"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-921dc3" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-921dc3"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-a546ea" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-921dc3" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -1039,16 +1039,36 @@ class VPT2Tests(TestCase):
 
         file_name = "HOONO_freq.fchk"
         state = VPTStateMaker(9)
-        with BlockProfiler():
-            AnalyticVPTRunner.run_simple(
-                TestManager.test_data(file_name),
-                2,
-                degeneracy_specs=[
-                    [state(1), state(8, 7)]
-                ],
-                expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
-            )
-        raise Exception(...)
+        # with BlockProfiler():
+        from McUtils.Parallelizers import Parallelizer
+        from McUtils.Profilers import Timer
+        # with  as par:
+        #     print(par.nprocs)
+        # return
+        par = Parallelizer.lookup((
+                'multiprocessing',
+                {
+                    'initialization_timeout':25,
+                    # # 'logger': Logger(log_level=Logger.LogLevel.MoreDebug),
+                    'processes': 6
+                }
+            ))
+        with par:
+            with Timer():
+                AnalyticVPTRunner.run_simple(
+                    TestManager.test_data(file_name),
+                    2,
+                    # degeneracy_specs=[
+                    #     [state(1), state(8, 7)],
+                    #     [state(3), state([6, 2])],
+                    #     [state(6), state([9, 2])],
+                    # ],
+                    # degeneracy_specs='auto',
+                    # parallelizer='multiprocessing'
+                    parallelizer=par
+                    # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+                )
+        return
 
         # VPTRunner.run_simple(
         #     TestManager.test_data(file_name),
@@ -1166,7 +1186,7 @@ class VPT2Tests(TestCase):
 #### <a name="PyreneAnalytic">PyreneAnalytic</a>
 ```python
     def test_PyreneAnalytic(self):
-        file_name = "pyrene_try3.fchk"
+        file_name = os.path.expanduser("~/Documents/Postdoc/Projects/VPT/anne_tests/pyrene_try3.fchk")
         state = VPTStateMaker(72)
         degs = [
             [state(8), state(9)],
@@ -1193,19 +1213,36 @@ class VPT2Tests(TestCase):
             [state(71), state(18)],
             [state(71), state(22)]
         ]
-        # with BlockProfiler():
-        corrs = AnalyticVPTRunner.run_simple(
-            file_name,
-            # [
-            #     state(8), state(9),
-            #     state(10), state(11)
-            # ],
-            1,
-            # expressions_file="exprs.hdf5",
-            degeneracy_specs=None,
-            logger=True,
-            # zero_cutoff=1e-12
-        )
+
+        par = Parallelizer.lookup((
+            'multiprocessing',
+            {
+                'initialization_timeout': 25,
+                # 'logger': Logger(log_level=Logger.LogLevel.MoreDebug),
+                # 'processes': 8
+            }
+        ))
+        # with par:
+
+        with par:
+            with Timer():
+                corrs = AnalyticVPTRunner.run_simple(
+                    file_name,
+                    # [
+                    #     state(8), state(9),
+                    #     state(10), state(11)
+                    # ],
+                    # [
+                    #     state(1),
+                    #     state(2)
+                    # ],
+                    1,
+                    # expressions_file="exprs.hdf5",
+                    degeneracy_specs=None,
+                    logger=True,
+                    parallelizer=par
+                    # zero_cutoff=1e-12
+                )
 ```
 
 #### <a name="NewEmbedding">NewEmbedding</a>

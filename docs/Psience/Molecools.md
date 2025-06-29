@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-09d997" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-09d997"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-d9163b" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-d9163b"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-09d997" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-d9163b" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -135,6 +135,8 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [AIMNetExpansions](#AIMNetExpansions)
 - [RPNMVPT](#RPNMVPT)
 - [LocalModeCHModel](#LocalModeCHModel)
+- [Caching](#Caching)
+- [PartialQuartic](#PartialQuartic)
 - [InternalProjectedModes](#InternalProjectedModes)
 - [MultiGMatrix](#MultiGMatrix)
 - [1DPotentialReps](#1DPotentialReps)
@@ -145,9 +147,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-7af015" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-7af015"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-3a8f1d" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-3a8f1d"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-7af015" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-3a8f1d" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -1636,6 +1638,208 @@ class MolecoolsTests(TestCase):
         print_arr(new_hess)
 ```
 
+#### <a name="Caching">Caching</a>
+```python
+    def test_Caching(self):
+        from McUtils.Scaffolding import Checkpointer
+        import McUtils.Coordinerds as coordops
+        import tempfile as tf
+
+        methanol = Molecule(
+            ['C', 'O', 'H', 'H', 'H', 'H'],
+            [[-0.71174571,  0.0161939, 0.02050266],
+             [ 1.71884591, -1.07310118, -0.2778059],
+             [-1.30426891,  0.02589585, 1.99632677],
+             [-0.77962613,  1.94036941, -0.7197672],
+             [-2.02413643, -1.14525287, -1.05166036],
+             [ 2.91548382, -0.08353621, 0.65084457]],
+            energy_evaluator='aimnet2',
+            # internals=methanol_zmatrix
+        )
+
+        methanol_zmatrix = coordops.reindex_zmatrix(
+            coordops.functionalized_zmatrix(
+                3,
+                {
+                    (2, 1, 0): [
+                        [0, -1, -2, -3],
+                        [1, -1, 0, -2],
+                        [2, -1, 0, 1],
+                    ]
+                }
+            ),
+            [5, 1, 0, 2, 3, 4]
+        )
+
+        with tf.NamedTemporaryFile(suffix='.json') as temp:
+            temp.close()
+
+            cache = Checkpointer.from_file(temp.name)
+            meth_int = methanol.modify(internals=methanol_zmatrix)
+            with cache:
+                cache['mol'] = meth_int
+
+            cache = Checkpointer.from_file(temp.name)
+            meth_int2 = cache['mol']
+
+        # return
+
+        with tf.NamedTemporaryFile(suffix='.json') as temp:
+            temp.close()
+
+            cache = Checkpointer.from_file(temp.name)
+            modes = methanol.get_normal_modes(zero_freq_cutoff=50 / UnitsData.hartrees_to_wavenumbers)
+            with cache:
+                cache['modes'] = modes
+                with prof.Timer("base"):
+                    potential_derivatives = cache.cached_eval(
+                        'potential_derivatives',
+                        lambda: methanol.partial_force_field(
+                            order=4,
+                            modes=modes
+                        )
+                    )
+
+
+
+            cache = Checkpointer.from_file(temp.name)
+            modes2 = cache['modes']
+            with prof.Timer("cached"):
+                potential_derivatives = cache.cached_eval(
+                    'potential_derivatives',
+                    lambda: methanol.partial_force_field(
+                        order=4,
+                        modes=modes
+                    )
+                )
+            print(
+                np.asanyarray(potential_derivatives[-1]).shape
+            )
+```
+
+#### <a name="PartialQuartic">PartialQuartic</a>
+```python
+    def test_PartialQuartic(self):
+        import McUtils.Coordinerds as coordops
+
+        methanol_zmatrix = coordops.reindex_zmatrix(
+            coordops.functionalized_zmatrix(
+                3,
+                {
+                    (2, 1, 0): [
+                        [0, -1, -2, -3],
+                        [1, -1, 0, -2],
+                        [2, -1, 0, 1],
+                    ]
+                }
+            ),
+            [5, 1, 0, 2, 3, 4]
+        )
+
+        crds_aimnet_opt = np.array(
+            [[-0.71174571,  0.0161939, 0.02050266],
+             [ 1.71884591, -1.07310118, -0.2778059],
+             [-1.30426891,  0.02589585, 1.99632677],
+             [-0.77962613,  1.94036941, -0.7197672],
+             [-2.02413643, -1.14525287, -1.05166036],
+             [ 2.91548382, -0.08353621, 0.65084457]]
+        )
+        crds_bad = np.array(
+            [[[[0.99603661, -0.03076131, 0.317282],
+               [2.28225031, -0.60719144, 0.1594239],
+               [0.68719378, -0.0280038, 1.36425206],
+               [0.95774141, 0.98826296, -0.07215449],
+               [0.29937143, -0.64460867, -0.24823604],
+               [2.91548382, -0.08353621, 0.65084457]]],
+             [[[0.99603661, -0.03076131, 0.317282],
+               [2.28225031, -0.60719144, 0.1594239],
+               [0.68248684, -0.02562726, 1.36284309],
+               [0.96011584, 0.98746852, -0.07445194],
+               [0.30154935, -0.64537247, -0.25008224],
+               [2.91548382, -0.08353621, 0.65084457]]],
+             [[[0.99603661, -0.03076131, 0.317282],
+               [2.28225031, -0.60719144, 0.1594239],
+               [0.67778774, -0.02325085, 1.36140798],
+               [0.9625001, 0.98666785, -0.07673702],
+               [0.3037351, -0.64614144, -0.25191702],
+               [2.91548382, -0.08353621, 0.65084457]]]]
+        ) / UnitsData.bohr_to_angstroms
+
+        methanol = Molecule(
+            ['C', 'O', 'H', 'H', 'H', 'H'],
+            crds_aimnet_opt,
+            energy_evaluator='rdkit',
+            # internals=methanol_zmatrix
+        ).optimize()
+
+        woof = methanol.partial_force_field(
+            order=3,
+            modes=methanol.get_normal_modes(project_transrot=False)
+        )
+
+        print(woof[-1][0, 0])
+        print(woof[-1][0, 1])
+
+        return
+
+        # der = methanol.calculate_energy(order=1, coords=crds_bad)
+        # print(der[1])
+        # return
+
+        # print(methanol.calculate_energy() - methanol.optimize().calculate_energy())
+        # return
+
+        # der = methanol.calculate_energy(order=1)
+        # print(der[1])
+        # return
+
+        proj_dir = os.path.expanduser("~/Documents/Postdoc/Projects/CoordinatePaper/ml_fd_tests/")
+        os.makedirs(proj_dir, exist_ok=True)
+        from McUtils.Formatters import TableFormatter
+
+        modes = methanol.get_normal_modes()#zero_freq_cutoff=50 / UnitsData.hartrees_to_wavenumbers)
+
+        # from Psience.Psience.Molecools.Evaluator import AIMNet2EnergyEvaluator
+        # AIMNet2EnergyEvaluator.analytic_derivative_order = 3
+        # expansion = methanol.calculate_energy(order=3, mesh_spacing=0.01, stencil=3)
+        # terms = np.tensordot(modes.coords_by_modes, expansion[-1], axes=[-1, 0])
+        #
+        # with open(os.path.join(proj_dir, f"aimnet_analytic.txt"), 'w+') as outs:
+        #     for term in terms:
+        #         print("=" * 100, file=outs)
+        #         print(TableFormatter("{:.3f}").format(
+        #             term * UnitsData.hartrees_to_wavenumbers
+        #         ), file=outs)
+        #
+        #
+        # AIMNet2EnergyEvaluator.analytic_derivative_order = 2
+        #
+        # return
+
+
+
+        # for step_size in [0.1, 0.25, 0.5, 1]:
+        #     for stencil in [3, 5, 7]:
+        for step_size in [1]:
+            for stencil in [5]:
+                # with open(os.path.join(proj_dir, f"aimnet_fd_{step_size*100:.0f}_{stencil}.txt"), 'w+') as outs:
+                print(f"Mesh spacing: {step_size}")
+                print(f"Stencil: {stencil}")
+                print(f"Freqs: {modes.freqs * UnitsData.hartrees_to_wavenumbers}")
+                expansion = methanol.partial_force_field(order=3, modes=modes,
+                                                         mesh_spacing=step_size,
+                                                         stencil=stencil)
+                terms = expansion[-1]
+                # term = (expansion[-1])[0]
+                # term = expansion[-1][0].reshape(-1, 18)
+                # print([np.asanyarray(e).shape for e in expansion])
+                for term in terms:
+                    print("="*100)
+                    print(TableFormatter("{:.3f}").format(
+                        term * UnitsData.hartrees_to_wavenumbers
+                    ))
+```
+
 #### <a name="InternalProjectedModes">InternalProjectedModes</a>
 ```python
     def test_InternalProjectedModes(self):
@@ -1690,28 +1894,28 @@ class MolecoolsTests(TestCase):
         # )
         # return
 
-        # loc_2 = nms_carts.apply_transformation(locs.localizing_transformation).make_dimensionless()
-        # # cart_udim = nms_carts.make_dimensionless()
-        # f_nmw = me_carts.potential_derivatives[1]
-        # g12 = nput.fractional_power(me_carts.g_matrix, 1/2)
-        # f_mw = g12 @ f_nmw @ g12
-        # f_cart = nput.tensor_reexpand(
-        #     [loc_2.coords_by_modes],
-        #     [0, f_mw]
-        # )[-1]
-        # # g_cart = nms_carts.compute_gmatrix()
-        # # print(
-        # #     TableFormatter('{:.3f}').format(locs.localizing_transformation[1] @ locs.localizing_transformation[0])
-        # # )
-        # # f_loc = locs.localizing_transformation[1] @ f_cart @ locs.localizing_transformation[1].T
-        # # print(f_loc.shape)
+        loc_2 = nms_carts.apply_transformation(locs.localizing_transformation).make_dimensionless()
+        # cart_udim = nms_carts.make_dimensionless()
+        f_nmw = me_carts.potential_derivatives[1]
+        g12 = nput.fractional_power(me_carts.g_matrix, 1/2)
+        f_mw = g12 @ f_nmw @ g12
+        f_cart = nput.tensor_reexpand(
+            [loc_2.coords_by_modes],
+            [0, f_mw]
+        )[-1]
+        # g_cart = nms_carts.compute_gmatrix()
         # print(
-        #     TableFormatter('{:.3f}').format(
-        #         f_cart * (UnitsData.hartrees_to_wavenumbers)
-        #     )
+        #     TableFormatter('{:.3f}').format(locs.localizing_transformation[1] @ locs.localizing_transformation[0])
         # )
-        # # print(locs.localizing_transformation[1] @ locs.localizing_transformation[0])
-        # return
+        # f_loc = locs.localizing_transformation[1] @ f_cart @ locs.localizing_transformation[1].T
+        # print(f_loc.shape)
+        print(
+            TableFormatter('{:.3f}').format(
+                f_cart * (UnitsData.hartrees_to_wavenumbers)
+            )
+        )
+        # print(locs.localizing_transformation[1] @ locs.localizing_transformation[0])
+        return
 
         runner, _ = me_ints.setup_VPT(states=2,
                                        degeneracy_specs='auto',
