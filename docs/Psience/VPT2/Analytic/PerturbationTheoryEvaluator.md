@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Analytic.PerturbationTheoryEvaluator">PerturbationTheoryEvaluator</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L6350)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L6350?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L6382)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L6382?message=Update%20Docs)]
 </div>
 
 
@@ -24,8 +24,8 @@
 __init__(self, solver: Psience.VPT2.Analytic.AnalyticPerturbationTheorySolver, expansion, freqs=None, parallelizer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L6352)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L6352?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L6384)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L6384?message=Update%20Docs)]
 </div>
 
 
@@ -34,8 +34,8 @@ __init__(self, solver: Psience.VPT2.Analytic.AnalyticPerturbationTheorySolver, e
 modify_hamiltonian(self, hamiltonian_corrections): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6359)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6359?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6391)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6391?message=Update%20Docs)]
 </div>
 
 
@@ -44,8 +44,8 @@ modify_hamiltonian(self, hamiltonian_corrections):
 get_energy_corrections(self, states, order=None, expansions=None, freqs=None, zero_cutoff=None, degenerate_states=None, verbose=False, logger=None, parallelizer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6371)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6371?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6403)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6403?message=Update%20Docs)]
 </div>
 
 
@@ -55,8 +55,8 @@ get_energy_corrections(self, states, order=None, expansions=None, freqs=None, ze
 is_single_expansion(expansion, min_order=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L6406)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L6406?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L6438)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L6438?message=Update%20Docs)]
 </div>
 
 
@@ -65,8 +65,8 @@ is_single_expansion(expansion, min_order=None):
 get_overlap_corrections(self, states, order=None, expansions=None, degenerate_states=None, freqs=None, zero_cutoff=None, verbose=False, parallelizer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6437)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6437?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6469)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6469?message=Update%20Docs)]
 </div>
 
 
@@ -75,8 +75,8 @@ get_overlap_corrections(self, states, order=None, expansions=None, degenerate_st
 get_diff_map(self, state_map): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6472)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6472?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6504)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6504?message=Update%20Docs)]
 </div>
 
 
@@ -86,8 +86,8 @@ get_diff_map(self, state_map):
 get_finals(initial, change, perms): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L6494)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L6494?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L6526)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L6526?message=Update%20Docs)]
 </div>
 
 
@@ -97,8 +97,8 @@ get_finals(initial, change, perms):
 get_degenerate_changes(cls, degenerate_pairs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L6741)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L6741?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L6773)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L6773?message=Update%20Docs)]
 </div>
 
 
@@ -107,8 +107,8 @@ get_degenerate_changes(cls, degenerate_pairs):
 get_state_by_state_corrections(self, generator, states, order=None, terms=None, epaths=None, expansions=None, freqs=None, verbose=False, allowed_coefficients=None, disallowed_coefficients=None, degenerate_states=None, only_degenerate_terms=False, degenerate_correction_generator=None, include_degenerate_correction_terms=True, log_scaled=False, zero_cutoff=None, return_sorted=False, logger=None, parallelizer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6774)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6774?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6806)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6806?message=Update%20Docs)]
 </div>
 
 
@@ -117,8 +117,8 @@ get_state_by_state_corrections(self, generator, states, order=None, terms=None, 
 get_matrix_corrections(self, states, order=None, expansions=None, freqs=None, zero_cutoff=None, verbose=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6824)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6824?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6856)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6856?message=Update%20Docs)]
 </div>
 
 
@@ -127,8 +127,8 @@ get_matrix_corrections(self, states, order=None, expansions=None, freqs=None, ze
 get_full_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None, zero_cutoff=None, degenerate_states=None, verbose=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6829)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6829?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6861)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6861?message=Update%20Docs)]
 </div>
 
 
@@ -137,8 +137,8 @@ get_full_wavefunction_corrections(self, states, order=None, expansions=None, fre
 get_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None, zero_cutoff=None, degenerate_states=None, verbose=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6838)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6838?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6870)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6870?message=Update%20Docs)]
 </div>
 
 
@@ -147,8 +147,8 @@ get_wavefunction_corrections(self, states, order=None, expansions=None, freqs=No
 get_reexpressed_hamiltonian(self, states, order=None, expansions=None, freqs=None, degenerate_states=None, only_degenerate_terms=False, verbose=False, include_diagonal=False, hamiltonian_corrections=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6860)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6860?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6892)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6892?message=Update%20Docs)]
 </div>
 
   - `states`: `Any`
@@ -180,8 +180,8 @@ get_reexpressed_hamiltonian(self, states, order=None, expansions=None, freqs=Non
 get_operator_corrections(self, operator_expansion, states, order=None, expansions=None, freqs=None, degenerate_states=None, operator_type=None, check_single=True, terms=None, min_order=1, verbose=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6974)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L6974?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L7006)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L7006?message=Update%20Docs)]
 </div>
 
 
@@ -190,8 +190,8 @@ get_operator_corrections(self, operator_expansion, states, order=None, expansion
 evaluate_expressions(self, states, exprs, expansions=None, operator_expansions=None, degenerate_states=None, zero_cutoff=None, verbose=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L7012)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L7012?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L7044)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.py#L7044?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -246,7 +246,7 @@ evaluate_expressions(self, states, exprs, expansions=None, operator_expansions=N
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Analytic/PerturbationTheoryEvaluator.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L6350?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L6382?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
