@@ -950,9 +950,9 @@ class VPT2Tests(TestCase):
                     #     state(1),
                     #     state(2)
                     # ],
-                    2,
+                    1,
                     # expressions_file="exprs.hdf5",
-                    degeneracy_specs=None,
+                    degeneracy_specs=degs,
                     logger=True,
                     parallelizer=par
                     # zero_cutoff=1e-12
