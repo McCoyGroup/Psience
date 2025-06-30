@@ -950,7 +950,7 @@ class VPT2Tests(TestCase):
                     #     state(1),
                     #     state(2)
                     # ],
-                    1,
+                    2,
                     # expressions_file="exprs.hdf5",
                     degeneracy_specs=None,
                     logger=True,
