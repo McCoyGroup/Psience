@@ -222,9 +222,9 @@ get_wavefunctions(self, mode=None, similarity_cutoff=None, similarity_chunk_size
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-16ff27" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-16ff27"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-c952cd" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-c952cd"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-16ff27" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-c952cd" markdown="1">
  - [Harmonic](#Harmonic)
 - [Morse](#Morse)
 - [SampleRotated](#SampleRotated)
@@ -249,9 +249,9 @@ get_wavefunctions(self, mode=None, similarity_cutoff=None, similarity_chunk_size
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-cd09de" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-cd09de"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-ef49c5" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-ef49c5"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-cd09de" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-ef49c5" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
