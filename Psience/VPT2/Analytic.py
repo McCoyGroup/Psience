@@ -11,6 +11,7 @@ import numpy as np, scipy.signal, time
 from McUtils.Zachary import DensePolynomial, TensorCoefficientPoly
 import McUtils.Numputils as nput
 import McUtils.Devutils as dev
+import McUtils.Combinatorics as mcomb
 from McUtils.Combinatorics import SymmetricGroupGenerator, IntegerPartitioner, UniquePartitions, UniquePermutations
 from McUtils.Scaffolding import Logger, Checkpointer, MaxSizeCache
 from McUtils.Parallelizers import Parallelizer
@@ -5873,7 +5874,8 @@ class PerturbationTheoryExpressionEvaluator:
 
         (
             expr, change, baseline_shift,
-            state_perms,  # all_perms, perm_map,
+            # state_perms,  # all_perms, perm_map,
+            compressed_states, perm_lens, compressed_perms,
             freqs,
             num_fixed, degenerate_changes, only_degenerate_terms,
             zero_cutoff,
@@ -5885,6 +5887,19 @@ class PerturbationTheoryExpressionEvaluator:
         ) = cls._parallel_eval_main_args
 
         cls.set_cache_size(max_cache_size)
+
+        decompressed_states = np.zeros((len(compressed_states), ndim), dtype=int)
+        for n,(elems,pos) in enumerate(compressed_states):
+            decompressed_states[n, pos] = elems
+        decompressed_perms = mcomb.lehmer_decode(ndim, compressed_perms)
+        split_perms = np.array_split(
+            decompressed_perms,
+            np.cumsum(perm_lens)
+        )
+        state_perms = [
+            [s,p]
+            for s,p in zip(decompressed_states, split_perms)
+        ]
 
         all_perms, perm_map = np.unique(
             np.concatenate([perms for state, perms in state_perms], axis=0),
@@ -6165,13 +6180,30 @@ class PerturbationTheoryExpressionEvaluator:
                         #     pows,
                         #     verbose, logger, log_scaled, log_level,
                         # )
+                        nz_pos = [
+                            np.nonzero(state)
+                            for state, perms in state_perms
+                        ]
+                        compressed_states = [
+                            [state[nz], nz]
+                            for nz,(state, _) in zip(nz_pos, state_perms)
+                        ]
+                        perm_lens = np.array([
+                            len(perms)
+                            for state, perms in state_perms
+                        ])
+                        compressed_perms = mcomb.lehmer_encode(np.concatenate([
+                            perms
+                            for state, perms in state_perms
+                        ], axis=0))
                         parallelizer.set_initializer(
                             cls._initialize_main_eval,
                             coeffs
                                 if cls._cached_expansion is None else
                             None,
                             expr, change, baseline_shift,
-                            state_perms, #all_perms, perm_map,
+                            # state_perms, #all_perms, perm_map,
+                            compressed_states, perm_lens, compressed_perms,
                             freqs,
                             num_fixed, degenerate_changes, only_degenerate_terms,
                             zero_cutoff,
