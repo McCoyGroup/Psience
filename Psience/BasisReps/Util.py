@@ -1,5 +1,6 @@
 
 import numpy as np
+import McUtils.Devutils as dev
 import McUtils.Coordinerds as coordops
 
 __all__ = [
@@ -108,12 +109,17 @@ def _internal_index_key_function(internals, tags, atoms):
         tag = tags[i]
         if tag is None and atoms is not None:
             tag = "".join(atoms[j] for j in internal)
-        return (internal, (internal,),
-                (internal, internal),
-                tag,
-                (tag,),
-                (len(internal), tag, tag)
-                )
+        if dev.is_atomic(tag):
+            tag = [tag]
+        tag = tuple(t for t in tag if t is not None)
+        keys = (internal, (internal,), (internal, internal))
+        for i in range(len(tag)):
+            t = tag[i:]
+            keys += (
+                t,
+                (len(internal), t, t)
+            )
+        return keys
     return index_key_function
 
 def _internal_coupling_key_function(internals, tags, atoms):
@@ -121,7 +127,6 @@ def _internal_coupling_key_function(internals, tags, atoms):
         i, j = ij
         tag1 = tags[i]
         tag2 = tags[j]
-        print(tag1, tag2, internal_1, internal_2)
         if tag1 is None and atoms is not None:
             tag1 = "".join(atoms[k] for k in internal_1)
         if tag2 is None and atoms is not None:
@@ -131,14 +136,24 @@ def _internal_coupling_key_function(internals, tags, atoms):
             for i1 in internal_1
         )
 
+        keys = ((internal_1, internal_2), (internal_2, internal_1))
         if num_shared > 0:
-            keys = (
-                (internal_1, internal_2), (internal_2, internal_1),
-                (num_shared, tag1, tag2),
-                (num_shared, tag2, tag1),
-                (tag1, tag2),
-                (tag2, tag1),
-            )
+            if dev.is_atomic(tag1):
+                tag1 = [tag1]
+            tag1 = tuple(t for t in tag1 if t is not None)
+            if isinstance(tag2, str):
+                tag2 = [tag2]
+            tag2 = tuple(t for t in tag2 if t is not None)
+            for i in range(len(tag1)):
+                t1 = tag1[i:]
+                for j in range(len(tag2)):
+                    t2 = tag2[j:]
+                    keys += (
+                        (num_shared, t1, t2),
+                        (num_shared, t2, t1),
+                        (t1, t2),
+                        (t2, t1),
+                    )
         else:
             keys = ((internal_1, internal_2), (internal_2, internal_1))
         return keys

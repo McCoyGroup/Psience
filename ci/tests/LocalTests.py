@@ -750,6 +750,36 @@ class LocalTests(TestCase):
             np.linalg.eigvalsh(f) * UnitsData.convert("Hartrees", "Wavenumbers")
         )
 
+    @debugTest
+    def test_LocalModeComplement(self):
+
+        mol = Molecule.from_file(
+            TestManager.test_data('OCHH_freq.fchk')
+        )
+
+        nms = mol.get_normal_modes()
+        locs = nms.localize(internals=[(0, 1), (1, 2), (1, 3)])
+        comp = locs.get_complement()
+        full_loc = nms.apply_transformation(
+            np.concatenate(
+                [
+                    locs.localizing_transformation[0],
+                    comp.localizing_transformation[0]
+                ],
+                axis=1
+            )
+        )
+
+        import McUtils.Formatters as mfmt
+
+        print(locs.local_freqs * UnitsData.hartrees_to_wavenumbers)
+        print(comp.local_freqs * UnitsData.hartrees_to_wavenumbers)
+        print(
+            mfmt.TableFormatter("{:.0f}").format(
+                full_loc.local_hessian * UnitsData.hartrees_to_wavenumbers
+            )
+        )
+
     @validationTest
     def test_OCHHObliqueVPT(self):
         ochh = Molecule.from_file(
@@ -2355,14 +2385,14 @@ class LocalTests(TestCase):
                 monomer=i
             )
 
-    @debugTest
+    @validationTest
     def test_Localizers(self):
 
         mol = Molecule.from_file(
             TestManager.test_data('HOONO_freq.fchk'),
         )
 
-        fig = mol.plot(backend='vtk')[0]
+        fig = mol.plot(backend='x3d')
         fig.show()
 
         raise Exception(...)
