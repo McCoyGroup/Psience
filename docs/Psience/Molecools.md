@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-986262" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-986262"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-86c6cc" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-86c6cc"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-986262" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-86c6cc" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -136,20 +136,23 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [RPNMVPT](#RPNMVPT)
 - [LocalModeCHModel](#LocalModeCHModel)
 - [Caching](#Caching)
+- [OrcaImport](#OrcaImport)
 - [PartialQuartic](#PartialQuartic)
 - [InternalProjectedModes](#InternalProjectedModes)
 - [MultiGMatrix](#MultiGMatrix)
 - [1DPotentialReps](#1DPotentialReps)
 - [Constructors](#Constructors)
+- [AutoCHModel](#AutoCHModel)
+- [AtomTypeMap](#AtomTypeMap)
 - [InternalConv](#InternalConv)
 - [AutomaticConversion](#AutomaticConversion)
 - [FastInternals](#FastInternals)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-f365a1" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-f365a1"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-a8b9d3" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-a8b9d3"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-f365a1" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-a8b9d3" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -1589,7 +1592,16 @@ class MolecoolsTests(TestCase):
             internals=internals
         )
 
-        base_hess = loc_modes.local_hessian
+        ob_modes = loc_modes.make_oblique()
+        # f_ob = ob_modes.compute_hessian()
+        # g_ob = ob_modes.compute_gmatrix()
+        # h_ob = ob_modes.local_hessian
+        # print(TableFormatter("{:.0f}").format(f_ob * UnitsData.hartrees_to_wavenumbers))
+        # print(TableFormatter("{:.0f}").format(g_ob * UnitsData.hartrees_to_wavenumbers))
+        # print(TableFormatter("{:.0f}").format(h_ob * UnitsData.hartrees_to_wavenumbers))
+        # return
+        base_hess = ob_modes.local_hessian
+
         new_hess = modify_internal_hamiltonian(
             base_hess,
             {
@@ -1607,14 +1619,13 @@ class MolecoolsTests(TestCase):
                 "CH3_stretch":.96,
             },
             coupling_types={
-                ("CH3_stretch", "CH3_stretch"):-22 * UnitsData.convert("Wavenumbers", "Hartrees")
+                (1, "CH3_stretch", "CH3_stretch"):-22 * UnitsData.convert("Wavenumbers", "Hartrees")
             }
         )
 
 
         g_mat = loc_modes.local_gmatrix
         def print_arr(header, array=None):
-            from McUtils.Formatters import TableFormatter
             if array is None:
                 array = header
                 header = []
@@ -1715,6 +1726,31 @@ class MolecoolsTests(TestCase):
             print(
                 np.asanyarray(potential_derivatives[-1]).shape
             )
+```
+
+#### <a name="OrcaImport">OrcaImport</a>
+```python
+    def test_OrcaImport(self):
+        # propyl = Molecule.from_file(
+        #     TestManager.test_data('proplybenz.out'),
+        #     'orca'
+        # )
+        #
+        # print(
+        #     propyl.get_normal_modes(
+        #         # project_transrot=False
+        #     ).freqs * UnitsData.hartrees_to_wavenumbers
+        # )
+
+        propyl = Molecule.from_file(
+            TestManager.test_data('proplybenz.hess')
+        )
+
+        print(
+            propyl.get_normal_modes(
+                # project_transrot=False
+            ).freqs * UnitsData.hartrees_to_wavenumbers
+        )
 ```
 
 #### <a name="PartialQuartic">PartialQuartic</a>
@@ -2066,6 +2102,126 @@ class MolecoolsTests(TestCase):
         c = Molecule.construct('OC')
 ```
 
+#### <a name="AutoCHModel">AutoCHModel</a>
+```python
+    def test_AutoCHModel(self):
+        import McUtils.Coordinerds as coordops
+        from Psience.BasisReps import modify_internal_hamiltonian
+
+        pb = Molecule.from_file(
+            TestManager.test_data('proplybenz.hess')
+        )
+        nms = pb.get_normal_modes()
+        stretch, angles, dihedrals = coordops.get_stretch_coordinate_system([tuple(s[:2]) for s in pb.bonds])
+        labels = pb.edge_graph.get_label_types()
+        stretch_types = [
+            coordops.get_coordinate_label(
+                c,
+                labels
+            )
+            for c in stretch
+        ]
+        bend_types = [
+            coordops.get_coordinate_label(
+                c,
+                labels
+            )
+            for c in angles
+        ]
+
+        good_coords = {
+            c:l
+            for c, l in zip(stretch, stretch_types)
+            if l.atoms == 'CH'
+        }
+
+        good_coords.update({
+            c:l
+            for c,l in zip(angles, bend_types)
+            if l.atoms == 'HCH'
+        })
+
+        loc_modes = nms.localize(internals=good_coords).make_oblique()
+
+        # print(stretch_types)
+        # print(bend_types)
+
+        base_hess = loc_modes.compute_hessian()
+        print("Base Oblique Hessian")
+        print(TableFormatter("{:.0f}").format(base_hess * 219474.63))
+
+        print("Scaled Oblique Hessian")
+        scaled_hess = modify_internal_hamiltonian(
+            base_hess,
+            good_coords,
+            scaling_types={
+                ("CH", "stretch"):.96,
+                (("methyl", "CH", "stretch"), ("methyl", "CH", "stretch")):.9,
+                (("ethyl", "CH", "stretch"), ("ethyl", "CH", "stretch")):.96,
+            }
+        )
+        print(TableFormatter("{:.0f}").format(scaled_hess * 219474.63))
+```
+
+#### <a name="AtomTypeMap">AtomTypeMap</a>
+```python
+    def test_AtomTypeMap(self):
+        import McUtils.Coordinerds as coordops
+        # pb = Molecule.from_file(
+        #     TestManager.test_data('proplybenz.hess')
+        # )
+        pb = Molecule.construct('c1ccccc1CCOCC(=O)O')
+        # pb = Molecule.construct('CC(C)(C)O')
+        labels = pb.edge_graph.get_label_types()
+
+        for b in pb.bonds:
+            print(
+                b[:2],
+                coordops.get_coordinate_label(
+                    b[:2],
+                    labels
+                )
+            )
+        return
+
+        g = pb.edge_graph
+        print(g.find_functional_groups())
+        print([
+            g.categorize_ring(r)
+            for r in g.rings
+        ])
+        # print(
+        #     pb.edge_graph.get_label_types(neighbor_depth=2)
+        # )
+        return
+
+        r = g.get_rings()
+        # return
+        # woof = (pb.edge_graph.get_rings())
+        # print(pb.atoms)
+        # print([len(w) for w in woof])
+        # return
+
+
+        print(
+            pb.edge_graph.get_label_types(neighbor_depth=1)
+        )
+        pb = Molecule.from_file(
+            TestManager.test_data('methanol_vpt_3.fchk')
+        )
+        print(
+            pb.edge_graph.get_label_types(neighbor_depth=1)
+        )
+        print(
+            pb.edge_graph.get_label_types(neighbor_depth=2)
+        )
+
+        pb = Molecule.construct('acetic acid')
+        print(
+            pb.edge_graph.get_label_types(neighbor_depth=2)
+        )
+```
+
 #### <a name="InternalConv">InternalConv</a>
 ```python
     def test_InternalConv(self):
@@ -2092,12 +2248,17 @@ class MolecoolsTests(TestCase):
              [-1.42168595, -1.77751975, 7.80094268],
              [-3.61859877, 0.74452369, 8.04209746]],
             internals={
-                'primitives': 'auto',
-                'nonredundant_coordinates': [(15, 10, 11, 13)]
+                # 'primitives': 'auto',
+                'primitives': [(0,1), (0, 2), (0, 3), (15, 10, 11, 13)],
+                'untransformed_coordinates': [(15, 10, 11, 13)]
             }
         )
 
-        raise Exception(gggg.internal_coordinates.shape)
+        print(
+            gggg.internal_coordinates.converter_options['redundant_transformation']
+        )
+
+        # raise Exception(gggg.internal_coordinates.converter_options['redun'])
 
 
         nh3 = Molecule.from_file(

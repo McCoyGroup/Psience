@@ -122,16 +122,6 @@ compute_hessian(self):
 </div>
 
 
-<a id="Psience.Modes.LocalizedModes.LocalizedModes.localize" class="docs-object-method">&nbsp;</a> 
-```python
-localize(self, method=None, **opts): 
-```
-<div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L177)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L177?message=Update%20Docs)]
-</div>
-
-
 <a id="Psience.Modes.LocalizedModes.LocalizedModes.apply_transformation" class="docs-object-method">&nbsp;</a> 
 ```python
 apply_transformation(self, transformation, inverse=None, **opts): 
@@ -139,6 +129,16 @@ apply_transformation(self, transformation, inverse=None, **opts):
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L183)/
 [edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L183?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Modes.LocalizedModes.LocalizedModes.get_complement" class="docs-object-method">&nbsp;</a> 
+```python
+get_complement(self, concatenate=False): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L206)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/LocalizedModes/LocalizedModes.py#L206?message=Update%20Docs)]
 </div>
  </div>
 </div>
