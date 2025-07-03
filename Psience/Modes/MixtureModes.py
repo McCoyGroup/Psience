@@ -2,6 +2,7 @@
 Provides support for handling modes that arise from
 """
 
+import enum
 import numpy as np, scipy
 import McUtils.Numputils as nput
 from McUtils.Coordinerds import CoordinateSystem, CartesianCoordinateSystem3D, InternalCoordinateSystem
@@ -343,6 +344,520 @@ class MixtureModes(CoordinateSystem):
     def local_freqs(self):
         return np.diag(self.local_hessian)
 
+
+
+    def get_nearest_mode_transform(self,
+                                   alternate_modes:np.ndarray,
+                                   mass_weighted=None,
+                                   atoms=None,
+                                   maximum_similarity=True,
+                                   unitarize=True,
+                                   masses=None
+                                   ):
+        if mass_weighted is not None:
+            if not mass_weighted:
+                if masses is None:
+                    masses = self.masses
+                    modes = self.remove_mass_weighting()
+                else:
+                    modes = self.remove_mass_weighting(masses)
+            else:
+                if masses is None:
+                    masses = self.masses
+                    modes = self.make_mass_weighted()
+                else:
+                    modes = self.make_mass_weighted(masses)
+        else:
+            modes = self
+
+        inv = modes.coords_by_modes
+        modes = modes.modes_by_coords
+        if self.is_cartesian and atoms is not None:
+            proj = self._atom_projector(modes.shape[0], atoms)
+            # if mass_weighted:
+            #     gi12 = np.diag(np.repeat(1/np.sqrt(masses), 3))
+            #     proj = nput.find_basis(gi12 @ proj @ gi12)
+            modes = proj @ modes
+            alternate_modes = proj @ alternate_modes
+
+        if maximum_similarity:
+            tf = nput.maximum_similarity_transformation(modes, alternate_modes, apply_transformation=False)
+            return tf, tf.T
+        else:
+            tf = inv @ alternate_modes
+            if unitarize:
+                tf = nput.unitarize_transformation(tf)
+                inv = tf.T
+            else:
+                inv = np.linalg.pinv(tf)
+            return tf, inv
+
+    localization_type = 'ned'
+    zero_freq_cutoff = 99 / 219474.56
+    def get_projected_localized_mode_transformation(self,
+                                                    projectors,
+                                                    masses=None, origin=None,
+                                                    localization_type=None,
+                                                    allow_mode_mixing=False,
+                                                    maximum_similarity=False,
+                                                    unitarize=True,
+                                                    zero_freq_cutoff=None,
+                                                    orthogonal_projection=False,
+                                                    atoms=None #ignored but tedious to have around
+                                                    ):
+        if zero_freq_cutoff is None:
+            zero_freq_cutoff = self.zero_freq_cutoff
+        if localization_type is None:
+            localization_type = self.localization_type
+
+        if masses is None:
+            masses = self.masses
+            mw = self.make_mass_weighted()
+        else:
+            mw = self.make_mass_weighted(masses=masses)
+
+        f = mw.modes_by_coords @ np.diag(self.freqs ** 2) @ mw.modes_by_coords.T
+
+        if self.is_cartesian and localization_type == 'direct':
+            if origin is None:
+                origin = mw.remove_mass_weighting().origin
+            tr_tf, tr_inv = nput.translation_rotation_invariant_transformation(
+                origin.reshape(-1, 3),
+                masses,
+                mass_weighted=True
+            )
+        else:
+            tr_tf = tr_inv = np.eye(mw.matrix.shape[0])
+
+        projectors = [
+            (
+                nput.orthogonal_projection_matrix(p)
+                    if orthogonal_projection else
+                nput.projection_matrix(p)
+            )
+                if p.shape[0] != p.shape[1] else
+            np.asanyarray(p)
+            for p in projectors
+        ]
+
+        g_matrix = tr_tf.T @ tr_tf
+        if allow_mode_mixing:
+            proj = np.sum(projectors, axis=0)
+            # proj = proj @ g12
+            # proj = self._atom_projector(len(masses), atoms)
+            freqs, modes, inv = self.get_normal_modes(
+                tr_inv @ proj @ f @ proj.T @ tr_inv.T,
+                g_matrix,
+                remove_transrot=True,
+                mass_weighted=True,
+                zero_freq_cutoff=zero_freq_cutoff
+            )
+        else:
+            # freqs = []
+            modes = []
+            # inv = []
+            for proj in projectors:
+                f_matrix = tr_inv @ proj @ f @ proj.T @ tr_inv.T
+                # import McUtils.Formatters as mfmt
+                # print(
+                #     mfmt.TableFormatter("{:.3f}").format(
+                #         f_matrix * 219474.56
+                #     )
+                # )
+                sub_freqs, sub_modes, sub_inv = self.get_normal_modes(
+                    f_matrix,
+                    g_matrix,
+                    remove_transrot=True,
+                    mass_weighted=True,
+                    zero_freq_cutoff=zero_freq_cutoff
+                )
+                # print(sub_freqs * 219474.56)
+
+                # freqs.append(sub_freqs)
+                modes.append(sub_modes)
+                # inv.append(sub_inv)
+            # freqs = np.concatenate(freqs)
+            modes = np.concatenate(modes, axis=1)
+            # inv = np.concatenate(inv, axis=0)
+
+        if localization_type == 'direct':
+            modes = tr_tf @ modes
+
+        return mw.get_nearest_mode_transform(
+            modes,
+            mass_weighted=True,
+            maximum_similarity=maximum_similarity,
+            unitarize=unitarize
+        )
+
+    def get_atom_localized_mode_transformation(self,
+                                               atoms,
+                                               masses=None, origin=None,
+                                               localization_type='ned',
+                                               allow_mode_mixing=False,
+                                               maximum_similarity=False,
+                                               unitarize=True,
+                                               zero_freq_cutoff=None
+                                               ):
+        if nput.is_numeric(atoms):
+            atoms = [atoms]
+        if masses is None:
+            m = self.masses
+        else:
+            m = masses
+        nats = len(m)
+
+        proj = (
+            [self._atom_projector(nats, atoms)]
+                if allow_mode_mixing else
+            [self._atom_projector(nats, a) for a in atoms]
+        )
+        # gi12 = np.diag(np.repeat(1 / np.sqrt(m), 3))
+        # proj = nput.find_basis(gi12 @ proj @ gi12)
+
+        return self.get_projected_localized_mode_transformation(
+            proj,
+            origin=origin,
+            masses=masses,
+            localization_type=localization_type,
+            maximum_similarity=maximum_similarity,
+            unitarize=unitarize,
+            allow_mode_mixing=allow_mode_mixing,
+            zero_freq_cutoff=zero_freq_cutoff
+        )
+
+    def get_coordinate_projected_localized_mode_transformation(self,
+                                                               coordinate_constraints,
+                                                               atoms=None,
+                                                               masses=None, origin=None,
+                                                               localization_type='ned',
+                                                               allow_mode_mixing=False,
+                                                               maximum_similarity=False,
+                                                               orthogonal_projection=True,
+                                                               unitarize=True
+                                                               ):
+
+
+        if self.is_cartesian:
+            if nput.is_numeric(coordinate_constraints[0]):
+                coordinate_constraints = [coordinate_constraints]
+            nmw = self.remove_mass_weighting()
+            if masses is None:
+                m = self.masses
+            else:
+                m = masses
+            basis, _, _ = nput.internal_basis(nmw.origin.reshape((-1, 3)), coordinate_constraints, masses=m)
+
+            g12 = np.diag(np.repeat(1/np.sqrt(m), 3))
+            projections = [
+                nput.projection_matrix(g12 @ b)
+                    if not orthogonal_projection else
+                nput.orthogonal_projection_matrix(g12 @ b)
+                for b in basis
+            ]
+
+            if allow_mode_mixing and orthogonal_projection:
+                proj = projections[0]
+                for p in projections[1:]:
+                    proj = p @ proj @ p
+                projections = [proj]
+
+            if atoms is not None:
+                if nput.is_numeric(atoms):
+                    atoms = [atoms]
+                nats = len(m)
+                a_proj = self._atom_projector(nats, atoms)
+                projections = [
+                    a_proj @ proj @ a_proj
+                    for proj in projections
+                ]
+        else:
+            if nput.is_numeric(coordinate_constraints):
+                coordinate_constraints = [coordinate_constraints]
+            if not (
+                # Fast check
+                isinstance(coordinate_constraints, np.ndarray)
+                and np.issubdtype(coordinate_constraints.dtype, np.integer)
+            ) and not all(nput.is_int(c) for c in coordinate_constraints):
+                raise ValueError(f"internal modes can only be constrained by coordinate index (got {coordinate_constraints})")
+            basis = np.zeros((len(coordinate_constraints),self.coords_by_modes.shape[1] ), dtype=float)
+            coordinate_constraints = np.asanyarray(coordinate_constraints)
+            for n,i in enumerate(coordinate_constraints):
+                basis[n, i] = 1
+
+
+            # g12 = nput.fractional_power(self.g_matrix, 1/2)
+            # projections = [
+            #     nput.projection_matrix(g12 @ b[:, np.newaxis])
+            #         if not orthogonal_projection else
+            #     nput.orthogonal_projection_matrix(g12 @ b[:, np.newaxis])
+            #     for b in basis
+            # ]
+
+            projections = [
+                nput.projection_matrix(b[:, np.newaxis])
+                    if not orthogonal_projection else
+                nput.orthogonal_projection_matrix(b[:, np.newaxis])
+                for b in basis
+            ]
+
+        # if orthogonal_projection:
+        #     projections = [proj @ gi12 for proj in projections]
+        # else:
+        #     projections = [proj @ gi12 for proj in projections]
+
+
+        return self.get_projected_localized_mode_transformation(
+            projections,
+            origin=origin,
+            masses=masses,
+            localization_type=localization_type,
+            maximum_similarity=maximum_similarity,
+            unitarize=unitarize,
+            allow_mode_mixing=allow_mode_mixing
+        )
+
+    def get_internal_localized_mode_transformation(
+            self,
+            expansion_coordinates: "Iterable[Iterable[int]|dict]",
+            fixed_atoms=None,
+            mass_weighted=False,
+            project_transrot=True,
+            atoms=None,
+            maximum_similarity=False,
+            orthogonal_projection=False,
+            projection=False,
+            allow_mode_mixing=False,
+            unitarize=True,
+            origin=None,
+            masses=None,
+            localization_type='ned'
+    ):
+        # from .ObliqueModes import ObliqueModeGenerator
+
+        nmw = self.remove_mass_weighting()
+        base_derivs = nput.internal_coordinate_tensors(
+            nmw.origin,
+            expansion_coordinates,
+            fixed_atoms=fixed_atoms
+        )
+
+        if projection or orthogonal_projection:
+            if masses is None:
+                m = self.masses
+            else:
+                m = masses
+            base_derivs = np.diag(np.repeat(1 / np.sqrt(m), 3)) @ base_derivs
+
+            if origin is None:
+                origin = self.origin
+            if masses is None:
+                m = self.masses
+            else:
+                m = masses
+            projector = nput.translation_rotation_projector(
+                origin.reshape(-1, 3),
+                m,
+                mass_weighted=True
+            )
+            base_derivs = projector @ base_derivs
+
+            # g12 = np.diag(np.repeat(np.sqrt(m), 3))
+            gi12 = np.diag(np.repeat(1 / np.sqrt(m), 3))
+            if allow_mode_mixing:
+                projections = [
+                    nput.projection_matrix(gi12 @ base_derivs)
+                        if not orthogonal_projection else
+                    nput.orthogonal_projection_matrix(gi12 @ base_derivs)
+                ]
+            else:
+                projections = [
+                    nput.projection_matrix(gi12 @ b[:, np.newaxis])
+                        if not orthogonal_projection else
+                    nput.orthogonal_projection_matrix(gi12 @ b[:, np.newaxis])
+                    for b in base_derivs.T
+                ]
+
+            # if orthogonal_projection:
+            #     projections = [proj @ gi12 for proj in projections]
+            # else:
+            #     projections = [proj @ gi12 for proj in projections]
+
+            if atoms is not None:
+                if nput.is_numeric(atoms):
+                    atoms = [atoms]
+                nats = len(m)
+                a_proj = self._atom_projector(nats, atoms)
+                projections = [
+                    a_proj @ proj @ a_proj
+                    for proj in projections
+                ]
+
+            return self.get_projected_localized_mode_transformation(
+                projections,
+                origin=origin,
+                masses=masses,
+                localization_type=localization_type,
+                maximum_similarity=maximum_similarity,
+                unitarize=unitarize,
+                allow_mode_mixing=allow_mode_mixing
+            )
+
+        else:
+
+            if mass_weighted:
+                if masses is None:
+                    m = self.masses
+                else:
+                    m = masses
+                base_derivs = np.diag(np.repeat(1 / np.sqrt(m), 3)) @ base_derivs
+
+            if project_transrot:
+                if origin is None:
+                    origin = self.origin
+                if masses is None:
+                    m = self.masses
+                else:
+                    m = masses
+                projector = nput.translation_rotation_projector(
+                        origin.reshape(-1, 3),
+                        m,
+                        mass_weighted=mass_weighted
+                    )
+                base_derivs = projector @ base_derivs
+
+            return self.get_nearest_mode_transform(
+                base_derivs,
+                atoms=atoms,
+                mass_weighted=mass_weighted,
+                maximum_similarity=maximum_similarity,
+                unitarize=unitarize
+            )
+
+    def get_displacement_localized_mode_transformation(self,
+                                                       mode_blocks=None,
+                                                       atoms=None,
+                                                       mass_weighted=True,
+                                                       unitarize=True,
+                                                       **maximizer_opts
+                                                       ):
+        if not unitarize:
+            raise ValueError("Jacobi iterations only give a unitary transformation")
+
+        if mass_weighted:
+            modes = self.make_mass_weighted().matrix
+        else:
+            modes = self.remove_mass_weighting().matrix
+
+        if atoms is not None:
+            modes = self._atom_projector(modes.shape[0], atoms) @ modes
+        if mode_blocks is None:
+            mode_blocks = [np.arange(modes.shape[1])]
+        elif nput.is_numeric(mode_blocks[0]):
+            mode_blocks = [mode_blocks]
+
+        tf_inv = np.zeros((modes.shape[1], modes.shape[1]), dtype=float)
+        for block in mode_blocks:
+            _, sub_inv, _ = nput.jacobi_maximize(
+                modes[:, block],
+                nput.displacement_localizing_rotation_generator,
+                **maximizer_opts
+            )
+            tf_inv[np.ix_(block, block)] = sub_inv
+
+        return tf_inv, tf_inv.T
+
+    class LocalizationMethods(enum.Enum):
+        MaximumSimilarity = 'target_modes'
+        AtomLocalized = 'atoms'
+        DisplacmentMinimized = 'displacements'
+        Internals = 'coordinates'
+        CoordinateConstraints = 'constraints'
+        Projected = 'projections'
+
+    @property
+    def localizer_dispatch(self):
+        return {
+            self.LocalizationMethods.MaximumSimilarity.value:(self.get_nearest_mode_transform, 'target_modes'),
+            self.LocalizationMethods.AtomLocalized.value:(self.get_atom_localized_mode_transformation, 'atoms'),
+            self.LocalizationMethods.DisplacmentMinimized.value:(self.get_displacement_localized_mode_transformation, 'mode_blocks'),
+            self.LocalizationMethods.Internals.value:(self.get_internal_localized_mode_transformation, 'internals'),
+            self.LocalizationMethods.CoordinateConstraints.value:(self.get_coordinate_projected_localized_mode_transformation, 'coordinate_constraints'),
+            self.LocalizationMethods.Projected.value:(self.get_projected_localized_mode_transformation, 'projections'),
+        }
+
+    def localize(self,
+                 method=None,
+                 *,
+                 atoms=None,
+                 target_modes=None,
+                 internals=None,
+                 mode_blocks=None,
+                 coordinate_constraints=None,
+                 projections=None,
+                 reorthogonalize=None,
+                 unitarize=True,
+                 **opts
+                 ):
+
+        from .LocalizedModes import LocalizedModes
+
+        if method is None:
+            if target_modes is not None:
+                method = 'target_modes'
+            elif internals is not None:
+                method = 'coordinates'
+            elif mode_blocks is not None:
+                method = 'displacements'
+            elif atoms is not None:
+                method = 'atoms'
+            elif coordinate_constraints is not None:
+                method = 'constraints'
+            elif projections is not None:
+                method = 'projections'
+            else:
+                method = 'displacements'
+
+        if isinstance(method, str):
+            method = self.LocalizationMethods(method)
+
+        if hasattr(method, 'value'):
+            method = self.localizer_dispatch.get(method.value, method)
+
+        args = ()
+        try:
+            method, arg_names = method
+        except TypeError:
+            ...
+        else:
+            if isinstance(arg_names, str):
+                arg_names = [arg_names]
+            all_kw = dict(
+                atoms=atoms,
+                target_modes=target_modes,
+                internals=internals,
+                mode_blocks=mode_blocks,
+                reorthogonalize=reorthogonalize,
+                coordinate_constraints=coordinate_constraints,
+                unitarize=unitarize,
+                projections=projections
+            )
+            args = tuple(all_kw.get(k) for k in arg_names)
+            if 'atoms' not in arg_names:
+                opts['atoms'] = atoms # taken by all of the localizers
+
+        tf, inv = method(*args, unitarize=unitarize, **opts)
+        # inverse = tf.T @ self.inverse # assumes a unitary localization
+
+        if reorthogonalize is None:
+            reorthogonalize = not unitarize
+        if reorthogonalize:
+            modes = self.make_mass_weighted().matrix @ tf
+            tf = tf @ nput.fractional_power(modes.T @ modes, -1 / 2)
+            inv = nput.fractional_power(modes.T @ modes, 1 / 2) @ inv
+
+        return LocalizedModes(self, tf, inverse=inv)
+
     def make_mass_weighted(self, masses=None):
         if self.mass_weighted: return self
         masses, g12, gi12 = self._get_gmatrix(masses=masses)
@@ -538,3 +1053,13 @@ class MixtureModes(CoordinateSystem):
         from .LocalizedModes import LocalizedModes
 
         return LocalizedModes(self, tf, **opts)
+
+    def make_oblique(self):
+        from .ObliqueModes import ObliqueModeGenerator
+
+        f = self.compute_hessian()
+        g = self.compute_gmatrix()
+
+        _, _, u, ui = ObliqueModeGenerator(f, g).run()
+        return self.apply_transformation((u, ui))
+

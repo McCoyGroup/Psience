@@ -1183,12 +1183,12 @@ class MolecularProperties:
         :rtype:
         """
 
-        from McUtils.Graphs import EdgeGraph
+        from McUtils.Graphs import MoleculeEdgeGraph
 
         bonds = mol.bonds
         ats = mol.atoms
 
-        return EdgeGraph(ats, [b[:2] for b in bonds])
+        return MoleculeEdgeGraph(ats, [b[:2] for b in bonds])
 
     @classmethod
     def guessed_bonds(cls, mol, tol=1.05, guess_type=True):
@@ -1386,10 +1386,8 @@ class PropertyManager(metaclass=abc.ABCMeta):
     """
     name = None
     def __init__(self, mol):
-        """
-        :param mol:
-        :type mol: AbstractMolecule
-        """
+        from ..Molecools import Molecule
+        mol:Molecule
         self.mol=mol
 
     def set_molecule(self, mol):
@@ -1680,10 +1678,9 @@ class DipoleSurfaceManager(PropertyManager):
                 self._numerical_derivs = None
                 self._derivs = derivatives
         return self._numerical_derivs
-    @property
-    def derivatives(self):
+    def get_derivatives(self, quiet=False):
         if self._derivs is None:
-            derivatives = self.load_dipole_derivatives()
+            derivatives = self.load_dipole_derivatives(quiet=quiet)
             if isinstance(derivatives, dict):
                 self._numerical_derivs = derivatives['numerical']
                 self._derivs = derivatives['analytic']
@@ -1691,6 +1688,9 @@ class DipoleSurfaceManager(PropertyManager):
                 self._numerical_derivs = None
                 self._derivs = derivatives
         return self._derivs
+    @property
+    def derivatives(self):
+        return self.get_derivatives()
     @derivatives.setter
     def derivatives(self, derivatives):
         if isinstance(derivatives, dict):
@@ -1775,7 +1775,7 @@ class DipoleSurfaceManager(PropertyManager):
             "numerical": proper_numerical_derivs
         }
 
-    def load_dipole_derivatives(self, file=None):
+    def load_dipole_derivatives(self, file=None, quiet=False):
         """
         Loads dipole derivatives from a file (or from `source_file` if set)
 
@@ -1796,11 +1796,15 @@ class DipoleSurfaceManager(PropertyManager):
         if ext == ".fchk":
             return self._load_gaussian_fchk_dipoles(file)
         elif ext == ".log":
+            if quiet: return None
+
             raise NotImplementedError("{}: support for loading dipole derivatives from {} files not there yet".format(
                 type(self).__name__,
                 ext
             ))
         else:
+            if quiet: return None
+
             raise NotImplementedError("{}: support for loading dipole derivatives from {} files not there yet".format(
                 type(self).__name__,
                 ext
@@ -1901,12 +1905,13 @@ class PotentialSurfaceManager(PropertyManager):
     def surface_coords(self, coords):
         self._surface_coords = coords
 
-
+    def get_derivs(self, quiet=False):
+        if self._derivs is None:
+            self._derivs = self.load_potential_derivatives(quiet=quiet)
+        return self._derivs
     @property
     def derivatives(self):
-        if self._derivs is None:
-            self._derivs = self.load_potential_derivatives()
-        return self._derivs
+        return self.get_derivs()
     @derivatives.setter
     def derivatives(self, v):
         self._derivs = v
@@ -1915,7 +1920,7 @@ class PotentialSurfaceManager(PropertyManager):
     def force_constants(self):
         return self.derivatives[1]
 
-    def load_potential_derivatives(self, file=None):
+    def load_potential_derivatives(self, file=None, quiet=False):
         """
         Loads potential derivatives from a file (or from `source_file` if set)
 
@@ -1954,11 +1959,15 @@ class PotentialSurfaceManager(PropertyManager):
 
             return (parse["Gradient"], seconds, thirds, fourths)
         elif ext == ".log":
+            if quiet: return None
+
             raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
                 type(self).__name__,
                 ext
             ))
         else:
+            if quiet: return None
+
             raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
                 type(self).__name__,
                 ext
@@ -2114,7 +2123,10 @@ class NormalModesManager(PropertyManager):
         super().set_molecule(mol)
         if self._modes is not None:
             self._modes = self._modes.change_mol(mol)
-
+    def get_modes(self, quiet=False):
+        if self._modes is None:
+            self._modes = self.get_normal_modes(quiet=quiet)
+        return self._modes
     @property
     def modes(self):
         """
@@ -2122,9 +2134,7 @@ class NormalModesManager(PropertyManager):
         :return:
         :rtype: MolecularVibrations
         """
-        if self._modes is None:
-            self._modes = self.get_normal_modes()
-        return self._modes
+        return self.get_normal_modes()
     @modes.setter
     def modes(self, modes):
         if not isinstance(modes, MolecularVibrations):
@@ -2173,7 +2183,7 @@ class NormalModesManager(PropertyManager):
         self._modes = modes
     #TODO: need to be careful about transition states...
     recalc_normal_mode_tolerance = 1.0e-8
-    def load_normal_modes(self, file=None, rephase=True, recalculate=False):
+    def load_normal_modes(self, file=None, mode=None, rephase=True, recalculate=False, quiet=False):
         """
         Loads potential derivatives from a file (or from `source_file` if set)
 
@@ -2188,10 +2198,13 @@ class NormalModesManager(PropertyManager):
 
         if file is None:
             file = self.mol.source_file
-        path, ext = os.path.splitext(file)
-        ext = ext.lower()
+        if mode is None:
+            mode = self.mol.source_mode
+            if mode is None:
+                path, ext = os.path.splitext(file)
+                mode = ext.lower().strip('.')
 
-        if ext == ".fchk":
+        if mode == "fchk":
             with GaussianFChkReader(file) as gr:
                 parse = gr.parse(
                     ['Real atomic weights', 'VibrationalModes', 'ForceConstants', 'VibrationalData']
@@ -2241,17 +2254,50 @@ class NormalModesManager(PropertyManager):
                 modes = new_modes.rescale(phases)
 
             return modes
-        elif ext == ".log":
+        elif mode == 'orca':
+            from McUtils.ExternalPrograms import OrcaLogReader
+            with OrcaLogReader(file) as gr:
+                parse = gr.parse(
+                    ['VibrationalFrequencies', 'NormalModes']
+                )
+            modes = parse['NormalModes'][:, 6:] #/ UnitsData.bohr_to_angstroms
+            g12 = self.mol.get_gmatrix(use_internals=False, power=-1/2)
+            modes = g12 @ modes
+            norms = np.linalg.norm(modes, axis=0)
+            modes = modes / norms[np.newaxis, :]
+            gi12 = self.mol.get_gmatrix(use_internals=False, power=1/2)
+            modes, inv = gi12 @ modes, modes.T @ g12
+
+            freqs = parse['VibrationalFrequencies'][6:] / UnitsData.hartrees_to_wavenumbers
+            return MolecularNormalModes(self.mol, modes, inverse=inv, freqs=freqs)
+        elif mode == 'hess':
+            from McUtils.ExternalPrograms import OrcaHessReader
+            with OrcaHessReader(file) as gr:
+                parse = gr.parse(['normal_modes', 'vibrational_frequencies'])
+
+            modes = parse['normal_modes'][:, 6:] #/ UnitsData.bohr_to_angstroms
+            g12 = self.mol.get_gmatrix(use_internals=False, power=-1/2)
+            modes = g12 @ modes
+            norms = np.linalg.norm(modes, axis=0)
+            modes = modes / norms[np.newaxis, :]
+            gi12 = self.mol.get_gmatrix(use_internals=False, power=1/2)
+            modes, inv = gi12 @ modes, modes.T @ g12
+
+            freqs = parse['vibrational_frequencies'][6:] / UnitsData.hartrees_to_wavenumbers
+            return MolecularNormalModes(self.mol, modes, inverse=inv, freqs=freqs)
+        elif mode == "log":
+            if quiet: return None
             raise NotImplementedError("{}: support for loading normal modes from {} files not there yet".format(
                 type(self).__name__,
-                ext
+                mode
             ))
         else:
+            if quiet: return None
             raise NotImplementedError("{}: support for loading normal modes from {} files not there yet".format(
                 type(self).__name__,
-                ext
+                mode
             ))
-    def get_normal_modes(self, **kwargs):
+    def get_normal_modes(self, quiet=False, **kwargs):
         """
         Loads normal modes from file or calculates
         from force constants
@@ -2263,7 +2309,7 @@ class NormalModesManager(PropertyManager):
         """
 
         if self.mol.source_file is not None:
-            vibs = MolecularVibrations(self.mol, self.load_normal_modes())
+            vibs = MolecularVibrations(self.mol, self.load_normal_modes(quiet=quiet))
         else:
             fcs = self.get_force_constants()
             vibs = MolecularVibrations(self.mol,

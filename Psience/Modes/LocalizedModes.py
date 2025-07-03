@@ -174,11 +174,11 @@ class LocalizedModes(MixtureModes):
         tf, inv = self.localizing_transformation
         return inv @ np.diag(self.base_modes.freqs ** 2) @ inv.T
 
-    def localize(self,
-                 method=None,
-                 **opts
-                 ):
-        return NormalModes.localize(self, method=method, **opts)
+    # def localize(self,
+    #              method=None,
+    #              **opts
+    #              ):
+    #     return NormalModes.localize(self, method=method, **opts)
 
     def apply_transformation(self, transformation, inverse=None, **opts):
         if len(transformation) == 2 and nput.is_array_like(transformation[0]):
@@ -202,3 +202,32 @@ class LocalizedModes(MixtureModes):
             inverse=inverse,
             **opts
         )
+
+    def get_complement(self, concatenate=False):
+        rem = nput.find_basis(
+            nput.orthogonal_projection_matrix(self.localizing_transformation[0])
+        )
+        submodes = self.base_modes.apply_transformation(rem)
+        if not concatenate:
+            loc_freqs, loc_modes = scipy.linalg.eigh(submodes.compute_hessian(), submodes.compute_gmatrix(), type=3)
+            return submodes.apply_transformation(loc_modes)
+        else:
+            g = submodes.compute_gmatrix()
+            g12 = nput.fractional_power(g, 1/2)
+            gi12 = nput.fractional_power(g, -1/2)
+            f = submodes.compute_hessian()
+            _, mw_modes = np.linalg.eigh(g12 @ f @ g12)
+            modes, inv_loc = g12 @ mw_modes, mw_modes.T @ gi12
+            # loc_freqs, loc_modes = scipy.linalg.eigh(submodes.compute_hessian(), submodes.compute_gmatrix(), type=3)
+            tf_rem = rem @ modes
+            tf, inv = self.localizing_transformation
+            inv_rem = inv_loc @ rem.T
+
+            tf_full = np.concatenate([tf, tf_rem], axis=1)
+            inv_full = np.concatenate([inv, inv_rem], axis=0)
+
+            return self.base_modes.apply_transformation((tf_full, inv_full))
+        # return self.base_modes.localize(
+        #     projections=[self.make_mass_weighted().modes_by_coords],
+        #     orthogonal_projection=True
+        # )

@@ -208,8 +208,8 @@ class MolecularEmbedding:
             conv = CompositeCoordinateSystem.register(
                 coords.system,
                 conversion,
-                inverse_conversion=inverse
-                                   ** opts
+                inverse_conversion=inverse,
+                **opts
             )
             coords = coords.convert(conv)
 
@@ -1385,7 +1385,7 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         if converter_options is None or len(converter_options) == 0:
             converter_options = opts
             opts = {}
-        super().__init__(converter_options=converter_options, dimension=(nats, 3), coordinate_shape=(nats, 3), opts=opts)
+        super().__init__(converter_options=converter_options, dimension=(nats, 3), coordinate_shape=(nats, 3), **opts)
     def to_state(self, serializer=None):
         base_data = super().to_state(serializer=serializer)
         base_data['masses'] = self.masses

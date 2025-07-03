@@ -116,7 +116,8 @@ class Molecule(AbstractMolecule):
         self._bonds = bonds
         self.guess_bonds = guess_bonds
 
-        self._src = source_file
+        self._src = None
+        self.source_file = source_file
 
         self._rdmol = rdmol
         self._dips = DipoleSurfaceManager(self,
@@ -283,9 +284,22 @@ class Molecule(AbstractMolecule):
         )
 
     @classmethod
-    def _auto_spec(cls, atoms, coords, bonds, redundant=False, base_coordinates=None,
+    def _generate_auto_spec(cls, atoms, bonds, base_coords=None, **opts):
+        return PrimitiveCoordinatePicker(
+            atoms,
+            [b[:2] for b in bonds],
+            base_coords=base_coords,
+            **opts
+        ).coords
+
+    @classmethod
+    def _generate_stretch_spec(cls, atoms, bonds, **opts):
+        return sum(coordops.get_stretch_coordinate_system([tuple(s[:2]) for s in bonds]), [])
+
+    @classmethod
+    def _auto_auto_spec(cls, spec_generator, atoms, coords, bonds, redundant=False, base_coordinates=None,
                    masses=None,
-                   nonredundant_coordinates=None,
+                   untransformed_coordinates=None,
                    prune_coordinates=True,
                    pruning_options=None,
                    **opts):
@@ -297,20 +311,15 @@ class Molecule(AbstractMolecule):
                                            bonds,
                                            guess_bonds=True
                                            ).bonds
-        if redundant and nonredundant_coordinates is None:
-            nonredundant_coordinates = base_coords
+        if redundant and untransformed_coordinates is None:
+            untransformed_coordinates = base_coords
             base_coords = None
-        if redundant and nonredundant_coordinates is not None:
-            nonredundant_coordinates = PrimitiveCoordinatePicker.prep_unique_coords(nonredundant_coordinates)
-            base_coords = nonredundant_coordinates + ([] if base_coords is None else list(base_coords))
+        if redundant and untransformed_coordinates is not None:
+            untransformed_coordinates = PrimitiveCoordinatePicker.prep_unique_coords(untransformed_coordinates)
+            base_coords = untransformed_coordinates + ([] if base_coords is None else list(base_coords))
         if base_coords is not None:
             base_coords = PrimitiveCoordinatePicker.prep_unique_coords(base_coords)
-        specs = PrimitiveCoordinatePicker(
-                atoms,
-                [b[:2] for b in bonds],
-                base_coords=base_coords,
-                **opts
-            ).coords
+        specs = spec_generator(atoms, bonds, base_coords=base_coords, **opts)
         if prune_coordinates:
             if pruning_options is None:
                 pruning_options = {}
@@ -328,9 +337,17 @@ class Molecule(AbstractMolecule):
         spec = {'specs':specs}
         if redundant:
             spec['redundant'] = True
-            if nonredundant_coordinates is not None:
-                spec['untransformed_coordinates'] = np.arange(len(nonredundant_coordinates))
+            if untransformed_coordinates is not None:
+                spec['untransformed_coordinates'] = np.arange(len(untransformed_coordinates))
         return spec
+
+    @classmethod
+    def _auto_spec(cls, atoms, coords, bonds, **opts):
+        return cls._auto_auto_spec(cls._generate_auto_spec, atoms, coords, bonds, **opts)
+    @classmethod
+    def _stretch_spec(cls, atoms, coords, bonds, **opts):
+        return cls._auto_auto_spec(cls._generate_stretch_spec, atoms, coords, bonds, **opts)
+
     @classmethod
     def canonicalize_internals(cls, spec, atoms, coords, bonds, relocalize=True, masses=None):
         if isinstance(spec, str) and spec.lower() == 'auto':
@@ -359,8 +376,25 @@ class Molecule(AbstractMolecule):
                         relocalize = spec.get('relocalize', relocalize)
                         del opts['relocalize']
                     spec = cls._auto_spec(atoms, coords, bonds, masses=masses, **opts)
+                elif subspec.lower() == 'natural':
+                    opts = spec.copy()
+                    del opts['specs']
+                    if 'relocalize' in opts:
+                        relocalize = spec.get('relocalize', relocalize)
+                        del opts['relocalize']
+                    spec = cls._stretch_spec(atoms, coords, bonds, masses=masses, **opts)
                 else:
                     raise ValueError(f"can't understand internal spec '{spec}'")
+            else:
+                untransformed_coordinates = spec.get('untransformed_coordinates')
+                if untransformed_coordinates is not None:
+                    if not nput.is_int(untransformed_coordinates[0]):
+                        prims = spec.get('specs')
+                        untransformed_coordinates = [
+                            prims.index(u)
+                            for u in untransformed_coordinates
+                        ]
+                    spec['untransformed_coordinates'] = untransformed_coordinates
             if spec.get('redundant'):
                 spec['relocalize'] = spec.get('relocalize', relocalize)
         return spec
@@ -530,7 +564,7 @@ class Molecule(AbstractMolecule):
         self._pes = val
     @property
     def potential_derivatives(self):
-        base_derivs = self.potential_surface.derivatives
+        base_derivs = self.potential_surface.get_derivs(quiet=True)
         if base_derivs is None:
             return None
         base_derivs = [
@@ -599,7 +633,11 @@ class Molecule(AbstractMolecule):
         self._normal_modes = val
     def get_normal_modes(self, masses=None, potential_derivatives=None, **opts):
         from ..Modes import NormalModes
-        return NormalModes.from_molecule(self, masses=masses, potential_derivatives=potential_derivatives, **opts)
+        return NormalModes.from_molecule(self,
+                                         masses=masses,
+                                         potential_derivatives=potential_derivatives,
+                                         **opts
+                                         )
     def get_reaction_path_modes(self, masses=None, potential_derivatives=None, **opts):
         from ..Modes import ReactionPathModes
         return ReactionPathModes.from_molecule(self, masses=masses, potential_derivatives=potential_derivatives, **opts)
@@ -676,7 +714,7 @@ class Molecule(AbstractMolecule):
     #         return self._mass
     def _atomic_masses(self):
         m = self.masses
-        if min(m) < 100:
+        if np.min(m) < 100:
             m = m*UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
         return m
     @property
@@ -704,10 +742,25 @@ class Molecule(AbstractMolecule):
             return self._name
     @property
     def source_file(self):
-        return self._src
+        if self._src is not None:
+            return self._src['file']
     @source_file.setter
     def source_file(self, src):
+        if isinstance(src, str):
+            path, ext = os.path.splitext(src)
+            ext = ext.lower()
+            mode = ext.strip(".")
+
+            src = {
+                'file':src,
+                'mode':mode
+            }
         self._src = src
+
+    @property
+    def source_mode(self):
+        if self._src is not None:
+            return self._src.get('mode')
 
     @property
     def shape(self):
@@ -898,9 +951,14 @@ class Molecule(AbstractMolecule):
     #region Evaluation
 
     def _load_energy(self):
-        if self.source_file is None:
+        if self._src is None:
             return None
-        elif os.path.splitext(self.source_file)[1] == '.fchk':
+        elif (
+                dev.is_dict_like(self._src)
+                and self._src['mode'] == '.fchk'
+        ) or (
+                os.path.splitext(self.source_file)[1] == '.fchk'
+        ):
             from McUtils.GaussianInterface import GaussianFChkReader
             with GaussianFChkReader(self.source_file) as gr:
                 parse = gr.parse(
@@ -1583,7 +1641,7 @@ class Molecule(AbstractMolecule):
                 **opts
             )
 
-    def get_gmatrix(self, masses=None, coords=None, use_internals=None):
+    def get_gmatrix(self, masses=None, coords=None, use_internals=None, power=None):
         if use_internals is None:
             use_internals = self.internals is not None
 
@@ -1593,6 +1651,8 @@ class Molecule(AbstractMolecule):
             else:
                 masses = np.asanyarray(masses)
             mass_spec = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten()
+            if power is not None:
+                mass_spec = np.power(mass_spec, power)
             g = np.diag(1 / mass_spec)
             if coords is not None:
                 g = np.expand_dims(g, list(range(coords.ndim-2)))
@@ -1601,7 +1661,10 @@ class Molecule(AbstractMolecule):
                 return g
             # raise ValueError("need internal coordinates to calculate the G-matrix")
         else:
-            return self.hamiltonian.gmatrix_expansion(0, masses=masses, coords=coords, modes=None)[0]
+            g = self.hamiltonian.gmatrix_expansion(0, masses=masses, coords=coords, modes=None)[0]
+            if power is not None:
+                g = nput.fractional_power(g, power)
+            return g
     @property
     def g_matrix(self):
         """
@@ -1924,6 +1987,34 @@ class Molecule(AbstractMolecule):
             **opts
         )
         return mol
+
+    @classmethod
+    def _from_orca_file(cls, file, **opts):
+        from McUtils.ExternalPrograms import OrcaLogReader
+        with OrcaLogReader(file) as gr:
+            parse = gr.parse(['CartesianAUCoordinates'])['CartesianAUCoordinates']
+
+        mol = cls(
+            parse.atoms[-1],
+            parse.coords[-1],
+            masses=parse.masses[-1],
+            **opts
+        )
+        return mol
+
+    @classmethod
+    def _from_hess_file(cls, file, **opts):
+        from McUtils.ExternalPrograms import OrcaHessReader
+        with OrcaHessReader(file) as gr:
+            parse = gr.parse(["atoms"])['atoms']
+
+        mol = cls(
+            parse.atoms,
+            parse.coords, # * UnitsData.convert("Angstroms", "BohrRadius"),
+            masses=parse.mass,
+            **opts
+        )
+        return mol
     @classmethod
     def from_rdmol(cls, rdmol, **opts):
         return cls(
@@ -2001,7 +2092,9 @@ class Molecule(AbstractMolecule):
         if cls._atom_strs is None:
             cls._atom_strs = {d["Symbol"][:2] for d in AtomData.data.values()}
         return cls._atom_strs
-    _smi_punct=('c','[',']','+','-', '0','1','2','3','4','5','6','7','8','9')
+    _smi_punct=(
+        'c', 'n', 'o', '*', '[', ']', '(', ')', '+',
+        '.', '-', '=', '#', '$' ':', '/', '\\', '0','1','2','3','4','5','6','7','8','9')
     @classmethod
     def _check_smi(cls, string, atom_types, other_syms=None):
         for s in atom_types:
@@ -2075,6 +2168,8 @@ class Molecule(AbstractMolecule):
         return {
             "log": cls._from_log_file,
             "fchk": cls._from_fchk_file,
+            "orca": cls._from_orca_file,
+            "hess": cls._from_hess_file,
             "smi": cls._from_smiles,
             "mol": cls._from_molblock,
             "sdf": cls._from_sdf,
@@ -2099,6 +2194,7 @@ class Molecule(AbstractMolecule):
             ext = ext.lower()
             mode = ext.strip(".")
 
+        opts['source_file'] = {'file':file, 'mode':mode}
         if mode in format_dispatcher:
             loader = format_dispatcher[mode]
             return loader(file, **opts)
