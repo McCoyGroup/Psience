@@ -162,10 +162,14 @@ class VPT2Tests(TestCase):
         # gx = OHH.get_gmatrix(use_internals=False)
         XR = OHH.get_internals_by_cartesians(1, strip_embedding=True)[0]
         RX = OHH.get_cartesians_by_internals(1, strip_embedding=True)[0]
+        # lms = OHH.get_normal_modes(use_internals=False).localize(
+        #         internals=[(0, 1), (0, 2), (0, 1, 2)]
+        #     )
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
             1,
-            local_modes={'matrix':XR, 'inverse':RX, 'sort_freqs':True},
+            # local_modes={'matrix':lms.matrix, 'inverse':lms.inverse, 'sort_freqs':True},
+            local_modes={'matrix': XR, 'inverse': RX, 'sort_freqs': True},
             # internals=[
             #     [0, -1, -1, -1],
             #     [1,  0, -1, -1],
@@ -281,6 +285,67 @@ class VPT2Tests(TestCase):
         raise Exception(...)
 
     @validationTest
+    def test_AmmoniaLocal(self):
+        file_name = "nh3.fchk"
+
+        nh3 = Molecule.from_file(
+            TestManager.test_data(file_name)
+        )
+
+        # gx = OHH.get_gmatrix(use_internals=False)
+        XR, RX = nput.internal_coordinate_tensors(
+            nh3.coords,
+            [
+                (0, 1),
+                (0, 2),
+                (0, 3),
+                (1, 0, 2),
+                (1, 0, 3),
+                (2, 0, 3)
+            ],
+            return_inverse=True,
+            order=1
+        )
+        # lms = OHH.get_normal_modes(use_internals=False).localize(
+        #         internals=[(0, 1), (0, 2), (0, 1, 2)]
+        #     )
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            1,
+            # local_modes={'matrix':lms.matrix, 'inverse':lms.inverse, 'sort_freqs':True},
+            local_modes={'matrix': XR[1], 'inverse': RX[0], 'sort_freqs': True},
+            # internals=[
+            #     [0, -1, -1, -1],
+            #     [1,  0, -1, -1],
+            #     [2,  0,  1, -1]
+            # ],
+            mixed_derivative_handling_mode='analytical',
+            local_mode_couplings=True,
+            degeneracy_specs={
+                'polyads': [
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, 0, 1, 0]
+                    ],
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, 1, 0, 0]
+                    ],
+                    [
+                        [0, 0, 1, 0, 0, 0],
+                        [0, 1, 0, 0, 0, 0]
+                    ],
+                    [
+                        [0, 0, 1, 0, 0, 0],
+                        [1, 0, 0, 0, 0, 0]
+                    ]
+                ]
+            },
+            calculate_intensities=True
+        )
+        return
+
+    @validationTest
     def test_QuickAnneTest(self):
         AnalyticVPTRunner.run_simple(
             os.path.expanduser("~/Documents/Postdoc/Projects/Anne_Misc/formate/Dformate_OH+ezWeD2z_anh_tz.fchk"),
@@ -316,13 +381,13 @@ class VPT2Tests(TestCase):
             TestManager.test_data(file_name),
             1,
             local_modes={'matrix': XR, 'inverse': RX, 'sort_freqs': True},
-            # local_mode_coupling_order=1,
+            local_mode_coupling_order=2,
             # hamiltonian_correction_type='primary',
-            internals=[
-                [0, -1, -1, -1],
-                [1,  0, -1, -1],
-                [2,  0,  1, -1]
-            ],
+            # internals=[
+            #     [0, -1, -1, -1],
+            #     [1,  0, -1, -1],
+            #     [2,  0,  1, -1]
+            # ],
             mixed_derivative_handling_mode='analytical',
             degeneracy_specs={
                 'polyads': [
@@ -443,6 +508,73 @@ class VPT2Tests(TestCase):
         #   1 0 0    1622.30304     67.45626      1572.70760     68.11278
         #   2 0 0    3244.60608      0.00000      3116.19056      1.75788
         # """
+
+    @debugTest
+    def test_NH3LocalAnalytic(self):
+        file_name = "nh3.fchk"
+
+        nh3 = Molecule.from_file(
+            TestManager.test_data(file_name)
+        )
+
+        # gx = OHH.get_gmatrix(use_internals=False)
+        XR, RX = nput.internal_coordinate_tensors(
+            nh3.coords,
+            [
+                (0, 1),
+                (0, 2),
+                (0, 3),
+                (1, 0, 2),
+                (1, 0, 3),
+                (2, 0, 3)
+            ],
+            return_inverse=True,
+            order=1
+        )
+
+        # log_file = os.path.expanduser("~/Desktop/log_nh3_loc2.txt")
+        # try:
+        #     os.remove(log_file)
+        # except:
+        #     pass
+        log_file = True
+
+        AnalyticVPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            1,
+            local_modes={'matrix': XR[1], 'inverse': RX[0], 'sort_freqs': True},
+            local_mode_coupling_order=1,
+            # hamiltonian_correction_type='primary',
+            # internals=[
+            #     [0, -1, -1, -1],
+            #     [1, 0, -1, -1],
+            #     [2, 0, 1, -1]
+            # ],
+            mixed_derivative_handling_mode='analytical',
+            degeneracy_specs={
+                'polyads': [
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, 0, 1, 0]
+                    ],
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, 1, 0, 0]
+                    ],
+                    [
+                        [0, 0, 1, 0, 0, 0],
+                        [0, 1, 0, 0, 0, 0]
+                    ],
+                    [
+                        [0, 0, 1, 0, 0, 0],
+                        [1, 0, 0, 0, 0, 0]
+                    ]
+                ]
+            },
+            calculate_intensities=True,
+            # verbose=True,
+            logger=log_file
+        )
 
 
     @validationTest
@@ -898,7 +1030,7 @@ class VPT2Tests(TestCase):
 
         raise Exception(...)
 
-    @debugTest
+    @validationTest
     def test_PyreneAnalytic(self):
         file_name = os.path.expanduser("~/Documents/Postdoc/Projects/VPT/anne_tests/pyrene_try3.fchk")
         state = VPTStateMaker(72)

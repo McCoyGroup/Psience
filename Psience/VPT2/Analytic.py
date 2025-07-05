@@ -1962,7 +1962,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
     which is primarily here so we can transpose tensor coefficients intelligently
     """
 
-    tensor_ids = ["V", "G", "U", "Z", "u", "M"] # we explicitly split Coriolis and Watson terms out
+    tensor_ids = ["V", "G", "U", "Z", "u", "M", "LV", "LG"] # we explicitly split Coriolis and Watson terms out
 
     def __init__(self, terms, prefactor=1, canonicalize=True, ndim=None, inds_map=None, reduced=False):
         if prefactor != 1:
@@ -2346,6 +2346,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                 cls._coriolis_symmetrizer,
                 cls._potential_symmetrizer,  # U
                 cls._potential_symmetrizer,  # M
+                cls._potential_symmetrizer,  # H (ext.) # needed for extra G-matrix terms, need to make this less hard coded
             )
         else:
             return cls.default_symmetrizers

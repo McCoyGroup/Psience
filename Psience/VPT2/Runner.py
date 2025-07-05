@@ -190,7 +190,7 @@ class VPTSystem:
 
         self.use_local_modes = local_modes is not None
         if modes is not None:
-            self.mol.normal_modes.modes = modes
+            self.mol.normal_modes = modes
         self.mode_selection = mode_selection
         if mode_transformation is not None: #TODO: make consistent with imp in Hamiltonian
             if (

@@ -2134,7 +2134,7 @@ class NormalModesManager(PropertyManager):
         :return:
         :rtype: MolecularVibrations
         """
-        return self.get_normal_modes()
+        return self.get_modes()
     @modes.setter
     def modes(self, modes):
         if not isinstance(modes, MolecularVibrations):
