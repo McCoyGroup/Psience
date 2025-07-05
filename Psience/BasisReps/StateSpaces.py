@@ -3672,10 +3672,10 @@ class BraKetSpace:
         if self._state_pairs is None:
             brex = self.bras.excitations
             if brex.dtype.names is not None:
-                brex = nput.uncoerce_dtype(brex, (len(brex), len(brex.dtype.names)), brex.dtype[0])
+                brex = nput.unflatten_dtype(brex, (len(brex), len(brex.dtype.names)), brex.dtype[0])
             keex = self.kets.excitations
             if keex.dtype.names is not None:
-                keex = nput.uncoerce_dtype(keex, (len(keex), len(keex.dtype.names)), keex.dtype[0])
+                keex = nput.unflatten_dtype(keex, (len(keex), len(keex.dtype.names)), keex.dtype[0])
             self._state_pairs = (brex.T, keex.T)
         return self._state_pairs
     @state_pairs.setter

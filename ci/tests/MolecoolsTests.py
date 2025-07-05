@@ -1956,12 +1956,56 @@ class MolecoolsTests(TestCase):
     @debugTest
     def test_AutoCHModel(self):
         import McUtils.Coordinerds as coordops
-        from Psience.BasisReps import modify_internal_hamiltonian
+        from Psience.BasisReps import LocalHarmonicModel, StateMaker
 
-        pb = Molecule.from_file(
+        propylbenzene = Molecule.from_file(
             TestManager.test_data('proplybenz.hess')
         )
-        nms = pb.get_normal_modes()
+
+        model = LocalHarmonicModel.from_molecule(
+            propylbenzene,
+            coordinate_filter=lambda coords: {
+                c: l
+                for c, l in coords.items()
+                if l.atoms in {'CH', 'HCH'}
+            },
+            anharmonic_scalings={
+                ("CH", "stretch"): .96,  # diagonal scaling
+                (("methyl", "CH", "stretch"),
+                 ("methyl", "CH", "stretch")): .9,  # methyl-methyl stretch scaling
+                (("ethyl", "CH", "stretch"),
+                 ("ethyl", "CH", "stretch")): .96,  # ethyl-ethyl stretch scaling
+            },
+            anharmonic_constants={
+                (
+                    2, # shared atoms
+                    ("CH", "stretch"), # stretch fundamental
+                    (2, ("HCH", "bend")) # bend overtone
+                 ): -22 / UnitsData.hartrees_to_wavenumbers
+            }
+        )
+
+        dim = len(model.internals)
+        state = StateMaker(dim, mode='high-low')
+        ham = model.get_hamiltonian(
+            [
+                state(1), # benzene CH stretch
+                state(6), # methyl CH stretch
+                state(7), # methyl CH stretch
+                state([dim-4, 2]), # methyl HCH bend
+            ]
+        )
+        print()
+        print(
+            TableFormatter("{:.0f}").format(ham * 219474.63)
+        )
+        return
+
+        model.get_hamiltonian([
+            state(1)
+
+        ])
+
         stretch, angles, dihedrals = coordops.get_stretch_coordinate_system([tuple(s[:2]) for s in pb.bonds])
         labels = pb.edge_graph.get_label_types()
         stretch_types = [
@@ -1991,12 +2035,14 @@ class MolecoolsTests(TestCase):
             if l.atoms == 'HCH'
         })
 
+        nms = pb.get_normal_modes()
         loc_modes = nms.localize(internals=good_coords).make_oblique()
+        base_hess = loc_modes.compute_hessian()
 
         # print(stretch_types)
         # print(bend_types)
 
-        base_hess = loc_modes.compute_hessian()
+
         print("Base Oblique Hessian")
         print(TableFormatter("{:.0f}").format(base_hess * 219474.63))
 
