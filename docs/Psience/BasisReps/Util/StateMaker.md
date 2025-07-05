@@ -1,8 +1,8 @@
 ## <a id="Psience.BasisReps.Util.StateMaker">StateMaker</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Util.py#L12)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Util.py#L12?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Util.py#L15)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Util.py#L15?message=Update%20Docs)]
 </div>
 
 A tiny but useful class to make states based on their quanta
@@ -25,8 +25,8 @@ of excitation
 __init__(self, ndim, mode='low-high'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Util.py#L18)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Util.py#L18?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Util.py#L21)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Util.py#L21?message=Update%20Docs)]
 </div>
 
 
@@ -36,8 +36,8 @@ __init__(self, ndim, mode='low-high'):
 parse_state(cls, state, mode='low-high'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L22)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L22?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L25)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L25?message=Update%20Docs)]
 </div>
 
 
@@ -46,8 +46,8 @@ parse_state(cls, state, mode='low-high'):
 make_state(self, *specs, mode=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Util/StateMaker.py#L38)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Util/StateMaker.py#L38?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Util/StateMaker.py#L41)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Util/StateMaker.py#L41?message=Update%20Docs)]
 </div>
 
 
@@ -56,8 +56,8 @@ make_state(self, *specs, mode=None):
 __call__(self, *specs, mode=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Util/StateMaker.py#L60)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Util/StateMaker.py#L60?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/BasisReps/Util/StateMaker.py#L63)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Util/StateMaker.py#L63?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -112,7 +112,7 @@ __call__(self, *specs, mode=None):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/BasisReps/Util/StateMaker.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/BasisReps/Util/StateMaker.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Util.py#L12?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/BasisReps/Util.py#L15?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -280,14 +280,16 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-e197f1" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e197f1"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-b2851c" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-b2851c"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e197f1" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-b2851c" markdown="1">
  - [MultdiDegHOH](#MultdiDegHOH)
 - [HOHAnalytic](#HOHAnalytic)
 - [HOHLocal](#HOHLocal)
+- [AmmoniaLocal](#AmmoniaLocal)
 - [QuickAnneTest](#QuickAnneTest)
 - [HOHLocalAnalytic](#HOHLocalAnalytic)
+- [NH3LocalAnalytic](#NH3LocalAnalytic)
 - [AnalyticWFC](#AnalyticWFC)
 - [PartialRebuild](#PartialRebuild)
 - [AnalyticOCHHMultiple](#AnalyticOCHHMultiple)
@@ -340,9 +342,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-ebf65a" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-ebf65a"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-6ef99c" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-6ef99c"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-ebf65a" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-6ef99c" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -495,10 +497,14 @@ class VPT2Tests(TestCase):
         # gx = OHH.get_gmatrix(use_internals=False)
         XR = OHH.get_internals_by_cartesians(1, strip_embedding=True)[0]
         RX = OHH.get_cartesians_by_internals(1, strip_embedding=True)[0]
+        # lms = OHH.get_normal_modes(use_internals=False).localize(
+        #         internals=[(0, 1), (0, 2), (0, 1, 2)]
+        #     )
         VPTRunner.run_simple(
             TestManager.test_data(file_name),
             1,
-            local_modes={'matrix':XR, 'inverse':RX, 'sort_freqs':True},
+            # local_modes={'matrix':lms.matrix, 'inverse':lms.inverse, 'sort_freqs':True},
+            local_modes={'matrix': XR, 'inverse': RX, 'sort_freqs': True},
             # internals=[
             #     [0, -1, -1, -1],
             #     [1,  0, -1, -1],
@@ -614,6 +620,69 @@ class VPT2Tests(TestCase):
         raise Exception(...)
 ```
 
+#### <a name="AmmoniaLocal">AmmoniaLocal</a>
+```python
+    def test_AmmoniaLocal(self):
+        file_name = "nh3.fchk"
+
+        nh3 = Molecule.from_file(
+            TestManager.test_data(file_name)
+        )
+
+        # gx = OHH.get_gmatrix(use_internals=False)
+        XR, RX = nput.internal_coordinate_tensors(
+            nh3.coords,
+            [
+                (0, 1),
+                (0, 2),
+                (0, 3),
+                (1, 0, 2),
+                (1, 0, 3),
+                (2, 0, 3)
+            ],
+            return_inverse=True,
+            order=1
+        )
+        # lms = OHH.get_normal_modes(use_internals=False).localize(
+        #         internals=[(0, 1), (0, 2), (0, 1, 2)]
+        #     )
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            1,
+            # local_modes={'matrix':lms.matrix, 'inverse':lms.inverse, 'sort_freqs':True},
+            local_modes={'matrix': XR[1], 'inverse': RX[0], 'sort_freqs': True},
+            # internals=[
+            #     [0, -1, -1, -1],
+            #     [1,  0, -1, -1],
+            #     [2,  0,  1, -1]
+            # ],
+            mixed_derivative_handling_mode='analytical',
+            local_mode_couplings=True,
+            degeneracy_specs={
+                'polyads': [
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, 0, 1, 0]
+                    ],
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, 1, 0, 0]
+                    ],
+                    [
+                        [0, 0, 1, 0, 0, 0],
+                        [0, 1, 0, 0, 0, 0]
+                    ],
+                    [
+                        [0, 0, 1, 0, 0, 0],
+                        [1, 0, 0, 0, 0, 0]
+                    ]
+                ]
+            },
+            calculate_intensities=True
+        )
+        return
+```
+
 #### <a name="QuickAnneTest">QuickAnneTest</a>
 ```python
     def test_QuickAnneTest(self):
@@ -652,13 +721,13 @@ class VPT2Tests(TestCase):
             TestManager.test_data(file_name),
             1,
             local_modes={'matrix': XR, 'inverse': RX, 'sort_freqs': True},
-            # local_mode_coupling_order=1,
+            local_mode_coupling_order=2,
             # hamiltonian_correction_type='primary',
-            internals=[
-                [0, -1, -1, -1],
-                [1,  0, -1, -1],
-                [2,  0,  1, -1]
-            ],
+            # internals=[
+            #     [0, -1, -1, -1],
+            #     [1,  0, -1, -1],
+            #     [2,  0,  1, -1]
+            # ],
             mixed_derivative_handling_mode='analytical',
             degeneracy_specs={
                 'polyads': [
@@ -723,6 +792,75 @@ class VPT2Tests(TestCase):
 ::   3(2) | 3282.757 |  0.000 | 3108.288 |  0.879 | 3109.816 |  1.069
 >>--------------------------------------------------<<
 """
+```
+
+#### <a name="NH3LocalAnalytic">NH3LocalAnalytic</a>
+```python
+    def test_NH3LocalAnalytic(self):
+        file_name = "nh3.fchk"
+
+        nh3 = Molecule.from_file(
+            TestManager.test_data(file_name)
+        )
+
+        # gx = OHH.get_gmatrix(use_internals=False)
+        XR, RX = nput.internal_coordinate_tensors(
+            nh3.coords,
+            [
+                (0, 1),
+                (0, 2),
+                (0, 3),
+                (1, 0, 2),
+                (1, 0, 3),
+                (2, 0, 3)
+            ],
+            return_inverse=True,
+            order=1
+        )
+
+        # log_file = os.path.expanduser("~/Desktop/log_nh3_loc2.txt")
+        # try:
+        #     os.remove(log_file)
+        # except:
+        #     pass
+        log_file = True
+
+        AnalyticVPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            1,
+            local_modes={'matrix': XR[1], 'inverse': RX[0], 'sort_freqs': True},
+            local_mode_coupling_order=1,
+            # hamiltonian_correction_type='primary',
+            # internals=[
+            #     [0, -1, -1, -1],
+            #     [1, 0, -1, -1],
+            #     [2, 0, 1, -1]
+            # ],
+            mixed_derivative_handling_mode='analytical',
+            degeneracy_specs={
+                'polyads': [
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, 0, 1, 0]
+                    ],
+                    [
+                        [0, 0, 0, 0, 0, 1],
+                        [0, 0, 0, 1, 0, 0]
+                    ],
+                    [
+                        [0, 0, 1, 0, 0, 0],
+                        [0, 1, 0, 0, 0, 0]
+                    ],
+                    [
+                        [0, 0, 1, 0, 0, 0],
+                        [1, 0, 0, 0, 0, 0]
+                    ]
+                ]
+            },
+            calculate_intensities=True,
+            # verbose=True,
+            logger=log_file
+        )
 ```
 
 #### <a name="AnalyticWFC">AnalyticWFC</a>
