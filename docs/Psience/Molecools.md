@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-b26e7b" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-b26e7b"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-e59876" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e59876"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-b26e7b" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e59876" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -142,6 +142,7 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [MultiGMatrix](#MultiGMatrix)
 - [1DPotentialReps](#1DPotentialReps)
 - [Constructors](#Constructors)
+- [NMFiniteDifference](#NMFiniteDifference)
 - [AutoCHModel](#AutoCHModel)
 - [AtomTypeMap](#AtomTypeMap)
 - [InternalConv](#InternalConv)
@@ -150,9 +151,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-0e7f69" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-0e7f69"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-7223b1" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-7223b1"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-0e7f69" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-7223b1" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -2100,6 +2101,33 @@ class MolecoolsTests(TestCase):
         c = Molecule.construct([b.atoms, (b.internals['zmatrix'], b.internal_coordinates[1:])])
         b = Molecule.construct('formaldehyde')
         c = Molecule.construct('OC')
+```
+
+#### <a name="NMFiniteDifference">NMFiniteDifference</a>
+```python
+    def test_NMFiniteDifference(self):
+
+        jobs_dir = ...
+        def check_directory():
+            ...
+        def create_jobs(displacements):
+            ...
+        def prep_jobs_directory(spec, displacements, jobs):
+            ...
+        propylbenzene_setup = Molecule.from_file(
+            TestManager.test_data('proplybenz.hess'),
+            energy_evaluator=create_jobs
+        )
+        setup = propylbenzene_setup.partial_force_field()
+
+        # run jobs
+        def parse_jobs():
+            ...
+        propylbenzene_parse = Molecule.from_file(
+            TestManager.test_data('proplybenz.hess'),
+            energy_evaluator=create_jobs
+        )
+        setup = propylbenzene_setup.partial_force_field()
 ```
 
 #### <a name="AutoCHModel">AutoCHModel</a>
