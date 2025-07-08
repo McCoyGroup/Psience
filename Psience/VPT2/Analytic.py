@@ -5678,10 +5678,21 @@ class PerturbationTheoryExpressionEvaluator:
             state[c] == modes[c]
             for c in check_pos
         )
+    _direct_degs = collections.namedtuple('_direct_degs', ['check_pos', 'modes'])
     @classmethod
     def _deg_test(cls, modes):
         check_pos = tuple(i for i,m in enumerate(modes) if m >= 0)
-        return functools.partial(cls._deg_test_direct, check_pos=check_pos, modes=modes)
+        return cls._direct_degs(check_pos, modes)
+
+    @classmethod
+    def _deg_test_tree(cls, state, tree):
+        # a small amount of recursion for simplicity
+        for check_pos,match_vals in tree.items(): # test all possible `check_pos`
+            mode = state[check_pos]
+            res = match_vals.get(mode)
+            if isinstance(res, dict):
+                res = cls._deg_test_tree(state, res)
+            if res: return True
 
     @staticmethod
     def _mode_inclusion_direct(modes, tests):
@@ -5691,11 +5702,53 @@ class PerturbationTheoryExpressionEvaluator:
     def _mode_inclusion_multi(modes, tests):
         return any(t(modes) for t in tests)
     @classmethod
+    def _compile_deg_tests(cls, tests):
+        if all(isinstance(t, cls._direct_degs) for t in tests):
+            tree = {}
+            # becomes a tree like:
+            # {
+            #   0: { # position in the state to check
+            #        6: {  # value to match
+            #              1: { # position in the state to check
+            #                    4: {
+            #                            2: {3:True, 5:True}
+            #                       }
+            #                 }
+            #           },
+            #        5: {  # value to match
+            #              1: { # position in the state to check
+            #                    2: {}
+            #                 }
+            #           }
+            # }
+            for check_pos, modes in tests:
+                subtree = tree
+                for n,(c,m) in enumerate(zip(check_pos, modes)):
+                    if c not in subtree: subtree[c] = {}
+                    if n == len(check_pos) - 1:
+                        subtree[c][m] = True
+                    else:
+                        subtree[c][m] = {}
+                        subtree = subtree[c][m]
+            # import pprint
+            # pprint.pprint(tree)
+            test = functools.partial(cls._deg_test_tree, tree=tree)
+        else:
+            test = [
+                t
+                    if not isinstance(t, cls._direct_degs) else
+                functools.partial(cls._deg_test_direct, check_pos=t.check_pos, modes=t.modes)
+                for t in tests
+            ]
+        return test
+    @classmethod
     def _make_full_deg_test(cls, tests):
         if isinstance(tests, set):
             test = functools.partial(cls._mode_inclusion_direct, tests=tests)
         else:
-            test = functools.partial(cls._mode_inclusion_multi, tests=tests)
+            test = cls._compile_deg_tests(tests)
+            if isinstance(test, list):
+                test = functools.partial(cls._mode_inclusion_multi, tests=test)
         return test
 
     default_deg_id_method = 'linear'

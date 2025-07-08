@@ -509,7 +509,7 @@ class VPT2Tests(TestCase):
         #   2 0 0    3244.60608      0.00000      3116.19056      1.75788
         # """
 
-    @debugTest
+    @validationTest
     def test_NH3LocalAnalytic(self):
         file_name = "nh3.fchk"
 
@@ -875,40 +875,40 @@ class VPT2Tests(TestCase):
 <::
     """
 
-    @validationTest
+    @debugTest
     def test_AnalyticHOONO(self):
 
         file_name = "HOONO_freq.fchk"
         state = VPTStateMaker(9)
         # with BlockProfiler():
         from McUtils.Parallelizers import Parallelizer
-        from McUtils.Profilers import Timer
+        from McUtils.Profilers import Timer, BlockProfiler
         # with  as par:
         #     print(par.nprocs)
         # return
-        par = Parallelizer.lookup((
-                'multiprocessing',
-                {
-                    'initialization_timeout':25,
-                    # # 'logger': Logger(log_level=Logger.LogLevel.MoreDebug),
-                    'processes': 6
-                }
-            ))
-        with par:
-            with Timer():
-                AnalyticVPTRunner.run_simple(
-                    TestManager.test_data(file_name),
-                    2,
-                    # degeneracy_specs=[
-                    #     [state(1), state(8, 7)],
-                    #     [state(3), state([6, 2])],
-                    #     [state(6), state([9, 2])],
-                    # ],
-                    # degeneracy_specs='auto',
-                    # parallelizer='multiprocessing'
-                    parallelizer=par
-                    # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
-                )
+        # par = Parallelizer.lookup((
+        #         'multiprocessing',
+        #         {
+        #             'initialization_timeout':25,
+        #             # # 'logger': Logger(log_level=Logger.LogLevel.MoreDebug),
+        #             'processes': 6
+        #         }
+        #     ))
+        # with par:
+        # with BlockProfiler.profiler():
+        AnalyticVPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            degeneracy_specs=[
+                [state(1), state(8, 7)],
+                [state(3), state([6, 2])],
+                [state(6), state([9, 2])],
+            ],
+            # degeneracy_specs='auto',
+            # parallelizer='multiprocessing'
+            # parallelizer=par
+            # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+        )
         return
 
         # VPTRunner.run_simple(
