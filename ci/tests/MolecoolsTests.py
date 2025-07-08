@@ -1953,7 +1953,33 @@ class MolecoolsTests(TestCase):
         b = Molecule.construct('formaldehyde')
         c = Molecule.construct('OC')
 
-    @debugTest
+    @inactiveTest
+    def test_NMFiniteDifference(self):
+
+        jobs_dir = ...
+        def check_directory():
+            ...
+        def create_jobs(displacements):
+            ...
+        def prep_jobs_directory(spec, displacements, jobs):
+            ...
+        propylbenzene_setup = Molecule.from_file(
+            TestManager.test_data('proplybenz.hess'),
+            energy_evaluator=create_jobs
+        )
+        setup = propylbenzene_setup.partial_force_field()
+
+        # run jobs
+        def parse_jobs():
+            ...
+        propylbenzene_parse = Molecule.from_file(
+            TestManager.test_data('proplybenz.hess'),
+            energy_evaluator=create_jobs
+        )
+        setup = propylbenzene_setup.partial_force_field()
+
+
+    @validationTest
     def test_AutoCHModel(self):
         import McUtils.Coordinerds as coordops
         from Psience.BasisReps import LocalHarmonicModel, StateMaker

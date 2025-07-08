@@ -787,11 +787,9 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                             coords:np.ndarray,
                             modes,
                             mode_distance_units='BohrRadius',
-                            which=None,
                             analytic_derivative_order=None,
                             order=4,
                             index_filter=None,
-                            logger=None,
                             fd_handler=None,
                             mesh_spacing=0.5, # nms require much larger steps
                             **opts
