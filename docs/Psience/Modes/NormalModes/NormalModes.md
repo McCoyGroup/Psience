@@ -51,8 +51,8 @@ get_normal_modes(cls, f_matrix, mass_spec, remove_transrot=True, dimensionless=F
 from_fg(cls, basis, f_matrix, mass_spec, remove_transrot=True, dimensionless=False, zero_freq_cutoff=None, mass_weighted=None, origin=None, projector=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L229)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L229?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L228)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L228?message=Update%20Docs)]
 </div>
 Generates normal modes from the specified F and G matrices
   - `basis`: `Any`
@@ -77,8 +77,8 @@ Generates normal modes from the specified F and G matrices
 from_molecule(cls, mol, dimensionless=False, use_internals=None, potential_derivatives=None, project_transrot=True, zero_freq_cutoff=None, masses=None, energy_evaluator=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L278)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L278?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L277)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L277?message=Update%20Docs)]
 </div>
  </div>
 </div>
