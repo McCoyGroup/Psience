@@ -208,16 +208,15 @@ class NormalModes(MixtureModes):
             inv = inv_
             modes, inv = [np.moveaxis(i, -1, -2) for i in inv], [np.moveaxis(m, -1, -2) for m in modes]
             # TODO: iterative reshaping
+            if len(base_shape) == 0:
+                freqs = freqs[0]
+                modes = modes[0]
+                inv = inv[0]
         else:
             modes, inv = np.moveaxis(inv, -1, -2), np.moveaxis(modes, -1, -2)
             freqs = np.reshape(freqs, base_shape + freqs.shape[1:])
             modes = np.reshape(modes, base_shape + modes.shape[1:])
             inv = np.reshape(inv, base_shape + inv.shape[1:])
-
-        if len(base_shape) == 0:
-            freqs = freqs[0]
-            modes = modes[0]
-            inv = inv[0]
 
         mode_data = cls.ModeData(freqs, modes, inv)
         if return_gmatrix:
