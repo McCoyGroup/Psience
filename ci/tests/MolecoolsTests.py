@@ -1979,7 +1979,7 @@ class MolecoolsTests(TestCase):
         setup = propylbenzene_setup.partial_force_field()
 
 
-    @validationTest
+    @debugTest
     def test_AutoCHModel(self):
         import McUtils.Coordinerds as coordops
         from Psience.BasisReps import LocalHarmonicModel, StateMaker

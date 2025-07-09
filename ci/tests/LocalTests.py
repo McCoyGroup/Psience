@@ -750,7 +750,7 @@ class LocalTests(TestCase):
             np.linalg.eigvalsh(f) * UnitsData.convert("Hartrees", "Wavenumbers")
         )
 
-    @debugTest
+    @validationTest
     def test_LocalModeComplement(self):
 
         mol = Molecule.from_file(
@@ -2384,6 +2384,33 @@ class LocalTests(TestCase):
                 make_oblique=False,
                 monomer=i
             )
+
+    @debugTest
+    def test_MassLocalization(self):
+
+        mol = Molecule.from_file(
+            TestManager.test_data('proplybenz.hess'),
+        )
+
+        loc0 = mol.get_normal_modes().localize(
+            atoms=[18]
+        )#.make_oblique()
+        print(loc0.local_freqs * UnitsData.hartrees_to_wavenumbers)
+        loc1 = mol.get_normal_modes().localize(
+            mass_scaling=[1/12, 1/12],
+            atoms=[8, 18]
+        )#.make_oblique()
+        print(loc1.local_freqs * UnitsData.hartrees_to_wavenumbers)
+        # print(loc0.make_mass_weighted().coords_by_modes @ loc0.make_mass_weighted().modes_by_coords)
+        print(
+            np.round(
+                loc0.make_mass_weighted().coords_by_modes @
+                loc1.make_mass_weighted().modes_by_coords,
+                2
+            )
+        )
+
+        return
 
     @validationTest
     def test_Localizers(self):

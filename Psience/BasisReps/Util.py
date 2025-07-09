@@ -72,6 +72,7 @@ def modify_hamiltonian(ham,
                        coupling_key_function=None,
                        scaling_types=None,
                        coupling_types=None,
+                       shift_types=None,
                        tag_match=None
                        ):
 
@@ -80,6 +81,8 @@ def modify_hamiltonian(ham,
         scaling_types = {}
     if coupling_types is None:
         coupling_types = {}
+    if shift_types is None:
+        shift_types = {}
     if index_key_function is None:
         index_key_function = lambda i,t:(t1, (t1,))
     if coupling_key_function is None:
@@ -95,11 +98,14 @@ def modify_hamiltonian(ham,
             if s is not None:
                 ham[i, i] = s
                 break
-            else:
-                s = tag_match(t, scaling_types)
-                if s is not None:
-                    ham[i, i] *= s
-                    break
+            s = tag_match(t, scaling_types)
+            if s is not None:
+                ham[i, i] *= s
+                break
+            s = tag_match(t, shift_types)
+            if s is not None:
+                ham[i, i] += s
+                break
 
         for j,t2 in enumerate(index_specifiers[i+1:]):
             k = j + i + 1
@@ -110,12 +116,16 @@ def modify_hamiltonian(ham,
                     ham[i, k] = s
                     ham[k, i] = s
                     break
-                else:
-                    s = tag_match(t, scaling_types)
-                    if s is not None:
-                        ham[i, k] *= s
-                        ham[k, i] *= s
-                        break
+                s = tag_match(t, scaling_types)
+                if s is not None:
+                    ham[i, k] *= s
+                    ham[k, i] *= s
+                    break
+                s = tag_match(t, shift_types)
+                if s is not None:
+                    ham[i, k] += s
+                    ham[k, i] += s
+                    break
 
     return ham
 
@@ -353,6 +363,7 @@ def modify_internal_hamiltonian(ham,
                                 coupling_key_function=None,
                                 scaling_types=None,
                                 coupling_types=None,
+                                shift_types=None,
                                 tag_match=None
                                 ):
     if hasattr(internals, 'items'):
@@ -396,6 +407,11 @@ def modify_internal_hamiltonian(ham,
             _canonicalize_scaling_key(k):v
             for k,v in coupling_types.items()
         }
+    if shift_types is not None:
+        shift_types = {
+            _canonicalize_scaling_key(k):v
+            for k,v in shift_types.items()
+        }
 
     if tag_match is None:
         tag_match = _find_internal_coupling_match
@@ -406,5 +422,6 @@ def modify_internal_hamiltonian(ham,
                               coupling_key_function=coupling_key_function,
                               scaling_types=scaling_types,
                               coupling_types=coupling_types,
+                              shift_types=shift_types,
                               tag_match=tag_match
                               )

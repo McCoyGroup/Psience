@@ -767,6 +767,73 @@ class MixtureModes(CoordinateSystem):
 
         return tf_inv, tf_inv.T
 
+    def get_mass_scaled_mode_transformation(self,
+                                            mass_scaling,
+                                            *,
+                                            atoms,
+                                            localization_cutoff=.8,
+                                            num_modes=None,
+                                            project_transrot=False,
+                                            unitarize=True,
+                                            **diag_opts
+                                            ):
+        from .NormalModes import NormalModes
+        self = self.make_mass_weighted()
+
+        f = self.modes_by_coords @ np.diag(self.freqs ** 2) @ self.modes_by_coords.T
+
+        if not nput.is_numeric(mass_scaling):
+            mass_scaling = np.asanyarray(mass_scaling)
+
+        if nput.is_int(atoms):
+            atoms = [atoms]
+        atoms = tuple(atoms)
+
+        scaled_masses = np.array(self.masses)
+        scaled_masses[atoms,] *= mass_scaling
+
+        if project_transrot:
+            proj = nput.translation_rotation_projector(
+                self.remove_mass_weighting().origin,
+                masses=scaled_masses,
+                mass_weighted=True
+            )
+        else:
+            proj = None
+        freqs0, q1, _ = NormalModes.get_normal_modes(f, scaled_masses,
+                                                     projector=proj,
+                                                     mass_weighted=True,
+                                                     **diag_opts
+                                                     )
+
+        atom_inds = np.concatenate([
+            n * 3 + np.arange(3)
+            for n in atoms
+        ])
+        atom_proj = q1[atom_inds, :]
+        max_local_modes = np.linalg.norm(atom_proj, axis=0)
+
+        max_num_modes = len(atoms) * 3
+        if localization_cutoff is None:
+            num_modes = max_num_modes if num_modes is None else num_modes
+            mode_pos = np.argsort(-max_local_modes)[:num_modes]
+        else:
+            mode_pos = np.where(max_local_modes > localization_cutoff)
+            if len(mode_pos) == 0 or len(mode_pos[0]) == 0:
+                return None, None
+
+            mode_vals = max_local_modes[mode_pos]
+            num_modes = max_num_modes if num_modes is None else num_modes
+            ord = np.argsort(-mode_vals)[:num_modes]
+            mode_pos = mode_pos[0][ord,]
+
+        tf = self.coords_by_modes@q1[:, mode_pos]
+        ord2 = np.argsort(np.argmax(np.abs(tf), axis=0))
+        tf = tf[:, ord2]
+
+        return tf, tf.T
+
+
     class LocalizationMethods(enum.Enum):
         MaximumSimilarity = 'target_modes'
         AtomLocalized = 'atoms'
@@ -774,6 +841,7 @@ class MixtureModes(CoordinateSystem):
         Internals = 'coordinates'
         CoordinateConstraints = 'constraints'
         Projected = 'projections'
+        MassScaled = 'mass_scaling'
 
     @property
     def localizer_dispatch(self):
@@ -784,6 +852,7 @@ class MixtureModes(CoordinateSystem):
             self.LocalizationMethods.Internals.value:(self.get_internal_localized_mode_transformation, 'internals'),
             self.LocalizationMethods.CoordinateConstraints.value:(self.get_coordinate_projected_localized_mode_transformation, 'coordinate_constraints'),
             self.LocalizationMethods.Projected.value:(self.get_projected_localized_mode_transformation, 'projections'),
+            self.LocalizationMethods.MassScaled.value:(self.get_mass_scaled_mode_transformation, 'mass_scaling'),
         }
 
     def localize(self,
@@ -796,6 +865,7 @@ class MixtureModes(CoordinateSystem):
                  coordinate_constraints=None,
                  projections=None,
                  reorthogonalize=None,
+                 mass_scaling=None,
                  unitarize=True,
                  **opts
                  ):
@@ -809,6 +879,8 @@ class MixtureModes(CoordinateSystem):
                 method = 'coordinates'
             elif mode_blocks is not None:
                 method = 'displacements'
+            elif mass_scaling is not None:
+                method = 'mass_scaling'
             elif atoms is not None:
                 method = 'atoms'
             elif coordinate_constraints is not None:
@@ -840,13 +912,15 @@ class MixtureModes(CoordinateSystem):
                 reorthogonalize=reorthogonalize,
                 coordinate_constraints=coordinate_constraints,
                 unitarize=unitarize,
-                projections=projections
+                projections=projections,
+                mass_scaling=mass_scaling
             )
             args = tuple(all_kw.get(k) for k in arg_names)
             if 'atoms' not in arg_names:
                 opts['atoms'] = atoms # taken by all of the localizers
 
         tf, inv = method(*args, unitarize=unitarize, **opts)
+        if tf is None: return None
         # inverse = tf.T @ self.inverse # assumes a unitary localization
 
         if reorthogonalize is None:

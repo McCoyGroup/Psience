@@ -15,7 +15,8 @@ class LocalHarmonicModel:
     def __init__(self, f, g,
                  internals=None,
                  anharmonic_scalings=None,
-                 anharmonic_constants=None,
+                 anharmonic_couplings=None,
+                 anharmonic_shifts=None,
                  freqs=None,
                  **operator_settings):
         self.f = np.asanyarray(f)
@@ -42,7 +43,8 @@ class LocalHarmonicModel:
         )
         self.internals = internals
         self.scalings = anharmonic_scalings
-        self.constants = anharmonic_constants
+        self.couplings = anharmonic_couplings
+        self.shifts = anharmonic_shifts
 
     def get_hamiltonian(self, states, coupled_space=None, remove_zpe=True, **rep_opts):
         if not isinstance(states, AbstractStateSpace):
@@ -64,21 +66,27 @@ class LocalHarmonicModel:
             zpe = np.sum(np.abs(self.freqs)) * 1/2
             ham = ham - np.eye(len(ham)) * zpe
 
-        if self.scalings is not None or self.constants is not None:
+        if (
+                self.scalings is not None
+                or self.couplings is not None
+                or self.shifts is not None
+        ):
             if self.internals is not None:
                 ham = util.modify_internal_hamiltonian(
                     ham,
                     self.internals,
                     states=states.excitations,
                     scaling_types=self.scalings,
-                    coupling_types=self.constants,
+                    coupling_types=self.couplings,
+                    shift_types=self.shifts,
                 )
             else:
                 ham = util.modify_hamiltonian(
                     ham,
                     [tuple(s) for s in states.excitations],
                     scaling_types=self.scalings,
-                    coupling_types=self.constants,
+                    coupling_types=self.couplings,
+                    shift_types=self.shifts
                 )
 
         return ham
@@ -96,8 +104,8 @@ class LocalHarmonicModel:
             loc_modes = loc_modes.get_complement(concatenate=True)
 
         loc_modes = loc_modes.make_mass_weighted()
-        f = loc_modes.compute_hessian()
-        g = loc_modes.compute_gmatrix()
+        f = loc_modes.local_hessian
+        g = loc_modes.local_gmatrix
 
         return cls(
             f, g,
