@@ -55,6 +55,32 @@ class LocalizedModes(MixtureModes):
         )
         self._freqs = freqs
 
+    def __getitem__(self, item):
+        """
+        Takes a slice of the modes
+        :param item:
+        :type item:
+        :return:
+        :rtype:
+        """
+
+        if isinstance(item, (int, np.integer)):
+            item = (item,)
+        elif not isinstance(item[0], (int, np.integer)):
+            item = tuple(item[0])
+
+        # sub_modes = self.matrix[:, item]
+        # inv = self._inv
+        # if inv is not None:
+        #     inv = inv[item, :]
+        # freq = self.freqs[item,]
+        tf, inv = self.localizing_transformation
+        hmm = self.modify(
+            transformation=(tf[:, item], inv[item, :])
+        )
+
+        return hmm
+
     @property
     def freqs(self):
         if self._freqs is None:

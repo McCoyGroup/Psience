@@ -358,8 +358,10 @@ class MolecularEmbedding:
         }
     internal_fd_defaults=dict(
         strip_dummies=False,
-        stencil=None, mesh_spacing=1.0e-3,
-        all_numerical=None, reembed=True,
+        stencil=None,
+        mesh_spacing=1.0e-3,
+        all_numerical=None,
+        reembed=True,
         planar_ref_tolerance=None,
         parallelizer=None
     )
@@ -400,20 +402,24 @@ class MolecularEmbedding:
         generics = 'GenericInternals' in internals.name
         zmatrix = 'ZMatrix' in internals.name
 
+        if "analytic_derivative_order" in fd_opts:
+            fd_opts['analytic_deriv_order'] = fd_opts.pop('analytic_derivative_order')
         fd_opts = self._get_internal_fd_opts(**fd_opts)
         (
             all_numerical, reembed, planar_ref_tolerance,
-            strip_dummies, mesh_spacing, stencil, parallelizer
+            strip_dummies, mesh_spacing, stencil, parallelizer,
+            analytic_deriv_order
         ) = [
-            fd_opts[k] for k in
+            fd_opts.pop(k) for k in
             (
                 "all_numerical", "reembed", "planar_ref_tolerance",
-                "strip_dummies", "mesh_spacing", "stencil", "parallelizer"
+                "strip_dummies", "mesh_spacing", "stencil", "parallelizer",
+                "analytic_deriv_order"
             )
         ]
 
         if all_numerical is None:
-            all_numerical = zmatrix
+            all_numerical = zmatrix and (analytic_deriv_order is not None and analytic_deriv_order == 0)
 
         converter_options = (
             dict(
@@ -447,7 +453,9 @@ class MolecularEmbedding:
                                         mesh_spacing=mesh_spacing,
                                         stencil=stencil,
                                         all_numerical=all_numerical,
-                                        converter_options=converter_options
+                                        converter_options=converter_options,
+                                        analytic_deriv_order=analytic_deriv_order,
+                                        **fd_opts
                                         )
                     ]
                     # self._jacobians['internals'] = exist_jacs
@@ -463,7 +471,9 @@ class MolecularEmbedding:
                                                      stencil=stencil,
                                                      all_numerical=all_numerical,
                                                      converter_options=converter_options,
-                                                     parallelizer=par
+                                                     parallelizer=par,
+                                                     analytic_deriv_order=analytic_deriv_order,
+                                                     **fd_opts
                                                      )
                         ]
                     for j, v in zip(need_jacs, new_jacs):
@@ -481,7 +491,9 @@ class MolecularEmbedding:
                                     mesh_spacing=mesh_spacing,
                                     stencil=stencil,
                                     all_numerical=all_numerical,
-                                    converter_options=converter_options
+                                    converter_options=converter_options,
+                                    analytic_deriv_order=analytic_deriv_order,
+                                    **fd_opts
                                     )
                 ]
                 # self._jacobians['internals'] = exist_jacs
@@ -497,7 +509,9 @@ class MolecularEmbedding:
                                                  stencil=stencil,
                                                  all_numerical=all_numerical,
                                                  converter_options=converter_options,
-                                                 parallelizer=par
+                                                 parallelizer=par,
+                                                 analytic_deriv_order=analytic_deriv_order,
+                                                 **fd_opts
                                                  )
                     ]
             return new_jacs
@@ -542,12 +556,14 @@ class MolecularEmbedding:
         generics = 'GenericInternals' in internals.name
         zmatrix = 'ZMatrix' in internals.name
 
+        if "analytic_derivative_order" in fd_opts:
+            fd_opts['analytic_deriv_order'] = fd_opts.pop('analytic_derivative_order')
         fd_opts = self._get_cart_fd_opts(**fd_opts)
         (
             all_numerical, strip_dummies, mesh_spacing, stencil, parallelizer,
             analytic_deriv_order
         ) = [
-            fd_opts[k] for k in
+            fd_opts.pop(k) for k in
             (
                 "all_numerical", "strip_dummies", "mesh_spacing", "stencil", "parallelizer",
                 "analytic_deriv_order"
@@ -582,7 +598,8 @@ class MolecularEmbedding:
                                          # stencil=stencil,
                                          # all_numerical=all_numerical,
                                          analytic_deriv_order=analytic_deriv_order,
-                                         converter_options=converter_options
+                                         converter_options=converter_options,
+                                         **fd_opts
                                          )
                     ]
                 else:
@@ -598,7 +615,8 @@ class MolecularEmbedding:
                                                       all_numerical=all_numerical,
                                                       converter_options=converter_options,
                                                       analytic_deriv_order=analytic_deriv_order,
-                                                      parallelizer=par
+                                                      parallelizer=par,
+                                                      **fd_opts
                                                       )
                         ]
 
@@ -649,7 +667,9 @@ class MolecularEmbedding:
         return embedding
 
     cartesian_by_internals_method = 'fast'
-    def get_cartesians_by_internals(self, order=None, strip_embedding=False, reembed=True, method=None, coords=None):
+    def get_cartesians_by_internals(self, order=None, strip_embedding=False, reembed=True, method=None, coords=None,
+                                    **fd_opts
+                                    ):
         if method is None:
             int_sys = self.internal_coordinates.system
             if "GenericInternals" in int_sys.name:
@@ -657,31 +677,33 @@ class MolecularEmbedding:
             else:
                 method = self.cartesian_by_internals_method
 
-        if reembed and method == 'fast':
-            if coords is None:
-                fast_ints = self._jacobians['fast-internals']["reembed"]
+        if method == 'fast':
+            if reembed:
+                if coords is None:
+                    fast_ints = self._jacobians['fast-internals']["reembed"]
+                else:
+                    fast_ints = []
+                if len(fast_ints) < order:
+                    L_base, L_inv = self.get_translation_rotation_invariant_transformation(
+                        strip_embedding=strip_embedding,
+                        mass_weighted=False,
+                        coords=coords
+                    )
+                    jacs_1 = self.get_internals_by_cartesians(order, strip_embedding=strip_embedding, coords=coords)
+                    new_tf = nput.tensor_reexpand([L_inv], jacs_1, axes=[-1, -2], order=order)
+                    inverse_tf = nput.inverse_transformation(new_tf, order, allow_pseudoinverse=False)
+                    fast_ints[:] = [
+                        nput.vec_tensordot(j, L_inv, axes=[-1, -2], shared=L_base.ndim-2)
+                        for j in inverse_tf
+                    ]
+                return fast_ints
             else:
-                fast_ints = []
-            if len(fast_ints) < order:
-                L_base = self.get_translation_rotation_invariant_transformation(strip_embedding=strip_embedding,
-                                                                                mass_weighted=False,
-                                                                                coords=coords)
-                jacs_1 = self.get_internals_by_cartesians(order, strip_embedding=strip_embedding, coords=coords)
-                new_tf = nput.tensor_reexpand([np.moveaxis(L_base, -1, -2)], jacs_1, axes=[-1, -2], order=order)
-                inverse_tf = nput.inverse_transformation(new_tf, order, allow_pseudoinverse=True)
-                fast_ints[:] = [
-                    nput.vec_tensordot(j, L_base, axes=[-1, -1], shared=L_base.ndim-2)
-                    for j in inverse_tf
-                ]
-            return fast_ints
-        elif not reembed and method == 'fast':
-            # fast_ints = self._jacobians['fast-internals']["reembed"]
-            wtf = self.get_internals_by_cartesians(order, strip_embedding=False, coords=coords) # faster to just do these derivs.
-            base = nput.inverse_transformation(wtf, order-1, allow_pseudoinverse=True)
+                wtf = self.get_internals_by_cartesians(order, strip_embedding=False, coords=coords) # faster to just do these derivs.
+                base = nput.inverse_transformation(wtf, order, allow_pseudoinverse=True)
         else:
             if coords is None:
                 base = (
-                    self._get_int_jacobs(order, reembed=reembed)
+                    self._get_int_jacobs(order, reembed=reembed, **fd_opts)
                         if order is not None else
                     self._jacobians['internals']["default" if not reembed else "reembed"]
                 )
@@ -697,7 +719,7 @@ class MolecularEmbedding:
                 coords = np.asanyarray(coords)
                 if order is None:
                     order = 1
-                base = self._get_int_jacobs(order, reembed=reembed, coords=coords)
+                base = self._get_int_jacobs(order, reembed=reembed, coords=coords, **fd_opts)
 
             _ = []
             if coords is not None:
@@ -721,13 +743,13 @@ class MolecularEmbedding:
             base = [t[np.ix_(*((good_coords,) * (t.ndim - 1)))] for t in base]
         return base
 
-    def get_internals_by_cartesians(self, order=None, strip_embedding=False, coords=None):
+    def get_internals_by_cartesians(self, order=None, strip_embedding=False, coords=None, **opts):
         if coords is not None:
             coords = np.asanyarray(coords)
             if order is None: order = 1
         base = (
-                   self._get_cart_jacobs(order, coords=coords, strip_embedding=strip_embedding)
-                    if order is not None else
+                   self._get_cart_jacobs(order, coords=coords, strip_embedding=strip_embedding, **opts)
+                        if order is not None else
                    self._jacobians['cartesian']
         )
         if order is not None:
@@ -834,27 +856,12 @@ class MolecularEmbedding:
                                                           mass_weighted=True,
                                                           strip_embedding=True,
                                                           coords=None):
-        if coords is None:
-            L_tr = self.translation_rotation_modes[1]
-            A = np.eye(L_tr.shape[0]) - (L_tr @ L_tr.T)
-            evals, tf = np.linalg.eigh(A)
-            zero_pos = np.abs(evals) < 1e-4 # the rest should be 1
-            tf[:, zero_pos] = L_tr
-            if strip_embedding:
-                nzpos = np.abs(evals) > 1e-4
-                tf = tf[:, nzpos]
-
-            if not mass_weighted:
-                tf = np.diag(np.repeat(1/np.sqrt(self.masses), 3)) @ tf
-        else:
-            tf = nput.translation_rotation_invariant_transformation(
-                coords,
+        return nput.translation_rotation_invariant_transformation(
+                self.coords if coords is None else coords,
                 masses=self.masses,
                 mass_weighted=mass_weighted,
                 strip_embedding=strip_embedding
-            )[0]
-
-        return tf
+            )
 
 class ModeEmbedding:
     """
