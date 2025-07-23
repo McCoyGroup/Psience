@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-ade5ab" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-ade5ab"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-bdccfa" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-bdccfa"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-ade5ab" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-bdccfa" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -142,18 +142,20 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [MultiGMatrix](#MultiGMatrix)
 - [1DPotentialReps](#1DPotentialReps)
 - [Constructors](#Constructors)
+- [ModeSelectedNMs](#ModeSelectedNMs)
 - [NMFiniteDifference](#NMFiniteDifference)
 - [AutoCHModel](#AutoCHModel)
 - [AtomTypeMap](#AtomTypeMap)
+- [RedundantConversion](#RedundantConversion)
 - [InternalConv](#InternalConv)
 - [AutomaticConversion](#AutomaticConversion)
 - [FastInternals](#FastInternals)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-8ed2ff" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-8ed2ff"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-9e694c" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-9e694c"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-8ed2ff" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-9e694c" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -606,7 +608,7 @@ class MolecoolsTests(TestCase):
         )
 
         mol2 = mol.insert_atoms("X", mol.coords[o_pos[1]] + 5 * normal, 5, handle_properties=False)
-        del mol # to elim hard to debug errors
+        del mol # to elim hard to find errors
 
         self.assertEquals(mol2.atoms,
                           ("H", "O", "O", "N", "O", "X")
@@ -2103,6 +2105,24 @@ class MolecoolsTests(TestCase):
         c = Molecule.construct('OC')
 ```
 
+#### <a name="ModeSelectedNMs">ModeSelectedNMs</a>
+```python
+    def test_ModeSelectedNMs(self):
+        propylbenzene = Molecule.from_file(
+            TestManager.test_data('proplybenz.hess')
+        )
+        modes = propylbenzene.get_normal_modes()
+        loc_1 = modes.localize(
+            internals=[(19, 8)]
+        )
+        stretches = modes[tuple(t-7 for t in [57, 58, 59, 60, 61, 62, 63])]
+        loc_2 = stretches.localize(
+            internals=[(19, 8)]
+        )
+        print(loc_1.local_freqs * UnitsData.hartrees_to_wavenumbers)
+        print(loc_2.local_freqs * UnitsData.hartrees_to_wavenumbers)
+```
+
 #### <a name="NMFiniteDifference">NMFiniteDifference</a>
 ```python
     def test_NMFiniteDifference(self):
@@ -2296,9 +2316,9 @@ class MolecoolsTests(TestCase):
         )
 ```
 
-#### <a name="InternalConv">InternalConv</a>
+#### <a name="RedundantConversion">RedundantConversion</a>
 ```python
-    def test_InternalConv(self):
+    def test_RedundantConversion(self):
 
         gggg = Molecule(
             ['C', 'C', 'H', 'H', 'H', 'C', 'C', 'H', 'H', 'H', 'C', 'C', 'H', 'H', 'H', 'C', 'H', 'H', 'H'],
@@ -2331,19 +2351,268 @@ class MolecoolsTests(TestCase):
         print(
             gggg.internal_coordinates.converter_options['redundant_transformation']
         )
+```
 
-        # raise Exception(gggg.internal_coordinates.converter_options['redun'])
+#### <a name="InternalConv">InternalConv</a>
+```python
+    def test_InternalConv(self):
 
-
+        # nh3 = Molecule.from_file(
+        #     TestManager.test_data("HOH_freq.fchk"),
+        #     internals=[
+        #         [0, -1, -1, -1],
+        #         [1,  0, -1, -1],
+        #         [2,  0,  1, -1],
+        #         # [3,  0,  1,  2]
+        #     ]
+        # )
+        # nh3 = Molecule(
+        #     atoms=nh3.atoms[:2],
+        #     coords=nh3.coords[:2],
+        #     internals=[
+        #         [0, -1, -2, -3],
+        #         [1,  0, -1, -2]
+        #     ]
+        # )
+        #
         nh3 = Molecule.from_file(
             TestManager.test_data("nh3.fchk"),
             internals=[
                 [0, -1, -1, -1],
-                [1, 0, -1, -1],
-                [2, 0, 1, -1],
-                [3, 0, 1, 2]
+                [1,  0, -1, -1],
+                [2,  0,  1, -1],
+                [3,  0,  1,  2]
             ]
         )
+
+        nh3 = Molecule.from_file(
+            TestManager.test_data("OCHH_freq.fchk"),
+            internals=[
+                [0, -1, -1, -1],
+                [1,  0, -1, -1],
+                [2,  1,  0, -1],
+                [3,  1,  2,  0]
+            ]
+        )
+
+        #
+        test_coords = (
+                # np.random.rand(1, 3) +
+                nh3.coords
+                # * np.array([2, 1, 2, .5])[:, np.newaxis]
+        )
+
+        # with np.printoptions(linewidth=1e8, suppress=True):
+        #     e1 = nput.angle_vec(test_coords, 0, 1, 2, method='old', angle_ordering='jik', order=2)
+        #     e2 = nput.angle_vec(test_coords, 0, 1, 2, method='expansion', angle_ordering='jik', order=2)
+        #     for i1, i2 in zip(e1, e2):
+        #         print(":::" * 50)
+        #         print(":::" * 50)
+        #         print(i1.shape)
+        #         w = np.where(np.abs(i1 - i2) > 1e-6)
+        #         print(w)
+        #         if len(w[0]) > 0:
+        #             print("=" * 50)
+        #             print(np.round(i1, 6))
+        #             print("-" * 50)
+        #             print(np.round(i2, 6))
+        #             print("=" * 50)
+        #         # i1[np.abs(i1) < 1e-8] = 1
+        #         # print(np.round(i2 / i1, 8))
+        # return
+
+        # print("=" * 20)
+        # e1 = nput.dihed_vec(test_coords, 3, 0, 1, 2, method='old', order=2)
+        # e2 = nput.dihed_vec(test_coords, 3, 0, 1, 2, method='expansion', order=2)
+        # with np.printoptions(linewidth=1e8, suppress=True):
+        #     for i1, i2 in zip(e1, e2):
+        #         print(":::" * 50)
+        #         print(":::" * 50)
+        #         print(i1.shape)
+        #         w = np.where(np.abs(i1 - i2) > 1e-6)
+        #         print(w)
+        #         if len(w[0]) > 0:
+        #             print("=" * 50)
+        #             print(np.round(i1, 6))
+        #             print("-" * 50)
+        #             print(np.round(i2, 6))
+        #             print("=" * 50)
+        #         # i1[np.abs(i1) < 1e-8] = 1
+        #         # print(np.round(i2 / i1, 8))
+        # return
+        # #
+        # print("=" * 20)
+        # e1 = np.round(nput.dihed_vec(test_coords, 1, 3, 2, 0, method='old'), 8)
+        # e2 = np.round(nput.dihed_vec(test_coords, 1, 3, 2, 0, method='expansion'), 8)
+        # print(e1.reshape(-1, 3))
+        # print(e2.reshape(-1, 3))
+        # e1[e1 == 0] = 1
+        # print(e2 / e1)
+        # #
+        # print("=" * 20)
+        # e1 = np.round(nput.dihed_vec(test_coords, 1, 3, 0, 2, method='old'), 8)
+        # e2 = np.round(nput.dihed_vec(test_coords, 1, 3, 0, 2, method='expansion'), 8)
+        # print(e1.reshape(-1, 3))
+        # print(e2.reshape(-1, 3))
+        # e1[e1 == 0] = 1
+        # print(e2 / e1)
+        #
+
+
+        # exp0 = nh3.get_internals_by_cartesians(3,
+        #                                        strip_embedding=True,
+        #                                        analytic_derivative_order=0,
+        #                                        all_numerical=False
+        #                                        )
+        # exp1 = nh3.get_internals_by_cartesians(3,
+        #                                        strip_embedding=True,
+        #                                        analytic_derivative_order=-1,
+        #                                        all_numerical=False)
+        # with np.printoptions(linewidth=1e8, suppress=True):
+        #     # e2 = nput.angle_vec(test_coords, 0, 2, 1, angle_ordering='jik', method='old', order=2)
+        #     # e1 = [e[..., 5] for e in exp0]
+        #     # e2 = nput.dihed_vec(test_coords, 3, 0, 1, 2, method='expansion', order=3)[1:]
+        #     # e1 = [e[..., 2] for e in exp0]
+        #     # e2 = nput.angle_vec(test_coords, 2, 0, 1, method='expansion', order=3)[1:]
+        #
+        #     # e1 = [e[..., 1] for e in exp0]
+        #     # e2 = nput.dist_vec(test_coords, 0, 2, method='expansion', order=3)[1:]
+        #
+        #     e1 = [e[..., -1] for e in exp0]
+        #     # e2 = nput.dihed_vec(test_coords, 3, 0, 1, 2, method='expansion', order=3)[1:]
+        #     e2 = nput.dihed_vec(test_coords, 3, 1, 2, 0, method='expansion', order=3)[1:]
+        #     for i1, i2 in zip(e1, e2):
+        #         print(":::" * 50)
+        #         print(":::" * 50)
+        #         print(i1.shape)
+        #         i1[np.abs(i1) < 1e-6] = 0
+        #         i2[np.abs(i2) < 1e-6] = 0
+        #
+        #         d1 = i1.copy()
+        #         d1[np.abs(d1) < 1e-6] = 1
+        #         r = i2 / d1
+        #         r[np.logical_and(
+        #             np.abs(i1) < 1e-6,
+        #             np.abs(i2) < 1e-6
+        #         )] = 1
+        #         w = np.where(np.abs(r - 1) > 1e-2)
+        #         r[np.logical_and(
+        #             np.abs(i1) < 1e-6,
+        #             np.abs(i2) < 1e-6
+        #         )] = 0
+        #         print(w)
+        #         if len(w[0]) > 0:
+        #             print("=" * 50)
+        #             print(np.round(i1, 6)[2])
+        #             print("." * 10)
+        #             print(np.round(i2, 6)[2])
+        #             # print("-" * 50)
+        #             # print(np.round(i1, 6)[5])
+        #             # print("." * 10)
+        #             # print(np.round(i2, 6)[5])
+        #             print("=" * 50)
+        #             print(np.round(r, 6))
+        # return
+        #
+        # # print(exp1[2][0, 0, 1], exp1[2][0, 1, 0], exp1[2][1, 0, 0])
+        # # return
+        #
+        # with np.printoptions(linewidth=1e8, suppress=True):
+        #     for i1, i2 in zip(exp0, exp1):
+        #         print(":::" * 50)
+        #         print(":::" * 50)
+        #         print(i1.shape)
+        #         w = np.where(np.abs(i1 - i2) > 1e-2)
+        #         print(w)
+        #         if len(w[0]) > 0:
+        #             print("=" * 50)
+        #             print(np.round(i1, 6)[..., 2][0, 0])
+        #             print("-" * 50)
+        #             print(np.round(i2, 6)[..., 2][0, 0])
+        #             print("=" * 50)
+        #
+        #             i1 = np.round(i1, 6)[..., 2][0, 0]
+        #             i2 = np.round(i2, 6)[..., 2][0, 0]
+        #             i1[np.abs(i1) < 1e-8] = 0
+        #             i2[np.abs(i2) < 1e-8] = 1
+        #             print(np.round(i1 / i2, 6))
+        #
+        #
+        #             # print(i2.shape, i1.shape)
+        #             # print([i1[1, 1, 1], i1[1, 0, 0], i1[0, 1, 0]])
+        #             # print([i2[1, 1, 1], i2[1, 0, 0], i2[0, 1, 0]])
+        #
+        # return
+
+        #
+        # with np.printoptions(linewidth=1e8, suppress=True):
+        #     # exp0 = nh3.get_internals_by_cartesians(3,
+        #     #                                        strip_embedding=True,
+        #     #                                        analytic_derivative_order=0,
+        #     #                                        all_numerical=True
+        #     #                                        )
+        #     # inv0 = nh3.get_cartesians_by_internals(3,
+        #     #                                        strip_embedding=True,
+        #     #                                        reembed=True,
+        #     #                                        analytic_derivative_order=0,
+        #     #                                        all_numerical=True,
+        #     #                                        method='old')
+        #
+        #
+        #     exp0 = nh3.get_internals_by_cartesians(3,
+        #                                            strip_embedding=True
+        #                                            )
+        #     inv0 = nh3.get_cartesians_by_internals(3,
+        #                                            strip_embedding=True,
+        #                                            reembed=True,
+        #                                            method='fast')
+        #
+        #     # inv1 = nh3.get_cartesians_by_internals(3,
+        #     #                                        strip_embedding=True,
+        #     #                                        reembed=True,
+        #     #                                        analytic_derivative_order=-1,
+        #     #                                        all_numerical=False,
+        #     #                                        method='fast')
+        #
+        #     #     for i1,i2 in zip(inv0, inv1):
+        #     #         print(":::"*50)
+        #     #         print(":::"*50)
+        #     #         print(np.where(np.abs(i1 - i2) > 1e-4))
+        #     #         print("="*50)
+        #     #         print(np.round(i1[0], 6))
+        #     #         print("-"*50)
+        #     #         print(np.round(i2[0], 6))
+        #     #         print("="*50)
+        #     #         print(np.round(i1 - i2, 6)[0])
+        #     for t in nput.tensor_reexpand(inv0, exp0):
+        #         print(
+        #             np.round(t, 5)
+        #             # np.round(exp0[2] - exp1[2], 8)
+        #         )
+        #     # for t in nput.tensor_reexpand(inv1, exp1):
+        #     #     print(
+        #     #         np.round(t, 8)
+        #     #         # np.round(exp0[2] - exp1[2], 8)
+        #     #     )
+        #
+        # return
+
+
+        # nh3.setup_VPT(states=1,
+        #               logger=False,
+        #               cartesian_analytic_deriv_order=-1,
+        #               cartesian_by_internal_derivative_method='fast',
+        #               )[0].print_tables(print_intensities=False, print_energy_corrections=False)
+        nh3.setup_VPT(states=1,
+                      logger=False,
+                      cartesian_analytic_deriv_order=0,
+                      cartesian_by_internal_derivative_method='old',
+                      )[0].print_tables(print_intensities=False, print_energy_corrections=False)
+        # nh3 = Molecule.from_file(nh3.source_file)
+        # nh3.setup_VPT(states=1, logger=False)[0].print_tables(print_intensities=False, print_energy_corrections=False)
+
+        return
+
         emb_nh3 = nh3.get_embedded_molecule()
         emb_test = emb_nh3.internal_coordinates.convert(emb_nh3.coords.system)
         # conv_1 = nh3.internal_coordinates.convert(nh3.coords.system)
@@ -2354,17 +2623,44 @@ class MolecoolsTests(TestCase):
         # raise Exception(...)
         # conv_2 = ...
 
-        nh3 = Molecule.from_file(
-            TestManager.test_data("nh3.fchk"),
+        wtf = nh3.get_cartesians_by_internals(1,
+                                            strip_embedding=True,
+                                            reembed=True,
+                                            analytic_derivative_order=-1,
+                                            all_numerical=False,
+                                            method='classic')
+
+        nh3_derivs_internal = [
+            0,
+            wtf[0] @ nh3.potential_derivatives[1] @ wtf[0].T
+        ]
+
+        nh3_gmatrix = nh3.get_gmatrix(
+            analytic_derivative_order=-1,
+            all_numerical=False
+        )
+
+        freqs_int, _ = scipy.linalg.eigh(nh3_derivs_internal[1], nh3_gmatrix, type=2)
+        freqs_cart, _ = scipy.linalg.eigh(nh3.potential_derivatives[1], nh3.get_gmatrix(use_internals=False), type=2)
+
+        print(np.sign(freqs_int) * np.sqrt(np.abs(freqs_int)) * UnitsData.convert("Hartrees", "Wavenumbers"))
+        print(np.sqrt(freqs_cart[6:]) * UnitsData.convert("Hartrees", "Wavenumbers"))
+
+        return
+
+        methanol = Molecule.from_file(
+            TestManager.test_data("methanol_vpt_1.fchk"),
             internals=[
-                [0, -1, -1, -1],
-                [1, 0, -1, -1],
-                [2, 0, 1, -1],
-                [3, 0, 1, 2]
+                [0, -1, -2, -3],
+                [1, 0, -1, -2],
+                [2, 1, 0, -1],
+                [3, 2, 1, 0],
+                [4, 2, 3, 1],
+                [5, 2, 3, 4]
             ]
         )
-        ders1 = nh3.get_cartesians_by_internals(1, strip_embedding=True, reembed=True)[0]
-        ders_inv1 = nh3.get_internals_by_cartesians(1, strip_embedding=True)[0]
+        ders1 = methanol.get_cartesians_by_internals(1, strip_embedding=True, reembed=True)[0]
+        ders_inv1 = methanol.get_internals_by_cartesians(1, strip_embedding=True)[0]
 
         # nh3 = Molecule.from_file(
         #     TestManager.test_data("nh3.fchk"),
@@ -2375,25 +2671,31 @@ class MolecoolsTests(TestCase):
         #         [3,  0,  1,  2]
         #     ]
         # )
-        ders2 = nh3.get_cartesians_by_internals(1, method='classic', strip_embedding=True, reembed=True)[0]
+        ders2 = methanol.get_cartesians_by_internals(1, method='classic', strip_embedding=True, reembed=True)[0]
         # print(np.round(ders1, 7)[0])
         # print(np.round(ders2, 7)[0])
 
-        # print(np.round(ders2 @ ders_inv1, 6))
-        # print(np.round(ders1 @ ders_inv1, 8))
+        print(np.round(ders2 @ ders_inv1, 6))
+        print(np.round(ders1 @ ders_inv1, 8))
 
-        nh3_derivs_internal = nput.tensor_reexpand(
-            nh3.get_cartesians_by_internals(2, strip_embedding=True, reembed=True),
-            [0, nh3.potential_derivatives[1]]
+        print(np.round(ders2 - ders1, 5))
+
+
+
+        meth_derivs_internal = nput.tensor_reexpand(
+            methanol.get_cartesians_by_internals(2, strip_embedding=True, reembed=True),
+            [0, methanol.potential_derivatives[1]]
         )
 
-        nh3_gmatrix = nh3.g_matrix
+        meth_gmatrix = methanol.g_matrix
 
-        freqs_int, _ = scipy.linalg.eigh(nh3_derivs_internal[1], nh3_gmatrix, type=2)
-        freqs_cart, _ = scipy.linalg.eigh(nh3.potential_derivatives[1], nh3.get_gmatrix(use_internals=False), type=2)
+        freqs_int, _ = scipy.linalg.eigh(meth_derivs_internal[1], meth_gmatrix, type=2)
+        freqs_cart, _ = scipy.linalg.eigh(methanol.potential_derivatives[1], methanol.get_gmatrix(use_internals=False), type=2)
 
         print(np.sqrt(freqs_int) * UnitsData.convert("Hartrees", "Wavenumbers"))
         print(np.sqrt(freqs_cart[6:]) * UnitsData.convert("Hartrees", "Wavenumbers"))
+
+        return
 ```
 
 #### <a name="AutomaticConversion">AutomaticConversion</a>
