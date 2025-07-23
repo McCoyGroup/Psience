@@ -1,8 +1,13 @@
+from Psience.Molecools import Molecule
+from Psience.Modes import NormalModes, LocalizedModes
 import McUtils.Coordinerds as coordops
 import McUtils.Numputils as nput
 import McUtils.Formatters as mfmt
 from McUtils.Data import UnitsData
 import numpy as np
+
+from . import expansions
+from . import paths
 
 
 RPMODE_GRADIENT_CUTOFF = 2e-5
@@ -10,7 +15,7 @@ def prep_rp_modes(me_ints, nms=None, internals=None,
                   project_transrot=False,
                   proj_coord=(3, 2, 1, 0),
                   return_status=False
-                  ):
+                  ) -> ((LocalizedModes, NormalModes,NormalModes), bool):
     if nms is None:
         nms = me_ints.get_normal_modes(use_internals=False, project_transrot=project_transrot)
     rpnms, stat = me_ints.get_reaction_path_modes(
@@ -41,7 +46,7 @@ def prep_rp_modes(me_ints, nms=None, internals=None,
             mfmt.TableFormatter("{:.3f}").format(
                 nms_int.make_mass_weighted().modes_by_coords
                 @ np.diag(nms_int.freqs ** 2)
-                @ nms_int.make_mass_weighted().modes_by_coords.T * 219474.56
+                @ nms_int.make_mass_weighted().modes_by_coords.T * 219474.63
             )
         )
         print("=" * 75)
@@ -49,7 +54,7 @@ def prep_rp_modes(me_ints, nms=None, internals=None,
             mfmt.TableFormatter("{:.3f}").format(
                 locs.make_mass_weighted().modes_by_coords
                 @ np.diag(locs.freqs ** 2)
-                @ locs.make_mass_weighted().modes_by_coords.T * 219474.56
+                @ locs.make_mass_weighted().modes_by_coords.T * 219474.63
             )
         )
         print("=" * 75)
@@ -69,7 +74,7 @@ def prep_rp_modes(me_ints, nms=None, internals=None,
         #     )
         # )
     if return_status:
-        (locs, nms, rpnms), stat
+        return (locs, nms, rpnms), stat
     else:
         return locs, nms, rpnms
 
@@ -114,3 +119,20 @@ def print_rpnm_hessian(me_ints, nms, rpnms, locs):
             f_cart * (UnitsData.hartrees_to_wavenumbers)
         )
     )
+
+def get_gaussian_modes(lot, subkey, use_internals=False, return_status=True, return_mol=False):
+    me_gaussian = Molecule.from_file(
+        paths.torsion_scan_path(lot, f'{subkey}.fchk'),
+        internals=expansions.methanol_gaussian_zmatrix if use_internals else None
+    )
+
+    mode_data = prep_rp_modes(me_gaussian,
+                  internals=expansions.methanol_gaussian_zmatrix if use_internals else None,
+                  proj_coord=(3, 2, 1, 0),
+                  return_status=return_status
+                  )
+
+    if return_mol:
+        return me_gaussian, mode_data
+    else:
+        return mode_data

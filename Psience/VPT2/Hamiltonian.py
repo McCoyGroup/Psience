@@ -139,6 +139,8 @@ class PerturbationTheoryHamiltonian:
             mode_transformation[0].shape[1]
                 if mode_transformation is not None else
             modes.basis.coords_by_modes.shape[0]
+                if hasattr(modes.basis, 'coords_by_modes') else
+            modes.coords_by_modes.shape[0]
         )
         if mode_n == 0:
             raise ValueError("empty normal modes supplied")

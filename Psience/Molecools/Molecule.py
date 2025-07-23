@@ -631,11 +631,17 @@ class Molecule(AbstractMolecule):
             #     NormalModesManager.__name__
             # ))
         self._normal_modes = val
-    def get_normal_modes(self, masses=None, potential_derivatives=None, **opts):
+    def get_normal_modes(self, masses=None,
+                         potential_derivatives=None,
+                         use_internals=None,
+                         project_transrot=True,
+                         **opts):
         from ..Modes import NormalModes
         return NormalModes.from_molecule(self,
                                          masses=masses,
                                          potential_derivatives=potential_derivatives,
+                                         use_internals=use_internals,
+                                         project_transrot=project_transrot,
                                          **opts
                                          )
     def get_reaction_path_modes(self, masses=None, potential_derivatives=None, **opts):
@@ -772,20 +778,22 @@ class Molecule(AbstractMolecule):
             return 1
 
     def copy(self):
-        import copy
-        # mostly just use the default and don't be fancy
-        new = copy.copy(self)
-        # but we also need to do some stuff where we store objects that
-        # reference the molecule
-        new.normal_modes = new.normal_modes.copy()
-        new.normal_modes.set_molecule(new)
-        new.potential_surface = new.potential_surface.copy()
-        new.potential_surface.set_molecule(new)
-        new.dipole_surface = new.dipole_surface.copy()
-        new.dipole_surface.set_molecule(new)
-        # new._rdmol = new.rdmol.copy()
-        # new.rdmol.set_molecule(new)
-        return new
+        return self.modify()
+
+        # import copy
+        # # mostly just use the default and don't be fancy
+        # new = copy.copy(self)
+        # # but we also need to do some stuff where we store objects that
+        # # reference the molecule
+        # new.normal_modes = new.normal_modes.copy()
+        # new.normal_modes.set_molecule(new)
+        # new.potential_surface = new.potential_surface.copy()
+        # new.potential_surface.set_molecule(new)
+        # new.dipole_surface = new.dipole_surface.copy()
+        # new.dipole_surface.set_molecule(new)
+        # # new._rdmol = new.rdmol.copy()
+        # # new.rdmol.set_molecule(new)
+        # return new
 
     def take_submolecule(self, pos):
         ats = self.atoms
@@ -1641,7 +1649,10 @@ class Molecule(AbstractMolecule):
                 **opts
             )
 
-    def get_gmatrix(self, masses=None, coords=None, use_internals=None, power=None):
+    def get_gmatrix(self,
+                    masses=None, coords=None, use_internals=None, power=None,
+                    **internals_opts
+                    ):
         if use_internals is None:
             use_internals = self.internals is not None
 
@@ -1661,7 +1672,18 @@ class Molecule(AbstractMolecule):
                 return g
             # raise ValueError("need internal coordinates to calculate the G-matrix")
         else:
-            g = self.hamiltonian.gmatrix_expansion(0, masses=masses, coords=coords, modes=None)[0]
+            if masses is None:
+                masses = self.atomic_masses
+
+            bT = np.tensordot(
+                self.get_internals_by_cartesians(1, coords=coords, strip_embedding=True,
+                                                 **internals_opts
+                                                 )[0],
+                np.diag(np.repeat(1 / np.sqrt(masses), 3)),
+                axes=[-2, 0]
+            )
+            # g = self.hamiltonian.gmatrix_expansion(0, masses=masses, coords=coords, modes=None)[0]
+            g = bT @ np.moveaxis(bT, -1, -2)
             if power is not None:
                 g = nput.fractional_power(g, power)
             return g
@@ -2028,14 +2050,35 @@ class Molecule(AbstractMolecule):
         )
 
     @classmethod
-    def _from_smiles(cls, smi, add_implicit_hydrogens=True, num_confs=1, optimize=False, **opts):
+    def _from_smiles(cls, smi,
+                     add_implicit_hydrogens=True,
+                     num_confs=1,
+                     optimize=False,
+                     sanitize=False,
+                     parse_name=True,
+                     allow_cxsmiles=True,
+                     strict_cxsmiles=True,
+                     remove_hydrogens=False,
+                     replacements=None,
+                     parser_options=None,
+                     **opts):
         from McUtils.ExternalPrograms import RDMolecule
+
+        if parser_options is None:
+            parser_options = {}
 
         return cls.from_rdmol(
             RDMolecule.from_smiles(smi,
                                    add_implicit_hydrogens=add_implicit_hydrogens,
                                    num_confs=num_confs,
                                    optimize=optimize,
+                                   sanitize=sanitize,
+                                   parse_name=parse_name,
+                                   allow_cxsmiles=allow_cxsmiles,
+                                   strict_cxsmiles=strict_cxsmiles,
+                                   remove_hydrogens=remove_hydrogens,
+                                   replacements=replacements,
+                                   **parser_options
                                    ),
             **opts
         )

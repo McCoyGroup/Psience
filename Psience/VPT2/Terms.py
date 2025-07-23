@@ -192,7 +192,7 @@ class ExpansionTerms:
         "cartesian_fd_mesh_spacing",
         "cartesian_fd_stencil",
         "cartesian_analytic_deriv_order",
-        "internal_by_cartesian_derivative_method",
+        "cartesian_by_internal_derivative_method",
         "internal_by_cartesian_order",
         "cartesian_by_internal_order",
         "jacobian_warning_threshold",
@@ -219,12 +219,12 @@ class ExpansionTerms:
                  backpropagate_internals=False,
                  direct_propagate_cartesians=False,
                  zero_mass_term=1e7,
-                 internal_fd_mesh_spacing=1.0e-3,
+                 internal_fd_mesh_spacing=1.0e-2,
                  internal_fd_stencil=None,
                  cartesian_fd_mesh_spacing=1.0e-2,
                  cartesian_fd_stencil=None,
                  cartesian_analytic_deriv_order=0,
-                 internal_by_cartesian_derivative_method='old',
+                 cartesian_by_internal_derivative_method='old',
                  internal_by_cartesian_order=3,
                  cartesian_by_internal_order=4,
                  jacobian_warning_threshold=1e4,
@@ -253,7 +253,7 @@ class ExpansionTerms:
 
         self.internal_fd_mesh_spacing = internal_fd_mesh_spacing
         self.internal_fd_stencil = internal_fd_stencil
-        self.internal_by_cartesian_derivative_method = internal_by_cartesian_derivative_method
+        self.cartesian_by_internal_derivative_method = cartesian_by_internal_derivative_method
         self.cartesian_fd_mesh_spacing = cartesian_fd_mesh_spacing
         self.cartesian_fd_stencil = cartesian_fd_stencil
         self.cartesian_analytic_deriv_order = cartesian_analytic_deriv_order
@@ -268,7 +268,7 @@ class ExpansionTerms:
         self.use_internal_modes = use_internal_modes
         if modes is None:
             modes = molecule.normal_modes.modes
-        if hasattr(modes, 'basis'):
+        if hasattr(modes, 'basis') and hasattr(modes.basis, 'to_new_modes'):
             modes = modes.basis
         if hasattr(modes, 'to_new_modes'):
             modes = modes.to_new_modes()
@@ -719,16 +719,23 @@ class ExpansionTerms:
                         "Getting d^nR/dX^n up to order {o}...",
                         o=internal_by_cartesian_order
                     )
-                def_1 = self.molecule.embedding.cart_fd_defaults
-                try:
-                    self.molecule.embedding.cart_fd_defaults = def_1.copy()
-                    self.molecule.embedding.cart_fd_defaults['analytic_deriv_order'] = self.cartesian_analytic_deriv_order
-                    int_by_cartesian_jacobs = self.molecule.get_internals_by_cartesians(
-                        internal_by_cartesian_order,
-                        strip_embedding=self.strip_embedding
-                    )#self.get_cart_jacobs(list(range(1, internal_by_cartesian_order + 1)))
-                finally:
-                    self.molecule.embedding.cart_fd_defaults = def_1
+                # def_1 = self.molecule.embedding.cart_fd_defaults
+                # try:
+                    # self.molecule.embedding.cart_fd_defaults = def_1.copy()
+                    # self.molecule.embedding.cart_fd_defaults['analytic_deriv_order'] = self.cartesian_analytic_deriv_order
+                int_by_cartesian_jacobs = self.molecule.get_internals_by_cartesians(
+                    internal_by_cartesian_order,
+                    strip_embedding=self.strip_embedding,
+
+                    mesh_spacing=self.cartesian_fd_mesh_spacing,
+                    stencil=self.cartesian_fd_stencil,
+                    # all_numerical=True,
+                    analytic_deriv_order=self.cartesian_analytic_deriv_order,
+                    strip_dummies=self.strip_dummies,
+                    parallelizer=self.parallelizer
+                )#self.get_cart_jacobs(list(range(1, internal_by_cartesian_order + 1)))
+                # finally:
+                #     self.molecule.embedding.cart_fd_defaults = def_1
                 # m = np.max([np.max(np.abs(x)) for x in int_by_cartesian_jacobs])
                 if self.logger is not None:
                     end = time.time()
@@ -814,7 +821,14 @@ class ExpansionTerms:
                 cart_by_internal_jacobs = self.molecule.get_cartesians_by_internals(
                     cartesian_by_internal_order,
                     strip_embedding=self.strip_embedding,
-                    method=self.internal_by_cartesian_derivative_method
+                    method=self.cartesian_by_internal_derivative_method,
+                    mesh_spacing=self.internal_fd_mesh_spacing,
+                    stencil=self.internal_fd_stencil,
+                    analytic_deriv_order=self.cartesian_analytic_deriv_order,
+                    reembed=self.reembed,
+                    planar_ref_tolerance=self.reembed_tol,
+                    strip_dummies=self.strip_dummies,
+                    parallelizer=self.parallelizer
                 )
                 #self.get_int_jacobs(list(range(1, cartesian_by_internal_order+1)))
 

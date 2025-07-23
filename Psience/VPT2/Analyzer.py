@@ -33,11 +33,11 @@ class VPTResultsSource(enum.Enum):
     LogFile = 'log_file'
 
 def property_dispatcher(basefn):
-    registry = weakref.WeakKeyDictionary()
-    def register(key):
+    registry = {}#weakref.WeakValueDictionary()
+    def register(key, registry=registry):
         if not isinstance(key, VPTResultsSource):
             key = VPTResultsSource(key)
-        def bind(fn, key=key):
+        def bind(fn, key=key, registry=registry):
             fn.__name__ = basefn.__name__
             fn.__doc__ = basefn.__doc__
             registry[key] = fn
@@ -47,6 +47,7 @@ def property_dispatcher(basefn):
     @functools.wraps(basefn)
     def dispatch(self, *args, **kwargs):
         return registry[self.res_type](self, *args, **kwargs)
+    dispatch.registry = registry
     dispatch.register = register
 
     return dispatch
@@ -133,7 +134,7 @@ class VPTAnalyzerLogParser(LogParser):
     def harmonic_energies(self):
         if self._energies is None:
             try:
-                eng_str = self.tree[0, "State Energies"]
+                eng_str = self.tree["State Energies"]
             except IndexError:
                 eng_str = self.tree[0, "Degenerate Energies"]
             self._energies = self.parse_energies_blocks(eng_str)
@@ -143,9 +144,9 @@ class VPTAnalyzerLogParser(LogParser):
     def energies(self):
         if self._energies is None:
             try:
-                eng_str = self.tree[0, "State Energies"]
+                eng_str = self.tree["State Energies"]
             except IndexError:
-                eng_str = self.tree[0, "Degenerate Energies"]
+                eng_str = self.tree["Degenerate Energies"]
             self._energies = self.parse_energies_blocks(eng_str)
         return self._energies[0], self._energies[2]
 
@@ -680,6 +681,10 @@ class VPTResultsLoader:
     def _(self):
         data = self.data  # type:PerturbationTheoryWavefunctions
         return data.corrs.degenerate_energies
+    @degenerate_energies.register("log_file")
+    def _(self):
+        self.data: VPTAnalyzerLogParser
+        return self.data.energies
 
     @property_dispatcher
     def degenerate_rotations(self):

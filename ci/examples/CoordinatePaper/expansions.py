@@ -60,7 +60,7 @@ def get_aimnet_checkpointer(key):
 
 def get_aimnet_methanol():
     base_chk = scaff.Checkpointer.from_file(
-        torsion_scan_path('base_struct')
+        torsion_scan_path('checkpoints/base_struct.json')
     )
 
     me_opt = base_chk.cached_eval(
@@ -77,7 +77,9 @@ def get_aimnet_methanol():
 def get_aimnet_structure(key, subkey, coords=None, overwrite=False):
     me_opt, me_int = get_aimnet_methanol()
     key = get_angle_key(key)
-    chk = scaff.Checkpointer.from_file(f'torsion_scan/checkpoints/optimized_torsion_potentials_{key}.json')
+    chk = scaff.Checkpointer.from_file(
+        torsion_scan_path(f'checkpoints/optimized_torsion_potentials_{key}.json')
+    )
     if coords is None:
         if overwrite:
             del chk[(key, 'unoptimized', 'coords')]
@@ -104,7 +106,9 @@ def get_aimnet_structure(key, subkey, coords=None, overwrite=False):
 def get_aimnet_expansion(key, subkey, coords=None, overwrite=False):
     coords=get_aimnet_structure(key, subkey, coords=coords)
     key=get_angle_key(key)
-    chk = scaff.Checkpointer.from_file(f'torsion_scan/checkpoints/optimized_torsion_potentials_{key}.json')
+    chk = scaff.Checkpointer.from_file(
+        torsion_scan_path('checkpoints/optimized_torsion_potentials_{key}.json')
+    )
     with chk:
         mol = methanol.modify(coords=coords)
         # me_aimnet2 = methanol.get_energy_function('aimnet2')
