@@ -45,7 +45,7 @@ class SpectrumExtractor:
         pil = PILInterface.from_url(file)
         return cls.from_pil(pil, color_space=color_space)
 
-    default_tolerances = [30, 30, 30]
+    default_tolerances = [25, 25, 25]
     def find_pixels(
             self,
             color,
@@ -109,7 +109,7 @@ class SpectrumExtractor:
 
     def find_spectrum_lines(self,
                             pixel_positions,
-                            max_pixel_distance=.015,
+                            max_pixel_distance=.02,
                             min_line_cutoff=0.05,
                             smoothing=True,
                             line_split_cutoff=5,
@@ -271,14 +271,25 @@ class SpectrumExtractor:
                         spectrum_direction='up',
                         x_range=(0, 1),
                         y_range=(0, 1),
+                        preserve_x_range=True,
+                        preserve_y_range=False,
                         **opts
                         ):
         if isinstance(color, str):
             color = ColorPalette.parse_color_string(color)[:3]
             color_space = 'rgb'
         if color is None or not use_exact_color:
+            opts = dev.OptionsSet(opts)
+            dom_opts, opts = opts.split(None,
+                                        {
+                                            'bins',
+                                            'merge_tolerances'
+                                        }
+                                        )
             doms = self.get_dominant_colors(dominant_bins,
-                                            min_counts=min_dominant_component, color_space=dominant_color_space)
+                                            min_counts=min_dominant_component,
+                                            color_space=dominant_color_space,
+                                            **dom_opts)
             npixels = self.img.shape[-2] * self.img.shape[-1]
             max_npix = npixels * max_dominant_percentage
             if color is None:
@@ -326,51 +337,69 @@ class SpectrumExtractor:
             if nput.is_int(x_range):
                 x_range = [0, x_range]
 
-            x_mins = [
-                np.min(xx)
-                for xx, yy in lines
-                if len(xx) > 0
-            ]
-            if len(x_mins) == 0:
-                x_mins = [np.min(x)]
-
-            x_maxes = [
-                np.max(xx)
-                for xx, yy in lines
-                if len(xx) > 0
-            ]
-            if len(x_maxes) == 0:
-                x_maxes = [np.max(x)]
-
-            x_span = [
-                min(x_mins),
-                max(x_maxes)
-            ]
-            x_scale = (x_range[1] - x_range[0]) / (x_span[1] - x_span[0])
-            lines = [
-                [
-                    (x - x_span[0]) * x_scale + x_range[0],
-                    y
+            if preserve_x_range:
+                x_mins = [
+                    np.min(xx)
+                    for xx, yy in lines
+                    if len(xx) > 0
                 ]
-                for x,y in lines
-            ]
+                if len(x_mins) == 0:
+                    x_mins = [np.min(x)]
+
+                x_maxes = [
+                    np.max(xx)
+                    for xx, yy in lines
+                    if len(xx) > 0
+                ]
+                if len(x_maxes) == 0:
+                    x_maxes = [np.max(x)]
+
+                x_span = [
+                    min(x_mins),
+                    max(x_maxes)
+                ]
+                x_scale = (x_range[1] - x_range[0]) / (x_span[1] - x_span[0])
+                lines = [
+                    [
+                        (x - x_span[0]) * x_scale + x_range[0],
+                        y
+                    ]
+                    for x,y in lines
+                ]
+            else:
+                lines = [
+                    [
+                        (x - np.min(x)) * (x_range[1] - x_range[0]) / (np.max(x) - np.min(x)) + x_range[0],
+                        y
+                    ]
+                    for x, y in lines
+                ]
 
         if y_range is not None:
             if nput.is_int(y_range):
                 y_range = [0, y_range]
 
-            y_span = [
-                min(np.min(y) for x,y in lines),
-                max(np.max(y) for x,y in lines)
-            ]
-            y_scale = (y_range[1] - y_range[0]) / (y_span[1] - y_span[0])
-            lines = [
-                [
-                    x,
-                    (y - y_span[0]) * y_scale + y_range[0]
+            if preserve_y_range:
+                y_span = [
+                    min(np.min(y) for x,y in lines),
+                    max(np.max(y) for x,y in lines)
                 ]
-                for x, y in lines
-            ]
+                y_scale = (y_range[1] - y_range[0]) / max([(y_span[1] - y_span[0]), 1])
+                lines = [
+                    [
+                        x,
+                        (y - y_span[0]) * y_scale + y_range[0],
+                    ]
+                    for x,y in lines
+                ]
+            else:
+                lines = [
+                    [
+                        x,
+                        (y - np.min(y)) * (y_range[1] - y_range[0]) / (np.max(y) - np.min(y)) + y_range[0]
+                    ]
+                    for x, y in lines
+                ]
 
         return color, lines
 

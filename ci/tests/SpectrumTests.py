@@ -30,11 +30,12 @@ class SpectrumTests(TestCase):
         color, specs = extractor.extract_spectra(
             'red',
             x_range=[2800, 3000],
-            tolerances=[25, 25, 25],
+            # tolerances=[25, 25, 25],
             spectrum_direction='down',
             extract_lines=True,
             smoothing=False,
-            max_pixel_distance=.02
+            # max_pixel_distance=.02,
+            preserve_y_range=True
         )
 
         # print(specs)
