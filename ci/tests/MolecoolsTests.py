@@ -1996,7 +1996,7 @@ class MolecoolsTests(TestCase):
         setup = propylbenzene_setup.partial_force_field()
 
 
-    @validationTest
+    @debugTest
     def test_AutoCHModel(self):
         import McUtils.Coordinerds as coordops
         from Psience.BasisReps import LocalHarmonicModel, StateMaker
@@ -2005,37 +2005,115 @@ class MolecoolsTests(TestCase):
             TestManager.test_data('proplybenz.hess')
         )
 
+        lhm = LocalHarmonicModel
         model = LocalHarmonicModel.from_molecule(
             propylbenzene,
+            oblique=False,
+            # coordinate_filter=lambda coords: {
+            #     c: l
+            #     for c, l in coords.items()
+            #     if l.atoms in {'CH', 'HCH'}
+            # },
             coordinate_filter=lambda coords: {
-                c: l
+                c: (l,
+                    [-12, -11, -10, -9, -8, -7, -6]
+                        if l.atoms == "CH" else
+                    [-21, -19, -18, -17, -16]
+                    )
                 for c, l in coords.items()
-                if l.atoms in {'CH', 'HCH'}
+                if l.atoms in {'CH', 'HCH'} and l.ring != 'benzene'
             },
-            anharmonic_scalings={
-                ("CH", "stretch"): .96,  # diagonal scaling
-                (("methyl", "CH", "stretch"),
-                 ("methyl", "CH", "stretch")): .9,  # methyl-methyl stretch scaling
-                (("ethyl", "CH", "stretch"),
-                 ("ethyl", "CH", "stretch")): .96,  # ethyl-ethyl stretch scaling
+            # anharmonic_scalings={
+            #     # lhm.state("CH", "stretch"): .96,  # diagonal scaling
+            #     # lhm.state_pair(
+            #     #     ("methyl", "CH", "stretch"),
+            #     #     ("methyl", "CH", "stretch")
+            #     # ): .9,  # methyl-methyl stretch scaling
+            #     # lhm.state("HCH", "bend"): .96,
+            #     # lhm.state_pair(
+            #     #     ("ethyl", "CH", "stretch"),
+            #     #     ("ethyl", "CH", "stretch")
+            #     # ): .96,  # ethyl-ethyl stretch scaling
+            #     lhm.state(
+            #         ("HCH", "bend"),
+            #         ("HCH", "bend")
+            #     ): 0.975,
+            # },
+            anharmonic_couplings={
+                # lhm.state_pair(
+                #     2, # shared atoms
+                #     ("CH", "stretch"), # stretch fundamental
+                #     (2, "HCH", "bend") # bend overtone
+                #  ): 22 / UnitsData.hartrees_to_wavenumbers,
+                lhm.state_pair(
+                    ((2, 1),),  # shared atoms
+                    ("CH", "stretch"),  # stretch fundamental
+                    (("HCH", "bend"), ("HCH", "bend"))  # bend overtone
+                ): 5.6 / UnitsData.hartrees_to_wavenumbers
             },
-            anharmonic_constants={
-                (
-                    2, # shared atoms
-                    ("CH", "stretch"), # stretch fundamental
-                    (2, ("HCH", "bend")) # bend overtone
-                 ): -22 / UnitsData.hartrees_to_wavenumbers
+            anharmonic_shifts = {
+                ("methyl", "CH", "stretch"): -8 / UnitsData.hartrees_to_wavenumbers,
+                ("ethyl", "CH", "stretch"): -5 / UnitsData.hartrees_to_wavenumbers,
+                ("HCH", "bend"): -2*9.6 / UnitsData.hartrees_to_wavenumbers
             }
         )
 
-        dim = len(model.internals)
+        """
+        3043.376   -26.173    -8.960     3.355     1.648     0.218    -0.010     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000
+ -26.173  3043.863     3.367    -8.908     0.203     1.521     0.006     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000
+  -8.960     3.367  3040.978   -22.834    -8.821     3.905     4.355     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000
+   3.355    -8.908   -22.834  3041.335     3.907    -8.815     4.247     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000
+   1.648     0.203    -8.821     3.907  3062.899   -27.139   -27.823     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     5.600     5.600
+   0.218     1.521     3.905    -8.815   -27.139  3063.800   -28.281     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     5.600     0.000     0.000
+  -0.010     0.006     4.355     4.247   -27.823   -28.281  3078.026"""
+
+        # import pprint
+        # pprint.pprint(model.scalings)
+        # return
+
+
+        dim = model.basis.ndim
         state = StateMaker(dim, mode='high-low')
+
+        wfns = model.get_wavefunctions({
+            'max_freq': 3250 / UnitsData.hartrees_to_wavenumbers,
+            'min_freq': 2500 / UnitsData.hartrees_to_wavenumbers,
+            'max_quanta': 3
+        })
+        print(wfns.basis.excitations)
+        #     state(1),
+        #     state(2),
+        #     state(3),
+        #     state(4),
+        #     state(5),
+        #     state(6), # methyl CH stretch
+        #     state(7), # methyl CH stretch
+        #     state([dim-4, 2]), # methyl HCH bend
+        #     state([dim - 3, 2]),  # methyl HCH bend
+        #     state(dim - 4, dim - 3),  # methyl combination
+        # ])
+
+        import McUtils.Formatters as mfmt
+
+        print(
+            mfmt.TableFormatter("{:.3f}").format(wfns.hamiltonian * UnitsData.hartrees_to_wavenumbers)
+        )
+
+        spec = wfns.get_spectrum()
+        # spec.plot().show()
+        print(spec.intensities)
+        return
+
+        spec.plot().show()
+
         ham = model.get_hamiltonian(
             [
-                state(1), # benzene CH stretch
-                state(6), # methyl CH stretch
-                state(7), # methyl CH stretch
-                state([dim-4, 2]), # methyl HCH bend
+                # state(1), # benzene CH stretch
+                # state(6), # methyl CH stretch
+                # state(7), # methyl CH stretch
+                # state([dim-4, 2]), # methyl HCH bend
+                state([dim-3, 2]), # methyl HCH bend
+                state(dim-4, dim-3), # methyl combination
             ]
         )
         print()
@@ -2194,7 +2272,7 @@ class MolecoolsTests(TestCase):
             gggg.internal_coordinates.converter_options['redundant_transformation']
         )
 
-    @debugTest
+    @validationTest
     def test_InternalConv(self):
 
         # nh3 = Molecule.from_file(

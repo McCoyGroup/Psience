@@ -97,15 +97,15 @@ def modify_hamiltonian(ham,
             s = tag_match(t, coupling_types)
             if s is not None:
                 ham[i, i] = s
-                break
+                # break
             s = tag_match(t, scaling_types)
             if s is not None:
                 ham[i, i] *= s
-                break
+                # break
             s = tag_match(t, shift_types)
             if s is not None:
                 ham[i, i] += s
-                break
+                # break
 
         for j,t2 in enumerate(index_specifiers[i+1:]):
             k = j + i + 1
@@ -115,17 +115,17 @@ def modify_hamiltonian(ham,
                 if s is not None:
                     ham[i, k] = s
                     ham[k, i] = s
-                    break
+                    # break
                 s = tag_match(t, scaling_types)
                 if s is not None:
                     ham[i, k] *= s
                     ham[k, i] *= s
-                    break
+                    # break
                 s = tag_match(t, shift_types)
                 if s is not None:
                     ham[i, k] += s
                     ham[k, i] += s
-                    break
+                    # break
 
     return ham
 
@@ -205,6 +205,33 @@ def _product_state_match(state1:product_state, state2:product_state):
                         return p
 
 def _canonicalize_scaling_key(key):
+    if isinstance(key, product_state):
+        return key
+    elif (
+            len(key) == 3
+            and isinstance(key[1], product_state)
+            and isinstance(key[2], product_state)
+    ):
+        shats = key[0]
+        if nput.is_numeric(shats):
+            shats = [[shats]]
+        else:
+            shats = [[s] if nput.is_numeric(s) else s for s in shats]
+        shats = tuple(tuple(int(i) for i in s) for s in shats)
+        return (
+            shats,
+            key[1],
+            key[2]
+        )
+    elif (
+            len(key) == 2
+            and isinstance(key[0], product_state)
+            and isinstance(key[1], product_state)
+    ):
+        return (
+            key[0],
+            key[1]
+        )
     if (
             isinstance(key, str)
             or all(isinstance(k, str) for k in key)
@@ -248,6 +275,7 @@ def _find_internal_coupling_match(spec, couplings):
             spec = spec[1:]
         else:
             shared_ats = None
+
         spec1, spec2 = spec
         for s,v in couplings.items():
             if not isinstance(s, product_state):
@@ -275,6 +303,8 @@ def _find_internal_coupling_match(spec, couplings):
                     perm_1 = _product_state_match(s1, spec2)
                     perm_2 = _product_state_match(s2, spec1)
 
+                if not perm_1: continue
+                if not perm_2: continue
 
                 if perm_1 is not None and perm_2 is not None:
                     if shared_ats is not None:
