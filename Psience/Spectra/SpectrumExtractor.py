@@ -109,8 +109,8 @@ class SpectrumExtractor:
 
     def find_spectrum_lines(self,
                             pixel_positions,
-                            max_pixel_distance=.02,
-                            min_line_cutoff=0.05,
+                            max_pixel_distance=.005,
+                            min_line_cutoff=0.5,
                             smoothing=True,
                             line_split_cutoff=5,
                             allow_disjoint=False,
@@ -142,14 +142,16 @@ class SpectrumExtractor:
             else:
                 add_pos = set()
                 for y in Y:
-                    min_y = y[0]
-                    max_y = y[-1]
                     for n,l in enumerate(lines):
                         if n in add_pos: continue
 
                         xx, yy = l[-1]
                         dx = x-xx
-                        dy = min([abs(min_y-yy[0]), abs(max_y - yy[-1])])
+                        if abs(dx) > max_pixel_distance: continue
+
+                        dy = min([abs(y[0] - yy[0]), abs(y[-1] - yy[-1])]) # check boundaries first
+                        if abs(dx)+abs(dy) > max_pixel_distance:
+                            dy = np.min(np.abs(yy[:, np.newaxis] - y[np.newaxis, :]))
                         if abs(dx)+abs(dy) < max_pixel_distance:
                             l.append([x, y])
                             if not allow_disjoint:
@@ -157,6 +159,14 @@ class SpectrumExtractor:
                             break
                     else:
                         lines.append([[x, y]])
+
+
+        if min_line_cutoff < 1:
+            min_line_cutoff = self.img.shape[-1] * min_line_cutoff
+            lines = [
+                ll for ll in lines
+                if len(ll) > min_line_cutoff
+            ]
 
 
         if smoothing:
@@ -173,8 +183,6 @@ class SpectrumExtractor:
                 for l in lines
             ]
 
-        if min_line_cutoff < 1:
-            min_line_cutoff = len(pixel_positions[0]) * min_line_cutoff
         return [
             np.array(l).T
             for l in sorted(
@@ -256,6 +264,92 @@ class SpectrumExtractor:
         #
         # return pix
 
+    def identify_frame_x_boundaries(self, pixel_positions, min_line_cutoff=.5, frame_gap_cutoff=.05):
+        min_x = None
+        cur_x = None
+        max_X = None
+        if min_line_cutoff < 1:
+            min_line_cutoff = self.img.shape[-1] * min_line_cutoff
+        if frame_gap_cutoff < 1:
+            frame_gap_cutoff = self.img.shape[-1] * frame_gap_cutoff
+
+        miss_counts = 0
+        for x,Y in zip(*nput.group_by(pixel_positions[1], pixel_positions[0])[0]):
+            if len(Y) > min_line_cutoff:
+                if min_x is not None:
+                    max_X = x - 1
+                    break
+                cur_x = x
+            elif cur_x is not None:
+                miss_counts += 1
+                if miss_counts > frame_gap_cutoff:
+                    min_x = cur_x + 1
+
+        if min_x is None:
+            if max_X is not None:
+                if max_X < .5 * self.img.shape[-1]:
+                    min_x = max_X
+                    max_X = None
+            else:
+                min_x = np.min(pixel_positions[0])
+        if max_X is None:
+            max_X = np.max(pixel_positions[0])
+
+        return min_x, max_X
+
+    def identify_frame_boundaries(self, pixel_positions,
+                                  min_line_cutoffs=.5,
+                                  frame_gap_cutoffs=.05,
+                                  identified_components=True
+                                  ):
+        if nput.is_numeric(min_line_cutoffs): min_line_cutoffs = [min_line_cutoffs, min_line_cutoffs]
+        if nput.is_numeric(frame_gap_cutoffs): frame_gap_cutoffs = [frame_gap_cutoffs, frame_gap_cutoffs]
+        x_cutoff, y_cutoff = min_line_cutoffs
+        x_gap, y_gap = frame_gap_cutoffs
+
+        if x_cutoff < 1:
+            x_cutoff = self.img.shape[-2] * x_cutoff
+        if y_cutoff < 1:
+            y_cutoff = self.img.shape[-1] * y_cutoff
+
+        if x_gap < 1:
+            x_gap = self.img.shape[-2] * x_gap
+        if y_gap < 1:
+            y_gap = self.img.shape[-1] * y_gap
+
+        if identified_components is True: identified_components = [identified_components, identified_components]
+
+        find_x, find_y = identified_components
+        if find_x:
+            x_range = self.identify_frame_x_boundaries(
+                (pixel_positions[0], pixel_positions[1]),
+                min_line_cutoff=x_cutoff,
+                frame_gap_cutoff=x_gap
+            )
+        else:
+            x_range = [np.min(pixel_positions[0]), np.max(pixel_positions[0])]
+
+        if find_y:
+            y_range = self.identify_frame_x_boundaries(
+                (pixel_positions[1], pixel_positions[0]),
+                min_line_cutoff=y_cutoff,
+                frame_gap_cutoff=y_gap
+            )
+        else:
+            y_range = [np.min(pixel_positions[1]), np.max(pixel_positions[1])]
+
+        return x_range, y_range
+
+    def prune_straight_vertical_pixels(self, pixel_positions, min_line_cutoff=.5):
+        new_x = []
+        new_y = []
+        if min_line_cutoff < 1:
+            min_line_cutoff = self.img.shape[-1] * min_line_cutoff
+        for x,Y in zip(*nput.group_by(pixel_positions[1], pixel_positions[0])[0]):
+            if len(Y) > min_line_cutoff: continue
+            new_x.append(np.full(x, len(Y)))
+            new_y.append(Y)
+        return np.concatenate(new_x), np.concatenate(new_y)
 
     def extract_spectra(self,
                         color=None,
@@ -268,11 +362,14 @@ class SpectrumExtractor:
                         dominant_bins=255,
                         min_dominant_component=50,
                         extract_lines=True,
+                        prune_frame_components=True,
+                        frame_line_cutoffs=.5,
                         spectrum_direction='up',
                         x_range=(0, 1),
                         y_range=(0, 1),
                         preserve_x_range=True,
                         preserve_y_range=False,
+                        return_color_code=True,
                         **opts
                         ):
         if isinstance(color, str):
@@ -316,7 +413,7 @@ class SpectrumExtractor:
         line_opts, pixel_opts = opts.split(None,
                                            {
                                                'max_pixel_distance',
-                                               'min_line_percentage',
+                                               'min_line_cutoff',
                                                'smoothing',
                                                'line_split_cutoff',
                                                'allow_disjoint'
@@ -326,80 +423,122 @@ class SpectrumExtractor:
         if len(x) == 0 or len(y) == 0:
             return color, []
 
+        if prune_frame_components:
+            if prune_frame_components is True:
+                prune_frame_components = [prune_frame_components, prune_frame_components]
+            prune_x, prune_y = prune_frame_components
+            x_bounds, y_bounds = self.identify_frame_boundaries(
+                (x, y),
+                identified_components=[prune_x, prune_y],
+                min_line_cutoffs=frame_line_cutoffs
+            )
+            # raise Exception(x_bounds, y_bounds, (np.min(x), np.max(x)), (np.min(y), np.max(y)))
+            mask = np.logical_and(
+                np.logical_and(x_bounds[0] <= x,  x <= x_bounds[1]),
+                np.logical_and(y_bounds[0] <= y,  y <= y_bounds[1])
+            )
+
+            x = x[mask]
+            y = y[mask]
+
         y = self.img.shape[1] - y
         if extract_lines:
             lines = self.find_spectrum_lines((x, y), spectrum_direction=spectrum_direction, **line_opts)
         else:
-            lines = [np.array([x, y])]
+            lines = [[x, y]]
 
 
-        if x_range is not None:
-            if nput.is_int(x_range):
-                x_range = [0, x_range]
+        if extract_lines:
+            if x_range is not None:
+                if nput.is_int(x_range):
+                    x_range = [0, x_range]
 
-            if preserve_x_range:
-                x_mins = [
-                    np.min(xx)
-                    for xx, yy in lines
-                    if len(xx) > 0
-                ]
-                if len(x_mins) == 0:
-                    x_mins = [np.min(x)]
-
-                x_maxes = [
-                    np.max(xx)
-                    for xx, yy in lines
-                    if len(xx) > 0
-                ]
-                if len(x_maxes) == 0:
-                    x_maxes = [np.max(x)]
-
-                x_span = [
-                    min(x_mins),
-                    max(x_maxes)
-                ]
-                x_scale = (x_range[1] - x_range[0]) / (x_span[1] - x_span[0])
-                lines = [
-                    [
-                        (x - x_span[0]) * x_scale + x_range[0],
-                        y
+                if preserve_x_range:
+                    x_mins = [
+                        np.min(xx)
+                        for xx, yy in lines
+                        if len(xx) > 0
                     ]
-                    for x,y in lines
-                ]
-            else:
-                lines = [
-                    [
-                        (x - np.min(x)) * (x_range[1] - x_range[0]) / (np.max(x) - np.min(x)) + x_range[0],
-                        y
-                    ]
-                    for x, y in lines
-                ]
+                    if len(x_mins) == 0:
+                        x_mins = [np.min(x)]
 
-        if y_range is not None:
-            if nput.is_int(y_range):
-                y_range = [0, y_range]
+                    x_maxes = [
+                        np.max(xx)
+                        for xx, yy in lines
+                        if len(xx) > 0
+                    ]
+                    if len(x_maxes) == 0:
+                        x_maxes = [np.max(x)]
 
-            if preserve_y_range:
-                y_span = [
-                    min(np.min(y) for x,y in lines),
-                    max(np.max(y) for x,y in lines)
-                ]
-                y_scale = (y_range[1] - y_range[0]) / max([(y_span[1] - y_span[0]), 1])
-                lines = [
-                    [
-                        x,
-                        (y - y_span[0]) * y_scale + y_range[0],
+                    x_span = [
+                        min(x_mins),
+                        max(x_maxes)
                     ]
-                    for x,y in lines
-                ]
-            else:
-                lines = [
-                    [
-                        x,
-                        (y - np.min(y)) * (y_range[1] - y_range[0]) / (np.max(y) - np.min(y)) + y_range[0]
+                    x_scale = (x_range[1] - x_range[0]) / (x_span[1] - x_span[0])
+                    lines = [
+                        [
+                            (x - x_span[0]) * x_scale + x_range[0],
+                            y
+                        ]
+                        for x,y in lines
                     ]
-                    for x, y in lines
-                ]
+                else:
+                    lines = [
+                        [
+                            (x - np.min(x)) * (x_range[1] - x_range[0]) / (np.max(x) - np.min(x)) + x_range[0],
+                            y
+                        ]
+                        for x, y in lines
+                    ]
+
+            if y_range is not None:
+                if nput.is_int(y_range):
+                    y_range = [0, y_range]
+
+                if preserve_y_range:
+                    y_mins = [
+                        np.min(yy)
+                        for xx, yy in lines
+                        if len(yy) > 0
+                    ]
+                    if len(y_mins) == 0:
+                        y_mins = [np.min(y)]
+
+                    y_maxes = [
+                        np.max(yy)
+                        for xx, yy in lines
+                        if len(yy) > 0
+                    ]
+                    if len(y_maxes) == 0:
+                        y_maxes = [np.max(y)]
+
+                    y_span = [
+                        min(y_mins),
+                        max(y_maxes)
+                    ]
+                    y_scale = (y_range[1] - y_range[0]) / max([(y_span[1] - y_span[0]), 1])
+                    lines = [
+                        [
+                            x,
+                            (y - y_span[0]) * y_scale + y_range[0],
+                        ]
+                        for x,y in lines
+                    ]
+                else:
+                    lines = [
+                        [
+                            x,
+                            (y - np.min(y)) * (y_range[1] - y_range[0]) / (np.max(y) - np.min(y)) + y_range[0]
+                        ]
+                        for x, y in lines
+                    ]
+
+        if return_color_code:
+            color = ColorPalette.rgb_code(
+                ColorPalette.color_convert(
+                    color, color_space, 'rgb'
+                )
+            )
 
         return color, lines
 

@@ -28,24 +28,36 @@ class SpectrumTests(TestCase):
             TestManager.test_data('spec_split.png')
         )
         color, specs = extractor.extract_spectra(
-            'red',
+            'black',
             x_range=[2800, 3000],
             # tolerances=[25, 25, 25],
-            spectrum_direction='down',
+            spectrum_direction='up',
             extract_lines=True,
             smoothing=False,
             # max_pixel_distance=.02,
-            preserve_y_range=True
+            prune_frame_components=[True, False],
+            preserve_y_range=True,
+            preserve_x_range=False
         )
+
+        # fig = plt.ScatterPlot(
+        #     *specs[0],
+        #     color=color,
+        #     marker_size=.1
+        # )
+        #
+        # fig.show()
+        # return
 
         # print(specs)
         fig = None
-        for s in specs:
+        # color = plt.ColorPalette.rgb_code(
+        #             plt.ColorPalette.color_convert(color, 'lab', 'rgb')
+        #         )
+        for i,s in enumerate(specs[:2]):
             fig = plt.Plot(
                 *s,
-                color=plt.ColorPalette.rgb_code(
-                    plt.ColorPalette.color_convert(color, 'lab', 'rgb')
-                ),
+                color=plt.ColorPalette.color_lighten(color, i/3),
                 figure=fig
                 # marker_size=1
             )
