@@ -1,10 +1,11 @@
 import numpy as np
 import scipy.linalg
-
+import McUtils.Numputils as nput
 import McUtils.Coordinerds as coordops
 from .StateSpaces import AbstractStateSpace, BasisStateSpace, BraKetSpace
-# from .Representations import ExpansionRepresentation
+from .Representations import ExpansionRepresentation
 from .HarmonicOscillator import HarmonicOscillatorProductBasis
+from ..Wavefun import MatrixWavefunctions
 from . import Util as util
 
 __all__ = [
@@ -18,6 +19,8 @@ class LocalHarmonicModel:
                  anharmonic_couplings=None,
                  anharmonic_shifts=None,
                  freqs=None,
+                 modes=None,
+                 dipole_derivatives=None,
                  **operator_settings):
         self.f = np.asanyarray(f)
         self.g = np.asanyarray(g)
@@ -25,7 +28,9 @@ class LocalHarmonicModel:
             freqs = scipy.linalg.eigvalsh(self.f, self.g, type=3)
             freqs = np.sign(freqs) * np.sqrt(np.abs(freqs))
         self.freqs = np.asanyarray(freqs)
+        self.local_freqs = np.diag(f)
         self.basis = HarmonicOscillatorProductBasis(len(f))
+        self.modes = modes
         self.rep = 1 / 2 * (
                 self.basis.representation(
                     "p", "p",
@@ -41,20 +46,32 @@ class LocalHarmonicModel:
                     **operator_settings
                 )
         )
+        # self.dip_reps: list[ExpansionRepresentation] | None
+        if dipole_derivatives is not None:
+            dipole_derivatives = [
+                self.basis.representation(
+                    "x",
+                    coeffs=d,
+                    axes=[[0], [0]],
+                    name="M",
+                    **operator_settings
+                )
+                for d in dipole_derivatives
+            ]
+        self.dip_reps = dipole_derivatives
         self.internals = internals
         self.scalings = anharmonic_scalings
         self.couplings = anharmonic_couplings
         self.shifts = anharmonic_shifts
 
     def get_hamiltonian(self, states, coupled_space=None, remove_zpe=True, **rep_opts):
-        if not isinstance(states, AbstractStateSpace):
-            states = BasisStateSpace(self.basis, states)
+        states = self.prep_states(states)
         if coupled_space is None:
             if isinstance(states, BraKetSpace):
                 coupled_space = states
                 states = states.bras.take_unique()
             else:
-                coupled_space = states.get_representation_brakets()
+                coupled_space = self.rep.get_transformed_space(states, filter_space=states)[0]
         ham = self.rep.get_representation_matrix(
             coupled_space,
             states,
@@ -91,37 +108,257 @@ class LocalHarmonicModel:
 
         return ham
 
+    def get_dipoles(self, states, coupled_space=None, **rep_opts):
+        if self.dip_reps is None:
+            raise ValueError("`dipole_derivatives` must be supplied to compute dipole matrices")
+        states = self.prep_states(states)
+        if coupled_space is None:
+            if isinstance(states, BraKetSpace):
+                coupled_space = states
+                states = states.bras.take_unique()
+            else:
+                coupled_space = self.dip_reps[0].get_transformed_space(states, filter_space=states)[0]
+        return np.moveaxis(
+            np.array([
+                r.get_representation_matrix(
+                    coupled_space,
+                    states,
+                    zero_element_warning=False,
+                    **rep_opts
+                ).asarray()
+                for r in self.dip_reps
+            ]),
+            0, -1
+        )
+
+    def prep_states(self, states):
+        if not isinstance(states, AbstractStateSpace):
+            if isinstance(states, dict):
+                states = states.copy()
+                thresh = states.pop("max_freq")
+                states = BasisStateSpace.states_under_freq_threshold(
+                    self.local_freqs,
+                    thresh,
+                    **states
+                )
+                if not isinstance(states, AbstractStateSpace):
+                    states = BasisStateSpace(self.basis, states)
+                    states = states.as_sorted()
+            elif nput.is_int(states):
+                states = BasisStateSpace.from_quanta(self.basis, states)
+            else:
+                states = BasisStateSpace(self.basis, states)
+
+        return states
+    def get_wavefunctions(self, states, coupled_space=None, remove_zpe=True, include_dipoles=True,
+                          expansion_opts=None,
+                          **wfn_opts
+                          ):
+        if expansion_opts is None:
+            expansion_opts = {}
+
+        states = self.prep_states(states)
+
+        ham = self.get_hamiltonian(states, coupled_space=coupled_space, remove_zpe=remove_zpe, **expansion_opts)
+        engs, coeffs = np.linalg.eigh(ham)
+        ground_state = BasisStateSpace.from_quanta(self.basis, 0)
+        gs_loc = states.find(ground_state, missing_val=-1)[0]
+        if gs_loc == -1:
+            if remove_zpe:
+                zpe = 0
+            else:
+                zpe = np.sum(np.abs(self.freqs)) * 1/2
+            engs = np.concatenate([[zpe], engs])
+            coeffs = np.pad(coeffs, [[1, 0], [1, 0]])
+            coeffs[0, 0] = 1
+            states = ground_state.union(states)
+        elif gs_loc > 0:
+            engs = np.concatenate([engs[(gs_loc,)], engs[:gs_loc], engs[gs_loc+1:]])
+            coeffs = np.concatenate([coeffs[:, (gs_loc,)], engs[:, :gs_loc], engs[:, gs_loc+1:]], axis=1)
+
+
+        if include_dipoles:
+            dips = self.get_dipoles(states, coupled_space=coupled_space, **expansion_opts)
+        else:
+            dips = None
+
+        return LocalHarmonicWavefunctions(self,
+                                          engs, coeffs,
+                                          basis=states,
+                                          dipole_matrix=dips,
+                                          hamiltonian=ham,
+                                          **wfn_opts
+                                          )
+
     @classmethod
-    def from_modes(cls, nms, internals, oblique=True, include_complement=False, **opts):
+    def from_modes(cls, nms,
+                   internals=None,
+                   oblique=True,
+                   include_complement=False,
+                   dipole_derivatives=None,
+                   localize=True,
+                   **opts):
         from ..Modes import NormalModes
         nms:NormalModes
 
         nms = nms.remove_frequency_scaling().remove_mass_weighting()
-        loc_modes = nms.localize(internals=internals)
-        if oblique:
-            loc_modes = loc_modes.make_oblique()
-        if include_complement:
-            loc_modes = loc_modes.get_complement(concatenate=True)
+        if localize:
+            if isinstance(internals, dict):
+                dim = len(nms.freqs)
+                spaces = {}
+                subints = {}
+                subspaces_used = False
+                for n,(coord,c) in enumerate(internals.items()):
+                    if len(c) == 2 and all(nput.is_int(i) for i in c[1]):
+                        subspaces_used = True
+                        key = tuple(sorted(c[1]))
+                        if key not in spaces:
+                            spaces[key] = {}
+                        spaces[key][coord] = n
+                        subints[coord] = c[0]
+                    else:
+                        key = tuple(range(dim))
+                        if key not in spaces:
+                            spaces[key] = {}
+                        spaces[key][coord] = n
+                        subints[coord] = c
 
-        loc_modes = loc_modes.make_mass_weighted()
+                internals = subints
+                if subspaces_used:
+                    ord = []
+                    tranfs = []
+                    for space, ints in spaces.items():
+                        subnms = nms[space]
+                        sublocs = subnms.localize(internals=ints)
+                        tf = np.zeros((dim, len(ints)))
+                        inv = np.zeros((len(ints), dim))
+                        t_sub, inv_sub = sublocs.localizing_transformation
+                        tf[space, :] = t_sub
+                        inv[:, space] = inv_sub
+                        tranfs.append((tf, inv))
+                        ord.extend(ints.values())
+
+                    tf = np.concatenate([t for t,i in tranfs], axis=1)
+                    inv = np.concatenate([i for t,i in tranfs], axis=0)
+                    ord = np.argsort(ord)
+                    tf = tf[:, ord]
+                    inv = inv[ord, :]
+                    loc_modes = nms.apply_transformation((tf, inv))
+                else:
+                    loc_modes = nms.localize(internals=internals)
+            else:
+                loc_modes = nms.localize(internals=internals)
+
+            if oblique:
+                loc_modes = loc_modes.make_oblique()
+            if include_complement:
+                loc_modes = loc_modes.get_complement(concatenate=True)
+        else:
+            loc_modes = nms
+
+        if dipole_derivatives is not None:
+            # freq_conv = np.sqrt(loc_modes.compute_freqs())
+            L = loc_modes.coords_by_modes
+            if not oblique:
+                a = np.diag(1 / np.sqrt(loc_modes.local_freqs))
+                L = a @ L
+            dipole_derivatives = [ L @ d for d in dipole_derivatives]
+
+
+        # loc_modes = loc_modes.make_mass_weighted()
         f = loc_modes.local_hessian
         g = loc_modes.local_gmatrix
+
 
         return cls(
             f, g,
             internals=internals,
+            dipole_derivatives=dipole_derivatives,
+            modes=loc_modes,
             **opts
         )
 
     @classmethod
-    def from_molecule(cls, mol, internals=None,
+    def state(cls, nquanta_or_state, *tags, indices=None):
+        if isinstance(nquanta_or_state, util.product_state):
+            return nquanta_or_state
+        nquanta = nquanta_or_state
+        if nput.is_int(nquanta):
+            if all(nput.is_int(q) for q in tags):
+                return (nquanta,) + tags
+        elif isinstance(nquanta, str):
+            tags = (nquanta,) + tags
+            nquanta = None
+        elif nquanta is not None:
+            if (
+                    all(isinstance(q, str) for q in nquanta)
+                    and len(tags) == 0
+            ):
+                return cls.state(None, *nquanta, indices=indices)
+            elif nput.is_int(nquanta[0]):
+                return cls.state(*nquanta, *tags, indices=indices)
+            elif len(tags) == 0:
+                base_data = [cls.state(n) for n in nquanta]
+                indices = tuple(b.indices[0] if b.indices is not None else None for b in base_data)
+                nquanta = tuple(b.quanta[0] if b.quanta is not None else None for b in base_data)
+                tags = tuple(b.tags[0] if b.tags is not None else None for b in base_data)
+            else:
+                base_data = [cls.state(nquanta)] + [cls.state(t) for t in tags]
+                indices = tuple(b.indices[0] if b.indices is not None else None for b in base_data)
+                nquanta = tuple(b.quanta[0] if b.quanta is not None else None for b in base_data)
+                tags = tuple(b.tags[0] if b.tags is not None else None for b in base_data)
+
+        if isinstance(tags, str):
+            tags = ((tags,),)
+        elif all(isinstance(q, str) for q in tags):
+            tags = (tags,)
+        if indices is not None:
+            if nput.is_int(indices):
+                indices = (indices,)
+            elif all(i is None for i in indices):
+                indices = None
+        if nquanta is not None:
+            if nput.is_int(nquanta):
+                nquanta = (nquanta,)
+            elif all(i is None for i in nquanta):
+                nquanta = None
+        return util.product_state(indices, nquanta, tags)
+
+    @classmethod
+    def state_pair(cls, shared_atoms, state_1, state_2=None):
+        if not (
+                shared_atoms is None
+                or nput.is_int(shared_atoms)
+                or all(nput.is_int(a) for a in shared_atoms)
+        ) and state_2 is None:
+            state_1, state_2 = shared_atoms, state_1
+            shared_atoms = None
+        if shared_atoms is not None:
+            return (
+                shared_atoms,
+                cls.state(state_1),
+                cls.state(state_2),
+            )
+        else:
+            return (
+                cls.state(state_1),
+                cls.state(state_2),
+            )
+    @classmethod
+    def from_molecule(cls, mol,
+                      modes=None,
+                      internals=None,
                       coordinate_filter=None,
                       include_stretches=True,
                       include_bends=True,
                       include_dihedrals=False,
+                      dipole_derivatives=None,
+                      include_dipole=True,
                       **opts):
         from ..Molecools import Molecule
         mol: Molecule
+        if modes is None:
+            modes = mol.get_normal_modes(use_internals=False)
 
         if internals is None:
             st,bo,di = coordops.get_stretch_coordinate_system(
@@ -150,8 +387,54 @@ class LocalHarmonicModel:
             if coordinate_filter is not None:
                 internals = coordinate_filter(internals)
 
+        if dipole_derivatives is None and include_dipole:
+            if mol.dipole_derivatives is not None:
+                dipole_derivatives = mol.dipole_derivatives[1].T
+
         return cls.from_modes(
-            mol.get_normal_modes(),
+            modes,
             internals=internals,
+            dipole_derivatives=dipole_derivatives,
             **opts
+        )
+
+class LocalHarmonicWavefunctions(MatrixWavefunctions):
+    def __init__(self, model, energies, coefficients, **etc):
+        super().__init__(energies, coefficients, **etc)
+        self.model = model
+
+    def get_modification_dict(self,
+                              *,
+                              model=None,
+                              energies=None,
+                              wavefunctions=None,
+                              **etc
+                              ):
+        return dict(
+            dict(model=model if model is not None else self.model),
+            **super().get_modification_dict(
+                energies=energies,
+                wavefunctions=wavefunctions,
+                **etc
+            )
+        )
+
+    def modify(self,
+               *,
+               model=None,
+               energies=None,
+               wavefunctions=None,
+               **etc
+               ):
+        mod_dict = self.get_modification_dict(
+            model=model,
+            energies=energies,
+            wavefunctions=wavefunctions,
+            **etc
+        )
+        return type(self)(
+            mod_dict.pop('model'),
+            mod_dict.pop('energies'),
+            mod_dict.pop('wavefunctions'),
+            **mod_dict
         )

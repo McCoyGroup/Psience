@@ -1,11 +1,12 @@
 from Peeves.TestUtils import *
 from unittest import TestCase
 from Psience.Spectra import *
+import McUtils.Plots as plt
 import sys, os, numpy as np
 
 class SpectrumTests(TestCase):
 
-    @debugTest
+    @validationTest
     def test_LorentzSpectrum(self):
 
         spec = DiscreteSpectrum(
@@ -20,3 +21,31 @@ class SpectrumTests(TestCase):
         brood.plot(figure=ploot, axes_labels=["Frequency cm$^{-1}$", "Intensity km mol$^{-1}$"], image_size=500)
 
         ploot.show()
+
+    @debugTest
+    def test_ExtractSpec(self):
+        extractor = SpectrumExtractor.from_file(
+            TestManager.test_data('spec_split.png')
+        )
+        color, specs = extractor.extract_spectra(
+            'red',
+            x_range=[2800, 3000],
+            tolerances=[25, 25, 25],
+            spectrum_direction='down',
+            extract_lines=True,
+            smoothing=False,
+            max_pixel_distance=.02
+        )
+
+        # print(specs)
+        fig = None
+        for s in specs:
+            fig = plt.Plot(
+                *s,
+                color=plt.ColorPalette.rgb_code(
+                    plt.ColorPalette.color_convert(color, 'lab', 'rgb')
+                ),
+                figure=fig
+                # marker_size=1
+            )
+        fig.show()

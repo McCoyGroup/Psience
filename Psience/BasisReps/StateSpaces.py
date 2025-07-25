@@ -728,20 +728,25 @@ class BasisStateSpace(AbstractStateSpace):
         return [np.array(states) for states in window_states]
 
     @classmethod
-    def states_under_freq_threshold(cls, freqs, thresh, min_freq=None,
+    def states_under_freq_threshold(cls, freqs, max_freq, min_freq=None,
                                     max_state=None,
                                     min_quanta=None, max_quanta=None, basis=None,
                                     fixed_modes=None):
+        ord = np.argsort(freqs)
         if min_freq is None:
             min_freq = 0
-        return cls.states_in_windows(freqs,
-                                     [[min_freq, thresh]],
+        state_vecs = cls.states_in_windows(freqs[ord],
+                                     [[min_freq, max_freq]],
                                      max_state=max_state,
                                      min_quantas=[min_quanta],
                                      max_quantas=[max_quanta],
                                      basis=basis,
                                      fixed_modes=fixed_modes
                                      )[0]
+        ord_inv = np.argsort(ord)
+        state_vecs = state_vecs[:, ord_inv]
+        return state_vecs
+
 
 
     def get_mode(self):

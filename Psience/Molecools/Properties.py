@@ -1802,6 +1802,16 @@ class DipoleSurfaceManager(PropertyManager):
                 type(self).__name__,
                 ext
             ))
+        elif ext == ".hess":
+            from McUtils.ExternalPrograms import OrcaHessReader
+            with OrcaHessReader(file) as gr:
+                parse = gr.parse(['dipole_derivatives'])
+
+            dips = parse['dipole_derivatives']
+            return {
+                "analytic": [np.zeros(3), dips],
+                "numerical": None
+            }
         else:
             if quiet: return None
 

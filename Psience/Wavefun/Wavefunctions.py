@@ -6,12 +6,16 @@ import abc
 from abc import *
 import numpy as np
 
+import McUtils.Devutils as dev
+import McUtils.Numputils as nput
 from McUtils.Plots import Graphics, Plot, TriContourPlot
 from ..Spectra import DiscreteSpectrum
 
 __all__ = [
     "Wavefunction",
     "Wavefunctions",
+    "MatrixWavefunction",
+    "MatrixWavefunctions",
     "WavefunctionException"
 ]
 
@@ -254,18 +258,60 @@ class Wavefunctions:
         self.dipole_function = dipole_function
         self.opts = opts
 
+    def get_modification_dict(self,
+                              *,
+                              energies=None,
+                              wavefunctions=None,
+                              wavefunction_class=None,
+                              indices=None,
+                              dipole_function=None,
+                              opts=None,
+                              **rem_opts
+                              ):
+        if opts is None:
+            opts =dev.merge_dicts(self.opts, rem_opts)
+        return dict(
+            energies=energies if energies is not None else self.energies,
+            wavefunctions=wavefunctions if wavefunctions is not None else self.wavefunctions,
+            wavefunction_class=wavefunction_class if wavefunction_class is not None else self.wavefunction_class,
+            indices=indices if indices is not None else self.indices,
+            dipole_function=dipole_function if dipole_function is not None else self.dipole_function,
+            **opts
+        )
+    def modify(self,
+               *,
+               energies=None,
+               wavefunctions=None,
+               wavefunction_class=None,
+               indices=None,
+               dipole_function=None,
+               opts=None,
+               **rem_opts
+               ):
+        mod_dict = self.get_modification_dict(
+            energies=energies,
+            wavefunctions=wavefunctions,
+            wavefunction_class=wavefunction_class,
+            indices=indices,
+            dipole_function=dipole_function,
+            opts=opts,
+            **rem_opts
+        )
+        return type(self)(
+            mod_dict.pop('energies'),
+            mod_dict.pop('wavefunctions'),
+            **mod_dict
+        )
+
     def get_wavefunctions(self, which):
         inds = self.indices
         if inds is None:
             inds = np.arange(len(self.wavefunctions))
         if not isinstance(which, (int, np.integer)):
-            return type(self)(
+            return self.modify(
                 energies=self.energies[which,],
                 wavefunctions=self.wavefunctions[:, which],
-                wavefunction_class=self.wavefunction_class,
-                indices=inds[which,],
-                dipole_function=self.dipole_function,
-                **self.opts
+                indices=inds[which,]
             )
         else:
             return self.wavefunction_class(
@@ -300,8 +346,9 @@ class Wavefunctions:
             raise ValueError("a dipole function is required to get a spectrum (none stored in wavefunctions)")
         freqs = self.frequencies(start_at=start_at)
         transition_moments = self.expectation(dipole_function,
+                                              other=self[(start_at,)],
                                               **options,
-                                              )[start_at]
+                                              ).reshape(-1, 3)
         transition_moments = np.concatenate([
             transition_moments[:start_at],
             transition_moments[start_at+1:]
@@ -402,3 +449,160 @@ class Wavefunctions:
         :rtype:
         """
         raise NotImplementedError("no KE implemented for {}".format(self))
+
+class MatrixWavefunction(Wavefunction):
+    """
+    Simple wave function that takes a set of expansion coefficients alongside its basis.
+    Technically this should be called a _linear expansion wave function_, but
+    that was too long for my taste.
+    """
+    def __init__(self, energy, coefficient_vector, basis=None, dipole_matrix=None, dipole_function=None, **etc):
+        """
+        :param energy: energy of the wavefunction
+        :type energy: float
+        :param coefficients: expansion coefficients
+        :type coefficients: Iterable[float]
+        :param basis_wfns: basis functions for the expansion
+        :type basis_wfns: Wavefunctions
+        """
+        if dipole_function is None:
+            dipole_function = self._get_dipoles
+        self.dipole_matrix = dipole_matrix
+        super().__init__(
+            energy,
+            {
+                'coeffs':coefficient_vector,
+                'basis':basis
+            },
+            dipole_function=dipole_function
+            **etc
+        )
+
+    @property
+    def coeffs(self):
+        return self.data['coeffs']
+    @property
+    def basis(self):
+        return self.data['basis']
+
+    def evaluate(self, *args, **kwargs):
+        """
+        Evaluates the wavecfunction as any other linear expansion.
+
+        :param args: coordinates + any other args the basis takes
+        :type args:
+        :param kwargs: any keyword arguments the basis takes
+        :type kwargs:
+        :return: values of the wavefunction
+        :rtype:
+        """
+        if self.basis is None:
+            raise ValueError("can't evaluate without basis")
+        return np.dot(self.data['coeffs'], self.basis(*args, **kwargs))
+
+    def _get_dipoles(self, _):
+        return self.dipole_matrix
+
+    def expect(self, operator):
+        """
+        Provides the expectation value of the operator `op`.
+        Uses the basis to compute the reps and then expands with the expansion coeffs.
+
+        :param operator:
+        :type operator:
+        :return:
+        :rtype:
+        """
+        return np.dot(np.dot(self.data['coeffs'], operator), self.data['coeffs'])
+
+    def expectation(self, operator, other):
+        """
+        Computes the expectation value of operator `op` over the wavefunction `other` and `self`.
+        **Note**: _the basis of `other`, `self`, and `op` are assumed to be the same_.
+
+        :param op: an operator represented in the basis of the expansion
+        :type op: Operator
+        :param other: the other wavefunction to expand over
+        :type other: ExpansionWavefunction
+        :return:
+        :rtype:
+        """
+
+        return np.dot(np.dot(self.data['coeffs'], operator), other.data['coeffs'])
+
+    def probability_density(self):
+        """Computes the probability density of the current wavefunction
+
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("expansion wave function probability densities not yet implemented")
+
+    def project(self, dofs):
+        """
+        Computes the projection of the current wavefunction onto a set of degrees
+        of freedom
+
+        :return:
+        :rtype:
+        """
+        raise NotImplementedError("expansion wave function projections not yet implemented")
+
+class MatrixWavefunctions(Wavefunctions):
+    wavefunctions: np.ndarray
+    def __init__(self, energies, coefficients,
+                 basis=None,
+                 hamiltonian=None,
+                 dipole_matrix=None,
+                 dipole_function=None, wavefunction_class=None, **ops):
+        # self._coeffs = coefficients
+        # self._energies = energies
+        self.basis = basis
+        self.hamiltonian = hamiltonian
+        self.dipole_matrix = dipole_matrix
+        if dipole_function is None:
+            dipole_function = self._get_dipoles
+        if wavefunction_class is None:
+            wavefunction_class = MatrixWavefunction
+        super().__init__(energies, coefficients,
+                         dipole_function=dipole_function,
+                         wavefunction_class=wavefunction_class,
+                         **ops
+                         )
+
+    def _get_dipoles(self, _):
+        return self.dipole_matrix
+
+    def expectation(self, op, other=None):
+        if other is None:
+            other = self
+        if not nput.is_numeric_array_like(op):
+            op = op(self)
+        op = np.asanyarray(op)
+        return np.tensordot(
+            self.wavefunctions,
+            np.tensordot(
+                other.wavefunctions,
+                op,
+                axes=[0, 0]
+            ),
+            axes=[0, 1]
+        )
+
+    # def expect(self, op, other):
+    #     """
+    #     Provides expectation values of the wavefunctions o
+    #     :param op:
+    #     :type op:
+    #     :param other:
+    #     :type other:
+    #     :return:
+    #     :rtype:
+    #     """
+    #     return NotImplemented
+
+
+    # def get_wavefunctions(self, which):
+    #     energy = self.energies[which]
+    #     wfn = self.wavefunctions[which]
+    #     return self.wavefunction_class(energy, wfn, self._basis)
