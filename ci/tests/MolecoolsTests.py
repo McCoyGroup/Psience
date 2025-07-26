@@ -1995,6 +1995,27 @@ class MolecoolsTests(TestCase):
         )
         setup = propylbenzene_setup.partial_force_field()
 
+    @validationTest
+    def test_CoordinateSystems(self):
+        import McUtils.Coordinerds as coordops
+
+        propylbenzene = Molecule.from_file(
+            TestManager.test_data('proplybenz.hess')
+        )
+        coords = propylbenzene.get_bond_graph_internals(pruning=True)
+        # g12 = propylbenzene.get_gmatrix(power=1/2)
+        # def b_gen(pos, crds):
+        #     return g12 @ nput.internal_coordinate_tensors(propylbenzene.coords, crds, order=1)[1]
+        #
+        # pruned = coordops.prune_internal_coordinates(
+        #     coords,
+        #     b_gen,
+        #     method='b_matrix'
+        # )
+        # # pruned = coordops.prune_internal_coordinates(coords)
+        # print(coords)
+
+
     @debugTest
     def test_ModeLabels(self):
         import McUtils.Coordinerds as coordops
@@ -2002,44 +2023,9 @@ class MolecoolsTests(TestCase):
         propylbenzene = Molecule.from_file(
             TestManager.test_data('proplybenz.hess')
         )
-        modes = propylbenzene.get_normal_modes().remove_mass_weighting()
-        internals = propylbenzene.get_labeled_internals()
 
-        redundant_tf, expansions = coordops.RedundantCoordinateGenerator(
-            internals,
-            masses=propylbenzene.atomic_masses,
-            relocalize=True,
-            untransformed_coordinates=[0, 1]
-        ).compute_redundant_expansions(propylbenzene.coords)
-
-        redund_labs = coordops.get_mode_labels(
-            internals,
-            redundant_tf,
-            norm_cutoff=.3
-        )
-
-        g = expansions[0].T @ propylbenzene.get_gmatrix() @ expansions[0]
-        g12 = nput.fractional_power(g, 1 / 2)
-        inv_expansion = nput.inverse_internal_coordinate_tensors(
-            expansions,
-            coords=propylbenzene.coords,
-            masses=propylbenzene.atomic_masses,
-            order=1,
-            remove_translation_rotation=True
-        )
-        internal_modes = g12 @ inv_expansion[0] @ modes.modes_by_coords
-
-        # with np.printoptions(linewidth=1e8, suppress=True):
-        #     print(np.round((internal_modes @ internal_modes.T), 2))
-        # return
-        # print(redund_labs[0])
-        # plt.ArrayPlot(internal_modes**2).show()
-
-        mode_labs = coordops.get_mode_labels(
-            redund_labs,
-            internal_modes,
-            norm_cutoff=.8
-        )
+        modes = propylbenzene.get_normal_modes()
+        mode_labs = propylbenzene.get_mode_labels(pruning=True, use_redundants=False)
 
         for i,(freq,lab) in enumerate(zip(reversed(modes.freqs), reversed(mode_labs))):
             print(
