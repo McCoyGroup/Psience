@@ -1,5 +1,7 @@
 import numpy as np
 import scipy.linalg
+from McUtils.Data import UnitsData
+import McUtils.Devutils as dev
 import McUtils.Numputils as nput
 import McUtils.Coordinerds as coordops
 from .StateSpaces import AbstractStateSpace, BasisStateSpace, BraKetSpace
@@ -9,7 +11,9 @@ from ..Wavefun import MatrixWavefunctions
 from . import Util as util
 
 __all__ = [
-    "LocalHarmonicModel"
+    "LocalHarmonicModel",
+    "CustomLocalHarmonicModel",
+    "TaborCHModel"
 ]
 
 class LocalHarmonicModel:
@@ -191,8 +195,109 @@ class LocalHarmonicModel:
                                           )
 
     @classmethod
+    def localize_internal_modes(cls, nms, internals,
+                                localization_mode_spaces=None
+                                ):
+
+
+        if isinstance(internals, dict):
+            dim = len(nms.freqs)
+            spaces = {}
+            subints = {}
+            subspaces_used = False
+            for n, (coord, c) in enumerate(internals.items()):
+                if (
+                        len(c) == 2
+                        and all(nput.is_int(i) for i in c[1])
+                ):
+                    subspaces_used = True
+                    key = tuple(sorted(c[1]))
+                    if key not in spaces:
+                        spaces[key] = {}
+                    spaces[key][coord] = n
+                    subints[coord] = c[0]
+                elif localization_mode_spaces is not None:
+                    space = localization_mode_spaces.get(coord)
+                    if space is not None:
+                        subspaces_used = True
+                        key = tuple(space)
+                        if key not in spaces:
+                            spaces[key] = {}
+                        spaces[key][coord] = n
+                        subints[coord] = c
+                    elif isinstance(c, str):
+                        space = localization_mode_spaces.get(c)
+                        if space is not None:
+                            subspaces_used = True
+                            key = tuple(space)
+                            if key not in spaces:
+                                spaces[key] = {}
+                            spaces[key][coord] = n
+                            subints[coord] = c
+                        else:
+                            key = tuple(range(dim))
+                            if key not in spaces:
+                                spaces[key] = {}
+                            spaces[key][coord] = n
+                            subints[coord] = c
+                    else:
+                        for i in range(len(c)):
+                            sub = tuple(c[i:])
+                            space = localization_mode_spaces.get(sub)
+                            if space is not None:
+                                subspaces_used = True
+                                key = tuple(space)
+                                if key not in spaces:
+                                    spaces[key] = {}
+                                spaces[key][coord] = n
+                                subints[coord] = c
+                                break
+                        else:
+                            key = tuple(range(dim))
+                            if key not in spaces:
+                                spaces[key] = {}
+                            spaces[key][coord] = n
+                            subints[coord] = c
+
+                else:
+                    key = tuple(range(dim))
+                    if key not in spaces:
+                        spaces[key] = {}
+                    spaces[key][coord] = n
+                    subints[coord] = c
+
+            internals = subints
+            if subspaces_used:
+                ord = []
+                tranfs = []
+                for space, ints in spaces.items():
+                    subnms = nms[space]
+                    sublocs = subnms.localize(internals=ints)
+                    tf = np.zeros((dim, len(ints)))
+                    inv = np.zeros((len(ints), dim))
+                    t_sub, inv_sub = sublocs.localizing_transformation
+                    tf[space, :] = t_sub
+                    inv[:, space] = inv_sub
+                    tranfs.append((tf, inv))
+                    ord.extend(ints.values())
+
+                tf = np.concatenate([t for t, i in tranfs], axis=1)
+                inv = np.concatenate([i for t, i in tranfs], axis=0)
+                ord = np.argsort(ord)
+                tf = tf[:, ord]
+                inv = inv[ord, :]
+                loc_modes = nms.apply_transformation((tf, inv))
+            else:
+                loc_modes = nms.localize(internals=internals)
+        else:
+            loc_modes = nms.localize(internals=internals)
+
+        return loc_modes
+
+    @classmethod
     def from_modes(cls, nms,
                    internals=None,
+                   localization_mode_spaces=None,
                    oblique=True,
                    include_complement=False,
                    dipole_derivatives=None,
@@ -203,51 +308,11 @@ class LocalHarmonicModel:
 
         nms = nms.remove_frequency_scaling().remove_mass_weighting()
         if localize:
-            if isinstance(internals, dict):
-                dim = len(nms.freqs)
-                spaces = {}
-                subints = {}
-                subspaces_used = False
-                for n,(coord,c) in enumerate(internals.items()):
-                    if len(c) == 2 and all(nput.is_int(i) for i in c[1]):
-                        subspaces_used = True
-                        key = tuple(sorted(c[1]))
-                        if key not in spaces:
-                            spaces[key] = {}
-                        spaces[key][coord] = n
-                        subints[coord] = c[0]
-                    else:
-                        key = tuple(range(dim))
-                        if key not in spaces:
-                            spaces[key] = {}
-                        spaces[key][coord] = n
-                        subints[coord] = c
-
-                internals = subints
-                if subspaces_used:
-                    ord = []
-                    tranfs = []
-                    for space, ints in spaces.items():
-                        subnms = nms[space]
-                        sublocs = subnms.localize(internals=ints)
-                        tf = np.zeros((dim, len(ints)))
-                        inv = np.zeros((len(ints), dim))
-                        t_sub, inv_sub = sublocs.localizing_transformation
-                        tf[space, :] = t_sub
-                        inv[:, space] = inv_sub
-                        tranfs.append((tf, inv))
-                        ord.extend(ints.values())
-
-                    tf = np.concatenate([t for t,i in tranfs], axis=1)
-                    inv = np.concatenate([i for t,i in tranfs], axis=0)
-                    ord = np.argsort(ord)
-                    tf = tf[:, ord]
-                    inv = inv[ord, :]
-                    loc_modes = nms.apply_transformation((tf, inv))
-                else:
-                    loc_modes = nms.localize(internals=internals)
-            else:
-                loc_modes = nms.localize(internals=internals)
+            loc_modes = cls.localize_internal_modes(
+                nms,
+                internals,
+                localization_mode_spaces=localization_mode_spaces
+            )
 
             if oblique:
                 loc_modes = loc_modes.make_oblique()
@@ -344,11 +409,18 @@ class LocalHarmonicModel:
                 cls.state(state_1),
                 cls.state(state_2),
             )
+
     @classmethod
     def from_molecule(cls, mol,
                       modes=None,
                       internals=None,
                       coordinate_filter=None,
+                      allowed_coordinate_types=None,
+                      excluded_coordinate_types=None,
+                      allowed_ring_types=None,
+                      excluded_ring_types=None,
+                      allowed_group_types=None,
+                      excluded_group_types=None,
                       include_stretches=True,
                       include_bends=True,
                       include_dihedrals=False,
@@ -361,31 +433,18 @@ class LocalHarmonicModel:
             modes = mol.get_normal_modes(use_internals=False)
 
         if internals is None:
-            st,bo,di = coordops.get_stretch_coordinate_system(
-                [tuple(b[:2]) for b in mol.bonds]
+            internals = mol.get_labeled_internals(
+                coordinate_filter=coordinate_filter,
+                allowed_coordinate_types=allowed_coordinate_types,
+                excluded_coordinate_types=excluded_coordinate_types,
+                allowed_ring_types=allowed_ring_types,
+                excluded_ring_types=excluded_ring_types,
+                allowed_group_types=allowed_group_types,
+                excluded_group_types=excluded_group_types,
+                include_stretches=include_stretches,
+                include_bends=include_bends,
+                include_dihedrals=include_dihedrals
             )
-            bits = []
-            if include_stretches:
-                bits.append(st)
-            if include_bends:
-                bits.append(bo)
-            if include_dihedrals:
-                bits.append(di)
-            internals = bits[0]
-            for b in bits[1:]:
-                internals = internals + b
-
-            labels = mol.edge_graph.get_label_types()
-            internals = {
-                c:coordops.get_coordinate_label(
-                    c,
-                    labels
-                )
-                for c in internals
-            }
-
-            if coordinate_filter is not None:
-                internals = coordinate_filter(internals)
 
         if dipole_derivatives is None and include_dipole:
             if mol.dipole_derivatives is not None:
@@ -438,3 +497,121 @@ class LocalHarmonicWavefunctions(MatrixWavefunctions):
             mod_dict.pop('wavefunctions'),
             **mod_dict
         )
+
+class CustomLocalHarmonicModel(LocalHarmonicModel):
+    default_localization_settings = {}
+    default_molecule_settings = {}
+    default_scalings = {}
+    default_couplings = {}
+    default_shifts = {}
+
+    def __init__(self,
+                 f, g,
+                 internals=None,
+                 anharmonic_scalings=None,
+                 anharmonic_couplings=None,
+                 anharmonic_shifts=None,
+                 dipole_derivatives=None,
+                 **etc
+                 ):
+        if anharmonic_scalings is None:
+            anharmonic_scalings = {}
+        anharmonic_scalings = dev.merge_dicts(self.default_scalings, anharmonic_scalings)
+        if anharmonic_couplings is None:
+            anharmonic_couplings = {}
+        anharmonic_couplings = dev.merge_dicts(self.default_couplings, anharmonic_couplings)
+        if anharmonic_shifts is None:
+            anharmonic_shifts = {}
+        anharmonic_shifts = dev.merge_dicts(self.default_shifts, anharmonic_shifts)
+
+        super().__init__(
+            f, g,
+            internals=internals,
+            anharmonic_scalings=anharmonic_scalings,
+            anharmonic_couplings=anharmonic_couplings,
+            anharmonic_shifts=anharmonic_shifts,
+            dipole_derivatives=dipole_derivatives,
+            **etc
+        )
+
+    @classmethod
+    def from_modes(cls,
+                   nms,
+                   internals=None,
+                   dipole_derivatives=None,
+                   **opts):
+        opts = dev.merge_dicts(cls.default_localization_settings, opts)
+        return super().from_modes(
+            nms,
+            internals=internals,
+            dipole_derivatives=dipole_derivatives,
+            **opts
+        )
+
+    @classmethod
+    def from_molecule(cls,
+                      mol,
+                      modes=None,
+                      internals=None,
+                      dipole_derivatives=None,
+                      **opts):
+        opts = dev.merge_dicts(cls.default_molecule_settings, opts)
+        return super().from_molecule(
+            mol,
+            internals=internals,
+            dipole_derivatives=dipole_derivatives,
+            **opts
+        )
+
+
+class TaborCHModel(CustomLocalHarmonicModel):
+    default_localization_settings = {"oblique":False}
+    default_molecule_settings = dict(
+        allowed_coordinate_types={'CH', 'HCH', 'NH', 'OH'},
+        excluded_ring_types={'benzene'}
+    )
+    default_scalings = {
+        LocalHarmonicModel.state("NH", "stretch"): 0.961,
+        LocalHarmonicModel.state("methyl", "CH", "stretch"): 0.961,
+        LocalHarmonicModel.state("ethyl", "CH", "stretch"): 0.961,
+        LocalHarmonicModel.state("HCH", "bend"): 0.975,  # fundamentals and overtones
+        LocalHarmonicModel.state(("HCH", "bend"), ("HCH", "bend")): 0.975,  # combination band
+    }
+    default_couplings = {
+        # CH to adjacent bend overtone
+        LocalHarmonicModel.state_pair(
+            2,  # shared atoms
+            ("CH", "stretch"),  # stretch fundamental
+            (2, ("HCH", "bend"))  # bend overtone
+        ): 22 / UnitsData.hartrees_to_wavenumbers,
+
+        # CH3 to opposite bend combination
+        LocalHarmonicModel.state_pair(
+            ((2, 1),),  # shared atoms
+            ("CH", "stretch"),  # stretch fundamental
+            (("HCH", "bend"), ("HCH", "bend"))  # bend overtone
+        ): 5.6 / UnitsData.hartrees_to_wavenumbers,
+        LocalHarmonicModel.state_pair(
+            ((1, 2),),  # shared atoms
+            ("CH", "stretch"),  # stretch fundamental
+            (("HCH", "bend"), ("HCH", "bend"))  # bend overtone
+        ): 5.6 / UnitsData.hartrees_to_wavenumbers,
+
+        # CH3 to adjacent bend combination
+        LocalHarmonicModel.state_pair(
+            ((2, 2),),  # shared atoms
+            ("CH", "stretch"),  # stretch fundamental
+            (("HCH", "bend"), ("HCH", "bend"))  # bend overtone
+        ): 1.5 / UnitsData.hartrees_to_wavenumbers,
+        LocalHarmonicModel.state_pair(
+            ((2, 2),),  # shared atoms
+            ("CH", "stretch"),  # stretch fundamental
+            (("HCH", "bend"), ("HCH", "bend"))  # bend overtone
+        ): 1.5 / UnitsData.hartrees_to_wavenumbers
+    }
+    default_shifts = {
+        # internal-matching localization overshoots mildly
+        ("ethyl", "CH", "stretch"): -4 / UnitsData.hartrees_to_wavenumbers,
+        # internal-matching localization requires less bend overtone shifting
+        ("HCH", "bend"): -2 * 9.6 / UnitsData.hartrees_to_wavenumbers
+    }

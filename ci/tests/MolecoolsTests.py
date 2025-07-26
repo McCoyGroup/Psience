@@ -1995,15 +1995,86 @@ class MolecoolsTests(TestCase):
         )
         setup = propylbenzene_setup.partial_force_field()
 
-
     @debugTest
-    def test_AutoCHModel(self):
+    def test_ModeLabels(self):
         import McUtils.Coordinerds as coordops
-        from Psience.BasisReps import LocalHarmonicModel, StateMaker
 
         propylbenzene = Molecule.from_file(
             TestManager.test_data('proplybenz.hess')
         )
+        modes = propylbenzene.get_normal_modes().remove_mass_weighting()
+        internals = propylbenzene.get_labeled_internals()
+
+        redundant_tf, expansions = coordops.RedundantCoordinateGenerator(
+            internals,
+            masses=propylbenzene.atomic_masses,
+            relocalize=True,
+            untransformed_coordinates=[0, 1]
+        ).compute_redundant_expansions(propylbenzene.coords)
+
+        redund_labs = coordops.get_mode_labels(
+            internals,
+            redundant_tf,
+            norm_cutoff=.3
+        )
+
+        g = expansions[0].T @ propylbenzene.get_gmatrix() @ expansions[0]
+        g12 = nput.fractional_power(g, 1 / 2)
+        inv_expansion = nput.inverse_internal_coordinate_tensors(
+            expansions,
+            coords=propylbenzene.coords,
+            masses=propylbenzene.atomic_masses,
+            order=1,
+            remove_translation_rotation=True
+        )
+        internal_modes = g12 @ inv_expansion[0] @ modes.modes_by_coords
+
+        # with np.printoptions(linewidth=1e8, suppress=True):
+        #     print(np.round((internal_modes @ internal_modes.T), 2))
+        # return
+        # print(redund_labs[0])
+        # plt.ArrayPlot(internal_modes**2).show()
+
+        mode_labs = coordops.get_mode_labels(
+            redund_labs,
+            internal_modes,
+            norm_cutoff=.8
+        )
+
+        for i,(freq,lab) in enumerate(zip(reversed(modes.freqs), reversed(mode_labs))):
+            print(
+                "Mode {}: {:.0f} {}".format(i+1, freq * UnitsData.hartrees_to_wavenumbers,
+                                            "mixed"
+                                                if lab.type is None else
+                                            lab.type
+                                            )
+            )
+
+        return
+
+
+    @validationTest
+    def test_AutoCHModel(self):
+        # import McUtils.Devutils as dev
+        #
+        # print(dev.merge_dicts(
+        #     {},
+        #     {'a':{"1":{1}}}
+        # ))
+        # return
+
+        import McUtils.Coordinerds as coordops
+        from Psience.BasisReps import LocalHarmonicModel, StateMaker, TaborCHModel
+
+        propylbenzene = Molecule.from_file(
+            TestManager.test_data('proplybenz.hess')
+        )
+
+        print(
+            TaborCHModel.from_molecule(propylbenzene).internals
+        )
+        return
+
 
         lhm = LocalHarmonicModel
         model = LocalHarmonicModel.from_molecule(
@@ -2014,12 +2085,17 @@ class MolecoolsTests(TestCase):
             #     for c, l in coords.items()
             #     if l.atoms in {'CH', 'HCH'}
             # },
+            localization_mode_spaces = {
+                ("CH", "stretch"):[-12, -11, -10, -9, -8, -7, -6],
+                ("HCH", "bend"):[-21, -19, -18, -17, -16]
+            },
             coordinate_filter=lambda coords: {
-                c: (l,
-                    [-12, -11, -10, -9, -8, -7, -6]
-                        if l.atoms == "CH" else
-                    [-21, -19, -18, -17, -16]
-                    )
+                c:l
+                # c: (l,
+                #     [-12, -11, -10, -9, -8, -7, -6]
+                #         if l.atoms == "CH" else
+                #     [-21, -19, -18, -17, -16]
+                #     )
                 for c, l in coords.items()
                 if l.atoms in {'CH', 'HCH'} and l.ring != 'benzene'
             },
@@ -2080,7 +2156,7 @@ class MolecoolsTests(TestCase):
             'min_freq': 2500 / UnitsData.hartrees_to_wavenumbers,
             'max_quanta': 3
         })
-        print(wfns.basis.excitations)
+        # print(wfns.basis.excitations)
         #     state(1),
         #     state(2),
         #     state(3),

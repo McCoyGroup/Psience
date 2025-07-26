@@ -472,6 +472,104 @@ class Molecule(AbstractMolecule):
     def redundant_internal_transformation(self):
         return self.embedding.redundant_internal_transformation
 
+    @classmethod
+    def _check_label(cls, label,
+                     allowed_coordinate_types=None,
+                     excluded_coordinate_types=None,
+                     allowed_ring_types=None,
+                     excluded_ring_types=None,
+                     allowed_group_types=None,
+                     excluded_group_types=None,
+                     ):
+        if allowed_coordinate_types is not None:
+            if label.atoms not in allowed_coordinate_types: return False
+        if excluded_coordinate_types is not None:
+            if label.atoms in excluded_coordinate_types: return False
+        if allowed_ring_types is not None:
+            if label.ring not in allowed_ring_types: return False
+        if excluded_ring_types is not None:
+            if label.ring in excluded_ring_types: return False
+        if allowed_group_types is not None:
+            if label.group not in allowed_group_types: return False
+        if excluded_group_types is not None:
+            if label.group in excluded_group_types: return False
+        return True
+
+    @classmethod
+    def get_coordinate_filer(cls,
+                             allowed_coordinate_types=None,
+                             excluded_coordinate_types=None,
+                             allowed_ring_types=None,
+                             excluded_ring_types=None,
+                             allowed_group_types=None,
+                             excluded_group_types=None
+                             ):
+        def coordinate_filter(coords):
+            return {
+                c: l
+                for c, l in coords.items()
+                if cls._check_label(l,
+                                    allowed_coordinate_types=allowed_coordinate_types,
+                                    excluded_coordinate_types=excluded_coordinate_types,
+                                    allowed_ring_types=allowed_ring_types,
+                                    excluded_ring_types=excluded_ring_types,
+                                    allowed_group_types=allowed_group_types,
+                                    excluded_group_types=excluded_group_types
+                                    )
+            }
+
+        return coordinate_filter
+
+    def get_labeled_internals(self,
+                             coordinate_filter=None,
+                             allowed_coordinate_types=None,
+                             excluded_coordinate_types=None,
+                             allowed_ring_types=None,
+                             excluded_ring_types=None,
+                             allowed_group_types=None,
+                             excluded_group_types=None,
+                             include_stretches=True,
+                             include_bends=True,
+                             include_dihedrals=True
+                             ):
+        st, bo, di = coordops.get_stretch_coordinate_system(
+            [tuple(b[:2]) for b in self.bonds]
+        )
+        bits = []
+        if include_stretches:
+            bits.append(st)
+        if include_bends:
+            bits.append(bo)
+        if include_dihedrals:
+            bits.append(di)
+        internals = bits[0]
+        for b in bits[1:]:
+            internals = internals + b
+
+        labels = self.edge_graph.get_label_types()
+        internals = {
+            c: coordops.get_coordinate_label(
+                c,
+                labels
+            )
+            for c in internals
+        }
+
+        if coordinate_filter is None:
+            coordinate_filter = self.get_coordinate_filer(
+                allowed_coordinate_types=allowed_coordinate_types,
+                excluded_coordinate_types=excluded_coordinate_types,
+                allowed_ring_types=allowed_ring_types,
+                excluded_ring_types=excluded_ring_types,
+                allowed_group_types=allowed_group_types,
+                excluded_group_types=excluded_group_types,
+            )
+
+        if coordinate_filter is not None:
+            internals = coordinate_filter(internals)
+
+        return internals
+
     @property
     def mode_embedding(self):
         if self._mode_embedding is None:
