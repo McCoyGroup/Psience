@@ -5,6 +5,7 @@ Provides support for handling modes that arise from
 import enum
 import numpy as np, scipy
 import McUtils.Numputils as nput
+from collections import namedtuple
 from McUtils.Coordinerds import CoordinateSystem, CartesianCoordinateSystem3D, InternalCoordinateSystem
 
 # from .MoleculeInterface import AbstractMolecule
@@ -496,6 +497,7 @@ class MixtureModes(CoordinateSystem):
                                                localization_type='ned',
                                                allow_mode_mixing=False,
                                                maximum_similarity=False,
+                                               orthogonal_projection=False,
                                                unitarize=True,
                                                zero_freq_cutoff=None
                                                ):
@@ -506,6 +508,8 @@ class MixtureModes(CoordinateSystem):
         else:
             m = masses
         nats = len(m)
+        if orthogonal_projection:
+            atoms = np.setdiff1d(np.arange(nats), atoms)
 
         proj = (
             [self._atom_projector(nats, atoms)]

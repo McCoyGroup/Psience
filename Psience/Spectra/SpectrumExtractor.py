@@ -174,6 +174,15 @@ class SpectrumExtractor:
                 [[x, np.average(y)] for x, y in l]
                 for l in lines
             ]
+            if nput.is_int(smoothing) and smoothing is not True:
+                lines = [np.array(l).T for l in lines]
+                lines = [
+                    np.array([
+                        np.convolve(x, np.ones(smoothing), mode='valid') / smoothing,
+                        np.convolve(y, np.ones(smoothing), mode='valid') / smoothing
+                    ]).T
+                    for x,y in lines
+                ]
         else:
             lines = [
                 sum(
@@ -185,10 +194,7 @@ class SpectrumExtractor:
 
         return [
             np.array(l).T
-            for l in sorted(
-                (ll for ll in lines if len(ll) > min_line_cutoff),
-                key=lambda x:-len(x)
-            )
+            for l in sorted(lines, key=lambda x:-len(x))
         ]
 
     default_merge_tolerances = [10, 10, 10]
@@ -369,6 +375,7 @@ class SpectrumExtractor:
                         y_range=(0, 1),
                         preserve_x_range=True,
                         preserve_y_range=False,
+                        use_entire_pixel_range=True,
                         return_color_code=True,
                         **opts
                         ):
@@ -449,31 +456,39 @@ class SpectrumExtractor:
 
 
         if extract_lines:
+            if use_entire_pixel_range is True:
+                use_entire_pixel_range = [True, False]
             if x_range is not None:
                 if nput.is_int(x_range):
                     x_range = [0, x_range]
 
                 if preserve_x_range:
-                    x_mins = [
-                        np.min(xx)
-                        for xx, yy in lines
-                        if len(xx) > 0
-                    ]
-                    if len(x_mins) == 0:
-                        x_mins = [np.min(x)]
+                    if use_entire_pixel_range[0]:
+                        x_span = [
+                            np.min(x),
+                            np.max(x)
+                        ]
+                    else:
+                        x_mins = [
+                            np.min(xx)
+                            for xx, yy in lines
+                            if len(xx) > 0
+                        ]
+                        if len(x_mins) == 0:
+                            x_mins = [np.min(x)]
 
-                    x_maxes = [
-                        np.max(xx)
-                        for xx, yy in lines
-                        if len(xx) > 0
-                    ]
-                    if len(x_maxes) == 0:
-                        x_maxes = [np.max(x)]
+                        x_maxes = [
+                            np.max(xx)
+                            for xx, yy in lines
+                            if len(xx) > 0
+                        ]
+                        if len(x_maxes) == 0:
+                            x_maxes = [np.max(x)]
 
-                    x_span = [
-                        min(x_mins),
-                        max(x_maxes)
-                    ]
+                        x_span = [
+                            min(x_mins),
+                            max(x_maxes)
+                        ]
                     x_scale = (x_range[1] - x_range[0]) / (x_span[1] - x_span[0])
                     lines = [
                         [
@@ -496,26 +511,31 @@ class SpectrumExtractor:
                     y_range = [0, y_range]
 
                 if preserve_y_range:
-                    y_mins = [
-                        np.min(yy)
-                        for xx, yy in lines
-                        if len(yy) > 0
-                    ]
-                    if len(y_mins) == 0:
-                        y_mins = [np.min(y)]
+                    if use_entire_pixel_range[0]:
+                        y_span = [
+                            np.min(y),
+                            np.max(y)
+                        ]
+                    else:
+                        y_mins = [
+                            np.min(yy)
+                            for xx, yy in lines
+                            if len(yy) > 0
+                        ]
+                        if len(y_mins) == 0:
+                            y_mins = [np.min(y)]
 
-                    y_maxes = [
-                        np.max(yy)
-                        for xx, yy in lines
-                        if len(yy) > 0
-                    ]
-                    if len(y_maxes) == 0:
-                        y_maxes = [np.max(y)]
-
-                    y_span = [
-                        min(y_mins),
-                        max(y_maxes)
-                    ]
+                        y_maxes = [
+                            np.max(yy)
+                            for xx, yy in lines
+                            if len(yy) > 0
+                        ]
+                        if len(y_maxes) == 0:
+                            y_maxes = [np.max(y)]
+                        y_span = [
+                            min(y_mins),
+                            max(y_maxes)
+                        ]
                     y_scale = (y_range[1] - y_range[0]) / max([(y_span[1] - y_span[0]), 1])
                     lines = [
                         [
