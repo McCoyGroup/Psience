@@ -520,18 +520,12 @@ class Molecule(AbstractMolecule):
 
         return coordinate_filter
 
-    def get_labeled_internals(self,
-                             coordinate_filter=None,
-                             allowed_coordinate_types=None,
-                             excluded_coordinate_types=None,
-                             allowed_ring_types=None,
-                             excluded_ring_types=None,
-                             allowed_group_types=None,
-                             excluded_group_types=None,
-                             include_stretches=True,
-                             include_bends=True,
-                             include_dihedrals=True
-                             ):
+    def get_bond_graph_internals(self,
+                                 include_stretches=True,
+                                 include_bends=True,
+                                 include_dihedrals=True,
+                                 pruning=None
+                                 ):
         st, bo, di = coordops.get_stretch_coordinate_system(
             [tuple(b[:2]) for b in self.bonds]
         )
@@ -545,6 +539,39 @@ class Molecule(AbstractMolecule):
         internals = bits[0]
         for b in bits[1:]:
             internals = internals + b
+
+        if pruning:
+            if pruning is True:
+                g12 = self.get_gmatrix(power=1 / 2)
+                def b_gen(pos, crds):
+                    return g12 @ nput.internal_coordinate_tensors(self.coords, crds, order=1)[1]
+                pruning = {'method':'b_matrix', 'b_matrix':b_gen, 'max_coords':3*len(self.atoms) - 6}
+            internals = coordops.prune_internal_coordinates(
+                internals,
+                method=pruning
+            )
+
+        return internals
+
+    def get_labeled_internals(self,
+                              coordinate_filter=None,
+                              allowed_coordinate_types=None,
+                              excluded_coordinate_types=None,
+                              allowed_ring_types=None,
+                              excluded_ring_types=None,
+                              allowed_group_types=None,
+                              excluded_group_types=None,
+                              include_stretches=True,
+                              include_bends=True,
+                              include_dihedrals=True,
+                              pruning=False
+                              ):
+        internals = self.get_bond_graph_internals(
+            include_stretches=include_stretches,
+            include_bends=include_bends,
+            include_dihedrals=include_dihedrals,
+            pruning=pruning
+        )
 
         labels = self.edge_graph.get_label_types()
         internals = {
@@ -569,6 +596,79 @@ class Molecule(AbstractMolecule):
             internals = coordinate_filter(internals)
 
         return internals
+
+    def get_mode_labels(self,
+                        internals=None,
+                        modes=None,
+                        use_redundants=True,
+                        expansions=None,
+                        return_modes=False,
+                        **internals_opts
+                        ):
+        if modes is None:
+            modes = self.get_normal_modes()
+        modes = modes.remove_mass_weighting()
+
+        if internals is None:
+            internals = self.get_labeled_internals(**internals_opts)
+
+        if modes.is_cartesian:
+            if expansions is not None:
+                expansions, inv_expansion = expansions
+            else:
+                expansions = inv_expansion = None
+
+            if use_redundants:
+                redundant_tf, expansions = coordops.RedundantCoordinateGenerator(
+                    internals,
+                    masses=self.atomic_masses,
+                    relocalize=True
+                ).compute_redundant_expansions(self.coords,
+                                               expansions=expansions
+                                               )
+
+                redund_labs = coordops.get_mode_labels(
+                    internals,
+                    redundant_tf,
+                    norm_cutoff=.3
+                )
+
+                inv_expansion = nput.inverse_internal_coordinate_tensors(
+                    expansions,
+                    coords=self.coords,
+                    masses=self.atomic_masses,
+                    order=1,
+                    remove_translation_rotation=True
+                )
+
+            else:
+                redund_labs = internals
+                if expansions is None:
+                    expansions, inv_expansion = nput.internal_coordinate_tensors(
+                        self.coords,
+                        internals,
+                        order=1,
+                        masses=self.atomic_masses,
+                        return_inverse=True
+                    )
+                    expansions = expansions[1:]
+
+            g = expansions[0].T @ self.get_gmatrix() @ expansions[0]
+            g12 = nput.fractional_power(g, 1 / 2)
+            internal_modes = g12 @ inv_expansion[0] @ modes.modes_by_coords
+        else:
+            redund_labs = internals
+            internal_modes = modes
+
+        labels = coordops.get_mode_labels(
+            redund_labs,
+            internal_modes,
+            norm_cutoff=.8
+        )
+        if return_modes:
+            return internal_modes, labels
+        else:
+            return labels
 
     @property
     def mode_embedding(self):
