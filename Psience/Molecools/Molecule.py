@@ -552,7 +552,6 @@ class Molecule(AbstractMolecule):
             )
 
         return internals
-
     def get_labeled_internals(self,
                               coordinate_filter=None,
                               allowed_coordinate_types=None,
@@ -564,6 +563,7 @@ class Molecule(AbstractMolecule):
                               include_stretches=True,
                               include_bends=True,
                               include_dihedrals=True,
+                              coordinate_sorting=None,
                               pruning=False
                               ):
         internals = self.get_bond_graph_internals(
@@ -592,8 +592,14 @@ class Molecule(AbstractMolecule):
                 excluded_group_types=excluded_group_types,
             )
 
-        if coordinate_filter is not None:
+        if coordinate_filter:
             internals = coordinate_filter(internals)
+
+        if coordinate_sorting is None:
+            coordinate_sorting = coordops.sort_internal_coordinates
+
+        if coordinate_sorting:
+            internals = coordinate_sorting(internals)
 
         return internals
 
@@ -745,6 +751,28 @@ class Molecule(AbstractMolecule):
             derivs,
             order
         )
+
+    def get_hamiltonian(self,
+                        embedding=None,
+                        potential_derivatives=None,
+                        modes=None,
+                        dipole_derivatives=None,
+                        **etc
+                        ):
+        if embedding is None:
+            embedding = self.embedding
+        if potential_derivatives is None:
+            potential_derivatives = self.potential_derivatives
+        if modes is None:
+            modes = self.normal_modes
+        if dipole_derivatives is None:
+            dipole_derivatives = self.dipole_derivatives
+        return MolecularHamiltonian(embedding,
+                                    potential_derivatives=potential_derivatives,
+                                    modes=modes,
+                                    dipole_derivatives=dipole_derivatives,
+                                    **etc
+                                    )
 
     @property
     def potential_surface(self):

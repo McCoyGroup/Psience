@@ -66,6 +66,8 @@ class LocalizedModes(MixtureModes):
 
         if isinstance(item, (int, np.integer)):
             item = (item,)
+        elif isinstance(item, slice):
+            ...
         elif not isinstance(item[0], (int, np.integer)):
             item = tuple(item[0])
 

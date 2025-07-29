@@ -9,6 +9,8 @@ import McUtils.Iterators as itut
 from McUtils.Combinatorics import UniquePermutations
 from McUtils.Zachary import TensorDerivativeConverter
 
+from ..Modes import MixtureModes
+
 from .CoordinateSystems import MolecularEmbedding, ModeEmbedding
 from .Properties import PotentialSurfaceManager, DipoleSurfaceManager, NormalModesManager
 
@@ -21,13 +23,37 @@ class MolecularHamiltonian:
     def __init__(self,
                  embedding:MolecularEmbedding,
                  potential_manager:PotentialSurfaceManager=None,
+                 potential_derivatives:list[np.ndarray]=None,
                  modes_manager:NormalModesManager=None,
-                 dipole_manager:DipoleSurfaceManager=None
+                 modes:MixtureModes=None,
+                 dipole_manager:DipoleSurfaceManager=None,
+                 dipole_derivatives:list[np.ndarray]=None,
                  ):
         self.embedding = embedding
-        self.modes = modes_manager
-        self.potential = ScalarOperatorManager(potential_manager)
-        self.dipole = ScalarOperatorManager(dipole_manager)
+        self.modes = self._prep_modes(modes_manager, modes)
+        self.potential = self._prep_potential(potential_manager, potential_derivatives)
+        self.dipole = self._prep_dipole(dipole_manager, dipole_derivatives)
+
+    @classmethod
+    def _prep_modes(cls, modes_manager, modes):
+        if modes_manager is not None:
+            return modes_manager
+        else:
+            return modes
+
+    @classmethod
+    def _prep_potential(cls, potential_manager, potential_derivatives):
+        if potential_manager is not None:
+            return ScalarOperatorManager(potential_manager)
+        else:
+            return ScalarOperatorManager(potential_derivatives)
+
+    @classmethod
+    def _prep_dipole(cls, dipole_manager, dipole_derivatives):
+        if dipole_manager is not None:
+            return ScalarOperatorManager(dipole_manager)
+        else:
+            return ScalarOperatorManager(dipole_derivatives)
 
     def get_VPT_expansions(self,
                            order=2,

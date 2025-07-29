@@ -17,6 +17,7 @@ import numpy as np, scipy
 import McUtils.Numputils as nput
 import McUtils.Profilers as prof
 from McUtils.Formatters import TableFormatter
+import McUtils.Formatters as mfmt
 
 class MolecoolsTests(TestCase):
     def setUp(self):
@@ -2015,8 +2016,72 @@ class MolecoolsTests(TestCase):
         # # pruned = coordops.prune_internal_coordinates(coords)
         # print(coords)
 
+    @validationTest
+    def test_SufaceTriangulation(self):
+        from McUtils.Zachary import SphereUnionSurface
 
-    @debugTest
+        propylbenzene = Molecule.from_file(
+            TestManager.test_data('proplybenz.hess')
+        )
+        surf = SphereUnionSurface.from_xyz(
+            propylbenzene.atoms,
+            propylbenzene.coords,
+            expansion=.01,
+            samples=100
+        )
+
+        pts = surf.sampling_points
+        dm = nput.distance_matrix(pts)
+        np.fill_diagonal(dm, 100)
+        print(np.min(dm))
+        print(np.max(np.min(dm, axis=1)))
+
+        pts2 = SphereUnionSurface.adjust_point_cloud_density(pts,
+                                                             centers=surf.centers,
+                                                             radii=surf.radii,
+                                                             min_component=.6,
+                                                             max_iterations=250
+                                                             )
+        dm = nput.distance_matrix(pts2)
+        np.fill_diagonal(dm, 100)
+        print(np.min(dm))
+        print(np.max(np.min(dm, axis=1)))
+
+        pts3 = SphereUnionSurface.point_cloud_repulsion(pts,
+                                                        surf.centers,
+                                                        surf.radii,
+                                                        max_iterations=25
+                                                        )
+        dm = nput.distance_matrix(pts3)
+        np.fill_diagonal(dm, 100)
+        print(np.min(dm))
+        print(np.max(np.min(dm, axis=1)))
+
+        # pts4 = SphereUnionSurface.sphere_boundary_pruning(pts,
+        #                                                   surf.centers
+        #                                                   )
+        # dm = nput.distance_matrix(pts4)
+        # np.fill_diagonal(dm, 100)
+        # print(np.min(dm))
+        # print(np.max(np.min(dm, axis=1)))
+
+
+        mol_plot = propylbenzene.plot(backend='x3d', image_size=[950, 700], include_save_buttons=True)
+        plt.Sphere(pts * UnitsData.convert("BohrRadius", "Angstroms"), .1, color='teal').plot(mol_plot)
+        mol_plot.show()
+
+        mol_plot = propylbenzene.plot(backend='x3d', image_size=[950, 700], include_save_buttons=True)
+        plt.Sphere(pts2 * UnitsData.convert("BohrRadius", "Angstroms"), .1, color='purple').plot(mol_plot)
+        mol_plot.show()
+
+        mol_plot = propylbenzene.plot(backend='x3d', image_size=[950, 700], include_save_buttons=True)
+        plt.Sphere(pts3 * UnitsData.convert("BohrRadius", "Angstroms"), .1, color='red').plot(mol_plot)
+        mol_plot.show()
+
+        # pts = surf.sampling_points
+        # print(np.min(pts))
+
+    @validationTest
     def test_ModeLabels(self):
         import McUtils.Coordinerds as coordops
 
@@ -2024,8 +2089,12 @@ class MolecoolsTests(TestCase):
             TestManager.test_data('proplybenz.hess')
         )
 
+        # for c,l in propylbenzene.get_labeled_internals().items():
+        #     print(c, l)
+        # return
+
         modes = propylbenzene.get_normal_modes()
-        mode_labs = propylbenzene.get_mode_labels(pruning=True, use_redundants=False)
+        mode_labs = propylbenzene.get_mode_labels(pruning=False, use_redundants=True)
 
         for i,(freq,lab) in enumerate(zip(reversed(modes.freqs), reversed(mode_labs))):
             print(
@@ -2038,6 +2107,45 @@ class MolecoolsTests(TestCase):
 
         return
 
+    @debugTest
+    def test_HamiltonianExpansions(self):
+        from Psience.BasisReps import TaborCHModel
+
+        print()
+        tbhp = Molecule.from_file(
+            TestManager.test_data('tbhp_180.fchk')
+        )
+
+        print(
+            mfmt.format_mode_labels(
+                tbhp.get_mode_labels(),
+                tbhp.get_normal_modes().freqs * UnitsData.hartrees_to_wavenumbers
+            )
+        )
+        return
+
+        print(
+            mfmt.format_symmetric_tensor_elements(
+                tbhp.potential_derivatives[1] * UnitsData.hartrees_to_wavenumbers,
+                cutoff=1000
+            )
+        )
+
+        return
+
+        model = TaborCHModel.from_molecule(
+            tbhp,
+            oblique=True
+        )
+
+        ham = tbhp.get_hamiltonian(modes=model.modes)
+
+        print(
+            mfmt.TableFormatter("{:.0f}").format(model.f * UnitsData.hartrees_to_wavenumbers)
+        )
+
+        v_exp = ham.potential_expansion(2)
+        print(len(v_exp))
 
     @validationTest
     def test_AutoCHModel(self):
@@ -2056,10 +2164,10 @@ class MolecoolsTests(TestCase):
             TestManager.test_data('proplybenz.hess')
         )
 
-        print(
-            TaborCHModel.from_molecule(propylbenzene).internals
-        )
-        return
+        # print(
+        #     TaborCHModel.from_molecule(propylbenzene).internals
+        # )
+        # return
 
 
         lhm = LocalHarmonicModel
@@ -2071,10 +2179,18 @@ class MolecoolsTests(TestCase):
             #     for c, l in coords.items()
             #     if l.atoms in {'CH', 'HCH'}
             # },
-            localization_mode_spaces = {
-                ("CH", "stretch"):[-12, -11, -10, -9, -8, -7, -6],
-                ("HCH", "bend"):[-21, -19, -18, -17, -16]
+            # localization_mode_spaces = {
+            #     ("CH", "stretch"):[-12, -11, -10, -9, -8, -7, -6],
+            #     ("HCH", "bend"):[-21, -19, -18, -17, -16]
+            # },
+            localization_mode_spaces={
+                ("CH", "stretch"): (("methyl", "ethyl"), "CH", "stretch"),
+                ("HCH", "bend"): [
+                    [1390 / UnitsData.hartrees_to_wavenumbers, 1505 / UnitsData.hartrees_to_wavenumbers],
+                    ("bend",)
+                ]
             },
+            mode_labels=True,
             coordinate_filter=lambda coords: {
                 c:l
                 # c: (l,
@@ -2154,8 +2270,6 @@ class MolecoolsTests(TestCase):
         #     state([dim - 3, 2]),  # methyl HCH bend
         #     state(dim - 4, dim - 3),  # methyl combination
         # ])
-
-        import McUtils.Formatters as mfmt
 
         print(
             mfmt.TableFormatter("{:.3f}").format(wfns.hamiltonian * UnitsData.hartrees_to_wavenumbers)

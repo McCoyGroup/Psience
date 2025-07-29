@@ -728,23 +728,35 @@ class BasisStateSpace(AbstractStateSpace):
         return [np.array(states) for states in window_states]
 
     @classmethod
-    def states_under_freq_threshold(cls, freqs, max_freq, min_freq=None,
+    def states_under_freq_threshold(cls, freqs, max_freq,
+                                    min_freq=None,
+                                    initial_state=None,
                                     max_state=None,
-                                    min_quanta=None, max_quanta=None, basis=None,
+                                    min_quanta=None,
+                                    max_quanta=None,
+                                    basis=None,
                                     fixed_modes=None):
         ord = np.argsort(freqs)
+        ord_inv = np.argsort(ord)
         if min_freq is None:
             min_freq = 0
+        if fixed_modes is not None:
+            fixed_modes = tuple(ord_inv[f] for f in fixed_modes)
+        if initial_state is not None:
+            initial_state = np.asanyarray(initial_state)[ord]
         state_vecs = cls.states_in_windows(freqs[ord],
-                                     [[min_freq, max_freq]],
-                                     max_state=max_state,
-                                     min_quantas=[min_quanta],
-                                     max_quantas=[max_quanta],
-                                     basis=basis,
-                                     fixed_modes=fixed_modes
-                                     )[0]
-        ord_inv = np.argsort(ord)
-        state_vecs = state_vecs[:, ord_inv]
+                                           [[min_freq, max_freq]],
+                                           max_state=max_state,
+                                           initial_state=initial_state,
+                                           min_quantas=[min_quanta],
+                                           max_quantas=[max_quanta],
+                                           basis=basis,
+                                           fixed_modes=fixed_modes
+                                           )[0]
+        if state_vecs.ndim == 1:
+            state_vecs = state_vecs[ord_inv,] # early termination?
+        else:
+            state_vecs = state_vecs[:, ord_inv]
         return state_vecs
 
 
