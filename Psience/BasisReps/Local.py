@@ -151,7 +151,16 @@ class LocalHarmonicModel:
             elif nput.is_int(states):
                 states = BasisStateSpace.from_quanta(self.basis, states)
             else:
-                states = BasisStateSpace(self.basis, states)
+                if (
+                        nput.is_numeric_array_like(states)
+                    and np.asanyarray(states).ndim == 2
+                ):
+                    states = BasisStateSpace(self.basis, states)
+                else:
+                    s0 = self.prep_states(states[0])
+                    for s1 in states[1:]:
+                        s0 = s0.union(self.prep_states(s1))
+                    states = s0
 
         return states
     def get_wavefunctions(self, states, coupled_space=None, remove_zpe=True, include_dipoles=True,
@@ -195,12 +204,86 @@ class LocalHarmonicModel:
                                           )
 
     @classmethod
-    def localize_internal_modes(cls, nms, internals,
-                                localization_mode_spaces=None
+    def _match_mode_label(cls, test, freq, label):
+        if label is None: return test is None
+        if len(test) == 2 and (
+                not (test[0] is None or isinstance(test[0], str))
+        ):
+            if nput.is_numeric(test[0]):
+                test_freqs = test
+                test = None
+            else:
+                test_freqs, test = test
+        else:
+            test_freqs = None
+
+        if test_freqs is not None:
+            lf, mF = test_freqs
+            if freq < lf or freq > mF: return False
+
+        if test is None: return True
+
+        if isinstance(test, str):
+            test = [test]
+        n_test = len(test)
+        if len(label) < n_test: return False
+        return all(
+            t is None or (t == l if isinstance(t, str) else l in t)
+            for t,l in zip(test, label[-n_test:])
+        )
+
+    @classmethod
+    def localize_internal_modes(cls,
+                                nms, internals,
+                                localization_mode_spaces=None,
+                                mode_labels=None
                                 ):
 
 
         if isinstance(internals, dict):
+
+            if mode_labels is not None:
+                # for i, (freq, lab) in enumerate(zip(reversed(nms.freqs), reversed(mode_labels))):
+                #     print(
+                #         "Mode {} ({}): {:.0f} {}".format(i + 1,
+                #                                          len(nms.freqs) - (i+1),
+                #                                          freq * UnitsData.hartrees_to_wavenumbers,
+                #                                          "mixed"
+                #                                          if lab.type is None else
+                #                                          lab.type
+                #                                          )
+                #     )
+
+                internals = internals.copy()
+                mod_internals = {}
+                for coord, c in internals.items():
+                    if (
+                            len(c) == 2
+                            and not (c[0] is None or isinstance(c[0], str))
+                    ):
+                        mod_internals[coord] = (
+                            c[0],
+                            [
+                                i for i,(f,l) in enumerate(zip(nms.freqs, mode_labels))
+                                if cls._match_mode_label(c[1], f, l)
+                            ]
+                        )
+                internals.update(mod_internals)
+
+                if localization_mode_spaces is not None:
+                    localization_mode_spaces = {
+                        k: (
+                            lm
+                                if all(nput.is_int(i) for i in lm) else
+                            [
+                                i
+                                    for i, (f,l) in enumerate(zip(nms.freqs, mode_labels))
+                                if cls._match_mode_label(lm, f, l.type if l is not None else l)
+                            ]
+                        )
+                        for k,lm in localization_mode_spaces.items()
+                    }
+
             dim = len(nms.freqs)
             spaces = {}
             subints = {}
@@ -295,8 +378,10 @@ class LocalHarmonicModel:
         return loc_modes
 
     @classmethod
-    def from_modes(cls, nms,
+    def from_modes(cls,
+                   nms,
                    internals=None,
+                   mode_labels=None,
                    localization_mode_spaces=None,
                    oblique=True,
                    include_complement=False,
@@ -311,13 +396,29 @@ class LocalHarmonicModel:
             loc_modes = cls.localize_internal_modes(
                 nms,
                 internals,
-                localization_mode_spaces=localization_mode_spaces
+                localization_mode_spaces=localization_mode_spaces,
+                mode_labels=mode_labels
             )
 
             if oblique:
                 loc_modes = loc_modes.make_oblique()
             if include_complement:
                 loc_modes = loc_modes.get_complement(concatenate=True)
+                if internals is not None:
+                    k = len(internals)
+                    M = len(loc_modes.freqs)
+                    if k < M:
+                        if isinstance(internals, dict):
+                            internals = internals.copy()
+                            for i in range(k, M):
+                                internals[i] = coordops.mode_label(
+                                    None,
+                                    None,
+                                    None,
+                                    "complement"
+                                )
+                        else:
+                            internals = list(internals) + list(range(k, M))
         else:
             loc_modes = nms
 
@@ -411,8 +512,10 @@ class LocalHarmonicModel:
             )
 
     @classmethod
-    def from_molecule(cls, mol,
+    def from_molecule(cls,
+                      mol,
                       modes=None,
+                      mode_labels=None,
                       internals=None,
                       coordinate_filter=None,
                       allowed_coordinate_types=None,
@@ -426,11 +529,14 @@ class LocalHarmonicModel:
                       include_dihedrals=False,
                       dipole_derivatives=None,
                       include_dipole=True,
+                      internal_coordinate_sorting=None,
+                      prune_excess_internals=False,
                       **opts):
         from ..Molecools import Molecule
         mol: Molecule
         if modes is None:
             modes = mol.get_normal_modes(use_internals=False)
+
 
         if internals is None:
             internals = mol.get_labeled_internals(
@@ -443,7 +549,17 @@ class LocalHarmonicModel:
                 excluded_group_types=excluded_group_types,
                 include_stretches=include_stretches,
                 include_bends=include_bends,
-                include_dihedrals=include_dihedrals
+                include_dihedrals=include_dihedrals,
+                coordinate_sorting=internal_coordinate_sorting,
+                pruning=prune_excess_internals
+            )
+
+        if mode_labels is True:
+            mode_labels = mol.get_mode_labels(
+                # internals,
+                modes=modes,
+                pruning=prune_excess_internals,
+                use_redundants=not prune_excess_internals
             )
 
         if dipole_derivatives is None and include_dipole:
@@ -453,6 +569,7 @@ class LocalHarmonicModel:
         return cls.from_modes(
             modes,
             internals=internals,
+            mode_labels=mode_labels,
             dipole_derivatives=dipole_derivatives,
             **opts
         )
@@ -558,6 +675,7 @@ class CustomLocalHarmonicModel(LocalHarmonicModel):
         opts = dev.merge_dicts(cls.default_molecule_settings, opts)
         return super().from_molecule(
             mol,
+            modes=modes,
             internals=internals,
             dipole_derivatives=dipole_derivatives,
             **opts

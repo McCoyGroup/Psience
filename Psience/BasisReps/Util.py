@@ -152,6 +152,7 @@ def _canonicalize_internal_state_key(k):
         )
 
 def _tag_match(tags1, tags2):
+    if tags2 is None or tags1 is None: return False
     ml = min([len(tags1), len(tags2)])
     return tags1[-ml:] == tags2[-ml:]
 
@@ -342,10 +343,13 @@ def _internal_coupling_key_function(internals, tags, atoms):
                 if s2 == 0: continue
                 internal_1 = internals[n1]
                 internal_2 = internals[n2]
-                num_shared = sum(
-                    1 if i1 in internal_2 else 0
-                    for i1 in internal_1
-                )
+                if not (nput.is_atomic(internal_1) or  nput.is_atomic(internal_2)):
+                    num_shared = sum(
+                        1 if i1 in internal_2 else 0
+                        for i1 in internal_1
+                    )
+                else:
+                    num_shared = 0
                 sublist.append(num_shared)
             matches.append(tuple(sublist))
 
@@ -398,7 +402,11 @@ def modify_internal_hamiltonian(ham,
                                 ):
     if hasattr(internals, 'items'):
         internals = {
-            coordops.canonicalize_internal(k):t
+            (
+                coordops.canonicalize_internal(k)
+                    if not dev.is_atomic(k) and all(nput.is_int(cc) for cc in k) else
+                k
+            ):t
             for k,t in internals.items()
         }
         if tags is None:
@@ -414,7 +422,7 @@ def modify_internal_hamiltonian(ham,
             ]
         internals = [
             i
-                if hasattr(i, 'values') else
+                if hasattr(i, 'values') or dev.is_atomic(i) or not all(nput.is_int(cc) for cc in i) else
             coordops.canonicalize_internal(i)
             for i in internals
         ]
