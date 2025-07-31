@@ -697,6 +697,40 @@ class PerturbationTheoryHamiltonian:
 
         return [xst_3, xst_4, xst_cor]
 
+    @staticmethod
+    def _Nielsen_xst_components(s, t, w, v3, v4, zeta, Be, ndim):
+        # actually pulled from Stanton VPT4 paper
+        xst_4 = 1 / 4 * v4[s, s, t, t]
+        xst_3 = [
+            - 1 / 2 * (
+                v3[s, s, t] ** 2 * w[s] / (4 * w[s] ** 2 - w[t] ** 2)
+                + v3[s, t, t] ** 2 * w[t] / (4 * w[t] ** 2 - w[s] ** 2)
+            ),
+            - 1 /2 * (
+                + v3[s, s, s] * v3[s, t, t] / (2 * w[s])
+                + v3[t, t, t] * v3[t, s, s] / (2 * w[t])
+                + sum(v3[s, s, r] * v3[t, t, r] / (2 * w[r]) for r in range(ndim) if r != s and r != t)
+            ),
+             1 /2 *sum((
+                              (
+                                      (v3[s, t, r] ** 2) * w[r] * (w[s] ** 2 + w[t] ** 2 - w[r] ** 2)
+                                      / (
+                                          # This fucking delta_ijk term I don't know what it should be
+                                          # because no one has it in my units
+                                          # and none of the force-field definitions are consistent
+                                              w[s] ** 4 + w[t] ** 4 + w[r] ** 4
+                                              - 2 * ((w[s] * w[t]) ** 2 + (w[s] * w[r]) ** 2 + (w[t] * w[r]) ** 2)
+                                      )
+                              )
+                      ) for r in range(ndim) if r != s and r != t
+            )
+        ]
+        xst_cor = sum((
+                              Be[a] * (zeta[a, s, t] ** 2) * (w[t] / w[s] + w[s] / w[t])
+                      ) for a in range(3))
+
+        return [xst_3, xst_4, xst_cor]
+
     @classmethod
     def _get_Nielsen_xmat(cls, freqs, v3, v4, zeta, Be):
 
@@ -724,7 +758,9 @@ class PerturbationTheoryHamiltonian:
         return x_mat
 
     @classmethod
-    def _get_Nielsen_energies_from_x(cls, states, freqs, x_mat, return_split=False):
+    def _get_Nielsen_energies_from_x(cls,
+                                     states, freqs, x_mat,
+                                     return_split=False):
         """
        Returns energies using Harald Nielsen's formulae up to second order. Assumes no degeneracies.
        If implemented smarter, would be much, much faster than doing full-out perturbation theory, but less flexible.
@@ -775,7 +811,7 @@ class PerturbationTheoryHamiltonian:
 
         return e_harm, e_anharm
 
-    def get_Nielsen_xmatrix(self):
+    def get_Nielsen_xmatrix(self, freqs=None):
         """
         Provides Nielsen's X-Matrix when working in Cartesian coordinates
 
@@ -786,7 +822,8 @@ class PerturbationTheoryHamiltonian:
         # freqs = self.modes.freqs
         # if self.mode_selection is not None:
         #     freqs = freqs[self.mode_selection,]
-        freqs = np.diag(self.V_terms[0])
+        if freqs is None:
+            freqs = np.diag(self.V_terms[0])
         v3 = self.V_terms[1]
         v4 = self.V_terms[2]
 
@@ -801,7 +838,10 @@ class PerturbationTheoryHamiltonian:
 
         return x
 
-    def get_Nielsen_energies(self, states, x_mat=None, return_split=False):
+    def get_Nielsen_energies(self, states,
+                             x_mat=None,
+                             freqs=None,
+                             return_split=False):
         """
 
         :param states:
@@ -814,11 +854,12 @@ class PerturbationTheoryHamiltonian:
 
         # TODO: figure out WTF the units on this have to be...
 
-        freqs = self.modes.freqs
-        if self.mode_selection is not None:
-            freqs = freqs[self.mode_selection,]
+        if freqs is None:
+            freqs = self.modes.freqs
+            if self.mode_selection is not None:
+                freqs = freqs[self.mode_selection,]
         if x_mat is None:
-            x_mat = self.get_Nielsen_xmatrix()
+            x_mat = self.get_Nielsen_xmatrix(freqs=freqs)
         else:
             x_mat = np.asanyarray(x_mat)
 

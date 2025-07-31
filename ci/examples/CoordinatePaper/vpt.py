@@ -10,21 +10,25 @@ from .expansions import (
 )
 from .modes import prep_rp_modes, print_rpnm_hessian
 
-def get_gaussian_logfile(lot, subkey, use_reaction_path=True, mode_selection=None, use_internals=False):
+def get_gaussian_logfile(lot, subkey, use_reaction_path=True, use_degeneracies=True, mode_selection=None, use_internals=False):
     ms = "".join(str(m) for m in
                  (mode_selection if mode_selection is not None else 'all')
                  )
+    if not use_degeneracies:
+        deg = "_nodegs"
+    else:
+        deg = ""
 
     if use_reaction_path:
         if use_internals:
-            log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_rp_ints_{subkey}_{ms}.out')
+            log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_rp_ints_{subkey}_{ms}{deg}.out')
         else:
-            log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_rp_{subkey}_{ms}.out')
+            log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_rp_{subkey}_{ms}{deg}.out')
     else:
         if use_internals:
-            log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_norp_ints_{subkey}_{ms}.out')
+            log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_norp_ints_{subkey}_{ms}{deg}.out')
         else:
-            log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_norp_{subkey}_{ms}.out')
+            log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_norp_{subkey}_{ms}{deg}.out')
 
     return log_file
 
@@ -41,6 +45,8 @@ def run_gaussian_vpt(
         use_internals=False,
         use_reaction_path=True,
         mode_selection=None,
+        use_degeneracies=True,
+        log_file=None,
         overwrite=False
 ):
     me_gaussian = Molecule.from_file(
@@ -67,10 +73,12 @@ def run_gaussian_vpt(
         nms = me_gaussian.get_normal_modes(project_transrot=False, use_internals=False).remove_mass_weighting().remove_frequency_scaling()
 
     os.makedirs(paths.torsion_scan_path(lot, 'results'), exist_ok=True)
-    log_file = get_gaussian_logfile(lot, subkey,
-                                    use_reaction_path=(stat or use_reaction_path),
-                                    mode_selection=mode_selection,
-                                    use_internals=use_internals)
+    if log_file is None:
+        log_file = get_gaussian_logfile(lot, subkey,
+                                        use_reaction_path=(stat or use_reaction_path),
+                                        mode_selection=mode_selection,
+                                        use_degeneracies=use_degeneracies,
+                                        use_internals=use_internals)
 
     if stat or use_reaction_path:
         tf = locs.localizing_transformation
@@ -89,9 +97,9 @@ def run_gaussian_vpt(
         except:
             ...
         runner, _ = me_gaussian.setup_VPT(states=2,
-                                          degeneracy_specs='auto',
+                                          degeneracy_specs='auto' if use_degeneracies else None,
                                           cartesian_analytic_deriv_order=-1,
-                                          internal_by_cartesian_derivative_method='fast',
+                                          cartesian_by_internal_derivative_method='fast',
                                           modes=nms,
                                           mode_transformation=tf,
                                           mode_selection=mode_selection,
@@ -113,25 +121,33 @@ def run_wb97_vpt(
 ):
     return run_gaussian_vpt('wb97', subkey, file_pattern=file_pattern, **args)
 
-def get_aimnet_logfile(key, use_reaction_path=True, mode_selection=None, use_internals=False):
+def get_aimnet_logfile(key, use_reaction_path=True, use_degeneracies=True, mode_selection=None, use_internals=False):
     if use_reaction_path:
         if mode_selection is None:
             ms = "_all"
         else:
             ms = "_" + ("".join(str(int(s)) for s in mode_selection))
-        if use_internals:
-            log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_rp_ints_{key}{ms}.out')
+        if not use_degeneracies:
+            deg = "_nodegs"
         else:
-            log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_{key}{ms}.out')
+            deg = ""
+        if use_internals:
+            log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_rp_ints_{key}{ms}{deg}.out')
+        else:
+            log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_{key}{ms}{deg}.out')
     else:
         if mode_selection is None:
-            ms = ""
+            ms = "_all"
         else:
             ms = "_" + ("".join(str(int(s)) for s in mode_selection))
-        if use_internals:
-            log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_norp_ints_{key}{ms}.out')
+        if not use_degeneracies:
+            deg = "_nodegs"
         else:
-            log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_norp_{key}{ms}.out')
+            deg = ""
+        if use_internals:
+            log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_norp_ints_{key}{ms}{deg}.out')
+        else:
+            log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_norp_{key}{ms}{deg}.out')
     return log_file
 
 def run_aimnet_vpt(key,
@@ -141,6 +157,7 @@ def run_aimnet_vpt(key,
                    overwrite=False,
                    mode_selection=None,
                    recompute_expansion=False,
+                   use_degeneracies=True,
                    **opts
                    ):
     coords = get_aimnet_structure(key, 'optimized')
@@ -161,6 +178,13 @@ def run_aimnet_vpt(key,
         internals=methanol_zmatrix if use_internals else None,
         potential_derivatives=[np.array(v) for v in potential_expansion[1:]]
     )
+
+    if log_file is None:
+        log_file = get_aimnet_logfile(key,
+                                      use_degeneracies=use_degeneracies,
+                                      use_reaction_path=(status or use_reaction_path),
+                                      mode_selection=mode_selection, use_internals=use_internals)
+
 
     os.makedirs(paths.torsion_scan_path('aimnet', 'results'), exist_ok=True)
     if status or use_reaction_path:
@@ -184,8 +208,6 @@ def run_aimnet_vpt(key,
     else:
         tf = None
 
-    log_file = get_aimnet_logfile(key, use_reaction_path=status, mode_selection=mode_selection, use_internals=use_internals)
-
     if overwrite or not os.path.exists(log_file):
         try:
             os.remove(log_file)
@@ -195,9 +217,9 @@ def run_aimnet_vpt(key,
         opts = dict(
             dict(
                 states=2,
-                degeneracy_specs='auto',
+                degeneracy_specs='auto' if use_degeneracies else None,
                 cartesian_analytic_deriv_order=-1,
-                internal_by_cartesian_derivative_method='fast',
+                cartesian_by_internal_derivative_method='fast',
                 modes=nms,
                 mode_transformation=tf,
                 mode_selection=mode_selection,

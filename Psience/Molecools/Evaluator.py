@@ -22,6 +22,7 @@ __all__ = [
     "RDKitEnergyEvaluator",
     "AIMNet2EnergyEvaluator",
     "XTBEnergyEvaluator",
+    "PySCFEnergyEvaluator",
     "PotentialFunctionEnergyEvaluator",
     "DipoleEvaluator",
     "DipoleFunctionDipoleEvaluator"
@@ -970,6 +971,7 @@ class EnergyEvaluator(PropertyEvaluator):
             'rdkit': RDKitEnergyEvaluator,
             'aimnet2': AIMNet2EnergyEvaluator,
             'xtb': XTBEnergyEvaluator,
+            'pyscf': PySCFEnergyEvaluator,
             'expansion': PotentialExpansionEnergyEvaluator
         }
     @classmethod
@@ -1702,7 +1704,7 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
 
 class XTBEnergyEvaluator(EnergyEvaluator):
     """
-    Uses XTB to calculate, not tested since `xtb` is terrible to install without `conda`
+    Uses XTB to calculate
     """
     def __init__(self, atoms, method="GFN2-xTB", charge=0, quiet=True, **defaults):
         super().__init__(**defaults)
@@ -1754,6 +1756,214 @@ class XTBEnergyEvaluator(EnergyEvaluator):
             energies[i] = res.get_energy()
             if order > 0:
                 grads[i] = res.get_gradient()
+
+        energies = energies.reshape(base_shape)
+        if order > 0:
+            grads = grads.reshape(base_shape +(-1,))
+            return [energies, grads]
+        else:
+            return [energies]
+
+        # if order > 2:
+        # if order > (forces=False, stress=False, hessian=False)
+        # if order == 0:
+        #     return self.rdmol.calculate_energy(coords, **opts)
+        # elif order == 2:
+        #     return self.rdmol.calculate_gradient(coords, **opts)
+        # else:
+        #     raise ValueError(f"order {order} not supported")
+
+        # @staticmethod
+        # def calculate_hessian(forces, coord):
+        #     # here forces have shape (N, 3) and coord has shape (N+1, 3)
+        #     # return hessian with shape (N, 3, N, 3)
+        #     hessian = - torch.stack([
+        #         torch.autograd.grad(_f, coord, retain_graph=True)[0]
+        #         for _f in forces.flatten().unbind()
+        #     ]).view(-1, 3, coord.shape[0], 3)[:-1, :, :-1, :]
+        #     return hessian
+
+    # def optimize(self,
+    #              coords,
+    #              method='quasi-newton',
+    #              tol=1e-8,
+    #              max_iterations=25,
+    #              damping_parameter=None,
+    #              damping_exponent=None,
+    #              restart_interval=None,
+    #              max_displacement=None,
+    #              **opts
+    #              ):
+    #     if method == 'xtb-base':
+    #         ...
+    #     else:
+    #         return super().optimize(
+    #             coords,
+    #             method=method,
+    #             tol=tol,
+    #             max_iterations=max_iterations,
+    #             damping_parameter=damping_parameter,
+    #             damping_exponent=damping_exponent,
+    #             restart_interval=restart_interval,
+    #             **opts
+    #         )
+
+class PySCFEnergyEvaluator(EnergyEvaluator):
+    """
+    """
+    def __init__(self,
+                 atoms, *,
+                 level_of_theory,
+                 basis_set,
+                 caller=None,
+                 charge=None,
+                 multiplicity=None,
+                 quiet=True,
+                 molecule_options=None,
+                 level_of_theory_options=None,
+                 **defaults):
+        super().__init__(**defaults)
+
+        # self.eval = self.setup_aimnet(model)
+        # self.model = model
+        self.atoms = atoms
+        self.basis_set = basis_set
+        self.level_of_theory = level_of_theory
+        if level_of_theory_options is None:
+            level_of_theory_options = {}
+        self.level_of_theory_options = level_of_theory_options.copy()
+        self._pyscf_caller_dispatch = dev.uninitialized
+        self.caller = self.resolve_caller(caller, level_of_theory)
+        # self.charge = charge
+        # self.multiplicity = multiplicity
+        if molecule_options is None:
+            molecule_options = {}
+        if charge is not None:
+            molecule_options['charge'] = molecule_options.get('charge', charge)
+        if multiplicity is not None:
+            molecule_options['spin'] = molecule_options.get('spin', multiplicity)
+        if quiet:
+            molecule_options['verbose'] = molecule_options.get('verbose', 0)
+        self.molecule_options = molecule_options
+
+    _default_caller = 'dft'
+    @property
+    def caller_dispatch(self) -> dev.OptionsMethodDispatch:
+        self._pyscf_caller_dispatch = dev.handle_uninitialized(
+            self._pyscf_caller_dispatch,
+            dev.OptionsMethodDispatch,
+            args=(self.get_callers,),
+            kwargs=dict(
+                default_method=self._default_caller,
+                # attributes_map=cls.get_evaluators_by_attributes()
+            )
+        )
+        return self._pyscf_caller_dispatch
+
+    def get_callers(self):
+        return {
+            'mp2': self._call_mp2,
+            'dft': self._call_dft,
+            'hf': self._call_hf,
+            'rhf': self._call_rhf,
+            'uhf': self._call_uhf,
+            # 'cc': self._call_cc
+        }
+    def resolve_caller(self, caller, lot):
+        if caller is None:
+            if callable(lot):
+                caller = lot
+            else:
+                caller, opts = self.caller_dispatch.resolve(lot)
+                self.level_of_theory_options.update(opts)
+        return caller
+
+    @classmethod
+    def from_mol(cls, mol, **opts):
+        return cls(mol.atoms, embedding=mol.embedding, charge=mol.charge, **opts)
+
+    def get_molecule(self, coords):
+        from pyscf import gto
+
+        molecule = gto.Mole(
+            basis=self.basis_set,
+            **self.molecule_options
+        )
+        molecule.atom = [
+            (a, crd)
+            for a,crd in zip(self.atoms, coords)
+        ]
+        molecule.build()
+
+        return molecule
+
+    def _call_dft(self, molecule, restricted=True, **opts):
+        from pyscf import dft
+
+        if restricted:
+            calc = dft.RKS(molecule, xc=self.level_of_theory)
+        else:
+            calc = dft.UKS(molecule, xc=self.level_of_theory)
+        return calc.run(**opts)
+        # calc = calc.newton()
+        # calc.kernel()
+        # return calc
+
+    def _call_hf(self, molecule, restricted=False, **opts):
+        from pyscf import scf
+        if restricted:
+            return scf.HF(molecule).run(**opts)
+        else:
+            return scf.HF(molecule).run(**opts)
+    def _call_rhf(self, molecule, **opts):
+        return self._call_hf(molecule, restricted=True, **opts)
+    def _call_uhf(self, molecule, **opts):
+        return self._call_hf(molecule, restricted=False, **opts)
+
+    def _call_mp2(self, molecule, reference='hf', **etc):
+        from pyscf import mp
+        hf_caller, opts = self.caller_dispatch.resolve(reference)
+        mf = hf_caller(molecule, **opts)
+        return mp.MP2(mf, **etc).run()
+
+    def get_energy_from_calc(self, calc) -> float:
+        if hasattr(calc, 'tot_energy'):
+            return calc.tot_energy()
+        elif hasattr(calc, 'e_tot'):
+            return calc.e_tot
+        else:
+            return calc.kernel()
+
+    def get_gradient_from_calc(self, calc):
+        return calc.nuc_grad_method().run()
+
+    def run_calculation(self, coords):
+        molecule = self.get_molecule(coords)
+        return self.caller(molecule, **self.level_of_theory_options)
+
+    distance_units = "BohrRadius"
+    property_units = 'Hartrees'
+    batched_orders = True
+    analytic_derivative_order = 1
+    def evaluate_term(self, coords, order, **opts):
+        # import torch
+
+        base_shape = coords.shape[:-2]
+        coords = coords.reshape((-1,) + coords.shape[-2:])
+
+        if order > 1:
+            raise NotImplementedError('`xtb` only implements up through gradients')
+
+        energies = np.empty(coords.shape[0], dtype=float)
+        if order > 0:
+            grads = np.empty(coords.shape, dtype=float)
+        else:
+            grads = None
+        for i,coord in enumerate(coords):
+            res = self.run_calculation(coord)
+            energies[i] = self.get_energy_from_calc(res)
+            if order > 0:
+                grads[i] = self.get_gradient_from_calc(res)
 
         energies = energies.reshape(base_shape)
         if order > 0:

@@ -18,6 +18,7 @@ import McUtils.Numputils as nput
 import McUtils.Iterators as itut
 import McUtils.Devutils as dev
 import McUtils.Coordinerds as coordops
+import McUtils.Zachary as zach
 from McUtils.Zachary import Mesh
 import McUtils.Plots as plt
 from McUtils.ExternalPrograms import RDMolecule
@@ -1699,6 +1700,55 @@ class Molecule(AbstractMolecule):
             dipole=dip,
             values=vals
         )
+
+    def get_surface(self,
+                    radius_type='IconRadius',
+                    *,
+                    surface_type=None,
+                    radius_units="Angstroms",
+                    samples=50,
+                    expansion=.01,
+                    **etc):
+        if surface_type is None:
+            surface_type = zach.SphereUnionSurface
+
+        radii = np.array([
+            AtomData[a, radius_type] * UnitsData.convert(radius_units, "BohrRadius")
+            for a in self.atoms
+        ])
+
+        return surface_type(
+            self.coords,
+            radii,
+            samples=samples,
+            expansion=expansion,
+            **etc
+        )
+
+    def get_surface_mesh(self,
+                         radius_type='IconRadius',
+                         *,
+                         surface_type=None,
+                         radius_units="Angstroms",
+                         samples=50,
+                         expansion=.01,
+                         mesh_options=None,
+                         **etc
+                         ):
+
+        if mesh_options is None:
+            mesh_options = {}
+
+        surf:zach.SphereUnionSurface = self.get_surface(
+            radius_type=radius_type,
+            surface_type=surface_type,
+            radius_units=radius_units,
+            samples=samples,
+            expansion=expansion,
+            **etc
+        )
+
+        return surf.generate_mesh(**mesh_options)
 
     def setup_AIMD(self,
                    potential_function=None,
