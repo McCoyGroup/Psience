@@ -2315,6 +2315,10 @@ class Molecule(AbstractMolecule):
         return mol
     @classmethod
     def from_rdmol(cls, rdmol, **opts):
+        if hasattr(rdmol, 'GetOwningMol'):
+            rdmol = RDMolecule(rdmol, **opts)
+        elif hasattr(rdmol, 'GetAtoms'):
+            rdmol = RDMolecule.from_base_mol(rdmol, **opts)
         return cls(
             rdmol.atoms,
             rdmol.coords * UnitsData.convert("Angstroms", "BohrRadius"),
