@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-8c3d37" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-8c3d37"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-48df27" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-48df27"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-8c3d37" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-48df27" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -145,6 +145,7 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [ModeSelectedNMs](#ModeSelectedNMs)
 - [NMFiniteDifference](#NMFiniteDifference)
 - [CoordinateSystems](#CoordinateSystems)
+- [PySCFEnergy](#PySCFEnergy)
 - [SufaceTriangulation](#SufaceTriangulation)
 - [ModeLabels](#ModeLabels)
 - [HamiltonianExpansions](#HamiltonianExpansions)
@@ -157,9 +158,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-44c707" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-44c707"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-e43b9d" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-e43b9d"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-44c707" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-e43b9d" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -2165,20 +2166,86 @@ class MolecoolsTests(TestCase):
         coords = propylbenzene.get_bond_graph_internals(pruning=True)
 ```
 
+#### <a name="PySCFEnergy">PySCFEnergy</a>
+```python
+    def test_PySCFEnergy(self):
+        ethanol = Molecule.from_string('CCO', energy_evaluator='xtb')
+        # print(ethanol.calculate_energy())
+
+        ethanol = ethanol.modify(
+            energy_evaluator=(
+                'pyscf',
+                {'level_of_theory': 'b3lyp', 'basis_set': 'ccpvdz'}
+            )
+        )
+        print(ethanol.calculate_energy())
+```
+
 #### <a name="SufaceTriangulation">SufaceTriangulation</a>
 ```python
     def test_SufaceTriangulation(self):
-        from McUtils.Zachary import SphereUnionSurface
+        from McUtils.Plots import ColorPalette
+
+        # g = np.linspace(0, 6.28, 100)
+        # fig = None
+        # palette = ColorPalette('viridis').lighten(-.2)
+        # for i in range(0, 6, 2):
+        #     fig = plt.Plot(
+        #         g, np.sin(i*g),
+        #         color=palette(i/3, return_color_code=True),
+        #         figure=fig
+        #     )
+        # fig.show()
+        # return
 
         propylbenzene = Molecule.from_file(
             TestManager.test_data('proplybenz.hess')
         )
-        surf = SphereUnionSurface.from_xyz(
-            propylbenzene.atoms,
-            propylbenzene.coords,
-            expansion=.01,
-            samples=100
+        mesh = propylbenzene.get_surface_mesh()
+        mol_plot = propylbenzene.plot(backend='x3d', include_save_buttons=True)
+        mesh.plot(
+            # line_color=None,
+            function=lambda pts:pts[:, 2],
+            transparency=.2,
+            figure=mol_plot
         )
+
+        mol_plot.show()
+        return
+
+        # surf = SphereUnionSurface.from_xyz(
+        #     propylbenzene.atoms,
+        #     propylbenzene.coords,
+        #     expansion=.01,
+        #     samples=100
+        # )
+
+        # print([s.shape for s in surf.generate_points(preserve_origins=True)])
+        #
+        # return
+
+        # pts = surf.sampling_points
+        # verts, tris = surf.generate_mesh(pts)
+        # mol_plot = propylbenzene.plot(backend='x3d', include_save_buttons=True)
+        # plt.Line(pts[:15], glow='red', line_style='2', line_thickness=2).plot(mol_plot)
+        # print(
+        #     mol_plot.figure.to_x3d().to_x3d().tostring()
+        # )
+        # mol_plot.show()
+        # return
+        # delaunay = scipy.spatial.Delaunay(pts)
+        # subtris = delaunay.points[delaunay.simplices][:, :, :3]
+        # tri_points = verts[tris] * UnitsData.convert("BohrRadius", "Angstroms")
+        # plt.Point(verts * UnitsData.convert("BohrRadius", "Angstroms"), color='red').plot(mol_plot)
+        # plt.Triangle(tri_points, transparency=.8, color='black').plot(mol_plot)
+        # plt.Line(tri_points, color='red').plot(mol_plot)
+        # plt.Sphere(pts * UnitsData.convert("BohrRadius", "Angstroms"), .1, color='purple').plot(mol_plot)
+        # print(
+        #     mol_plot.figure.to_x3d().to_x3d().tostring()
+        # )
+
+        # mol_plot.show()
+        return
 
         pts = surf.sampling_points
         dm = nput.distance_matrix(pts)
