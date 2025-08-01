@@ -134,7 +134,7 @@ class VPTAnalyzerLogParser(LogParser):
     def harmonic_energies(self):
         if self._energies is None:
             try:
-                eng_str = self.tree["State Energies"]
+                eng_str = self.tree["States Energies"]
             except IndexError:
                 eng_str = self.tree[0, "Degenerate Energies"]
             self._energies = self.parse_energies_blocks(eng_str)
@@ -144,16 +144,30 @@ class VPTAnalyzerLogParser(LogParser):
     def energies(self):
         if self._energies is None:
             try:
-                eng_str = self.tree["State Energies"]
+                eng_str = self.tree["States Energies"]
             except IndexError:
                 eng_str = self.tree["Degenerate Energies"]
             self._energies = self.parse_energies_blocks(eng_str)
         return self._energies[0], self._energies[2]
 
     @property
+    def zero_order_energies(self):
+        if self._energies is None:
+            try:
+                eng_str = self.tree["States Energies"]
+            except IndexError:
+                eng_str = self.tree["Degenerate Energies"]
+            self._energies = self.parse_energies_blocks(eng_str)
+        return self._energies[0], self._energies[1]
+
+    @property
     def deperturbed_energies(self):
         if self._deperturbed_energies is None:
-            self._deperturbed_energies = self.parse_energies_blocks(self.tree["Deperturbed Energies"])
+            try:
+                eng_str = self.tree["Deperturbed Energies"]
+            except IndexError:
+                eng_str = self.tree["States Energies"]
+            self._deperturbed_energies = self.parse_energies_blocks(eng_str)
         return self._deperturbed_energies[0], self._deperturbed_energies[2]
 
     @property
@@ -544,6 +558,26 @@ class VPTResultsLoader:
         """
         if hasattr(self.data, 'energies'):
             return self.data.energies
+        else:
+            return np.sum(self.energy_corrections(), axis=1)
+    def zero_order_energies(self):
+        """
+
+        :return:
+        :rtype:
+        """
+        if hasattr(self.data, 'zero_order_energies'):
+            return self.data.zero_order_energies
+        else:
+            return self.energy_corrections()[:, 0]
+    def deperturbed_energies(self):
+        """
+
+        :return:
+        :rtype:
+        """
+        if hasattr(self.data, 'deperturbed_energies'):
+            return self.data.deperturbed_energies
         else:
             return np.sum(self.energy_corrections(), axis=1)
 
@@ -938,13 +972,21 @@ class VPTAnalyzer:
         """
         return self.loader.deperturbed_hamiltonians()
     @property
+    def zero_order_energies(self):
+        """
+
+        :return:
+        :rtype:
+        """
+        return self.loader.zero_order_energies()
+    @property
     def deperturbed_energies(self):
         """
 
         :return:
         :rtype:
         """
-        return self.loader.energies()
+        return self.loader.deperturbed_energies()
     @loaded_prop
     def degenerate_states(self):
         """

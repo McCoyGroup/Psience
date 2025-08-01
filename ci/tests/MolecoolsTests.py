@@ -2017,18 +2017,83 @@ class MolecoolsTests(TestCase):
         # print(coords)
 
     @validationTest
+    def test_PySCFEnergy(self):
+        ethanol = Molecule.from_string('CCO', energy_evaluator='xtb')
+        # print(ethanol.calculate_energy())
+
+        ethanol = ethanol.modify(
+            energy_evaluator=(
+                'pyscf',
+                {'level_of_theory': 'b3lyp', 'basis_set': 'ccpvdz'}
+            )
+        )
+        print(ethanol.calculate_energy())
+
+
+    @validationTest
     def test_SufaceTriangulation(self):
-        from McUtils.Zachary import SphereUnionSurface
+        from McUtils.Plots import ColorPalette
+
+        # g = np.linspace(0, 6.28, 100)
+        # fig = None
+        # palette = ColorPalette('viridis').lighten(-.2)
+        # for i in range(0, 6, 2):
+        #     fig = plt.Plot(
+        #         g, np.sin(i*g),
+        #         color=palette(i/3, return_color_code=True),
+        #         figure=fig
+        #     )
+        # fig.show()
+        # return
 
         propylbenzene = Molecule.from_file(
             TestManager.test_data('proplybenz.hess')
         )
-        surf = SphereUnionSurface.from_xyz(
-            propylbenzene.atoms,
-            propylbenzene.coords,
-            expansion=.01,
-            samples=100
+        mesh = propylbenzene.get_surface_mesh()
+        mol_plot = propylbenzene.plot(backend='x3d', include_save_buttons=True)
+        mesh.plot(
+            # line_color=None,
+            function=lambda pts:pts[:, 2],
+            transparency=.2,
+            figure=mol_plot
         )
+
+        mol_plot.show()
+        return
+
+        # surf = SphereUnionSurface.from_xyz(
+        #     propylbenzene.atoms,
+        #     propylbenzene.coords,
+        #     expansion=.01,
+        #     samples=100
+        # )
+
+        # print([s.shape for s in surf.generate_points(preserve_origins=True)])
+        #
+        # return
+
+        # pts = surf.sampling_points
+        # verts, tris = surf.generate_mesh(pts)
+        # mol_plot = propylbenzene.plot(backend='x3d', include_save_buttons=True)
+        # plt.Line(pts[:15], glow='red', line_style='2', line_thickness=2).plot(mol_plot)
+        # print(
+        #     mol_plot.figure.to_x3d().to_x3d().tostring()
+        # )
+        # mol_plot.show()
+        # return
+        # delaunay = scipy.spatial.Delaunay(pts)
+        # subtris = delaunay.points[delaunay.simplices][:, :, :3]
+        # tri_points = verts[tris] * UnitsData.convert("BohrRadius", "Angstroms")
+        # plt.Point(verts * UnitsData.convert("BohrRadius", "Angstroms"), color='red').plot(mol_plot)
+        # plt.Triangle(tri_points, transparency=.8, color='black').plot(mol_plot)
+        # plt.Line(tri_points, color='red').plot(mol_plot)
+        # plt.Sphere(pts * UnitsData.convert("BohrRadius", "Angstroms"), .1, color='purple').plot(mol_plot)
+        # print(
+        #     mol_plot.figure.to_x3d().to_x3d().tostring()
+        # )
+
+        # mol_plot.show()
+        return
 
         pts = surf.sampling_points
         dm = nput.distance_matrix(pts)
@@ -2107,7 +2172,7 @@ class MolecoolsTests(TestCase):
 
         return
 
-    @debugTest
+    @validationTest
     def test_HamiltonianExpansions(self):
         from Psience.BasisReps import TaborCHModel
 
