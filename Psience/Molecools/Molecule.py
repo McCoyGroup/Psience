@@ -1707,13 +1707,13 @@ class Molecule(AbstractMolecule):
                     surface_type=None,
                     radius_units="Angstroms",
                     samples=50,
-                    expansion=.01,
+                    radius_scaling=1,
                     **etc):
         if surface_type is None:
             surface_type = zach.SphereUnionSurface
 
         radii = np.array([
-            AtomData[a, radius_type] * UnitsData.convert(radius_units, "BohrRadius")
+            AtomData[a, radius_type] * UnitsData.convert(radius_units, "BohrRadius") * radius_scaling
             for a in self.atoms
         ])
 
@@ -1721,7 +1721,6 @@ class Molecule(AbstractMolecule):
             self.coords,
             radii,
             samples=samples,
-            expansion=expansion,
             **etc
         )
 
@@ -2705,6 +2704,7 @@ class Molecule(AbstractMolecule):
              atom_radius_scaling=.25,
              atom_style=None,
              bond_style=None,
+             capped_bonds=False,
              vector_style=None,
              highlight_atoms=None,
              highlight_bonds=None,
@@ -2891,6 +2891,8 @@ class Molecule(AbstractMolecule):
         elif not isinstance(bond_style, dict):
             bond_style = {i:a for i,a in enumerate(bond_style)}
         base_bond_style = {}
+        if capped_bonds:
+            base_bond_style['capped'] = True
         _bond_style = {(i,j):{} for i,j in itertools.combinations(range(len(self._ats)), 2)}
         for k,v in bond_style.items():
             if isinstance(k, str):
