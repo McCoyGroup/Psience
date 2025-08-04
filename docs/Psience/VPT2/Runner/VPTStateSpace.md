@@ -157,9 +157,9 @@ Gets `state_space_filters` for the input `states` targeting some property
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-1145a6" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-1145a6"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Details-a0b013" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-a0b013"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Details-1145a6" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Details-a0b013" markdown="1">
  
 There are multiple possible values for the `degeneracy_specs`.
 The simplest is to use the automatic approach, in which we supply a numeric type (`int`, `float`, etc.) to use as the `WFC` threshold.

@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-48df27" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-48df27"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-43d9ea" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-43d9ea"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-48df27" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-43d9ea" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -146,6 +146,7 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [NMFiniteDifference](#NMFiniteDifference)
 - [CoordinateSystems](#CoordinateSystems)
 - [PySCFEnergy](#PySCFEnergy)
+- [SufaceArea](#SufaceArea)
 - [SufaceTriangulation](#SufaceTriangulation)
 - [ModeLabels](#ModeLabels)
 - [HamiltonianExpansions](#HamiltonianExpansions)
@@ -158,9 +159,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-e43b9d" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-e43b9d"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-23c974" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-23c974"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-e43b9d" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-23c974" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -2179,6 +2180,56 @@ class MolecoolsTests(TestCase):
             )
         )
         print(ethanol.calculate_energy())
+```
+
+#### <a name="SufaceArea">SufaceArea</a>
+```python
+    def test_SufaceArea(self):
+        propylbenzene = Molecule.from_file(
+            TestManager.test_data('proplybenz.hess')
+        )
+        # propylbenzene = Molecule.from_file(
+        #     TestManager.test_data('methanol_vpt_1.fchk')
+        # )
+        # propylbenzene = Molecule.from_file(
+        #     TestManager.test_data('tbhp_180.fchk')
+        # )
+        # propylbenzene = Molecule(
+        #     np.asanyarray(propylbenzene.atoms)[(0, 6, 14),],
+        #     propylbenzene.coords[(0, 6, 14),]
+        # )
+
+        scale = 1.0
+        surf = propylbenzene.get_surface(samples=5000, tolerance=1e-6, expansion=1e-12, radius_scaling=scale)
+        print()
+        # print(surf.surface_area(include_doubles=False, include_triples=False, include_quadruples=False))
+        # print(surf.surface_area(include_triples=False, include_quadruples=False))
+        # print(surf.surface_area(include_triples=True, include_quadruples=False))
+        # print("Trips:", surf.surface_area(include_triples=True, include_quadruples=False))
+        s1 = surf.surface_area(include_triples=True, include_quadruples=True) #* UnitsData.convert("BohrRadius", "Angstroms")**2
+        s2 = surf.surface_area(method='sampling') #* UnitsData.convert("BohrRadius", "Angstroms")**2
+        print("Quads:", s1)
+        print("Sampled:", s2)
+        print("Diff:", s1 - s2)
+        # print(surf.surface_area(method='mesh'))
+        # print(surf.surface_area(include_triples=True, include_quadruples=True))
+        mol_plot = propylbenzene.plot(backend='x3d',
+                                      # highlight_atoms=[0, 2],
+                                      atom_style={'transparency':.6},
+                                      atom_radius_scaling=scale,
+                                      capped_bonds=True,
+                                      include_save_buttons=True,
+                                      image_size=800
+                                      )
+        surf.plot(figure=mol_plot,
+                  # color=None,
+                  sphere_color=None,
+                  plot_intersections=True
+                  )
+        # mesh = propylbenzene.get_surface_mesh(mesh_options={'depth':15})
+        # mesh.plot(figure=mol_plot)
+
+        mol_plot.show()
 ```
 
 #### <a name="SufaceTriangulation">SufaceTriangulation</a>
