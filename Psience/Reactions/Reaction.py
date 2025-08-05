@@ -4,6 +4,8 @@ __all__ = [
     "Reaction"
 ]
 
+import collections
+
 import numpy as np
 import McUtils.Numputils as nput
 import McUtils.Devutils as dev
@@ -72,6 +74,16 @@ class Reaction:
                 )
 
         self.profile_generator = profile_generator
+
+    def get_modified_bonds(self):
+        return self.reactant_complex.edge_graph.graph_difference(
+            self.product_complex.edge_graph
+        )
+
+    ReactionCore = collections.namedtuple("ReactionCore", ["indices", "formed", "broken"])
+    def get_reaction_core(self):
+        new, old = self.get_modified_bonds()
+        return np.unique(np.concatenate([new, old], axis=0)), new, old
 
     @classmethod
     def expand_fragments_centroid(cls, inds, coords,
