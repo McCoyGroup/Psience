@@ -1077,6 +1077,9 @@ class Molecule(AbstractMolecule):
     def edge_graph(self):
         return MolecularProperties.edge_graph(self)
 
+    def find_heavy_atom_backbone(self):
+        return self.edge_graph.find_longest_chain()
+
     @property
     def fragment_indices(self):
         return MolecularProperties.fragment_indices(self)

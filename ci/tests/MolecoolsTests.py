@@ -2030,23 +2030,43 @@ class MolecoolsTests(TestCase):
         print(ethanol.calculate_energy())
 
     @debugTest
+    def test_BackboneChains(self):
+        napthalene = Molecule.construct('CCC(c1c2ccccc2ccc1)')
+        backbone = napthalene.find_heavy_atom_backbone()
+        print(backbone)
+        napthalene.plot(
+            highlight_atoms=backbone[1:-1],
+            atom_style={
+                backbone[0]:{'glow':'red'},
+                backbone[-1]:{'glow':'blue'}
+            },
+            bond_style={
+                (backbone[0], backbone[1]):{'glow':'red'},
+                (backbone[1], backbone[0]):{'glow':'red'},
+                (backbone[-2], backbone[-1]):{'glow':'blue'},
+                (backbone[-1], backbone[-2]):{'glow':'blue'}
+            },
+            include_save_buttons=True
+        ).show()
+
+    @validationTest
     def test_SufaceArea(self):
-        propylbenzene = Molecule.from_file(
-            TestManager.test_data('proplybenz.hess')
-        )
+        # propylbenzene = Molecule.from_file(
+        #     TestManager.test_data('proplybenz.hess')
+        # )
         # propylbenzene = Molecule.from_file(
         #     TestManager.test_data('methanol_vpt_1.fchk')
         # )
-        # propylbenzene = Molecule.from_file(
-        #     TestManager.test_data('tbhp_180.fchk')
-        # )
+        propylbenzene = Molecule.from_file(
+            TestManager.test_data('tbhp_180.fchk')
+        )
         # propylbenzene = Molecule(
         #     np.asanyarray(propylbenzene.atoms)[(0, 6, 14),],
         #     propylbenzene.coords[(0, 6, 14),]
         # )
 
         scale = 1.0
-        surf = propylbenzene.get_surface(samples=5000, tolerance=1e-6, expansion=1e-12, radius_scaling=scale)
+        surf = propylbenzene.get_surface(samples=100, tolerance=1e-6, expansion=1e-12, radius_scaling=scale)
         print()
         # print(surf.surface_area(include_doubles=False, include_triples=False, include_quadruples=False))
         # print(surf.surface_area(include_triples=False, include_quadruples=False))
@@ -2060,6 +2080,7 @@ class MolecoolsTests(TestCase):
         # print(surf.surface_area(method='mesh'))
         # print(surf.surface_area(include_triples=True, include_quadruples=True))
         mol_plot = propylbenzene.plot(backend='x3d',
+                                      background=['white', 'blue'],
                                       # highlight_atoms=[0, 2],
                                       atom_style={'transparency':.6},
                                       atom_radius_scaling=scale,

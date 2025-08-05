@@ -52,10 +52,20 @@ class ProfileGenerator:
             **dict(opts, **kwargs)
         )
 
-class OptimizingProfileGenerator(ProfileGenerator):
 
-    def generate(self, initial_search_dir, **opts):
-        ...
+
+# class PyGSMProfileGenerator(ProfileGenerator):
+#
+#     def __init__(self,
+#                  reactant_complex:Molecule,
+#                  constraints=None
+#                  ):
+#         super().__init__(reactant_complex)
+
+# class OptimizingProfileGenerator(ProfileGenerator):
+#
+#     def generate(self, initial_search_dir, **opts):
+#         ...
 
 class InterpolatingProfileGenerator(ProfileGenerator):
     def __init__(self,
@@ -285,3 +295,5 @@ class NudgedElasticBand(InterpolatingProfileGenerator):
         else:
             return new_img
 
+class GrowingString(ProfileGenerator):
+    ...
