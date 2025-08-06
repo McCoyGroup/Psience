@@ -1080,6 +1080,45 @@ class Molecule(AbstractMolecule):
     def find_heavy_atom_backbone(self):
         return self.edge_graph.find_longest_chain()
 
+    def find_backbone_segments(self):
+        return self.edge_graph.segment_by_chains()
+
+    def get_backbone_zmatrix(self, segments=None):
+        if segments is None:
+            segments = self.find_backbone_segments()
+
+        bond_list = [b[:2] for b in self.bonds]
+        return coordops.add_missing_zmatrix_bonds(
+            coordops.bond_graph_zmatrix(
+                bond_list,
+                segments
+            ),
+            bond_list
+        )
+
+    def get_bond_zmatrix(self, fragments=None, segments=None):
+        if fragments is None:
+            fragments = self.fragment_indices
+
+        if len(fragments) == 1:
+            if segments is not None and len(segments) == 1:
+                segments = segments[0]
+            return self.get_backbone_zmatrix(segments=segments)
+        else:
+            inds = fragments
+            frags = [self.take_submolecule(ix) for ix in inds]
+            zmats = [f.get_backbone_zmatrix()[0] for f in frags]
+            ordering = np.argsort([-len(x) for x in inds])
+
+            inds = [inds[i] for i in ordering]
+            zmats = [zmats[i] for i in ordering]
+
+            return coordops.complex_zmatrix(
+                [b[:2] for b in self.bonds],
+                inds,
+                zmats
+            )
+
     @property
     def fragment_indices(self):
         return MolecularProperties.fragment_indices(self)
