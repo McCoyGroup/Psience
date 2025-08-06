@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-4b6e1f" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-4b6e1f"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-5c0966" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-5c0966"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-4b6e1f" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-5c0966" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -160,9 +160,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-30865d" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-30865d"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-e9a207" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-e9a207"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-30865d" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-e9a207" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -2186,21 +2186,89 @@ class MolecoolsTests(TestCase):
 #### <a name="BackboneChains">BackboneChains</a>
 ```python
     def test_BackboneChains(self):
-        napthalene = Molecule.construct('CCC(c1c2ccccc2ccc1)')
-        backbone = napthalene.find_heavy_atom_backbone()
-        print(backbone)
+        from Psience.Molecools import Molecule
+
+        woof_1 = Molecule.construct('C1CCC=CC1(c1c2ccccc2ccc1)')
+        int_woff = woof_1.modify(internals={'zmatrix': woof_1.get_bond_zmatrix()[0]})
+
+        exp = int_woff.animate_coordinate(0)
+
+        return
+
+
+        import McUtils.Coordinerds as coordops
+        from Psience.Reactions import Reaction
+
+        woof = Reaction.from_smiles("C=C.C=CC=C>>C1CCC=CC1",
+                                    fragment_expansion_method='centroid',
+                                    optimize=True,
+                                    min_distance=.1,
+                                    add_radius=False,
+                                    expansion_factor=.01,
+                                    )
+
+        reactant_complex = woof.reactant_complex
+        full_zmat = reactant_complex.get_bond_zmatrix()
+        int_comp = reactant_complex.modify(internals=full_zmat)
+
+        int_comp.animate_coordinate(30-6).show()
+
+        return
+
+        woof = Molecule.construct('CCCC')
+        zm = coordops.chain_zmatrix(4)
+
+        print(woof.atoms)
+        print(
+            coordops.add_missing_zmatrix_bonds(
+                zm,
+                [b[:2] for b in woof.bonds]
+            )
+        )
+
+
+
+
+        return
+
+
+        napthalene = Molecule.construct('CCCCC(c1c2ccccc2ccc1)CCCC')
+        # backbone = napthalene.find_heavy_atom_backbone()
+
+
+
+        chains = napthalene.edge_graph.segment_by_chains()
+        zm = coordops.bond_graph_zmatrix(
+            [b[:2] for b in napthalene.bonds],
+            chains
+        )
+
+        print(zm)
+        return
+
+        backbone, (side_chain,) = napthalene.edge_graph.segment_by_chains()
+        atom_styles = {
+            backbone[0]: {'color': 'white', 'glow': 'red'},
+            backbone[-1]: {'color': 'white', 'glow': 'blue'}
+        }
+        for a in side_chain:
+            atom_styles[a] = {'color': 'white', 'glow': 'purple'}
+        bond_style = {
+            k: {'color': 'white', 'glow': 'red'}
+            for i in range(len(backbone) - 1)
+            for k in [
+                (backbone[i], backbone[i + 1]),
+                (backbone[i + 1], backbone[i])
+            ]
+        }
+
+        for i in range(len(side_chain) - 1):
+            bond_style[(side_chain[i], side_chain[i + 1])] = {'color': 'white', 'glow': 'purple'}
+            bond_style[(side_chain[i + 1], side_chain[i])] = {'color': 'white', 'glow': 'purple'}
         napthalene.plot(
             highlight_atoms=backbone[1:-1],
-            atom_style={
-                backbone[0]:{'glow':'red'},
-                backbone[-1]:{'glow':'blue'}
-            },
-            bond_style={
-                (backbone[0], backbone[1]):{'glow':'red'},
-                (backbone[1], backbone[0]):{'glow':'red'},
-                (backbone[-2], backbone[-1]):{'glow':'blue'},
-                (backbone[-1], backbone[-2]):{'glow':'blue'}
-            },
+            atom_style=atom_styles,
+            bond_style=bond_style,
             include_save_buttons=True
         ).show()
 ```
