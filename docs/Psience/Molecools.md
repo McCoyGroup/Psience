@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-5c0966" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-5c0966"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-0b82ae" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-0b82ae"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-5c0966" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-0b82ae" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -160,9 +160,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-e9a207" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-e9a207"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-75d2d2" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-75d2d2"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-e9a207" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-75d2d2" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -2187,19 +2187,18 @@ class MolecoolsTests(TestCase):
 ```python
     def test_BackboneChains(self):
         from Psience.Molecools import Molecule
-
-        woof_1 = Molecule.construct('C1CCC=CC1(c1c2ccccc2ccc1)')
-        int_woff = woof_1.modify(internals={'zmatrix': woof_1.get_bond_zmatrix()[0]})
-
-        exp = int_woff.animate_coordinate(0)
-
-        return
-
-
         import McUtils.Coordinerds as coordops
         from Psience.Reactions import Reaction
 
-        woof = Reaction.from_smiles("C=C.C=CC=C>>C1CCC=CC1",
+        # woof = Reaction.from_smiles("C=C.C=CC=C>>C1CCC=CC1",
+        #                             fragment_expansion_method='centroid',
+        #                             optimize=True,
+        #                             min_distance=.1,
+        #                             add_radius=False,
+        #                             expansion_factor=.01,
+        #                             )
+
+        woof = Reaction.from_smiles("C=C.C=CC=C(c1c2ccccc2ccc1)>>C1CCC=CC1(c1c2ccccc2ccc1)",
                                     fragment_expansion_method='centroid',
                                     optimize=True,
                                     min_distance=.1,
@@ -2211,7 +2210,7 @@ class MolecoolsTests(TestCase):
         full_zmat = reactant_complex.get_bond_zmatrix()
         int_comp = reactant_complex.modify(internals=full_zmat)
 
-        int_comp.animate_coordinate(30-6).show()
+        # int_comp.animate_coordinate(30-6).show()
 
         return
 
