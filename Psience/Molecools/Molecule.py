@@ -1506,6 +1506,12 @@ class Molecule(AbstractMolecule):
     def get_nearest_scan_coordinates(self, domains, sel=None, axes=None):
         return self.evaluator.get_nearest_scan_coordinates(domains, sel=sel, axes=axes)
 
+    @classmethod
+    def _get_atomic_radius(cls, atom_data):
+        rad = atom_data["IconRadius"]
+        if rad < .8:
+            rad = atom_data["VanDerWaalsRadius"]
+        return rad
     def plot_molecule_function(self,
                                function,
                                *,
@@ -1591,7 +1597,11 @@ class Molecule(AbstractMolecule):
             atom_colors = [at['IconColor'] if c is None else c for c,at in zip(atom_colors, atoms)]
             if atom_radii is None:
                 atom_radii = [None] * len(atoms)
-            atom_radii = [at['IconRadius'] if c is None else c for c,at in zip(atom_radii, atoms)]
+            atom_radii = [
+                self._get_atomic_radius(at)
+                    if c is None else c for c,at in
+                zip(atom_radii, atoms)
+            ]
             epilog = list(epilog) + [
                 plt.Disk(
                     crd,
@@ -1744,7 +1754,7 @@ class Molecule(AbstractMolecule):
         )
 
     def get_surface(self,
-                    radius_type='IconRadius',
+                    radius_type='VanDerWaalsRadius',
                     *,
                     surface_type=None,
                     radius_units="Angstroms",
@@ -1767,7 +1777,7 @@ class Molecule(AbstractMolecule):
         )
 
     def get_surface_mesh(self,
-                         radius_type='IconRadius',
+                         radius_type='VanDerWaalsRadius',
                          *,
                          surface_type=None,
                          radius_units="Angstroms",
@@ -2745,8 +2755,10 @@ class Molecule(AbstractMolecule):
              bond_radius=.1,
              atom_radius_scaling=.25,
              atom_style=None,
+             atom_radii=None,
              bond_style=None,
              capped_bonds=False,
+             reflectiveness=None,
              vector_style=None,
              highlight_atoms=None,
              highlight_bonds=None,
@@ -2883,7 +2895,14 @@ class Molecule(AbstractMolecule):
             figure = graphics_class(backend=backend, **graphics_opts)
 
         colors = [ at["IconColor"] for at in self._ats ]
-        radii = [ atom_radius_scaling * at["IconRadius"] for at in self._ats ]
+        if atom_radii is None:
+            atom_radii = [None] * len(self._ats)
+        atom_radii = [
+            self._get_atomic_radius(at)
+                if c is None else c for c, at in
+            zip(atom_radii, self._ats)
+        ]
+        radii = [ atom_radius_scaling * r for r in atom_radii ]
 
         bonds = [None] * len(geometries)
         atoms = [None] * len(geometries)
@@ -2891,21 +2910,29 @@ class Molecule(AbstractMolecule):
 
         if vector_style is None:
             vector_style = {'color':'#000000', 'radius':.1}
-        if atom_style is None:
+        if atom_style is None or atom_style is True:
             atom_style = {}
+        elif atom_style is False:
+            ...
         elif not isinstance(atom_style, dict):
             atom_style = {i:a for i,a in enumerate(atom_style)}
-        base_atom_style = {}
-        _atom_style = {i:{} for i in range(len(self._ats))}
-        for k,v in atom_style.items():
-            if isinstance(k, str):
-                base_atom_style[k] = v
-            else:
-                _atom_style[k] = v
-        for k,v in _atom_style.items():
-            _atom_style[k] = dict(base_atom_style, **v)
-        atom_style = _atom_style
 
+        if atom_style is not False:
+            base_atom_style = {}
+            if reflectiveness is not None and backend == 'x3d':
+                base_atom_style.update({
+                    'specularity': 'white',
+                    'shininess': 100 * np.clip(1.1 - reflectiveness, 0, 1)
+                })
+            _atom_style = {i:{} for i in range(len(self._ats))}
+            for k,v in atom_style.items():
+                if isinstance(k, str):
+                    base_atom_style[k] = v
+                else:
+                    _atom_style[k] = v
+            for k,v in _atom_style.items():
+                _atom_style[k] = dict(base_atom_style, **v)
+            atom_style = _atom_style
 
         if highlight_styles is None:
             highlight_styles = self.highlight_styles
@@ -2928,29 +2955,38 @@ class Molecule(AbstractMolecule):
                 if k not in atom_style: atom_style[k] = {}
                 atom_style[k].update(highlight_styles)
 
-        if bond_style is None:
+        if bond_style is None or bond_style is True:
             bond_style = {}
+        elif bond_style is False:
+            ...
         elif not isinstance(bond_style, dict):
             bond_style = {i:a for i,a in enumerate(bond_style)}
-        base_bond_style = {}
-        if capped_bonds:
-            base_bond_style['capped'] = True
-        _bond_style = {(i,j):{} for i,j in itertools.combinations(range(len(self._ats)), 2)}
-        for k,v in bond_style.items():
-            if isinstance(k, str):
-                base_bond_style[k] = v
-            else:
-                _bond_style[k] = v
-        for k,v in _bond_style.items():
-            _bond_style[k] = dict(base_bond_style, **v)
-        bond_style = _bond_style
-        if highlight_bonds is None and highlight_atoms is not None:
-            highlight_bonds = highlight_atoms
-        if highlight_bonds is not None:
-            for k in highlight_bonds:
-                if not nput.is_numeric(k): k = tuple(k)
-                if k not in bond_style: bond_style[k] = {}
-                bond_style[k].update(highlight_styles)
+
+        if bond_style is not False:
+            base_bond_style = {}
+            if capped_bonds:
+                base_bond_style['capped'] = True
+            if reflectiveness is not None and backend == 'x3d':
+                base_bond_style.update({
+                    'specularity': 'white',
+                    'shininess': 100 * np.clip(1.1 - reflectiveness, 0, 1)
+                })
+            _bond_style = {(i,j):{} for i,j in itertools.combinations(range(len(self._ats)), 2)}
+            for k,v in bond_style.items():
+                if isinstance(k, str):
+                    base_bond_style[k] = v
+                else:
+                    _bond_style[k] = v
+            for k,v in _bond_style.items():
+                _bond_style[k] = dict(base_bond_style, **v)
+            bond_style = _bond_style
+            if highlight_bonds is None and highlight_atoms is not None:
+                highlight_bonds = highlight_atoms
+            if highlight_bonds is not None:
+                for k in highlight_bonds:
+                    if not nput.is_numeric(k): k = tuple(k)
+                    if k not in bond_style: bond_style[k] = {}
+                    bond_style[k].update(highlight_styles)
 
         for i, geom in enumerate(geometries):
             bond_list = self.bonds
