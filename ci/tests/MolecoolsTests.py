@@ -2032,19 +2032,18 @@ class MolecoolsTests(TestCase):
     @debugTest
     def test_BackboneChains(self):
         from Psience.Molecools import Molecule
-
-        woof_1 = Molecule.construct('C1CCC=CC1(c1c2ccccc2ccc1)')
-        int_woff = woof_1.modify(internals={'zmatrix': woof_1.get_bond_zmatrix()[0]})
-
-        exp = int_woff.animate_coordinate(0)
-
-        return
-
-
         import McUtils.Coordinerds as coordops
         from Psience.Reactions import Reaction
 
-        woof = Reaction.from_smiles("C=C.C=CC=C>>C1CCC=CC1",
+        # woof = Reaction.from_smiles("C=C.C=CC=C>>C1CCC=CC1",
+        #                             fragment_expansion_method='centroid',
+        #                             optimize=True,
+        #                             min_distance=.1,
+        #                             add_radius=False,
+        #                             expansion_factor=.01,
+        #                             )
+
+        woof = Reaction.from_smiles("C=C.C=CC=C(c1c2ccccc2ccc1)>>C1CCC=CC1(c1c2ccccc2ccc1)",
                                     fragment_expansion_method='centroid',
                                     optimize=True,
                                     min_distance=.1,
@@ -2056,7 +2055,7 @@ class MolecoolsTests(TestCase):
         full_zmat = reactant_complex.get_bond_zmatrix()
         int_comp = reactant_complex.modify(internals=full_zmat)
 
-        int_comp.animate_coordinate(30-6).show()
+        # int_comp.animate_coordinate(30-6).show()
 
         return
 
