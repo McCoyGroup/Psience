@@ -1507,10 +1507,13 @@ class Molecule(AbstractMolecule):
         return self.evaluator.get_nearest_scan_coordinates(domains, sel=sel, axes=axes)
 
     @classmethod
-    def _get_atomic_radius(cls, atom_data):
-        rad = atom_data["IconRadius"]
-        if rad < .8:
-            rad = atom_data["VanDerWaalsRadius"]
+    def _get_atomic_radius(cls, atom_data, radius_type=None):
+        if radius_type is None:
+            rad = atom_data["IconRadius"]
+            if rad < .8:
+                rad = atom_data["VanDerWaalsRadius"]
+        else:
+            rad = atom_data[radius_type]
         return rad
     def plot_molecule_function(self,
                                function,
@@ -2756,6 +2759,7 @@ class Molecule(AbstractMolecule):
              atom_radius_scaling=.25,
              atom_style=None,
              atom_radii=None,
+             radius_type=None,
              bond_style=None,
              capped_bonds=False,
              reflectiveness=None,
@@ -2898,7 +2902,7 @@ class Molecule(AbstractMolecule):
         if atom_radii is None:
             atom_radii = [None] * len(self._ats)
         atom_radii = [
-            self._get_atomic_radius(at)
+            self._get_atomic_radius(at, radius_type)
                 if c is None else c for c, at in
             zip(atom_radii, self._ats)
         ]

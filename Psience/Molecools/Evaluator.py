@@ -2277,13 +2277,14 @@ class DipoleExpansionEnergyEvaluator(DipoleFunctionDipoleEvaluator):
         )
 
     @classmethod
-    def expansion_from_mol_charges(cls, mol, charges=None):
+    def expansion_from_mol_charges(cls, mol, charges=None, origin=None):
         if charges is None:
             charges = mol.calculate_charges()
         charges = np.asanyarray(charges)
-        com = mol.center_of_mass
+        if origin is None:
+            origin = mol.center_of_mass
         coords = mol.coords
-        disps = coords - com[np.newaxis]
+        disps = coords - np.asanyarray(origin)[np.newaxis]
         dip_contribs = charges[:, np.newaxis] * disps
         deriv = np.zeros(dip_contribs.shape + (3,), dtype=dip_contribs.dtype)
         for i in range(3):
