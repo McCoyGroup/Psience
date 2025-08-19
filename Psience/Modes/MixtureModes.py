@@ -318,19 +318,41 @@ class MixtureModes(CoordinateSystem):
         a = np.diag(np.power(np.diag(f) / np.diag(g), 1 / 4))
         return a @ g @ a
 
-    def compute_hessian(self):
-        pinv = self.coords_by_modes @ self.modes_by_coords
-        return pinv @ np.diag(self.freqs ** 2) @ pinv.T
-    def compute_gmatrix(self):
-        if self.mass_weighted:
-            return self.modes_by_coords.T @ self.modes_by_coords
-        elif self.g_matrix is not None:
-            return self.modes_by_coords.T @ self.g_matrix @ self.modes_by_coords
-        elif self.is_cartesian:
-            return self.modes_by_coords.T @ np.diag(np.repeat(1/self.masses, 3))  @ self.modes_by_coords
+    def compute_hessian(self, system='modes'):
+        if system == 'modes':
+            pinv = self.coords_by_modes @ self.modes_by_coords
+            return pinv @ np.diag(np.sign(self.freqs) * (self.freqs ** 2)) @ pinv.T
+        elif system == 'coords':
+            pinv = self.modes_by_coords
+            return pinv @ np.diag(np.sign(self.freqs) * (self.freqs ** 2)) @ pinv.T
         else:
-            return None
-            # raise NotImplementedError("non-mass-weighted internal G-matrix not supported")
+            raise ValueError(f'unknown system for normal modes "{system}", valid are "modes", "coords"')
+
+    def compute_gmatrix(self, system='modes', return_fractional=False):
+        if system == 'modes':
+            if self.mass_weighted:
+                g = self.modes_by_coords.T @ self.modes_by_coords
+            elif self.g_matrix is not None:
+                g = self.modes_by_coords.T @ self.g_matrix @ self.modes_by_coords
+            elif self.is_cartesian:
+                g = self.modes_by_coords.T @ np.diag(np.repeat(1/self.masses, 3))  @ self.modes_by_coords
+            else:
+                return None
+            if return_fractional:
+                g12 = nput.fractional_power(g, 1/2)
+                gi12 = nput.fractional_power(g, -1/2)
+                return g, g12, gi12
+            else:
+                return g
+                # raise NotImplementedError("non-mass-weighted internal G-matrix not supported")
+        elif system == 'coords':
+            g, g12, gi12 = self._get_gmatrix()
+            if return_fractional:
+                return g, g12, gi12
+            else:
+                return g
+        else:
+            raise ValueError(f'unknown system for normal modes "{system}", valid are "modes", "coords"')
     def compute_freqs(self):
         # self = self.remove_frequency_scaling().remove_mass_weighting()
         f = self.compute_hessian()
@@ -432,7 +454,7 @@ class MixtureModes(CoordinateSystem):
         else:
             mw = self.make_mass_weighted(masses=masses)
 
-        f = mw.modes_by_coords @ np.diag(self.freqs ** 2) @ mw.modes_by_coords.T
+        f = mw.compute_hessian('coords')
 
         if self.is_cartesian and localization_type == 'direct':
             if origin is None:
@@ -468,6 +490,14 @@ class MixtureModes(CoordinateSystem):
                 mass_weighted=True,
                 zero_freq_cutoff=zero_freq_cutoff
             )
+            # freqs1, _, _ = self.get_normal_modes(
+            #      f,
+            #     g_matrix,
+            #     remove_transrot=True,
+            #     mass_weighted=True,
+            #     zero_freq_cutoff=zero_freq_cutoff
+            # )
+            # raise Exception(freqs * 219474.63, freqs1 * 219474.63)
         else:
             # freqs = []
             modes = []
@@ -799,7 +829,7 @@ class MixtureModes(CoordinateSystem):
         from .NormalModes import NormalModes
         self = self.make_mass_weighted()
 
-        f = self.modes_by_coords @ np.diag(self.freqs ** 2) @ self.modes_by_coords.T
+        f = self.compute_hessian('coords')
 
         if not nput.is_numeric(mass_scaling):
             mass_scaling = np.asanyarray(mass_scaling)
@@ -982,7 +1012,7 @@ class MixtureModes(CoordinateSystem):
         # L = self.matrix.shape.T
         if freqs is None:
             freqs = self.freqs
-        conv = np.sqrt(freqs)
+        conv = np.sign(freqs) * np.sqrt(np.abs(freqs))
         return freqs, conv
 
     def make_frequency_scaled(self, freqs=None):

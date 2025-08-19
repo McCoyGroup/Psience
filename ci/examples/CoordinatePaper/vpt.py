@@ -1,7 +1,9 @@
 import os
-
+import enum
 import numpy as np
+from McUtils.Data import UnitsData
 from Psience.Molecools import Molecule
+from Psience.VPT2 import PerturbationTheoryHamiltonian
 
 from . import paths
 from .expansions import (
@@ -9,6 +11,12 @@ from .expansions import (
     methanol, methanol_zmatrix, methanol_gaussian_zmatrix
 )
 from .modes import prep_rp_modes, print_rpnm_hessian
+
+
+class LevelsOfTheory(enum.Enum):
+    B3LYP = 'b3lyp'
+    wB97 = 'wb97'
+    AIMNet2 = 'aimnet'
 
 def get_gaussian_logfile(lot, subkey, use_reaction_path=True, use_degeneracies=True, mode_selection=None, use_internals=False):
     ms = "".join(str(m) for m in
@@ -47,6 +55,7 @@ def run_gaussian_vpt(
         mode_selection=None,
         use_degeneracies=True,
         log_file=None,
+        return_runner=False,
         overwrite=False
 ):
     me_gaussian = Molecule.from_file(
@@ -105,7 +114,24 @@ def run_gaussian_vpt(
                                           mode_selection=mode_selection,
                                           logger=log_file
                                           )
-        runner.print_tables(logger=runner.hamiltonian.logger)
+        if return_runner:
+            return runner
+        try:
+            runner.print_tables(logger=runner.hamiltonian.logger)
+        except:
+            os.remove(log_file)
+            raise
+    elif return_runner:
+        runner, _ = me_gaussian.setup_VPT(states=2,
+                                          degeneracy_specs='auto' if use_degeneracies else None,
+                                          cartesian_analytic_deriv_order=-1,
+                                          cartesian_by_internal_derivative_method='fast',
+                                          modes=nms,
+                                          mode_transformation=tf,
+                                          mode_selection=mode_selection,
+                                          logger=log_file
+                                          )
+        return runner
 
 def run_b3lyp_vpt(
         subkey,
@@ -121,33 +147,64 @@ def run_wb97_vpt(
 ):
     return run_gaussian_vpt('wb97', subkey, file_pattern=file_pattern, **args)
 
-def get_aimnet_logfile(key, use_reaction_path=True, use_degeneracies=True, mode_selection=None, use_internals=False):
-    if use_reaction_path:
-        if mode_selection is None:
-            ms = "_all"
-        else:
-            ms = "_" + ("".join(str(int(s)) for s in mode_selection))
-        if not use_degeneracies:
-            deg = "_nodegs"
-        else:
-            deg = ""
-        if use_internals:
-            log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_rp_ints_{key}{ms}{deg}.out')
-        else:
-            log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_{key}{ms}{deg}.out')
+def get_aimnet_logfile(key, use_reaction_path=True, use_degeneracies=True,
+                       mode_selection=None,
+                       use_internals=False,
+                       step_size=None,
+                       analytic_derivative_order=None
+                       ):
+    # if use_reaction_path:
+    #     if mode_selection is None:
+    #         ms = "_all"
+    #     else:
+    #         ms = "_" + ("".join(str(int(s)) for s in mode_selection))
+    #     if not use_degeneracies:
+    #         deg = "_nodegs"
+    #     else:
+    #         deg = ""
+    #     if use_internals:
+    #         log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_rp_ints_{key}{ms}{deg}.out')
+    #     else:
+    #         log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_{key}{ms}{deg}.out')
+    # else:
+    #     if mode_selection is None:
+    #         ms = "_all"
+    #     else:
+    #         ms = "_" + ("".join(str(int(s)) for s in mode_selection))
+    #     if not use_degeneracies:
+    #         deg = "_nodegs"
+    #     else:
+    #         deg = ""
+    #     if use_internals:
+    #         log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_norp_ints_{key}{ms}{deg}.out')
+    #     else:
+    #         log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_norp_{key}{ms}{deg}.out')
+
+    if mode_selection is None:
+        ms = "_all"
     else:
-        if mode_selection is None:
-            ms = "_all"
-        else:
-            ms = "_" + ("".join(str(int(s)) for s in mode_selection))
-        if not use_degeneracies:
-            deg = "_nodegs"
-        else:
-            deg = ""
-        if use_internals:
-            log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_norp_ints_{key}{ms}{deg}.out')
-        else:
-            log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_norp_{key}{ms}{deg}.out')
+        ms = "_" + ("".join(str(int(s)) for s in mode_selection))
+    if not use_degeneracies:
+        deg = "_nodegs"
+    else:
+        deg = ""
+    if use_internals:
+        coord = "ints_"
+        rp = "rp_"
+    else:
+        coord = ""
+        rp = ""
+    if not use_reaction_path:
+        rp = "norp_"
+    if step_size is not None:
+        step = "_s" + str(round(1000*step_size))
+    else:
+        step = ""
+    if analytic_derivative_order is not None:
+        ad = f"_ad{analytic_derivative_order}"
+    else:
+        ad = ""
+    log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_{rp}{coord}{key}{ms}{deg}{step}{ad}.out')
     return log_file
 
 def run_aimnet_vpt(key,
@@ -157,12 +214,19 @@ def run_aimnet_vpt(key,
                    overwrite=False,
                    mode_selection=None,
                    recompute_expansion=False,
+                   step_size=None,
                    use_degeneracies=True,
+                   return_runner=False,
+                   analytic_derivative_order=None,
                    **opts
                    ):
     coords = get_aimnet_structure(key, 'optimized')
     coords = np.array(coords)
-    (modes, status), potential_expansion = get_aimnet_expansion(key, 'optimized', overwrite=recompute_expansion)
+    (modes, status), potential_expansion = get_aimnet_expansion(key, 'optimized',
+                                                                overwrite=recompute_expansion,
+                                                                step_size=step_size,
+                                                                analytic_derivative_order=analytic_derivative_order
+                                                                )
     modes.matrix = np.array(modes.matrix)
     modes.inverse = np.array(modes.inverse)
     modes.masses = np.array(modes.masses)
@@ -183,7 +247,10 @@ def run_aimnet_vpt(key,
         log_file = get_aimnet_logfile(key,
                                       use_degeneracies=use_degeneracies,
                                       use_reaction_path=(status or use_reaction_path),
-                                      mode_selection=mode_selection, use_internals=use_internals)
+                                      mode_selection=mode_selection, use_internals=use_internals,
+                                      step_size=step_size,
+                                      analytic_derivative_order=analytic_derivative_order
+                                      )
 
 
     os.makedirs(paths.torsion_scan_path('aimnet', 'results'), exist_ok=True)
@@ -208,25 +275,140 @@ def run_aimnet_vpt(key,
     else:
         tf = None
 
+    nms = modes
+    opts = dict(
+        dict(
+            states=2,
+            degeneracy_specs='auto' if use_degeneracies else None,
+            cartesian_analytic_deriv_order=-1,
+            cartesian_by_internal_derivative_method='fast',
+            modes=nms,
+            mode_transformation=tf,
+            mode_selection=mode_selection,
+            logger=log_file
+        ),
+        **opts
+    )
     if overwrite or not os.path.exists(log_file):
         try:
             os.remove(log_file)
         except:
             ...
-        nms = modes
-        opts = dict(
-            dict(
-                states=2,
-                degeneracy_specs='auto' if use_degeneracies else None,
-                cartesian_analytic_deriv_order=-1,
-                cartesian_by_internal_derivative_method='fast',
-                modes=nms,
-                mode_transformation=tf,
-                mode_selection=mode_selection,
-                logger=log_file
-            ),
-            **opts
-        )
-
         runner, _ = me_aimnet.setup_VPT(**opts)
-        runner.print_tables(logger=runner.hamiltonian.logger, print_intensities=False)
+        if return_runner:
+            return runner
+
+        try:
+            runner.print_tables(logger=runner.hamiltonian.logger, print_intensities=False)
+        except:
+            os.remove(log_file)
+            raise
+    elif return_runner:
+        runner, _ = me_aimnet.setup_VPT(**opts)
+        return runner
+
+
+def get_log_generator(lot_name:str):
+    if isinstance(lot_name, str):
+        lot = LevelsOfTheory(lot_name.lower())
+    else:
+        lot = lot_name
+    if lot == LevelsOfTheory.B3LYP:
+        return get_b3lyp_logfile
+    elif lot == LevelsOfTheory.wB97:
+        return get_wb97_logfile
+    elif lot == LevelsOfTheory.AIMNet2:
+        return get_aimnet_logfile
+    else:
+        raise NotImplementedError(lot)
+
+
+def get_xii_term(runner, i, mode_selection=None, include_coriolis=False):
+    if include_coriolis: raise ValueError('dumb')
+
+    freqs = np.diag(runner.hamiltonian.V_terms[0])
+    ndim = len(freqs)
+    zeta = np.zeros((ndim, ndim, ndim))
+    Be = np.zeros((3,))
+
+    v3 = runner.hamiltonian.V_terms[1]
+    v4 = runner.hamiltonian.V_terms[2]
+    if mode_selection is not None:
+        mode_selection = np.arange(ndim)[mode_selection,]
+        rem = np.setdiff1d(np.arange(ndim), mode_selection)
+        v3 = v3.copy()
+        v3[:, :, rem] = 0
+        v3[:, rem, :] = 0
+        v3[rem, :, :] = 0
+
+        v4 = v4.copy()
+        v4[:, :, :, rem] = 0
+        v4[:, :, rem, :] = 0
+        v4[:, rem, :, :] = 0
+        v4[rem, :, :, :] = 0
+
+    if i < 0:
+        i = i + ndim
+
+    return PerturbationTheoryHamiltonian._Nielsen_xss(
+        i,
+        freqs,
+        v3,
+        v4,
+        zeta,
+        Be,
+        ndim,
+        return_components=True
+    )
+
+
+def get_xij_term(runner, i, j, mode_selection=None, include_coriolis=False):
+    if include_coriolis: raise ValueError('dumb')
+
+    freqs = np.diag(runner.hamiltonian.V_terms[0])
+    ndim = len(freqs)
+    zeta = np.zeros((ndim, ndim, ndim))
+    Be = np.zeros((3,))
+
+    v3 = runner.hamiltonian.V_terms[1]
+    v4 = runner.hamiltonian.V_terms[2]
+    if mode_selection is not None:
+        mode_selection = np.arange(ndim)[mode_selection,]
+        rem = np.setdiff1d(np.arange(ndim), mode_selection)
+        v3 = v3.copy()
+        v3[:, :, rem] = 0
+        v3[:, rem, :] = 0
+        v3[rem, :, :] = 0
+
+        v4 = v4.copy()
+        v4[:, :, :, rem] = 0
+        v4[:, :, rem, :] = 0
+        v4[:, rem, :, :] = 0
+        v4[rem, :, :, :] = 0
+
+    if i < 0:
+        i = i + ndim
+    if j < 0:
+        j = j + ndim
+
+    return PerturbationTheoryHamiltonian._Nielsen_xst(
+        i, j,
+        freqs,
+        v3,
+        v4,
+        zeta,
+        Be,
+        ndim,
+        return_components=True
+    )
+
+
+def contrib_x_terms(terms):
+    return [
+        [y * UnitsData.hartrees_to_wavenumbers for y in x]
+        for x in terms
+    ]
+
+
+def sum_x_terms(terms):
+    return sum(sum(x) for x in terms) * UnitsData.hartrees_to_wavenumbers

@@ -300,6 +300,7 @@ class NormalModes(MixtureModes):
         mol: Molecule
         if use_internals is None:
             use_internals = mol.internal_coordinates is not None
+        og_potential_derivatives = potential_derivatives
         if potential_derivatives is None:
             potential_derivatives = mol.potential_derivatives
             if potential_derivatives is None:
@@ -337,7 +338,11 @@ class NormalModes(MixtureModes):
                 **opts
             )
         else:
-            if not project_transrot and mol.normal_modes.modes is not None:
+            if (
+                    not project_transrot
+                    and mol.normal_modes.modes is not None
+                    and og_potential_derivatives is None
+            ):
                 return mol.normal_modes.modes.basis.to_new_modes()
 
             if masses is None:
@@ -364,6 +369,18 @@ class NormalModes(MixtureModes):
                 zero_freq_cutoff=zero_freq_cutoff,
                 **opts
             )
+
+    def get_reaction_path_modes(self,
+                                grad: np.ndarray,
+                                zero_gradient_cutoff=None,
+                                return_status=False,
+                                **kwargs
+                                ):
+        return ReactionPathModes.from_modes_and_grad(self, grad,
+                                                     zero_gradient_cutoff=zero_gradient_cutoff,
+                                                     return_status=return_status,
+                                                     **kwargs
+                                                     )
 
 class ReactionPathModes(NormalModes):
 
@@ -559,6 +576,7 @@ class ReactionPathModes(NormalModes):
                     freqs = freqs[0]
                     modes = modes[0]
                     inv = inv[0]
+                    mass_spec = mass_spec[0]
                 # elif len(base_shape) > 1:
                 #     ...
             else:
@@ -609,6 +627,7 @@ class ReactionPathModes(NormalModes):
                 freqs = freqs.reshape(base_shape + freqs.shape[1:])
                 modes = modes.reshape(base_shape + modes.shape[1:])
                 inv = inv.reshape(base_shape + inv.shape[1:])
+                mass_spec = mass_spec.reshape(base_shape + mass_spec.shape[1:])
 
         else:
             freqs, modes, inv = reg_modes
@@ -618,10 +637,12 @@ class ReactionPathModes(NormalModes):
                     freqs = freqs[0]
                     modes = modes[0]
                     inv = inv[0]
+                    mass_spec = mass_spec[0]
             else:
                 freqs = freqs.reshape(base_shape + freqs.shape[1:])
                 modes = modes.reshape(base_shape + modes.shape[1:])
                 inv = inv.reshape(base_shape + inv.shape[1:])
+                mass_spec = mass_spec.reshape(base_shape + mass_spec.shape[1:])
 
         mode_data = cls.ModeData(freqs, modes, inv)
         if return_gmatrix or return_indices:
@@ -743,8 +764,8 @@ class ReactionPathModes(NormalModes):
                 **opts
             )
         else:
-            if not project_transrot and mol.normal_modes.modes is not None:
-                return mol.normal_modes.modes.basis.to_new_modes()
+            # if not project_transrot and mol.normal_modes.modes is not None:
+            #     return mol.normal_modes.modes.basis.to_new_modes()
 
             if masses is None:
                 masses = mol.atomic_masses
@@ -773,3 +794,101 @@ class ReactionPathModes(NormalModes):
                 return_status=return_status,
                 **opts
             )
+
+    @classmethod
+    def from_modes_and_grad(cls,
+                            modes:MixtureModes,
+                            grad:np.ndarray,
+                            zero_gradient_cutoff=None,
+                            use_max_gradient_cutoff=True,
+                            return_status=False,
+                            mass_weighted=None,
+                            **projection_opts
+                            ):
+        g, g12, gi12 = modes.compute_gmatrix('coords', return_fractional=True)
+        new_grad = g12 @ grad
+
+        grad_norm = nput.vec_norms(new_grad)
+        if zero_gradient_cutoff is not None:
+            if use_max_gradient_cutoff:
+                stat = np.max(np.abs(grad)) > zero_gradient_cutoff
+            else:
+                stat = grad_norm > zero_gradient_cutoff
+        else:
+            stat = True
+        if stat:
+
+            gradient_mw = new_grad[:, np.newaxis] / grad_norm
+            gradient_inv_mw = np.moveaxis(gradient_mw, -2, -1)
+
+            gradient = gi12 @ gradient_mw
+            gradient_inv = gradient_inv_mw @ g12
+            old_modes = modes.remove_mass_weighting()
+
+            # print(1 / grad_norm, grad_norm)
+            new_modes = old_modes.localize(
+                projections=[gradient],
+                orthogonal_projection=True,
+                allow_mode_mixing=True,
+                **projection_opts
+            )
+
+            if len(new_modes.freqs) == len(old_modes.freqs):
+                print(
+                    new_modes.local_freqs * UnitsData.hartrees_to_wavenumbers,
+                    old_modes.local_freqs * UnitsData.hartrees_to_wavenumbers
+                )
+                raise ValueError("projection didn't change subspace size")
+
+            # import McUtils.Formatters as mfmt
+            #
+            # print(mfmt.TableFormatter("{:.0f}").format(
+            #     old_modes.local_hessian * UnitsData.hartrees_to_wavenumbers
+            # ))
+            #
+            # print("-"*20)
+            #
+            # print(mfmt.TableFormatter("{:.0f}").format(
+            #     new_modes.local_hessian * UnitsData.hartrees_to_wavenumbers
+            # ))
+            #
+            # raise Exception(...)
+
+            if mass_weighted is None:
+                mass_weighted = modes.mass_weighted
+
+            f_grad = gradient_inv @ old_modes.compute_hessian('coords') @ np.moveaxis(gradient_inv, -1, -2)
+            if mass_weighted:
+                new_modes = new_modes.make_mass_weighted()
+                gradient = gradient_mw
+                gradient_inv = gradient_inv_mw
+
+            modes_by_coords = np.concatenate(
+                [
+                    gradient,
+                    new_modes.modes_by_coords
+                ],
+                axis=1
+            )
+            coords_by_modes = np.concatenate(
+                [
+                    gradient_inv,
+                    new_modes.coords_by_modes
+                ],
+                axis=0
+            )
+
+            modes = cls(
+                old_modes.basis,
+                modes_by_coords,
+                inverse=coords_by_modes,
+                origin=new_modes.origin,
+                masses=new_modes.masses,
+                freqs=np.concatenate([f_grad.flatten(), new_modes.freqs]),
+                mass_weighted=mass_weighted
+            )
+
+        if return_status:
+            return modes, stat
+        else:
+            return modes

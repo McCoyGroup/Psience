@@ -199,13 +199,14 @@ class MolecularEvaluator:
                 base_coords[..., sel, axes] = displacements
 
         else:
-            if displacements.shape[-2:] != base_coords.shape:
+            if displacements.shape[-base_coords.ndim:] != base_coords.shape:
                 raise ValueError("displacements with shape {} passed but coordinates have shape {}".format(
                     displacements.shape,
                     base_coords.shape
                 ))
             if shift:
-                base_coords = np.expand_dims(base_coords, list(range(displacements.ndim - 2)))
+                bnd = base_coords.ndim
+                base_coords = np.expand_dims(base_coords, list(range(displacements.ndim - bnd)))
                 base_coords = base_coords + displacements
             else:
                 base_coords = displacements
@@ -541,6 +542,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                                  displacement_generator=None,
                                  coordinate_prep=None,
                                  index_filter=None,
+                                 analytic_derivative_order=None,
                                  **opts):
         opts = dev.OptionsSet(opts)
         fd_opts = opts.filter(FiniteDifferenceDerivative)
@@ -553,24 +555,27 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         coord_shape = coords.shape[-2:]
         flat_coords = coords.reshape(-1, np.prod(coord_shape, dtype=int))
 
+        if analytic_derivative_order is None:
+            analytic_derivative_order = self.analytic_derivative_order
+
         def derivs(structs, center=flat_coords):
             if displacement_generator is not None:
                 structs = displacement_generator(structs, evaluator=self, center=center)
             reconst = structs.reshape(structs.shape[:-1] + coord_shape)
-            ders = self.evaluate_term(reconst, self.analytic_derivative_order, **opts)
+            ders = self.evaluate_term(reconst, analytic_derivative_order, **opts)
             if batched_orders:
                 return ders[-1]
             else:
                 return ders
 
         der = FiniteDifferenceDerivative(derivs,
-                                         function_shape=((0,), (0,) * self.analytic_derivative_order),
+                                         function_shape=((0,), (0,) * analytic_derivative_order),
                                          **self.get_fd_opts(**fd_opts)
                                          )
         if coordinate_prep is not None:
             flat_coords = coordinate_prep(flat_coords, evaluator=self)
         tensors = der.derivatives(flat_coords).derivative_tensor(
-            list(range(1, (order - self.analytic_derivative_order) + 1)),
+            list(range(1, (order - analytic_derivative_order) + 1)),
             pos_filter=index_filter
         )
         if flat_coords.shape[0] > 1:
@@ -592,6 +597,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                                           displacement_generator=None,
                                           coordinate_prep=None,
                                           index_filter=None,
+                                          analytic_derivative_order=None,
                                           **opts):
         opts = dev.OptionsSet(opts)
         fd_opts = opts.filter(FiniteDifferenceDerivative)
@@ -599,6 +605,8 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
 
         if batched_orders is None:
             batched_orders = self.batched_orders
+        if analytic_derivative_order is None:
+            analytic_derivative_order = self.analytic_derivative_order
 
         reembed = dev.str_is(self.use_internals, 'reembed')
         if (
@@ -623,21 +631,21 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                 if not batched_orders:
                     res = [
                         self.evaluate_term(reconst, o, **opts)
-                        for o in range(self.analytic_derivative_order + 1)
+                        for o in range(analytic_derivative_order + 1)
                     ]
                 else:
-                    res = self.evaluate_term(reconst, self.analytic_derivative_order, **opts)
+                    res = self.evaluate_term(reconst, analytic_derivative_order, **opts)
                 res = res[:1] + self.embed_derivs(reconst, res[1:])
                 return res[-1]
             else:
-                ders = self.evaluate_term(reconst, self.analytic_derivative_order, **opts)
+                ders = self.evaluate_term(reconst, analytic_derivative_order, **opts)
                 if batched_orders:
                     return ders[-1]
                 else:
                     return ders
 
         der = FiniteDifferenceDerivative(derivs,
-                                         function_shape=((0,), (0,) * self.analytic_derivative_order),
+                                         function_shape=((0,), (0,) * analytic_derivative_order),
                                          **self.get_fd_opts(**fd_opts)
                                          )
 
@@ -645,7 +653,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
             flat_coords  = coordinate_prep(flat_coords, evaluator=self)
 
         tensors = der.derivatives(flat_coords).derivative_tensor(
-            list(range(1, (order - self.analytic_derivative_order) + 1)),
+            list(range(1, (order - analytic_derivative_order) + 1)),
             pos_filter=index_filter
         )
         if flat_coords.shape[0] > 1:
@@ -706,6 +714,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                            displacement_generator=fd_displacement_generator,
                            coordinate_prep=fd_coordinate_prep,
                            index_filter=fd_index_filter,
+                           analytic_derivative_order=analytic_derivative_order,
                            **fd_opts)
             )
 

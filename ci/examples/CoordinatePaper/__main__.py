@@ -12,6 +12,7 @@ from . import expansions
 from . import modes
 from . import vpt
 from . import util
+from . import analysis
 
 tests = []
 
@@ -57,61 +58,122 @@ def Duschinksy():
         )
     )
 
+@runnable
+def analytic_expansions():
+    woof = expansions.get_aimnet_expansion(0, 'optimized', analytic_derivative_order=3)
+    print(np.array(woof[1][4]).shape)
+
 @inactive
 def AIMNetVPT():
-    degs = False
-    vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=False, use_reaction_path=False)
-    vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=True, use_reaction_path=False)
+    degs = True
+    # vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=False, use_reaction_path=False)
+    # vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=True, use_reaction_path=False)
+    step_size = .25
     for k in range(0, -70, -10):
+        print(k, "-", "Full")
+        vpt.run_aimnet_vpt(k, use_degeneracies=degs, step_size=step_size)
+        print(k, "-", "Full Internals")
+        vpt.run_aimnet_vpt(k, use_degeneracies=degs, use_internals=True, step_size=step_size)
+        for spec in [
+            # [-4, -3, -2, -1],
+            # [-7, -6, -5, -4, -3, -2, -1],
+            # [-11, -10, -8, -1],
+            # [-8, -1],
+            # [-11, -1],
+            # [-11, -4, -3, -2, -1],
+            # [-11, -7, -6, -5, -4, -3, -2, -1],
+            # [-1],
+        ]:
+            print(k, "-", "Partial", spec)
+            vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec)
+            print(k, "-", "Partial Internals", spec)
+            vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec, use_internals=True)
+
+@inactive
+def AIMNetVPTMore():
+    degs = True
+    # vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=False, use_reaction_path=False)
+    # vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=True, use_reaction_path=False)
+    for k in range(-53, -70, -10):
         print(k, "-", "Full")
         vpt.run_aimnet_vpt(k, use_degeneracies=degs)
         print(k, "-", "Full Internals")
         vpt.run_aimnet_vpt(k, use_degeneracies=degs, use_internals=True)
-        print(k, "-", "Partial")
-        vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=[-4, -3, -2, -1])
-        print(k, "-", "Partial Internals")
-        vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=[-4, -3, -2, -1], use_internals=True)
-        print(k, "-", "Partial")
-        vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=[-7, -6, -5, -4, -3, -2, -1])
-        print(k, "-", "Partial Internals")
-        vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=[-7, -6, -5, -4, -3, -2, -1], use_internals=True)
+        for spec in [
+            [-4, -3, -2, -1],
+            [-7, -6, -5, -4, -3, -2, -1],
+            [-11, -10, -8, -1],
+            [-8, -1],
+            [-11, -1],
+            [-11, -4, -3, -2, -1],
+            [-11, -7, -6, -5, -4, -3, -2, -1],
+            [-1],
+        ]:
+            print(k, "-", "Partial")
+            vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec)
+            print(k, "-", "Partial Internals")
+            vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec, use_internals=True)
 
 
 @inactive
 def B3LYPVPT():
-    vpt.run_b3lyp_vpt(1, use_internals=False, use_reaction_path=False)
-    vpt.run_b3lyp_vpt(1, use_internals=True, use_reaction_path=False)
-    for k in [1, 3]:
+    degs = True
+    vpt.run_b3lyp_vpt(1, use_degeneracies=degs, use_internals=False, use_reaction_path=False)
+    vpt.run_b3lyp_vpt(1, use_degeneracies=degs, use_internals=True, use_reaction_path=False)
+    for k in [1, 2, 3, 4, 5, 6, 7]:
         print(k, "-", "Full")
-        vpt.run_gaussian_vpt('b3lyp', k)
+        vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs)
         print(k, "-", "Full Internals")
-        vpt.run_gaussian_vpt('b3lyp', k, use_internals=True)
-        print(k, "-", "Partial")
-        vpt.run_gaussian_vpt('b3lyp', k, mode_selection=[-4, -3, -2, -1])
-        print(k, "-", "Partial Internals")
-        vpt.run_gaussian_vpt('b3lyp', k, mode_selection=[-4, -3, -2, -1], use_internals=True)
-        print(k, "-", "Partial")
-        vpt.run_gaussian_vpt('b3lyp', k, mode_selection=[-7, -6, -5, -4, -3, -2, -1])
-        print(k, "-", "Partial Internals")
-        vpt.run_gaussian_vpt('b3lyp', k, mode_selection=[-7, -6, -5, -4, -3, -2, -1], use_internals=True)
+        vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, use_internals=True)
+        for spec in [
+            [-4, -3, -2, -1],
+            [-7, -6, -5, -4, -3, -2, -1],
+            [-11, -10, -8, -1],
+            [-8, -1],
+            [-11, -1],
+            [-11, -4, -3, -2, -1],
+            [-11, -7, -6, -5, -4, -3, -2, -1],
+            [-1],
+        ]:
+            print(k, "-", "Partial", spec)
+            vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, mode_selection=spec)
+            print(k, "-", "Partial Internals", spec)
+            vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, mode_selection=spec, use_internals=True)
+        # print(k, "-", "OH")
+        # vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, mode_selection=[-1])
+        # print(k, "-", "OH Internals")
+        # vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, mode_selection=[-1], use_internals=True)
 
 @inactive
 def wb97VPT():
+    degs = True
     vpt.run_wb97_vpt(1, use_internals=False, use_reaction_path=False)
     vpt.run_wb97_vpt(1, use_internals=True, use_reaction_path=False)
-    for k in [1, 3]:
+    for k in [
+        1,
+        2, 3,
+        4,
+        5, 6,
+        7
+    ]:
         print(k, "-", "Full")
-        vpt.run_wb97_vpt(k)
+        vpt.run_wb97_vpt(k, use_degeneracies=degs)
         print(k, "-", "Full Internals")
-        vpt.run_wb97_vpt(k, use_internals=True)
-        print(k, "-", "Partial")
-        vpt.run_wb97_vpt(k, mode_selection=[-4, -3, -2, -1])
-        print(k, "-", "Partial Internals")
-        vpt.run_wb97_vpt(k, mode_selection=[-4, -3, -2, -1], use_internals=True)
-        print(k, "-", "Partial")
-        vpt.run_wb97_vpt(k, mode_selection=[-7, -6, -5, -4, -3, -2, -1])
-        print(k, "-", "Partial Internals")
-        vpt.run_wb97_vpt(k, mode_selection=[-7, -6, -5, -4, -3, -2, -1], use_internals=True)
+        vpt.run_wb97_vpt(k, use_degeneracies=degs, use_internals=True)
+        for spec in [
+            [-4, -3, -2, -1],
+            [-7, -6, -5, -4, -3, -2, -1],
+            [-11, -10, -8, -1],
+            [-8, -1],
+            [-11, -1],
+            [-11, -4, -3, -2, -1],
+            [-11, -7, -6, -5, -4, -3, -2, -1],
+            [-1],
+        ]:
+            print(k, "-", "Partial", spec)
+            vpt.run_wb97_vpt(k, use_degeneracies=degs, mode_selection=spec)
+            print(k, "-", "Partial Internals", spec)
+            vpt.run_wb97_vpt(k, use_degeneracies=degs, mode_selection=spec, use_internals=True)
 
 @inactive
 def NORPVPT():
@@ -124,115 +186,6 @@ def NORPVPT():
         ...
 
 
-def fprint(tag, a=None):
-    if a is None: a, tag = tag, None
-    a = np.asanyarray(a)
-    if a.ndim == 1: a = a[np.newaxis]
-    if tag is not None:
-        print(tag, TableFormatter("{:>4.0f}").format(a))
-    else:
-        print(TableFormatter("{:>4.0f}").format(a))
-
-def make_freq_comp_tables(
-        states,
-        tags,
-        log_files,
-        header_spans=None,
-        use_zero_order=False,
-        use_deperturbed=True,
-        use_tex=False,
-        **etc
-):
-    if len(states) == 2 and isinstance(tags[1], (tuple, list, np.ndarray)):
-        states, inds = states
-    else:
-        inds = list(range(1, len(states)+1))
-
-    data_sets = []
-    for lf in log_files:
-        a1 = VPTAnalyzer(lf)
-        if use_zero_order:
-            e1 = a1.zero_order_energies[1][inds,]
-        elif use_deperturbed:
-            e1 = a1.deperturbed_energies[1][inds,]
-        else:
-            e1 = a1.energies[1][inds,]
-        data_sets.append(e1)
-
-    if isinstance(tags[0], str):
-        tags = ["States"] + list(tags)
-        header_spans = None
-    else:
-        if header_spans is None:
-            header_spans = [
-                [1] + [len(tags[1]) // len(tags[0])] * len(tags[0]),
-                [1] + [1] * len(tags[1])
-            ]
-        tags = [
-            [""] + list(tags[0]),
-            ["States"] + tags[1]
-        ]
-
-    if use_tex:
-        # def format_mat(lhs, m, label=None, digits=2):
-        #     f_og = m.astype(object)
-        #     f_og[np.tril_indices_from(f_og, -1)] = ""
-        #     fsym = TeX.bold(lhs).as_expr()
-        #     TeX.Writer.real_digits = digits
-        #     fexpr = fsym.Eq(TeX.Matrix(f_og))
-        #     return TeX.Equation(fexpr, label=label).format_tex()
-        return mfmt.TeX.Table(
-            tags,
-            [
-                [s] + a.tolist()
-                for s, a in zip(
-                    states,
-                    np.array(data_sets).T
-                )
-            ],
-            number_format="{:4>.0f}",
-            resizeable=True,
-            header_spans=header_spans,
-            **etc
-        ).format_tex()
-    else:
-        return TableFormatter(
-            column_formats=[""] + ["{:>4.0f}"] * len(tags),
-            headers=tags,
-            header_spans=header_spans,
-            column_join=" | ",
-            column_alignments=["^", ">", ">", ">"]
-        ).format([
-            [s] + a.tolist()
-            for s,a in zip(
-                states,
-                np.array(data_sets).T
-            )
-        ])
-
-
-def print_freq_comps_info(tag, log_getter, key, **opts):
-    print("="*20, tag, "="*20)
-    base = log_getter(key, use_reaction_path=False, **opts)
-    if os.path.exists(base):
-        a0 = VPTAnalyzer(base)
-    else:
-        a0 = None
-    a1 = VPTAnalyzer(log_getter(key, **opts))
-    a2 = VPTAnalyzer(log_getter(key, mode_selection=[-7, -6, -5, -4, -3, -2, -1], **opts))
-    if a0 is not None:
-        e0 = a0.deperturbed_energies[1][1:13]
-        fprint("Full:", e0)
-    else:
-        e0 = None
-    e1 = a1.deperturbed_energies[1][1:13]
-    e2 = a2.deperturbed_energies[1][1:13]
-    fprint("Proj:", e1)
-    fprint("Subs:", e2)
-    # if e0 is not None:
-    #     fprint(e0 - e1)
-    #     fprint(e0 - e2)
-    # fprint(e1 - e2)
 
 @inactive
 def analyzeStretchResults():
@@ -244,7 +197,7 @@ def analyzeStretchResults():
     print()
     base_opts = dict(use_degeneracies=False, use_reaction_path=False)
     print(
-        make_freq_comp_tables(
+        analysis.make_freq_comp_tables(
             [
                 ["OH", "CH", "CH", "CH", "HCH", "HCH", "HCH", "HOCH"],
                 [1, 2, 3, 4, 5, 6, 7, 12]
@@ -271,7 +224,7 @@ def analyzeStretchResults():
     print()
     base_opts = dict(use_degeneracies=True, use_reaction_path=False)
     print(
-        make_freq_comp_tables(
+        analysis.make_freq_comp_tables(
             [
                 ["OH", "CH", "CH", "CH", "HCH", "HCH", "HCH", "HOCH"],
                 [1, 2, 3, 4, 5, 6, 7, 12]
@@ -299,7 +252,7 @@ def analyzeStretchResults():
     print()
     base_opts = dict(use_degeneracies=True, use_reaction_path=True)
     print(
-        make_freq_comp_tables(
+        analysis.make_freq_comp_tables(
             [
                 ["OH", "CH", "CH", "CH", "HCH", "HCH", "HCH"],
                 [1, 2, 3, 4, 5, 6, 7]
@@ -318,7 +271,7 @@ def analyzeStretchResults():
             ],
             use_tex=True,
             caption="internal vs cartesian comparison with reaction path projection and degeneracies" + distortion_key,
-            label='lab:int_cart_norp_deg'
+            label='lab:int_cart_rp_deg'
             # use_zero_order=True
         )
     )
@@ -326,7 +279,7 @@ def analyzeStretchResults():
     print()
     base_opts = dict(use_degeneracies=True, use_reaction_path=True, mode_selection=[-7, -6, -5, -4, -3, -2, -1])
     print(
-        make_freq_comp_tables(
+        analysis.make_freq_comp_tables(
             [
                 ["OH", "CH", "CH", "CH", "HCH", "HCH", "HCH"],
                 [1, 2, 3, 4, 5, 6, 7]
@@ -353,7 +306,7 @@ def analyzeStretchResults():
     print()
     base_opts = dict(use_degeneracies=True, use_reaction_path=True, mode_selection=[-4, -3, -2, -1])
     print(
-        make_freq_comp_tables(
+        analysis.make_freq_comp_tables(
             [
                 ["OH", "CH", "CH", "CH"],
                 [1, 2, 3, 4]
@@ -386,7 +339,7 @@ def analyzeStretchResults():
     print()
     base_opts = dict(use_degeneracies=True, use_reaction_path=True)
     print(
-        make_freq_comp_tables(
+        analysis.make_freq_comp_tables(
             [
                 ["OH", "CH", "CH", "CH", "HCH", "HCH", "HCH"],
                 [1, 2, 3, 4, 5, 6, 7]
@@ -413,7 +366,7 @@ def analyzeStretchResults():
     print()
     base_opts = dict(use_degeneracies=True, use_reaction_path=True, mode_selection=[-7, -6, -5, -4, -3, -2, -1])
     print(
-        make_freq_comp_tables(
+        analysis.make_freq_comp_tables(
             [
                 ["OH", "CH", "CH", "CH", "HCH", "HCH", "HCH"],
                 [1, 2, 3, 4, 5, 6, 7]
@@ -440,7 +393,7 @@ def analyzeStretchResults():
     print()
     base_opts = dict(use_degeneracies=True, use_reaction_path=True, mode_selection=[-4, -3, -2, -1])
     print(
-        make_freq_comp_tables(
+        analysis.make_freq_comp_tables(
             [
                 ["OH", "CH", "CH", "CH"],
                 [1, 2, 3, 4]
@@ -531,7 +484,7 @@ def analyzeStretchResults():
         use_internals=True
     )
 
-@runnable
+@inactive
 def plot_OH_stretch_surface():
     eng_array = []
     spec = list(range(-60, 10, 10))

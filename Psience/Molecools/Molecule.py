@@ -174,48 +174,60 @@ class Molecule(AbstractMolecule):
                meta=dev.default
                ):
         return type(self)(
-            self.atoms if atoms is dev.default else atoms,
-            self.coords if coords is dev.default else coords,
-            masses=self.masses if (masses is dev.default and atoms is dev.default) else masses,
-            bonds=self._bonds if bonds is dev.default else bonds,
-            guess_bonds=self.guess_bonds if guess_bonds is dev.default else guess_bonds,
-            energy_evaluator=self.energy_evaluator if energy_evaluator is dev.default else energy_evaluator,
-            dipole_evaluator=self.dipole_evaluator if dipole_evaluator is dev.default else dipole_evaluator,
-            charge_evaluator=self.charge_evaluator if charge_evaluator is dev.default else charge_evaluator,
-            display_mode=self.display_mode if display_mode is dev.default else display_mode,
-            charge=self.charge if charge is dev.default else charge,
-            internals=self.internals if internals is dev.default else internals,
-            normal_modes=self.normal_modes if normal_modes is dev.default else normal_modes,
+            self.atoms if dev.is_default(atoms) else atoms,
+            self.coords if dev.is_default(coords) else coords,
+            masses=(
+                self.masses if
+                    dev.is_default(masses, allow_None=False) and dev.is_default(atoms)
+                else None if
+                    dev.is_default(masses)
+                else masses
+            ),
+            bonds=self._bonds if dev.is_default(bonds) else bonds,
+            guess_bonds=self.guess_bonds if dev.is_default(guess_bonds) else guess_bonds,
+            energy_evaluator=self.energy_evaluator if dev.is_default(energy_evaluator, allow_None=False) else energy_evaluator,
+            dipole_evaluator=self.dipole_evaluator if dev.is_default(dipole_evaluator, allow_None=False) else dipole_evaluator,
+            charge_evaluator=self.charge_evaluator if dev.is_default(charge_evaluator, allow_None=False) else charge_evaluator,
+            display_mode=self.display_mode if dev.is_default(display_mode) else display_mode,
+            charge=self.charge if dev.is_default(charge) else charge,
+            internals=self.internals if dev.is_default(internals, allow_None=False) else internals,
+            normal_modes=self.normal_modes if dev.is_default(normal_modes, allow_None=False) else normal_modes,
             energy=self.energy if (
-                    energy is dev.default
-                    and coords is dev.default
-                    and energy_evaluator is dev.default
+                    dev.is_default(energy, allow_None=False)
+                    and dev.is_default(coords)
+                    and dev.is_default(energy_evaluator, allow_None=False)
             ) else energy,
             dipole_surface=self.dipole_surface if (
-                    dipole_surface is dev.default
-                    and dipole_derivatives is dev.default
-                    and coords is dev.default
-                    and dipole_evaluator is dev.default
+                    dev.is_default(dipole_surface, allow_None=False)
+                    and dev.is_default(dipole_derivatives, allow_None=False)
+                    and dev.is_default(coords)
+                    and dev.is_default(energy_evaluator, allow_None=False)
             ) else (
                 None
-                    if dipole_surface is dev.default else
+                    if dev.is_default(dipole_surface) else
                 dipole_surface
             ),
-            dipole_derivatives=None if dipole_derivatives is dev.default else dipole_derivatives,
+            dipole_derivatives=None if dev.is_default(dipole_derivatives) else dipole_derivatives,
             potential_surface=self.potential_surface if (
-                    potential_surface is dev.default
-                    and potential_derivatives is dev.default
-                    and coords is dev.default
-                    and energy_evaluator is dev.default
+                    dev.is_default(potential_surface, allow_None=False)
+                    and dev.is_default(potential_derivatives, allow_None=False)
+                    and dev.is_default(coords)
+                    and dev.is_default(energy_evaluator, allow_None=False)
             ) else (
                 None
-                    if potential_surface is dev.default else
+                    if dev.is_default(potential_surface) else
                 potential_surface
             ),
-            potential_derivatives=None if potential_derivatives is dev.default else potential_derivatives,
+            potential_derivatives=(
+                None
+                    if dev.is_default(potential_derivatives) else
+                potential_derivatives
+            ),
             meta=(
                      self._meta
-                        if meta is dev.default else
+                        if dev.is_default(meta) else
+                     {}
+                        if meta is None else
                      dev.merge_dicts(self._meta, meta)
             )
         )
@@ -1083,18 +1095,30 @@ class Molecule(AbstractMolecule):
     def find_backbone_segments(self):
         return self.edge_graph.segment_by_chains()
 
-    def get_backbone_zmatrix(self, segments=None):
+    def get_backbone_zmatrix(self, segments=None, return_remainder=False, return_segments=False):
         if segments is None:
             segments = self.find_backbone_segments()
 
         bond_list = [b[:2] for b in self.bonds]
-        return coordops.add_missing_zmatrix_bonds(
-            coordops.bond_graph_zmatrix(
-                bond_list,
-                segments
-            ),
+        base_graph = coordops.bond_graph_zmatrix(
+            bond_list,
+            segments
+        )
+        zmat, new_bonds = coordops.add_missing_zmatrix_bonds(
+            base_graph,
             bond_list
         )
+
+        if return_segments or return_remainder:
+            res = (zmat,)
+            if return_segments:
+                res = res + (segments,)
+            if return_remainder:
+                res = res + (new_bonds,)
+
+            return res
+        else:
+            return zmat
 
     def get_bond_zmatrix(self, fragments=None, segments=None):
         if fragments is None:
@@ -1107,16 +1131,22 @@ class Molecule(AbstractMolecule):
         else:
             inds = fragments
             frags = [self.take_submolecule(ix) for ix in inds]
-            zmats = [f.get_backbone_zmatrix()[0] for f in frags]
+            zmats = [f.get_backbone_zmatrix() for f in frags]
             ordering = np.argsort([-len(x) for x in inds])
 
             inds = [inds[i] for i in ordering]
             zmats = [zmats[i] for i in ordering]
 
+            dm = nput.distance_matrix(self.coords)
+            h_pos = [i for i,a in enumerate(self.atoms) if a in {'H', 'D'}]
+            dm[:, h_pos] = 1e8
+            dm[h_pos, :] = 1e8
+
             return coordops.complex_zmatrix(
                 [b[:2] for b in self.bonds],
                 inds,
-                zmats
+                zmats,
+                distance_matrix=dm
             )
 
     @property
@@ -2312,12 +2342,12 @@ class Molecule(AbstractMolecule):
     def _from_log_file(cls, file, num=None, **opts):
         from McUtils.GaussianInterface import GaussianLogReader
         with GaussianLogReader(file) as gr:
-            parse = gr.parse('StandardCartesianCoordinates', num=num)
-        spec, coords = parse['StandardCartesianCoordinates']
+            parse = gr.parse('CartesianCoordinates', num=num)
+        spec, coords = parse['CartesianCoordinates']
         ang2bohr = UnitsData.convert("Angstroms", "AtomicUnitOfLength")
         return cls(
-            [int(a[1]) for a in spec],
-            CoordinateSet(ang2bohr*np.array(coords), CartesianCoordinates3D),
+            spec[:, 1],
+            ang2bohr*coords[-1],
             **opts
         )
     @classmethod
@@ -2780,7 +2810,7 @@ class Molecule(AbstractMolecule):
              multiple_bond_spacing=None,
              mode=None,#'quality',
              backend=None,
-             include_save_buttons=False,
+             include_save_buttons=None,
              objects=False,
              graphics_class=None,
              cylinder_class=None,
@@ -2901,6 +2931,8 @@ class Molecule(AbstractMolecule):
         colors = [ at["IconColor"] for at in self._ats ]
         if atom_radii is None:
             atom_radii = [None] * len(self._ats)
+        elif dev.is_dict_like(atom_radii):
+            atom_radii = [atom_radii.get(a["ElementSymbol"]) for a in self._ats]
         atom_radii = [
             self._get_atomic_radius(at, radius_type)
                 if c is None else c for c, at in
@@ -3161,9 +3193,9 @@ class Molecule(AbstractMolecule):
                 **animation_options
             )
 
-        if include_save_buttons:
-            plt.X3D.include_export_button = True
-            plt.X3D.include_record_button = True
+        if include_save_buttons is not None:
+            plt.X3D.include_export_button = include_save_buttons
+            plt.X3D.include_record_button = include_save_buttons
 
         if return_objects:
             return figure, atoms, bonds, arrows
@@ -3228,7 +3260,7 @@ class Molecule(AbstractMolecule):
                      normalize=True,
                      mass_weight=False,
                      mass_scale=True,
-                     frequency_scale=True,
+                     frequency_scale=False,
                      **opts
                      ):
         from ..Modes import NormalModes
