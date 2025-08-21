@@ -1,8 +1,8 @@
 ## <a id="Psience.Modes.NormalModes.ReactionPathModes">ReactionPathModes</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes.py#L368)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes.py#L368?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes.py#L385)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes.py#L385?message=Update%20Docs)]
 </div>
 
 
@@ -27,8 +27,8 @@ zero_gradient_cutoff: float
 get_rp_modes(cls, gradient, f_matrix, mass_spec, remove_transrot=True, dimensionless=False, mass_weighted=None, zero_freq_cutoff=None, return_gmatrix=False, projector=None, zero_gradient_cutoff=None, use_max_gradient_cutoff=True, return_indices=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L371)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L371?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L388)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L388?message=Update%20Docs)]
 </div>
 
 
@@ -38,8 +38,8 @@ get_rp_modes(cls, gradient, f_matrix, mass_spec, remove_transrot=True, dimension
 from_grad_fg(cls, basis, gradient, f_matrix, mass_spec, remove_transrot=True, dimensionless=False, zero_freq_cutoff=None, mass_weighted=None, origin=None, projector=None, zero_gradient_cutoff=None, return_status=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L637)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L637?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L658)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L658?message=Update%20Docs)]
 </div>
 Generates normal modes from the specified F and G matrices
   - `basis`: `Any`
@@ -64,8 +64,19 @@ Generates normal modes from the specified F and G matrices
 from_molecule(cls, mol, dimensionless=False, use_internals=None, potential_derivatives=None, project_transrot=True, zero_freq_cutoff=None, masses=None, zero_gradient_cutoff=None, return_status=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L701)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L701?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L722)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L722?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Modes.NormalModes.ReactionPathModes.from_modes_and_grad" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_modes_and_grad(cls, modes: Psience.Modes.MixtureModes.MixtureModes, grad: numpy.ndarray, zero_gradient_cutoff=None, use_max_gradient_cutoff=True, return_status=False, mass_weighted=None, **projection_opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L798)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L798?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -120,7 +131,7 @@ from_molecule(cls, mol, dimensionless=False, use_internals=None, potential_deriv
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Modes/NormalModes/ReactionPathModes.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Modes/NormalModes/ReactionPathModes.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes.py#L368?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes.py#L385?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

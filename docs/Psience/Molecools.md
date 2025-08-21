@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-27652f" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-27652f"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-faf42e" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-faf42e"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-27652f" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-faf42e" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -142,11 +142,13 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [MultiGMatrix](#MultiGMatrix)
 - [1DPotentialReps](#1DPotentialReps)
 - [Constructors](#Constructors)
+- [FormatImports](#FormatImports)
 - [ModeSelectedNMs](#ModeSelectedNMs)
 - [NMFiniteDifference](#NMFiniteDifference)
 - [CoordinateSystems](#CoordinateSystems)
 - [PySCFEnergy](#PySCFEnergy)
 - [BackboneChains](#BackboneChains)
+- [EasyZMatrices](#EasyZMatrices)
 - [SufaceArea](#SufaceArea)
 - [SufaceTriangulation](#SufaceTriangulation)
 - [ModeLabels](#ModeLabels)
@@ -160,9 +162,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-b544ee" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-b544ee"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-e1cf6c" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-e1cf6c"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-b544ee" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-e1cf6c" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -2112,6 +2114,16 @@ class MolecoolsTests(TestCase):
         c = Molecule.construct('OC')
 ```
 
+#### <a name="FormatImports">FormatImports</a>
+```python
+    def test_FormatImports(self):
+        woof = Molecule.from_file(
+            TestManager.test_data('water_dimer_freq_unopt.log'),
+            'gspec'
+        )
+        print(len(woof.potential_derivatives))
+```
+
 #### <a name="ModeSelectedNMs">ModeSelectedNMs</a>
 ```python
     def test_ModeSelectedNMs(self):
@@ -2270,6 +2282,34 @@ class MolecoolsTests(TestCase):
             bond_style=bond_style,
             include_save_buttons=True
         ).show()
+```
+
+#### <a name="EasyZMatrices">EasyZMatrices</a>
+```python
+    def test_EasyZMatrices(self):
+        cpmo = Molecule.from_file(
+            TestManager.test_data('cpmo3m_opt.xyz'),
+            units='Angstroms'
+        )
+
+        cpmo_split = cpmo.modify(
+            bonds=[
+                b for b in cpmo.bonds
+                if tuple(sorted(b[:2])) not in {
+                    (0, 4),
+                    (0, 5),
+                    (0, 6),
+                    (0, 7),
+                    (0, 8)
+                }
+            ]
+        )
+
+        pprint.pprint(
+            cpmo_split.get_bond_zmatrix(
+                attachment_points={0:(4, 6, 8)}
+            )
+        )
 ```
 
 #### <a name="SufaceArea">SufaceArea</a>
