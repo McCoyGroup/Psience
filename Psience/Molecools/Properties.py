@@ -1460,43 +1460,47 @@ class PropertyManager(metaclass=abc.ABCMeta):
         :rtype:
         """
 
-        n_coords = derivs[0].shape[0]
-        if isinstance(where, (int, np.integer)):
-            where = [where]
+        n_coords = None
         for d in derivs:
-            # we reshape the derivs to the right shape
-            # and insert zeros
-            new_derivs = []
-            for i, d in enumerate(derivs):
-                if d is None:
-                    new_derivs.append(d)
-                elif isinstance(d, (int, float, np.integer, np.floating)):
-                    new_derivs.append(d)
-                else:
-                    shp = d.shape
-                    # print(">>", shp)
-                    for j in range(d.ndim - extra_shape):
-                        # print(j, d.shape[j])
-                        if d.shape[j] == n_coords:
-                            target_shape = (
-                                    d.shape[:j] +
-                                    (
-                                        d.shape[j] // 3,
-                                        3
-                                    ) +
-                                    d.shape[j + 1:]
-                            )
-                            new_shape = (
-                                    d.shape[:j] +
-                                    (
-                                        (d.shape[j] // 3 + len(where)) * 3,
-                                    ) +
-                                    d.shape[j + 1:]
-                            )
-                            reshape_d = np.reshape(d, target_shape)
-                            reshape_d = np.insert(reshape_d, where, 0, axis=j)
-                            d = reshape_d.reshape(new_shape)
-                    new_derivs.append(d)
+            if not nput.is_numeric(d):
+                n_coords = d.shape[-1]
+                break
+        if nput.is_int(where):
+            where = [where]
+        # for d in derivs:
+        # we reshape the derivs to the right shape
+        # and insert zeros
+        new_derivs = []
+        for i, d in enumerate(derivs):
+            if d is None or nput.is_numeric(d):
+                new_derivs.append(d)
+            elif isinstance(d, (int, float, np.integer, np.floating)):
+                new_derivs.append(d)
+            else:
+                shp = d.shape
+                # print(">>", shp)
+                for j in range(d.ndim - extra_shape):
+                    # print(j, d.shape[j])
+                    if d.shape[j] == n_coords:
+                        target_shape = (
+                                d.shape[:j] +
+                                (
+                                    d.shape[j] // 3,
+                                    3
+                                ) +
+                                d.shape[j + 1:]
+                        )
+                        new_shape = (
+                                d.shape[:j] +
+                                (
+                                    (d.shape[j] // 3 + len(where)) * 3,
+                                ) +
+                                d.shape[j + 1:]
+                        )
+                        reshape_d = np.reshape(d, target_shape)
+                        reshape_d = np.insert(reshape_d, where, 0, axis=j)
+                        d = reshape_d.reshape(new_shape)
+                new_derivs.append(d)
 
         return new_derivs
 
@@ -1533,8 +1537,11 @@ class PropertyManager(metaclass=abc.ABCMeta):
         #     base_shape = 0
         # else:
         #     base_shape = derivs[0].shape
-
-        n_coords = derivs[0].shape[-1]
+        n_coords = None
+        for d in derivs:
+            if not nput.is_numeric(d):
+                n_coords = d.shape[-1]
+                break
         if isinstance(transf, np.ndarray) or transf.is_affine: # most relevant subcase
             # take inverse?
             if isinstance(transf, np.ndarray):
@@ -1543,7 +1550,7 @@ class PropertyManager(metaclass=abc.ABCMeta):
                 tf = transf.transformation_function.transform #type: np.ndarray
             new_derivs = []
             for i, d in enumerate(derivs):
-                if d is None:
+                if d is None or nput.is_numeric(d):
                     new_derivs.append(d)
                 elif isinstance(d, (int, float, np.integer, np.floating)):
                     new_derivs.append(d)
@@ -1975,6 +1982,12 @@ class PotentialSurfaceManager(PropertyManager):
                 type(self).__name__,
                 ext
             ))
+        elif ext == ".hess":
+            from McUtils.ExternalPrograms import OrcaHessReader
+            with OrcaHessReader(file) as gr:
+                parse = gr.parse(['hessian'])
+
+            return [0, parse['hessian']]
         else:
             if quiet: return None
 
@@ -2296,11 +2309,42 @@ class NormalModesManager(PropertyManager):
             freqs = parse['vibrational_frequencies'][6:] / UnitsData.hartrees_to_wavenumbers
             return MolecularNormalModes(self.mol, modes, inverse=inv, freqs=freqs)
         elif mode == "log":
-            if quiet: return None
-            raise NotImplementedError("{}: support for loading normal modes from {} files not there yet".format(
-                type(self).__name__,
-                mode
-            ))
+            from McUtils.ExternalPrograms import GaussianLogReader
+
+            with GaussianLogReader(file) as gr:
+                parse = gr.parse(
+                    ['CartesianCoordinates', 'NormalModes']
+                )
+
+            coords = parse['CartesianCoordinates']
+            if len(coords) == 0:
+                raise ValueError(f"log file {file} missing coordinates")
+
+            nms = parse['NormalModes']
+            if len(nms) == 0:
+                raise ValueError(f"log file {file} missing normal modes block")
+            nms = nms[-1]
+
+            modes = nms[2].T
+            freqs = nms[0] * UnitsData.convert("Wavenumbers", "Hartrees")
+            rm = nms[1]
+            amu_conv = UnitsData.convert("AtomicMassUnits", "ElectronMass")
+            masses = np.array([
+                AtomData[a, "Mass"] * amu_conv
+                for a in coords[0][:, 1]
+            ])
+
+            mass_vec = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten()
+            g12 = np.diag(np.sqrt(mass_vec))
+
+            renorm = np.diag(1 / np.sqrt(rm))
+            modes = renorm @ modes
+            inv = g12 @ g12 @ modes.T / np.sqrt(amu_conv)
+            modes = modes / np.sqrt(amu_conv)
+
+            modes = MolecularNormalModes(self.mol, modes.T, inverse=inv.T, freqs=freqs)
+
+            return modes
         else:
             if quiet: return None
             raise NotImplementedError("{}: support for loading normal modes from {} files not there yet".format(

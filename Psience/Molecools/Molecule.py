@@ -3,6 +3,7 @@ Provides a simple Molecule class that we can adapt as we need
 Most standard functionality should be served by OpenBabel
 Uses AtomData to get properties and whatnot
 """
+import io
 import itertools
 import math
 import os, numpy as np
@@ -63,6 +64,7 @@ class Molecule(AbstractMolecule):
                  source_file=None,
                  guess_bonds=True,
                  charge=None,
+                 spin=None,
                  display_mode=None,
                  energy=None,
                  energy_evaluator=None,
@@ -140,6 +142,7 @@ class Molecule(AbstractMolecule):
                                                 )
 
         metadata['charge'] = charge
+        metadata['spin'] = spin
         self._meta = metadata
 
         self.display_mode = display_mode
@@ -166,6 +169,7 @@ class Molecule(AbstractMolecule):
                charge_evaluator=dev.default,
                display_mode=dev.default,
                charge=dev.default,
+               spin=dev.default,
                normal_modes=dev.default,
                dipole_surface=dev.default,
                potential_surface=dev.default,
@@ -174,48 +178,61 @@ class Molecule(AbstractMolecule):
                meta=dev.default
                ):
         return type(self)(
-            self.atoms if atoms is dev.default else atoms,
-            self.coords if coords is dev.default else coords,
-            masses=self.masses if (masses is dev.default and atoms is dev.default) else masses,
-            bonds=self._bonds if bonds is dev.default else bonds,
-            guess_bonds=self.guess_bonds if guess_bonds is dev.default else guess_bonds,
-            energy_evaluator=self.energy_evaluator if energy_evaluator is dev.default else energy_evaluator,
-            dipole_evaluator=self.dipole_evaluator if dipole_evaluator is dev.default else dipole_evaluator,
-            charge_evaluator=self.charge_evaluator if charge_evaluator is dev.default else charge_evaluator,
-            display_mode=self.display_mode if display_mode is dev.default else display_mode,
-            charge=self.charge if charge is dev.default else charge,
-            internals=self.internals if internals is dev.default else internals,
-            normal_modes=self.normal_modes if normal_modes is dev.default else normal_modes,
+            self.atoms if dev.is_default(atoms) else atoms,
+            self.coords if dev.is_default(coords) else coords,
+            masses=(
+                self.masses if
+                    dev.is_default(masses, allow_None=False) and dev.is_default(atoms)
+                else None if
+                    dev.is_default(masses)
+                else masses
+            ),
+            bonds=self._bonds if dev.is_default(bonds) else bonds,
+            guess_bonds=self.guess_bonds if dev.is_default(guess_bonds) else guess_bonds,
+            energy_evaluator=self.energy_evaluator if dev.is_default(energy_evaluator, allow_None=False) else energy_evaluator,
+            dipole_evaluator=self.dipole_evaluator if dev.is_default(dipole_evaluator, allow_None=False) else dipole_evaluator,
+            charge_evaluator=self.charge_evaluator if dev.is_default(charge_evaluator, allow_None=False) else charge_evaluator,
+            display_mode=self.display_mode if dev.is_default(display_mode) else display_mode,
+            charge=self.charge if dev.is_default(charge) else charge,
+            spin=self.spin if dev.is_default(spin) else spin,
+            internals=self.internals if dev.is_default(internals, allow_None=False) else internals,
+            normal_modes=self.normal_modes if dev.is_default(normal_modes, allow_None=False) else normal_modes,
             energy=self.energy if (
-                    energy is dev.default
-                    and coords is dev.default
-                    and energy_evaluator is dev.default
+                    dev.is_default(energy, allow_None=False)
+                    and dev.is_default(coords)
+                    and dev.is_default(energy_evaluator, allow_None=False)
             ) else energy,
             dipole_surface=self.dipole_surface if (
-                    dipole_surface is dev.default
-                    and dipole_derivatives is dev.default
-                    and coords is dev.default
-                    and dipole_evaluator is dev.default
+                    dev.is_default(dipole_surface, allow_None=False)
+                    and dev.is_default(dipole_derivatives, allow_None=False)
+                    and dev.is_default(coords)
+                    and dev.is_default(energy_evaluator, allow_None=False)
             ) else (
                 None
-                    if dipole_surface is dev.default else
+                    if dev.is_default(dipole_surface) else
                 dipole_surface
             ),
-            dipole_derivatives=None if dipole_derivatives is dev.default else dipole_derivatives,
+            dipole_derivatives=None if dev.is_default(dipole_derivatives) else dipole_derivatives,
             potential_surface=self.potential_surface if (
-                    potential_surface is dev.default
-                    and potential_derivatives is dev.default
-                    and coords is dev.default
-                    and energy_evaluator is dev.default
+                    dev.is_default(potential_surface, allow_None=False)
+                    and dev.is_default(potential_derivatives, allow_None=False)
+                    and dev.is_default(coords)
+                    and dev.is_default(energy_evaluator, allow_None=False)
             ) else (
                 None
-                    if potential_surface is dev.default else
+                    if dev.is_default(potential_surface) else
                 potential_surface
             ),
-            potential_derivatives=None if potential_derivatives is dev.default else potential_derivatives,
+            potential_derivatives=(
+                None
+                    if dev.is_default(potential_derivatives) else
+                potential_derivatives
+            ),
             meta=(
                      self._meta
-                        if meta is dev.default else
+                        if dev.is_default(meta) else
+                     {}
+                        if meta is None else
                      dev.merge_dicts(self._meta, meta)
             )
         )
@@ -263,7 +280,8 @@ class Molecule(AbstractMolecule):
             'charge_evaluator':self.charge_evaluator,
             'potential_derivatives':self.potential_derivatives,
             'dipole_derivatives':self.dipole_derivatives,
-            'charge':self.charge
+            'charge':self.charge,
+            'spin':self.spin
         }
         return data
     @classmethod
@@ -432,6 +450,12 @@ class Molecule(AbstractMolecule):
     @charge.setter
     def charge(self, c):
         self._meta['charge'] = c
+    @property
+    def spin(self):
+        return self._meta.get('spin')
+    @spin.setter
+    def spin(self, c):
+        self._meta['spin'] = c
     @property
     def charges(self):
         return self._meta.get('charges', None)
@@ -1077,46 +1101,99 @@ class Molecule(AbstractMolecule):
     def edge_graph(self):
         return MolecularProperties.edge_graph(self)
 
-    def find_heavy_atom_backbone(self):
-        return self.edge_graph.find_longest_chain()
+    def find_heavy_atom_backbone(self, root=None):
+        return self.edge_graph.find_longest_chain(root=root)
 
-    def find_backbone_segments(self):
-        return self.edge_graph.segment_by_chains()
+    def find_backbone_segments(self, root=None):
+        return self.edge_graph.segment_by_chains(root=root)
 
-    def get_backbone_zmatrix(self, segments=None):
+    def get_backbone_zmatrix(self, root=None, segments=None, return_remainder=False, return_segments=False):
         if segments is None:
-            segments = self.find_backbone_segments()
+            segments = self.find_backbone_segments(root=root)
 
         bond_list = [b[:2] for b in self.bonds]
-        return coordops.add_missing_zmatrix_bonds(
-            coordops.bond_graph_zmatrix(
-                bond_list,
-                segments
-            ),
+        base_graph = coordops.bond_graph_zmatrix(
+            bond_list,
+            segments
+        )
+        zmat, new_bonds = coordops.add_missing_zmatrix_bonds(
+            base_graph,
             bond_list
         )
 
-    def get_bond_zmatrix(self, fragments=None, segments=None):
-        if fragments is None:
+        if return_segments or return_remainder:
+            res = (zmat,)
+            if return_segments:
+                res = res + (segments,)
+            if return_remainder:
+                res = res + (new_bonds,)
+
+            return res
+        else:
+            return zmat
+
+    def get_bond_zmatrix(self, fragments=None, segments=None, root=None,
+                         attachment_points=None,
+                         check_attachment_points=True
+                         ):
+        no_frag = fragments is None
+        if no_frag:
             fragments = self.fragment_indices
 
         if len(fragments) == 1:
             if segments is not None and len(segments) == 1:
                 segments = segments[0]
-            return self.get_backbone_zmatrix(segments=segments)
+            return self.get_backbone_zmatrix(root=root, segments=segments)
         else:
             inds = fragments
-            frags = [self.take_submolecule(ix) for ix in inds]
-            zmats = [f.get_backbone_zmatrix()[0] for f in frags]
-            ordering = np.argsort([-len(x) for x in inds])
+            if no_frag:
+                ordering = np.argsort([-len(x) for x in inds])
+                inds = [inds[i] for i in ordering]
+            if root is not None:
+                if nput.is_numeric(root):
+                    inds = list(sorted(inds, key=lambda x:root not in x))
+                else:
+                    inds = list(
+                        sorted(inds,
+                               key=lambda x:sum(i if r is not None and r in x else len(inds) for i,r in enumerate(root))
+                               )
+                    )
 
-            inds = [inds[i] for i in ordering]
-            zmats = [zmats[i] for i in ordering]
+            sort_attch = isinstance(attachment_points, dict)
+            if sort_attch:
+                check_attachment_points = False
+                inds, attachment_points = coordops.sort_complex_attachment_points(
+                    inds,
+                    attachment_points
+                )
+
+            frags = [self.take_submolecule(ix) for ix in inds]
+            if root is None and sort_attch:
+                root = [ix[0] for ix in inds]
+            if root is None:
+                root = [root]
+
+            root = list(root) + [None] * (len(inds) - len(root))
+            zmats = [
+                f.get_backbone_zmatrix(root=r)
+                for r,f in zip(root, frags)
+            ]
+
+            # inds = [inds[i] for i in ordering]
+            # zmats = [zmats[i] for i in ordering]
+
+            dm = nput.distance_matrix(self.coords)
+            h_pos = [i for i,a in enumerate(self.atoms) if a in {'H', 'D'}]
+            dm[:, h_pos] = 1e8
+            dm[h_pos, :] = 1e8
 
             return coordops.complex_zmatrix(
                 [b[:2] for b in self.bonds],
                 inds,
-                zmats
+                zmats,
+                distance_matrix=dm,
+                attachment_points=attachment_points,
+                check_attachment_points=check_attachment_points
             )
 
     @property
@@ -2281,8 +2358,7 @@ class Molecule(AbstractMolecule):
             (atoms, ordering, coords) = coordops.parse_zmatrix_string(zmat)
             zmat = (atoms, (ordering, coords))
         (atoms, (ordering, coords)) = zmat
-
-        coords = CoordinateSet(coords, ZMatrixCoordinates).convert(CartesianCoordinates3D, ordering=ordering)
+        coords = CoordinateSet(coords[1:], ZMatrixCoordinates).convert(CartesianCoordinates3D, ordering=ordering)
         if internals is None: internals = ordering
         return cls(atoms, coords, internals=internals, **opts)
     @classmethod
@@ -2312,12 +2388,12 @@ class Molecule(AbstractMolecule):
     def _from_log_file(cls, file, num=None, **opts):
         from McUtils.GaussianInterface import GaussianLogReader
         with GaussianLogReader(file) as gr:
-            parse = gr.parse('StandardCartesianCoordinates', num=num)
-        spec, coords = parse['StandardCartesianCoordinates']
+            parse = gr.parse('CartesianCoordinates', num=num)
+        spec, coords = parse['CartesianCoordinates']
         ang2bohr = UnitsData.convert("Angstroms", "AtomicUnitOfLength")
         return cls(
-            [int(a[1]) for a in spec],
-            CoordinateSet(ang2bohr*np.array(coords), CartesianCoordinates3D),
+            spec[:, 1],
+            ang2bohr*coords[-1],
             **opts
         )
     @classmethod
@@ -2451,13 +2527,106 @@ class Molecule(AbstractMolecule):
         if units is not None:
             coords *= UnitsData.convert(units, "BohrRadius")
         return cls(atoms, coords, **opts)
-
         # return cls.from_rdmol(RDMolecule.from_molblock(sdf), **opts)
 
     @classmethod
     def _from_xyz_file(cls, xyz_file, **opts):
         with open(xyz_file) as xyz:
             return cls._from_xyz(xyz.read(), **opts)
+
+
+    @classmethod
+    def _from_gspec(cls, gspec:str, charge=None, spin=None, report=None, units='Angstroms', **etc):
+        # parses from Gaussian report molecule specs
+        if gspec.startswith("1\\"):
+            return cls._from_gspec_file(
+                io.StringIO(gspec),
+                charge=charge,
+                spin=spin,
+                **etc
+            )
+
+        gspec = gspec.replace(",", " ")
+
+        header, gspec = gspec.strip().split("\n", 1)
+        gspec:str # idk why pycharm needs this hint...
+
+        c, m = [int(x) for x in header.split()]
+        if report is not None:
+            for k,v in report.items():
+                if hasattr(v, 'value'):
+                    gspec = gspec.replace(
+                        " " + k + " ",
+                        " " + str(v.value) + " "
+                    )
+                    gspec = gspec.replace(
+                        " " + k + "\n",
+                        " " + str(v.value) + "\n"
+                    )
+                elif nput.is_numeric(v):
+                    gspec = gspec.replace(" " + k + " ", " " + str(v) + " ")
+                    gspec = gspec.replace(" " + k + "\n", " " + str(v) + "\n")
+        gspec = gspec.replace(" 0\n", "\n")
+        if gspec.endswith(" 0"):
+            gspec = gspec[:-2]
+
+        return cls.from_string(
+            gspec,
+            charge=c if charge is None else charge,
+            spin=m if spin is None else spin,
+            units=units,
+            **etc
+        )
+
+    @classmethod
+    def _from_gspec_file(cls,
+                         logfile,
+                         charge=None, spin=None,
+                         potential_derivatives=None,
+                         dipole_derivatives=None,
+                         **etc):
+        # parses from Gaussian report molecule specs
+        from McUtils.ExternalPrograms import (
+            GaussianLogReader,
+            FchkForceConstants, FchkForceDerivatives,
+            FchkDipoleDerivatives, FchkDipoleHigherDerivatives
+        )
+
+        with GaussianLogReader(logfile) as parser:
+            reports = parser.parse('Reports')
+
+        if len(reports) == 0:
+            raise ValueError(f"no job report found in file {logfile}")
+
+        reports = reports['Reports']
+        if len(reports) == 0:
+            raise ValueError(f"no job report found in file {logfile}")
+
+        report = reports[-1]
+        if report['job'] == 'Freq':
+            if potential_derivatives is None:
+                potential_derivatives = list(report['PotentialDeriv'])
+                if len(potential_derivatives) > 1:
+                    potential_derivatives[1] = FchkForceConstants(potential_derivatives[1]).array
+                if len(potential_derivatives) > 2:
+                    higher = FchkForceDerivatives(potential_derivatives[2])
+                    potential_derivatives = potential_derivatives[:2] + [
+                        higher.third_deriv_array,
+                        higher.fourth_deriv_array
+                    ]
+            if dipole_derivatives is None:
+                dipole_derivatives = [FchkDipoleDerivatives(report['DipoleDeriv']).array]
+
+        return cls.from_string(
+            report['molecule'],
+            'gspec',
+            charge=charge,
+            spin=spin,
+            potential_derivatives=potential_derivatives,
+            dipole_derivatives=dipole_derivatives,
+            report=report,
+            **etc
+        )
 
     @classmethod
     def from_name(cls, name, **opts):
@@ -2483,7 +2652,9 @@ class Molecule(AbstractMolecule):
         return len(string.strip()) == 0
     @classmethod
     def _infer_str_format(cls, string:str, **opts):
-        lines = string.splitlines()
+        from McUtils.Parsers import Number, Word
+
+        lines = string.strip().split('\n', 3)
         at_strs = cls.get_atom_strings()
         if len(lines) == 1:
             if len(string.split()) == 1 and cls._check_smi(string, at_strs):
@@ -2492,20 +2663,32 @@ class Molecule(AbstractMolecule):
                 return 'name'
         elif 'V2000' in string or 'V3000' in string:
             return 'mol'
-        elif all(l.strip().split()[0] in at_strs for l in lines):
+        elif (
+            len(lines[0].split()) == 1
+            and all(l.split()[0] in at_strs for l in lines[:3])
+        ):
             return 'zmat'
+        elif (
+                len(lines[0].split()) == 2
+            and lines[0].strip().isdigit() and lines[0].strip()[-1].isdigit()
+        ):
+            return 'gspec'
         else:
             try:
                 int(lines[0].strip())
-            except TypeError:
+            except (TypeError, ValueError):
                 pass
             else:
                 return 'xyz'
 
-            if len(lines) > 2 and len(lines[2].split()) == 4:
+            if all(
+                    len(l.split()) == 4
+                    and all(Number.fullmatch(t) for t in l.split()[1:])
+                for l in lines[:3]
+            ):
                 return 'xyz'
-            else:
-                raise ValueError(f"can't infer molecule spec from '''{string}'''")
+
+        raise ValueError(f"can't infer molecule spec from '''{string}'''")
 
     @classmethod
     def get_string_format_dispatchers(cls):
@@ -2515,7 +2698,8 @@ class Molecule(AbstractMolecule):
             "mol": cls._from_molblock,
             "sdf": cls._from_sdf,
             "xyz": cls._from_xyz,
-            "zmat": cls.from_zmat
+            "zmat": cls.from_zmat,
+            "gspec": cls._from_gspec
         }
     @classmethod
     def from_string(cls, string, fmt=None, **opts):
@@ -2544,6 +2728,7 @@ class Molecule(AbstractMolecule):
     def get_file_format_dispatchers(cls):
         return {
             "log": cls._from_log_file,
+            "gspec": cls._from_gspec_file,
             "fchk": cls._from_fchk_file,
             "orca": cls._from_orca_file,
             "hess": cls._from_hess_file,
@@ -2780,7 +2965,7 @@ class Molecule(AbstractMolecule):
              multiple_bond_spacing=None,
              mode=None,#'quality',
              backend=None,
-             include_save_buttons=False,
+             include_save_buttons=None,
              objects=False,
              graphics_class=None,
              cylinder_class=None,
@@ -2901,6 +3086,8 @@ class Molecule(AbstractMolecule):
         colors = [ at["IconColor"] for at in self._ats ]
         if atom_radii is None:
             atom_radii = [None] * len(self._ats)
+        elif dev.is_dict_like(atom_radii):
+            atom_radii = [atom_radii.get(a["ElementSymbol"]) for a in self._ats]
         atom_radii = [
             self._get_atomic_radius(at, radius_type)
                 if c is None else c for c, at in
@@ -3161,9 +3348,9 @@ class Molecule(AbstractMolecule):
                 **animation_options
             )
 
-        if include_save_buttons:
-            plt.X3D.include_export_button = True
-            plt.X3D.include_record_button = True
+        if include_save_buttons is not None:
+            plt.X3D.include_export_button = include_save_buttons
+            plt.X3D.include_record_button = include_save_buttons
 
         if return_objects:
             return figure, atoms, bonds, arrows
@@ -3228,7 +3415,7 @@ class Molecule(AbstractMolecule):
                      normalize=True,
                      mass_weight=False,
                      mass_scale=True,
-                     frequency_scale=True,
+                     frequency_scale=False,
                      **opts
                      ):
         from ..Modes import NormalModes

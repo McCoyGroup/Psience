@@ -167,6 +167,13 @@ class LocalizedModes(MixtureModes):
             frequency_scaled=frequency_scaled
         )
 
+    def _frequency_scaling(self, freqs=None):
+        # L = self.matrix.shape.T
+        if freqs is None:
+            freqs = self.local_freqs
+        conv = np.sqrt(freqs)
+        return freqs, conv
+
     def make_mass_weighted(self, **kwargs):
         return self.modify(self.base_modes.make_mass_weighted(**kwargs))
     def remove_mass_weighting(self, **kwargs):
@@ -198,9 +205,14 @@ class LocalizedModes(MixtureModes):
     #     a = np.diag(np.power(np.diag(g) / np.diag(f), 1 / 4))
     #     return a @ f @ a
 
-    def compute_hessian(self):
-        tf, inv = self.localizing_transformation
-        return inv @ np.diag(self.base_modes.freqs ** 2) @ inv.T
+    def compute_hessian(self, system='modes'):
+        if system == 'modes':
+            tf, inv = self.localizing_transformation
+            return inv @ np.diag(np.sign(self.base_modes.freqs) * (self.base_modes.freqs ** 2)) @ inv.T
+        elif system == 'coords':
+            return self.base_modes.compute_hessian('coords')
+        else:
+            raise ValueError(f'unknown system for normal modes "{system}", valid are "modes", "coords"')
 
     # def localize(self,
     #              method=None,

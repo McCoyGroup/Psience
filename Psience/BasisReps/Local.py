@@ -236,9 +236,18 @@ class LocalHarmonicModel:
     def localize_internal_modes(cls,
                                 nms, internals,
                                 localization_mode_spaces=None,
-                                mode_labels=None
+                                mode_labels=None,
+                                use_nonnegative_modes=True
                                 ):
 
+        if use_nonnegative_modes:
+            neg_modes = np.where(nms.freqs < 1e-4 / UnitsData.hartrees_to_wavenumbers)
+            if len(neg_modes) > 0 and len(neg_modes[0]) > 0:
+                neg_modes= neg_modes[0]
+                rem = np.setdiff1d(np.arange(len(nms.freqs)), neg_modes)
+                nms = nms[rem]
+                if mode_labels is not None:
+                    mode_labels = dev.dict_take(mode_labels, rem)
 
         if isinstance(internals, dict):
 
@@ -349,11 +358,26 @@ class LocalHarmonicModel:
                     spaces[key][coord] = n
                     subints[coord] = c
 
+            # noneg_selection = None
+            # if use_nonnegative_modes:
+            #     noneg_selection = np.where(nms.freqs < 1e-4 / UnitsData.hartrees_to_wavenumbers)
+            #     if len(noneg_selection) > 0 and len(noneg_selection[0]) > 0:
+            #         subspaces_used = True
+            #         noneg_selection= noneg_selection[0]
+
+
             internals = subints
             if subspaces_used:
                 ord = []
                 tranfs = []
                 for space, ints in spaces.items():
+                    space = np.array([
+                        dim + s if s < 0 else s
+                        for s in space
+                    ])
+                    # if noneg_selection is not None:
+                    #     space = np.setdiff1d(space, noneg_selection)
+
                     subnms = nms[space]
                     sublocs = subnms.localize(internals=ints)
                     tf = np.zeros((dim, len(ints)))
@@ -373,6 +397,25 @@ class LocalHarmonicModel:
             else:
                 loc_modes = nms.localize(internals=internals)
         else:
+            # noneg_selection = None
+            # if use_nonnegative_modes:
+            #     noneg_selection = np.where(nms.freqs < 1e-4 / UnitsData.hartrees_to_wavenumbers)
+            #     if len(noneg_selection) > 0 and len(noneg_selection[0]) > 0:
+            #         noneg_selection = noneg_selection[0]
+            #     else:
+            #         noneg_selection = None
+            #
+            # if noneg_selection is not None:
+            #     dim = len(nms.freqs)
+            #     subnms = nms[noneg_selection]
+            #     sublocs = subnms.localize(internals=internals)
+            #     tf = np.zeros((dim, len(internals)))
+            #     inv = np.zeros((len(internals), dim))
+            #     t_sub, inv_sub = sublocs.localizing_transformation
+            #     tf[noneg_selection, :] = t_sub
+            #     inv[:, noneg_selection] = inv_sub
+            #     loc_modes = nms.apply_transformation((tf, inv))
+            # else:
             loc_modes = nms.localize(internals=internals)
 
         return loc_modes
@@ -387,6 +430,7 @@ class LocalHarmonicModel:
                    include_complement=False,
                    dipole_derivatives=None,
                    localize=True,
+                   use_nonnegative_modes=True,
                    **opts):
         from ..Modes import NormalModes
         nms:NormalModes
@@ -397,7 +441,8 @@ class LocalHarmonicModel:
                 nms,
                 internals,
                 localization_mode_spaces=localization_mode_spaces,
-                mode_labels=mode_labels
+                mode_labels=mode_labels,
+                use_nonnegative_modes=use_nonnegative_modes
             )
 
             if oblique:

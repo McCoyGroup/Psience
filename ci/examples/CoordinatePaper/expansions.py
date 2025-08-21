@@ -103,11 +103,11 @@ def get_aimnet_structure(key, subkey, coords=None, overwrite=False):
             ).coords
         )
     return coords
-def get_aimnet_expansion(key, subkey, coords=None, overwrite=False):
+def get_aimnet_expansion(key, subkey, coords=None, overwrite=False, step_size=None, analytic_derivative_order=None):
     coords=get_aimnet_structure(key, subkey, coords=coords)
     key=get_angle_key(key)
     chk = scaff.Checkpointer.from_file(
-        torsion_scan_path('checkpoints/optimized_torsion_potentials_{key}.json')
+        torsion_scan_path(f'checkpoints/optimized_torsion_potentials_{key}.json')
     )
     with chk:
         mol = methanol.modify(coords=coords)
@@ -123,16 +123,71 @@ def get_aimnet_expansion(key, subkey, coords=None, overwrite=False):
                 return_status=True
             )
         )
-        if overwrite:
-            try:
-                del chk[(key, subkey, 'potential_derivatives')]
-            except KeyError:
-                pass
-        potential_derivatives = chk.cached_eval(
-            (key, subkey, 'potential_derivatives'),
-            lambda: mol.partial_force_field(
-                order=4,
-                modes=modes
-            )
-        )
+        if step_size is None:
+            if analytic_derivative_order is None:
+                tag = (key, subkey, 'potential_derivatives')
+                if overwrite:
+                    try:
+                        del chk[tag]
+                    except KeyError:
+                        pass
+                potential_derivatives = chk.cached_eval(
+                    tag,
+                    lambda: mol.partial_force_field(
+                        order=4,
+                        modes=modes
+                    )
+                )
+            else:
+                tag = (key, subkey, 'potential_derivatives_analytic_do', str(analytic_derivative_order))
+                if overwrite:
+                    try:
+                        del chk[tag]
+                    except KeyError:
+                        pass
+                potential_derivatives = chk.cached_eval(
+                    tag,
+                    lambda: mol.partial_force_field(
+                        order=4,
+                        modes=modes,
+                        analytic_derivative_order=analytic_derivative_order
+                    )
+                )
+        else:
+            tag = (key, subkey, 'potential_derivatives_stepped', str(round(step_size * 1000)))
+            if analytic_derivative_order is None:
+                if overwrite:
+                    try:
+                        del chk[tag]
+                    except KeyError:
+                        pass
+                potential_derivatives = chk.cached_eval(
+                    tag,
+                    lambda: mol.partial_force_field(
+                        order=4,
+                        modes=modes,
+                        mesh_spacing=step_size
+                    )
+                )
+            else:
+                tag = (
+                            key, subkey,
+                            'potential_derivatives_stepped_analytic',
+                            str(round(step_size * 1000)),
+                            str(analytic_derivative_order)
+                        )
+                if overwrite:
+                    try:
+                        del chk[tag]
+                    except KeyError:
+                        pass
+                potential_derivatives = chk.cached_eval(
+                    tag,
+                    lambda: mol.partial_force_field(
+                        order=4,
+                        modes=modes,
+                        mesh_spacing=step_size,
+                        analytic_derivative_order=analytic_derivative_order
+                    )
+                )
     return (modes, status), potential_derivatives

@@ -650,86 +650,126 @@ class PerturbationTheoryHamiltonian:
     #region Nielsen energies
 
     @staticmethod
-    def _Nielsen_xss(s, w, v3, v4, zeta, Be, ndim):
+    def _Nielsen_xss(s, w, v3, v4, zeta, Be, ndim, return_components=False):
         # actually pulled from the Stanton VPT4 paper since they had
-        # the same units as I do...
+        # the same units as I do...then I simplified to make path formalism explicit
         # we split this up into 3rd derivative, 4th derivative, and coriolis terms
-        xss_4 = 1 / 16 * v4[s, s, s, s]
-        xss_3 = -(
-                5/48 * (v3[s, s, s] ** 2 / w[s])
-                + 1/16 * sum((
-                              (v3[s, s, t] ** 2) / w[t]
-                              * (8 * (w[s] ** 2) - 3 * (w[t] ** 2))
-                              / (4 * (w[s] ** 2) - (w[t] ** 2))
-                      ) for t in range(ndim) if t != s
-                      )
-        )
-        xss_cor = 0.
-        return [xss_3, xss_4, xss_cor]
 
-    @staticmethod
-    def _Nielsen_xst(s, t, w, v3, v4, zeta, Be, ndim):
-        # actually pulled from Stanton VPT4 paper
-        xst_4 = 1 / 4 * v4[s, s, t, t]
-        xst_3 = - 1 / 2 * (
-                v3[s, s, t] ** 2 * w[s] / (4 * w[s] ** 2 - w[t] ** 2)
-                + v3[s, t, t] ** 2 * w[t] / (4 * w[t] ** 2 - w[s] ** 2)
-                + v3[s, s, s] * v3[s, t, t] / (2 * w[s])
-                + v3[t, t, t] * v3[t, s, s] / (2 * w[t])
-                - sum((
-                              (
-                                      (v3[s, t, r] ** 2) * w[r] * (w[s] ** 2 + w[t] ** 2 - w[r] ** 2)
-                                      / (
-                                          # This fucking delta_ijk term I don't know what it should be
-                                          # because no one has it in my units
-                                          # and none of the force-field definitions are consistent
-                                              w[s] ** 4 + w[t] ** 4 + w[r] ** 4
-                                              - 2 * ((w[s] * w[t]) ** 2 + (w[s] * w[r]) ** 2 + (w[t] * w[r]) ** 2)
-                                      )
-                              )
-                              - v3[s, s, r] * v3[t, t, r] / (2 * w[r])
-                      ) for r in range(ndim) if r != s and r != t
-                      )
-        )
-        xst_cor = sum((
-                                  Be[a] * (zeta[a, s, t] ** 2) * (w[t] / w[s] + w[s] / w[t])
-                          ) for a in range(3))
+        if s < 0: s = s + ndim
 
-        return [xst_3, xst_4, xst_cor]
-
-    @staticmethod
-    def _Nielsen_xst_components(s, t, w, v3, v4, zeta, Be, ndim):
-        # actually pulled from Stanton VPT4 paper
-        xst_4 = 1 / 4 * v4[s, s, t, t]
-        xst_3 = [
-            - 1 / 2 * (
-                v3[s, s, t] ** 2 * w[s] / (4 * w[s] ** 2 - w[t] ** 2)
-                + v3[s, t, t] ** 2 * w[t] / (4 * w[t] ** 2 - w[s] ** 2)
-            ),
-            - 1 /2 * (
-                + v3[s, s, s] * v3[s, t, t] / (2 * w[s])
-                + v3[t, t, t] * v3[t, s, s] / (2 * w[t])
-                + sum(v3[s, s, r] * v3[t, t, r] / (2 * w[r]) for r in range(ndim) if r != s and r != t)
-            ),
-             1 /2 *sum((
-                              (
-                                      (v3[s, t, r] ** 2) * w[r] * (w[s] ** 2 + w[t] ** 2 - w[r] ** 2)
-                                      / (
-                                          # This fucking delta_ijk term I don't know what it should be
-                                          # because no one has it in my units
-                                          # and none of the force-field definitions are consistent
-                                              w[s] ** 4 + w[t] ** 4 + w[r] ** 4
-                                              - 2 * ((w[s] * w[t]) ** 2 + (w[s] * w[r]) ** 2 + (w[t] * w[r]) ** 2)
-                                      )
-                              )
-                      ) for r in range(ndim) if r != s and r != t
+        xss_4 = v4[s, s, s, s]
+        # xss_3 = -(
+        #         5/48 * (v3[s, s, s] ** 2 / w[s])
+        #         + 1/16 * sum((
+        #                       (v3[s, s, t] ** 2) / w[t]
+        #                       * (8 * (w[s] ** 2) - 3 * (w[t] ** 2))
+        #                       / (4 * (w[s] ** 2) - (w[t] ** 2))
+        #               ) for t in range(ndim) if t != s
+        #               )
+        # )
+        xss_3_terms = [
+            5 / 3 * (v3[s, s, s] ** 2 / w[s]),
+            2 * sum((v3[s, s, t] ** 2) / w[t] for t in range(ndim) if t != s),
+            1 / 2 * sum(
+                (v3[s, s, t] ** 2) * (1 / (2 * w[s] + w[t]) + 1 / (-2 * w[s] + w[t]))
+                for t in range(ndim) if t != s
             )
         ]
-        xst_cor = sum((
-                              Be[a] * (zeta[a, s, t] ** 2) * (w[t] / w[s] + w[s] / w[t])
-                      ) for a in range(3))
+        if return_components:
+            return [
+                [-1 / 16 * x for x in xss_3_terms],
+                [1 / 16 * xss_4],
+                [0.]
+            ]
+        else:
+            xss_3 = sum(xss_3_terms)
+            xss_cor = 0.
+            return [1 / 16 * xss_3, 1 / 16 * xss_4, xss_cor]
 
-        return [xst_3, xst_4, xst_cor]
+    @staticmethod
+    def _Nielsen_xst(s, t, w, v3, v4, zeta, Be, ndim, return_components=False):
+        # actually pulled from Stanton VPT4 paper
+        # then simplified to make path formalism more explicit
+
+        if s < 0: s = s + ndim
+        if t < 0: t = t + ndim
+
+        xst_4 = v4[s, s, t, t]
+        # xst_3 = - 1 / 2 * (
+        #         v3[s, s, t] ** 2 * w[s] / (4 * w[s] ** 2 - w[t] ** 2)
+        #         + v3[s, t, t] ** 2 * w[t] / (4 * w[t] ** 2 - w[s] ** 2)
+        #         + v3[s, s, s] * v3[s, t, t] / (2 * w[s])
+        #         + v3[t, t, t] * v3[t, s, s] / (2 * w[t])
+        #         - sum((
+        #                       (
+        #                               (v3[s, t, r] ** 2) * w[r] * (w[s] ** 2 + w[t] ** 2 - w[r] ** 2)
+        #                               / (
+        #                                   # This fucking delta_ijk term I don't know what it should be
+        #                                   # because no one has it in my units
+        #                                   # and none of the force-field definitions are consistent
+        #                                       w[s] ** 4 + w[t] ** 4 + w[r] ** 4
+        #                                       - 2 * ((w[s] * w[t]) ** 2 + (w[s] * w[r]) ** 2 + (w[t] * w[r]) ** 2)
+        #                               )
+        #                       )
+        #                       - v3[s, s, r] * v3[t, t, r] / (2 * w[r])
+        #               ) for r in range(ndim) if r != s and r != t
+        #               )
+        # )
+
+        xst_3_terms = [
+            # direct single changes
+            (
+                    (v3[s, s, s] * v3[s, t, t]) / w[s]
+                    + (v3[t, t, t] * v3[t, s, s]) / w[t]
+            ),
+
+            # direct triple quantum changes
+            1 / 2 * (
+                    v3[s, s, t] ** 2 * (1 / (2 * w[s] + w[t]) + 1 / (2 * w[s] - w[t]))
+                    + v3[s, t, t] ** 2 * (1 / (w[s] + 2 * w[t]) + 1 / (-w[s] + 2 * w[t]))
+            ),
+
+            # indirect single changes
+            sum(
+                (v3[s, s, r] * v3[t, t, r]) / w[r]
+                for r in range(ndim) if r != s and r != t
+            ),
+            # three triple changes
+            1 / 2 * sum(
+                (v3[s, t, r] ** 2) * (
+                        (1 / (w[s] + w[t] + w[r]))
+                        + (1 / (w[s] - w[t] + w[r]))
+                        + (1 / (-w[s] + w[t] + w[r]))
+                        + (1 / (-w[s] - w[t] + w[r]))
+                )
+                for r in range(ndim) if r != s and r != t
+            )
+        ]
+
+
+        if return_components:
+
+            xst_cor_terms = [
+                Be[a] * (zeta[a, s, t] ** 2) * (w[t] / w[s] + w[s] / w[t])
+                for a in range(3)
+            ]
+
+            return [
+                [-1 / 4 * x for x in xst_3_terms],
+                [1 / 4 * xst_4],
+                xst_cor_terms
+            ]
+
+        else:
+
+            xst_3 = sum(xst_3_terms)
+
+            xst_cor = sum(
+                Be[a] * (zeta[a, s, t] ** 2) * (w[t] / w[s] + w[s] / w[t])
+                for a in range(3)
+            )
+
+            return [-1 / 4 * xst_3, 1 / 4 * xst_4, xst_cor]
 
     @classmethod
     def _get_Nielsen_xmat(cls, freqs, v3, v4, zeta, Be):
