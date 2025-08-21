@@ -25,7 +25,8 @@ __all__ = [
     "PySCFEnergyEvaluator",
     "PotentialFunctionEnergyEvaluator",
     "DipoleEvaluator",
-    "DipoleFunctionDipoleEvaluator"
+    "DipoleFunctionDipoleEvaluator",
+    "ReducedDimensionalPotentialHandler"
 ]
 
 class MolecularEvaluator:

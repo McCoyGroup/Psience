@@ -1,5 +1,6 @@
 import itertools
 import os.path
+import pprint
 
 from Peeves.TestUtils import *
 from unittest import TestCase
@@ -1956,6 +1957,15 @@ class MolecoolsTests(TestCase):
         c = Molecule.construct('OC')
 
     @validationTest
+    def test_FormatImports(self):
+        woof = Molecule.from_file(
+            TestManager.test_data('water_dimer_freq_unopt.log'),
+            'gspec'
+        )
+        print(len(woof.potential_derivatives))
+        # woof.plot().show()
+
+    @validationTest
     def test_ModeSelectedNMs(self):
         propylbenzene = Molecule.from_file(
             TestManager.test_data('proplybenz.hess')
@@ -2029,7 +2039,7 @@ class MolecoolsTests(TestCase):
         )
         print(ethanol.calculate_energy())
 
-    @debugTest
+    @validationTest
     def test_BackboneChains(self):
         from Psience.Molecools import Molecule
         import McUtils.Coordinerds as coordops
@@ -2116,6 +2126,31 @@ class MolecoolsTests(TestCase):
             include_save_buttons=True
         ).show()
 
+    @debugTest
+    def test_EasyZMatrices(self):
+        cpmo = Molecule.from_file(
+            TestManager.test_data('cpmo3m_opt.xyz'),
+            units='Angstroms'
+        )
+
+        cpmo_split = cpmo.modify(
+            bonds=[
+                b for b in cpmo.bonds
+                if tuple(sorted(b[:2])) not in {
+                    (0, 4),
+                    (0, 5),
+                    (0, 6),
+                    (0, 7),
+                    (0, 8)
+                }
+            ]
+        )
+
+        pprint.pprint(
+            cpmo_split.get_bond_zmatrix(
+                attachment_points={0:(4, 6, 8)}
+            )
+        )
 
 
     @validationTest
