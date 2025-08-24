@@ -175,6 +175,8 @@ class MolecularEmbedding:
         zmatrix = opts.pop('zmatrix', None)
         conversion = opts.pop('conversion', None)
         inverse = opts.pop('inverse', None)
+        jacobian = opts.pop('jacobian', None)
+        inverse_jacobian = opts.pop('inverse_jacobian', None)
         if specs is not None:
             ints = MolecularGenericInternalCoordinateSystem(masses, coords, specs=specs, **opts)
             MolecularCartesianToGICConverter(coords.system, ints).register()
@@ -209,7 +211,8 @@ class MolecularEmbedding:
                 coords.system,
                 conversion,
                 inverse_conversion=inverse,
-                **opts
+                jacobian=jacobian,
+                inverse_jacobian=inverse_jacobian
             )
             coords = coords.convert(conv)
 

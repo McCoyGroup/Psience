@@ -14,6 +14,7 @@ RPMODE_GRADIENT_CUTOFF = 2e-5
 def prep_rp_modes(me_ints, nms=None, internals=None,
                   project_transrot=False,
                   proj_coord=(3, 2, 1, 0),
+                  try_reaction_path=True,
                   return_status=False
                   ) -> ((LocalizedModes, NormalModes,NormalModes), bool):
     if nms is None:
@@ -37,7 +38,7 @@ def prep_rp_modes(me_ints, nms=None, internals=None,
         zero_freq_cutoff=30 * UnitsData.convert("Wavenumbers", "Hartrees")
     )
 
-    if stat:
+    if try_reaction_path and stat:
         rp2 = rpnms.make_mass_weighted()
         nm2 = nms.make_mass_weighted()
         tf = nm2.coords_by_modes @ rp2.modes_by_coords[:, 1:]

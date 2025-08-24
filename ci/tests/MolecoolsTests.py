@@ -2126,7 +2126,7 @@ class MolecoolsTests(TestCase):
             include_save_buttons=True
         ).show()
 
-    @debugTest
+    @validationTest
     def test_EasyZMatrices(self):
         cpmo = Molecule.from_file(
             TestManager.test_data('cpmo3m_opt.xyz'),
@@ -2152,6 +2152,78 @@ class MolecoolsTests(TestCase):
             )
         )
 
+    @debugTest
+    def test_PointGroups(self):
+        print()
+        from Psience.Symmetry import PointGroupIdentifier
+
+        # water = Molecule.from_file(TestManager.test_data('water_freq.fchk'))
+        # mol = Molecule.construct("benzene", energy_evaluator='rdkit')
+        mol = Molecule(
+            ['C', 'C', 'C', 'C', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H'],
+            [[ 1.5314834 , -2.07901109,  0.03362855],
+             [ 2.66130207,  0.27021048, -0.00918031],
+             [ 1.09977014,  2.36405638, -0.04301921],
+             [-1.49251245,  2.07781621, -0.03367612],
+             [-2.66353391, -0.24015647,  0.00865698],
+             [-1.08442635, -2.34605922,  0.04267503],
+             [ 2.65427297, -3.82363066,  0.06211177],
+             [ 4.65827828,  0.4512349 , -0.01567418],
+             [ 1.93012887,  4.24957282, -0.07725653],
+             [-2.65023509,  3.80315125, -0.06177008],
+             [-4.68709859, -0.49931772,  0.01657436],
+             [-1.95742935, -4.22786689,  0.07692975]]
+        )
+        id = PointGroupIdentifier(mol.coords, mol.masses, tol=.8)
+
+        print(id.coord_data.rotor_type, id.coord_data.planar)
+        print(id.identify_point_group())
+
+    @inactiveTest
+    def test_Conversions(self):
+        from McUtils.Combinatorics import symmetric_group_character_table#, IntegerPartitioner
+
+        print(symmetric_group_character_table(4))
+
+        # base_tableaux = YoungTableauxGenerator(5).get_standard_tableaux()
+        # for p in itertools.chain(*IntegerPartitioner.partitions(5)):
+        #     print("="*30)
+        #     types = np.concatenate([[i+1]*k for i,k in enumerate(p)])
+        #     for sst in base_tableaux:
+        #         for bits in zip(*sst):
+        #             print(mfmt.TableFormatter("").format([
+        #                 types[b,] for b in bits
+        #             ]))
+        #             print("-"*20)
+
+        return
+
+        cpmo = Molecule.from_file(
+            TestManager.test_data('cpmo3m_opt.xyz'),
+            units='Angstroms'
+        )
+
+        cpmo_split = cpmo.modify(
+            bonds=[
+                b for b in cpmo.bonds
+                if tuple(sorted(b[:2])) not in {
+                    (0, 4),
+                    (0, 5),
+                    (0, 6),
+                    (0, 7),
+                    (0, 8)
+                }
+            ]
+        )
+
+        from McUtils.Zachary import CoordinateFunction
+        CoordinateFunction.polynomial([0])
+
+        pprint.pprint(
+            cpmo_split.get_bond_zmatrix(
+                attachment_points={0: (4, 6, 8)}
+            )
+        )
 
     @validationTest
     def test_SufaceArea(self):
