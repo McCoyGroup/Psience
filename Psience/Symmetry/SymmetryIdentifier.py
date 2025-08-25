@@ -6,123 +6,14 @@ import itertools
 import McUtils.Numputils as nput
 import McUtils.Combinatorics as comb
 
+from .Elements import *
+from .PointGroups import *
+from .Rotors import RotorTypes, identify_rotor_type
+
 __all__ = [
     "PointGroupIdentifier"
 ]
 
-class SymmetryElement(metaclass=abc.ABCMeta):
-    @abc.abstractmethod
-    def get_transformation(self):
-        ...
-
-    def __repr__(self):
-        cls = type(self)
-        return f"{cls.__name__}()"
-
-class InversionElement(SymmetryElement):
-    def get_transformation(self):
-        return np.diag(-np.ones(3))
-
-class ProperRotationElement(SymmetryElement):
-    def __init__(self, order, axis):
-        self.order = order
-        self.axis = axis
-
-    def __repr__(self):
-        cls = type(self)
-        return f"{cls.__name__}({self.order})"
-
-    def get_transformation(self):
-        return nput.rotation_matrix(self.axis, 2*np.pi/self.order)
-
-class ReflectionElement(SymmetryElement):
-    def __init__(self, axis):
-        self.axis = axis
-
-    def get_transformation(self):
-        tf = nput.view_matrix(self.axis)
-        return tf @ np.diag([1, -1, 1]) @ tf.T
-
-class ImproperRotationElement(SymmetryElement):
-    def __init__(self, order, axis):
-        self.order = order
-        self.axis = axis
-    def __repr__(self):
-        cls = type(self)
-        return f"{cls.__name__}({self.order})"
-    def get_transformation(self):
-        rot = nput.rotation_matrix(self.axis, 2*np.pi/self.order)
-        tf = nput.view_matrix(self.axis)
-        reflect = tf @ np.diag([1, -1, 1]) @ tf.T
-        return reflect @ rot
-
-class RotorTypes:
-    Atom = "atom"
-    Linear = "linear"
-    Planar = "planar"
-    Oblate = "oblate"
-    Prolate = "prolate"
-    Spherical = "spherical"
-    Asymmetric = "asymmetric"
-
-class PointGroup(metaclass=abc.ABCMeta):
-    @abc.abstractmethod
-    def get_name(self):
-        ...
-    @property
-    def name(self):
-        return self.get_name()
-    def __repr__(self):
-        return "PointGroup<{}>".format(self.name)
-
-class NamedPointGroup(PointGroup):
-    base_name: str
-    def get_name(self):
-        return self.base_name
-
-class PointGroupIh(NamedPointGroup): base_name = "Ih"
-class PointGroupI(NamedPointGroup): base_name = "I"
-class PointGroupOh(NamedPointGroup): base_name = "Oh"
-class PointGroupO(NamedPointGroup): base_name = "O"
-class PointGroupTh(NamedPointGroup): base_name = "Th"
-class PointGroupTd(NamedPointGroup): base_name = "Td"
-class PointGroupT(NamedPointGroup): base_name = "T"
-class PointGroupCs(NamedPointGroup): base_name = "Cs"
-class PointGroupCi(NamedPointGroup): base_name = "Ci"
-
-class ParametrizedPointGroup(PointGroup):
-    base_name: str
-    n: int
-    def __init__(self, n):
-        self.n = n
-    def get_name(self):
-        return self.base_name + "_" + str(self.n)
-
-class PointGroupC(ParametrizedPointGroup): base_name = "C"
-class PointGroupCh(ParametrizedPointGroup): base_name = "Ch"
-class PointGroupCv(ParametrizedPointGroup): base_name = "Cv"
-class PointGroupD(ParametrizedPointGroup): base_name = "D"
-class PointGroupDh(ParametrizedPointGroup): base_name = "Dh"
-class PointGroupDd(ParametrizedPointGroup): base_name = "Dd"
-class PointGroupS(ParametrizedPointGroup): base_name = "S"
-
-class NamedPointGroups(enum.Enum):
-    Ih = "Ih"
-    I = "I"
-    Oh = "Oh"
-    O = "O"
-    Th = "Th"
-    Td = "Td"
-    T = "T"
-    Cs = "Cs"
-class ParametrizedPointGroup(enum.Enum):
-    C = "C"
-    Ch = "Ch"
-    Cv = "Cv"
-    D = "D"
-    Dh = "Dh"
-    Dd = "Dd"
-    S = "S"
 
 class SymmetryEquivalentAtomData:
     __slots__ = ['coords', 'moms', 'com', 'axes', 'rotor_type', 'planar']
@@ -201,23 +92,7 @@ class PointGroupIdentifier:
         return full_groups
 
     def get_rotor_type(self, moms):
-        mom_deg, counts = np.unique(np.round(moms, self.mom_tol), return_counts=True)
-        planar = np.abs((moms[0] + moms[1]) - moms[2]) < self.mom_tol
-        if np.min(mom_deg) < 1e-6:
-            if len(np.where(moms < 1e-6)[0]) == 2:
-                type = RotorTypes.Atom
-            else:
-                type = RotorTypes.Linear
-        elif tuple(counts) == (3,):
-            type = RotorTypes.Spherical
-        elif tuple(counts) == (1,2):
-            type = RotorTypes.Prolate
-        elif tuple(counts) == (2,1):
-            type = RotorTypes.Oblate
-        else:
-            type = RotorTypes.Asymmetric
-
-        return type, planar
+        return identify_rotor_type(moms, self.mom_tol)
 
     def get_group_orders(self):
         group_factors = None
@@ -255,7 +130,8 @@ class PointGroupIdentifier:
             if max_min_dist > len(coords) * self.tol:
                 return False
             diff_comp = coords - new_coords[min_dists,]
-            if np.max(np.abs(diff_comp)) > self.tol:
+            max_comp = np.max(np.abs(diff_comp))
+            if max_comp > self.tol:
                 return False
         return True
 
@@ -301,9 +177,9 @@ class PointGroupIdentifier:
 
         if self.coord_data.rotor_type == RotorTypes.Linear:
             if has_inversion:
-                point_group = PointGroupD(-1)
+                pg = PointGroup.from_name("D", -1)
             else:
-                point_group = PointGroupC(-1)
+                pg = PointGroup.from_name("C", -1)
         elif self.coord_data.rotor_type == RotorTypes.Spherical:
             raise NotImplementedError("cubic point groups require face identification")
         else:
@@ -316,7 +192,7 @@ class PointGroupIdentifier:
                 else:
                     possible_axes = self.rotation_axis_iterator()
                 for ax in possible_axes:
-                    elem = ProperRotationElement(o, ax)
+                    elem = RotationElement(o, ax)
                     if self.check_element(elem):
                         primary_axis = ax
                         group_order = o
@@ -330,8 +206,9 @@ class PointGroupIdentifier:
                 c2_axis = None
                 for ax in self.rotation_axis_iterator():
                     if np.abs(np.dot(ax, primary_axis)) < self.tol: # has to be parallel
-                        elem = ProperRotationElement(2, ax)
+                        elem = RotationElement(2, ax)
                         if self.check_element(elem):
+                            ax = np.cross(np.cross(ax, primary_axis), primary_axis) # remove any tolerances
                             c2_axis = ax
                             elements.append(elem)
                             break
@@ -342,54 +219,59 @@ class PointGroupIdentifier:
                 if has_sh:
                     elements.append(elem)
                     if c2_axis is None:
-                        point_group = PointGroupCh(group_order)
+                        pg = PointGroup.from_name("Ch", group_order)
                     else:
-                        point_group = PointGroupDh(group_order)
+                        pg = PointGroup.from_name("Dh", group_order)
                 else:
                     if c2_axis is not None:
                         # check for s_d plane
                         ax = np.cross(primary_axis, c2_axis)
                         elem = ReflectionElement(ax)
                         has_sd = self.check_element(elem)
-                        if has_sd is not None:
-                            point_group = PointGroupDh(group_order)
+                        if has_sd:
+                            elements.append(elem)
+                            pg = PointGroup.from_name("Dd", group_order)
                         else:
-                            point_group = PointGroupD(group_order)
+                            pg = PointGroup.from_name("D", group_order)
                     else:
                         sv_axis = None
                         for ax in self.reflection_plane_iterator():
                             if np.abs(np.dot(ax, primary_axis)) < 1 - self.tol:  # not parallel
                                 ax = np.cross(primary_axis, ax)
+                            else:
+                                ax = np.cross(np.cross(ax, primary_axis), primary_axis) # remove any tolerances
                             elem = ReflectionElement(ax)
                             if self.check_element(elem):
                                 sv_axis = ax
                                 elements.append(elem)
                                 break
                         if sv_axis is not None:
-                            point_group = PointGroupCv(group_order)
+                            pg = PointGroup.from_name("Cv", group_order)
                         else:
                             elem = ImproperRotationElement(2*group_order, primary_axis)
                             if self.check_element(elem):
-                                point_group = PointGroupS(group_order)
+                                pg = PointGroup.from_name("S", group_order)
                             else:
-                                point_group = PointGroupC(group_order)
+                                pg = PointGroup.from_name("C", group_order)
             else:
                 if has_inversion:
-                    point_group = PointGroupCi()
+                    pg = PointGroup.from_name("Ci")
                 else:
                     primary_axis = np.array([0, 0, 1])
                     sd_axis = None
                     for ax in self.reflection_plane_iterator():
                         if np.abs(np.dot(ax, primary_axis)) < 1 - self.tol:  # not parallel
                             ax = np.cross(primary_axis, ax)
+                        else:
+                            ax = np.cross(np.cross(ax, primary_axis), primary_axis) # remove any tolerances
                         elem = ReflectionElement(ax)
                         if self.check_element(elem):
                             sd_axis = ax
                             elements.append(elem)
                             break
                     if sd_axis is not None:
-                        point_group = PointGroupCs()
+                        pg = PointGroup.from_name("Cs")
                     else:
-                        point_group = PointGroupC(1)
+                        pg = PointGroup.from_name("C", 1)
 
-        return elements, point_group
+        return elements, pg

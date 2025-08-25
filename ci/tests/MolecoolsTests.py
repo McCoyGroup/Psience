@@ -2155,7 +2155,42 @@ class MolecoolsTests(TestCase):
     @debugTest
     def test_PointGroups(self):
         print()
-        from Psience.Symmetry import PointGroupIdentifier
+        from Psience.Symmetry import (
+            PointGroupIdentifier, PointGroup,
+            SymmetryElement,
+            InversionElement, RotationElement, ReflectionElement, ImproperRotationElement
+        )
+
+        np.random.seed(123)
+        ax = np.random.rand(3)
+        ax2 = np.cross(ax, [0, 1, 0])
+        # a = RotationElement(2, ax)
+        a = InversionElement()
+        # b = ImproperRotationElement(7, ax2, root=5)
+        b = RotationElement(7, ax2, root=5)
+        s1 = a @ b
+        s2 = SymmetryElement.compose(a, b)
+        # x = s2.get_transformation()
+        # ang, ax = nput.extract_rotation_angle_axis(x)
+        # ev, axes = np.linalg.eig(x)
+        # pos = np.where(np.real(ev) < -.9)[0][0]
+        # ax = np.real(axes[:, pos])
+        # print(np.round(x, 8))
+        # # print(np.round(nput.rotation_matrix(ax, ang), 8))
+        # # print(ang / (2*np.pi) * (2*b.order))
+        # # print(np.linalg.det(x))
+        # print(np.round(ax, 8))
+        # print(b.axis)
+        # print(np.round(s1.get_transformation(), 8))
+        # # print(s1.axis)
+        # # print(ang, s1.root * 2 * np.pi / (s1.order))
+        # return
+
+        print(s1)
+        print(s1 == s2)
+        print(np.round(s1.get_transformation(), 8))
+        print(np.round(s2.get_transformation(), 8))
+        return
 
         # water = Molecule.from_file(TestManager.test_data('water_freq.fchk'))
         # mol = Molecule.construct("benzene", energy_evaluator='rdkit')
@@ -2177,7 +2212,9 @@ class MolecoolsTests(TestCase):
         id = PointGroupIdentifier(mol.coords, mol.masses, tol=.8)
 
         print(id.coord_data.rotor_type, id.coord_data.planar)
-        print(id.identify_point_group())
+        symm, pg = id.identify_point_group()
+        print(pg)
+        print(PointGroup.from_symmetry_elements(symm))
 
     @inactiveTest
     def test_Conversions(self):
