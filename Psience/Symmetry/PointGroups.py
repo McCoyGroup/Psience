@@ -235,6 +235,13 @@ class PointGroup(metaclass=abc.ABCMeta):
                 ]
                 if len(v_planes) > 0:
                     secondary_axis = v_planes[0].axis
+                else:
+                    non_par = [
+                        e for e in c2_axes
+                        if abs(np.dot(primary_axis, e.axis)) < .9
+                    ]
+                    if len(non_par) > 0:
+                        secondary_axis = non_par[0].axis
             else:
                 secondary_axis = perp_axes[0].axis
 
@@ -246,10 +253,11 @@ class PointGroup(metaclass=abc.ABCMeta):
             if abs(np.dot(secondary_axis, primary_axis)) > 1 - 1e-2:
                 secondary_axis = [0, 0, 1]
 
-        tertiary_axis = nput.vec_crosses(primary_axis, secondary_axis, normalize=True)
-        secondary_axis = nput.vec_crosses(tertiary_axis, primary_axis, normalize=True)
-
-        return np.array([secondary_axis, tertiary_axis, primary_axis]).T
+        return nput.view_matrix(primary_axis, secondary_axis, output_order=(0, 2, 1))
+        # tertiary_axis = nput.vec_crosses(primary_axis, secondary_axis, normalize=True)
+        # secondary_axis = nput.vec_crosses(tertiary_axis, primary_axis, normalize=True)
+        #
+        # return np.array([secondary_axis, tertiary_axis, primary_axis]).T
 
     @property
     def axes(self):
