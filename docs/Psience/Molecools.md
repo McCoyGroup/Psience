@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-faf42e" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-faf42e"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-8c7b5b" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-8c7b5b"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-faf42e" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-8c7b5b" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -149,6 +149,8 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [PySCFEnergy](#PySCFEnergy)
 - [BackboneChains](#BackboneChains)
 - [EasyZMatrices](#EasyZMatrices)
+- [PointGroups](#PointGroups)
+- [Conversions](#Conversions)
 - [SufaceArea](#SufaceArea)
 - [SufaceTriangulation](#SufaceTriangulation)
 - [ModeLabels](#ModeLabels)
@@ -162,9 +164,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-e1cf6c" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-e1cf6c"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-26e760" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-26e760"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-e1cf6c" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-26e760" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -2308,6 +2310,104 @@ class MolecoolsTests(TestCase):
         pprint.pprint(
             cpmo_split.get_bond_zmatrix(
                 attachment_points={0:(4, 6, 8)}
+            )
+        )
+```
+
+#### <a name="PointGroups">PointGroups</a>
+```python
+    def test_PointGroups(self):
+        print()
+        # from Psience.Symmetry import (
+        #     PointGroupIdentifier, PointGroup,
+        #     SymmetryElement,
+        #     InversionElement, RotationElement, ReflectionElement, ImproperRotationElement
+        # )
+
+        # water = Molecule.from_file(TestManager.test_data('water_freq.fchk'))
+        # mol = Molecule.construct("CC", energy_evaluator='rdkit').optimize()
+        # print(mol.atoms)
+        # print(mol.coords.tolist())
+        mol = Molecule(
+            ['C', 'C', 'H', 'H', 'H', 'H', 'H', 'H'],
+            [
+                [1.3054152479869834, 0.24647130925656535, -0.5530793729770965],
+                [-1.3054057993563604, -0.24642973528182355, 0.553026460645607],
+                [2.7502129154741146, -0.7828587313748425, 0.5769125988608768],
+                [1.3606991857629105, -0.4278075384495296, -2.5445918158535847],
+                [1.7132634991082158, 2.309094146202721, -0.4999931866841094],
+                [-2.751762490896308, 0.7821255176384876, -0.5756408131790036],
+                [-1.3610034316689752, 0.4288638953531954, 2.544251665151152],
+                [-1.7114191264105811, -2.3094531941664, 0.49911446403615845]
+            ]
+        )
+        mol = Molecule(
+            ['C', 'C', 'C', 'C', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H'],
+            [[ 1.5314834 , -2.07901109,  0.03362855],
+             [ 2.66130207,  0.27021048, -0.00918031],
+             [ 1.09977014,  2.36405638, -0.04301921],
+             [-1.49251245,  2.07781621, -0.03367612],
+             [-2.66353391, -0.24015647,  0.00865698],
+             [-1.08442635, -2.34605922,  0.04267503],
+             [ 2.65427297, -3.82363066,  0.06211177],
+             [ 4.65827828,  0.4512349 , -0.01567418],
+             [ 1.93012887,  4.24957282, -0.07725653],
+             [-2.65023509,  3.80315125, -0.06177008],
+             [-4.68709859, -0.49931772,  0.01657436],
+             [-1.95742935, -4.22786689,  0.07692975]]
+        )#.get_embedded_molecule(load_properties=False)
+        pg = mol.get_point_group(grouping_tol=.8, tol=.3, verbose=False)
+        print(pg)
+        print(pg.elements)
+        base = mol.plot(backend='x3d', principle_axes=True)
+        pg.plot(figure=base, origin=mol.center_of_mass * UnitsData.bohr_to_angstroms)
+        base.show()
+```
+
+#### <a name="Conversions">Conversions</a>
+```python
+    def test_Conversions(self):
+        from McUtils.Combinatorics import symmetric_group_character_table#, IntegerPartitioner
+
+        print(symmetric_group_character_table(4))
+
+        # base_tableaux = YoungTableauxGenerator(5).get_standard_tableaux()
+        # for p in itertools.chain(*IntegerPartitioner.partitions(5)):
+        #     print("="*30)
+        #     types = np.concatenate([[i+1]*k for i,k in enumerate(p)])
+        #     for sst in base_tableaux:
+        #         for bits in zip(*sst):
+        #             print(mfmt.TableFormatter("").format([
+        #                 types[b,] for b in bits
+        #             ]))
+        #             print("-"*20)
+
+        return
+
+        cpmo = Molecule.from_file(
+            TestManager.test_data('cpmo3m_opt.xyz'),
+            units='Angstroms'
+        )
+
+        cpmo_split = cpmo.modify(
+            bonds=[
+                b for b in cpmo.bonds
+                if tuple(sorted(b[:2])) not in {
+                    (0, 4),
+                    (0, 5),
+                    (0, 6),
+                    (0, 7),
+                    (0, 8)
+                }
+            ]
+        )
+
+        from McUtils.Zachary import CoordinateFunction
+        CoordinateFunction.polynomial([0])
+
+        pprint.pprint(
+            cpmo_split.get_bond_zmatrix(
+                attachment_points={0: (4, 6, 8)}
             )
         )
 ```
