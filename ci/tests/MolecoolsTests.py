@@ -2155,45 +2155,29 @@ class MolecoolsTests(TestCase):
     @debugTest
     def test_PointGroups(self):
         print()
-        from Psience.Symmetry import (
-            PointGroupIdentifier, PointGroup,
-            SymmetryElement,
-            InversionElement, RotationElement, ReflectionElement, ImproperRotationElement
-        )
-
-        np.random.seed(123)
-        ax = np.random.rand(3)
-        ax2 = np.cross(ax, [0, 1, 0])
-        # a = RotationElement(2, ax)
-        a = InversionElement()
-        # b = ImproperRotationElement(7, ax2, root=5)
-        b = RotationElement(7, ax2, root=5)
-        s1 = a @ b
-        s2 = SymmetryElement.compose(a, b)
-        # x = s2.get_transformation()
-        # ang, ax = nput.extract_rotation_angle_axis(x)
-        # ev, axes = np.linalg.eig(x)
-        # pos = np.where(np.real(ev) < -.9)[0][0]
-        # ax = np.real(axes[:, pos])
-        # print(np.round(x, 8))
-        # # print(np.round(nput.rotation_matrix(ax, ang), 8))
-        # # print(ang / (2*np.pi) * (2*b.order))
-        # # print(np.linalg.det(x))
-        # print(np.round(ax, 8))
-        # print(b.axis)
-        # print(np.round(s1.get_transformation(), 8))
-        # # print(s1.axis)
-        # # print(ang, s1.root * 2 * np.pi / (s1.order))
-        # return
-
-        print(s1)
-        print(s1 == s2)
-        print(np.round(s1.get_transformation(), 8))
-        print(np.round(s2.get_transformation(), 8))
-        return
+        # from Psience.Symmetry import (
+        #     PointGroupIdentifier, PointGroup,
+        #     SymmetryElement,
+        #     InversionElement, RotationElement, ReflectionElement, ImproperRotationElement
+        # )
 
         # water = Molecule.from_file(TestManager.test_data('water_freq.fchk'))
-        # mol = Molecule.construct("benzene", energy_evaluator='rdkit')
+        # mol = Molecule.construct("CC", energy_evaluator='rdkit').optimize()
+        # print(mol.atoms)
+        # print(mol.coords.tolist())
+        mol = Molecule(
+            ['C', 'C', 'H', 'H', 'H', 'H', 'H', 'H'],
+            [
+                [1.3054152479869834, 0.24647130925656535, -0.5530793729770965],
+                [-1.3054057993563604, -0.24642973528182355, 0.553026460645607],
+                [2.7502129154741146, -0.7828587313748425, 0.5769125988608768],
+                [1.3606991857629105, -0.4278075384495296, -2.5445918158535847],
+                [1.7132634991082158, 2.309094146202721, -0.4999931866841094],
+                [-2.751762490896308, 0.7821255176384876, -0.5756408131790036],
+                [-1.3610034316689752, 0.4288638953531954, 2.544251665151152],
+                [-1.7114191264105811, -2.3094531941664, 0.49911446403615845]
+            ]
+        )
         mol = Molecule(
             ['C', 'C', 'C', 'C', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H'],
             [[ 1.5314834 , -2.07901109,  0.03362855],
@@ -2208,13 +2192,18 @@ class MolecoolsTests(TestCase):
              [-2.65023509,  3.80315125, -0.06177008],
              [-4.68709859, -0.49931772,  0.01657436],
              [-1.95742935, -4.22786689,  0.07692975]]
-        )
-        id = PointGroupIdentifier(mol.coords, mol.masses, tol=.8)
-
-        print(id.coord_data.rotor_type, id.coord_data.planar)
-        symm, pg = id.identify_point_group()
+        )#.get_embedded_molecule(load_properties=False)
+        pg = mol.get_point_group(grouping_tol=.8, tol=.3, verbose=False)
         print(pg)
-        print(PointGroup.from_symmetry_elements(symm))
+        print(pg.elements)
+        base = mol.plot(backend='x3d', principle_axes=True)
+        pg.plot(figure=base, origin=mol.center_of_mass * UnitsData.bohr_to_angstroms)
+        base.show()
+
+        # print(id.coord_data.rotor_type, id.coord_data.planar)
+        # symm, pg = id.identify_point_group()
+        # print(PointGroup.from_symmetry_elements(symm))
+        # print(pg.get_character_table().format())
 
     @inactiveTest
     def test_Conversions(self):

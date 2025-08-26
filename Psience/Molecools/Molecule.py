@@ -1833,6 +1833,12 @@ class Molecule(AbstractMolecule):
             values=vals
         )
 
+    def get_point_group(self, *, verbose=False, **tols):
+        from ..Symmetry import PointGroupIdentifier
+        _, pg = PointGroupIdentifier(self.coords, self.atomic_masses, verbose=verbose, **tols).identify_point_group()
+        # print(pg)
+        return pg
+
     def get_surface(self,
                     radius_type='VanDerWaalsRadius',
                     *,
@@ -2160,21 +2166,40 @@ class Molecule(AbstractMolecule):
             modes = self.normal_modes.modes.basis
         new = transformation.apply(self)
         if embed_properties:
+            if load_properties is None:
+                try:
+                    _ = self.normal_modes.modes
+                except ValueError:
+                    load_properties = False
+
             if load_properties or new._normal_modes._modes is not None:
                 new.normal_modes = new.normal_modes.apply_transformation(transformation)
+
+            if load_properties is None:
+                try:
+                    _ = self.potential_derivatives
+                except ValueError:
+                    load_properties = False
+
             if (
                     load_properties
                     or new._pes._surf is not None
                     or new._pes._derivs is not None
             ):
                 new.potential_surface = new.potential_surface.apply_transformation(transformation)
+
+            if load_properties is None:
+                try:
+                    _ = self.dipole_derivatives
+                except ValueError:
+                    load_properties = False
             if load_properties or new._dips._surf is not None or new._dips._derivs is not None:
                 new.dipole_surface = new.dipole_surface.apply_transformation(transformation)
         new.source_file = None  # for safety
 
         return new
 
-    def apply_rotation(self, rotation_matrix, shift_com=None, load_properties=False, embed_properties=True):
+    def apply_rotation(self, rotation_matrix, shift_com=None, load_properties=None, embed_properties=True):
 
         if shift_com and rotation_matrix.shape[-1] != 4:
             com = self.center_of_mass
@@ -2233,10 +2258,11 @@ class Molecule(AbstractMolecule):
                          proper_rotation=proper_rotation)
     def get_embedded_molecule(self,
                               ref=None,
-                              sel=None, planar_ref_tolerance=None,
+                              sel=None,
+                              planar_ref_tolerance=None,
                               proper_rotation=False,
                               embed_properties=True,
-                              load_properties=True
+                              load_properties=None
                               ):
         """
         Returns a Molecule embedded in an Eckart frame if ref is not None, otherwise returns
@@ -2957,6 +2983,9 @@ class Molecule(AbstractMolecule):
              mode_vector_origins=None,
              mode_vector_origin_mode='set',
              mode_vector_display_cutoff=1e-2,
+             principle_axes=None,
+             principle_axes_origin=None,
+             principle_axes_style=None,
              dipole=None,
              dipole_origin=None,
              dipole_origin_mode='set',
@@ -3045,6 +3074,24 @@ class Molecule(AbstractMolecule):
             if units is not None:
                 dipole = dipole * UnitsData.convert("BohrRadius", units)
 
+        if principle_axes is True:
+            _, principle_axes = nput.moments_of_inertia(geometries, self.atomic_masses)
+        elif principle_axes is False:
+            principle_axes = None
+        if principle_axes is not None:
+            if principle_axes_style is None:
+                principle_axes_style = [{'color':'green'}, {'color':'red'}, {'color':'blue'}]
+            elif isinstance(principle_axes_style, dict):
+                principle_axes_style = [principle_axes_style] * 3
+            if principle_axes_origin is not None:
+                if principle_axes_origin.ndim == 1:
+                    principle_axes_origin = np.broadcast_to(
+                        principle_axes_origin[np.newaxis],
+                        (len(geometries),) + principle_axes_origin.shape
+                    )
+
+                if units is not None:
+                    principle_axes_origin = principle_axes_origin * UnitsData.convert("BohrRadius", units)
 
         if dipole_origin is not None:
             dipole_origin = np.asanyarray(dipole_origin)
@@ -3128,6 +3175,8 @@ class Molecule(AbstractMolecule):
         if highlight_styles is None:
             highlight_styles = self.highlight_styles
 
+        if highlight_atoms is True:
+            highlight_atoms = list(range(len(self.atoms)))
         if highlight_rings is not None:
             if highlight_atoms is None:
                 highlight_atoms = []
@@ -3306,6 +3355,30 @@ class Molecule(AbstractMolecule):
                         arrows[i].append(dipole_arrow)
                     else:
                         plops = dipole_arrow.plot(figure)
+                        if isinstance(plops, tuple):
+                            arrows[i].append(plops[0])
+                        else:
+                            arrows[i].append(plops)
+
+            if principle_axes is not None:
+                arrows[i] = []
+                pax:np.ndarray = principle_axes[i]
+                if principle_axes_origin is None or principle_axes_origin == 'shift':
+                    com = np.tensordot(self.masses, geom, axes=[0, 0]) / np.sum(self.masses)
+                    if principle_axes_origin is not None:
+                        com = com + principle_axes_origin[i]
+                else:
+                    com = dipole_origin[i]
+                for ax, sty in zip(pax.T, principle_axes_style):
+                    pax_arrow = arrow_class(
+                        com,
+                        com + ax,
+                        **dict(vector_style, **sty)
+                    )
+                    if objects:
+                        arrows[i].append(pax_arrow)
+                    else:
+                        plops = pax_arrow.plot(figure)
                         if isinstance(plops, tuple):
                             arrows[i].append(plops[0])
                         else:
