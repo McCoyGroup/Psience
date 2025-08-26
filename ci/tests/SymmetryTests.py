@@ -94,30 +94,33 @@ class SymmetryTests(TestCase):
     @debugTest
     def test_PointGroupElements(self):
         for name in [
-            ("Cv", 2),
-            ("S", 4),
-            ("Ch", 4),
-            ("Ch", 6),
-            ("Dh", 4),
-            ("Dh", 6),
-            ("Dd", 7),
-            ("D", 7)
+            # ("Cv", 2),
+            # ("S", 4),
+            # ("Ch", 4),
+            # ("Ch", 6),
+            # ("Dh", 4),
+            # ("Dh", 6),
+            # ("Dd", 7),
+            # ("D", 7),
+            ("T",),
+            ("Td",),
+            ("Th",),
+            ("O",),
+            ("Oh",),
+            ("I",),
+            ("Ih",),
         ]:
             pg = PointGroup.from_name(*name)
             ct = pg.character_table
             elements = ct.permutations
             classes = ct.classes
+            print(pg, pg.elements)
+            self.assertIsNot(classes, None)
             self.assertEquals(
                 np.sort(np.concatenate(classes)).tolist(),
                 np.arange(sum(len(l) for l in classes)).tolist()
             )
             self.assertEquals(len(elements), sum(len(l) for l in classes))
-
-    @debugTest
-    def test_PointGroupElements(self):
-        pg = PointGroup.from_name("Dh", 6)
-        ct = pg.character_table
-        print(pg.elements)
 
 
     @validationTest

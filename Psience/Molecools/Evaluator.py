@@ -1451,7 +1451,7 @@ class RDKitEnergyEvaluator(EnergyEvaluator):
 
         if method == 'rdkit':
             maxIters = opts.pop('maxIters', max_iterations)
-            optimizer = opts.pop('optimizer', method)
+            optimizer = opts.pop('optimizer', None)
             return self.rdmol.optimize_structure(
                 geoms=coords,
                 force_field_type=force_field_type,

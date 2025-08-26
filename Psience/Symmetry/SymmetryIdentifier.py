@@ -187,15 +187,24 @@ class PointGroupIdentifier:
         for e in np.eye(3):
             yield e
 
+        seen_axes = []
         for g in self.groups:
             for n, i in enumerate(g):
                 ax = self.coord_data.coords[i]
-                if np.linalg.norm(ax) > 1e-6:
-                    yield ax
+                norm = np.linalg.norm(ax)
+                if norm > 1e-2:
+                    ax = ax / norm
+                    if all(abs(np.dot(ax, s)) < 1 - 1e-2 for s in seen_axes):
+                        seen_axes.append(ax)
+                        yield ax
                 for j in g[n + 1:]:
                     ax = (self.coord_data.coords[i] + self.coord_data.coords[j]) / 2
-                    if np.linalg.norm(ax) > 1e-6:
-                        yield ax
+                    norm = np.linalg.norm(ax)
+                    if norm > 1e-2:
+                        ax = ax / norm
+                        if all(abs(np.dot(ax, s)) < 1 - 1e-2 for s in seen_axes):
+                            seen_axes.append(ax)
+                            yield ax
 
     def reflection_plane_iterator(self):
         for e in np.eye(3):
@@ -204,6 +213,19 @@ class PointGroupIdentifier:
             for i,j in itertools.combinations(g, 2):
                 ax = self.coord_data.coords[i] - self.coord_data.coords[j]
                 yield ax
+
+    def rotation_face_iterator(self):
+        for g in self.groups:
+            if len(g) < 3: continue
+            for i,j,k in itertools.combinations(g, 3):
+                v1 = self.coord_data.coords[i] - self.coord_data.coords[j]
+                v2 = self.coord_data.coords[i] - self.coord_data.coords[k]
+                v3 = self.coord_data.coords[j] - self.coord_data.coords[k]
+                norm1 = np.linalg.norm(v1)
+                norm2 = np.linalg.norm(v2)
+                norm3 = np.linalg.norm(v3)
+                if abs(norm1 - norm2) < 1e-2 and abs(norm1 - norm3) < 1e-2:
+                    yield np.cross(v1, v2)
 
     def identify_point_group(self, realign=True):
         elements = []
@@ -220,7 +242,108 @@ class PointGroupIdentifier:
             else:
                 pg = PointGroup.from_name("C", -1)
         elif self.coord_data.rotor_type == RotorTypes.Spherical:
-            raise NotImplementedError("cubic point groups require face identification")
+            n_c2 = 0
+            for ax in self.rotation_axis_iterator():
+                elem = RotationElement(2, ax)
+                if self.check_element(elem, verbose=False):
+                    n_c2 += 1
+                    elements.append(elem)
+                    if n_c2 >= 15: break
+            if n_c2 >= 15:
+                c5_axis = None
+                for ax in self.rotation_face_iterator():
+                    elem = RotationElement(5, ax)
+                    if self.check_element(elem):
+                        c5_axis = elem.axis
+                        elements.append(elem)
+                        break
+                else:
+                    raise ValueError("couldn't identify C4 axis for O-type structure")
+                axes = nput.view_matrix(
+                    c5_axis,
+                    view_vector=elements[-2].axis,  # arbitrary C2
+                    output_order=(0, 2, 1)
+                )
+                if has_inversion:
+                    return PointGroup.from_name("Ih", axes=axes)
+                else:
+                    return PointGroup.from_name("I", axes=axes)
+            elif n_c2 >= 9:
+                c4_axis = None
+                for ax in self.rotation_face_iterator():
+                    elem = RotationElement(4, ax)
+                    if self.check_element(elem):
+                        c4_axis = elem.axis
+                        elements.append(elem)
+                        break
+                else:
+                    raise ValueError("couldn't identify C4 axis for O-type structure")
+                axes = nput.view_matrix(
+                    c4_axis,
+                    view_vector=elements[-2].axis, # arbitrary C2
+                    output_order=(0, 2, 1)
+                )
+                if has_inversion:
+                    pg = PointGroup.from_name("Oh", axes=axes)
+                else:
+                    pg = PointGroup.from_name("O", axes=axes)
+            elif n_c2 >= 3:
+                c3_axis = None
+                n_c3 = 0
+                for ax in self.rotation_face_iterator():
+                    elem = RotationElement(3, ax)
+                    if self.check_element(elem):
+                        n_c3 += 1
+                        elements.append(elem)
+                        c3_axis = elem.axis
+                        if has_inversion or n_c3 > 4:
+                            break
+                if c3_axis is None:
+                    raise ValueError("couldn't identify C3 axis for T-type structure")
+                # print(elements[-(n_c3 + 1)])
+                # print(elements)
+                if has_inversion:
+                    axes = nput.view_matrix(
+                        c3_axis,
+                        view_vector=elements[-(n_c3 + 2)].axis,  # arbitrary C2
+                        output_order=(0, 2, 1)
+                    )
+                    pg = PointGroup.from_name("Th", axes=axes)
+                elif n_c3 >= 4:
+                    # search for Td plane by noting it C3 and at least one C2
+                    sd_plane = None
+                    for e in elements:
+                        if isinstance(e, RotationElement) and e.order == 2:
+                            ax = np.cross(c3_axis, e.axis)
+                            if np.linalg.norm(ax) > 1e-3:
+                                elem = ReflectionElement(ax)
+                                if self.check_element(elem):
+                                    sd_plane = elem
+                                    elements.append(sd_plane)
+                                    break
+                    if sd_plane is None:
+                        raise ValueError("no vertical reflection plane found?")
+                        axes = nput.view_matrix(
+                            c3_axis,
+                            view_vector=elements[-(n_c3 + 2)].axis,  # arbitrary C2
+                            output_order=(0, 2, 1)
+                        )
+                    else:
+                        axes = nput.view_matrix(
+                            c3_axis,
+                            view_vector=sd_plane.axis,
+                            output_order=(0, 2, 1)
+                        )
+                    pg = PointGroup.from_name("Td", axes=axes)
+                else:
+                    axes = nput.view_matrix(
+                        c3_axis,
+                        view_vector=elements[-(n_c3 + 2)].axis,  # arbitrary C2
+                        output_order=(0, 2, 1)
+                    )
+                    pg = PointGroup.from_name("T", axes=axes)
+            else:
+                raise ValueError(f"bad number of C2 axes ({n_c2})")
         else:
             # search for proper rotation axes
             primary_axis = None
