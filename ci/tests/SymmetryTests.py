@@ -91,7 +91,7 @@ class SymmetryTests(TestCase):
                 )
             )
 
-    @debugTest
+    @validationTest
     def test_PointGroupElements(self):
         for name in [
             # ("Cv", 2),
@@ -141,3 +141,17 @@ class SymmetryTests(TestCase):
         for e in pg.elements:
             if hasattr(e, 'axis'):
                 print(e, e.axis)
+
+    # @debugTest
+    # def test_SymmetryReduction(self):
+    #     perms = nput.permutation_indices(5, 5)[:5]
+    #     print(perms)
+    #     cycles = nput.permutation_cycles(perms, return_groups=True)
+    #     print(cycles)
+    #     return
+    #
+    #     tf = nput.rotation_matrix([0, 0, 1], 2*np.pi/3)
+    #     np.random.seed(5)
+    #     coords = np.round(np.random.rand(2, 3), 3)
+    #     coords = np.concatenate([coords, coords@tf, coords@tf@tf], axis=0)
+    #     print(nput.symmetry_permutation(coords, tf))

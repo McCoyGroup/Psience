@@ -115,7 +115,6 @@ class ComposedSymmetryElement(SymmetryElement):
         symm = SymmetryElement.from_transformation_matrix(self.get_transformation(), max_rotation_order=None)
         return symm.plot(figure=figure, **graphics_options)
 
-
 class IdentityElement(SymmetryElement):
     def get_transformation(self):
         return np.eye(3)
@@ -169,7 +168,6 @@ class InversionElement(SymmetryElement):
             color=color,
             **graphics_options
         ).plot(figure)
-
 
 class RotationElement(SymmetryElement):
     def __init__(self, order, axis, root=1):
@@ -282,7 +280,6 @@ class RotationElement(SymmetryElement):
             for o in objects
         ]
 
-
 class ReflectionElement(SymmetryElement):
     def __init__(self, axis):
         ax, norm = nput.vec_normalize(axis, return_norms=True)
@@ -344,7 +341,6 @@ class ReflectionElement(SymmetryElement):
             transparency=disk_transparency
         )
         return disk.plot(figure)
-
 
 class ImproperRotationElement(SymmetryElement):
     def __init__(self, order, axis, root=1):
@@ -448,3 +444,32 @@ class ImproperRotationElement(SymmetryElement):
             o.plot(figure)
             for o in objects
         ]
+
+# def enumerate_symmetry_operations(generators:'list[SymmetryElement]', max_order=None):
+#     if max_order is None:
+#         max_order = 60 # support up to C60 rotations...
+#
+#     real_ops = [g for g in generators if not isinstance(g, IdentityElement)]
+#     tf_cache = {}
+#     def get_tf(g):
+#         tf = tf_cache.get(g)
+#         if tf is None:
+#             tf = g.get_transformation()
+#             tf_cache[g] = tf
+#         return tf
+#
+#     generator_orbits = []
+#     for g in real_ops:
+#         x = get_tf(g)
+#         g2 = g
+#         orbit = [g]
+#         for i in range(max_order):
+#             g3 = g @ g2
+#             x2 = g3.get_transformation()
+#             if np.allclose(x2, x):
+#                 break
+#             else:
+#                 orbit.append(g3)
+#
+#     return generator_orbits
+

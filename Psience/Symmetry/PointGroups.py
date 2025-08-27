@@ -39,6 +39,7 @@ class PointGroup(metaclass=abc.ABCMeta):
         self._elements = elements
         self._character_table = character_table
         self._axes = axes
+        self._base_axes = None
 
     def get_modification_kwargs(
             self,
@@ -171,19 +172,31 @@ class PointGroup(metaclass=abc.ABCMeta):
                         else:
                             return cls.from_name("C", group_order)
 
-    def get_symmetry_elements(self):
-        ct = self.get_character_table()
-        mats = ct.space_representation
-        if mats is None:
-            raise NotImplementedError(f"no implementation for operator matrices for point group {self}")
-        base_elems = tuple(SymmetryElement.from_transformation_matrix(x) for x in mats)
-        if self._axes is not None:
-            base_ax = self.get_axes(base_elems)
-            tf = self._axes @ base_ax.T
-            if abs(np.linalg.det(tf)) < 1e-6:
-                raise ValueError("bad transformation")
-            base_elems = [e.transform(tf) for e in base_elems]
-        return base_elems
+    def get_symmetry_elements(self, only_class_representatives=True):
+        ct = self.character_table
+        if only_class_representatives:
+            mats = ct.matrices
+            if mats is None:
+                raise NotImplementedError(f"no implementation for operator matrices for point group {self}")
+            elems = tuple(SymmetryElement.from_transformation_matrix(x) for x in mats)
+            self._base_axes = self.get_axes(elems)
+            if self._axes is not None:
+                tf = self._axes @ self._base_axes.T
+                if abs(np.linalg.det(tf)) < 1e-6:
+                    raise ValueError("bad transformation")
+                elems = [e.transform(tf) for e in elems]
+        else:
+            all_mats = self.get_all_character_matrices()
+            elems = tuple(SymmetryElement.from_transformation_matrix(x) for x in all_mats)
+            if self._axes is not None:
+                base_elems = self.elements
+                base_axes = self._base_axes
+                if base_axes is None:
+                    base_axes = self.get_axes(base_elems)
+                tf = self._axes @ base_axes.T
+                elems = [e.transform(tf) for e in elems]
+
+        return elems
 
     @property
     def character_table(self) -> comb.CharacterTable:
@@ -201,16 +214,16 @@ class PointGroup(metaclass=abc.ABCMeta):
     def get_character_table(self):
         ...
 
-    def get_axes(self, elements=None):
-        # could use point group identity for short circuiting, but don't want to
+    @abc.abstractmethod
+    def get_all_character_matrices(self):
+        ...
 
-        if elements is None:
-            elements = self.elements
-
+    @classmethod
+    def get_axes_from_symmetry_elements(cls, elements):
         primary_axis = None
         secondary_axis = None
 
-        primary, count = self.get_symmetry_element_primary_rotation(elements)
+        primary, count = cls.get_symmetry_element_primary_rotation(elements)
         if primary is None:
             # search for reflection plane
             planes = [e for e in elements if isinstance(e, ReflectionElement)]
@@ -254,6 +267,14 @@ class PointGroup(metaclass=abc.ABCMeta):
                 secondary_axis = [0, 0, 1]
 
         return nput.view_matrix(primary_axis, secondary_axis, output_order=(0, 2, 1))
+
+    def get_axes(self, elements=None):
+        # could use point group identity for short circuiting, but don't want to
+
+        if elements is None:
+            elements = self.elements
+
+        return self.get_axes_from_symmetry_elements(elements)
         # tertiary_axis = nput.vec_crosses(primary_axis, secondary_axis, normalize=True)
         # secondary_axis = nput.vec_crosses(tertiary_axis, primary_axis, normalize=True)
         #
@@ -342,6 +363,8 @@ class NamedPointGroup(PointGroup):
 
     def get_character_table(self):
         return comb.CharacterTable.fixed_size_point_group(self.group.value)
+    def get_all_character_matrices(self):
+        return comb.point_group_data(self.group.value, prop="matrices")
 
 class ParametrizedPointGroup(PointGroup):
     group: ParametrizedPointGroups
@@ -368,5 +391,7 @@ class ParametrizedPointGroup(PointGroup):
 
     def get_character_table(self):
         return comb.CharacterTable.point_group(self.group.value, self.n)
+    def get_all_character_matrices(self):
+        return comb.point_group_data(self.group.value, self.n, prop="matrices")
 
 

@@ -28,6 +28,7 @@ from McUtils.Scaffolding import Logger
 from .MoleculeInterface import *
 
 from .CoordinateSystems import MolecularEmbedding, ModeEmbedding
+from ..Symmetry import PointGroupIdentifier, symmetrize_coordinates
 from .Evaluator import (
     MolecularEvaluator, EnergyEvaluator, DipoleEvaluator, ChargeEvaluator,
     ReducedDimensionalPotentialHandler
@@ -1832,12 +1833,39 @@ class Molecule(AbstractMolecule):
             dipole=dip,
             values=vals
         )
-
-    def get_point_group(self, *, verbose=False, **tols):
-        from ..Symmetry import PointGroupIdentifier
-        _, pg = PointGroupIdentifier(self.coords, self.atomic_masses, verbose=verbose, **tols).identify_point_group()
+    def get_point_group(self, *, verbose=False, return_identifier=False, **tols):
+        pg_id = PointGroupIdentifier(self.coords, self.atomic_masses, verbose=verbose, **tols)
+        _, pg = pg_id.identify_point_group()
+        if return_identifier:
+            return pg_id, pg
         # print(pg)
         return pg
+
+    def symmetrize(self, pg=None, return_identifier=False, tol=1e-1, return_point_group=False, **tols):
+        if no_pg := pg is None:
+            pg_id, pg = self.get_point_group(tol=tol, **tols, return_identifier=True)
+        else:
+            # make sure this stays in sync with above
+            pg_id = PointGroupIdentifier(self.coords, self.atomic_masses, tol=tol, **tols)
+            pg = pg_id.embed_point_group(pg)
+
+        new_coords, new_atoms = symmetrize_coordinates(
+            self.coords,
+            pg,
+            labels=self.atoms,
+            groups=pg_id.groups,
+            tol=tol
+        )
+
+        if return_identifier or return_point_group:
+            res = ((new_coords, new_atoms),)
+            if return_identifier:
+                res = res + (pg_id,)
+            if return_point_group:
+                res = res + (pg,)
+            return res
+        else:
+            return new_coords, new_atoms
 
     def get_surface(self,
                     radius_type='VanDerWaalsRadius',
