@@ -11,9 +11,10 @@ from .PointGroups import *
 from .Rotors import RotorTypes, identify_rotor_type
 
 __all__ = [
-    "PointGroupIdentifier"
+    "PointGroupIdentifier",
+    "identify_symmetry_equivalent_atoms",
+    "identify_point_group"
 ]
-
 
 class SymmetryEquivalentAtomData:
     __slots__ = ['coords', 'moms', 'com', 'axes', 'rotor_type', 'planar']
@@ -26,9 +27,75 @@ class SymmetryEquivalentAtomData:
         self.rotor_type = rotor_type
         self.planar = planar
 
+def identify_symmetry_equivalent_atoms(coords,
+                                       masses=None,
+                                       base_groups=None,
+                                       mass_tol=1,
+                                       tol=1e-2
+                                       ):
+    if base_groups is None:
+        if masses is not None:
+            (_, base_groups), _ = nput.group_by(np.arange(len(masses)), np.round(masses/mass_tol))
+        else:
+            base_groups = [np.arange(len(coords))]
+    full_groups = []
+    for g in base_groups:
+        if len(g) < 2: continue
+        subcoords = coords[g,]
+        dists = nput.distance_matrix(subcoords)
+        dists = np.sort(dists, axis=1)
+
+        subgroups = []
+        for i,d in enumerate(dists):
+            new_sg = False
+            for subgroup in subgroups:
+                if i in subgroup: break
+            else:
+                new_sg = True
+                subgroup = {i}
+            for j,d2 in enumerate(dists[i+1:]):
+                if np.max(np.abs(d - d2)) < tol:
+                    subgroup.add(i+j+1)
+            if new_sg and len(subgroup) > 1:
+                subgroups.append(subgroup)
+
+        merged_groups = []
+        for n,gg in enumerate(subgroups):
+            for g2 in merged_groups:
+                if len(gg.intersection(g2)) > 0:
+                    g2.update(gg)
+                    break
+            else:
+                merged_groups.append(gg)
+        # print(dists)
+        # dist_dm = nput.distance_matrix(dists, return_triu=True)
+        # equiv_pos = np.where(dist_dm < self.tol)
+        # if len(equiv_pos) == 0 or len(equiv_pos[0]) == 0:
+        #     continue
+        # else:
+        #     subgroups = []
+        #     row, col = np.triu_indices(len(dists), k=1)
+        #     for x in equiv_pos[0]:
+        #         e = row[x]
+        #         p = col[x]
+        #         for gg in subgroups:
+        #             if e in gg:
+        #                 gg.add(p)
+        #                 break
+        #             elif p in gg:
+        #                 gg.add(e)
+        #                 break
+        #         else:
+        #             subgroups.append({e,p})
+        full_groups.extend(
+            list(sorted(g[ss] for ss in s))
+            for s in merged_groups
+        )
+    return full_groups
+
 class PointGroupIdentifier:
     def __init__(self, coords, masses=None, groups=None,
-                 tol=1e-8, mass_tol=1, mom_tol=1,
+                 tol=1e-2, mass_tol=1, mom_tol=1,
                  grouping_tol=1e-2,
                  verbose=False
                  ):
@@ -37,12 +104,13 @@ class PointGroupIdentifier:
         self.tol = tol
         self.grouping_tol = grouping_tol
         self.verbose = verbose
+        self.groups = identify_symmetry_equivalent_atoms(coords,
+                                                         masses=masses,
+                                                         tol=grouping_tol,
+                                                         mass_tol=mass_tol)
         if masses is None:
             masses = np.ones(len(coords))
         masses = np.asanyarray(masses)
-        if groups is None:
-            groups = self.get_groups_from_masses(masses)
-        self.groups = self.get_groups(coords, groups)
         self.group_orders = self.get_group_orders()
         self.coord_data = self.prep_coords(coords, masses=masses)
         self.group_coords = [
@@ -226,6 +294,157 @@ class PointGroupIdentifier:
                 norm3 = np.linalg.norm(v3)
                 if abs(norm1 - norm2) < 1e-2 and abs(norm1 - norm3) < 1e-2:
                     yield np.cross(v1, v2)
+                    
+    def embed_point_group(self, point_group:'PointGroup|list[SymmetryElement]'):
+        axes = self.find_point_group_alignment_axes(point_group)
+        if isinstance(point_group, PointGroup):
+            return point_group.align(axes)
+        else:
+            base_axes = PointGroup.get_axes_from_symmetry_elements(point_group)
+            tf = axes @ base_axes.T
+            return [e.transform(tf) for e in point_group]
+
+    def find_point_group_alignment_axes(self, point_group:'PointGroup|list[SymmetryElement]'):
+        pg_elements = None
+        # pg_axes = None
+        if isinstance(point_group, PointGroup):
+            pg_elements = point_group.elements
+            # pg_axes = point_group.axes
+        else:
+            pg_elements = point_group
+            # axes = PointGroup.get_axes_from_symmetry_elements(point_group)
+
+        #TODO: cut down on duplicaiton by having `PointGroup.get_axes_from_symmetry_elements` return
+        #      the elements used
+
+        pg_primary_axis, counts = PointGroup.get_symmetry_element_primary_rotation(pg_elements)
+        if pg_primary_axis is not None:
+            primary_axis = None
+            for ax in self.rotation_axis_iterator():
+                test_elem = RotationElement(pg_primary_axis.order, ax)
+                if self.check_element(test_elem):
+                    primary_axis = test_elem
+                    break
+            else:
+                raise ValueError(f"couldn't find {pg_primary_axis} type element")
+
+            pg_perp_c2 = None
+            for e in pg_elements:
+                if (
+                        isinstance(e, RotationElement)
+                        and e.order == 2
+                        and np.abs(np.dot(e.axis, pg_primary_axis.axis)) < 1e-2  # perp
+                ):
+                    pg_perp_c2 = e
+                    break
+
+            if pg_perp_c2 is not None:
+                perp_c2 = None
+                for ax in self.rotation_axis_iterator():
+                    elem = RotationElement(2, ax)
+                    if (
+                            np.dot(elem.axis, primary_axis.axis) < 1e-2
+                            and self.check_element(elem)
+                    ):
+                        perp_c2 = elem
+                        break
+                else:
+                    raise ValueError("couldn't find perpendicular C2 axis")
+
+                axes = nput.view_matrix(
+                    primary_axis.axis,
+                    view_vector=perp_c2.axis,
+                    output_order=(0, 2, 1)
+                )
+            else:
+                pg_sv_plane = None
+                for e in pg_elements:
+                    if (
+                        isinstance(e, ReflectionElement)
+                        and abs(np.dot(pg_primary_axis.axis, e.axis)) < 1e-2
+                    ):
+                        pg_sv_plane = e
+                        break
+
+                if pg_sv_plane is not None:
+                    sv_plane = None
+                    for ax in self.reflection_plane_iterator():
+                        elem = ReflectionElement(ax)
+                        if (
+                                abs(np.dot(primary_axis.axis, elem.axis)) < 1e-2
+                            and self.check_element(elem)
+                        ):
+                            sv_plane = elem
+                            break
+                    else:
+                        raise ValueError("couldn't find vertical reflection plane")
+                    axes = nput.view_matrix(
+                        primary_axis.axis,
+                        view_vector=sv_plane.axis,
+                        output_order=(0, 2, 1)
+                    )
+                else:
+                    # look for any c2
+                    pg_c2 = None
+                    for e in pg_elements:
+                        if (
+                                isinstance(e, RotationElement)
+                            and e.order == 2
+                            and abs(np.dot(pg_primary_axis.axis, e.axis)) < 1-1e-2
+                        ):
+                            pg_c2 = e
+                            break
+
+                    if pg_c2 is not None:
+                        c2_axis = None
+                        for ax in self.rotation_axis_iterator():
+                            elem = RotationElement(2, ax)
+                            if (
+                                    abs(np.dot(primary_axis.axis, elem.axis)) < 1 - 1e-2
+                                and self.check_element(elem)
+                            ):
+                                c2_axis = elem
+                                break
+                        else:
+                            raise ValueError("couldn't find non-colinear C2 axis")
+
+                        axes = nput.view_matrix(
+                            primary_axis.axis,
+                            view_vector=c2_axis.axis,
+                            output_order=(0, 2, 1)
+                        )
+                    else:
+                        axes = nput.view_matrix(
+                            primary_axis.axis,
+                            output_order=(0, 2, 1)
+                        )
+        else:
+            # search for reflection plane in elements
+            pg_plane = None
+            for e in pg_elements:
+                if isinstance(e, ReflectionElement):
+                    pg_plane = e
+                    break
+            if pg_plane is None:
+                # no orientation to speak of
+                axes = np.eye(3)
+            else:
+                plane = None
+                for ax in self.reflection_plane_iterator():
+                    test_elem = ReflectionElement(ax)
+                    if self.check_element(test_elem):
+                        plane = test_elem
+                        break
+                else:
+                    raise ValueError(f"couldn't find {pg_plane} type element")
+
+                axes = nput.view_matrix(
+                    plane.axis,
+                    output_order=(0, 2, 1)
+                )
+
+        return self.coord_data.axes @ axes
+
 
     def identify_point_group(self, realign=True):
         elements = []
@@ -235,6 +454,7 @@ class PointGroupIdentifier:
             elements.append(elem)
 
         if self.verbose:
+            print("Using groups:", self.groups)
             print("Rotor type:", self.coord_data.rotor_type)
         if self.coord_data.rotor_type == RotorTypes.Linear:
             if has_inversion:
@@ -478,3 +698,17 @@ class PointGroupIdentifier:
         if realign:
             pg = pg.transform(self.coord_data.axes)
         return elements, pg
+
+def identify_point_group(
+        coords, masses=None, groups=None,
+        tol=1e-8, mass_tol=1, mom_tol=1,
+        grouping_tol=1e-2,
+        realign=True,
+        verbose=False
+):
+    return PointGroupIdentifier(coords,
+                                masses=masses, groups=groups,
+                                tol=tol, mass_tol=mass_tol, mom_tol=mom_tol,
+                                grouping_tol=grouping_tol,
+                                verbose=verbose
+                                ).identify_point_group(realign=realign)

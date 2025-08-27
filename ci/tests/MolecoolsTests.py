@@ -2178,21 +2178,36 @@ class MolecoolsTests(TestCase):
                 [-1.7114191264105811, -2.3094531941664, 0.49911446403615845]
             ]
         )
-        # mol = Molecule(
-        #     ['C', 'C', 'C', 'C', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H'],
-        #     [[ 1.5314834 , -2.07901109,  0.03362855],
-        #      [ 2.66130207,  0.27021048, -0.00918031],
-        #      [ 1.09977014,  2.36405638, -0.04301921],
-        #      [-1.49251245,  2.07781621, -0.03367612],
-        #      [-2.66353391, -0.24015647,  0.00865698],
-        #      [-1.08442635, -2.34605922,  0.04267503],
-        #      [ 2.65427297, -3.82363066,  0.06211177],
-        #      [ 4.65827828,  0.4512349 , -0.01567418],
-        #      [ 1.93012887,  4.24957282, -0.07725653],
-        #      [-2.65023509,  3.80315125, -0.06177008],
-        #      [-4.68709859, -0.49931772,  0.01657436],
-        #      [-1.95742935, -4.22786689,  0.07692975]]
-        # )#.get_embedded_molecule(load_properties=False)
+        mol = Molecule(
+            ['C', 'C', 'C', 'C', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H'],
+            [[ 1.5314834 , -2.07901109,  0.03362855],
+             [ 2.66130207,  0.27021048, -0.00918031],
+             [ 1.09977014,  2.36405638, -0.04301921],
+             [-1.49251245,  2.07781621, -0.03367612],
+             [-2.66353391, -0.24015647,  0.00865698],
+             [-1.08442635, -2.34605922,  0.04267503],
+             [ 2.65427297, -3.82363066,  0.06211177],
+             [ 4.65827828,  0.4512349 , -0.01567418],
+             [ 1.93012887,  4.24957282, -0.07725653],
+             [-2.65023509,  3.80315125, -0.06177008],
+             [-4.68709859, -0.49931772,  0.01657436],
+             [-1.95742935, -4.22786689,  0.07692975]]
+        ).get_embedded_molecule(load_properties=False)
+        (coords, atoms), pg = mol.symmetrize(grouping_tol=.8, tol=.3, return_point_group=True)
+        self.assertEquals(coords.shape, mol.coords.shape)
+        base = mol.plot(backend='x3d', include_save_buttons=True)#, principle_axes=True)
+        (coords, atoms), pg2 = Molecule(atoms, coords).symmetrize(pg, return_point_group=True)
+        # print(pg2)
+        # print(coords, atoms)
+        Molecule(atoms, coords).plot(figure=base, highlight_atoms=True)
+        # print(nput.distance_matrix(mol.coords[:6]))
+        # print(atoms)
+        # print(nput.distance_matrix(coords[-6:]))
+        pg2.plot(figure=base, origin=mol.center_of_mass * UnitsData.bohr_to_angstroms)
+        base.show()
+        # print(coords)
+        return
+
         mol = Molecule(
             ["C", "H", "H", "H", "H"],
             [[ 1.49273393e-04, -8.31939792e-05, -3.01752454e-05],
