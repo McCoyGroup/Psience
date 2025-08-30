@@ -280,7 +280,8 @@ class PointGroupIdentifier:
         for g in self.groups:
             for i,j in itertools.combinations(g, 2):
                 ax = self.coord_data.coords[i] - self.coord_data.coords[j]
-                yield ax
+                if np.linalg.norm(ax) > 1e-2:
+                    yield ax
 
     def rotation_face_iterator(self):
         for g in self.groups:
@@ -657,6 +658,7 @@ class PointGroupIdentifier:
                                 ax = np.cross(primary_axis, ax)
                             else:
                                 ax = np.cross(np.cross(ax, primary_axis), primary_axis) # remove any tolerances
+                            if np.linalg.norm(ax) < 1e-2: continue
                             elem = ReflectionElement(ax)
                             if self.check_element(elem):
                                 sv_axis = ax
@@ -681,6 +683,7 @@ class PointGroupIdentifier:
                             ax = np.cross(primary_axis, ax)
                         else:
                             ax = np.cross(np.cross(ax, primary_axis), primary_axis) # remove any tolerances
+                        if np.linalg.norm(ax) < 1e-2: continue
                         elem = ReflectionElement(ax)
                         if self.check_element(elem):
                             sd_axis = ax
