@@ -21,6 +21,8 @@ from . import DGB
 __all__ += ["DGB"]
 from . import Modes
 __all__ += ["Modes"]
+from . import Plots
+__all__ += ["Plots"]
 from . import Vibronic
 __all__ += ["Vibronic"]
 from . import Spectra
