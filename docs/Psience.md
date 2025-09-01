@@ -34,23 +34,23 @@ and spectrum handling.
 [Modes](Psience/Modes.md)   
 </div>
    <div class="col" markdown="1">
-[Vibronic](Psience/Vibronic.md)   
+[Plots](Psience/Plots.md)   
 </div>
 </div>
   <div class="row">
+   <div class="col" markdown="1">
+[Vibronic](Psience/Vibronic.md)   
+</div>
    <div class="col" markdown="1">
 [Spectra](Psience/Spectra.md)   
 </div>
    <div class="col" markdown="1">
 [Data](Psience/Data.md)   
 </div>
-   <div class="col" markdown="1">
-[AnalyticModels](Psience/AnalyticModels.md)   
-</div>
 </div>
   <div class="row">
    <div class="col" markdown="1">
-   
+[AnalyticModels](Psience/AnalyticModels.md)   
 </div>
    <div class="col" markdown="1">
    
