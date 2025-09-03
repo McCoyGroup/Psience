@@ -24,11 +24,11 @@ from McUtils.Zachary import Mesh
 import McUtils.Plots as plt
 from McUtils.ExternalPrograms import RDMolecule
 from McUtils.Scaffolding import Logger
+from McUtils.Symmetry import PointGroupIdentifier, symmetrize_structure
 
 from .MoleculeInterface import *
 
 from .CoordinateSystems import MolecularEmbedding, ModeEmbedding
-from ..Symmetry import PointGroupIdentifier, symmetrize_coordinates
 from .Evaluator import (
     MolecularEvaluator, EnergyEvaluator, DipoleEvaluator, ChargeEvaluator,
     ReducedDimensionalPotentialHandler
@@ -1849,7 +1849,7 @@ class Molecule(AbstractMolecule):
             pg_id = PointGroupIdentifier(self.coords, self.atomic_masses, tol=tol, **tols)
             pg = pg_id.embed_point_group(pg)
 
-        new_coords, new_atoms = symmetrize_coordinates(
+        new_coords, new_atoms = symmetrize_structure(
             self.coords,
             pg,
             labels=self.atoms,
