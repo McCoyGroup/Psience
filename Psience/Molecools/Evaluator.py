@@ -983,6 +983,7 @@ class EnergyEvaluator(PropertyEvaluator):
             'aimnet2': AIMNet2EnergyEvaluator,
             'mace': MACEEnergyEvaluator,
             'uma': UMAEnergyEvaluator,
+            'ase': ASECalcEnergyEvaluator,
             'xtb': XTBEnergyEvaluator,
             'pyscf': PySCFEnergyEvaluator,
             'expansion': PotentialExpansionEnergyEvaluator
@@ -1729,9 +1730,9 @@ class ASECalcEnergyEvaluator(EnergyEvaluator):
     def from_mol(cls, mol, charge=None, multiplicity=None, **opts):
         return cls(mol.atoms, embedding=mol.embedding, multiplicity=multiplicity, **opts)
 
-    @abc.abstractmethod
-    def setup_calc(cls, **settings):
-        ...
+    @classmethod
+    def setup_calc(cls, *, calc, **settings):
+        return calc
 
     property_units = 'ElectronVolts'
     batched_orders = True
