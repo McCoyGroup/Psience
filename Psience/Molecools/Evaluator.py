@@ -818,6 +818,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
             if dd > 0:
                 center = np.expand_dims(center, list(range(dd)))
             return center + disps
+
         def prep_coordinates(flat_coords, *, evaluator):
             return np.zeros(
                 flat_coords.shape[:-1] +(modes.coords_by_modes.shape[0],),
@@ -980,6 +981,8 @@ class EnergyEvaluator(PropertyEvaluator):
         return {
             'rdkit': RDKitEnergyEvaluator,
             'aimnet2': AIMNet2EnergyEvaluator,
+            'mace': MACEEnergyEvaluator,
+            'uma': UMAEnergyEvaluator,
             'xtb': XTBEnergyEvaluator,
             'pyscf': PySCFEnergyEvaluator,
             'expansion': PotentialExpansionEnergyEvaluator
@@ -1711,6 +1714,107 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                 max_displacement=max_displacement,
                 **opts
             )
+
+class ASECalcEnergyEvaluator(EnergyEvaluator):
+    def __init__(self, atoms, charge=0, multiplicity=None, quiet=True, **defaults):
+        super().__init__(**defaults)
+        self.eval = self.setup_calc(**defaults)
+        self.atoms = atoms
+        self.numbers = [AtomData[atom, "Number"] for atom in atoms]
+        self.charge = charge
+        self.multiplicity = multiplicity
+        self.quiet = quiet
+
+    @classmethod
+    def from_mol(cls, mol, charge=None, multiplicity=None, **opts):
+        return cls(mol.atoms, embedding=mol.embedding, multiplicity=multiplicity, **opts)
+
+    @abc.abstractmethod
+    def setup_calc(cls, **settings):
+        ...
+
+    property_units = 'ElectronVolts'
+    batched_orders = True
+    analytic_derivative_order = 2
+    def prep_ase(self, coords):
+        from McUtils.ExternalPrograms import ASEMolecule
+
+        atoms = ASEMolecule.from_coords(
+            self.atoms,
+            coords.reshape((-1,) + coords.shape[-2:])[0],
+            calculator=self.eval,
+            charge=self.charge,
+            spin=self.multiplicity
+        )
+        return atoms
+
+    def evaluate_term(self, coords, order, **opts):
+        coords = np.asanyarray(coords)
+        base_shape = coords.shape[:-2]
+        coords = coords.reshape((-1,) + coords.shape[-2:])
+        mol = self.prep_ase(coords)
+        return [
+            r.reshape(base_shape + r.shape[1:])
+            for r in mol.calculate_energy(coords, order=order)
+        ]
+
+    def optimize(self,
+                 coords,
+                 method=None,
+                 **opts
+                 ):
+        tol, max_iterations, max_displacement = [
+            opts.pop(k, self.optimizer_defaults[k])
+            for k in ["tol", "max_iterations", "max_displacement"]
+        ]
+        if method == 'ase':
+            coords = np.asanyarray(coords)
+            mol = self.prep_ase(coords.reshape((-1,) + coords.shape[-2:])[0])
+            return mol.optimize_structure(coords,
+                                          fmax=tol, steps=max_iterations,
+                                          maxstep=max_displacement
+                                          )
+        else:
+            return super().optimize(
+                coords,
+                method=method,
+                tol=tol,
+                max_iterations=max_iterations,
+                max_displacement=max_displacement,
+                **opts
+            )
+
+class MACEEnergyEvaluator(ASECalcEnergyEvaluator):
+    @classmethod
+    def setup_calc(cls, model='large', device=None, **settings):
+        model = model.lower()
+        with cls.quiet_mode():
+            if model == 'extra_large':
+                from mace.calculators import mace_omol as model_type
+            else:
+                from mace.calculators import mace_off as model_type
+
+                import torch
+                if device is None:
+                    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+                calc = model_type(model=model, device=device, **settings)
+
+        return calc
+
+class UMAEnergyEvaluator(ASECalcEnergyEvaluator):
+    @classmethod
+    def setup_calc(cls, model="uma-s-1p1", device=None, task_name='omol', **settings):
+        from fairchem.core import pretrained_mlip, FAIRChemCalculator
+
+        model = model.lower()
+        with cls.quiet_mode():
+            import torch
+            if device is None:
+                device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            predictor = pretrained_mlip.get_predict_unit(model, device=device)
+            calc = FAIRChemCalculator(predictor, task_name="omol", **settings)
+
+        return calc
 
 class XTBEnergyEvaluator(EnergyEvaluator):
     """

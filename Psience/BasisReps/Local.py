@@ -243,11 +243,14 @@ class LocalHarmonicModel:
         if use_nonnegative_modes:
             neg_modes = np.where(nms.freqs < 1e-4 / UnitsData.hartrees_to_wavenumbers)
             if len(neg_modes) > 0 and len(neg_modes[0]) > 0:
-                neg_modes= neg_modes[0]
+                neg_modes = neg_modes[0]
                 rem = np.setdiff1d(np.arange(len(nms.freqs)), neg_modes)
                 nms = nms[rem]
                 if mode_labels is not None:
-                    mode_labels = dev.dict_take(mode_labels, rem)
+                    if hasattr(mode_labels, 'items'):
+                        mode_labels = dev.dict_take(mode_labels, rem)
+                    else:
+                        mode_labels = [mode_labels[r] for r in rem]
 
         if isinstance(internals, dict):
 
@@ -502,7 +505,7 @@ class LocalHarmonicModel:
             nquanta = None
         elif nquanta is not None:
             if (
-                    all(isinstance(q, str) for q in nquanta)
+                    all(q is None or isinstance(q, str) for q in nquanta)
                     and len(tags) == 0
             ):
                 return cls.state(None, *nquanta, indices=indices)
@@ -521,7 +524,7 @@ class LocalHarmonicModel:
 
         if isinstance(tags, str):
             tags = ((tags,),)
-        elif all(isinstance(q, str) for q in tags):
+        elif all(q is None or isinstance(q, str) for q in tags):
             tags = (tags,)
         if indices is not None:
             if nput.is_int(indices):

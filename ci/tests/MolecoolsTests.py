@@ -2026,17 +2026,35 @@ class MolecoolsTests(TestCase):
         # # pruned = coordops.prune_internal_coordinates(coords)
         # print(coords)
 
-    @validationTest
+    @debugTest
     def test_PySCFEnergy(self):
-        ethanol = Molecule.from_string('CCO', energy_evaluator='xtb')
+        # ethanol = Molecule.from_string('CCO', energy_evaluator='xtb')
         # print(ethanol.calculate_energy())
 
-        ethanol = ethanol.modify(
+        ethanol = Molecule.from_string('CCO',
             energy_evaluator=(
                 'pyscf',
                 {'level_of_theory': 'b3lyp', 'basis_set': 'ccpvdz'}
             )
         )
+        print(ethanol.calculate_energy())
+
+    @debugTest
+    def test_MACEEnergy(self):
+        ethanol = Molecule.from_string('CCO', energy_evaluator='mace')
+        print(ethanol.calculate_energy())
+
+        # ethanol = ethanol.modify(
+        #     energy_evaluator=(
+        #         'pyscf',
+        #         {'level_of_theory': 'b3lyp', 'basis_set': 'ccpvdz'}
+        #     )
+        # )
+        # print(ethanol.calculate_energy())
+
+    @validationTest
+    def test_UMAEnergy(self):
+        ethanol = Molecule.from_string('CCO', energy_evaluator='uma')
         print(ethanol.calculate_energy())
 
     @validationTest
@@ -2152,7 +2170,7 @@ class MolecoolsTests(TestCase):
             )
         )
 
-    @debugTest
+    @validationTest
     def test_PointGroups(self):
         print()
         # from Psience.Symmetry import (
@@ -2204,7 +2222,7 @@ class MolecoolsTests(TestCase):
         # print(atoms)
         # print(nput.distance_matrix(coords[-6:]))
         pg2.plot(figure=base, origin=mol.center_of_mass * UnitsData.bohr_to_angstroms)
-        base.show()
+        # base.show()
         # print(coords)
         return
 
@@ -2229,51 +2247,91 @@ class MolecoolsTests(TestCase):
         # print(PointGroup.from_symmetry_elements(symm))
         # print(pg.get_character_table().format())
 
-    @inactiveTest
-    def test_Conversions(self):
-        from McUtils.Combinatorics import symmetric_group_character_table#, IntegerPartitioner
-
-        print(symmetric_group_character_table(4))
-
-        # base_tableaux = YoungTableauxGenerator(5).get_standard_tableaux()
-        # for p in itertools.chain(*IntegerPartitioner.partitions(5)):
-        #     print("="*30)
-        #     types = np.concatenate([[i+1]*k for i,k in enumerate(p)])
-        #     for sst in base_tableaux:
-        #         for bits in zip(*sst):
-        #             print(mfmt.TableFormatter("").format([
-        #                 types[b,] for b in bits
-        #             ]))
-        #             print("-"*20)
-
-        return
-
-        cpmo = Molecule.from_file(
+    @validationTest
+    def test_Symmetrization(self):
+        cpmo3m = Molecule.from_file(
             TestManager.test_data('cpmo3m_opt.xyz'),
             units='Angstroms'
         )
+        new_struct, new_coords, pg = cpmo3m.symmetrize(sel=[0, 1, 2, 3, 4, 10], tol=.8, return_point_group=True)
+        self.assertIsNot(new_struct, None)
+        print(
+            nput.distance_matrix(cpmo3m.coords[(0, 1, 2, 3, 4, 10,),]) -
+            nput.distance_matrix(new_struct.coords[(0, 1, 2, 3, 4, 10,),])
+        )
+        # base_pol = new_struct.plot(backend='x3d')
+        # cpmo3m.plot(highlight_atoms='all', figure=base_pol)
+        # base_pol.show()
 
-        cpmo_split = cpmo.modify(
-            bonds=[
-                b for b in cpmo.bonds
-                if tuple(sorted(b[:2])) not in {
-                    (0, 4),
-                    (0, 5),
-                    (0, 6),
-                    (0, 7),
-                    (0, 8)
+    @validationTest
+    def test_PartialSymmetries(self):
+        import McUtils.Coordinerds as coordops
+
+        nh3 = Molecule.from_file(
+            TestManager.test_data('nh3.fchk'),
+            internals=coordops.spoke_zmatrix(3)
+        ).get_embedded_molecule()
+
+        # base = nh3.plot(backend='x3d', include_save_buttons=True)#, principle_axes=True)
+        # pg = nh3.get_point_group()
+        # pg.plot(figure=base,
+        #         origin=nh3.center_of_mass * UnitsData.bohr_to_angstroms,
+        #         elements='all'
+        #         )
+        # base.show()
+        #
+        # return
+
+        coeffs, basis, expansions = nh3.get_symmetrized_internals(return_expansions=True)
+        # print(coeffs[0])
+        # print(basis)
+
+        # return
+
+        cpmo3m = Molecule.from_file(
+            TestManager.test_data('cpmo3m_opt.xyz'),
+            units='Angstroms'
+        )
+        zmat = coordops.reindex_zmatrix(
+            coordops.functionalized_zmatrix(
+                1,
+                {
+                    (0, -1, -2): coordops.chain_zmatrix(2),
+                    (0, 1, 2): coordops.chain_zmatrix(2),
+                    (0, 3, 4): coordops.chain_zmatrix(2),
+                    (0, 5, 6): coordops.chain_zmatrix(2),
+                    (0, 7, 8): coordops.chain_zmatrix(2),
+                    (0, 9, 10): coordops.chain_zmatrix(2),
+                    (0, 11, 12): coordops.chain_zmatrix(2),
+                    (0, 13, 14): coordops.chain_zmatrix(2)
                 }
+            ),
+            [10, 11, 12, 13, 14, 15, 16, 0, 9, 1, 8, 2, 7, 3, 6, 4, 5]
+        )
+        cpmo3m_int = cpmo3m.modify(
+            # cpmo3m.atoms,  # [10:],
+            # cpmo3m.coords,  # [10:],
+            internals=zmat
+        )
+
+        coeffs, intenrals, expansions = cpmo3m_int.get_symmetrized_internals(
+            atom_selection=list(range(11)),
+            tol=.8,
+            permutation_tol=.9,
+            return_expansions=True,
+            return_point_group=False,
+            extra_internals=[
+                (0, 1) # add in one CC bond length to get symmetrized
             ]
         )
 
-        from McUtils.Zachary import CoordinateFunction
-        CoordinateFunction.polynomial([0])
+        a1_modes, a1_inv = expansions[0]
+        cpmo3m_int.animate_coordinate(0, coordinate_expansion=[
+            a1_inv[0][(15,),]
+        ]).show()
 
-        pprint.pprint(
-            cpmo_split.get_bond_zmatrix(
-                attachment_points={0: (4, 6, 8)}
-            )
-        )
+
+
 
     @validationTest
     def test_SufaceArea(self):
@@ -2542,14 +2600,14 @@ class MolecoolsTests(TestCase):
             #     ("CH", "stretch"):[-12, -11, -10, -9, -8, -7, -6],
             #     ("HCH", "bend"):[-21, -19, -18, -17, -16]
             # },
-            localization_mode_spaces={
-                ("CH", "stretch"): (("methyl", "ethyl"), "CH", "stretch"),
-                ("HCH", "bend"): [
-                    [1390 / UnitsData.hartrees_to_wavenumbers, 1505 / UnitsData.hartrees_to_wavenumbers],
-                    ("bend",)
-                ]
-            },
-            mode_labels=True,
+            # localization_mode_spaces={
+            #     ("CH", "stretch"): (("methyl", "ethyl"), "CH", "stretch"),
+            #     ("HCH", "bend"): [
+            #         [1390 / UnitsData.hartrees_to_wavenumbers, 1505 / UnitsData.hartrees_to_wavenumbers],
+            #         ("bend",)
+            #     ]
+            # },
+            # mode_labels=True,
             coordinate_filter=lambda coords: {
                 c:l
                 # c: (l,
@@ -2558,7 +2616,7 @@ class MolecoolsTests(TestCase):
                 #     [-21, -19, -18, -17, -16]
                 #     )
                 for c, l in coords.items()
-                if l.atoms in {'CH', 'HCH'} and l.ring != 'benzene'
+                if l.atoms in {'CH', 'HCH'} #and l.ring != 'benzene'
             },
             # anharmonic_scalings={
             #     # lhm.state("CH", "stretch"): .96,  # diagonal scaling
@@ -2589,20 +2647,12 @@ class MolecoolsTests(TestCase):
                 ): 5.6 / UnitsData.hartrees_to_wavenumbers
             },
             anharmonic_shifts = {
-                ("methyl", "CH", "stretch"): -8 / UnitsData.hartrees_to_wavenumbers,
-                ("ethyl", "CH", "stretch"): -5 / UnitsData.hartrees_to_wavenumbers,
-                ("HCH", "bend"): -2*9.6 / UnitsData.hartrees_to_wavenumbers
+                lhm.state("benzene", None, "CH", "stretch"): -30 / UnitsData.hartrees_to_wavenumbers,
+                lhm.state("methyl", "CH", "stretch"): -8 / UnitsData.hartrees_to_wavenumbers,
+                lhm.state("ethyl", "CH", "stretch"): -5 / UnitsData.hartrees_to_wavenumbers,
+                lhm.state("HCH", "bend"): -2*9.6 / UnitsData.hartrees_to_wavenumbers
             }
         )
-
-        """
-        3043.376   -26.173    -8.960     3.355     1.648     0.218    -0.010     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000
- -26.173  3043.863     3.367    -8.908     0.203     1.521     0.006     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000
-  -8.960     3.367  3040.978   -22.834    -8.821     3.905     4.355     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000
-   3.355    -8.908   -22.834  3041.335     3.907    -8.815     4.247     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000
-   1.648     0.203    -8.821     3.907  3062.899   -27.139   -27.823     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     5.600     5.600
-   0.218     1.521     3.905    -8.815   -27.139  3063.800   -28.281     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     0.000     5.600     0.000     0.000
-  -0.010     0.006     4.355     4.247   -27.823   -28.281  3078.026"""
 
         # import pprint
         # pprint.pprint(model.scalings)
@@ -2611,10 +2661,9 @@ class MolecoolsTests(TestCase):
 
         dim = model.basis.ndim
         state = StateMaker(dim, mode='high-low')
-
         wfns = model.get_wavefunctions({
             'max_freq': 3250 / UnitsData.hartrees_to_wavenumbers,
-            'min_freq': 2500 / UnitsData.hartrees_to_wavenumbers,
+            'min_freq': 3050 / UnitsData.hartrees_to_wavenumbers,
             'max_quanta': 3
         })
         # print(wfns.basis.excitations)
@@ -2630,6 +2679,7 @@ class MolecoolsTests(TestCase):
         #     state(dim - 4, dim - 3),  # methyl combination
         # ])
 
+        print(model.internals)
         print(
             mfmt.TableFormatter("{:.3f}").format(wfns.hamiltonian * UnitsData.hartrees_to_wavenumbers)
         )

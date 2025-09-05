@@ -24,7 +24,7 @@ from McUtils.Zachary import Mesh
 import McUtils.Plots as plt
 from McUtils.ExternalPrograms import RDMolecule
 from McUtils.Scaffolding import Logger
-from McUtils.Symmetry import PointGroupIdentifier, symmetrize_structure
+import McUtils.Symmetry as symm
 
 from .MoleculeInterface import *
 
@@ -1833,39 +1833,172 @@ class Molecule(AbstractMolecule):
             dipole=dip,
             values=vals
         )
-    def get_point_group(self, *, verbose=False, return_identifier=False, **tols):
-        pg_id = PointGroupIdentifier(self.coords, self.atomic_masses, verbose=verbose, **tols)
+    def get_point_group(self, *, sel=None, verbose=False, return_identifier=False, **tols):
+        coords = self.coords
+        masses = self.atomic_masses
+        if sel is not None:
+            coords = coords[sel,]
+            masses = masses[sel,]
+        pg_id = symm.PointGroupIdentifier(coords, masses, verbose=verbose, **tols)
         _, pg = pg_id.identify_point_group()
         if return_identifier:
             return pg_id, pg
         # print(pg)
         return pg
 
-    def symmetrize(self, pg=None, return_identifier=False, tol=1e-1, return_point_group=False, **tols):
+    def get_point_group_embedded_coordinates(self,
+                                             pg=None, sel=None,
+                                             return_point_group=False,
+                                             return_identifier=False,
+                                             **tols):
+        coords = self.coords
+        masses = self.atomic_masses
+        if sel is not None:
+            coords = coords[sel,]
+            masses = masses[sel,]
+
+        com = nput.center_of_mass(coords, masses)
+        coords = coords - com[np.newaxis]
+        _, axes = nput.moments_of_inertia(coords, masses)
+        coords = coords @ axes
+
         if no_pg := pg is None:
-            pg_id, pg = self.get_point_group(tol=tol, **tols, return_identifier=True)
+            pg_id, pg = self.get_point_group(sel=sel,  **tols, return_identifier=True)
         else:
             # make sure this stays in sync with above
-            pg_id = PointGroupIdentifier(self.coords, self.atomic_masses, tol=tol, **tols)
+            pg_id = symm.PointGroupIdentifier(coords, masses, **tols)
             pg = pg_id.embed_point_group(pg)
 
-        new_coords, new_atoms = symmetrize_structure(
-            self.coords,
+        emb_coords = (self.coords - com[np.newaxis]) @ pg.axes.T @ pg.base_axes
+        if return_point_group or return_identifier:
+            res = (emb_coords,)
+            if return_point_group:
+                res = res + (pg,)
+            if return_identifier:
+                res = res + (pg_id,)
+        else:
+            res = emb_coords
+
+        return res
+
+    def symmetrize(self, pg=None,
+                   return_identifier=False,
+                   tol=1e-1,
+                   sel=None,
+                   return_coordinates=None,
+                   return_point_group=False,
+                   **tols):
+
+        coords = self.coords
+        masses = self.atomic_masses
+        labels = self.atoms
+        if sel is not None:
+            coords = coords[sel,]
+            masses = masses[sel,]
+            labels = [labels[s] for s in sel]
+
+        com = nput.center_of_mass(coords, masses)
+        coords = coords - com[np.newaxis]
+        _, axes = nput.moments_of_inertia(coords, masses)
+        coords = coords @ axes
+
+        if no_pg := pg is None:
+            pg_id, pg = self.get_point_group(sel=sel, tol=tol, **tols, return_identifier=True)
+        else:
+            # make sure this stays in sync with above
+            pg_id = symm.PointGroupIdentifier(coords, masses, tol=tol, **tols)
+            pg = pg_id.embed_point_group(pg)
+
+        new_coords, new_atoms = symm.symmetrize_structure(
+            coords,
             pg,
-            labels=self.atoms,
+            labels=labels,
             groups=pg_id.groups,
             tol=tol
         )
 
-        if return_identifier or return_point_group:
-            res = ((new_coords, new_atoms),)
-            if return_identifier:
-                res = res + (pg_id,)
-            if return_point_group:
-                res = res + (pg,)
-            return res
+        new_coords = new_coords @ axes.T + com[np.newaxis]
+        if len(coords) == len(new_coords): # nothing added, find best match to old coords
+            perm = nput.find_coordinate_matching_permutation(new_coords, coords)
+            all_coords = new_coords[perm,]
+            if sel is not None:
+                all_coords = self.coords.copy()
+                all_coords[sel,] = new_coords
+            if return_coordinates:
+                res = (all_coords,)
+            else:
+                res = (self.modify(coords=all_coords),)
         else:
-            return new_coords, new_atoms
+            res = (None,)
+
+        res = res + ((new_atoms, new_coords),)
+        if return_identifier:
+            res = res + (pg_id,)
+        if return_point_group:
+            res = res + (pg,)
+        return res
+
+    def get_symmetrized_internals(self,
+                                  point_group=None,
+                                  *,
+                                  internals=None,
+                                  extra_internals=None,
+                                  masses=None,
+                                  return_expansions=False,
+                                  atom_selection=None,
+                                  as_characters=True,
+                                  normalize=None,
+                                  perms=None,
+                                  return_base_expansion=False,
+                                  return_point_group=False,
+                                  ops=None,
+                                  permutation_tol=1e-2,
+                                  **opts
+                                  ):
+        if internals is None:
+            if self.internals is None:
+                raise ValueError("can't get symmetrized internals without an initial internal set")
+
+            if self.internals['zmatrix'] is None:
+                internals = self.internals['spec']
+            else:
+                internals = coordops.extract_zmatrix_internals(self.internals['zmatrix'])
+
+            if extra_internals is not None:
+                internals = list(extra_internals) + list(internals)
+
+        if point_group is None:
+            if atom_selection is not None:
+                point_group = self.take_submolecule(atom_selection).get_point_group(**opts)
+            else:
+                point_group = self.get_point_group(**opts)
+        else:
+            # make sure this stays in sync with above
+            pg_id = symm.PointGroupIdentifier(self.coords, self.atomic_masses, **opts)
+            point_group = pg_id.embed_point_group(point_group)
+
+        if masses is None:
+            masses = self.atomic_masses
+
+        res = symm.symmetrize_internals(
+            point_group, internals,
+            self.coords,
+            masses=masses,
+            return_expansions=return_expansions,
+            atom_selection=atom_selection,
+            as_characters=as_characters,
+            normalize=normalize,
+            perms=perms,
+            return_base_expansion=return_base_expansion,
+            ops=ops,
+            permutation_tol=permutation_tol,
+            **opts
+        )
+
+        if return_point_group:
+            res = (point_group,) + res
+
+        return res
 
     def get_surface(self,
                     radius_type='VanDerWaalsRadius',
