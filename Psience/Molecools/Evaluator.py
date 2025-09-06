@@ -1717,14 +1717,15 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
             )
 
 class ASECalcEnergyEvaluator(EnergyEvaluator):
-    def __init__(self, atoms, charge=0, multiplicity=None, quiet=True, **defaults):
+    def __init__(self, atoms, charge=0, multiplicity=1, quiet=True, embedding=None, **defaults):
         super().__init__(**defaults)
         self.eval = self.setup_calc(**defaults)
         self.atoms = atoms
         self.numbers = [AtomData[atom, "Number"] for atom in atoms]
-        self.charge = charge
-        self.multiplicity = multiplicity
+        self.charge = 0 if charge is None else charge
+        self.multiplicity = 1 if multiplicity is None else multiplicity
         self.quiet = quiet
+        self.embedding = embedding
 
     @classmethod
     def from_mol(cls, mol, charge=None, multiplicity=None, **opts):
@@ -1806,6 +1807,7 @@ class UMAEnergyEvaluator(ASECalcEnergyEvaluator):
     @classmethod
     def setup_calc(cls, model="uma-s-1p1", device=None, task_name='omol', **settings):
         from fairchem.core import pretrained_mlip, FAIRChemCalculator
+        import ase.calculators.calculator
 
         model = model.lower()
         with cls.quiet_mode():
@@ -1813,7 +1815,7 @@ class UMAEnergyEvaluator(ASECalcEnergyEvaluator):
             if device is None:
                 device = 'cuda' if torch.cuda.is_available() else 'cpu'
             predictor = pretrained_mlip.get_predict_unit(model, device=device)
-            calc = FAIRChemCalculator(predictor, task_name="omol", **settings)
+            calc = FAIRChemCalculator(predictor, task_name=task_name, **settings)
 
         return calc
 
