@@ -356,7 +356,7 @@ class MolecularEmbedding:
     def _get_jacobian_storage(cls):
         return {
             'internals': {"default":[], "reembed":[]},
-            'fast-internals': {"default":[], "reembed":[]},
+            'fast-internals': {"default":[], "reembed":[], "reembed-strip":[]},
             'cartesian': []
         }
     internal_fd_defaults=dict(
@@ -609,7 +609,7 @@ class MolecularEmbedding:
                     stencil = (max(need_jacs) + 2 + (1 + max(need_jacs)) % 2) if stencil is None else stencil
                     # odd behaves better
                     with Parallelizer.lookup(parallelizer) as par:
-                        exist_jacs = [
+                        exist_jacs[:] = [
                             x.squeeze() if isinstance(x, np.ndarray) else x
                             for x in ccoords.jacobian(internals,
                                                       order=list(range(1, max_jac + 1)),
@@ -683,7 +683,11 @@ class MolecularEmbedding:
         if method == 'fast':
             if reembed:
                 if coords is None:
-                    fast_ints = self._jacobians['fast-internals']["reembed"]
+                    if strip_embedding:
+                        key = 'reembed-strip'
+                    else:
+                        key = 'reembed'
+                    fast_ints = self._jacobians['fast-internals'][key]
                 else:
                     fast_ints = []
                 if len(fast_ints) < order:
