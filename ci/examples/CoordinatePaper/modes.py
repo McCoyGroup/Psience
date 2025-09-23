@@ -1,8 +1,9 @@
 from Psience.Molecools import Molecule
-from Psience.Modes import NormalModes, LocalizedModes
+from Psience.Modes import MixtureModes, NormalModes, LocalizedModes, ObliqueModeGenerator
 import McUtils.Coordinerds as coordops
 import McUtils.Numputils as nput
 import McUtils.Formatters as mfmt
+import McUtils.Devutils as dev
 from McUtils.Data import UnitsData
 import numpy as np
 
@@ -202,3 +203,119 @@ def get_gaussian_modes(lot, subkey, use_internals=False, return_status=True, ret
         return me_gaussian, mode_data
     else:
         return mode_data
+
+def get_oblique_rescaled_modes(cpmo3, modes, invs):
+    g_red = nput.metric_tensor(modes, masses=cpmo3.atomic_masses)
+    red_derivs = nput.tensor_reexpand(
+        invs,
+        cpmo3.potential_derivatives
+    )
+    f_red = red_derivs[1]
+    f2, _, tf, inv = ObliqueModeGenerator(f_red, g_red).run()
+    ob_inv = nput.tensor_reexpand([inv], invs)
+    ob_modes = nput.tensor_reexpand(modes, [tf])
+    return ob_inv, ob_modes
+
+
+def get_oblique_diagonal_modes(cpmo3, modes, invs):
+    g_red = nput.metric_tensor(modes, masses=cpmo3.atomic_masses)
+    red_derivs = nput.tensor_reexpand(
+        invs,
+        cpmo3.potential_derivatives
+    )
+    f_red = red_derivs[1]
+    f2, _, tf, inv = ObliqueModeGenerator(f_red, g_red).run()
+    # print(f2 * UnitsData.hartrees_to_wavenumbers)
+    a = np.diag(np.power(np.diag(f_red) / np.diag(g_red), 1 / 4))
+    ai = np.diag(np.power(np.diag(g_red) / np.diag(f_red), 1 / 4))
+    f_red2 = ai @ f_red @ ai
+    b = np.diag(np.power(np.diag(f2) / np.diag(f_red2), 1/4))
+    bi = np.diag(np.power(np.diag(f_red2) / np.diag(f2), 1/4))
+    ob_inv = nput.tensor_reexpand([b @ ai], invs)
+    ob_modes = nput.tensor_reexpand(modes, [a @ bi])
+    return ob_modes, ob_inv
+
+def get_local_rescaled_modes(cpmo3, modes, invs):
+    g_red = nput.metric_tensor(modes, masses=cpmo3.atomic_masses)
+    red_derivs = nput.tensor_reexpand(
+        invs,
+        cpmo3.potential_derivatives
+    )
+    f_red = red_derivs[1]
+    a = np.diag(np.power(np.diag(f_red) / np.diag(g_red), 1 / 4))
+    ai = np.diag(np.power(np.diag(g_red) / np.diag(f_red), 1 / 4))
+    ob_inv = nput.tensor_reexpand([ai], invs)
+    ob_modes = nput.tensor_reexpand(modes, [a])
+    return ob_modes, ob_inv
+
+def get_cpmo3_symmetry_coordinates(cpmo3:Molecule, rescale=True):
+    cpmo3_int = cpmo3.modify(internals=expansions.cpmo3_zmatrix)
+    pg, coeffs, intenrals, red_exps, base_exps = cpmo3_int.get_symmetrized_internals(
+        atom_selection=[0, 1, 2, 3, 4, 10], tol=.8, permutation_tol=.9,
+        return_expansions=True,
+        return_point_group=True,
+        reduce_redundant_coordinates={'untransformed_coordinates': [0, 1, 3, 8, 15]},
+        extra_internals=[(0, 10), (0, 1)]
+    )
+
+    tf_data = (pg, coeffs, intenrals, red_exps[0], base_exps)
+
+    expansion_data = red_exps[1]
+    if dev.str_is(rescale, 'local'):
+        expansion_data = get_local_rescaled_modes(cpmo3, *expansion_data)
+    elif dev.str_is(rescale, 'oblique'):
+        expansion_data = get_oblique_rescaled_modes(cpmo3, *expansion_data)
+    elif rescale:
+        expansion_data = get_oblique_diagonal_modes(cpmo3, *expansion_data)
+    return expansion_data, tf_data
+
+def get_contraction_modes(cpmo3, rescale=True):
+    cpmo3_int = cpmo3.modify(internals=expansions.cpmo3_zmatrix)
+
+    centroid = np.average(cpmo3.coords[:5], axis=0)
+    axis = centroid - cpmo3.coords[10]
+    g12 = cpmo3.get_gmatrix(use_internals=False, power=1/2)
+    gi12 = cpmo3.get_gmatrix(use_internals=False, power=-1/2)
+    extra_coord = np.concatenate([
+        np.repeat(-axis[np.newaxis], 10, axis=0),
+        np.repeat(axis[np.newaxis], 7, axis=0)
+    ], axis=0).flatten() @ gi12
+
+    tf = nput.maximum_similarity_transformation(
+        gi12 @ cpmo3_int.get_cartesians_by_internals(1, strip_embedding=True)[0].T,
+        extra_coord[:, np.newaxis],
+        apply_transformation=False
+    )
+    full_basis = nput.find_basis(np.concatenate([tf, np.eye(tf.shape[0])], axis=1), method='qr')
+    mode = nput.tensor_reexpand(cpmo3_int.get_internals_by_cartesians(1, strip_embedding=True), [full_basis])
+    inv = nput.tensor_reexpand([full_basis.T], cpmo3_int.get_cartesians_by_internals(1, strip_embedding=True))
+
+    expansion_data = (mode, inv)
+    if dev.str_is(rescale, 'local'):
+        expansion_data = get_local_rescaled_modes(cpmo3, *expansion_data)
+    elif dev.str_is(rescale, 'oblique'):
+        expansion_data = get_oblique_rescaled_modes(cpmo3, *expansion_data)
+    elif rescale:
+        expansion_data = get_oblique_diagonal_modes(cpmo3, *expansion_data)
+    mode, inv = expansion_data
+
+    return (mode, inv), (full_basis, coordops.extract_zmatrix_internals(expansions.cpmo3_zmatrix))
+
+def get_cpmo3_modes(struct_id, projection_type='symmetrized', rescale=True, localize=False, return_structure=False):
+    cpmo3 = expansions.load_cpmo3(struct_id)
+
+    if projection_type == 'symmetrized':
+        modes = get_cpmo3_symmetry_coordinates(cpmo3, rescale=rescale)
+    else:
+        modes = get_contraction_modes(cpmo3, rescale=rescale)
+
+    if localize:
+        modes = cpmo3.get_normal_modes().localize(target_modes=modes[0][0])
+
+    if return_structure:
+        return cpmo3, modes
+    else:
+        return modes
+
+
+

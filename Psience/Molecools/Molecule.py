@@ -1948,9 +1948,11 @@ class Molecule(AbstractMolecule):
                                   atom_selection=None,
                                   as_characters=True,
                                   normalize=None,
+                                  drop_empty_modes=None,
                                   perms=None,
                                   return_base_expansion=False,
                                   return_point_group=False,
+                                  reduce_redundant_coordinates=None,
                                   ops=None,
                                   permutation_tol=1e-2,
                                   **opts
@@ -1965,7 +1967,7 @@ class Molecule(AbstractMolecule):
                 internals = coordops.extract_zmatrix_internals(self.internals['zmatrix'])
 
             if extra_internals is not None:
-                internals = list(extra_internals) + list(internals)
+                internals = list(itut.delete_duplicates(list(extra_internals) + list(internals)))
 
         if point_group is None:
             if atom_selection is not None:
@@ -1988,6 +1990,8 @@ class Molecule(AbstractMolecule):
             atom_selection=atom_selection,
             as_characters=as_characters,
             normalize=normalize,
+            drop_empty_modes=drop_empty_modes,
+            reduce_redundant_coordinates=reduce_redundant_coordinates,
             perms=perms,
             return_base_expansion=return_base_expansion,
             ops=ops,
@@ -2986,7 +2990,8 @@ class Molecule(AbstractMolecule):
         ])
 
     @classmethod
-    def _to_zmat_string(cls, mol, units='Angstroms', float_fmt="{:8.4f}"):
+    def _to_zmat_string(cls, mol, units='Angstroms', float_fmt="{:8.4f}",
+                        variables=None, variable_modifications=None, **etc):
         from McUtils.Coordinerds import format_zmatrix_string
         ics = mol.internal_coordinates
         if ics is None:
@@ -2999,7 +3004,10 @@ class Molecule(AbstractMolecule):
             mol.internal_coordinates,
             ordering=mol.internals.get('zmatrix'),
             units=units,
-            float_fmt=float_fmt
+            float_fmt=float_fmt,
+            variables=variables,
+            variable_modifications=variable_modifications,
+            **etc
         )
 
     @classmethod
@@ -3123,6 +3131,15 @@ class Molecule(AbstractMolecule):
         "glow":"green",
         "color":"white"
     }
+    vector_style = {
+        'color': 'black',
+        'radius': .1
+    }
+    principle_axes_style = [
+        {'color':'green'},
+        {'color':'red'},
+        {'color':'blue'}
+    ]
     def plot(self,
              *geometries,
              figure=None,
@@ -3240,10 +3257,12 @@ class Molecule(AbstractMolecule):
         elif principle_axes is False:
             principle_axes = None
         if principle_axes is not None:
-            if principle_axes_style is None:
-                principle_axes_style = [{'color':'green'}, {'color':'red'}, {'color':'blue'}]
-            elif isinstance(principle_axes_style, dict):
+            if isinstance(principle_axes_style, dict):
                 principle_axes_style = [principle_axes_style] * 3
+            principle_axes_style = [
+                dict(self.principle_axes_style[i], **principle_axes_style[i])
+                for i in range(3)
+            ]
             if principle_axes_origin is not None:
                 if principle_axes_origin.ndim == 1:
                     principle_axes_origin = np.broadcast_to(
@@ -3308,7 +3327,8 @@ class Molecule(AbstractMolecule):
         arrows = [None] * len(geometries)
 
         if vector_style is None:
-            vector_style = {'color':'#000000', 'radius':.1}
+            vector_style = {}
+        vector_style = dict(self.vector_style, **vector_style)
         if atom_style is None or atom_style is True:
             atom_style = {}
         elif atom_style is False:

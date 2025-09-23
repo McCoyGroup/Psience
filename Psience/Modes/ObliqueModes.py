@@ -19,9 +19,11 @@ class ObliqueModeGenerator:
         if sel is not None:
             f = f[sel, :][:, sel]
             g = g[sel, :][:, sel]
+        self.frequency_scaling = None
         if dimensionless:
             a = np.diag(np.power(np.diag(f) / np.diag(g), 1 / 4))
             ai = np.diag(np.power(np.diag(g) / np.diag(f), 1 / 4))
+            self.frequency_scaling = (ai, a)
             f = ai @ f @ ai
             g = a @ g @ a
         self.f = f
@@ -68,12 +70,16 @@ class ObliqueModeGenerator:
                 frequency_scaled=frequency_scaled
             )
 
-    def run(self, scaling_type='normal'):
+    def run(self, scaling_type='normal', remove_frequency_scaling=True):
         u = self.scaling
         ui = self.inverse_scaling
         if scaling_type == 'inverse':
             u, ui = ui, u
         g = u @ self.g @ u.T
         f = ui.T @ self.f @ ui
+        if remove_frequency_scaling and self.frequency_scaling is not None:
+            a, ai = self.frequency_scaling
+            u = a @ u
+            ui = ui @ ai
         return f, g, u, ui
 
