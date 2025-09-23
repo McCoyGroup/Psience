@@ -5,7 +5,10 @@ from Psience.Molecools import Molecule
 from Psience.Modes import NormalModes, LocalizedModes
 from Psience.VPT2 import VPTAnalyzer
 from McUtils.Formatters import TableFormatter
+from McUtils.Data import UnitsData
 import McUtils.Formatters as mfmt
+import McUtils.Numputils as nput
+import McUtils.Coordinerds as coordops
 import McUtils.Plots as plt
 from McUtils.Profilers import Timer
 from . import expansions
@@ -59,6 +62,57 @@ def Duschinksy():
     )
 
 @runnable
+def setup_mace_expansions():
+    from ase.optimize import BFGS
+    import scipy.optimize._optimize
+    # new = expansions.methanol_mace
+    # print(new.calculate_energy(order=1)[1]
+    #       * UnitsData.convert("Hartrees", "ElectronVolts")
+    #       / UnitsData.convert("BohrRadius", "Angstroms")
+    #       )
+    # new = expansions.methanol_mace.optimize(
+    #     max_iterations=15,
+    #     max_displacement=1e-12,
+    #     tol=1e-12,
+    #     # logger=True,
+    #     track_best=True,
+    #     # method='gradient-descent'
+    #     # method='conjugate-gradient',
+    #     # method='quasi-newton',
+    #     optimizer_settings={
+    #         # 'restart_parameter': None
+    #     },
+    #     # line_search=True
+    #     # restart_interval=100
+    #     # mode='scipy',
+    #     # method='cg'
+    #     # method='ase'
+    # )
+    # print(np.linalg.norm(new.calculate_energy(order=1)[1]) * UnitsData.hartrees_to_wavenumbers)
+    # print(new.coords.tolist())
+    # # new.plot().show()
+    # return
+    for i in range(0, -70, -10):
+        with Timer(tag=f"{i}"):
+            base_struct = expansions.get_mace_structure(i, 'optimized', overwrite=True)
+            harmonic_expansion = expansions.get_mace_expansion(i, 'optimized', return_harmonic=True, overwrite=True)
+            mol = expansions.methanol_mace.modify(coords=base_struct)
+            rpnms, stat = mol.get_reaction_path_modes(
+                potential_derivatives=harmonic_expansion[1:],
+                return_status=True,
+                zero_gradient_cutoff=25 / UnitsData.hartrees_to_wavenumbers
+            )
+            print(harmonic_expansion[1])
+            print(f"MACE-OFF ({i}):", stat, rpnms.freqs * UnitsData.hartrees_to_wavenumbers)
+            # return
+            # structs = expansions.get_aimnet_expansion(i, 'optimized',
+            #                                           chk_pattern='checkpoints/test_aimnet_{key}.json'
+            # )
+            # print(f"AIMNet2 ({i}):", structs[0][0].freqs * UnitsData.hartrees_to_wavenumbers)
+            # structs = expansions.get_mace_expansion(i, 'optimized', overwrite=True)
+            # print(f"MACE-OFF ({i}):", structs[0][0].freqs * UnitsData.hartrees_to_wavenumbers)
+
+@inactive
 def analytic_expansions():
     woof = expansions.get_aimnet_expansion(0, 'optimized', analytic_derivative_order=3)
     print(np.array(woof[1][4]).shape)
@@ -502,6 +556,73 @@ def plot_OH_stretch_surface():
     for e_list in np.array(eng_array).T[:1]:
         fig = plt.Plot(*util.symmetrize_potential(spec, e_list), figure=fig)
     fig.show()
+
+@inactive
+def get_timings():
+    import time
+    # anth = Molecule.from_string('anthracene')
+    # print(anth.atoms)
+    # print(anth.coords.tolist())
+
+    anth = Molecule(
+        ('C', 'C', 'C', 'C', 'C', 'C', 'C', 'C', 'C', 'C', 'C', 'C', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H'),
+        [[0.43459809047069276, 2.6947451134350238, 0.5528980961258969],
+         [2.520675463818493, 1.1675342601855154, 0.24241312524169933],
+         [4.923480398080228, 2.1500885928527023, 0.44682842213341023],
+         [6.977204717144367, 0.5904344629023636, 0.12967926483081624],
+         [6.594754633724675, -1.9348663395912933, -0.3884626606942818],
+         [4.174351071959761, -2.8826343951329685, -0.5857689271872423],
+         [2.1087305270311694, -1.3528545366522018, -0.2747515334415861],
+         [-0.3148694632808378, -2.2896810925617905, -0.4697789471444097],
+         [-2.4430404427727113, -0.7812545199788724, -0.16318704502444908],
+         [-4.852547106310639, -1.7330836248552046, -0.3612610497362914],
+         [-6.9411803237457566, -0.20442243344539196, -0.05046827680719325],
+         [-6.501740332497076, 2.312928728793216, 0.4661066639580801],
+         [-4.101836698319057, 3.2855946728605163, 0.6684381902950978],
+         [-1.9887771604883142, 1.7651290860727675, 0.3593489528453505],
+         [5.120868589905046, 4.151100146685542, 0.8572719910865615],
+         [8.888588217196185, 1.3318669533675938, 0.2840940110725707],
+         [8.211394448672712, -3.1677259052687283, -0.6391565214029209],
+         [3.888684109420547, -4.871249406030155, -0.9938461283850493],
+         [-0.6861635380524018, -4.288174754199079, -0.8798628702851997],
+         [-5.166146074027914, -3.6836911256623033, -0.7614626029433617],
+         [-8.809015740505894, -1.016743221315567, -0.2192997841238593],
+         [-8.209323389290347, 3.473826817783778, 0.7020195168277881],
+         [-3.8286899981332465, 5.283132519754418, 1.078208112758665]]
+    )
+    internals = anth.get_bond_zmatrix()
+    iterations = 1
+    order = 3
+    with Timer("numerical", file=None, number=iterations):
+        for _ in range(iterations):
+            ints_by_carts_numerical = anth.modify(internals=internals).get_cartesians_by_internals(order,
+                                                                                                   strip_embedding=True,
+                                                                                                   reembed=True,
+                                                                                                   method='classic',
+                                                                                                   analytic_deriv_order=0,
+                                                                                                   stencil=5
+                                                                                                   )
+
+    with Timer("analytic", file=None, number=iterations):
+        for _ in range(iterations):
+            analytic = anth.modify(internals=internals).get_cartesians_by_internals(order,
+                                                                                    strip_embedding=True,
+                                                                                    reembed=True,
+                                                                                    method='fast'
+                                                                                    )
+
+    # print(
+    #     np.round(analytic[1] - ints_by_carts_numerical[1], 8)
+    # )
+
+    # with Timer("direct", file=None, number=iterations):
+    #     for _ in range(iterations):
+    #         direct = nput.internal_coordinate_tensors(
+    #             anth.coords,
+    #             coordops.extract_zmatrix_internals(internals),
+    #             order=order,
+    #             return_inverse=True
+    #         )
 
 
 if __name__ == '__main__':

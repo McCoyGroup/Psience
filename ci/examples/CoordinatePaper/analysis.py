@@ -3,13 +3,15 @@ import numpy as np
 import typing
 import McUtils.Plots as plt
 from McUtils.Formatters import TableFormatter
+import McUtils.Numputils as nput
 import McUtils.Formatters as mfmt
 from Psience.VPT2 import VPTAnalyzer
 
 from .vpt import get_log_generator, LevelsOfTheory
+from .modes import get_cpmo3_modes
 
 _analyzer_cache = {}
-def get_energies(log_file:str|typing.Callable, *logfile_args,
+def get_energies(log_file:'str|typing.Callable', *logfile_args,
                  energy_type='auto',
                  cache=None,
                  **logfile_opts):
@@ -195,7 +197,7 @@ default_lot_styles = dict(
     plot_legend=True,
     legend_style=dict(borderaxespad=0, frameon=False, ncol=3),
     # plot_range=[[0, 60], [2800, 3000]],
-    image_size=600,
+    image_size=800,
     aspect_ratio=1/1.6,
     use_internals=True,
     energy_type='deperturbed'
@@ -539,3 +541,20 @@ def print_freq_comps_info(tag, log_getter, key, **opts):
     #     fprint(e0 - e1)
     #     fprint(e0 - e2)
     # fprint(e1 - e2)
+
+def setup_cpmo3_hessian(struct_id, return_structure=False, **opts):
+    mol, (modes, _) = get_cpmo3_modes(struct_id, return_structure=True, **opts)
+    if hasattr(modes, 'coords_by_modes'):
+        exp = [modes.coords_by_modes]
+    else:
+        exp = modes[1]
+
+    f = nput.tensor_reexpand(
+        exp,
+        mol.potential_derivatives
+    )[1]
+    g = nput.metric_tensor(modes[0], masses=mol.atomic_masses)
+    if return_structure:
+        return mol, (f, g)
+    else:
+        return f,g

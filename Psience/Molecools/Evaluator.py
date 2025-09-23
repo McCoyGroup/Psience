@@ -1167,6 +1167,7 @@ class EnergyEvaluator(PropertyEvaluator):
     )
     @classmethod
     def get_optimizer_options(self):
+        import scipy.optimize._optimize
         return (
                 tuple(self.optimizer_defaults.keys())
                 + ('coordinate_constraints',)
@@ -1209,7 +1210,7 @@ class EnergyEvaluator(PropertyEvaluator):
         else:
             return constraints
 
-    scipy_no_hessian_methods = {'bfgs'}
+    scipy_no_hessian_methods = {'cg', 'bfgs'}
     def optimize_iterative(self,
                  coords,
                  coordinate_constraints=None,
@@ -1281,13 +1282,27 @@ class EnergyEvaluator(PropertyEvaluator):
 
         logger = Logger.lookup(logger, construct=True)
 
+        if orthogonal_projection_generator is None:
+            orthogonal_projection_generator = self.get_coordinate_constraints(coordinate_constraints)
+
         if mode == 'scipy' or method == 'scipy':
             from scipy.optimize import minimize
 
             def sfunc(crd):
-                return func(crd, None)[0]
+                wat = func(crd, None)
+                if isinstance(wat, np.ndarray):
+                    return wat[0]
+                else:
+                    return wat
             def sjacobian(crd):
-                return jacobian(crd, None)[0]
+                huh = jacobian(crd, None)
+                if orthogonal_projection_generator is not None:
+                    huh = orthogonal_projection_generator(crd) @ huh
+                # print(huh)
+                if huh.ndim == 2:
+                    return huh[0]
+                else:
+                    return huh
 
             if self.analytic_derivative_order > 1:
                 def shessian(crd):
@@ -1298,9 +1313,17 @@ class EnergyEvaluator(PropertyEvaluator):
             callback = optimizer_settings.pop('callback', None)
             if logger.active:
                 if callback is None:
-                    callback = lambda intermediate_result: logger.log_print(
-                        "Step: {intermediate_result}",
-                        intermediate_result=intermediate_result
+                    prev_re=[coords.flatten().view(np.ndarray)]
+                    callback = lambda intermediate_result, prev_re=prev_re: (
+                        logger.log_print(
+                            [
+                                "Struct: {intermediate_result}",
+                                "Step: {intermediate_step}"
+                            ],
+                            intermediate_result=intermediate_result,
+                            intermediate_step=intermediate_result - prev_re[-1]
+                        ),
+                        prev_re.append(intermediate_result)
                     )
                 else:
                     callback = lambda intermediate_result, cb=callback: [
@@ -1331,8 +1354,7 @@ class EnergyEvaluator(PropertyEvaluator):
             return True, min.x.reshape(coords.shape), min
         else:
             if method is None or isinstance(method, str):
-                method = dict(
-                    {
+                method = {
                         'method': method,
                         'func': func,
                         'jacobian': jacobian,
@@ -1341,12 +1363,9 @@ class EnergyEvaluator(PropertyEvaluator):
                         'damping_exponent': damping_exponent,
                         'restart_interval': restart_interval,
                         'line_search': line_search,
-                    },
-                    **optimizer_settings
-                )
+                    }
                 method = {k:v for k,v in method.items() if v is not None}
-            if orthogonal_projection_generator is None:
-                orthogonal_projection_generator = self.get_coordinate_constraints(coordinate_constraints)
+                method = dict(method, **optimizer_settings)
             opt_coords, converged, (errs, its) = iterative_step_minimize(
                 coords.flatten(),
                 method,
@@ -1354,6 +1373,7 @@ class EnergyEvaluator(PropertyEvaluator):
                 orthogonal_directions=orthogonal_directions,
                 convergence_metric=convergence_metric,
                 tol=tol,
+                function=func,
                 max_iterations=max_iterations,
                 max_displacement=max_displacement,
                 logger=logger,
@@ -1787,8 +1807,9 @@ class ASECalcEnergyEvaluator(EnergyEvaluator):
             )
 
 class MACEEnergyEvaluator(ASECalcEnergyEvaluator):
+    analytic_derivative_order = 2
     @classmethod
-    def setup_calc(cls, model='large', device=None, **settings):
+    def setup_calc(cls, model='extra_large', device=None, **settings):
         model = model.lower()
         with cls.quiet_mode():
             if model == 'extra_large':
@@ -1796,10 +1817,10 @@ class MACEEnergyEvaluator(ASECalcEnergyEvaluator):
             else:
                 from mace.calculators import mace_off as model_type
 
-                import torch
-                if device is None:
-                    device = 'cuda' if torch.cuda.is_available() else 'cpu'
-                calc = model_type(model=model, device=device, **settings)
+            import torch
+            if device is None:
+                device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            calc = model_type(model=model, device=device, **settings)
 
         return calc
 
