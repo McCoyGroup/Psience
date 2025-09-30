@@ -2268,12 +2268,15 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                 new_terms[k] = p
         return self.mutate(new_terms, reduced=True)
 
+    @classmethod
+    def _get_uperms(cls, p_list):
+        return PerturbationTheoryTermProduct._get_uperms(p_list)
     def free_up_indices(self, start, stop):
         new_terms = {}
         for k,poly in self.terms.items():
             existing_inds = self.get_inds(k)
             perm_idx = [1] * (stop - start) + [0] * (len(existing_inds) - stop)
-            perms, _ = UniquePermutations(perm_idx).permutations(return_indices=True)
+            perms, _ = self._get_uperms(perm_idx)
             full_perms = np.concatenate([
                 np.broadcast_to(np.arange(start)[np.newaxis], (len(perms), start)),
                 perms + start
@@ -2736,7 +2739,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                                                 0
                                                 for x in sub_block_inds
                                             ]
-                                            sub_perms, _ = UniquePermutations(sub_proxy).permutations(return_indices=True)
+                                            sub_perms, _ = self._get_uperms(sub_proxy)
                                             perm_blocks.append(perm_pad + sub_perms)
                                             perm_pad = perm_pad + len(sub_block_inds)
                                     else:
@@ -2753,7 +2756,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                                                 0
                                                 for x in sub_block_inds
                                             ]
-                                            sub_perms, _ = UniquePermutations(sub_proxy).permutations(return_indices=True)
+                                            sub_perms, _ = self._get_uperms(sub_proxy)
                                             perm_blocks.append(perm_pad + sub_perms)
                                             perm_pad = perm_pad + len(sub_block_inds)
                                     else:
@@ -2774,7 +2777,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                                                    if j >= num_defd_right
                                                ]
                                     if len(perm_idx) > 0:
-                                        free_perms, _ = UniquePermutations(perm_idx).permutations(return_indices=True)
+                                        free_perms, _ = self._get_uperms(perm_idx)
                                         num_prev = num_fixed + num_defd_left + num_defd_right
                                         perm_blocks.append(num_prev + free_perms)
                                     for perm_bits in itertools.product(*perm_blocks):
@@ -3665,8 +3668,8 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                     perm = self.change_sort(np.asanyarray(changes))
                     changes = tuple(changes[p] for p in perm)
                 change_key = changes if (shift is None or all(s==0 for s in shift)) else (changes, shift)
-                terms = self.changes.get(change_key, None)
                 start = time.time()
+                terms = self.changes.get(change_key, None)
                 if not isinstance(terms, SqrtChangePoly):
                     if not nput.is_numeric(terms):
                         terms = self.changes.get(changes, 0)
@@ -4392,7 +4395,7 @@ class OperatorDegenerateCorrection(OperatorCorrection):
         return self.parent.overlap_correction(o, degenerate_changes=self.degenerate_changes)
 
     class Left(OperatorCorrection):
-        def __init__(self, parent, order, real_parent):
+        def __init__(self, parent:OperatorCorrection, order, real_parent):
             super().__init__(parent, order, logger=real_parent.logger)
             self.op = real_parent
         def __repr__(self):
@@ -4702,66 +4705,199 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
             storage.append(contact)
 
 
+    # TODO: move this to a module-level cache that can be cleared
+    _permutation_cache = MaxSizeCache(128, cache_type='fifo')
+    @classmethod
+    def _get_uperms(cls, p_list):
+        key = tuple(p_list)
+        if key not in cls._permutation_cache:
+            cls._permutation_cache[key] = UniquePermutations(p_list).permutations(return_indices=True)
+        return cls._permutation_cache[key]
+
+    # _change_cache = MaxSizeCache(128, cache_type='fifo')
+    # TODO: cache changes when the generators are the same...
+    @classmethod
+    def _fill_class_counts(cls, data, which, c):
+        if data[which] is None:
+            if len(c) == 0:
+                data[which] = [np.array([], dtype=int), np.array([], dtype=int), np.array([], dtype=int)]
+            else:
+                classes, idx, counts = np.unique(c, return_counts=True, return_index=True)
+                ord = cls.change_sort(classes)
+                classes = classes[ord]
+                counts = counts[ord]
+                idx = idx[ord]
+                mapping = np.concatenate([np.full((cnt,), i) for i, cnt in zip(idx, counts)])
+                # perms = np.array([
+                #     np.concatenate(p)
+                #     for p in itertools.product(*[
+                #         list(itertools.permutations(range(i, i+cnt)))
+                #         for i, cnt in zip(idx, counts)
+                #         ])
+                # ])
+                data[which] = [classes, counts, mapping]  # , perms]
+        return data[which]
+
+    @classmethod
+    def _fill_inds_data(cls, data, which, counts, mapping, m, permute):
+        if data[which][m - 1] is None:
+            n1 = np.sum(counts)
+            inds_1 = cls.get_combination_inds(n1, m)
+            rems_1 = cls.get_combination_comp(n1, m)
+
+            inds_mapped = mapping[inds_1]
+            _, idx = np.unique(inds_mapped, axis=0, return_index=True)
+            inds = inds_1[np.sort(idx),]
+            rems = rems_1[np.sort(idx),]
+
+            # inds = inds_1
+            # rems = rems_1
+
+            if permute:
+                mperms = nput.permutation_indices(m, m)
+                inds = nput.vector_take(inds, mperms).reshape(-1, m)
+                if n1 > m:
+                    rems = np.broadcast_to(rems[:, np.newaxis, :],
+                                           (len(rems), len(mperms), n1 - m)).reshape(inds.shape[0], n1 - m)
+                else:
+                    rems = np.empty((inds.shape[0], 0), dtype=int)
+
+            data[which][m - 1] = [inds, rems]
+        return data[which][m - 1]
+
+    @classmethod
+    def _prep_product_change_data(cls,
+                                  i1, ch1, inds_1, rind_1, n1,
+                                  i2, ch2, inds_2, rind_2, n2,
+                                  os,
+                                  pad_change, initial_sort,
+                                  nz, x1, x2,
+                                  upairs):
+
+        ch2_test = np.array([ch2[i2] for i2 in inds_2[x2]])
+        ch2_sort = cls.change_sort(ch2_test)
+        test_key = (
+            tuple(ch1[inds_1[x1][s]] for s in ch2_sort),
+            tuple(ch2_test[s] for s in ch2_sort)
+        )
+        if test_key in upairs: return None, None
+        upairs.add(test_key)
+
+        # we have to handle two combinatoric problems, now
+        # firstly, we need to make sure that combinations like
+        #    2  1 -1
+        #    2  -  1  1  1
+        # work properly, where we expect to have
+        #    2  1  0  1  1 [ [0, 1, 3, 4, 2],  [0, 3, 1, 4, 2], [0, 3, 4, 1, 2] ]
+        # i.e. we have [ [0] x perms([i, j, j]) x [2] ]
+        # this needs to be handled because the [1, 1] block from the second poly is not equivalent
+        # to the [1] from the first poly and we need to preserve symmetry
+        # The second problem is in how we handle the [-1], [1] block, which could have been generated
+        # by _any_ of the [1]s in the second poly, and so I think we need to scale this by
+        # the number of equivalent choices?
+        # [1, 1, 1] x [-1] -> [1, 1] + free index (might be handled by the later summation?)
+
+        # we actually have a _third_ problem
+        # consider [1, -1, -1] @ [-1, 1, 1] -> [0, 0, 0]
+        # where we tneed to make sure that the blocks that map to the same value
+        # are permuted over the different paths that get you there
+        # i.e. if given two paths ([1, -1]) and ([-1, 1]) to 0 we need to make sure that we
+        #      permute appropriately, meaning we take the unique permutations of [i, j, j]
+
+        diff_pos = np.nonzero(np.diff(pad_change))
+        if len(diff_pos) == 0 or len(diff_pos[0]) == 0:
+            ind_blocks = [initial_sort]
+            block_vals = [pad_change[0]]
+        else:
+            ind_blocks = np.split(initial_sort, diff_pos[0] + 1)
+            block_vals = [x[0] for x in np.split(pad_change, diff_pos[0] + 1)]
+
+        # We will handle the first problem by creating a proxy vector that we can take the unique
+        # permutation of for each block in the final changes
+        # To do so we take each of the ind_blocks and for the _remainder_ elements we assign
+        # either 0 or 1 depending on which poly they came from, any change element by contrast is
+        # treated as unique
+        # And for the _product_ elements, we assign a value based on the left and right
+        # indices
+        inv_sort = np.argsort(initial_sort)
+        perm_blocks = []
+        product_inds = []
+        proxy_idx = 0  # UniquePermutations expects largest to smallest...
+        path_map = {}
+        for left_i, right_j in zip(inds_1[x1], inds_2[x2]):
+            key = (ch1[left_i], ch2[right_j])
+            if key in path_map:
+                val = path_map.get(key)
+            else:
+                val = proxy_idx
+                proxy_idx += 1
+                path_map[key] = val
+            product_inds.append(val)
+        proxy_left = len(product_inds)
+        proxy_right = proxy_left + n1 - os
+        origins = np.array(
+            product_inds
+            + [proxy_left] * (n1 - os)
+            + [proxy_right] * (n2 - os)
+        )
+        for p, v in zip(ind_blocks, block_vals):
+            # if v == 0:
+            #     perm_blocks.append([p])
+            # else:
+            perms, _ = cls._get_uperms(origins[p])
+            perm_blocks.append(nput.vector_take(p, perms))
+
+        total_sorts = np.broadcast_to(
+            initial_sort[np.newaxis],
+            (np.prod([len(x) for x in perm_blocks], dtype=int), len(initial_sort))
+        ).copy()
+        for i, sort_prod in enumerate(itertools.product(*perm_blocks)):
+            # total_perm = np.concatenate(list(sort_prod))[ch_inv]
+            # total_sorts[i][rem_sort] = total_sorts[i][rem_sort][total_perm]
+            total_sorts[i] = np.concatenate(sort_prod)
+        # now we need to reduce the sorts so as to not dupe indices from the "origin"
+
+        change = tuple(pad_change[:nz])
+
+        return change, (
+            ch1,
+            ch2,
+            inds_1[x1],
+            inds_2[x2],
+            rind_1[x1],
+            rind_2[x2],
+            total_sorts
+        )
+
     def get_changes(self):
+        #TODO: prevent _all_ changes from being enumerated, just handle the target
+        #      cases by finding possible generaotrs?
+
+        # change_keys = (
+        #     # TODO: ensure these are always sorted to not have to pay the extra cost
+        #     tuple(self.gen1.changes.keys()),
+        #     tuple(self.gen2.changes.keys())
+        # )
+        #
+        # if change_keys in self._change_cache:
+        #     return self._change_cache[change_keys]
+        # elif (change_keys[1], change_keys[0]) in self._change_cache:
+        #     return self._change_cache[change_keys]
+
         new_changes = {}
 
         class_count_data_1 = [None] * len(self.gen1.changes)
         class_count_data_2 = [None] * len(self.gen2.changes)
-        def fill_class_counts(data, which, c):
-            if data[which] is None:
-                if len(c) == 0:
-                    data[which] = [np.array([], dtype=int), np.array([], dtype=int), np.array([], dtype=int)]
-                else:
-                    classes, idx, counts = np.unique(c, return_counts=True, return_index=True)
-                    ord = self.change_sort(classes)
-                    classes = classes[ord]
-                    counts = counts[ord]
-                    idx = idx[ord]
-                    mapping = np.concatenate([np.full((cnt,), i) for i,cnt in zip(idx, counts)])
-                    # perms = np.array([
-                    #     np.concatenate(p)
-                    #     for p in itertools.product(*[
-                    #         list(itertools.permutations(range(i, i+cnt)))
-                    #         for i, cnt in zip(idx, counts)
-                    #         ])
-                    # ])
-                    data[which] = [classes, counts, mapping]#, perms]
-            return data[which]
 
         ind_rem_data_1 = [[None] * len(_) for _ in self.gen1.changes]
         ind_rem_data_2 = [[None] * len(_) for _ in self.gen2.changes]
-        def fill_inds_data(data, which, counts, mapping, m, permute):
-            if data[which][m-1] is None:
-                n1 = np.sum(counts)
-                inds_1 = self.get_combination_inds(n1, m)
-                rems_1 = self.get_combination_comp(n1, m)
-
-                inds_mapped = mapping[inds_1]
-                _, idx = np.unique(inds_mapped, axis=0, return_index=True)
-                inds = inds_1[np.sort(idx),]
-                rems = rems_1[np.sort(idx),]
-
-                # inds = inds_1
-                # rems = rems_1
-
-                if permute:
-                    mperms = nput.permutation_indices(m, m)
-                    inds = nput.vector_take(inds, mperms).reshape(-1, m)
-                    if n1 > m:
-                        rems = np.broadcast_to(rems[:, np.newaxis, :],
-                                                 (len(rems), len(mperms), n1 - m)).reshape(inds.shape[0], n1 - m)
-                    else:
-                        rems = np.empty((inds.shape[0], 0), dtype=int)
-
-                data[which][m-1] = [inds, rems]
-            return data[which][m-1]
 
         for i1,ch1 in enumerate(self.gen1.changes):
             if len(ch1) == 2 and isinstance(ch1[0], tuple): continue
             ch1 = np.array(ch1)
             if not np.equal(self.change_sort(ch1), np.arange(len(ch1))).all():
                 raise ValueError(ch2)
-            classes_1, counts_1, mapping_1 = fill_class_counts(class_count_data_1, i1, ch1)
+            classes_1, counts_1, mapping_1 = self._fill_class_counts(class_count_data_1, i1, ch1)
             n1 = np.sum(counts_1)
 
             for i2, ch2 in enumerate(self.gen2.changes):
@@ -4772,7 +4908,7 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                 ch2 = np.array(ch2)
                 if not np.equal(self.change_sort(ch2), np.arange(len(ch2))).all():
                     raise ValueError(self, self.gen2, ch2)
-                classes_2, counts_2, mapping_2 = fill_class_counts(class_count_data_2, i2, ch2)
+                classes_2, counts_2, mapping_2 = self._fill_class_counts(class_count_data_2, i2, ch2)
                 n2 = np.sum(counts_2)
 
                 for os in range(min(n1, n2)+1): # number of contacts
@@ -4797,8 +4933,8 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                             rems_2 = np.array([[]], dtype=int)
 
                     else:
-                        inds_1, rind_1 = fill_inds_data(ind_rem_data_1, i1, counts_1, mapping_1, os, False)
-                        inds_2, rind_2 = fill_inds_data(ind_rem_data_2, i2, counts_2, mapping_2, os, True)
+                        inds_1, rind_1 = self._fill_inds_data(ind_rem_data_1, i1, counts_1, mapping_1, os, False)
+                        inds_2, rind_2 = self._fill_inds_data(ind_rem_data_2, i2, counts_2, mapping_2, os, True)
 
                         oval_1 = ch1[inds_1]
                         oval_2 = ch2[inds_2]
@@ -4855,101 +4991,21 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                         upairs = set()
                         for pad_change, initial_sort, nz, x1, x2 in zip(new_change, initial_sortings, nonzero_counts,
                                                                         inds_1_inds, inds_2_inds):
-                            ch2_test = np.array([ch2[i2] for i2 in inds_2[x2]])
-                            ch2_sort = self.change_sort(ch2_test)
-                            test_key = (
-                                tuple(ch1[inds_1[x1][s]] for s in ch2_sort),
-                                tuple(ch2_test[s] for s in ch2_sort)
+
+                            #TODO: should be able to cache at this depth?
+                            change, change_data = self._prep_product_change_data(
+                                i1, ch1, inds_1, rind_1, n1,
+                                i2, ch2, inds_2, rind_2, n2,
+                                os,
+                                pad_change, initial_sort,
+                                nz, x1, x2,
+                                upairs
                             )
-                            if test_key in upairs: continue
-                            upairs.add(test_key)
-                            # we have to handle two combinatoric problems, now
-                            # firstly, we need to make sure that combinations like
-                            #    2  1 -1
-                            #    2  -  1  1  1
-                            # work properly, where we expect to have
-                            #    2  1  0  1  1 [ [0, 1, 3, 4, 2],  [0, 3, 1, 4, 2], [0, 3, 4, 1, 2] ]
-                            # i.e. we have [ [0] x perms([i, j, j]) x [2] ]
-                            # this needs to be handled because the [1, 1] block from the second poly is not equivalent
-                            # to the [1] from the first poly and we need to preserve symmetry
-                            # The second problem is in how we handle the [-1], [1] block, which could have been generated
-                            # by _any_ of the [1]s in the second poly, and so I think we need to scale this by
-                            # the number of equivalent choices?
-                            # [1, 1, 1] x [-1] -> [1, 1] + free index (might be handled by the later summation?)
+                            if change is None: continue
 
-                            # we actually have a _third_ problem
-                            # consider [1, -1, -1] @ [-1, 1, 1] -> [0, 0, 0]
-                            # where we tneed to make sure that the blocks that map to the same value
-                            # are permuted over the different paths that get you there
-                            # i.e. if given two paths ([1, -1]) and ([-1, 1]) to 0 we need to make sure that we
-                            #      permute appropriately, meaning we take the unique permutations of [i, j, j]
-
-
-                            diff_pos = np.nonzero(np.diff(pad_change))
-                            if len(diff_pos) == 0 or len(diff_pos[0]) == 0:
-                                ind_blocks = [initial_sort]
-                                block_vals = [pad_change[0]]
-                            else:
-                                ind_blocks = np.split(initial_sort, diff_pos[0] + 1)
-                                block_vals = [x[0] for x in np.split(pad_change, diff_pos[0] + 1)]
-
-                            # We will handle the first problem by creating a proxy vector that we can take the unique
-                            # permutation of for each block in the final changes
-                            # To do so we take each of the ind_blocks and for the _remainder_ elements we assign
-                            # either 0 or 1 depending on which poly they came from, any change element by contrast is
-                            # treated as unique
-                            # And for the _product_ elements, we assign a value based on the left and right
-                            # indices
-                            inv_sort = np.argsort(initial_sort)
-                            perm_blocks = []
-                            product_inds = []
-                            proxy_idx = 0# UniquePermutations expects largest to smallest...
-                            path_map = {}
-                            for left_i,right_j in zip(inds_1[x1], inds_2[x2]):
-                                key = (ch1[left_i], ch2[right_j])
-                                if key in path_map:
-                                    val = path_map.get(key)
-                                else:
-                                    val = proxy_idx
-                                    proxy_idx += 1
-                                    path_map[key] = val
-                                product_inds.append(val)
-                            proxy_left = len(product_inds)
-                            proxy_right = proxy_left + n1 - os
-                            origins = np.array(
-                                product_inds
-                                + [proxy_left] * (n1 - os)
-                                + [proxy_right] * (n2 - os)
-                            )
-                            for p,v in zip(ind_blocks, block_vals):
-                                # if v == 0:
-                                #     perm_blocks.append([p])
-                                # else:
-                                perms, _ = UniquePermutations(origins[p]).permutations(return_indices=True)
-                                perm_blocks.append(nput.vector_take(p, perms))
-
-                            total_sorts = np.broadcast_to(
-                                initial_sort[np.newaxis],
-                                (np.prod([len(x) for x in perm_blocks], dtype=int), len(initial_sort))
-                            ).copy()
-                            for i, sort_prod in enumerate(itertools.product(*perm_blocks)):
-                                # total_perm = np.concatenate(list(sort_prod))[ch_inv]
-                                # total_sorts[i][rem_sort] = total_sorts[i][rem_sort][total_perm]
-                                total_sorts[i] = np.concatenate(sort_prod)
-                            # now we need to reduce the sorts so as to not dupe indices from the "origin"
-
-                            change = tuple(pad_change[:nz])
                             if change not in new_changes:
                                 new_changes[change] = []
-                            new_changes[change].append((
-                                ch1,
-                                ch2,
-                                inds_1[x1],
-                                inds_2[x2],
-                                rind_1[x1],
-                                rind_2[x2],
-                                total_sorts
-                            ))
+                            new_changes[change].append(change_data)
 
         return new_changes
 
@@ -5723,14 +5779,18 @@ class PerturbationTheoryExpressionEvaluator:
             # }
             for check_pos, modes in tests:
                 subtree = tree
-                for n,(c,m) in enumerate(zip(check_pos, modes)):
+                for n,c in enumerate(check_pos):
+                    m = modes[c]
                     if c not in subtree: subtree[c] = {}
-                    if n == len(check_pos) - 1:
+                    if n == len(check_pos) - 1: # might be better to do this with an `else`
                         subtree[c][m] = True
                     else:
-                        subtree[c][m] = {}
+                        if m not in subtree[c]: subtree[c][m] = {}
                         subtree = subtree[c][m]
+                        if subtree is True: # preempted
+                            break
             # import pprint
+            # print(tests)
             # pprint.pprint(tree)
             test = functools.partial(cls._deg_test_tree, tree=tree)
         else:
@@ -5811,6 +5871,7 @@ class PerturbationTheoryExpressionEvaluator:
         # all_degs = [
         #     {} for _ in all_perms
         # ]
+        deg_test_cache = {}
         for cinds,t in expr.terms.items():
             if isinstance(t, PTEnergyChangeProductSum):
                 # echange_tests = {}
@@ -5888,7 +5949,10 @@ class PerturbationTheoryExpressionEvaluator:
                                         degs[cinds][ekey].append(method(modes, echange)) # TODO: supply more info to custom methods
                     for degs in all_degs:
                         if len(degs.get(cinds, {}).get(ekey, [])) > 0:
-                            degs[cinds][ekey] = cls._make_full_deg_test(degs[cinds][ekey])
+                            dc_key = tuple(degs[cinds][ekey])
+                            if dc_key not in deg_test_cache:
+                                deg_test_cache[dc_key] = cls._make_full_deg_test(degs[cinds][ekey])
+                            degs[cinds][ekey] = deg_test_cache[dc_key]
         return all_degs
 
 
@@ -6169,8 +6233,10 @@ class PerturbationTheoryExpressionEvaluator:
                     all_perms, change,
                     expr, degenerate_changes, len(freqs)
                 )
-                #     for dc in degenerate_changes
-                # ]
+                # import pprint
+                # pprint.pprint([list(d.keys()) for d in degenerate_changes])
+                # #     for dc in degenerate_changes
+                # # ]
                 if only_degenerate_terms is True:
                     only_degenerate_terms = [only_degenerate_terms, only_degenerate_terms, np.logical_or]
                 elif only_degenerate_terms is False:

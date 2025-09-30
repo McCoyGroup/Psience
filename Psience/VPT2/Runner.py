@@ -18,7 +18,7 @@ from ..BasisReps import (
 from ..Molecools import Molecule
 from ..Spectra import DiscreteSpectrum
 
-from .DegeneracySpecs import DegeneracySpec
+from .DegeneracySpecs import DegeneracySpec, DegenerateMultiStateSpace
 from .Hamiltonian import PerturbationTheoryHamiltonian
 from .Analytic import PerturbationTheoryEvaluator, AnalyticPerturbationTheorySolver
 from .Corrections import AnalyticPerturbationTheoryCorrections
@@ -439,7 +439,10 @@ class VPTStateSpace:
                     deg_state_blocks.extend(deg_states)
                     if deg_spec.application_order == 'pre':
                         deg_pair_blocks.append(
-                            deg_spec.get_polyad_pairs(BasisStateSpace(self.states.basis, self.state_list))
+                            deg_spec.get_polyad_pairs(
+                                # BasisStateSpace(self.states.basis, self.state_list),
+                                groups=deg_states
+                            )
                         )
 
         if all(ds is None for ds in self.degeneracy_specs):
@@ -551,7 +554,29 @@ class VPTStateSpace:
         if spec is None:
             return None, None
         elif spec.application_order == "pre":
-            return spec, spec.get_groups(states)
+            group_filter = spec.get_degenerate_group_filter(
+                evaluator=evaluator.eval if evaluator is not None else None
+            )
+            new_states = DegenerateMultiStateSpace.from_spec(
+                spec,
+                states=states,
+                evaluator=evaluator,
+                # full_basis=self.full_basis,
+                group_filter=group_filter,
+                log_groups=True
+            )
+            # uuh = [
+            #     np.concatenate([[i], s.excitations], axis=0)
+            #     for i, s in zip(new_states.representative_space.excitations, new_states.spaces)
+            # ]
+            # print([
+            #     s.excitations
+            #     for s in new_states.spaces
+            # ])
+            return spec, [
+                s.excitations
+                for s in new_states.spaces
+            ]
         else:# hasattr(spec, 'prep_states'):
             return (spec, spec.prep_states(states))
 
@@ -3521,7 +3546,8 @@ class AnalyticVPTRunner:
                 transition_moment_terms=None,
                 hamiltonian_corrections=None,
                 clear_caches=True,
-                hamiltonian_correction_type=None
+                hamiltonian_correction_type=None,
+                only_degenerate_terms=True
                 ):
         if hamiltonian_correction_type is None:
             hamiltonian_correction_type = self.hamiltonian_correction_modification_type
@@ -3603,7 +3629,6 @@ class AnalyticVPTRunner:
             h2w = UnitsData.convert("Hartrees", "Wavenumbers")
             if handle_degeneracies and states.flat_space.degenerate_states is not None:
                 corrs.degenerate_states = states.flat_space.degenerate_states
-                only_degenerate_terms = True
                 with self.logger.block(tag="Handling degeneracies"):
                     with self.logger.block(tag="Calculating effective Hamiltonians..."):
                         _, degenerate_corrs = self.get_reexpressed_hamiltonian(
@@ -3757,6 +3782,7 @@ class AnalyticVPTRunner:
                    clear_caches=True,
                    hamiltonian_correction_type=None,
                    hamiltonian_corrections=None,
+                   only_degenerate_terms=True,
                    **opts
                    ):
         if degeneracy_states is not None: ValueError("expect `degeneracy_specs`, not `degeneracy_states`")
@@ -3773,7 +3799,8 @@ class AnalyticVPTRunner:
                              zero_cutoff=zero_cutoff,
                              clear_caches=clear_caches,
                              hamiltonian_correction_type=hamiltonian_correction_type,
-                             hamiltonian_corrections=hamiltonian_corrections
+                             hamiltonian_corrections=hamiltonian_corrections,
+                             only_degenerate_terms=only_degenerate_terms
                              )
 
         if return_runner:

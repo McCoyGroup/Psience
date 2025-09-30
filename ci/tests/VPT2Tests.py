@@ -875,7 +875,7 @@ class VPT2Tests(TestCase):
 <::
     """
 
-    @debugTest
+    @validationTest
     def test_AnalyticHOONO(self):
 
         file_name = "HOONO_freq.fchk"
@@ -964,6 +964,237 @@ class VPT2Tests(TestCase):
             # dipole_terms=dips
         )
 
+
+        # from Peeves import Timer
+        # with Timer():
+        # og.print_tables(print_intensities=True)
+        # print(freqs[0], freqs[1:]-freqs[0])
+        # with BlockProfiler():
+        # with Timer():
+        # with BlockProfiler():
+        #     spec = runner.get_spectrum(states, verbose=False)
+        # print(np.array(spec).T)
+
+    @debugTest
+    def test_AnalyticHOONODeg(self):
+
+        file_name = "HOONO_freq.fchk"
+        state = VPTStateMaker(9)
+        # with BlockProfiler():
+        from McUtils.Parallelizers import Parallelizer
+        from McUtils.Profilers import Timer, BlockProfiler
+        # with  as par:
+        #     print(par.nprocs)
+        # return
+        # par = Parallelizer.lookup((
+        #         'multiprocessing',
+        #         {
+        #             'initialization_timeout':25,
+        #             # # 'logger': Logger(log_level=Logger.LogLevel.MoreDebug),
+        #             'processes': 6
+        #         }
+        #     ))
+        # with par:
+        # with BlockProfiler.profiler():
+        # AnalyticVPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     # degeneracy_specs='auto'
+        #     # degeneracy_specs='auto',
+        #     # parallelizer='multiprocessing'
+        #     # parallelizer=par
+        #     # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+        # )
+
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     [
+        #         [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        #         [0, 1, 0, 0, 0, 1, 0, 1, 0]
+        #     ],
+        #     initial_states=[[0, 0, 0, 0, 0, 0, 0, 0, 0]]
+        #     # degeneracy_specs='auto'
+        #     # degeneracy_specs='auto',
+        #     # parallelizer='multiprocessing'
+        #     # parallelizer=par
+        #     # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+        # )
+        # AnalyticVPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     [
+        #         [
+        #             [[0, 0, 0, 0, 0, 0, 0, 0, 0]],
+        #             [
+        #                 [0, 1, 0, 0, 0, 1, 0, 1, 0]
+        #             ]
+        #         ]
+        #     ],
+        #     # degeneracy_specs='auto'
+        #     # degeneracy_specs='auto',
+        #     # parallelizer='multiprocessing'
+        #     # parallelizer=par
+        #     # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+        # )
+        # return
+
+        mode_selection = [0, 1, 3, 5, 6, 7]
+        def take_modes(list, inds):
+            return [list[i] for i in inds]
+        def take(list, mode_selection=mode_selection):
+            if mode_selection is None:
+                return list
+            else:
+                if not isinstance(list[0], int):
+                    return [
+                        take(l, mode_selection)
+                        for l in list
+                    ]
+                else:
+                    return take_modes(list, mode_selection)
+
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     take(
+        #         [
+        #             [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        #             [0, 0, 0, 0, 0, 0, 0, 1, 0],
+        #             # [0, 0, 0, 0, 0, 0, 1, 0, 0],
+        #             # [0, 1, 0, 0, 0, 1, 0, 0, 0],
+        #             # [2, 0, 0, 1, 0, 0, 0, 0, 0],
+        #         ]
+        #     ),
+        #     mode_selection=mode_selection,
+        #     mixed_derivative_handling_mode='analytical',
+        #     # initial_states=[[0, 0, 0, 0, 0, 0, 1, 0, 0]],
+        #     degeneracy_specs={'polyads':take([
+        #         [[0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 0, 0, 0, 0, 0, 1, 0, 0]],
+        #         [[0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 1, 0, 0, 0, 1, 0, 0, 0]],
+        #         # [[0, 0, 0, 0, 0, 0, 0, 1, 0], [2, 0, 0, 1, 0, 0, 0, 0, 0]],
+        #     ])},
+        #     calculate_intensities=False
+        #     # parallelizer='multiprocessing'
+        #     # parallelizer=par
+        #     # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+        # )
+        AnalyticVPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            # [
+            #     [
+            #         [[0, 0, 0, 0, 0, 0, 1, 0, 0]],
+            #         [
+            #             [0, 0, 0, 0, 0, 0, 1, 0, 0],
+            #             [0, 0, 0, 0, 0, 0, 0, 1, 0],
+            #             [0, 1, 0, 0, 0, 1, 0, 0, 0]
+            #         ]
+            #     ]
+            # ],
+            # [
+            #     [0, 0, 0, 0, 0, 0, 0, 0, 0],
+            #     [0, 0, 0, 0, 0, 0, 0, 1, 0],
+            #     [0, 0, 0, 0, 0, 0, 1, 0, 0],
+            #     # [0, 1, 0, 0, 0, 1, 0, 0, 0],
+            #     [2, 0, 0, 1, 0, 0, 0, 0, 0],
+            # ],
+
+            take([
+                [0, 0, 0, 0, 0, 0, 0, 0, 0],
+                [0, 0, 0, 0, 0, 0, 0, 1, 0],
+                # [0, 0, 0, 0, 0, 0, 1, 0, 0],
+                # [0, 1, 0, 0, 0, 1, 0, 0, 0],
+                # [2, 0, 0, 1, 0, 0, 0, 0, 0],
+            ]),
+            mode_selection=mode_selection,
+            # initial_states=[[0, 0, 0, 0, 0, 0, 1, 0, 0]],
+            degeneracy_specs={'polyads':take([
+                [[0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 0, 0, 0, 0, 0, 1, 0, 0]],
+                [[0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 1, 0, 0, 0, 1, 0, 0, 0]],
+                # [[0, 0, 0, 0, 0, 0, 0, 1, 0], [2, 0, 0, 1, 0, 0, 0, 0, 0]],
+            ])},
+            calculate_intensities=False
+            # only_degenerate_terms=False
+            # degeneracy_specs='auto'
+            # degeneracy_specs='auto',
+            # parallelizer='multiprocessing'
+            # parallelizer=par
+            # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+        )
+        return
+        AnalyticVPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            1,
+            degeneracy_specs='auto'
+            # degeneracy_specs='auto',
+            # parallelizer='multiprocessing'
+            # parallelizer=par
+            # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+        )
+
+
+        # AnalyticVPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     degeneracy_specs='auto'
+        #     # degeneracy_specs='auto',
+        #     # parallelizer='multiprocessing'
+        #     # parallelizer=par
+        #     # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+        # )
+        # return
+
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     # mode_selection=mode_selection,
+        #     # internals=internals,
+        #     logger=True,
+        #     mixed_derivative_handling_mode='averaged'
+        # )
+
+        runner, states = AnalyticVPTRunner.construct(
+            TestManager.test_data(file_name),
+            2,
+            # mode_selection=[8, 7, 6],
+            # internals=internals,
+            logger=True,
+            # expansion_order = {
+            #     'coriolis':0,
+            #     'pseudopotential':0
+            # },
+            # return_runner=True,
+            # return_states=True,
+            # calculate_intensities=False
+        )
+
+        return
+
+        # raise Exception(
+        #     runner.get_freqs(states)[1] * UnitsData.convert("Hartrees", "Wavenumbers")
+        # )
+
+        # runner.eval.expansions[2][0][:] = 0
+        # v3 = runner.eval.expansions[1][0]
+        # for i in itertools.combinations(range(3), 1):
+        #     for p in itertools.permutations([i, i, i]):
+        #         v3[p] = 0#1e-5
+        # for i,j in itertools.combinations(range(3), 2):
+        #     for p in itertools.permutations([i, i, j]):
+        #         v3[p] = 0#1e-5
+        #     for p in itertools.permutations([i, j, j]):
+        #         v3[p] = 0
+        # for i,j,k in itertools.combinations(range(3), 3):
+        #     for p in itertools.permutations([i, j, k]):
+        #         v3[p] = 1e-4
+
+        og, _ = runner.construct_classic_runner(
+            TestManager.test_data(file_name),
+            states,
+            mode_selection=np.arange(len(states[0])),
+            zero_element_warning=False,
+            logger=False
+            # internals=internals,
+            # degeneracy_specs='auto'
+            # dipole_terms=dips
+        )
 
         # from Peeves import Timer
         # with Timer():

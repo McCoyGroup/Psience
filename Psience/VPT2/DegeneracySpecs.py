@@ -1,7 +1,9 @@
+import collections
 import itertools
 
 import numpy as np, enum, abc, scipy.sparse as sp
 from McUtils.Combinatorics import SymmetricGroupGenerator, PermutationRelationGraph
+from McUtils.Scaffolding import Logger
 import McUtils.Numputils as nput
 from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace, HarmonicOscillatorProductBasis
 
@@ -36,7 +38,8 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
                  maximize_filtered_groups=True,
                  decoupling_overide=100,
                  extra_groups=None,
-                 inconsistent_polyads=None
+                 inconsistent_polyads=None,
+                 wavefunction_corrections=None
                  ):
         if application_order is None:
             application_order = self.application_order
@@ -50,6 +53,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         self.decoupling_overide = decoupling_overide
         self.extra_groups = extra_groups
         self.inconsistent_polyads = inconsistent_polyads
+        self.wavefunction_corrections = wavefunction_corrections # to simplify corrections
 
     repr_opts = ['energy_cutoff']
     def __repr__(self):
@@ -57,21 +61,46 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
     @classmethod
     def merge_state_blocks(cls, state_blocks):
         return [g[1] for g in PermutationRelationGraph.make_relation_graph(state_blocks)[0]]
-    def get_degenerate_group_filter(self, solver, corrs=None, threshold=None):
+    def get_degenerate_group_filter(self,
+                                    solver=None,
+                                    evaluator=None,
+                                    corrs=None,
+                                    frequencies=None,
+                                    zero_order_energies=None,
+                                    high_frequency_modes=None,
+                                    low_frequency_mode_cutoff=1.15e-3,
+                                    threshold=None):
         group_filter = self.group_filter
         if isinstance(group_filter, str) and group_filter == 'default':
             group_filter = None
+        if corrs is None:
+            corrs = self.wavefunction_corrections
+        if zero_order_energies is None:
+            if solver is not None:
+                zero_order_energies = solver.zero_order_energies
+            elif evaluator is not None and corrs is not None:
+                states = corrs.full_basis.excitations
+                zero_order_energies = np.tensordot(states + 1/2, evaluator.freqs, axes=[-1, 0])
+        if frequencies is None and evaluator is not None:
+            frequencies = evaluator.freqs
+        if high_frequency_modes is None:
+            if solver is not None:
+                high_frequency_modes = solver.high_frequency_modes
+            elif evaluator is not None:
+                high_frequency_modes = np.where(evaluator.freqs > low_frequency_mode_cutoff)[0]
+
         if group_filter is None:
             zero_order_energy_cutoff = self.energy_cutoff
             test_modes = self.test_modes
             if test_modes is None:
-                test_modes = solver.high_frequency_modes
-            if len(test_modes) == 0:
+                test_modes = high_frequency_modes
+            if test_modes is not None and len(test_modes) == 0:
                 test_modes = None
             group_filter = dict(
                 corrections=corrs,
                 energy_cutoff=zero_order_energy_cutoff,
-                energies=solver.zero_order_energies,
+                frequencies=frequencies,
+                energies=zero_order_energies,
                 threshold=threshold,
                 target_modes=test_modes,
                 maximize_groups=self.maximize_filtered_groups,
@@ -199,7 +228,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
             for i,p1 in enumerate(polyad)
             for p2 in polyad[i+1:]
         ]
-    def get_polyad_pairs(self, input_states, solver=None, **kwargs):
+    def get_polyad_pairs(self, input_states=None, groups=None, solver=None, **kwargs):
         """
         :param solver:
         :type solver:
@@ -208,7 +237,8 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         :return:
         :rtype:
         """
-        groups = self.get_groups(input_states, solver=solver, **kwargs)
+        if groups is None:
+            groups = self.get_groups(input_states, solver=solver, **kwargs)
         if len(groups) == 0:
             base_polyads = []
         else:
@@ -236,8 +266,31 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
     def canonicalize(cls, spec):
         raise NotImplementedError("abstract interface")
 
-    def get_group_filter(self, **kwargs):
-        return DegenerateMultiStateSpace.construct_filer(**kwargs)
+    def get_group_filter(self,
+                         target_modes=None,
+                         maximize_groups=None,
+                         decoupling_overide=None,
+                         extra_groups=None,
+                         corrections=None,
+                         **kwargs):
+        if target_modes is None:
+            target_modes = self.test_modes
+        if maximize_groups is None:
+            maximize_groups = self.maximize_filtered_groups
+        if decoupling_overide is None:
+            decoupling_overide = self.decoupling_overide
+        if extra_groups is None:
+            extra_groups = self.extra_groups
+        if corrections is None:
+            corrections = self.wavefunction_corrections
+        return DegenerateMultiStateSpace.construct_filer(
+            target_modes=target_modes,
+            maximize_groups=maximize_groups,
+            decoupling_overide=decoupling_overide,
+            extra_groups=extra_groups,
+            corrections=corrections,
+            **kwargs
+        )
 
 class EnergyCutoffDegeneracySpec(DegeneracySpec):
     """
@@ -397,15 +450,18 @@ class MartinTestDegeneracySpec(DegeneracySpec):
     def canonicalize(cls, spec):
         return isinstance(spec.threshold, float)
 
-    def get_group_filter(self, threshold=None, states=None, basis=None, corrections=None, **kwargs):
-        return DegenerateMultiStateSpace.construct_filer(
-            states=self._states,
-            basis=self._basis,
-            corrections=self._matrix,
-            threshold=self.threshold,
-            threshold_step_size=1/219475,
-            extra_groups=self.extra_groups,
-            **kwargs
+    def get_group_filter(self, **kwargs):
+        return super().get_group_filter(
+            **collections.ChainMap(
+                kwargs,
+                dict(
+                    states=self._states,
+                    basis=self._basis,
+                    corrections=self._matrix,
+                    threshold=self.threshold,
+                    threshold_step_size=1 / 219475,
+                )
+            )
         )
 
 class StronglyCoupledDegeneracySpec(DegeneracySpec):
@@ -469,6 +525,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         if len(needs_couplings) > 0:
             needs_coupling_states = input_states.take_subspace(needs_couplings)
             wfcs = self.evaluator.get_test_wfn_corrs(needs_coupling_states, self.energy_cutoff)
+            self.wavefunction_corrections = self._prep_wfc_correction_space(wfcs)
             if wfcs is not None:
                 for input_state, final_state, corrs in zip(wfcs.initial_states.indices, wfcs.final_states, wfcs.corrections):
                     coupling_pos = np.where(np.abs(corrs) > self.wfc_threshold)
@@ -483,6 +540,23 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
             for i in inds
             if self._couplings[i] is not None
         }
+
+    PTCorrectionsMatrix = collections.namedtuple("PTCorrectionsMatrix", ["initial_states", "full_basis", "matrices"])
+    @classmethod
+    def _prep_wfc_correction_space(cls, pt_corrs):
+        basis:BasisStateSpace = pt_corrs.initial_states
+        n_init = len(basis)
+        for s in pt_corrs.final_states:
+            basis = basis.union(s)
+
+        matrices = np.zeros((len(pt_corrs.corrections[0]), n_init, len(basis)))
+        for i,corr_block in enumerate(zip(pt_corrs.final_states, pt_corrs.corrections)):
+            states = corr_block[0]
+            for j,c in enumerate(corr_block[1]):
+                inds = basis.find(states)
+                matrices[j, i, inds] = c
+
+        return cls.PTCorrectionsMatrix(pt_corrs.initial_states, basis, matrices)
 
     def get_groups(self, input_states, couplings=None, solver=None, extra_groups=None, **kwargs):
         """
@@ -539,6 +613,21 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
                               # of some sort...
 
         return [g[1] for g in groups]
+
+    def get_degenerate_group_filter(self,
+                                    solver=None,
+                                    evaluator=None,
+                                    threshold=None,
+                                    **kwargs
+                                    ):
+        if threshold is None:
+            threshold = self.wfc_threshold
+        return super().get_degenerate_group_filter(
+            solver=solver,
+            evaluator=evaluator,
+            threshold=threshold,
+            **kwargs
+        )
 
 class GroupsDegeneracySpec(DegeneracySpec):
     """
@@ -696,11 +785,11 @@ class PolyadDegeneracySpec(DegeneracySpec):
 
 
 
-    def get_polyad_pairs(self, input_states, solver=None, full_group_polyads=None, **kwargs):
+    def get_polyad_pairs(self, input_states=None, groups=None, solver=None, full_group_polyads=None, **kwargs):
         if full_group_polyads is None:
             full_group_polyads = self.full_group_polyads
         if full_group_polyads:
-            return super().get_polyad_pairs(input_states, solver=solver, **kwargs)
+            return super().get_polyad_pairs(input_states=input_states, groups=groups, solver=solver, **kwargs)
         else:
             return self.get_polyad_pairs_from_polyad_specs(self.polyads)
 
@@ -825,6 +914,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                              corrections=None,
                              threshold=None,
                              energy_cutoff=None,
+                             frequencies=None,
                              energies=None,
                              decoupling_overide=10,
                              maximize_groups=True,
@@ -882,6 +972,28 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                     sorting = np.arange(len(max_corr))
                 else:
                     sorting = np.argsort(-max_corr - 1 * (found_pos))  # prioritize states inside requested packet for marginal cases
+            elif hasattr(corrections, 'matrices'):
+                basis = corrections.full_basis
+                states = corrections.initial_states
+                group_inds = basis.find(group)
+                state_inds = states.find(group, dtype=int, missing_val=len(states))
+                found_pos = state_inds < len(states)
+                kill_spots = (np.arange(len(group_inds))[found_pos], state_inds[found_pos])
+                corr_mat = [np.abs(x[:, group_inds].T) for x in corrections.matrices[1:]]
+                max_corr = None
+                for c in corr_mat:
+                    c[kill_spots] = 0
+                    if max_corr is None:
+                        max_corr = np.max(c, axis=1)
+                    else:
+                        submax = np.max(c, axis=1)
+                        p = submax > max_corr
+                        max_corr[p] = submax[p]
+                corrections = sum(corr_mat)
+                if threshold is not None:
+                    sorting = np.arange(len(max_corr))
+                else:
+                    sorting = np.argsort(-max_corr - 1 * (found_pos))  # prioritize states inside requested packet for marginal cases
             elif basis is not None and states is not None:
                 group_inds = basis.find(group)
                 state_inds = states.find(group, dtype=int, missing_val=len(states))
@@ -901,10 +1013,18 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                     sorting = np.arange(len(max_corr))
                 else:
                     sorting = np.argsort(-max_corr - 1*found_pos)  # prioritize states inside requested packet for marginal cases
-
-        else:
+            else:
+                corrections = None # sentinel to check
+        if corrections is None:
             sorting = np.argsort(inds)
             corrections = None
+            if basis is not None:
+                group_inds = basis.find(group)
+            else:
+                group_inds = np.arange(len(group))
+
+        if energies is None and frequencies is not None and basis is not None:
+            energies = np.tensordot(basis.excitations + 1/2, frequencies, axes=[-1, 0])
 
         exc = exc[sorting]
         diffs = exc[:, np.newaxis] - exc[np.newaxis, :]  # difference matrix (s, s, m)
@@ -1068,7 +1188,11 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         else:
             for n in np.arange(len(exc)):
                 diff_vec = diff_sums[n]
-                bad_pos = np.where(diff_vec == 1)
+                if energy_cutoff is None or energies is None:
+                    bad_pos = np.where(diff_vec == 1)
+                else:
+                    e_vec = energies[group_inds]
+                    bad_pos = np.where(np.abs(np.subtract.outer(e_vec, e_vec)) > energy_cutoff)
                 if len(bad_pos) > 0:
                     bad_pos = bad_pos[0]
                     if len(bad_pos) > 0:
@@ -1092,7 +1216,9 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
     @classmethod
     def from_spec(cls,
                   degenerate_states,
+                  states=None,
                   solver=None,
+                  evaluator=None,
                   full_basis=None,
                   format=None,
                   group_filter=None,
@@ -1109,14 +1235,20 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         :rtype:
         """
 
-        logger = solver.logger
-        states = solver.states #type: BasisStateSpace
+        if evaluator is not None:
+            logger = evaluator.logger
+        elif solver is not None:
+            logger = solver.logger
+        else:
+            logger = Logger.lookup(None)
+        if states is None:
+            states = solver.states #type: BasisStateSpace
 
         if degenerate_states is not None:
             if not isinstance(degenerate_states, DegeneracySpec):
                 degenerate_states = DegeneracySpec.from_spec(degenerate_states, format=format)
             with logger.block(tag="getting degeneracies"):
-                deg_states = degenerate_states.get_groups(states, solver=solver, **kwargs)
+                deg_states = degenerate_states.get_groups(states, evaluator=evaluator, solver=solver, **kwargs)
                 if hasattr(group_filter, 'items'):
                     group_filter = cls.construct_filer(**dict(group_filter, spec=degenerate_states))
                 new = GroupsDegeneracySpec.canonicalize(deg_states)
