@@ -1037,34 +1037,73 @@ class VPT2Tests(TestCase):
         # )
         # return
 
-        mode_selection = [0, 1, 3, 5, 6, 7]
-        def take_modes(list, inds):
-            return [list[i] for i in inds]
-        def take(list, mode_selection=mode_selection):
-            if mode_selection is None:
-                return list
-            else:
-                if not isinstance(list[0], int):
-                    return [
-                        take(l, mode_selection)
-                        for l in list
-                    ]
-                else:
-                    return take_modes(list, mode_selection)
-
-        # VPTRunner.run_simple(
+        # mode_selection = [0, 1, 3, 5, 6, 7]
+        # def take_modes(list, inds):
+        #     return [list[i] for i in inds]
+        # def take(list, mode_selection=mode_selection):
+        #     if mode_selection is None:
+        #         return list
+        #     else:
+        #         if not isinstance(list[0], int):
+        #             return [
+        #                 take(l, mode_selection)
+        #                 for l in list
+        #             ]
+        #         else:
+        #             return take_modes(list, mode_selection)
+        #
+        # # VPTRunner.run_simple(
+        # #     TestManager.test_data(file_name),
+        # #     take(
+        # #         [
+        # #             [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        # #             [0, 0, 0, 0, 0, 0, 0, 1, 0],
+        # #             # [0, 0, 0, 0, 0, 0, 1, 0, 0],
+        # #             # [0, 1, 0, 0, 0, 1, 0, 0, 0],
+        # #             # [2, 0, 0, 1, 0, 0, 0, 0, 0],
+        # #         ]
+        # #     ),
+        # #     mode_selection=mode_selection,
+        # #     mixed_derivative_handling_mode='analytical',
+        # #     # initial_states=[[0, 0, 0, 0, 0, 0, 1, 0, 0]],
+        # #     degeneracy_specs={'polyads':take([
+        # #         [[0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 0, 0, 0, 0, 0, 1, 0, 0]],
+        # #         [[0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 1, 0, 0, 0, 1, 0, 0, 0]],
+        # #         # [[0, 0, 0, 0, 0, 0, 0, 1, 0], [2, 0, 0, 1, 0, 0, 0, 0, 0]],
+        # #     ])},
+        # #     calculate_intensities=False
+        # #     # parallelizer='multiprocessing'
+        # #     # parallelizer=par
+        # #     # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+        # # )
+        # AnalyticVPTRunner.run_simple(
         #     TestManager.test_data(file_name),
-        #     take(
-        #         [
-        #             [0, 0, 0, 0, 0, 0, 0, 0, 0],
-        #             [0, 0, 0, 0, 0, 0, 0, 1, 0],
-        #             # [0, 0, 0, 0, 0, 0, 1, 0, 0],
-        #             # [0, 1, 0, 0, 0, 1, 0, 0, 0],
-        #             # [2, 0, 0, 1, 0, 0, 0, 0, 0],
-        #         ]
-        #     ),
+        #     # [
+        #     #     [
+        #     #         [[0, 0, 0, 0, 0, 0, 1, 0, 0]],
+        #     #         [
+        #     #             [0, 0, 0, 0, 0, 0, 1, 0, 0],
+        #     #             [0, 0, 0, 0, 0, 0, 0, 1, 0],
+        #     #             [0, 1, 0, 0, 0, 1, 0, 0, 0]
+        #     #         ]
+        #     #     ]
+        #     # ],
+        #     # [
+        #     #     [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        #     #     [0, 0, 0, 0, 0, 0, 0, 1, 0],
+        #     #     [0, 0, 0, 0, 0, 0, 1, 0, 0],
+        #     #     # [0, 1, 0, 0, 0, 1, 0, 0, 0],
+        #     #     [2, 0, 0, 1, 0, 0, 0, 0, 0],
+        #     # ],
+        #
+        #     take([
+        #         [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        #         [0, 0, 0, 0, 0, 0, 0, 1, 0],
+        #         # [0, 0, 0, 0, 0, 0, 1, 0, 0],
+        #         # [0, 1, 0, 0, 0, 1, 0, 0, 0],
+        #         # [2, 0, 0, 1, 0, 0, 0, 0, 0],
+        #     ]),
         #     mode_selection=mode_selection,
-        #     mixed_derivative_handling_mode='analytical',
         #     # initial_states=[[0, 0, 0, 0, 0, 0, 1, 0, 0]],
         #     degeneracy_specs={'polyads':take([
         #         [[0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 0, 0, 0, 0, 0, 1, 0, 0]],
@@ -1072,62 +1111,34 @@ class VPT2Tests(TestCase):
         #         # [[0, 0, 0, 0, 0, 0, 0, 1, 0], [2, 0, 0, 1, 0, 0, 0, 0, 0]],
         #     ])},
         #     calculate_intensities=False
+        #     # only_degenerate_terms=False
+        #     # degeneracy_specs='auto'
+        #     # degeneracy_specs='auto',
         #     # parallelizer='multiprocessing'
         #     # parallelizer=par
         #     # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
         # )
-        AnalyticVPTRunner.run_simple(
+        # return
+        VPTRunner.run_simple(
             TestManager.test_data(file_name),
-            # [
-            #     [
-            #         [[0, 0, 0, 0, 0, 0, 1, 0, 0]],
-            #         [
-            #             [0, 0, 0, 0, 0, 0, 1, 0, 0],
-            #             [0, 0, 0, 0, 0, 0, 0, 1, 0],
-            #             [0, 1, 0, 0, 0, 1, 0, 0, 0]
-            #         ]
-            #     ]
-            # ],
-            # [
-            #     [0, 0, 0, 0, 0, 0, 0, 0, 0],
-            #     [0, 0, 0, 0, 0, 0, 0, 1, 0],
-            #     [0, 0, 0, 0, 0, 0, 1, 0, 0],
-            #     # [0, 1, 0, 0, 0, 1, 0, 0, 0],
-            #     [2, 0, 0, 1, 0, 0, 0, 0, 0],
-            # ],
-
-            take([
-                [0, 0, 0, 0, 0, 0, 0, 0, 0],
-                [0, 0, 0, 0, 0, 0, 0, 1, 0],
-                # [0, 0, 0, 0, 0, 0, 1, 0, 0],
-                # [0, 1, 0, 0, 0, 1, 0, 0, 0],
-                # [2, 0, 0, 1, 0, 0, 0, 0, 0],
-            ]),
-            mode_selection=mode_selection,
-            # initial_states=[[0, 0, 0, 0, 0, 0, 1, 0, 0]],
-            degeneracy_specs={'polyads':take([
-                [[0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 0, 0, 0, 0, 0, 1, 0, 0]],
-                [[0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 1, 0, 0, 0, 1, 0, 0, 0]],
-                # [[0, 0, 0, 0, 0, 0, 0, 1, 0], [2, 0, 0, 1, 0, 0, 0, 0, 0]],
-            ])},
-            calculate_intensities=False
-            # only_degenerate_terms=False
+            2,
             # degeneracy_specs='auto'
             # degeneracy_specs='auto',
             # parallelizer='multiprocessing'
             # parallelizer=par
             # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
         )
-        return
         AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
-            1,
-            degeneracy_specs='auto'
+            2,
+            # degeneracy_specs='auto'
             # degeneracy_specs='auto',
             # parallelizer='multiprocessing'
             # parallelizer=par
             # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
         )
+
+        return
 
 
         # AnalyticVPTRunner.run_simple(
