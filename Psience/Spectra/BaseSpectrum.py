@@ -274,7 +274,8 @@ class BroadenedSpectrum(BaseSpectrum):
         self.broadening_type = broadening_type
         self.breadth = breadth
 
-    def _eval_gauss_broadening(self, pts, height, center, breadth, target_zero=.1, adjust_width=True):
+    def _eval_gauss_broadening(self, pts, height, center, breadth, target_zero=.1,
+                               renormalize=True, adjust_width=True):
         """
         Evaluates a Gaussian centered around `center` with breadth `breadth` at `pts`
 
@@ -296,9 +297,11 @@ class BroadenedSpectrum(BaseSpectrum):
             z = target_zero / h
             breadth = np.sqrt(breadth**2/(2*np.log(1/z))) # chosen to make the pdf(center-breadth) == target
         bd = norm(loc=center, scale=breadth)
-        return height * bd.pdf(pts) * (np.sqrt(2 * np.pi) * breadth) # remove the normalization
+        if renormalize:
+            height = height * (np.sqrt(2 * np.pi) * breadth)  # remove the normalization
+        return height * bd.pdf(pts)
 
-    def _eval_lorentz_broadening(self, pts, height, center, breadth):
+    def _eval_lorentz_broadening(self, pts, height, center, breadth, renormalize=False):
         """
         Evaluates a Lorentzian centered around `center` with breadth `breadth` at `pts`
 
@@ -316,9 +319,14 @@ class BroadenedSpectrum(BaseSpectrum):
         bd = cauchy(loc=center, scale=breadth).pdf
         # if height < 1:
         #     height = 1
-        return height * bd(pts) * (np.pi * breadth )  # remove the normalization
+        if renormalize:
+            height = height * (np.pi * breadth)  # remove the normalization
+        return height * bd(pts)
 
-    def _get_pts(self, step_size=.5, freq_min=None, freq_max=None, stddevs=5, adjust_width=True):
+    def _get_pts(self, step_size=.5, freq_min=None, freq_max=None, stddevs=5,
+                 adjust_width=True,
+                 renormalize=True
+                 ):
         """
         Evaluates the points needed to plot the broadened spectrum
 
@@ -362,11 +370,18 @@ class BroadenedSpectrum(BaseSpectrum):
                 ))
 
         freq_vals = np.arange(freq_min, freq_max, step_size)
-        vals = np.sum([bt(freq_vals, i, c, b, adjust_width=adjust_width) for i, c, b in zip(ints, freqs, breadths)], axis=0)
+        vals = np.sum([
+            bt(freq_vals, i, c, b, adjust_width=adjust_width, renormalize=renormalize)
+            for i, c, b in zip(ints, freqs, breadths)
+        ], axis=0)
 
         return freq_vals, vals
 
-    def plot(self, step_size=.5, freq_min=None, freq_max=None, figure=None, plot_style=None, filled=False, adjust_width=True, **opts):
+    def plot(self, step_size=.5, freq_min=None, freq_max=None, figure=None, plot_style=None, filled=False,
+             adjust_width=True,
+             renormalize=True,
+             **opts
+             ):
         """
         Applies the broadening then plots it using `McUtils.Plots.Plot`
 
@@ -386,7 +401,10 @@ class BroadenedSpectrum(BaseSpectrum):
         :rtype:
         """
 
-        freqs, ints = self._get_pts(step_size=step_size, freq_min=freq_min, freq_max=freq_max, adjust_width=adjust_width)
+        freqs, ints = self._get_pts(step_size=step_size, freq_min=freq_min, freq_max=freq_max,
+                                    adjust_width=adjust_width,
+                                    renormalize=renormalize
+                                    )
         if plot_style is None:
             plot_style = {}
         if filled:

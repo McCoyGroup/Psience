@@ -1840,6 +1840,117 @@ class UMAEnergyEvaluator(ASECalcEnergyEvaluator):
 
         return calc
 
+class HIPNNEnergyEvaluator(EnergyEvaluator):
+
+    def __init__(self, atoms, model_dir, module='HIPNN2', charge=0, multiplicity=None, quiet=True, **defaults):
+        super().__init__(**defaults)
+        self.eval = self.setup_model(model_dir, module)
+        self.atoms = atoms
+        self.numbers = [AtomData[atom, "Number"] for atom in atoms]
+        self.charge = charge
+        self.multiplicity = multiplicity
+        self.quiet = quiet
+
+    @classmethod
+    def from_mol(cls, mol, charge=None, multiplicity=None, **opts):
+        return cls(mol.atoms, embedding=mol.embedding, multiplicity=multiplicity, **opts)
+
+    def setup_model(cls, model_dir, device=None, **opts):
+        import torch
+        import hippynn.experiment.serialization
+        cur_dir = os.getcwd()
+
+        try:
+            os.chdir(model_dir)
+            with torch.no_grad():
+                model = hippynn.experiment.serialization.load_model_from_cwd()
+        finally:
+            os.chdir(cur_dir)
+        if device is None:
+            if torch.cuda.is_available():
+                device = "cuda"
+            else:
+                device = "cpu"
+            model = model.to(device)
+
+        predictor = hippynn.graphs.Predictor.from_graph(model)
+        return predictor
+
+    property_units = 'Kilocalories/Mole'
+    batched_orders = True
+    analytic_derivative_order = 1
+    def process_results(self, outputs, forces=False, **etc):
+        if forces:
+            return [outputs['energies'], outputs['Grad']]
+        else:
+            return outputs['energies']
+        # # total molecular energy [kcal/mol]
+        # outputs['Grad']  # forces [kcal/mol/Å]
+        # outputs['dipole']  # dipole moment [e∙Å]
+    def prep_eval(self, coords, order, **opts):
+        import torch
+
+        base_shape = coords.shape[:-2]
+        coords = coords.reshape((-1,) + coords.shape[-2:])
+        # numbers = np.broadcast_to(
+        #     np.array(self.numbers)[np.newaxis],
+        #     (len(coords), len(self.numbers))
+        # )
+
+        forces = order > 0
+
+        arg_dict = {
+            'coordinates': torch.tensor(coords.reshape(-1, 3), dtype=torch.float32, device=self.eval.device),
+            'species': torch.tensor(
+                np.repeat(np.array([self.numbers]), coords.shape[0], axis=0).flatten(),
+                dtype=torch.int64, device=self.eval.device
+            )
+            # 'charge': torch.tensor(self.charge, dtype=torch.float32, device=self.eval.device),
+            # 'cell': None,
+            # 'mol_idx': torch.tensor(
+            #     np.repeat(np.arange(coords.shape[0]), coords.shape[1]).flatten(),
+            #     dtype=torch.int64,
+            #     device=self.eval.device
+            # )
+        }
+        # if self.multiplicity is not None:
+        #     arg_dict['mult'] = torch.tensor(self.multiplicity, dtype=torch.float32, device=self.eval.device)
+        # data = self.eval.prepare_input(arg_dict)
+        # if hessian and data['mol_idx'][-1] > 0:
+        #     raise NotImplementedError('higher-derivative calculation is not supported for multiple molecules')
+        # data = self.eval.set_grad_tensors(data,
+        #                                   forces=forces,
+        #                                   stress=False,
+        #                                   hessian=hessian
+        #                                   )
+        with torch.jit.optimized_execution(False):
+            data = self.eval(**arg_dict)
+
+        data = self.process_results(
+            data,
+            forces=forces,
+            # hessian=hessian,
+            # **opts
+        )
+
+        return base_shape, coords, data
+    def evaluate_term(self, coords, order, **opts):
+        if coords.ndim == 2 or order < 2:
+            base_shape, coords, data = self.prep_eval(coords, order, **opts)
+            return data
+        else:
+            base_shape = coords.shape[:-2]
+            coords = coords.reshape((-1,) + coords.shape[-2:])
+            expansions = [
+                self.evaluate_term(c, order, **opts)
+                for c in coords
+            ]
+            return [
+                np.array(e).reshape(base_shape + e[0].shape)
+                for e in zip(*expansions)
+            ]
+
+
 class XTBEnergyEvaluator(EnergyEvaluator):
     """
     Uses XTB to calculate

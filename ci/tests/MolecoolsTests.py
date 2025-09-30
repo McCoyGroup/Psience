@@ -2026,7 +2026,7 @@ class MolecoolsTests(TestCase):
         # # pruned = coordops.prune_internal_coordinates(coords)
         # print(coords)
 
-    @debugTest
+    @validationTest
     def test_PySCFEnergy(self):
         # ethanol = Molecule.from_string('CCO', energy_evaluator='xtb')
         # print(ethanol.calculate_energy())
@@ -2039,7 +2039,7 @@ class MolecoolsTests(TestCase):
         )
         print(ethanol.calculate_energy())
 
-    @debugTest
+    @validationTest
     def test_MACEEnergy(self):
         ethanol = Molecule.from_string('CCO', energy_evaluator='mace')
         print(ethanol.calculate_energy())
@@ -2144,31 +2144,38 @@ class MolecoolsTests(TestCase):
             include_save_buttons=True
         ).show()
 
-    @validationTest
+    @debugTest
     def test_EasyZMatrices(self):
-        cpmo = Molecule.from_file(
-            TestManager.test_data('cpmo3m_opt.xyz'),
-            units='Angstroms'
-        )
+        # cpmo = Molecule.from_file(
+        #     TestManager.test_data('cpmo3m_opt.xyz'),
+        #     units='Angstroms'
+        # )
+        #
+        # cpmo_split = cpmo.modify(
+        #     bonds=[
+        #         b for b in cpmo.bonds
+        #         if tuple(sorted(b[:2])) not in {
+        #             (0, 4),
+        #             (0, 5),
+        #             (0, 6),
+        #             (0, 7),
+        #             (0, 8)
+        #         }
+        #     ]
+        # )
+        #
+        # pprint.pprint(
+        #     cpmo_split.get_bond_zmatrix(
+        #         attachment_points={0:(4, 6, 8)}
+        #     )
+        # )
 
-        cpmo_split = cpmo.modify(
-            bonds=[
-                b for b in cpmo.bonds
-                if tuple(sorted(b[:2])) not in {
-                    (0, 4),
-                    (0, 5),
-                    (0, 6),
-                    (0, 7),
-                    (0, 8)
-                }
-            ]
-        )
+        import McUtils.Coordinerds as coordops
 
-        pprint.pprint(
-            cpmo_split.get_bond_zmatrix(
-                attachment_points={0:(4, 6, 8)}
-            )
-        )
+        alt_mol = Molecule.from_string("O=C(COc1cc(Cl)ccc1Cl)N/N=C/c1c[nH]c2c1cccc2", "smi")
+        zmat = alt_mol.get_bond_zmatrix()
+        coordops.validate_zmatrix(zmat, raise_exception=True)
+        pprint.pprint(zmat)
 
     @validationTest
     def test_PointGroups(self):

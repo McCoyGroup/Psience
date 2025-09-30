@@ -288,14 +288,15 @@ class NormalModes(MixtureModes):
         from ..Molecools import Molecule
 
         if (
-                not project_transrot
+                potential_derivatives is None
+                and not project_transrot
                 and (
                     not use_internals
                     or (use_internals is None and mol.internals is None)
                 )
-                and mol.normal_modes.get_modes(quiet=True) is not None
+            and mol.normal_modes.get_normal_modes(quiet=True) is not None
         ):
-            return mol.normal_modes.modes.basis.to_new_modes()
+            return  mol.normal_modes.modes.basis.to_new_modes()
 
         mol: Molecule
         if use_internals is None:
