@@ -11,6 +11,7 @@ from McUtils.Extensions import ModuleLoader
 import McUtils.Numputils as nput
 import McUtils.Iterators as itut
 from McUtils.Formatters import TableFormatter
+import McUtils.Formatters as mfmt
 
 from ..BasisReps import (
     BasisStateSpace, HarmonicOscillatorProductBasis, BasisStateSpaceFilter, SelectionRuleStateSpace, StateMaker
@@ -714,6 +715,7 @@ class VPTHamiltonianOptions:
         "kinetic_terms",
         "coriolis_terms",
         "pseudopotential_terms",
+        "include_dipole",
         "dipole_terms",
         "dipole_derivatives",
         "undimensionalize_normal_modes",
@@ -743,7 +745,8 @@ class VPTHamiltonianOptions:
         "g_derivative_threshold",
         "gmatrix_tolerance",
         'use_cartesian_kinetic_energy',
-        'operator_coefficient_threshold'
+        'operator_coefficient_threshold',
+        'imaginary_frequency_handling_mode'
     )
 
     def __init__(self,
@@ -761,6 +764,7 @@ class VPTHamiltonianOptions:
                  kinetic_terms=None,
                  coriolis_terms=None,
                  pseudopotential_terms=None,
+                 include_dipole=None,
                  dipole_terms=None,
                  dipole_derivatives=None,
                  undimensionalize_normal_modes=None,
@@ -790,7 +794,8 @@ class VPTHamiltonianOptions:
                  gmatrix_tolerance=None,
                  use_internal_modes=None,
                  use_cartesian_kinetic_energy=None,
-                 operator_coefficient_threshold=None
+                 operator_coefficient_threshold=None,
+                 imaginary_frequency_handling_mode=None
                  ):
         """
         :param mode_selection: the set of the supplied normal modes to do perturbation theory on
@@ -861,6 +866,7 @@ class VPTHamiltonianOptions:
             kinetic_terms=kinetic_terms,
             coriolis_terms=coriolis_terms,
             pseudopotential_terms=pseudopotential_terms,
+            include_dipole=include_dipole,
             dipole_terms=dipole_terms,
             dipole_derivatives=dipole_derivatives,
             undimensionalize=undimensionalize_normal_modes,
@@ -890,7 +896,8 @@ class VPTHamiltonianOptions:
             g_derivative_threshold=g_derivative_threshold,
             gmatrix_tolerance=gmatrix_tolerance,
             use_cartesian_kinetic_energy=use_cartesian_kinetic_energy,
-            operator_coefficient_threshold=operator_coefficient_threshold
+            operator_coefficient_threshold=operator_coefficient_threshold,
+            imaginary_frequency_handling_mode=imaginary_frequency_handling_mode
         )
 
         real_opts = {}
@@ -1385,7 +1392,9 @@ class VPTRunner:
 
         if isinstance(logger, Logger):
             logger = logger
-        elif logger is True or logger is None:
+        elif logger is True:
+            logger = wfns.logger
+        elif logger is None:
             logger = Logger()
         else:
             logger = Logger(logger)
@@ -1399,6 +1408,29 @@ class VPTRunner:
                                  sep_char=sep_char, sep_len=sep_len)
 
         return wfns
+
+    def print_Nielsen_frequencies(self, logger=None):
+        harm, anh = self.hamiltonian.get_Nielsen_energies(
+            self.states.state_list
+        )
+        tot = harm + anh
+        nielsh = (harm - harm[0]) * UnitsData.hartrees_to_wavenumbers
+        nielsh[0] = harm[0] * UnitsData.hartrees_to_wavenumbers
+        niels = (tot - tot[0]) * UnitsData.hartrees_to_wavenumbers
+        niels[0] = tot[0] * UnitsData.hartrees_to_wavenumbers
+        # runner.print_tables(print_intensities=False)
+        tab = mfmt.format_state_vector_frequency_table(
+            self.states.state_list,
+            np.concatenate([nielsh[:, np.newaxis], niels[:, np.newaxis]], axis=-1),
+            freq_header=["Harmonic", "Anharmonic"]
+        )
+        if logger is None:
+            print(tab)
+        else:
+            if logger is True:
+                logger = self.hamiltonian.logger
+            with logger.block(tag="Nielsen Frequencies"):
+                logger.log_print(tab)
 
     @classmethod
     def _quanta_coupled_state_spaces(cls, states, order, track=False):
@@ -2607,7 +2639,11 @@ class AnalyticVPTRunner:
             if expansion_order is None:
                 expansion_order = {}
             expansion_order = expansion_order.get('dipole', len(self.eval.expansions) - 1)
-            dipole_expansion = self.ham.dipole_terms.get_terms(expansion_order)
+            dipole_expansion = self.ham.dipole_terms
+            if hasattr(dipole_expansion, 'get_terms'):
+                dipole_expansion = dipole_expansion.get_terms(expansion_order)
+            elif hasattr(dipole_expansion, '__getitem__'):
+                dipole_expansion = dipole_expansion[:expansion_order+1]
         self.dipole_expansion = dipole_expansion
         self.logger = self.eval.solver.logger
         self.local_mode_couplings=local_mode_couplings

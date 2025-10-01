@@ -980,6 +980,21 @@ class VPT2Tests(TestCase):
 
         file_name = "HOONO_freq.fchk"
         state = VPTStateMaker(9)
+
+        runner, _ = VPTRunner.construct(
+            TestManager.test_data(file_name),
+            1,
+            # degeneracy_specs='auto'
+            # degeneracy_specs='auto',
+            # parallelizer='multiprocessing'
+            # parallelizer=par
+            # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+        )
+        runner.print_Nielsen_frequencies()
+
+        return
+
+
         # with BlockProfiler():
         from McUtils.Parallelizers import Parallelizer
         from McUtils.Profilers import Timer, BlockProfiler

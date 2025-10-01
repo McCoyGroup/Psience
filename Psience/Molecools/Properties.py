@@ -1937,7 +1937,7 @@ class PotentialSurfaceManager(PropertyManager):
     def force_constants(self):
         return self.derivatives[1]
 
-    def load_potential_derivatives(self, file=None, quiet=False):
+    def load_potential_derivatives(self, file=None, mode=None, quiet=False):
         """
         Loads potential derivatives from a file (or from `source_file` if set)
 
@@ -1947,16 +1947,19 @@ class PotentialSurfaceManager(PropertyManager):
         :rtype:
         """
 
+
         if file is None:
             file = self.mol.source_file
-
         if file is None:
             return None
 
-        path, ext = os.path.splitext(file)
-        ext = ext.lower()
+        if mode is None:
+            mode = self.mol.source_mode
+            if mode is None:
+                path, ext = os.path.splitext(file)
+                mode = ext.lower().strip('.')
 
-        if ext == ".fchk":
+        if mode == "fchk":
             keys= ['Gradient', 'ForceConstants', 'ForceDerivatives']
             with GaussianFChkReader(file) as gr:
                 parse = gr.parse(keys, default=None)
@@ -1975,14 +1978,51 @@ class PotentialSurfaceManager(PropertyManager):
                 thirds = fourths = None
 
             return (parse["Gradient"], seconds, thirds, fourths)
-        elif ext == ".log":
-            if quiet: return None
+        elif mode == "log":
+            from McUtils.ExternalPrograms import GaussianLogReader
+            with GaussianLogReader(file) as gr:
+                parse = gr.parse(['Gradients', 'Hessians', 'CubicDerivs', 'QuarticDerivs'])
 
-            raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
-                type(self).__name__,
-                ext
-            ))
-        elif ext == ".hess":
+            if len(parse['Hessians']) == 0: # load from normal modes
+                nm_data = NormalModesManager._parse_log_file_modes(file, quiet=True)
+                if nm_data is not None:
+                    freqs, modes, inv = nm_data
+                    hess = inv @ np.diag(np.sign(freqs) * freqs**2) @ inv.T
+                    parse['Hessians'] = [hess]
+
+            if len(parse['Hessians']) == 0:
+                if quiet: return None
+                else:
+                    raise ValueError(f"couldn't load potential derivatives from {file}")
+            else:
+                derivs = [parse['Gradients'][1][-1].flatten(), parse['Hessians'][-1]]
+                if len(parse['CubicDerivs']) > 0:
+                    derivs.append(np.moveaxis(parse['CubicDerivs'][-1], -1, 0))
+                    derivs.append(
+                        nput.vec_block_diag(
+                            np.moveaxis(parse['QuarticDerivs'][-1], -1, 0),
+                            kroneckerize=False
+                        )
+                    )
+
+            return derivs
+        elif mode == 'gspec':
+            from McUtils.ExternalPrograms import GaussianLogReader
+            with GaussianLogReader(file) as gr:
+                parse = gr.parse(['Gradients', 'Reports'])['Reports']
+
+            if len(parse) == 0:
+                if quiet:
+                    return None
+                else:
+                    raise ValueError(f"couldn't load potential derivatives from {file}")
+
+            parse = parse[0]
+            if 'PotentialDeriv' not in parse:
+                raise ValueError(f"couldn't load potential derivatives from {file}")
+
+            return parse["PotentialDeriv"]
+        elif mode == "hess":
             from McUtils.ExternalPrograms import OrcaHessReader
             with OrcaHessReader(file) as gr:
                 parse = gr.parse(['hessian'])
@@ -1993,7 +2033,7 @@ class PotentialSurfaceManager(PropertyManager):
 
             raise NotImplementedError("{}: support for loading force constants from {} files not there yet".format(
                 type(self).__name__,
-                ext
+                mode
             ))
     def load_potential_surface(self, coordinates):
         from ..Data import PotentialSurface
@@ -2204,6 +2244,125 @@ class NormalModesManager(PropertyManager):
                 modes
             ))
         self._modes = modes
+
+    @classmethod
+    def _parse_orca_file_modes(cls, mol, file, quiet=False):
+        from McUtils.ExternalPrograms import OrcaLogReader
+        with OrcaLogReader(file) as gr:
+            parse = gr.parse(
+                ['VibrationalFrequencies', 'NormalModes']
+            )
+        modes = parse['NormalModes'][:, 6:]  # / UnitsData.bohr_to_angstroms
+        g12 = mol.get_gmatrix(use_internals=False, power=-1 / 2)
+        modes = g12 @ modes
+        norms = np.linalg.norm(modes, axis=0)
+        modes = modes / norms[np.newaxis, :]
+        gi12 = mol.get_gmatrix(use_internals=False, power=1 / 2)
+        modes, inv = gi12 @ modes, modes.T @ g12
+
+        freqs = parse['VibrationalFrequencies'][6:] / UnitsData.hartrees_to_wavenumbers
+        return freqs, modes, inv
+    @classmethod
+    def _parse_log_file_modes(cls, file, quiet=False):
+        from McUtils.ExternalPrograms import GaussianLogReader
+
+        with GaussianLogReader(file) as gr:
+            parse = gr.parse(
+                ['CartesianCoordinates', 'NormalModes']
+            )
+
+        coords = parse['CartesianCoordinates']
+        if len(coords) == 0:
+            if quiet: return None
+            raise ValueError(f"log file {file} missing coordinates")
+
+        nms = parse['NormalModes']
+        if len(nms) == 0:
+            if quiet: return None
+            raise ValueError(f"log file {file} missing normal modes block")
+        nms = nms[-1]
+
+        modes = nms[2].T
+        freqs = nms[0] * UnitsData.convert("Wavenumbers", "Hartrees")
+        rm = nms[1]
+        amu_conv = UnitsData.convert("AtomicMassUnits", "ElectronMass")
+        masses = np.array([
+            AtomData[a, "Mass"] * amu_conv
+            for a in coords[0][-1][:, 1]
+        ])
+
+        mass_vec = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten()
+        g12 = np.diag(np.sqrt(mass_vec))
+
+        renorm = np.diag(1 / np.sqrt(rm))
+        modes = renorm @ modes
+        inv = g12 @ g12 @ modes.T / np.sqrt(amu_conv)
+        modes = modes / np.sqrt(amu_conv)
+
+        return freqs, modes, inv
+    @classmethod
+    def _parse_fchk_file_modes(cls, mol, file, rephase=True, quiet=False):
+        with GaussianFChkReader(file) as gr:
+            parse = gr.parse(
+                ['Real atomic weights', 'VibrationalModes', 'ForceConstants', 'VibrationalData']
+            )
+
+        modes = parse["VibrationalModes"]
+        freqs = parse["VibrationalData"]["Frequencies"] * UnitsData.convert("Wavenumbers", "Hartrees")
+        rm = parse["VibrationalData"]["ReducedMasses"]
+        amu_conv = UnitsData.convert("AtomicMassUnits", "ElectronMass")
+        masses = parse['Real atomic weights'] * amu_conv
+
+        mass_vec = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten()
+        g12 = np.diag(np.sqrt(mass_vec))
+
+        renorm = np.diag(1 / np.sqrt(rm))
+        modes = renorm @ modes
+        inv = g12 @ g12 @ modes.T / np.sqrt(amu_conv)
+        modes = modes / np.sqrt(amu_conv)
+
+        modes = MolecularNormalModes(mol, modes.T, inverse=inv.T, freqs=freqs)
+        # self._freqs = freqs  # important for rephasing to work right...
+
+        if rephase:
+            try:
+                phases = cls.get_fchk_normal_mode_rephasing(mol, modes)
+            except NotImplementedError:
+                pass
+            else:
+                if phases is not None:
+                    modes = modes.rotate(phases)
+
+        return modes
+    @classmethod
+    def _parse_molpro_file_modes(cls, mol, file, quiet=False):
+        from McUtils.ExternalPrograms import MOLPROLogReader
+        with MOLPROLogReader(file) as parser:
+            nms = parser.parse(["NormalModes"])["NormalModes"]
+        if len(nms.freqs) == 0:
+            if quiet: return None
+            raise ValueError(f"log file {file} missing normal modes block")
+        good_pos = np.where(np.abs(nms.freqs[-1]) > 1e-2)
+        freqs = nms.freqs[-1][good_pos] * UnitsData.convert("Wavenumbers", "Hartrees")
+        modes = nms.modes[-1][:, good_pos[0]]
+        imag_point = np.where(np.diff(freqs) < 0)[0]
+        if len(imag_point) > 0:
+            freqs[imag_point[0]+1:] *= -1
+        ord = np.argsort(freqs)
+        freqs = freqs[ord,]
+        modes = modes[:, ord]
+
+        g12 = mol.get_gmatrix(power=-1/2, use_internals=False)
+        gi12 = mol.get_gmatrix(power=1/2, use_internals=False)
+        modes = np.sqrt(UnitsData.convert("ElectronMass", "AtomicMassUnits")) * g12 @ modes
+        modes, inv = modes.T, modes
+
+        modes = modes @ gi12
+        inv = g12 @ inv
+
+        return freqs, modes, inv # need to figure out normalization...
+
+
     #TODO: need to be careful about transition states...
     recalc_normal_mode_tolerance = 1.0e-8
     def load_normal_modes(self, file=None, mode=None, rephase=True, recalculate=False, quiet=False):
@@ -2228,36 +2387,7 @@ class NormalModesManager(PropertyManager):
                 mode = ext.lower().strip('.')
 
         if mode == "fchk":
-            with GaussianFChkReader(file) as gr:
-                parse = gr.parse(
-                    ['Real atomic weights', 'VibrationalModes', 'ForceConstants', 'VibrationalData']
-                )
-
-            modes = parse["VibrationalModes"]
-            freqs = parse["VibrationalData"]["Frequencies"] * UnitsData.convert("Wavenumbers", "Hartrees")
-            rm = parse["VibrationalData"]["ReducedMasses"]
-            amu_conv = UnitsData.convert("AtomicMassUnits", "ElectronMass")
-            masses = parse['Real atomic weights'] * amu_conv
-
-            mass_vec = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten()
-            g12 = np.diag(np.sqrt(mass_vec))
-
-            renorm = np.diag(1/np.sqrt(rm))
-            modes = renorm @ modes
-            inv = g12 @ g12 @ modes.T / np.sqrt(amu_conv)
-            modes = modes / np.sqrt(amu_conv)
-
-            modes = MolecularNormalModes(self.mol, modes.T, inverse=inv.T, freqs=freqs)
-            self._freqs = freqs # important for rephasing to work right...
-
-            if rephase:
-                try:
-                    phases = self.get_fchk_normal_mode_rephasing(modes)
-                except NotImplementedError:
-                    pass
-                else:
-                    if phases is not None:
-                        modes = modes.rotate(phases)
+            modes = self._parse_fchk_file_modes(self.mol, file, rephase=rephase, quiet=quiet)
 
             if recalculate:
                 fcs = self.get_force_constants()
@@ -2278,20 +2408,7 @@ class NormalModesManager(PropertyManager):
 
             return modes
         elif mode == 'orca':
-            from McUtils.ExternalPrograms import OrcaLogReader
-            with OrcaLogReader(file) as gr:
-                parse = gr.parse(
-                    ['VibrationalFrequencies', 'NormalModes']
-                )
-            modes = parse['NormalModes'][:, 6:] #/ UnitsData.bohr_to_angstroms
-            g12 = self.mol.get_gmatrix(use_internals=False, power=-1/2)
-            modes = g12 @ modes
-            norms = np.linalg.norm(modes, axis=0)
-            modes = modes / norms[np.newaxis, :]
-            gi12 = self.mol.get_gmatrix(use_internals=False, power=1/2)
-            modes, inv = gi12 @ modes, modes.T @ g12
-
-            freqs = parse['VibrationalFrequencies'][6:] / UnitsData.hartrees_to_wavenumbers
+            freqs, modes, inv = self._parse_orca_file_modes(self.mol, file, quiet=quiet)
             return MolecularNormalModes(self.mol, modes, inverse=inv, freqs=freqs)
         elif mode == 'hess':
             from McUtils.ExternalPrograms import OrcaHessReader
@@ -2309,42 +2426,15 @@ class NormalModesManager(PropertyManager):
             freqs = parse['vibrational_frequencies'][6:] / UnitsData.hartrees_to_wavenumbers
             return MolecularNormalModes(self.mol, modes, inverse=inv, freqs=freqs)
         elif mode == "log":
-            from McUtils.ExternalPrograms import GaussianLogReader
+            freqs, modes, inv = self._parse_log_file_modes(file, quiet=quiet)
 
-            with GaussianLogReader(file) as gr:
-                parse = gr.parse(
-                    ['CartesianCoordinates', 'NormalModes']
-                )
+            return MolecularNormalModes(self.mol, modes.T, inverse=inv.T, freqs=freqs)
+        elif mode == "molpro":
+            freqs, modes, inv = self._parse_molpro_file_modes(self.mol, file, quiet=quiet)
 
-            coords = parse['CartesianCoordinates']
-            if len(coords) == 0:
-                raise ValueError(f"log file {file} missing coordinates")
+            return MolecularNormalModes(self.mol, modes.T, inverse=inv.T, freqs=freqs)
 
-            nms = parse['NormalModes']
-            if len(nms) == 0:
-                raise ValueError(f"log file {file} missing normal modes block")
-            nms = nms[-1]
 
-            modes = nms[2].T
-            freqs = nms[0] * UnitsData.convert("Wavenumbers", "Hartrees")
-            rm = nms[1]
-            amu_conv = UnitsData.convert("AtomicMassUnits", "ElectronMass")
-            masses = np.array([
-                AtomData[a, "Mass"] * amu_conv
-                for a in coords[0][:, 1]
-            ])
-
-            mass_vec = np.broadcast_to(masses[:, np.newaxis], (len(masses), 3)).flatten()
-            g12 = np.diag(np.sqrt(mass_vec))
-
-            renorm = np.diag(1 / np.sqrt(rm))
-            modes = renorm @ modes
-            inv = g12 @ g12 @ modes.T / np.sqrt(amu_conv)
-            modes = modes / np.sqrt(amu_conv)
-
-            modes = MolecularNormalModes(self.mol, modes.T, inverse=inv.T, freqs=freqs)
-
-            return modes
         else:
             if quiet: return None
             raise NotImplementedError("{}: support for loading normal modes from {} files not there yet".format(
@@ -2441,7 +2531,8 @@ class NormalModesManager(PropertyManager):
                 rephasing_matrix[np.ix_(rot_pos, rot_pos)] = subrot
 
         return rephasing_matrix.T
-    def get_fchk_normal_mode_rephasing(self, modes=None):
+    @classmethod
+    def get_fchk_normal_mode_rephasing(cls, mol, modes):
         """
         Returns the necessary rephasing to make the numerical dipole derivatives
         agree with the analytic dipole derivatives as pulled from a Gaussian FChk file
@@ -2449,10 +2540,10 @@ class NormalModesManager(PropertyManager):
         :rtype:
         """
 
-        return self.get_dipole_derivative_based_rephasing(
-            self.modes.basis if modes is None else modes,
-            self.mol.dipole_surface.derivatives,
-            self.mol.dipole_surface.numerical_derivatives
+        return cls.get_dipole_derivative_based_rephasing(
+            modes,
+            mol.dipole_surface.derivatives,
+            mol.dipole_surface.numerical_derivatives
         )
 
     def apply_transformation(self, transf):

@@ -144,6 +144,10 @@ class MixedDerivativeHandlingModes(enum.Enum):
     Averaged = "averaged"
     Old = 'old'
 
+class ImaginaryFrequencyHandlingMode(enum.Enum):
+    Abs = "abs"
+    Signed = "signed"
+
 class JacobianKeys(enum.Enum):
     CartesiansByInternals = "CartesiansByInternals"
     InternalsByCartesians = "InternalsByCartesians"
@@ -198,6 +202,7 @@ class ExpansionTerms:
         "jacobian_warning_threshold",
         "coordinate_transformations",
         "coordinate_derivatives",
+        "imaginary_frequency_handling_mode"
     )
     _cached_jacobians = {}
     def __init__(self,
@@ -229,7 +234,8 @@ class ExpansionTerms:
                  cartesian_by_internal_order=4,
                  jacobian_warning_threshold=1e4,
                  coordinate_transformations=None,
-                 coordinate_derivatives=None
+                 coordinate_derivatives=None,
+                 imaginary_frequency_handling_mode="abs"
                  ):
         """
         :param molecule: the molecule we're doing the expansion for
@@ -326,6 +332,8 @@ class ExpansionTerms:
 
         if not isinstance(mixed_derivative_handling_mode, MixedDerivativeHandlingModes):
             self.mixed_derivative_handling_mode = MixedDerivativeHandlingModes(mixed_derivative_handling_mode)
+        if not isinstance(imaginary_frequency_handling_mode, ImaginaryFrequencyHandlingMode):
+            self.imaginary_frequency_handling = ImaginaryFrequencyHandlingMode(imaginary_frequency_handling_mode)
 
     @property
     def num_atoms(self):
@@ -477,6 +485,17 @@ class ExpansionTerms:
             # print(weights, weighted.array)
         return weighted
 
+    def _freq_sqrt(self, freqs, cutoff=1e-6):
+        if self.imaginary_frequency_handling == ImaginaryFrequencyHandlingMode.Abs:
+            return np.sqrt(np.abs(freqs))
+        elif self.imaginary_frequency_handling == ImaginaryFrequencyHandlingMode.Signed:
+            base_f = np.abs(freqs)
+            nzp = base_f > cutoff
+            base_f = np.sqrt(base_f)
+            base_f[nzp] *= np.sign(freqs[nzp])
+            return base_f
+        else:
+            raise ValueError(f"don't know what to do with mode {self.imaginary_frequency_handling}")
     def get_int_jacobs(self, jacs):
         """
         Gets the specified Internal->Cartesian Jacobians
@@ -1529,7 +1548,7 @@ class PotentialTerms(ExpansionTerms):
         else:
             # amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
             m_conv = np.sqrt(self._tripmass(masses))
-            f_conv = np.sqrt(freqs)
+            f_conv = self._freq_sqrt(freqs)
             # f_conv = np.ones(f_conv.shape) # debugging
             if fcs.shape == (coord_n, coord_n):
                 undimension_2 = np.outer(m_conv, m_conv)
@@ -1541,7 +1560,12 @@ class PotentialTerms(ExpansionTerms):
 
             if self.freq_tolerance is not None and self.check_input_force_constants:
                 xQ2 = self.modes.coords_by_modes
-                _, v2x = TensorDerivativeConverter((xQ2, 0), (grad, fcs)).convert(order=2)
+                _, v2x = nput.tensor_reexpand(
+                    [xQ2],
+                    [0, fcs]
+                )
+
+                # _, v2x = TensorDerivativeConverter((xQ2, 0), (grad, fcs)).convert(order=2)
 
                 real_freqs = np.diag(v2x)
                 nominal_freqs = self.freqs
@@ -2188,7 +2212,19 @@ class KineticTerms(ExpansionTerms):
             if return_expressions:
                 G_terms = terms, G_terms
             else:
+                # handle signs in an ad-hoc way
+                # not totally correct, but I don't have complex arithmetic support
                 G_terms = terms
+                if np.any(self.freqs < 0):
+                    freq_signs = np.sign(self.freqs)
+                    for t in G_terms:
+                        if nput.is_zero(t): continue
+                        for p in itertools.combinations_with_replacement(range(t.shape[0]), t.ndim):
+                            parity = np.sum(freq_signs[p,] < 0)
+                            scaling = -1 if parity > 0 and parity % 2 == 0 else 1
+                            v = t[p] * scaling
+                            for pp in itertools.permutations(p):
+                                t[pp] = v
 
             if self.freq_tolerance is not None and self.check_input_gmatrix:
                 real_freqs = np.diag(G_terms[0])
@@ -2412,7 +2448,7 @@ class CoriolisTerm(ExpansionTerms):
         xQ = self.modes.modes_by_coords.T
         # remove the frequency dimensioning? -> this step makes me super uncomfortable but agrees with Gaussian
         freqs = self.freqs
-        xQ = xQ / np.sqrt(freqs[:, np.newaxis])
+        xQ = xQ / self._freq_sqrt(freqs)[:, np.newaxis]
         # reshape xQ so that it looks like atom x mode x Cartesian
         J = np.moveaxis(
             xQ.reshape((len(xQ), self.molecule.num_atoms, 3)),
@@ -2454,7 +2490,8 @@ class CoriolisTerm(ExpansionTerms):
 
         # now we include the frequency dimensioning that comes from the q and p terms in Pi = Zeta*qipj
         freqs = self.freqs
-        freq_term = np.sqrt(freqs[np.newaxis, :] / freqs[:, np.newaxis])
+        sqrt_freqs = self._freq_sqrt(freqs)
+        freq_term = sqrt_freqs[np.newaxis, :] / sqrt_freqs[:, np.newaxis]
         zeta_inert = zeta_inert * freq_term[np.newaxis]
 
         terms = []
@@ -2846,7 +2883,7 @@ class DipoleTerms(ExpansionTerms):
 
         # amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
         m_conv = np.sqrt(self._tripmass(masses))
-        f_conv = np.sqrt(freqs)
+        f_conv = self._freq_sqrt(freqs)
 
         if grad.shape == (coord_n, 3):
             grad = grad / m_conv[:, np.newaxis]
@@ -3146,7 +3183,7 @@ class OperatorTerms(ExpansionTerms):
         else:
             # amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
             m_conv = np.sqrt(self._tripmass(masses))
-            f_conv = np.sqrt(freqs)
+            f_conv = self._freq_sqrt(freqs)
             all_derivs = []
 
             for i in range(len(derivs)):
