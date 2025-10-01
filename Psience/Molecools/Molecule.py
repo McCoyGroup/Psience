@@ -9,6 +9,7 @@ import math
 import os, numpy as np
 import tempfile
 import typing
+import collections
 
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Coordinerds import (
@@ -43,6 +44,9 @@ __all__ = [
 ]
 
 __reload_hook__ = ["..Modes", ".MoleculeInterface", '.CoordinateSystems', '.Hamiltonian', '.Evaluator', '.Properties']
+
+from .Transformations import MolecularTransformation
+
 
 class Molecule(AbstractMolecule):
     """
@@ -1833,9 +1837,15 @@ class Molecule(AbstractMolecule):
             dipole=dip,
             values=vals
         )
-    def get_point_group(self, *, sel=None, verbose=False, return_identifier=False, **tols):
-        coords = self.coords
-        masses = self.atomic_masses
+    def get_point_group(self, coords=None, masses=None, *, sel=None, verbose=False, return_identifier=False, **tols):
+        if coords is None:
+            coords = self.coords
+        else:
+            coords = np.asanyarray(coords)
+        if masses is None:
+            masses = self.atomic_masses
+        else:
+            masses = np.asanyarray(masses)
         if sel is not None:
             coords = coords[sel,]
             masses = masses[sel,]
@@ -1845,6 +1855,105 @@ class Molecule(AbstractMolecule):
             return pg_id, pg
         # print(pg)
         return pg
+
+    @property
+    def point_group(self) -> symm.PointGroup:
+        if self._pg is None:
+            self._pg = self.get_point_group()
+        return self._pg
+    @point_group.setter
+    def point_group(self, point_group):
+        self._pg = point_group
+
+    # def get_standard_orientation(self,
+    #                              coords=None, masses=None,
+    #                              *,
+    #                              point_group=None,
+    #                              origin=None,
+    #                              moments_of_inertia=None,
+    #                              axes=None
+    #                              ):
+    #     default = coords is None and masses is None
+    #     if coords is None:
+    #         coords = self.coords
+    #     if masses is None:
+    #         masses = self.masses
+    #     if origin is None:
+    #         if default:
+    #             origin = self.center_of_mass
+    #         else:
+    #             origin = nput.center_of_mass(coords, masses)
+    #     moms = moments_of_inertia
+    #     if axes is None:
+    #         if default:
+    #             moms, axes = self.inertial_eigensystem
+    #         else:
+    #             moms, axes = nput.moments_of_inertia(coords, masses)
+    #
+    #     point_group:symm.PointGroup # help out pycharm...
+    #     if point_group is None:
+    #         if default:
+    #             point_group = self.point_group
+    #         else:
+    #             point_group = self.get_point_group(coords=coords, masses=masses)
+    #
+    #     if moms is None:
+    #         if default:
+    #             moms = self.moments_of_inertia
+    #         else:
+    #             moms, _ = nput.moments_of_inertia(coords, masses)
+    #     rotor_type, planar = symm.identify_rotor_type(moms)
+    #
+    #     def _handle_spherical_tops(point_group, coords, rotor_type, axes, masses):
+    #         if rotor_type == symm.RotorTypes.Prolate: # a axis unique
+    #             axes = axes[:, (1, 2, 0)]
+    #
+    #         # find Gaussian's "circular sets"
+    #         test_coords = coords @ axes
+    #         axis_dists = np.linalg.norm(test_coords[:, 2], axis=1)
+    #         (_, groups), _ = nput.group_by(np.arange(len(coords)), np.round(masses))
+    #         groups = [
+    #             g
+    #             for gg in groups
+    #             for g in nput.group_by(gg, np.round(test_coords[gg, 3], 1))[0][1]
+    #         ]
+    #         groups = [
+    #             g
+    #             for gg in groups
+    #             for g in nput.group_by(gg, np.round(axis_dists[gg,], 1))[0][1]
+    #         ]
+    #         key_group = min(groups,
+    #                         lambda g: (
+    #                             abs(test_coords[g[0], 3]),
+    #                             -test_coords[g[0], 3],
+    #                             axis_dists[g[0]],
+    #                             masses[g[0]]
+    #                         ))
+    #         key_atom = min(key_group)
+    #
+    #
+    #     if point_group:
+    #         if (
+    #                 point_group.group.value == "Cv"
+    #                 and point_group.n == 2
+    #         ):
+    #             if not planar:
+    #                 raise NotImplementedError("non-planar C2v structures not handled")
+    #         elif planar or (
+    #                 point_group.group.value == "Dh"
+    #                 and point_group.n == 2
+    #         ):
+    #             ...
+    #         elif (
+    #                 point_group.group.value == "Ci"
+    #                 or (
+    #                         point_group.group.value == "C"
+    #                         and point_group.n == 1
+    #                 )
+    #         ):
+    #             return coords - origin[np.newaxis], MolecularTransformation(-origin)
+    #
+    #     return MolecularTransformation(-origin, axes)
 
     def get_point_group_embedded_coordinates(self,
                                              pg=None, sel=None,
@@ -2154,6 +2263,8 @@ class Molecule(AbstractMolecule):
                   modes=None,
                   projected_modes=None,
                   mode_transformation=None,
+                  potential_terms=None,
+                  dipole_terms=None,
                   **opts
                   ):
         from ..VPT2 import VPTRunner, AnalyticVPTRunner
@@ -2163,17 +2274,12 @@ class Molecule(AbstractMolecule):
             runner = AnalyticVPTRunner
 
         og_pot_der = potential_derivatives
-        if potential_derivatives is None:
-            potential_derivatives = self.get_cartesian_potential_derivatives(
-                evaluator=energy_evaluator,
-                order=order+2
-            )
-        if dipole_derivatives is None:
-            dipole_derivatives = self.get_cartesian_dipole_derivatives(
-                evaluator=dipole_evaluator,
-                order=order+1,
-                include_constant_term=True
-            )
+        if potential_terms is None:
+            if potential_derivatives is None:
+                potential_derivatives = self.get_cartesian_potential_derivatives(
+                    evaluator=energy_evaluator,
+                    order=order+2
+                )
 
         if modes is None:
             modes = self.get_normal_modes(
@@ -2204,6 +2310,14 @@ class Molecule(AbstractMolecule):
             #     mass_weighted=loc.mass_weighted
             # )[list(range(1, len(loc.freqs)))]
 
+        if dipole_terms is None:
+            if dipole_derivatives is None:
+                dipole_derivatives = self.get_cartesian_dipole_derivatives(
+                    evaluator=dipole_evaluator,
+                    order=order + 1,
+                    include_constant_term=True
+                )
+
         if use_internals or use_internals is None:
             return runner.construct(self.modify(),
                                     states,
@@ -2212,9 +2326,10 @@ class Molecule(AbstractMolecule):
                                     dipole_derivatives=dipole_derivatives,
                                     modes=modes,
                                     mode_transformation=mode_transformation,
+                                    potential_terms=potential_terms,
+                                    dipole_terms=dipole_terms,
                                     **opts
                                     )
-
         else:
             return runner.construct(
                 [self.atoms, self.coords],
@@ -2224,6 +2339,8 @@ class Molecule(AbstractMolecule):
                 modes=modes,
                 mode_transformation=mode_transformation,
                 order=order,
+                potential_terms=potential_terms,
+                dipole_terms=dipole_terms,
                 **opts
             )
 
@@ -2544,12 +2661,15 @@ class Molecule(AbstractMolecule):
             return None
 
     @classmethod
-    def from_zmat(cls, zmat, internals=None, **opts):
+    def from_zmat(cls, zmat, internals=None, axes=None, origin=None, **opts):
         if isinstance(zmat, str):
             (atoms, ordering, coords) = coordops.parse_zmatrix_string(zmat)
             zmat = (atoms, (ordering, coords))
         (atoms, (ordering, coords)) = zmat
-        coords = CoordinateSet(coords[1:], ZMatrixCoordinates).convert(CartesianCoordinates3D, ordering=ordering)
+        coords = CoordinateSet(coords[1:], ZMatrixCoordinates).convert(CartesianCoordinates3D,
+                                                                       ordering=ordering,
+                                                                       axes=axes,
+                                                                       origin=origin)
         if internals is None: internals = ordering
         return cls(atoms, coords, internals=internals, **opts)
     @classmethod
@@ -2583,7 +2703,7 @@ class Molecule(AbstractMolecule):
         spec, coords = parse['CartesianCoordinates']
         ang2bohr = UnitsData.convert("Angstroms", "AtomicUnitOfLength")
         return cls(
-            spec[:, 1],
+            spec[-1][:, 1],
             ang2bohr*coords[-1],
             **opts
         )
@@ -2617,6 +2737,20 @@ class Molecule(AbstractMolecule):
             parse.atoms[-1],
             parse.coords[-1],
             masses=parse.masses[-1],
+            **opts
+        )
+        return mol
+
+    @classmethod
+    def _from_molpro_file(cls, file, **opts):
+        from McUtils.ExternalPrograms import MOLPROLogReader
+        with MOLPROLogReader(file) as gr:
+            parse = gr.parse(['CartesianCoordinates'])['CartesianCoordinates']
+
+        mol = cls(
+            parse.atoms[-1],
+            parse.coords[-1],
+            # masses=parse.masses[-1],
             **opts
         )
         return mol
@@ -2727,7 +2861,7 @@ class Molecule(AbstractMolecule):
 
 
     @classmethod
-    def _from_gspec(cls, gspec:str, charge=None, spin=None, report=None, units='Angstroms', **etc):
+    def _from_gspec(cls, gspec:str, charge=None, spin=None, report=None, units='Angstroms', format_options=None, **etc):
         # parses from Gaussian report molecule specs
         if gspec.startswith("1\\"):
             return cls._from_gspec_file(
@@ -2761,11 +2895,21 @@ class Molecule(AbstractMolecule):
         if gspec.endswith(" 0"):
             gspec = gspec[:-2]
 
+        if format_options is None:
+            format_options = {}
+        format_options = dev.merge_dicts(
+            {
+                'zmat': {'axes': np.eye(3)[(2, 0), :]}
+            },
+            format_options
+        )
+
         return cls.from_string(
             gspec,
             charge=c if charge is None else charge,
             spin=m if spin is None else spin,
             units=units,
+            format_options=format_options,
             **etc
         )
 
@@ -2775,6 +2919,7 @@ class Molecule(AbstractMolecule):
                          charge=None, spin=None,
                          potential_derivatives=None,
                          dipole_derivatives=None,
+                         # use_standard_orientation_coords=True,
                          **etc):
         # parses from Gaussian report molecule specs
         from McUtils.ExternalPrograms import (
@@ -2783,32 +2928,36 @@ class Molecule(AbstractMolecule):
             FchkDipoleDerivatives, FchkDipoleHigherDerivatives
         )
 
+        specs = ['Reports']
+        # if use_standard_orientation_coords:
+        #     specs.append('StandardCartesianCoordinates')
         with GaussianLogReader(logfile) as parser:
-            reports = parser.parse('Reports')
+            parse = parser.parse(specs)
 
-        if len(reports) == 0:
-            raise ValueError(f"no job report found in file {logfile}")
-
-        reports = reports['Reports']
+        reports = parse['Reports']
         if len(reports) == 0:
             raise ValueError(f"no job report found in file {logfile}")
 
         report = reports[-1]
-        if report['job'] == 'Freq':
+        if report['job'] in {'Freq'}:
             if potential_derivatives is None:
                 potential_derivatives = list(report['PotentialDeriv'])
                 if len(potential_derivatives) > 1:
                     potential_derivatives[1] = FchkForceConstants(potential_derivatives[1]).array
                 if len(potential_derivatives) > 2:
                     higher = FchkForceDerivatives(potential_derivatives[2])
+                    amu_conv = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
                     potential_derivatives = potential_derivatives[:2] + [
-                        higher.third_deriv_array,
-                        higher.fourth_deriv_array
+                        higher.third_deriv_array / np.sqrt(amu_conv),
+                        higher.fourth_deriv_array.asarray() / amu_conv
                     ]
-            if dipole_derivatives is None:
-                dipole_derivatives = [FchkDipoleDerivatives(report['DipoleDeriv']).array]
 
-        return cls.from_string(
+            if dipole_derivatives is None:
+                dipole_derivatives = [
+                    FchkDipoleDerivatives(report['DipoleDeriv']).array
+                ]
+
+        base_mol = cls.from_string(
             report['molecule'],
             'gspec',
             charge=charge,
@@ -2818,6 +2967,19 @@ class Molecule(AbstractMolecule):
             report=report,
             **etc
         )
+
+        # if use_standard_orientation_coords:
+        #     coords = parse['StandardCartesianCoordinates']
+        #     if len(coords) > 0:
+        #         base_mol = base_mol.modify(
+        #             atoms=[a for a in base_mol.atoms if a != "X"],
+        #             coords=coords[1][-1],
+        #             potential_derivatives=base_mol.potential_derivatives,
+        #             dipole_derivatives=base_mol.dipole_derivatives
+        #         )
+
+        return base_mol
+
 
     @classmethod
     def from_name(cls, name, **opts):
@@ -2893,10 +3055,12 @@ class Molecule(AbstractMolecule):
             "gspec": cls._from_gspec
         }
     @classmethod
-    def from_string(cls, string, fmt=None, **opts):
+    def from_string(cls, string, fmt=None, format_options=None, **opts):
         if fmt is None:
             fmt = cls._infer_str_format(string)
         format_dispatcher = cls.get_string_format_dispatchers()
+        if format_options is not None:
+            opts = collections.ChainMap(opts, format_options.get(fmt, {}))
 
         if fmt in format_dispatcher:
             return format_dispatcher[fmt](string, **opts)
@@ -2922,6 +3086,7 @@ class Molecule(AbstractMolecule):
             "gspec": cls._from_gspec_file,
             "fchk": cls._from_fchk_file,
             "orca": cls._from_orca_file,
+            "molpro": cls._from_molpro_file,
             "hess": cls._from_hess_file,
             "smi": cls._from_smiles,
             "mol": cls._from_molblock,
@@ -2929,7 +3094,7 @@ class Molecule(AbstractMolecule):
             "xyz": cls._from_xyz_file
         }
     @classmethod
-    def from_file(cls, file, mode=None, **opts):
+    def from_file(cls, file, mode=None, format_options=None, **opts):
         """In general we'll delegate to pybel except for like Fchk and Log files
 
         :param file:
@@ -2946,6 +3111,9 @@ class Molecule(AbstractMolecule):
             path, ext = os.path.splitext(file)
             ext = ext.lower()
             mode = ext.strip(".")
+
+        if format_options is not None:
+            opts = collections.ChainMap(opts, format_options.get(mode, {}))
 
         opts['source_file'] = {'file':file, 'mode':mode}
         if mode in format_dispatcher:

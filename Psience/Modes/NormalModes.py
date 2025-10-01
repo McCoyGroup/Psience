@@ -314,7 +314,7 @@ class NormalModes(MixtureModes):
                     modes = mol.normal_modes.get_modes(quiet=True)
                     if modes is not None:
                         new: NormalModes = modes.basis.to_new_modes().remove_mass_weighting()
-                        f = new.modes_by_coords @ np.diag(new.freqs**2) @ new.modes_by_coords.T
+                        f = new.modes_by_coords @ np.diag(np.sign(new.freqs) * new.freqs**2) @ new.modes_by_coords.T
                         potential_derivatives = [0, f]
         if potential_derivatives is None:
             raise ValueError(f"{mol} has no potential derivatives or existing normal modes")

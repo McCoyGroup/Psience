@@ -52,6 +52,8 @@ class PerturbationTheoryHamiltonian:
                  kinetic_terms=None,
                  coriolis_terms=None,
                  pseudopotential_terms=None,
+                 include_dipole=True,
+                 dipole_terms=None,
                  selection_rules=None,
                  operator_chunk_size=None,
                  operator_coefficient_threshold=None,
@@ -230,7 +232,8 @@ class PerturbationTheoryHamiltonian:
         else:
             U_terms = None
         self.pseudopotential_term = self.TermGetter(U_terms, pseudopotential_terms, mode_selection=mode_selection)
-        self._dipole_terms = None
+        self._include_dipole = include_dipole
+        self._dipole_terms = dipole_terms
 
         self._expansions = []
         self._local_coupling_expansion = None
@@ -320,6 +323,7 @@ class PerturbationTheoryHamiltonian:
 
     @property
     def dipole_terms(self):
+        if not self._include_dipole: return None
         if self._dipole_terms is None:
             self._dipole_terms = DipoleTerms(
                 self.molecule, modes=self.modes,
@@ -658,7 +662,7 @@ class PerturbationTheoryHamiltonian:
         if s < 0: s = s + ndim
 
         xss_4 = v4[s, s, s, s]
-        # xss_3 = -(
+        # xss_3_terms = [16 * (
         #         5/48 * (v3[s, s, s] ** 2 / w[s])
         #         + 1/16 * sum((
         #                       (v3[s, s, t] ** 2) / w[t]
@@ -666,7 +670,7 @@ class PerturbationTheoryHamiltonian:
         #                       / (4 * (w[s] ** 2) - (w[t] ** 2))
         #               ) for t in range(ndim) if t != s
         #               )
-        # )
+        # )]
         xss_3_terms = [
             5 / 3 * (v3[s, s, s] ** 2 / w[s]),
             2 * sum((v3[s, s, t] ** 2) / w[t] for t in range(ndim) if t != s),
@@ -684,7 +688,7 @@ class PerturbationTheoryHamiltonian:
         else:
             xss_3 = sum(xss_3_terms)
             xss_cor = 0.
-            return [1 / 16 * xss_3, 1 / 16 * xss_4, xss_cor]
+            return [-1 / 16 * xss_3, 1 / 16 * xss_4, xss_cor]
 
     @staticmethod
     def _Nielsen_xst(s, t, w, v3, v4, zeta, Be, ndim, return_components=False):
@@ -695,7 +699,7 @@ class PerturbationTheoryHamiltonian:
         if t < 0: t = t + ndim
 
         xst_4 = v4[s, s, t, t]
-        # xst_3 = - 1 / 2 * (
+        # xst_3_terms = [4 / 2 * (
         #         v3[s, s, t] ** 2 * w[s] / (4 * w[s] ** 2 - w[t] ** 2)
         #         + v3[s, t, t] ** 2 * w[t] / (4 * w[t] ** 2 - w[s] ** 2)
         #         + v3[s, s, s] * v3[s, t, t] / (2 * w[s])
@@ -714,7 +718,7 @@ class PerturbationTheoryHamiltonian:
         #                       - v3[s, s, r] * v3[t, t, r] / (2 * w[r])
         #               ) for r in range(ndim) if r != s and r != t
         #               )
-        # )
+        # )]
 
         xst_3_terms = [
             # direct single changes

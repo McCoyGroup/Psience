@@ -1012,7 +1012,7 @@ class MixtureModes(CoordinateSystem):
         # L = self.matrix.shape.T
         if freqs is None:
             freqs = self.freqs
-        conv = np.sign(freqs) * np.sqrt(np.abs(freqs))
+        conv = np.sqrt(np.abs(freqs))
         return freqs, conv
 
     def make_frequency_scaled(self, freqs=None):
