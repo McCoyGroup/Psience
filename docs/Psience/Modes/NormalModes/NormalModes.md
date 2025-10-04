@@ -87,8 +87,8 @@ from_molecule(cls, mol, dimensionless=False, use_internals=None, potential_deriv
 get_reaction_path_modes(self, grad: numpy.ndarray, zero_gradient_cutoff=None, return_status=False, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L373)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L373?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L374)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L374?message=Update%20Docs)]
 </div>
  </div>
 </div>

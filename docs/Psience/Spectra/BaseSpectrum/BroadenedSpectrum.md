@@ -42,11 +42,11 @@ __init__(self, frequencies, intensities, broadening_type='gaussian', breadth=10,
 
 <a id="Psience.Spectra.BaseSpectrum.BroadenedSpectrum.plot" class="docs-object-method">&nbsp;</a> 
 ```python
-plot(self, step_size=0.5, freq_min=None, freq_max=None, figure=None, plot_style=None, filled=False, adjust_width=True, **opts): 
+plot(self, step_size=0.5, freq_min=None, freq_max=None, figure=None, plot_style=None, filled=False, adjust_width=True, renormalize=True, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BroadenedSpectrum.py#L369)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BroadenedSpectrum.py#L369?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BroadenedSpectrum.py#L380)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BroadenedSpectrum.py#L380?message=Update%20Docs)]
 </div>
 Applies the broadening then plots it using `McUtils.Plots.Plot`
   - `step_size`: `Any`

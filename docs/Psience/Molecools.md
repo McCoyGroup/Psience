@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-e1a0be" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e1a0be"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-7d0e11" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-7d0e11"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e1a0be" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-7d0e11" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -167,9 +167,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-2afa0f" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-2afa0f"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-bba469" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-bba469"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-2afa0f" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-bba469" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -2306,29 +2306,36 @@ class MolecoolsTests(TestCase):
 #### <a name="EasyZMatrices">EasyZMatrices</a>
 ```python
     def test_EasyZMatrices(self):
-        cpmo = Molecule.from_file(
-            TestManager.test_data('cpmo3m_opt.xyz'),
-            units='Angstroms'
-        )
+        # cpmo = Molecule.from_file(
+        #     TestManager.test_data('cpmo3m_opt.xyz'),
+        #     units='Angstroms'
+        # )
+        #
+        # cpmo_split = cpmo.modify(
+        #     bonds=[
+        #         b for b in cpmo.bonds
+        #         if tuple(sorted(b[:2])) not in {
+        #             (0, 4),
+        #             (0, 5),
+        #             (0, 6),
+        #             (0, 7),
+        #             (0, 8)
+        #         }
+        #     ]
+        # )
+        #
+        # pprint.pprint(
+        #     cpmo_split.get_bond_zmatrix(
+        #         attachment_points={0:(4, 6, 8)}
+        #     )
+        # )
 
-        cpmo_split = cpmo.modify(
-            bonds=[
-                b for b in cpmo.bonds
-                if tuple(sorted(b[:2])) not in {
-                    (0, 4),
-                    (0, 5),
-                    (0, 6),
-                    (0, 7),
-                    (0, 8)
-                }
-            ]
-        )
+        import McUtils.Coordinerds as coordops
 
-        pprint.pprint(
-            cpmo_split.get_bond_zmatrix(
-                attachment_points={0:(4, 6, 8)}
-            )
-        )
+        alt_mol = Molecule.from_string("O=C(COc1cc(Cl)ccc1Cl)N/N=C/c1c[nH]c2c1cccc2", "smi")
+        zmat = alt_mol.get_bond_zmatrix()
+        coordops.validate_zmatrix(zmat, raise_exception=True)
+        pprint.pprint(zmat)
 ```
 
 #### <a name="PointGroups">PointGroups</a>
