@@ -3349,6 +3349,7 @@ class Molecule(AbstractMolecule):
              animate=None,
              animation_options=None,
              jsmol_load_script=None,
+             include_jsmol_script_interface=False,
              units="Angstroms",
              **plot_ops
              ):
@@ -3379,7 +3380,11 @@ class Molecule(AbstractMolecule):
         if mode == 'jupyter':
             return self.jupyter_viz()
         elif mode == 'jsmol':
-            return self.jsmol_viz(script=jsmol_load_script)
+            return self.jsmol_viz(
+                script=jsmol_load_script,
+                include_script_interface=include_jsmol_script_interface,
+                **plot_ops
+            )
 
         if backend in {'jupyter', 'jsmol'}:
             backend = 'x3d'
@@ -3821,7 +3826,9 @@ class Molecule(AbstractMolecule):
                                                units="Angstroms" if units is None else units,
                                                coordinate_expansion=coordinate_expansion
                                                )
-            return self.jsmol_viz(disps, vibrate=True, script=jsmol_load_script)
+            return self.jsmol_viz(disps, vibrate=True, script=jsmol_load_script,
+                                  **plot_opts
+                                  )
         else:
             geoms = self.get_animation_geoms(which, extent=extent, steps=steps, strip_embedding=strip_embedding, units=units,
                                              coordinate_expansion=coordinate_expansion)
@@ -3926,7 +3933,12 @@ class Molecule(AbstractMolecule):
                                              coordinate_expansion=coordinate_expansion)
             return self.format_structs(geoms, format)
 
-    def jsmol_viz(self, xyz=None, animate=False, vibrate=False, script=None):
+    def jsmol_viz(self, xyz=None, animate=False, vibrate=False, script=None, include_script_interface=False,
+                  image_size=None,
+                  width=None,
+                  height=None,
+                  **etc
+                  ):
         from McUtils.Jupyter import JSMol
         if xyz is None:
             xyz = self._format_xyz(0,
@@ -3934,7 +3946,27 @@ class Molecule(AbstractMolecule):
                                    self.atoms,
                                    self.coords * UnitsData.convert("BohrRadius", "Angstroms")
                                    )
-        return JSMol.Applet(xyz, animate=animate, vibrate=vibrate, load_script=script)
+        if image_size is not None:
+            if nput.is_numeric(image_size):
+                w = h = image_size
+            else:
+                w,h = image_size
+            if width is None:
+                width = w
+            if height is None:
+                height = h
+        opts = {
+            k: v
+            for k, v in dict(
+                width=width,
+                height=height
+            ).items()
+            if v is not None
+        }
+        return JSMol.Applet(xyz, animate=animate, vibrate=vibrate, load_script=script,
+                            include_script_interface=include_script_interface,
+                            **opts
+                            )
 
     def jupyter_viz(self):
         from McUtils.Jupyter import MoleculeGraphics
