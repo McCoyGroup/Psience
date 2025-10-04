@@ -407,6 +407,7 @@ class MolecularEmbedding:
 
         if "analytic_derivative_order" in fd_opts:
             fd_opts['analytic_deriv_order'] = fd_opts.pop('analytic_derivative_order')
+        fd_opts['analytic_deriv_order'] = fd_opts.get('analytic_deriv_order', -1)
         fd_opts = self._get_internal_fd_opts(**fd_opts)
         (
             all_numerical, reembed, planar_ref_tolerance,

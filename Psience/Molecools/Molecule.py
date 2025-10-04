@@ -3380,9 +3380,12 @@ class Molecule(AbstractMolecule):
         if mode == 'jupyter':
             return self.jupyter_viz()
         elif mode == 'jsmol':
+            plot_ops['include_script_interface'] = plot_ops.get(
+                'include_script_interface',
+                include_jsmol_script_interface
+            )
             return self.jsmol_viz(
                 script=jsmol_load_script,
-                include_script_interface=include_jsmol_script_interface,
                 **plot_ops
             )
 
@@ -3965,7 +3968,8 @@ class Molecule(AbstractMolecule):
         }
         return JSMol.Applet(xyz, animate=animate, vibrate=vibrate, load_script=script,
                             include_script_interface=include_script_interface,
-                            **opts
+                            **opts,
+                            **etc
                             )
 
     def jupyter_viz(self):
