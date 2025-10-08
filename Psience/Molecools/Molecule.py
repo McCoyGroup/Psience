@@ -3308,6 +3308,13 @@ class Molecule(AbstractMolecule):
         {'color':'red'},
         {'color':'blue'}
     ]
+    draw_coords_style = {
+        'line_color':'black',
+        'line_thickness':.05
+    }
+    draw_coords_label_style = {
+        'color':'black'
+    }
     def plot(self,
              *geometries,
              figure=None,
@@ -3336,6 +3343,8 @@ class Molecule(AbstractMolecule):
              dipole_origin=None,
              dipole_origin_mode='set',
              render_multiple_bonds=True,
+             draw_coords=None,
+             draw_coords_style=None,
              up_vector=None,
              multiple_bond_spacing=None,
              mode=None,#'quality',
@@ -3480,6 +3489,16 @@ class Molecule(AbstractMolecule):
 
             if units is not None:
                 mode_vector_origins = mode_vector_origins * UnitsData.convert("BohrRadius", units)
+
+        if draw_coords is not None:
+            if not isinstance(draw_coords, dict):
+                draw_coords = {
+                    tuple(a):{}
+                    for a in draw_coords
+                }
+        if draw_coords_style is None:
+            draw_coords_style = self.draw_coords_style
+
 
         geometries = geometries.convert(CartesianCoordinates3D)
 
@@ -3766,6 +3785,260 @@ class Molecule(AbstractMolecule):
                             else:
                                 arrows[i].append(plops)
 
+            if draw_coords is not None:
+                if arrows[i] is None:
+                    arrows[i] = []
+                for k,v in draw_coords.items():
+                    v = dict(draw_coords_style, **v)
+                    if len(k) == 2:
+                        # draw bond
+                        # draw angle
+                        xx, yy = k
+                        if nput.is_int(xx):
+                            xx = geom[xx]
+                        elif callable(xx):
+                            xx = xx(geom)
+                        if nput.is_int(yy):
+                            yy = geom[yy]
+                        elif callable(yy):
+                            yy = yy(geom)
+
+                        zz = v.pop('ref', None)
+                        if zz is not None:
+                            if nput.is_int(zz):
+                                zz = geom[zz]
+                            elif callable(zz):
+                                zz = zz(geom)
+                            zz = np.asanyarray(zz)
+
+                        xx = np.asanyarray(xx)
+                        yy = np.asanyarray(yy)
+                        if zz is not None:
+                            normal = nput.vec_crosses(xx-yy, zz - yy)
+                        else:
+                            normal = [0, 1, 0]
+                        offset_axis = nput.vec_crosses(xx-yy, normal, normalize=True)
+
+                        offset = np.array(v.pop('offset', [0, 0, 0]))
+                        label = v.pop('label', None)
+                        color = v.pop('line_color', v.pop('color', 'black'))
+                        label_style = dict(self.draw_coords_label_style, **v.pop('label_style', {}))
+                        label_style['billboard'] = label_style.get('billboard',
+                                                                   zz is None and 'normal' not in label_style
+                                                                   )
+
+                        arc = plt.Line([xx + offset, yy + offset], color=color, **v)
+                        if objects:
+                            arrows[i].append(arc)
+                        else:
+                            plops = arc.plot(figure)
+                            if isinstance(plops, tuple):
+                                arrows[i].append(plops[0])
+                            else:
+                                arrows[i].append(plops)
+
+                        if label is not None:
+                            offset_magnitude = label_style.pop('offset_magnitude', .2)
+                            label_offset = np.asanyarray(label_style.pop('offset', offset_magnitude*offset_axis))
+                            normal = label_style.pop('normal', normal)
+                            lab = plt.Text(
+                                label,
+                                (xx+yy)/2 + label_offset,
+                                normal=normal,
+                                **label_style
+                            )
+                            if objects:
+                                arrows[i].append(lab)
+                            else:
+                                plops = lab.plot(figure)
+                                if isinstance(plops, tuple):
+                                    arrows[i].append(plops[0])
+                                else:
+                                    arrows[i].append(plops)
+
+                    elif len(k) == 3:
+                        # draw angle
+                        xx,yy,zz = k
+                        if nput.is_int(xx):
+                            xx = geom[xx]
+                        elif callable(xx):
+                            xx = xx(geom)
+                        if nput.is_int(yy):
+                            yy = geom[yy]
+                        elif callable(yy):
+                            yy = yy(geom)
+                        if nput.is_int(zz):
+                            zz = geom[zz]
+                        elif callable(zz):
+                            zz = zz(geom)
+
+                        yy = np.asanyarray(yy)
+                        axes =  v.pop('axes', None)
+                        if axes is None:
+                            xx = np.asanyarray(xx)
+                            zz = np.asanyarray(zz)
+                            axes=[xx-yy, zz-yy]
+                        radius = v.pop('radius', None)
+                        if radius is None:
+                            radius = min([
+                                np.linalg.norm(axes[0]),
+                                np.linalg.norm(axes[1]),
+                            ])
+                        angle =  v.pop('angle', None)
+                        if angle is None:
+                            angle=nput.vec_angles(*axes, return_crosses=False)
+
+                        label = v.pop('label', None)
+                        label_style = dict(self.draw_coords_label_style, **v.pop('label_style', {}))
+                        arc = plt.Disk(
+                            yy,
+                            uv_axes=axes,
+                            angle=angle,
+                            radius=radius,
+                            **v
+                        )
+                        if objects:
+                            arrows[i].append(arc)
+                        else:
+                            plops = arc.plot(figure)
+                            if isinstance(plops, tuple):
+                                arrows[i].append(plops[0])
+                            else:
+                                arrows[i].append(plops)
+
+                        if label is not None:
+                            label_offset = np.asanyarray(label_style.pop('offset', [0, 0, 0]))
+                            label_normal = label_style.pop('normal', None)
+                            if label_normal is None:
+                                label_normal = nput.vec_crosses(*axes, normalize=True)
+                                if np.linalg.norm(label_normal) < 1e-8:
+                                    if up_vector is None:
+                                        up_vector = [0, 0, 1]
+                                    label_normal = nput.vec_crosses(axes[0], up_vector, normalize=True)
+                            label_billboard = np.asanyarray(label_style.pop('billboard', False))
+                            offset_magnitude = label_style.pop('offset_magnitude', .8)
+                            label_center = np.dot(
+                                axes[0] * offset_magnitude + yy,
+                                nput.rotation_matrix(label_normal, -angle/2)
+                            )
+                            lab = plt.Text(
+                                label,
+                                label_center + label_offset,
+                                billboard=label_billboard,
+                                normal=label_normal,
+                                **label_style
+                            )
+                            if objects:
+                                arrows[i].append(lab)
+                            else:
+                                plops = lab.plot(figure)
+                                if isinstance(plops, tuple):
+                                    arrows[i].append(plops[0])
+                                else:
+                                    arrows[i].append(plops)
+                    else:
+
+                        # draw angle
+                        xx,yy,zz,ll = k
+                        if nput.is_int(xx):
+                            xx = geom[xx]
+                        elif callable(xx):
+                            xx = xx(geom)
+                        if nput.is_int(yy):
+                            yy = geom[yy]
+                        elif callable(yy):
+                            yy = yy(geom)
+                        if nput.is_int(zz):
+                            zz = geom[zz]
+                        elif callable(zz):
+                            zz = z(geom)
+                        if nput.is_int(ll):
+                            ll = geom[ll]
+                        elif callable(ll):
+                            ll = ll(geom)
+
+                        xx = np.asanyarray(xx)
+                        yy = np.asanyarray(yy)
+                        zz = np.asanyarray(zz)
+                        ll = np.asanyarray(ll)
+
+                        normal = yy - zz
+                        ax1 = nput.project_out((xx - yy), normal[:, np.newaxis])
+                        ax2 = nput.project_out((ll - zz), normal[:, np.newaxis])
+                        angle =  v.pop('angle', None)
+                        if angle is None:
+                            angle = nput.pts_dihedrals(xx, yy, zz, ll)
+
+                        c2 = (yy + zz) / 2
+                        if np.linalg.norm(ax1) < np.linalg.norm(ax2):
+                            c1 = c2 + ax1
+                        else:
+                            c1 = c2 + ax2
+                            normal = -normal
+                        axis = c1 - c2
+                        c3 = np.dot(
+                            axis,
+                            nput.rotation_matrix(normal, angle)
+                        ) + c2
+                        axes = [
+                            axis,
+                            c3 - c2
+                        ]
+
+                        radius = v.pop('radius', None)
+                        if radius is None:
+                            radius = np.linalg.norm(axis)
+                            # angle=nput.vec_angles(*axes, return_crosses=False)
+
+                        label = v.pop('label', None)
+                        label_style = dict(self.draw_coords_label_style, **v.pop('label_style', {}))
+                        arc = plt.Disk(
+                            c2,
+                            uv_axes=axes,
+                            normal=normal,
+                            angle=angle,
+                            radius=radius,
+                            **v
+                        )
+                        if objects:
+                            arrows[i].append(arc)
+                        else:
+                            plops = arc.plot(figure)
+                            if isinstance(plops, tuple):
+                                arrows[i].append(plops[0])
+                            else:
+                                arrows[i].append(plops)
+
+                        if label is not None:
+                            label_offset = np.asanyarray(label_style.pop('offset', [0, 0, 0]))
+                            label_normal = label_style.pop('normal', None)
+                            if label_normal is None:
+                                label_normal = normal
+                                # if np.linalg.norm(label_normal) < 1e-8:
+                                #     if up_vector is None:
+                                #         up_vector = [0, 0, 1]
+                                #     label_normal = nput.vec_crosses(axes[0], up_vector, normalize=True)
+                            label_billboard = np.asanyarray(label_style.pop('billboard', False))
+                            offset_magnitude = label_style.pop('offset_magnitude', .8)
+                            label_center = np.dot(
+                                axes[0] * offset_magnitude + c2,
+                                nput.rotation_matrix(label_normal, -angle/2)
+                            )
+                            lab = plt.Text(
+                                label,
+                                label_center + label_offset,
+                                billboard=label_billboard,
+                                normal=label_normal,
+                                **label_style
+                            )
+                            if objects:
+                                arrows[i].append(lab)
+                            else:
+                                plops = lab.plot(figure)
+                                if isinstance(plops, tuple):
+                                    arrows[i].append(plops[0])
+                                else:
+                                    arrows[i].append(plops)
         if animate:
             if animation_options is None: animation_options = {}
             figure = figure.animate_frames(
