@@ -900,9 +900,14 @@ class Molecule(AbstractMolecule):
                                          project_transrot=project_transrot,
                                          **opts
                                          )
-    def get_reaction_path_modes(self, masses=None, potential_derivatives=None, **opts):
+    def get_reaction_path_modes(self, masses=None,
+                                potential_derivatives=None,
+                                **opts):
         from ..Modes import ReactionPathModes
-        return ReactionPathModes.from_molecule(self, masses=masses, potential_derivatives=potential_derivatives, **opts)
+        return ReactionPathModes.from_molecule(self,
+                                               masses=masses,
+                                               potential_derivatives=potential_derivatives,
+                                               **opts)
     @property
     def metadata(self):
         return self._meta
@@ -1423,6 +1428,10 @@ class Molecule(AbstractMolecule):
             **{k:v for k,v in opt_params.items() if v is not None},
             **optimizer_opts
         )
+        if not opt:
+            if logger is not None:
+                logger = Logger.lookup(logger)
+                logger.log_print('WARNING: failed to optimize molecule')
         opt_coords = opt_coords / conv
         if reembed:
             opt_coords = nput.eckart_embedding(

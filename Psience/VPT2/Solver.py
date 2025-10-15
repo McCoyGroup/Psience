@@ -1685,9 +1685,9 @@ class PerturbationTheorySolver:
                             for k in range(1, order+1):
                                 for i, (n, x) in enumerate(zip(res_inds, deg_inds)):
                                     for m, y in zip(res_inds[i + 1:], deg_inds[i+1:]):
-                                        onm = -1 / 2 * np.sum(np.dot(all_corrs[n][i], all_corrs[m][k - i]) for i in range(1, k))
-                                        onn = -1 / 2 * np.sum(np.dot(all_corrs[n][i], all_corrs[n][k - i]) for i in range(1, k))
-                                        omm = -1 / 2 * np.sum(np.dot(all_corrs[m][i], all_corrs[m][k - i]) for i in range(1, k))
+                                        onm = -1 / 2 * sum(np.dot(all_corrs[n][i], all_corrs[m][k - i]) for i in range(1, k))
+                                        onn = -1 / 2 * sum(np.dot(all_corrs[n][i], all_corrs[n][k - i]) for i in range(1, k))
+                                        omm = -1 / 2 * sum(np.dot(all_corrs[m][i], all_corrs[m][k - i]) for i in range(1, k))
                                         all_corrs[n][k][y] = onm
                                         all_corrs[m][k][x] = onm
                                         all_corrs[n][k][x] = onn
@@ -1963,7 +1963,7 @@ class PerturbationTheorySolver:
 
             energies[0] = E0
             logger.log_print('Zero-order energy: {e}',
-                                  e=E0[0] * UnitsData.convert("Hartrees", "Wavenumbers"),
+                                  e=E0 * UnitsData.convert("Hartrees", "Wavenumbers"),
                                   log_level=logger.LogLevel.Debug
                                   )
             # self.logger.log_print("{n}: E0={E}", n=n_ind, E=E0)
@@ -2034,7 +2034,7 @@ class PerturbationTheorySolver:
                 if intermediate_normalization:
                     ok = 0.0
                 else:
-                    ok = -1 / 2 * np.sum(dot(corrs[i], corrs[k - i]) for i in range(1, k))
+                    ok = -1 / 2 * sum(dot(corrs[i], corrs[k - i]) for i in range(1, k))
                     logger.log_print([
                         'Overlap at order {k}:'
                         '<n(0)|n({k})> = {ok}'

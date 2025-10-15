@@ -202,7 +202,8 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
         # if to_search.ndim > 1:
         #     raise ValueError("currently only accept subspaces as indices or AbstractStateSpaces")
 
-        if to_search.ndim == 0:
+        smol = to_search.ndim == 0
+        if smol:
             to_search = np.array([to_search], dtype=to_search.dtype)
         if to_search.ndim == 1:
             inds = self.indices
@@ -216,7 +217,8 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
                 exc = exc.astype(dtype)
                 to_search = to_search.astype(dtype)
             vals, self._exc_indexer = nput.find(exc, to_search, sorting=self._exc_indexer, check=check, minimal_dtype=minimal_dtype, missing_val=missing_val)
-
+        if smol:
+            vals = vals[0]
         return vals
 
     def __len__(self):

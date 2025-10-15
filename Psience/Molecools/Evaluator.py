@@ -1062,9 +1062,9 @@ class EnergyEvaluator(PropertyEvaluator):
         base_internals = self.embedding.internals
         if base_internals.get('specs') is not None:
             specs = base_internals.get('specs')
-            sidx = [tuple(s) for s in specs]
-            cpos = [tuple(c) for c in coord_spec]
-            inds = [sidx.index(c) for c in cpos]
+            # sidx = [tuple(s) for s in specs]
+            # cpos = [tuple(c) for c in coord_spec]
+            inds = [coordops.find_internal(specs, c) for c in coord_spec]
             num_coords = len(inds)
             redundant_transformation = base_internals.get('redundant_transformation')
             base_tensor = np.zeros((len(specs), num_coords))
@@ -1167,7 +1167,7 @@ class EnergyEvaluator(PropertyEvaluator):
     )
     @classmethod
     def get_optimizer_options(self):
-        import scipy.optimize._optimize
+        # import scipy.optimize._optimize
         return (
                 tuple(self.optimizer_defaults.keys())
                 + ('coordinate_constraints',)
@@ -1211,6 +1211,7 @@ class EnergyEvaluator(PropertyEvaluator):
             return constraints
 
     scipy_no_hessian_methods = {'cg', 'bfgs'}
+    scipy_no_grad_methods = {'nelder-mead'}
     def optimize_iterative(self,
                  coords,
                  coordinate_constraints=None,
@@ -1339,19 +1340,62 @@ class EnergyEvaluator(PropertyEvaluator):
                     if dev.str_is(mode, 'scipy') else
                 opts.pop('scipy_method', self.optimizer_defaults.get('method', 'bfgs'))
             )
+            min_ops = {'maxiter':max_iterations}
             method = 'bfgs' if method=='quasi-newton' else method
-            if method in self.scipy_no_hessian_methods:
+            if method in self.scipy_no_hessian_methods or method in self.scipy_no_grad_methods:
                 shessian = None
+            if method in self.scipy_no_grad_methods:
+                sjacobian = None
+                if coordinate_constraints is not None:
+                    base_internals = self.embedding.internals
+                    if base_internals.get('specs') is not None:
+                        specs = base_internals.get('specs')
+                        inds = [coordops.find_internal(specs, c) for c in coordinate_constraints]
+
+                    elif base_internals.get('zmatrix') is not None:
+                        zmat = base_internals.get('zmatrix')
+                        num_specs = coordops.num_zmatrix_coords(
+                            zmat,
+                            coordinate_constraints
+                        )
+                        inds = coordops.zmatrix_indices(
+                            zmat,
+                            coordinate_constraints
+                        )
+
+                    else:
+                        raise ValueError(f"can't get {coordinate_constraints} for {base_internals}")
+
+                    min_ops['bounds'] = [
+                        (c, c)
+                            if i in inds else
+                        (None, None)
+                        for i,c in enumerate(coords.flatten())
+                    ]
+
+            scipy_meth = 'bfgs' if method=='quasi-newton' else method
+            if 'bfgs' in scipy_meth or scipy_meth in {'cg'}:
+                min_ops['gtol'] = tol
+                # min_ops['ftol'] = 0
+                # min_ops['xtol'] = 0
+            min_ops = dict(
+                min_ops,
+                **optimizer_settings
+            )
+            bounds = min_ops.pop('bounds', None)
+            constraints = min_ops.pop('constraints', ())
             min = minimize(sfunc,
                            coords.flatten(),
-                           method='bfgs' if method=='quasi-newton' else method,
+                           method=scipy_meth,
                            tol=tol,
                            jac=sjacobian,
                            hess=shessian,
                            callback=callback,
-                           options=dict({'maxiter':max_iterations}, **optimizer_settings)
+                           bounds=bounds,
+                           constraints=constraints,
+                           options=min_ops
                            )
-            return True, min.x.reshape(coords.shape), min
+            return min.success, min.x.reshape(coords.shape), min
         else:
             if method is None or isinstance(method, str):
                 method = {
@@ -1410,13 +1454,14 @@ class EnergyEvaluator(PropertyEvaluator):
                 if orthogonal_projection_generator is None:
                     orthogonal_projection_generator = self.get_internal_coordinate_constraints(coordinate_constraints)
                 convergence, opt_coords, opt_settings = self.optimize_iterative(coords,
-                                                                         func=func,
-                                                                         jacobian=jacobian,
-                                                                         hessian=hessian,
-                                                                         logger=logger,
-                                                                         orthogonal_projection_generator=orthogonal_projection_generator,
-                                                                         **opts
-                                                                         )
+                                                                                func=func,
+                                                                                jacobian=jacobian,
+                                                                                hessian=hessian,
+                                                                                logger=logger,
+                                                                                coordinate_constraints=coordinate_constraints,
+                                                                                orthogonal_projection_generator=orthogonal_projection_generator,
+                                                                                **opts
+                                                                                )
                 coords = self.unembed_coords(opt_coords)
                 return convergence, coords, opt_settings
             finally:

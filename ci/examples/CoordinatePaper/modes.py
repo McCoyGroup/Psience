@@ -11,7 +11,7 @@ from . import expansions
 from . import paths
 
 
-RPMODE_GRADIENT_CUTOFF = 2e-5
+RPMODE_GRADIENT_CUTOFF = 50 / UnitsData.hartrees_to_wavenumbers
 def prep_rp_modes(me_ints, nms=None, internals=None,
                   project_transrot=False,
                   proj_coord=(3, 2, 1, 0),
@@ -22,15 +22,17 @@ def prep_rp_modes(me_ints, nms=None, internals=None,
         nms = me_ints.get_normal_modes(
             use_internals=False,
             project_transrot=project_transrot,
-            potential_derivatives=me_ints.potential_derivatives
+            potential_derivatives=me_ints.potential_derivatives,
+            zero_freq_cutoff=30 * UnitsData.convert("Wavenumbers", "Hartrees")
         )
 
-    # rpnms, stat = nms.get_reaction_path_modes(
-    #     me_ints.potential_derivatives[0],
-    #     return_status=True,
-    #     zero_gradient_cutoff=RPMODE_GRADIENT_CUTOFF,
-    #     zero_freq_cutoff=50 * UnitsData.convert("Wavenumbers", "Hartrees")
-    # )
+
+        # rpnms, stat = nms.get_reaction_path_modes(
+        #     me_ints.potential_derivatives[0],
+        #     return_status=True,
+        #     zero_gradient_cutoff=RPMODE_GRADIENT_CUTOFF,
+        #     zero_freq_cutoff=50 * UnitsData.convert("Wavenumbers", "Hartrees")
+        # )
     rpnms, stat = me_ints.get_reaction_path_modes(
         use_internals=False,
         return_status=True,

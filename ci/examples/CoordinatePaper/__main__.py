@@ -61,10 +61,10 @@ def Duschinksy():
         )
     )
 
-@runnable
+@inactive
 def setup_mace_expansions():
-    from ase.optimize import BFGS
-    import scipy.optimize._optimize
+    # from ase.optimize import BFGS
+    # import scipy.optimize._optimize
     # new = expansions.methanol_mace
     # print(new.calculate_energy(order=1)[1]
     #       * UnitsData.convert("Hartrees", "ElectronVolts")
@@ -92,7 +92,7 @@ def setup_mace_expansions():
     # print(new.coords.tolist())
     # # new.plot().show()
     # return
-    for i in range(0, -70, -10):
+    for i in [-50]:#range(0, -70, -10):
         with Timer(tag=f"{i}"):
             base_struct = expansions.get_mace_structure(i, 'optimized', overwrite=True)
             harmonic_expansion = expansions.get_mace_expansion(i, 'optimized', return_harmonic=True, overwrite=True)
@@ -117,26 +117,89 @@ def analytic_expansions():
     woof = expansions.get_aimnet_expansion(0, 'optimized', analytic_derivative_order=3)
     print(np.array(woof[1][4]).shape)
 
-@inactive
+@runnable
 def AIMNetVPT():
     degs = True
     # vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=False, use_reaction_path=False)
     # vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=True, use_reaction_path=False)
-    step_size = .25
+    step_size = None#.25
+    import warnings
+    warnings.filterwarnings('error')
+    # overwrite = True
+    # for k in range(0, -70, -10):
+    #     print(f"OPTIMIZING: {k}")
+    #     # meth, meth_int = expansions.get_aimnet_methanol()
+    #     base_struct = expansions.get_aimnet_structure(k, 'optimized', overwrite=overwrite)
+    #     harmonic_expansion = expansions.get_aimnet_expansion(k, 'optimized', overwrite=overwrite)
+    overwrite = False
+    for k in range(0, -70, -10):
+        # overwrite = k < -15
+        # meth, meth_int = expansions.get_aimnet_methanol()
+        # base_struct = expansions.get_aimnet_structure(k, 'optimized', overwrite=overwrite)
+        # harmonic_expansion = expansions.get_aimnet_expansion(k, 'optimized', overwrite=overwrite)
+        # wtf1a = nput.tensor_reexpand(
+        #     meth_int.modify(coords=base_struct).get_cartesians_by_internals(2),
+        #     harmonic_expansion[1:]
+        # )
+        # print(TableFormatter("{:.1f}").format([wtf1a[0] * UnitsData.hartrees_to_wavenumbers]))
+        # print(TableFormatter("{:.1f}").format([np.asanyarray(harmonic_expansion[1]) * UnitsData.hartrees_to_wavenumbers]))
+        # # print(harmonic_expansion[1])
+        # continue
+        # print(harmonic_expansion[0])
+        # print(harmonic_expansion[1] * 219474.63)
+        # mol = expansions.methanol.modify(energy_evaluator='aimnet2', coords=base_struct)
+        # print(coordops.zmatrix_unit_convert(
+        #     mol.modify(internals=expansions.methanol_zmatrix).internal_coordinates,
+        #     UnitsData.bohr_to_angstroms,
+        #     rad2deg=True
+        # ))
+        # rpnms, stat = mol.get_reaction_path_modes(
+        #     potential_derivatives=harmonic_expansion[1:],
+        #     return_status=True,
+        #     zero_gradient_cutoff=25 / UnitsData.hartrees_to_wavenumbers
+        # )
+        # print(f"AIMNet2 ({k}):", stat, rpnms.freqs * UnitsData.hartrees_to_wavenumbers)
+        # # print(f"MACE-OFF ({i}):", stat, rpnms.freqs * UnitsData.hartrees_to_wavenumbers)
+        # return
+        print(k, "-", "Full")
+        vpt.run_aimnet_vpt(k, use_degeneracies=degs, step_size=step_size, overwrite=overwrite)
+        print(k, "-", "Full Internals")
+        vpt.run_aimnet_vpt(k, use_degeneracies=degs, use_internals=True, step_size=step_size, overwrite=overwrite)
+        for spec in [
+            [-4, -3, -2, -1],
+            [-7, -6, -5, -4, -3, -2, -1],
+            [-11, -10, -8, -1],
+            [-8, -1],
+            [-11, -1],
+            [-11, -4, -3, -2, -1],
+            [-11, -7, -6, -5, -4, -3, -2, -1],
+            [-1],
+        ]:
+            print(k, "-", "Partial", spec)
+            vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec, overwrite=overwrite)
+            print(k, "-", "Partial Internals", spec)
+            vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec, use_internals=True, overwrite=overwrite)
+
+@runnable
+def MACEVPT():
+    degs = True
+    # vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=False, use_reaction_path=False)
+    # vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=True, use_reaction_path=False)
+    step_size = None#.25
     for k in range(0, -70, -10):
         print(k, "-", "Full")
-        vpt.run_aimnet_vpt(k, use_degeneracies=degs, step_size=step_size)
+        vpt.run_mace_vpt(k, use_degeneracies=degs, step_size=step_size)
         print(k, "-", "Full Internals")
-        vpt.run_aimnet_vpt(k, use_degeneracies=degs, use_internals=True, step_size=step_size)
+        vpt.run_mace_vpt(k, use_degeneracies=degs, use_internals=True, step_size=step_size)
         for spec in [
-            # [-4, -3, -2, -1],
-            # [-7, -6, -5, -4, -3, -2, -1],
-            # [-11, -10, -8, -1],
-            # [-8, -1],
-            # [-11, -1],
-            # [-11, -4, -3, -2, -1],
-            # [-11, -7, -6, -5, -4, -3, -2, -1],
-            # [-1],
+            [-4, -3, -2, -1],
+            [-7, -6, -5, -4, -3, -2, -1],
+            [-11, -10, -8, -1],
+            [-8, -1],
+            [-11, -1],
+            [-11, -4, -3, -2, -1],
+            [-11, -7, -6, -5, -4, -3, -2, -1],
+            [-1],
         ]:
             print(k, "-", "Partial", spec)
             vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec)

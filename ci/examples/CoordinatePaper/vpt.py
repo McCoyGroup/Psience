@@ -8,6 +8,7 @@ from Psience.VPT2 import PerturbationTheoryHamiltonian
 from . import paths
 from .expansions import (
     get_aimnet_structure, get_aimnet_expansion,
+    get_mace_structure, get_mace_expansion,
     methanol, methanol_zmatrix, methanol_gaussian_zmatrix
 )
 from .modes import prep_rp_modes, print_rpnm_hessian
@@ -17,6 +18,8 @@ class LevelsOfTheory(enum.Enum):
     B3LYP = 'b3lyp'
     wB97 = 'wb97'
     AIMNet2 = 'aimnet'
+    AIMNet2Old = 'aimnet-old'
+    MACE = 'mace'
 
 def get_gaussian_logfile(lot, subkey, use_reaction_path=True, use_degeneracies=True, mode_selection=None, use_internals=False):
     ms = "".join(str(m) for m in
@@ -109,6 +112,7 @@ def run_gaussian_vpt(
                                           degeneracy_specs='auto' if use_degeneracies else None,
                                           cartesian_analytic_deriv_order=-1,
                                           cartesian_by_internal_derivative_method='fast',
+                                          # gmatrix_tolerance=1*UnitsData.convert("Wavenumbers", "Hartrees"),
                                           modes=nms,
                                           mode_transformation=tf,
                                           mode_selection=mode_selection,
@@ -147,7 +151,7 @@ def run_wb97_vpt(
 ):
     return run_gaussian_vpt('wb97', subkey, file_pattern=file_pattern, **args)
 
-def get_aimnet_logfile(key, use_reaction_path=True, use_degeneracies=True,
+def get_mlip_logfile(lot, key, use_reaction_path=True, use_degeneracies=True,
                        mode_selection=None,
                        use_internals=False,
                        step_size=None,
@@ -204,29 +208,66 @@ def get_aimnet_logfile(key, use_reaction_path=True, use_degeneracies=True,
         ad = f"_ad{analytic_derivative_order}"
     else:
         ad = ""
-    log_file = paths.torsion_scan_path('aimnet', 'results', f'methanol_vpt_{rp}{coord}{key}{ms}{deg}{step}{ad}.out')
+    log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_{rp}{coord}{key}{ms}{deg}{step}{ad}.out')
     return log_file
 
-def run_aimnet_vpt(key,
-                   use_internals=False,
-                   use_reaction_path=True,
-                   log_file=None,
-                   overwrite=False,
-                   mode_selection=None,
-                   recompute_expansion=False,
-                   step_size=None,
-                   use_degeneracies=True,
-                   return_runner=False,
-                   analytic_derivative_order=None,
-                   **opts
-                   ):
-    coords = get_aimnet_structure(key, 'optimized')
+def get_aimnet_logfile(key, use_reaction_path=True, use_degeneracies=True,
+                       mode_selection=None,
+                       use_internals=False,
+                       step_size=None,
+                       analytic_derivative_order=None
+                       ):
+    return get_mlip_logfile('aimnet', key, use_reaction_path=use_reaction_path, use_degeneracies=use_degeneracies,
+                       mode_selection=mode_selection,
+                       use_internals=use_internals,
+                       step_size=step_size,
+                       analytic_derivative_order=analytic_derivative_order)
+
+def get_aimnet_old_logfile(key, use_reaction_path=True, use_degeneracies=True,
+                       mode_selection=None,
+                       use_internals=False,
+                       step_size=None,
+                       analytic_derivative_order=None
+                       ):
+    return get_mlip_logfile('aimnet-old', key, use_reaction_path=use_reaction_path, use_degeneracies=use_degeneracies,
+                       mode_selection=mode_selection,
+                       use_internals=use_internals,
+                       step_size=step_size,
+                       analytic_derivative_order=analytic_derivative_order)
+
+def get_mace_logfile(key, use_reaction_path=True, use_degeneracies=True,
+                       mode_selection=None,
+                       use_internals=False,
+                       step_size=None,
+                       analytic_derivative_order=None
+                       ):
+    return get_mlip_logfile('mace', key, use_reaction_path=use_reaction_path, use_degeneracies=use_degeneracies,
+                       mode_selection=mode_selection,
+                       use_internals=use_internals,
+                       step_size=step_size,
+                       analytic_derivative_order=analytic_derivative_order)
+
+
+def run_mlip_vpt(lot, logfile_getter, structure_getter, expansion_getter, key,
+                 use_internals=False,
+                 use_reaction_path=True,
+                 log_file=None,
+                 overwrite=False,
+                 mode_selection=None,
+                 recompute_expansion=False,
+                 step_size=None,
+                 use_degeneracies=True,
+                 return_runner=False,
+                 analytic_derivative_order=None,
+                 **opts
+                 ):
+    coords = structure_getter(key, 'optimized')
     coords = np.array(coords)
-    (modes, status), potential_expansion = get_aimnet_expansion(key, 'optimized',
-                                                                overwrite=recompute_expansion,
-                                                                step_size=step_size,
-                                                                analytic_derivative_order=analytic_derivative_order
-                                                                )
+    (modes, status), potential_expansion = expansion_getter(key, 'optimized',
+                                                            overwrite=recompute_expansion,
+                                                            step_size=step_size,
+                                                            analytic_derivative_order=analytic_derivative_order
+                                                            )
     modes.matrix = np.array(modes.matrix)
     modes.inverse = np.array(modes.inverse)
     modes.masses = np.array(modes.masses)
@@ -234,7 +275,7 @@ def run_aimnet_vpt(key,
     modes.origin = coords
     modes.g_matrix = (
         np.array(modes.g_matrix).reshape(18, 18)
-        if modes.g_matrix is not None else
+            if modes.g_matrix is not None else
         None
     )
     me_aimnet = methanol.modify(
@@ -244,19 +285,19 @@ def run_aimnet_vpt(key,
     )
 
     if log_file is None:
-        log_file = get_aimnet_logfile(key,
-                                      use_degeneracies=use_degeneracies,
-                                      use_reaction_path=(status or use_reaction_path),
-                                      mode_selection=mode_selection, use_internals=use_internals,
-                                      step_size=step_size,
-                                      analytic_derivative_order=analytic_derivative_order
-                                      )
+        log_file = logfile_getter(key,
+                                  use_degeneracies=use_degeneracies,
+                                  use_reaction_path=(status or use_reaction_path),
+                                  mode_selection=mode_selection, use_internals=use_internals,
+                                  step_size=step_size,
+                                  analytic_derivative_order=analytic_derivative_order
+                                  )
 
 
-    os.makedirs(paths.torsion_scan_path('aimnet', 'results'), exist_ok=True)
+    os.makedirs(paths.torsion_scan_path(lot, 'results'), exist_ok=True)
     if status or use_reaction_path:
         locs, nms, rpnms = prep_rp_modes(me_aimnet,
-                                         nms=modes,
+                                         # nms=modes,
                                          internals=methanol_zmatrix,
                                          proj_coord=(2, 0, 1, 5)
                                          )
@@ -273,15 +314,22 @@ def run_aimnet_vpt(key,
         # tf = np.eye(tf[0].shape[0])[:, 1:]
         # tf = (tf, tf.T)
     else:
+        # nms = modes
+        _, nms, _ = prep_rp_modes(me_aimnet,
+                                         # nms=modes,
+                                         internals=methanol_zmatrix,
+                                         proj_coord=(2, 0, 1, 5)
+                                         )
         tf = None
 
-    nms = modes
+    # nms = modes
     opts = dict(
         dict(
             states=2,
             degeneracy_specs='auto' if use_degeneracies else None,
             cartesian_analytic_deriv_order=-1,
             cartesian_by_internal_derivative_method='fast',
+            gmatrix_tolerance=1 * UnitsData.convert("Wavenumbers", "Hartrees"),
             modes=nms,
             mode_transformation=tf,
             mode_selection=mode_selection,
@@ -307,6 +355,64 @@ def run_aimnet_vpt(key,
         runner, _ = me_aimnet.setup_VPT(**opts)
         return runner
 
+def run_aimnet_vpt(key,
+                 use_internals=False,
+                 use_reaction_path=True,
+                 log_file=None,
+                 overwrite=False,
+                 mode_selection=None,
+                 recompute_expansion=False,
+                 step_size=None,
+                 use_degeneracies=True,
+                 return_runner=False,
+                 analytic_derivative_order=None,
+                 **opts
+                 ):
+    return run_mlip_vpt(
+        'aimnet', get_aimnet_logfile, get_aimnet_structure, get_aimnet_expansion,
+        key,
+        use_internals=use_internals,
+        use_reaction_path=use_reaction_path,
+        log_file=log_file,
+        overwrite=overwrite,
+        mode_selection=mode_selection,
+        recompute_expansion=recompute_expansion,
+        step_size=step_size,
+        use_degeneracies=use_degeneracies,
+        return_runner=return_runner,
+        analytic_derivative_order=analytic_derivative_order,
+        **opts
+    )
+
+def run_mace_vpt(key,
+                 use_internals=False,
+                 use_reaction_path=True,
+                 log_file=None,
+                 overwrite=False,
+                 mode_selection=None,
+                 recompute_expansion=False,
+                 step_size=None,
+                 use_degeneracies=True,
+                 return_runner=False,
+                 analytic_derivative_order=None,
+                 **opts
+                 ):
+    return run_mlip_vpt(
+        'mace', get_mace_logfile, get_mace_structure, get_mace_expansion,
+        key,
+        use_internals=use_internals,
+        use_reaction_path=use_reaction_path,
+        log_file=log_file,
+        overwrite=overwrite,
+        mode_selection=mode_selection,
+        recompute_expansion=recompute_expansion,
+        step_size=step_size,
+        use_degeneracies=use_degeneracies,
+        return_runner=return_runner,
+        analytic_derivative_order=analytic_derivative_order,
+        **opts
+    )
+
 
 def get_log_generator(lot_name:str):
     if isinstance(lot_name, str):
@@ -319,6 +425,10 @@ def get_log_generator(lot_name:str):
         return get_wb97_logfile
     elif lot == LevelsOfTheory.AIMNet2:
         return get_aimnet_logfile
+    elif lot == LevelsOfTheory.AIMNet2Old:
+        return get_aimnet_old_logfile
+    elif lot == LevelsOfTheory.MACE:
+        return get_mace_logfile
     else:
         raise NotImplementedError(lot)
 

@@ -50,7 +50,10 @@ def get_plot_data(k, log_gen,
     if isinstance(log_gen, (LevelsOfTheory, str)):
         log_gen = LevelsOfTheory(log_gen)
         if key_function is None:
-            if log_gen == LevelsOfTheory.AIMNet2:
+            if any(
+                    log_gen == x
+                    for x in [LevelsOfTheory.AIMNet2, LevelsOfTheory.AIMNet2Old, LevelsOfTheory.MACE]
+            ):
                 key_function = lambda i : -i
             else:
                 key_function = lambda i :( i//10) + 1
@@ -156,6 +159,36 @@ def aimnet_comp_plot(k, **opts):
     return energy_comp_plot(
         k,
         'aimnet',
+        lambda i :-i,
+        **opts
+    )
+
+def plot_aimnet_old_energies(k, **opts):
+    return energy_plot(
+        k,
+        'aimnet-old',
+        lambda i: -i,
+        **opts
+    )
+def aimnet_old_comp_plot(k, **opts):
+    return energy_comp_plot(
+        k,
+        'aimnet-old',
+        lambda i :-i,
+        **opts
+    )
+
+def plot_mace_energies(k, **opts):
+    return energy_plot(
+        k,
+        'mace',
+        lambda i: -i,
+        **opts
+    )
+def mace_comp_plot(k, **opts):
+    return energy_comp_plot(
+        k,
+        'mace',
         lambda i :-i,
         **opts
     )
