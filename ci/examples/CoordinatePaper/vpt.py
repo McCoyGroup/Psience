@@ -2,6 +2,7 @@ import os
 import enum
 import numpy as np
 from McUtils.Data import UnitsData
+from McUtils.McUtils.Formatters import TableFormatter
 from Psience.Molecools import Molecule
 from Psience.VPT2 import PerturbationTheoryHamiltonian
 
@@ -54,7 +55,7 @@ def run_gaussian_vpt(
         subkey,
         file_pattern='methanol_vpt_{key}.fchk',
         use_internals=False,
-        use_reaction_path=True,
+        use_reaction_path=None,
         mode_selection=None,
         use_degeneracies=True,
         log_file=None,
@@ -72,36 +73,66 @@ def run_gaussian_vpt(
     #                                        )
     #                          )
 
-    if use_reaction_path:
-        (locs, nms, rpnms), stat = prep_rp_modes(me_gaussian,
-                                                 internals=methanol_gaussian_zmatrix,
-                                                 proj_coord=(3, 2, 1, 0),
-                                                 return_status=True
-                                                 )
-    else:
-        stat = False
-        locs = None
-        rpnms = None
-        nms = me_gaussian.get_normal_modes(project_transrot=False, use_internals=False).remove_mass_weighting().remove_frequency_scaling()
+    os.makedirs(paths.torsion_scan_path(lot, 'results'), exist_ok=True)
+    # if status or (use_reaction_path is not False):
+    (locs, nms, rpnms), status = prep_rp_modes(me_gaussian,
+                                               internals=methanol_gaussian_zmatrix,
+                                               proj_coord=(3, 2, 1, 0),
+                                               return_status=True,
+                                               project_transrot=False,
+                                               try_reaction_path=use_reaction_path is not False
+                                               )
+    tf = locs.localizing_transformation
+    ms = mode_selection
+    if mode_selection is not None:
+        tf = locs[mode_selection].localizing_transformation
+        mode_selection = None
+
+        # print(">",
+        #       TableFormatter("{:.1f}").format(locs.local_freqs*UnitsData.hartrees_to_wavenumbers)
+        #       )
+        # print(tf)
+    print_rpnm_hessian(me_gaussian, nms, rpnms, locs)
+
+    # if use_reaction_path is not False:
+    #     (locs, nms, rpnms), stat = prep_rp_modes(me_gaussian,
+    #                                              internals=methanol_gaussian_zmatrix,
+    #                                              proj_coord=(3, 2, 1, 0),
+    #                                              return_status=True
+    #                                              )
+    # else:
+    #     # stat = False
+    #     # locs = None
+    #     # rpnms = None
+    #     (locs, nms, rpnms), stat = prep_rp_modes(me_gaussian,
+    #                                              internals=methanol_gaussian_zmatrix,
+    #                                              proj_coord=(3, 2, 1, 0),
+    #                                              return_status=True,
+    #                                              try_reaction_path=False
+    #                                              )
+    #     # nms = me_gaussian.get_normal_modes(project_transrot=False, use_internals=False).remove_mass_weighting().remove_frequency_scaling()
 
     os.makedirs(paths.torsion_scan_path(lot, 'results'), exist_ok=True)
     if log_file is None:
         log_file = get_gaussian_logfile(lot, subkey,
-                                        use_reaction_path=(stat or use_reaction_path),
-                                        mode_selection=mode_selection,
+                                        use_reaction_path=(
+                                                (use_reaction_path is not False)
+                                                and (status or (use_reaction_path is True))
+                                        ),
+                                        mode_selection=ms,
                                         use_degeneracies=use_degeneracies,
                                         use_internals=use_internals)
 
-    if stat or use_reaction_path:
-        tf = locs.localizing_transformation
-        if mode_selection is not None:
-            tf = locs[mode_selection].localizing_transformation
-
-        print_rpnm_hessian(me_gaussian, nms, rpnms, locs)
-
-        mode_selection = None
-    else:
-        tf = None
+    # if stat or use_reaction_path:
+    #     tf = locs.localizing_transformation
+    #     if mode_selection is not None:
+    #         tf = locs[mode_selection].localizing_transformation
+    #
+    #     print_rpnm_hessian(me_gaussian, nms, rpnms, locs)
+    #
+    #     mode_selection = None
+    # else:
+    #     tf = None
 
     if overwrite or not os.path.exists(log_file):
         try:
@@ -121,7 +152,7 @@ def run_gaussian_vpt(
         if return_runner:
             return runner
         try:
-            runner.print_tables(logger=runner.hamiltonian.logger)
+            runner.print_tables(logger=runner.hamiltonian.logger, print_intensities=False)
         except:
             os.remove(log_file)
             raise
@@ -250,7 +281,7 @@ def get_mace_logfile(key, use_reaction_path=True, use_degeneracies=True,
 
 def run_mlip_vpt(lot, logfile_getter, structure_getter, expansion_getter, key,
                  use_internals=False,
-                 use_reaction_path=True,
+                 use_reaction_path=None,
                  log_file=None,
                  overwrite=False,
                  mode_selection=None,
@@ -263,11 +294,12 @@ def run_mlip_vpt(lot, logfile_getter, structure_getter, expansion_getter, key,
                  ):
     coords = structure_getter(key, 'optimized')
     coords = np.array(coords)
-    (modes, status), potential_expansion = expansion_getter(key, 'optimized',
+    modes, potential_expansion = expansion_getter(key, 'optimized',
                                                             overwrite=recompute_expansion,
                                                             step_size=step_size,
                                                             analytic_derivative_order=analytic_derivative_order
                                                             )
+
     modes.matrix = np.array(modes.matrix)
     modes.inverse = np.array(modes.inverse)
     modes.masses = np.array(modes.masses)
@@ -284,43 +316,55 @@ def run_mlip_vpt(lot, logfile_getter, structure_getter, expansion_getter, key,
         potential_derivatives=[np.array(v) for v in potential_expansion[1:]]
     )
 
+    os.makedirs(paths.torsion_scan_path(lot, 'results'), exist_ok=True)
+    # if status or (use_reaction_path is not False):
+    (locs, nms, rpnms), status = prep_rp_modes(me_aimnet,
+                                               nms=modes,
+                                               internals=methanol_zmatrix,
+                                               proj_coord=(2, 0, 1, 5),
+                                               return_status=True,
+                                               try_reaction_path=use_reaction_path is not False
+                                               )
+    tf = locs.localizing_transformation
+    ms = mode_selection
+    if mode_selection is not None:
+        tf = locs[mode_selection].localizing_transformation
+        mode_selection = None
+
+        # print(">",
+        #       TableFormatter("{:.1f}").format(locs.local_freqs*UnitsData.hartrees_to_wavenumbers)
+        #       )
+        # print(tf)
+    print_rpnm_hessian(me_aimnet, nms, rpnms, locs)
+    # return nms.make_mass_weighted().apply_transformation(locs.localizing_transformation[1].T)
+    # mode_selection = None
+    # print(tf[0].T @ tf[0] )
+    # return
+    # tf = np.eye(tf[0].shape[0])[:, 1:]
+    # tf = (tf, tf.T)
+    # else:
+    #     status = False
+    #     # nms = modes
+    #     _, nms, _ = prep_rp_modes(me_aimnet,
+    #                                      # nms=modes,
+    #                                      internals=methanol_zmatrix,
+    #                                      proj_coord=(2, 0, 1, 5)
+    #                                      )
+    #     tf = None
+
+
     if log_file is None:
         log_file = logfile_getter(key,
                                   use_degeneracies=use_degeneracies,
-                                  use_reaction_path=(status or use_reaction_path),
-                                  mode_selection=mode_selection, use_internals=use_internals,
+                                  use_reaction_path=(
+                                      (use_reaction_path is not False)
+                                      and (status or (use_reaction_path is True))
+                                  ),
+                                  mode_selection=ms,
+                                  use_internals=use_internals,
                                   step_size=step_size,
                                   analytic_derivative_order=analytic_derivative_order
                                   )
-
-
-    os.makedirs(paths.torsion_scan_path(lot, 'results'), exist_ok=True)
-    if status or use_reaction_path:
-        locs, nms, rpnms = prep_rp_modes(me_aimnet,
-                                         # nms=modes,
-                                         internals=methanol_zmatrix,
-                                         proj_coord=(2, 0, 1, 5)
-                                         )
-        tf = locs.localizing_transformation
-        if mode_selection is not None:
-            tf = locs[mode_selection].localizing_transformation
-
-        print_rpnm_hessian(me_aimnet, nms, rpnms, locs)
-        # return nms.make_mass_weighted().apply_transformation(locs.localizing_transformation[1].T)
-
-        mode_selection = None
-        # print(tf[0].T @ tf[0] )
-        # return
-        # tf = np.eye(tf[0].shape[0])[:, 1:]
-        # tf = (tf, tf.T)
-    else:
-        # nms = modes
-        _, nms, _ = prep_rp_modes(me_aimnet,
-                                         # nms=modes,
-                                         internals=methanol_zmatrix,
-                                         proj_coord=(2, 0, 1, 5)
-                                         )
-        tf = None
 
     # nms = modes
     opts = dict(
@@ -329,7 +373,7 @@ def run_mlip_vpt(lot, logfile_getter, structure_getter, expansion_getter, key,
             degeneracy_specs='auto' if use_degeneracies else None,
             cartesian_analytic_deriv_order=-1,
             cartesian_by_internal_derivative_method='fast',
-            gmatrix_tolerance=1 * UnitsData.convert("Wavenumbers", "Hartrees"),
+            gmatrix_tolerance=5 * UnitsData.convert("Wavenumbers", "Hartrees"),
             modes=nms,
             mode_transformation=tf,
             mode_selection=mode_selection,
@@ -357,7 +401,7 @@ def run_mlip_vpt(lot, logfile_getter, structure_getter, expansion_getter, key,
 
 def run_aimnet_vpt(key,
                  use_internals=False,
-                 use_reaction_path=True,
+                 use_reaction_path=None,
                  log_file=None,
                  overwrite=False,
                  mode_selection=None,
@@ -386,7 +430,7 @@ def run_aimnet_vpt(key,
 
 def run_mace_vpt(key,
                  use_internals=False,
-                 use_reaction_path=True,
+                 use_reaction_path=None,
                  log_file=None,
                  overwrite=False,
                  mode_selection=None,

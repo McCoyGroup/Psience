@@ -1,3 +1,4 @@
+import os
 
 import numpy as np
 from Psience.Molecools import Molecule
@@ -5,6 +6,7 @@ import McUtils.Coordinerds as coordops
 import McUtils.Scaffolding as scaff
 from McUtils.Data import UnitsData
 
+from . import modes
 from .paths import *
 
 # methanol = Molecule.from_string(
@@ -71,6 +73,7 @@ def get_aimnet_checkpointer(key):
     )
 
 def get_aimnet_methanol():
+    os.makedirs(torsion_scan_path('checkpoints'), exist_ok=True)
     base_chk = scaff.Checkpointer.from_file(
         torsion_scan_path('checkpoints/base_struct.json')
     )
@@ -113,7 +116,10 @@ def get_mlip_structure(lot, me_structs, key, subkey,
     )
     if coords is None:
         if overwrite:
-            del chk[(key, 'unoptimized', 'coords')]
+            try:
+                del chk[(key, 'unoptimized', 'coords')]
+            except KeyError:
+                ...
         coords = chk.cached_eval(
             (key, 'unoptimized', 'coords'),
             lambda: me_int.get_displaced_coordinates(
@@ -136,7 +142,9 @@ def get_mlip_structure(lot, me_structs, key, subkey,
         )
     return coords
 def _optimize_constrained_dihedral(me_cart, me_int, coords):
-    opt_mol = me_int.modify(coords=coords).optimize(
+    print("optimizing...")
+    opt_mol = me_int.modify(coords=coords)
+    opt_mol = opt_mol.optimize(
         coordinate_constraints=[(2, 0, 1, 5)],
         tol=1e-16,
         optimizer_settings=dict(
@@ -150,74 +158,34 @@ def _optimize_constrained_dihedral(me_cart, me_int, coords):
         max_iterations=500,
         # max_displacement=.001,
         # logger=True
-    )#.coords
-    # opt_mol = opt_mol.optimize(
-    #     # coordinate_constraints=[(2, 0, 1, 5)],
-    #     tol=1e-16,
-    #     # optimizer_settings=dict(
-    #     #     fatol=1e-16,
-    #     #     xatol=1e-16
-    #     # ),
-    #     mode='scipy',
-    #     # method='-mead',
-    #     # method='cg',
-    #     # method='gradient-descent',
-    #     # max_iterations=1000,
-    #     # max_displacement=.001,
-    #     # logger=True
-    # )  # .coords
+    )
+    for i in range(3):
+        # opt_mol = opt_mol.optimize(
+        #     coordinate_constraints=[(2, 0, 1, 5)],
+        #     tol=1e-16,
+        #     method='conjugate-gradient',
+        #     max_displacement=.005,
+        #     logger=True
+        # )
+        # opt_mol = opt_mol.optimize(
+        #     coordinate_constraints=[(2, 0, 1, 5)],
+        #     tol=1e-16,
+        #     max_displacement=.005,
+        #     # logger=True
+        # )
+        opt_mol = opt_mol.optimize(
+            coordinate_constraints=[(2, 0, 1, 5)],
+            tol=1e-16,
+            optimizer_settings=dict(
+                fatol=1e-16,
+                xatol=1e-16
+            ),
+            mode='scipy',
+            method='nelder-mead',
+            max_iterations=200,
+        )
+    print("done")
 
-    # opt_mol = opt_mol.optimize(
-    #     # coordinate_constraints=[(2, 0, 1, 5)],
-    #     tol=1e-16,
-    #     optimizer_settings=dict(
-    #         fatol=1e-16,
-    #         xatol=1e-16
-    #     ),
-    #     mode='scipy',
-    #     method='nelder-mead',
-    #     # method='cg',
-    #     # method='gradient-descent',
-    #     max_iterations=1000,
-    #     # max_displacement=.001,
-    #     # logger=True
-    # )#.coords
-#     """
-# -0.0  0.0  0.0  1.0  0.0  0.0  6.1  -3.9  -0.0  -1.9  -9.3  0.4  3.0  4.2  -0.5  1.8  -10.0  2.8
-# 0.3  9.5  0.5  6.0  -5.9  0.5  0.2  -6.5  -1.9  -1.0  1.9  -3.4  -4.5  -0.8  2.9  -0.9  1.7  1.4
-# 0.0  -0.0  -0.0  -0.8  -0.0  -0.0  0.6  1.1  -0.0  -1.8  7.8  -131.6  6.1  4.1  11.5  7.2  0.7  4.6
-# 38.8  74.9  10.3  -15.4  -54.5  77.8  -29.5  -58.5  -12.6  3.8  5.6  -2.7  -5.8  -2.0  -4.6  8.1  34.5  -68.1
-# -0.0  -0.0  -0.0  12.3  -0.0  0.0  -5.1  0.7  -0.0  -13.9  2.9  -226.9  -6.2  1.4  -3.9  -0.1  -0.1  -6.1
-# 63.4  151.0  13.2  -36.4  -90.6  141.0  -46.2  -105.2  -35.5  1.4  -6.0  1.7  1.8  -2.5  0.5  15.9  53.3  -120.9
-# """
-#     opt_mol = opt_mol.optimize(
-#         # coordinate_constraints=[(2, 0, 1, 5)],
-#         tol=1e-10,
-#         mode='scipy',
-#         # method='nelder-mead',
-#         # method='cg',
-#         # method='gradient-descent',
-#         max_iterations=50,
-#         # max_displacement=.0001,
-#         # logger=True
-#     )
-#     opt_mol = opt_mol.optimize(
-#         # coordinate_constraints=[(2, 0, 1, 5)],
-#         tol=1e-16,
-#         optimizer_settings=dict(
-#             fatol=1e-16,
-#             xatol=1e-16
-#         ),
-#         mode='scipy',
-#         method='nelder-mead',
-#         # method='cg',
-#         # method='gradient-descent',
-#         max_iterations=1000,
-#         # max_displacement=.001,
-#         # logger=True
-#     )
-    # print(opt_mol.coords)
-#     print(opt_mol._meta)
     return opt_mol.coords
 def get_aimnet_structure(key, subkey,
                        coords=None, overwrite=False,
@@ -239,16 +207,19 @@ def get_mace_structure(key, subkey, coords=None, overwrite=False,
         chk_pattern=chk_pattern
     )
 
-def _get_quartic_force_field(mol, modes):
+def _get_quartic_force_field(mol, modes, **kwargs):
     print("getting quartic force field...")
     ff = mol.partial_force_field(
         order=4,
-        modes=modes
+        modes=modes,
+        **kwargs
     )
     print("done")
     return ff
 
-def get_mlip_expansion(lot, me_structs, structure_getter,
+def get_mlip_expansion(lot,
+                       me_structs,
+                       structure_getter,
                        key, subkey,
                        coords=None,
                        overwrite=False,
@@ -275,12 +246,15 @@ def get_mlip_expansion(lot, me_structs, structure_getter,
             lambda: mol.calculate_energy(order=2)
         )
         if return_harmonic: return harmonic_expansion
-        modes, status = chk.cached_eval(
+        modes = chk.cached_eval(
             (key, subkey, 'modes'),
-            lambda: mol.get_reaction_path_modes(
+            lambda: mol.get_normal_modes(
                 potential_derivatives=harmonic_expansion[1:],
-                return_status=True,
-                zero_gradient_cutoff=25 / UnitsData.hartrees_to_wavenumbers,
+                zero_freq_cutoff = 25 * UnitsData.convert("Wavenumbers", "Hartrees"),
+                project_transrot=True
+                # zero_freq
+                # return_status=True,
+                # zero_gradient_cutoff=50 / UnitsData.hartrees_to_wavenumbers
                 # gradient_check_internals=methanol_zmatrix
             )
         )
@@ -294,7 +268,7 @@ def get_mlip_expansion(lot, me_structs, structure_getter,
                         pass
                 potential_derivatives = chk.cached_eval(
                     tag,
-                    lambda : _get_quartic_force_field()
+                    lambda : _get_quartic_force_field(mol, modes)
                 )
             else:
                 tag = (key, subkey, 'potential_derivatives_analytic_do', str(analytic_derivative_order))
@@ -305,11 +279,8 @@ def get_mlip_expansion(lot, me_structs, structure_getter,
                         pass
                 potential_derivatives = chk.cached_eval(
                     tag,
-                    lambda: mol.partial_force_field(
-                        order=4,
-                        modes=modes,
-                        analytic_derivative_order=analytic_derivative_order
-                    )
+                    lambda : _get_quartic_force_field(mol, modes,
+                                                      analytic_derivative_order=analytic_derivative_order)
                 )
         else:
             tag = (key, subkey, 'potential_derivatives_stepped', str(round(step_size * 1000)))
@@ -321,11 +292,8 @@ def get_mlip_expansion(lot, me_structs, structure_getter,
                         pass
                 potential_derivatives = chk.cached_eval(
                     tag,
-                    lambda: mol.partial_force_field(
-                        order=4,
-                        modes=modes,
-                        mesh_spacing=step_size
-                    )
+                    lambda: _get_quartic_force_field(mol, modes,
+                                                     mesh_spacing=step_size)
                 )
             else:
                 tag = (
@@ -341,14 +309,13 @@ def get_mlip_expansion(lot, me_structs, structure_getter,
                         pass
                 potential_derivatives = chk.cached_eval(
                     tag,
-                    lambda: mol.partial_force_field(
-                        order=4,
-                        modes=modes,
-                        mesh_spacing=step_size,
-                        analytic_derivative_order=analytic_derivative_order
-                    )
+
+                    lambda: _get_quartic_force_field(mol, modes,
+                                                     mesh_spacing=step_size,
+                                                     analytic_derivative_order=analytic_derivative_order
+                                                     )
                 )
-    return (modes, status), potential_derivatives
+    return modes, potential_derivatives
 
 
 def get_aimnet_expansion(key, subkey, coords=None, overwrite=False, step_size=None,

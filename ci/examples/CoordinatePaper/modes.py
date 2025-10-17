@@ -7,25 +7,28 @@ import McUtils.Devutils as dev
 from McUtils.Data import UnitsData
 import numpy as np
 
-from . import expansions
 from . import paths
 
-
+ZERO_FREQ_CUTOFF = 25 * UnitsData.convert("Wavenumbers", "Hartrees")
 RPMODE_GRADIENT_CUTOFF = 50 / UnitsData.hartrees_to_wavenumbers
-def prep_rp_modes(me_ints, nms=None, internals=None,
+def prep_rp_modes(me_ints,
+                  nms=None,
+                  potential_derivatives=None,
+                  internals=None,
                   project_transrot=False,
                   proj_coord=(3, 2, 1, 0),
                   try_reaction_path=True,
                   return_status=False
                   ) -> ((LocalizedModes, NormalModes,NormalModes), bool):
+    if potential_derivatives is not None:
+        me_ints = me_ints.modify(potential_derivatives=[np.array(v) for v in potential_derivatives])
     if nms is None:
         nms = me_ints.get_normal_modes(
             use_internals=False,
             project_transrot=project_transrot,
-            potential_derivatives=me_ints.potential_derivatives,
-            zero_freq_cutoff=30 * UnitsData.convert("Wavenumbers", "Hartrees")
+            # potential_derivatives=me_ints.potential_derivatives,
+            zero_freq_cutoff=ZERO_FREQ_CUTOFF
         )
-
 
         # rpnms, stat = nms.get_reaction_path_modes(
         #     me_ints.potential_derivatives[0],
@@ -38,7 +41,7 @@ def prep_rp_modes(me_ints, nms=None, internals=None,
         return_status=True,
         zero_gradient_cutoff=RPMODE_GRADIENT_CUTOFF,
         project_transrot=project_transrot,
-        zero_freq_cutoff=30 * UnitsData.convert("Wavenumbers", "Hartrees")
+        zero_freq_cutoff=ZERO_FREQ_CUTOFF
     )
 
     if try_reaction_path and stat:
@@ -61,7 +64,25 @@ def prep_rp_modes(me_ints, nms=None, internals=None,
     else:
         if me_ints.internals is None:
             me_ints = me_ints.modify(internals=internals)
-        nms_int = me_ints.get_normal_modes(use_internals=True, project_transrot=False)
+        tf = me_ints.get_internals_by_cartesians(1, strip_embedding=True)
+        inv = me_ints.get_cartesians_by_internals(1, strip_embedding=True)
+        nms_int = type(nms)(
+            me_ints.internal_coordinates.system,
+            inv[0] @ nms.remove_mass_weighting().modes_by_coords,
+            freqs=nms.freqs,
+            inverse=nms.remove_mass_weighting().coords_by_modes @ tf[0],
+            g_matrix=me_ints.get_gmatrix(use_internals=True),
+            masses=me_ints.atomic_masses,
+            origin=me_ints.get_internals(strip_embedding=True),
+            mass_weighted=False
+        )
+        # nms_int = me_ints.get_normal_modes(
+        #     use_internals=True,
+        #     project_transrot=False,
+        #     zero_freq_cutoff=ZERO_FREQ_CUTOFF
+        # )
+        print(nms_int.freqs * UnitsData.hartrees_to_wavenumbers)
+        print(nms_int.compute_freqs() * UnitsData.hartrees_to_wavenumbers)
         # print(
         #     mfmt.TableFormatter("{:.3f}").format(nms_int.modes_by_coords)
         # )
@@ -73,6 +94,11 @@ def prep_rp_modes(me_ints, nms=None, internals=None,
             ),
             maximum_similarity=True
         )
+        # print(locs.compute_freqs() * UnitsData.hartrees_to_wavenumbers)
+        # with np.printoptions(linewidth=1e8):
+        #     print(np.round(locs.localizing_transformation[0], 8)**2)
+        #     print(locs.localizing_transformation[0] @ locs.localizing_transformation[1])
+        # raise Exception(locs.freqs * UnitsData.hartrees_to_wavenumbers)
 
     # print(
     #     mfmt.TableFormatter("{:.1f}").format(
@@ -190,6 +216,7 @@ def print_rpnm_hessian(me_ints, nms, rpnms, locs):
     )
 
 def get_gaussian_modes(lot, subkey, use_internals=False, return_status=True, return_mol=False):
+    from . import expansions
     me_gaussian = Molecule.from_file(
         paths.torsion_scan_path(lot, f'{subkey}.fchk'),
         internals=expansions.methanol_gaussian_zmatrix if use_internals else None
@@ -251,6 +278,7 @@ def get_local_rescaled_modes(cpmo3, modes, invs):
     return ob_modes, ob_inv
 
 def get_cpmo3_symmetry_coordinates(cpmo3:Molecule, rescale=True):
+    from . import expansions
     cpmo3_int = cpmo3.modify(internals=expansions.cpmo3_zmatrix)
     pg, coeffs, intenrals, red_exps, base_exps = cpmo3_int.get_symmetrized_internals(
         atom_selection=[0, 1, 2, 3, 4, 10], tol=.8, permutation_tol=.9,
@@ -272,6 +300,7 @@ def get_cpmo3_symmetry_coordinates(cpmo3:Molecule, rescale=True):
     return expansion_data, tf_data
 
 def get_contraction_modes(cpmo3, rescale=True):
+    from . import expansions
     cpmo3_int = cpmo3.modify(internals=expansions.cpmo3_zmatrix)
 
     centroid = np.average(cpmo3.coords[:5], axis=0)
@@ -304,6 +333,7 @@ def get_contraction_modes(cpmo3, rescale=True):
     return (mode, inv), (full_basis, coordops.extract_zmatrix_internals(expansions.cpmo3_zmatrix))
 
 def get_cpmo3_modes(struct_id, projection_type='symmetrized', rescale=True, localize=False, return_structure=False):
+    from . import expansions
     cpmo3 = expansions.load_cpmo3(struct_id)
 
     if projection_type == 'symmetrized':

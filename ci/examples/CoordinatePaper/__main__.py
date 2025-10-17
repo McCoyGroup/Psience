@@ -117,22 +117,37 @@ def analytic_expansions():
     woof = expansions.get_aimnet_expansion(0, 'optimized', analytic_derivative_order=3)
     print(np.array(woof[1][4]).shape)
 
-@runnable
+@inactive
 def AIMNetVPT():
+    import warnings
+    warnings.filterwarnings('error')
     degs = True
     # vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=False, use_reaction_path=False)
     # vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=True, use_reaction_path=False)
     step_size = None#.25
-    import warnings
-    warnings.filterwarnings('error')
+    use_rp = False
+    overwrite = False
+    # update_sel = []#, -40, -50, -60]
     # overwrite = True
-    # for k in range(0, -70, -10):
+    # for k in update_sel:#range(0, -70, -10):
     #     print(f"OPTIMIZING: {k}")
     #     # meth, meth_int = expansions.get_aimnet_methanol()
     #     base_struct = expansions.get_aimnet_structure(k, 'optimized', overwrite=overwrite)
-    #     harmonic_expansion = expansions.get_aimnet_expansion(k, 'optimized', overwrite=overwrite)
-    overwrite = False
-    for k in range(0, -70, -10):
+    #     _, expansion = expansions.get_aimnet_expansion(k, 'optimized', overwrite=overwrite)
+    #     me_aimnet = expansions.methanol.modify(
+    #         coords=base_struct,
+    #         potential_derivatives=[np.array(v) for v in expansion[1:]]
+    #     )
+    #     locs, nms, rpnms = vpt.prep_rp_modes(me_aimnet,
+    #                                          # nms=modes,
+    #                                          internals=expansions.methanol_zmatrix,
+    #                                          proj_coord=(2, 0, 1, 5),
+    #                                          try_reaction_path=use_rp
+    #                                          )
+    #     tf = locs.localizing_transformation
+    #     vpt.print_rpnm_hessian(me_aimnet, nms, rpnms, locs)
+    update_sel = [0, -10, -20, -30, -40, -50, -60]
+    for k in update_sel:#range(0, -70, -10):
         # overwrite = k < -15
         # meth, meth_int = expansions.get_aimnet_methanol()
         # base_struct = expansions.get_aimnet_structure(k, 'optimized', overwrite=overwrite)
@@ -162,9 +177,9 @@ def AIMNetVPT():
         # # print(f"MACE-OFF ({i}):", stat, rpnms.freqs * UnitsData.hartrees_to_wavenumbers)
         # return
         print(k, "-", "Full")
-        vpt.run_aimnet_vpt(k, use_degeneracies=degs, step_size=step_size, overwrite=overwrite)
+        vpt.run_aimnet_vpt(k, use_degeneracies=degs, step_size=step_size, overwrite=overwrite, use_reaction_path=use_rp)
         print(k, "-", "Full Internals")
-        vpt.run_aimnet_vpt(k, use_degeneracies=degs, use_internals=True, step_size=step_size, overwrite=overwrite)
+        vpt.run_aimnet_vpt(k, use_degeneracies=degs, use_internals=True, step_size=step_size, overwrite=overwrite, use_reaction_path=use_rp)
         for spec in [
             [-4, -3, -2, -1],
             [-7, -6, -5, -4, -3, -2, -1],
@@ -176,21 +191,33 @@ def AIMNetVPT():
             [-1],
         ]:
             print(k, "-", "Partial", spec)
-            vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec, overwrite=overwrite)
+            vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec, overwrite=overwrite,
+                               step_size=step_size,
+                               use_reaction_path=use_rp
+                               )
             print(k, "-", "Partial Internals", spec)
-            vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec, use_internals=True, overwrite=overwrite)
+            vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec, use_internals=True, overwrite=overwrite,
+                               step_size=step_size,
+                               use_reaction_path=use_rp)
 
-@runnable
+@inactive
 def MACEVPT():
     degs = True
     # vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=False, use_reaction_path=False)
     # vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=True, use_reaction_path=False)
     step_size = None#.25
-    for k in range(0, -70, -10):
+    use_rp = False
+    overwrite = False
+    opt_sel = [ 0, -10, -20,
+               -30, -40, -50, -60]
+    for k in opt_sel:
         print(k, "-", "Full")
-        vpt.run_mace_vpt(k, use_degeneracies=degs, step_size=step_size)
+        vpt.run_mace_vpt(k, use_degeneracies=degs, step_size=step_size, use_reaction_path=use_rp,
+                         overwrite=overwrite)
         print(k, "-", "Full Internals")
-        vpt.run_mace_vpt(k, use_degeneracies=degs, use_internals=True, step_size=step_size)
+        vpt.run_mace_vpt(k, use_degeneracies=degs, use_internals=True, step_size=step_size,
+                         use_reaction_path=use_rp,
+                         overwrite=overwrite)
         for spec in [
             [-4, -3, -2, -1],
             [-7, -6, -5, -4, -3, -2, -1],
@@ -202,9 +229,13 @@ def MACEVPT():
             [-1],
         ]:
             print(k, "-", "Partial", spec)
-            vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec)
+            vpt.run_mace_vpt(k, use_degeneracies=degs, mode_selection=spec,
+                             use_reaction_path=use_rp,
+                             overwrite=overwrite)
             print(k, "-", "Partial Internals", spec)
-            vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec, use_internals=True)
+            vpt.run_mace_vpt(k, use_degeneracies=degs, mode_selection=spec, use_internals=True,
+                             use_reaction_path=use_rp,
+                             overwrite=overwrite)
 
 @inactive
 def AIMNetVPTMore():
@@ -232,16 +263,20 @@ def AIMNetVPTMore():
             vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec, use_internals=True)
 
 
-@inactive
+@runnable
 def B3LYPVPT():
     degs = True
-    vpt.run_b3lyp_vpt(1, use_degeneracies=degs, use_internals=False, use_reaction_path=False)
-    vpt.run_b3lyp_vpt(1, use_degeneracies=degs, use_internals=True, use_reaction_path=False)
+    use_rp = False
+    overwrite = True
     for k in [1, 2, 3, 4, 5, 6, 7]:
-        print(k, "-", "Full")
-        vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs)
-        print(k, "-", "Full Internals")
-        vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, use_internals=True)
+        # print(k, "-", "Full")
+        # vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs,
+        #                      use_reaction_path=use_rp,
+        #                      overwrite=overwrite)
+        # print(k, "-", "Full Internals")
+        # vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, use_internals=True,
+        #                      use_reaction_path=use_rp,
+        #                      overwrite=overwrite)
         for spec in [
             [-4, -3, -2, -1],
             [-7, -6, -5, -4, -3, -2, -1],
@@ -253,19 +288,22 @@ def B3LYPVPT():
             [-1],
         ]:
             print(k, "-", "Partial", spec)
-            vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, mode_selection=spec)
-            print(k, "-", "Partial Internals", spec)
-            vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, mode_selection=spec, use_internals=True)
+            vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, mode_selection=spec
+                                 , use_reaction_path=use_rp
+                                 , overwrite=overwrite)
+            # print(k, "-", "Partial Internals", spec)
+            # vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, mode_selection=spec, use_internals=True
+            #                      , overwrite=overwrite)
         # print(k, "-", "OH")
         # vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, mode_selection=[-1])
         # print(k, "-", "OH Internals")
         # vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, mode_selection=[-1], use_internals=True)
 
-@inactive
+@runnable
 def wb97VPT():
     degs = True
-    vpt.run_wb97_vpt(1, use_internals=False, use_reaction_path=False)
-    vpt.run_wb97_vpt(1, use_internals=True, use_reaction_path=False)
+    use_rp = False
+    overwrite = True
     for k in [
         1,
         2, 3,
@@ -273,10 +311,10 @@ def wb97VPT():
         5, 6,
         7
     ]:
-        print(k, "-", "Full")
-        vpt.run_wb97_vpt(k, use_degeneracies=degs)
-        print(k, "-", "Full Internals")
-        vpt.run_wb97_vpt(k, use_degeneracies=degs, use_internals=True)
+        # print(k, "-", "Full")
+        # vpt.run_wb97_vpt(k, use_degeneracies=degs,  use_reaction_path=use_rp, overwrite=overwrite)
+        # print(k, "-", "Full Internals")
+        # vpt.run_wb97_vpt(k, use_degeneracies=degs, use_internals=True, use_reaction_path=use_rp, overwrite=overwrite)
         for spec in [
             [-4, -3, -2, -1],
             [-7, -6, -5, -4, -3, -2, -1],
@@ -288,9 +326,11 @@ def wb97VPT():
             [-1],
         ]:
             print(k, "-", "Partial", spec)
-            vpt.run_wb97_vpt(k, use_degeneracies=degs, mode_selection=spec)
-            print(k, "-", "Partial Internals", spec)
-            vpt.run_wb97_vpt(k, use_degeneracies=degs, mode_selection=spec, use_internals=True)
+            vpt.run_wb97_vpt(k, use_degeneracies=degs, mode_selection=spec
+                             , use_reaction_path=use_rp, overwrite=overwrite)
+            # print(k, "-", "Partial Internals", spec)
+            # vpt.run_wb97_vpt(k, use_degeneracies=degs, mode_selection=spec, use_internals=True
+            #                  , use_reaction_path=use_rp, overwrite=overwrite)
 
 @inactive
 def NORPVPT():
