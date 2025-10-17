@@ -3,6 +3,7 @@ import numpy as np
 import typing
 import McUtils.Plots as plt
 from McUtils.Formatters import TableFormatter
+import McUtils.Devutils as dev
 import McUtils.Numputils as nput
 import McUtils.Formatters as mfmt
 from Psience.VPT2 import VPTAnalyzer
@@ -14,8 +15,15 @@ _analyzer_cache = {}
 def get_energies(log_file:'str|typing.Callable', *logfile_args,
                  energy_type='auto',
                  cache=None,
+                 step_size=None,
                  **logfile_opts):
     if isinstance(log_file, LevelsOfTheory) or (isinstance(log_file, str) and not os.path.isfile(log_file)):
+        log_gen = LevelsOfTheory(log_file)
+        if any(
+                log_gen == x
+                for x in [LevelsOfTheory.AIMNet2, LevelsOfTheory.AIMNet2Old, LevelsOfTheory.MACE]
+        ):
+            logfile_opts['step_size'] = step_size
         log_file = get_log_generator(log_file)
     if not isinstance(log_file, str):
         log_file = log_file(
@@ -40,18 +48,24 @@ def get_energies(log_file:'str|typing.Callable', *logfile_args,
         analyzer.energies
     )
 
+_job_props_ = ("mode_selection", "step_size")
 def get_plot_data(k, log_gen,
                   key_function=None,
                   plot_vals=None,
                   zpe_correct=False,
                   anharmonic_only=False,
+                  step_size=None,
                   **job_opts
                   ):
     if isinstance(log_gen, (LevelsOfTheory, str)):
         log_gen = LevelsOfTheory(log_gen)
         if key_function is None:
-            if log_gen == LevelsOfTheory.AIMNet2:
+            if any(
+                    log_gen == x
+                    for x in [LevelsOfTheory.AIMNet2, LevelsOfTheory.AIMNet2Old, LevelsOfTheory.MACE]
+            ):
                 key_function = lambda i : -i
+                job_opts['step_size'] = step_size
             else:
                 key_function = lambda i :( i//10) + 1
         if plot_vals is None:
@@ -99,7 +113,9 @@ def energy_plot(k, log_gen, key_function,
                 figure=None, plot_styles=None,
                 energy_type='deperturbed',
                 mode_selection=None,
+                step_size=None,
                 use_degeneracies=True,
+                use_reaction_path=True,
                 use_internals=False,
                 zpe_correct=False,
                 anharmonic_only=False,
@@ -115,7 +131,9 @@ def energy_plot(k, log_gen, key_function,
         use_degeneracies=use_degeneracies,
         energy_type=energy_type,
         zpe_correct=zpe_correct,
-        anharmonic_only=anharmonic_only
+        anharmonic_only=anharmonic_only,
+        step_size=step_size,
+        use_reaction_path=use_reaction_path
     )
     return plot_type(
         *get_plot_data(
@@ -156,6 +174,36 @@ def aimnet_comp_plot(k, **opts):
     return energy_comp_plot(
         k,
         'aimnet',
+        lambda i :-i,
+        **opts
+    )
+
+def plot_aimnet_old_energies(k, **opts):
+    return energy_plot(
+        k,
+        'aimnet-old',
+        lambda i: -i,
+        **opts
+    )
+def aimnet_old_comp_plot(k, **opts):
+    return energy_comp_plot(
+        k,
+        'aimnet-old',
+        lambda i :-i,
+        **opts
+    )
+
+def plot_mace_energies(k, **opts):
+    return energy_plot(
+        k,
+        'mace',
+        lambda i: -i,
+        **opts
+    )
+def mace_comp_plot(k, **opts):
+    return energy_comp_plot(
+        k,
+        'mace',
         lambda i :-i,
         **opts
     )
@@ -386,6 +434,7 @@ def subspace_comp_plot(
 
     return figure
 
+
 def energy_diffence_plot(k, log_gen1, log_gen2,
                          key_function1=None,
                          key_function2=None,
@@ -393,6 +442,8 @@ def energy_diffence_plot(k, log_gen1, log_gen2,
                          figure=None, plot_styles=None,
                          energy_type='deperturbed',
                          mode_selection=None,
+                         step_size=None,
+                         use_reaction_path=True,
                          use_degeneracies=True,
                          use_internals=False,
                          zpe_correct=False,
@@ -409,7 +460,9 @@ def energy_diffence_plot(k, log_gen1, log_gen2,
         use_degeneracies=use_degeneracies,
         energy_type=energy_type,
         zpe_correct=zpe_correct,
-        anharmonic_only=anharmonic_only
+        anharmonic_only=anharmonic_only,
+        step_size=step_size,
+        use_reaction_path=use_reaction_path
     )
     plot_vals, d1 = get_plot_data(
         k, log_gen1,
@@ -430,6 +483,208 @@ def energy_diffence_plot(k, log_gen1, log_gen2,
         **opts,
         **plot_styles
     )
+
+plotter_map = {
+    LevelsOfTheory.AIMNet2:plot_aimnet_energies,
+    LevelsOfTheory.AIMNet2Old:plot_aimnet_old_energies,
+    LevelsOfTheory.MACE:plot_mace_energies,
+    LevelsOfTheory.B3LYP:plot_b3lyp_energies,
+    LevelsOfTheory.wB97:plot_wb97_energies,
+}
+def resolve_plotter(lot):
+    lot = LevelsOfTheory(lot)
+    return plotter_map[lot]
+
+label_map = {
+    LevelsOfTheory.AIMNet2: 'AIMNet2',
+    LevelsOfTheory.AIMNet2Old: 'AIMNet2',
+    LevelsOfTheory.MACE: 'MACE-OFF',
+    LevelsOfTheory.B3LYP: "B3LYP",
+    LevelsOfTheory.wB97: "$\\omega$B97X-D3",
+}
+label_formats = {
+    'lot':'{lot_label}',
+    'freq':'{freq_type}{state}',
+    'subspace':'{subspace}'
+}
+freq_types = {
+    'deperturbed':'$\\nu$',
+    'degenerate':'$\\nu$',
+    'harmonic':'$\\omega$'
+}
+def resolve_freq_type_label(energy_type, anharmonic_only):
+    freq_label = freq_types.get(energy_type, energy_type)
+    if anharmonic_only:
+        freq_label = (
+            ("$\\Delta" + freq_label[1:])
+                    if freq_label[0] == "$" else
+            ("$\\Delta$" + freq_label)
+        )
+    return freq_label
+oh_stretch_pos = [10]
+ch_stretch_pos = [9, 8, 7]
+ch_bend_pos = [6, 5, 4]
+misc_pos = [3, 2, 1, 0]
+def resolve_subspace_label(mode_selection):
+    if mode_selection is None:
+        return 'All'
+    else:
+        sel = [(12 + s) if s < 0 else s for s in mode_selection]
+        oh = oh_stretch_pos in sel
+        all_ch = all(c in sel for c in ch_stretch_pos)
+        all_bend = all(c in sel for c in ch_bend_pos)
+        all_misc = all(c in sel for c in misc_pos)
+        if (oh and all_ch and all_bend and all_misc): return 'All'
+
+        any_misc = any(c in sel for c in misc_pos)
+        label = []
+        if (oh and all_ch):
+            label.append("Stretch")
+        elif oh:
+            label.append("OH Stretch")
+        elif all_ch:
+            label.append("CH Stretch")
+        if all_bend:
+            label.append("Bend")
+        if any_misc:
+            label.append("Extra")
+        return "+".join(label)
+def resolve_label(*, lot, state, label=None,
+                  label_format=None,
+                  label_format_join=' - ',
+                  energy_type='deperturbed',
+                  anharmonic_only=False,
+                  mode_selection=None,
+                  **opts):
+    if label is True:
+        if label_format is None:
+            label_format = ['lot', 'freq']
+            if mode_selection is not None:
+                label_format.append('subspace')
+
+    if label is not True: return label
+
+    if not isinstance(label_format, str):
+        label_format = label_format_join.join(
+            label_formats.get(l, l)
+            for l in label_format
+        )
+
+    return label_format.format(
+        lot_label=label_map.get(LevelsOfTheory(lot)),
+        state=state,
+        freq_type=resolve_freq_type_label(energy_type, anharmonic_only),
+        subspace=resolve_subspace_label(mode_selection)
+    )
+
+
+def plot_generic(*, lot, state, label=None, **opts):
+    plotter = resolve_plotter(lot)
+    return plotter(state,
+                   label=resolve_label(lot=lot, state=state, label=label, **opts),
+                   **opts)
+
+default_multi_plot_styles = dict(
+    style_list={
+        'color': (
+            ['001C7F', '017517', '8C0900']
+        )
+    },
+    plot_range=[[0, 60],  None],
+    aspect_ratio=1 / 1.6,
+    axes_labels=['$\\Delta\\tau$ ($^\\circ$)', 'Frequency (cm$^{-1}$)'],
+    plot_legend=True,
+    image_size=800,
+    legend_style={'ncol': 3, 'frameon': False}
+)
+def plot_multi(
+        *plot_specs: dict,
+        energy_type='deperturbed',
+        mode_selection=None,
+        step_size=None,
+        use_degeneracies=None,
+        use_reaction_path=False,
+        use_internals=None,
+        zpe_correct=None,
+        anharmonic_only=None,
+        label=True,
+        lot_styles=None,
+        figure=None,
+        **global_settings
+):
+    global_settings = dict(
+        default_multi_plot_styles,
+        **global_settings
+    )
+    if lot_styles is None:
+        lot_styles = {}
+    for i,f in enumerate(plot_specs):
+        base_opts = dict(
+            energy_type=energy_type,
+            mode_selection=mode_selection,
+            step_size=step_size,
+            use_degeneracies=use_degeneracies,
+            use_reaction_path=use_reaction_path,
+            use_internals=use_internals,
+            zpe_correct=zpe_correct,
+            anharmonic_only=anharmonic_only,
+            label=label
+        )
+        f = dict(
+            dict(
+                {
+                    k: v
+                    for k, v in base_opts.items()
+                    if v is not None
+                },
+                **lot_styles.get(f['lot'], {})
+            ),
+            **f
+        )
+
+        f['figure'] = f.get('figure', figure)
+        s = f['state']
+        if dev.is_number(s):
+            if i == 0:
+                figure = plot_generic(**f, **global_settings)
+            else:
+                _ = plot_generic(**f) #TDB if I prefer to update the object each iteration or not
+        else:
+            for j,r in enumerate(s):
+                if i == 0 and j == 0:
+                    figure = plot_generic(**dict(f, state=r), **global_settings)
+                    if f['figure'] is None:
+                        f['figure'] = figure
+                else:
+                    _ = plot_generic(**dict(f, state=r))  # TDB if I prefer to update the object each iteration or not
+    return figure
+
+def plot_comb(**styles):
+    f1 = plots.plot_mace_energies(2,
+                                  )
+    plots.plot_mace_energies(3, figure=f1, energy_type='deperturbed',
+                             label='MACE - $\\omega_2$',
+                             use_reaction_path=False)  # , plot_range=[-190, -180])
+    plots.plot_mace_energies(4, figure=f1, energy_type='deperturbed',
+                             label='MACE - $\\omega_4$',
+                             use_reaction_path=False)  # , plot_range=[-190, -180])
+
+    plots.plot_b3lyp_energies(2, figure=f1, linestyle='dashed', energy_type='deperturbed',
+                              label='B3LYP - $\\omega_2$')
+    plots.plot_b3lyp_energies(3, figure=f1, linestyle='dashed', energy_type='deperturbed',
+                              label='B3LYP - $\\omega_3$')  # , plot_range=[-190, -180])
+    plots.plot_b3lyp_energies(4, figure=f1, linestyle='dashed', energy_type='deperturbed',
+                              label='B3LYP - $\\omega_4$')  # , plot_range=[-190, -180])
+
+    plots.plot_wb97_energies(2, figure=f1, linestyle='dotted', energy_type='deperturbed',
+                             label='$\\omega$B97X-D3 - $\\omega_2$')
+    plots.plot_wb97_energies(3, figure=f1, linestyle='dotted', energy_type='deperturbed',
+                             label='$\\omega$B97X-D3 - $\\omega_3$')
+    plots.plot_wb97_energies(4, figure=f1, linestyle='dotted', energy_type='deperturbed',
+                             label='$\\omega$B97X-D3 - $\\omega_4$',
+                             image_size=800)
+    # f1.savefig('CH_harmonic_freq.svg')
+    f1
 
 
 

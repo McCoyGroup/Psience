@@ -400,6 +400,7 @@ class ReactionPathModes(NormalModes):
                      projector=None,
                      zero_gradient_cutoff=None,
                      use_max_gradient_cutoff=True,
+                     gradient_check_transformation=None,
                      return_indices=False
                      ):
         if zero_gradient_cutoff is None:
@@ -452,14 +453,19 @@ class ReactionPathModes(NormalModes):
         gi12 = nput.fractional_power(mass_spec, -1 / 2)
         g12 = nput.fractional_power(mass_spec, 1 / 2)
         raw_grad = gradient
+        if gradient_check_transformation is not None:
+            print(gradient_check_transformation)
+            raw_grad = nput.tensor_reexpand(gradient_check_transformation, [gradient])
         gradient = g12 @ gradient
+        check_grad = g12 @ raw_grad
 
         grad_norm = nput.vec_norms(gradient, axis=1)
+        check_norm = nput.vec_norms(check_grad, axis=1)
         if zero_gradient_cutoff is not None:
             if use_max_gradient_cutoff:
                 regular_mode_pos = np.where(np.max(np.abs(raw_grad), axis=1) < zero_gradient_cutoff)
             else:
-                regular_mode_pos = np.where(grad_norm < zero_gradient_cutoff)
+                regular_mode_pos = np.where(check_norm < zero_gradient_cutoff)
             if len(regular_mode_pos) > 0:
                 regular_mode_pos = regular_mode_pos[0]
             rem_pos = np.delete(np.arange(len(grad_norm)), regular_mode_pos)
@@ -670,6 +676,7 @@ class ReactionPathModes(NormalModes):
             origin=None,
             projector=None,
             zero_gradient_cutoff=None,
+            gradient_check_transformation=None,
             return_status=False,
             **opts
     ):
@@ -694,6 +701,7 @@ class ReactionPathModes(NormalModes):
             return_gmatrix=True,
             projector=projector,
             zero_gradient_cutoff=zero_gradient_cutoff,
+            gradient_check_transformation=gradient_check_transformation,
             return_indices=True
         )
         if mode_data is None:
@@ -730,6 +738,8 @@ class ReactionPathModes(NormalModes):
                       masses=None,
                       zero_gradient_cutoff=None,
                       return_status=False,
+                      gradient_check_internals=None,
+                      gradient_check_transformation=None,
                       **opts
                       ):
         from ..Molecools import Molecule
@@ -762,12 +772,16 @@ class ReactionPathModes(NormalModes):
                 zero_freq_cutoff=zero_freq_cutoff,
                 zero_gradient_cutoff=zero_gradient_cutoff,
                 return_status=return_status,
+                gradient_check_transformation=gradient_check_transformation,
                 **opts
             )
         else:
             # if not project_transrot and mol.normal_modes.modes is not None:
             #     return mol.normal_modes.modes.basis.to_new_modes()
-
+            if gradient_check_transformation is None and gradient_check_internals is not None:
+                gradient_check_transformation = mol.modify(
+                    internals=gradient_check_internals
+                ).get_cartesians_by_internals(1)
             if masses is None:
                 masses = mol.atomic_masses
             hess = potential_derivatives[1]
@@ -793,6 +807,7 @@ class ReactionPathModes(NormalModes):
                 zero_freq_cutoff=zero_freq_cutoff,
                 zero_gradient_cutoff=zero_gradient_cutoff,
                 return_status=return_status,
+                gradient_check_transformation=gradient_check_transformation,
                 **opts
             )
 

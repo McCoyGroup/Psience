@@ -171,7 +171,7 @@ class LocalizedModes(MixtureModes):
         # L = self.matrix.shape.T
         if freqs is None:
             freqs = self.local_freqs
-        conv = np.sqrt(freqs)
+        conv = np.sign(freqs) * np.sqrt(np.abs(freqs))
         return freqs, conv
 
     def make_mass_weighted(self, **kwargs):

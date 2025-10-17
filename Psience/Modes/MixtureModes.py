@@ -302,21 +302,27 @@ class MixtureModes(CoordinateSystem):
         return masses, g12, gi12
 
     @classmethod
+    def _local_tf(cls, f, g):
+        g1 = np.diag(g)
+        f1 = np.diag(f)
+        s = np.sign(g1) / np.sign(f1)
+        return np.diag(s * np.power(np.abs(g1) / np.abs(f1), 1 / 4))
+    @classmethod
     def compute_local_transformations(cls, f, g):
         return [
-            np.diag(np.power(np.diag(g) / np.diag(f), 1 / 4)),
-            np.diag(np.power(np.diag(f) / np.diag(g), 1 / 4))
+            cls._local_tf(f, g),
+            cls._local_tf(g, f)
         ]
 
     @classmethod
     def compute_local_hessian(cls, f, g):
-        a = np.diag(np.power(np.diag(g) / np.diag(f), 1 / 4))
+        a = cls._local_tf(f, g)
         return a @ f @ a
 
     @classmethod
     def compute_local_gmatrix(cls, f, g):
-        a = np.diag(np.power(np.diag(f) / np.diag(g), 1 / 4))
-        return a @ g @ a
+        ai = cls._local_tf(g, f)
+        return ai @ g @ ai
 
     def compute_hessian(self, system='modes'):
         if system == 'modes':
@@ -976,8 +982,9 @@ class MixtureModes(CoordinateSystem):
             reorthogonalize = not unitarize
         if reorthogonalize:
             modes = self.make_mass_weighted().matrix @ tf
-            tf = tf @ nput.fractional_power(modes.T @ modes, -1 / 2)
-            inv = nput.fractional_power(modes.T @ modes, 1 / 2) @ inv
+            g = modes.T @ modes
+            tf = tf @ nput.fractional_power(g, -1 / 2)
+            inv = nput.fractional_power(g, 1 / 2) @ inv
 
         return LocalizedModes(self, tf, inverse=inv)
 
