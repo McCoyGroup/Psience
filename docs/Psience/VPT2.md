@@ -280,9 +280,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-e76de2" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e76de2"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-e69831" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e69831"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e76de2" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e69831" markdown="1">
  - [MultdiDegHOH](#MultdiDegHOH)
 - [HOHAnalytic](#HOHAnalytic)
 - [HOHLocal](#HOHLocal)
@@ -301,6 +301,7 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 - [SelAnharmAnalytic](#SelAnharmAnalytic)
 - [PyreneAnalytic](#PyreneAnalytic)
 - [NewEmbedding](#NewEmbedding)
+- [TermRephasing](#TermRephasing)
 - [HOHNoKE](#HOHNoKE)
 - [HOHVPTRunner](#HOHVPTRunner)
 - [HODVPTRunner](#HODVPTRunner)
@@ -343,9 +344,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-a12b05" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-a12b05"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-709dfc" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-709dfc"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-a12b05" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-709dfc" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -1772,6 +1773,27 @@ class VPT2Tests(TestCase):
         woof = gg.get_terms(2, transformation=(ke, ki))
         print(woof[0])
         print(woof[1])
+```
+
+#### <a name="TermRephasing">TermRephasing</a>
+```python
+    def test_TermRephasing(self):
+        molg = Molecule.from_file(TestManager.test_data('ts_taup_anh_b2.log'), 'gspec')
+        no_dummy_pos = [i for i, a in enumerate(molg.atoms) if a != "X"]
+        mol2 = molg.modify(
+            atoms=np.array(molg.atoms)[no_dummy_pos,],
+            coords=molg.coords[no_dummy_pos, :],
+            potential_derivatives=molg.potential_derivatives,
+            dipole_derivatives=molg.dipole_derivatives,
+            internals=None  # internals can be set when loading from a file with a Z-matrix defined
+        )
+        runner, _ = mol2.setup_VPT(states=1, logger=True, mode_selection=list(range(1, 12)))
+        runner.print_tables(print_intensities=False)
+
+        VPTRunner.run_simple(TestManager.test_data('ts_taup_anh_b2.fchk'), 1,
+                             calculate_intensities=False,
+                             mode_selection=list(range(1, 12))
+                             )
 ```
 
 #### <a name="HOHNoKE">HOHNoKE</a>
