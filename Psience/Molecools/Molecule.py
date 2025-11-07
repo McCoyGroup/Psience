@@ -180,7 +180,8 @@ class Molecule(AbstractMolecule):
                potential_surface=dev.default,
                dipole_derivatives=dev.default,
                potential_derivatives=dev.default,
-               meta=dev.default
+               meta=dev.default,
+               source_file=dev.default
                ):
         return type(self)(
             self.atoms if dev.is_default(atoms) else atoms,
@@ -239,7 +240,8 @@ class Molecule(AbstractMolecule):
                      {}
                         if meta is None else
                      dev.merge_dicts(self._meta, meta)
-            )
+            ),
+            source_file=self._src if dev.is_default(source_file) else source_file
         )
 
     def to_state(self, serializer=None):
@@ -951,14 +953,6 @@ class Molecule(AbstractMolecule):
         return len(self._ats)
     @property
     def atom_positions(self):
-        """
-        A mapping of atom types to positions
-
-        :param spec:
-        :type spec:
-        :return:
-        :rtype:
-        """
         pos_map = {}
         for i,a in enumerate(self._ats):
             if a["Symbol"] in pos_map:
@@ -2928,6 +2922,7 @@ class Molecule(AbstractMolecule):
                          charge=None, spin=None,
                          potential_derivatives=None,
                          dipole_derivatives=None,
+                         target_job='Freq',
                          # use_standard_orientation_coords=True,
                          **etc):
         # parses from Gaussian report molecule specs
@@ -2947,7 +2942,12 @@ class Molecule(AbstractMolecule):
         if len(reports) == 0:
             raise ValueError(f"no job report found in file {logfile}")
 
-        report = reports[-1]
+        for report in reports:
+            if report['job'] == target_job:
+                break
+        else:
+            report = reports[-1]
+
         if report['job'] in {'Freq'}:
             if potential_derivatives is None:
                 potential_derivatives = list(report['PotentialDeriv'])
@@ -3328,6 +3328,7 @@ class Molecule(AbstractMolecule):
              *geometries,
              figure=None,
              return_objects=False,
+             bonds=None,
              bond_radius=.1,
              atom_radius_scaling=.25,
              atom_style=None,
@@ -3510,6 +3511,7 @@ class Molecule(AbstractMolecule):
 
 
         geometries = geometries.convert(CartesianCoordinates3D)
+        draw_bonds = bonds
 
         if figure is None:
             figure = graphics_class(backend=backend, **graphics_opts)
@@ -3555,6 +3557,7 @@ class Molecule(AbstractMolecule):
                     _atom_style[k] = v
             for k,v in _atom_style.items():
                 _atom_style[k] = dict(base_atom_style, **v)
+                colors[k] = v.get('color', colors[k])
             atom_style = _atom_style
 
         if highlight_styles is None:
@@ -3613,8 +3616,15 @@ class Molecule(AbstractMolecule):
                     if k not in bond_style: bond_style[k] = {}
                     bond_style[k].update(highlight_styles)
 
+        if draw_bonds is None:
+            draw_bonds = self.bonds
+        if draw_bonds is None:
+            draw_bonds = [None] * len(geometries)
+        elif nput.is_int(draw_bonds[0][0]):
+            draw_bonds = [draw_bonds] * len(geometries)
+
         for i, geom in enumerate(geometries):
-            bond_list = self.bonds
+            bond_list = draw_bonds[i]
             if bond_style is not False and bond_list is not None:
                 bonds[i] = [None] * len(bond_list)
                 for j, b in enumerate(bond_list):
@@ -4063,6 +4073,7 @@ class Molecule(AbstractMolecule):
         if include_save_buttons is not None:
             plt.X3D.include_export_button = include_save_buttons
             plt.X3D.include_record_button = include_save_buttons
+            plt.X3D.include_view_settings_button = include_save_buttons
 
         if return_objects:
             return figure, atoms, bonds, arrows

@@ -725,6 +725,8 @@ class VPTHamiltonianOptions:
         "strip_dummy_atoms",
         "strip_embedding_coordinates",
         "mixed_derivative_handling_mode",
+        "mixed_derivative_warning_threshold",
+        "rephase_modes",
         "backpropagate_internals",
         "direct_propagate_cartesians",
         "zero_mass_term",
@@ -774,6 +776,8 @@ class VPTHamiltonianOptions:
                  strip_dummy_atoms=None,
                  strip_embedding_coordinates=None,
                  mixed_derivative_handling_mode=None,
+                 mixed_derivative_warning_threshold=None,
+                 rephase_modes=None,
                  backpropagate_internals=None,
                  direct_propagate_cartesians=None,
                  zero_mass_term=None,
@@ -877,6 +881,8 @@ class VPTHamiltonianOptions:
             strip_dummies=strip_dummy_atoms,
             strip_embedding=strip_embedding_coordinates,
             mixed_derivative_handling_mode=mixed_derivative_handling_mode,
+            mixed_derivative_warning_threshold=mixed_derivative_warning_threshold,
+            rephase_modes=rephase_modes,
             backpropagate_internals=backpropagate_internals,
             direct_propagate_cartesians=direct_propagate_cartesians,
             zero_mass_term=zero_mass_term,
@@ -3003,7 +3009,7 @@ class AnalyticVPTRunner:
                                           order=None, degeneracy_specs=None,
                                           zero_cutoff=None, verbose=False
                                           ):
-        states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
+        states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
         return self.eval.get_full_wavefunction_corrections(
             self.prep_eval_state_pairs(states),
             order=order,

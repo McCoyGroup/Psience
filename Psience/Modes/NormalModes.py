@@ -294,9 +294,11 @@ class NormalModes(MixtureModes):
                     not use_internals
                     or (use_internals is None and mol.internals is None)
                 )
-            and mol.normal_modes.get_normal_modes(quiet=True) is not None
         ):
-            return  mol.normal_modes.modes.basis.to_new_modes()
+            base_modes = mol.normal_modes.get_normal_modes(quiet=True)
+            if base_modes is not None:
+                mol.normal_modes.modes = base_modes
+                return base_modes.basis.to_new_modes()
 
         mol: Molecule
         if use_internals is None:
@@ -341,10 +343,12 @@ class NormalModes(MixtureModes):
         else:
             if (
                     not project_transrot
-                    and mol.normal_modes.modes is not None
                     and og_potential_derivatives is None
             ):
-                return mol.normal_modes.modes.basis.to_new_modes()
+                base_modes = mol.normal_modes.get_normal_modes(quiet=True)
+                if base_modes is not None:
+                    mol.normal_modes.modes = base_modes
+                    return base_modes.basis.to_new_modes()
 
             if masses is None:
                 masses = mol.atomic_masses
