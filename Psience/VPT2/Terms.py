@@ -188,6 +188,7 @@ class ExpansionTerms:
         "strip_dummies",
         "strip_embedding",
         "mixed_derivative_handling_mode",
+        "mixed_derivative_warning_threshold"
         "backpropagate_internals",
         "direct_propagate_cartesians",
         "zero_mass_term",
@@ -221,6 +222,7 @@ class ExpansionTerms:
                  strip_dummies=False,
                  strip_embedding=True,
                  mixed_derivative_handling_mode="old",
+                 mixed_derivative_warning_threshold=0.00025,
                  backpropagate_internals=False,
                  direct_propagate_cartesians=False,
                  zero_mass_term=1e7,
@@ -334,6 +336,7 @@ class ExpansionTerms:
             self.mixed_derivative_handling_mode = MixedDerivativeHandlingModes(mixed_derivative_handling_mode)
         if not isinstance(imaginary_frequency_handling_mode, ImaginaryFrequencyHandlingMode):
             self.imaginary_frequency_handling = ImaginaryFrequencyHandlingMode(imaginary_frequency_handling_mode)
+        self.mixed_derivative_warning_threshold = mixed_derivative_warning_threshold
 
     @property
     def num_atoms(self):
@@ -1664,9 +1667,13 @@ class PotentialTerms(ExpansionTerms):
 
         return all_derivs
 
+
     @classmethod
-    def _symmetrize_mixed_derivatives(cls, derivs, handling_mode, mode_axes, zero_rest=True,
-                                      diagonal=True, restricted_diagonal=False, term_id=None, val_axes=0):
+    def _symmetrize_mixed_derivatives(cls, derivs, handling_mode, mode_axes, *, logger,
+                                      zero_rest=True,
+                                      diagonal=True, restricted_diagonal=False, term_id=None, val_axes=0,
+                                      warning_diff=-1
+                                      ):
 
         if handling_mode == MixedDerivativeHandlingModes.Old:
             if term_id is None: raise ValueError(';_;')
@@ -1675,14 +1682,27 @@ class PotentialTerms(ExpansionTerms):
                 for i in range(v4.shape[0]):
                     v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = derivs[i, i, :, :]
                 derivs = v4
-            elif term_id in {'u3_cart', 'u3_int'}:
+            elif term_id in {'u3_cart', 'u3_int'}: # dipole terms only partially sampled
                 v3 = derivs.copy()
-                for i in range(v3.shape[0]):
-                    for j in range(i + 1, v3.shape[0]):
-                        for k in range(j + 1, v3.shape[0]):
-                            for p in itertools.permutations([i, j, k]):
-                                v3[p] = 0
+                for i,j,k in itertools.combinations(range(v3.shape[0]), 3):
+                    for p in itertools.permutations([i, j, k]):
+                        v3[p] = 0
                 derivs = v3
+            else:
+                if warning_diff > 0:
+                    v3 = derivs
+                    for pos in itertools.combinations(range(v3.shape[0]), 3):
+                        v1 = v3[tuple(reversed(pos))]
+                        v2 = v3[pos]
+                        if abs(v1 - v2) >= warning_diff:
+                            logger.log_print(
+                                "WARNING: large difference for term {term_id}, {val:.3f} cm-1 [{pos}] vs {rval:.3f} cm-1 [{rpos}]",
+                                term_id=term_id,
+                                pos=pos,
+                                rpos=tuple(reversed(pos)),
+                                val=v1 * UnitsData.hartrees_to_wavenumbers,
+                                rval=v2 * UnitsData.hartrees_to_wavenumbers
+                            )
         else:
 
             # v3 = terms[2]
@@ -1723,12 +1743,36 @@ class PotentialTerms(ExpansionTerms):
                         new_pos = tuple(pos[p] for p in idx)
                         derivs[new_pos] = vals[new_pos]
                 else:
+                    if warning_diff > 0:
+                        v1 = vals[tuple(reversed(pos))]
+                        v2 = vals[pos]
+                        if abs(v1) > 1e-12 and abs(v2) > 1e-12:
+                            if abs(v1 - v2) >= warning_diff:
+                                logger.log_print(
+                                    "WARNING: large difference for term {term_id}, {val:.3f} cm-1 [{pos}] vs {rval:.3f} cm-1 [{rpos}]",
+                                    term_id=term_id,
+                                    pos=pos,
+                                    rpos=tuple(reversed(pos)),
+                                    val=v1 * UnitsData.hartrees_to_wavenumbers,
+                                    rval=v2 * UnitsData.hartrees_to_wavenumbers
+                                )
                     if handling_mode == MixedDerivativeHandlingModes.Numerical:
                         val = vals[tuple(reversed(pos))]
+                        if abs(val) < 1e-12:
+                            val = vals[pos]
                     elif handling_mode == MixedDerivativeHandlingModes.Analytical:
                         val = vals[pos]
+                        if abs(val) < 1e-12:
+                            val = vals[tuple(reversed(pos))]
                     elif handling_mode == MixedDerivativeHandlingModes.Averaged:
-                        val = (vals[tuple(reversed(pos))] + vals[pos]) / 2
+                        v1 = vals[tuple(reversed(pos))]
+                        v2 = vals[pos]
+                        if abs(v1) < 1e-12:
+                            val = v2
+                        elif abs(v2) < 1e-12:
+                            val = v1
+                        else:
+                            val = (v1 + v2) / 2
                     else:
                         raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(handling_mode))
 
@@ -1817,13 +1861,16 @@ class PotentialTerms(ExpansionTerms):
                     terms[2] = self._symmetrize_mixed_derivatives(terms[2],
                                                                   self.mixed_derivative_handling_mode,
                                                                   mode_axes=1,
-                                                                  term_id='v3_cart'
+                                                                  term_id='v3_cart',
+                                                                  logger=self.logger,
+                                                                  warning_diff=self.mixed_derivative_warning_threshold
                                                                   )
                     terms[3] = self._symmetrize_mixed_derivatives(terms[3],
                                                                   self.mixed_derivative_handling_mode,
                                                                   mode_axes=2,
                                                                   restricted_diagonal=True,
-                                                                  term_id='v4_cart'
+                                                                  term_id='v4_cart',
+                                                                  logger=self.logger
                                                                   )
             elif self._check_internal_modes() and not self._check_mode_terms():
                 raise NotImplementedError("...")
@@ -1855,12 +1902,15 @@ class PotentialTerms(ExpansionTerms):
                         cart_terms[2] = self._symmetrize_mixed_derivatives(cart_terms[2],
                                                                            self.mixed_derivative_handling_mode,
                                                                            mode_axes=1,
-                                                                           term_id='v3_cart')
+                                                                           term_id='v3_cart',
+                                                                           logger=self.logger,
+                                                                           warning_diff=self.mixed_derivative_warning_threshold)
                         cart_terms[3] = self._symmetrize_mixed_derivatives(cart_terms[3],
                                                                            self.mixed_derivative_handling_mode,
                                                                            mode_axes=2,
                                                                            restricted_diagonal=True,
-                                                                           term_id='v4_cart')
+                                                                           term_id='v4_cart',
+                                                                           logger=self.logger)
                     qQ_derivs = self.get_cartesian_modes_by_internal_modes(len(cart_terms)-1)
                     terms = TensorDerivativeConverter(
                         qQ_derivs + [0],  # pad for the zeroed out gradient term
@@ -1886,12 +1936,14 @@ class PotentialTerms(ExpansionTerms):
                         v_ders[2] = self._symmetrize_mixed_derivatives(V_derivs[2],
                                                                        self.mixed_derivative_handling_mode,
                                                                        mode_axes=1,
-                                                                       term_id='v3_int_pre')
+                                                                       term_id='v3_int_pre',
+                                                                       logger=self.logger)
                         v_ders[3] = self._symmetrize_mixed_derivatives(V_derivs[3],
                                                                        self.mixed_derivative_handling_mode,
                                                                        mode_axes=2,
                                                                        restricted_diagonal=True,
-                                                                       term_id='v4_int_pre')
+                                                                       term_id='v4_int_pre',
+                                                                       logger=self.logger)
 
                         f43 = np.tensordot(qQQ, v_ders[2], axes=[2, 0])
                         fourths = v_ders[3] + f43
@@ -1905,13 +1957,15 @@ class PotentialTerms(ExpansionTerms):
 
 
                         terms[2] = self._symmetrize_mixed_derivatives(terms[2],
-                                                                       self.mixed_derivative_handling_mode,
-                                                                       mode_axes=1,
-                                                                       term_id='v3_int')
+                                                                      self.mixed_derivative_handling_mode,
+                                                                      mode_axes=1,
+                                                                      term_id='v3_int',
+                                                                      logger=self.logger)
                         terms[3] = self._symmetrize_mixed_derivatives(terms[3],
-                                                                       self.mixed_derivative_handling_mode,
-                                                                       mode_axes=2,
-                                                                       term_id='v4_int')
+                                                                      self.mixed_derivative_handling_mode,
+                                                                      mode_axes=2,
+                                                                      term_id='v4_int',
+                                                                      logger=self.logger)
 
                     else:
                         terms = TensorDerivativeConverter(x_derivs, V_derivs).convert(order=order)#, check_arrays=True)
@@ -3041,10 +3095,12 @@ class DipoleTerms(ExpansionTerms):
                             # were transformed
                             v2 = PotentialTerms._symmetrize_mixed_derivatives(v2,
                                                                               self.mixed_derivative_handling_mode, 1,
-                                                                              term_id='u2_cart')
+                                                                              term_id='u2_cart',
+                                                                              logger=self.logger)
                             v3 = PotentialTerms._symmetrize_mixed_derivatives(v3,
                                                                               self.mixed_derivative_handling_mode, 2,
-                                                                              term_id='u3_cart')
+                                                                              term_id='u3_cart',
+                                                                              logger=self.logger)
 
                             Qx = self.modes.modes_by_coords
                             v1, v2, v3 = TensorDerivativeConverter(
@@ -3067,10 +3123,12 @@ class DipoleTerms(ExpansionTerms):
                     ):
                         terms[1] = PotentialTerms._symmetrize_mixed_derivatives(terms[1],
                                                                                 self.mixed_derivative_handling_mode, 1,
-                                                                                term_id='u2_int')
+                                                                                term_id='u2_int',
+                                                                                logger=self.logger)
                         terms[2] = PotentialTerms._symmetrize_mixed_derivatives(terms[2],
                                                                                 self.mixed_derivative_handling_mode, 2,
-                                                                                term_id='u3_int')
+                                                                                term_id='u3_int',
+                                                                                logger=self.logger)
 
                     if intcds is not None and self.backpropagate_internals:
                         # need to internal mode terms and

@@ -5,9 +5,11 @@ Provides support for build perturbation theory Hamiltonians
 import numpy as np, itertools, time, math
 
 import McUtils.Numputils as nput
+from McUtils.Data import UnitsData
 from McUtils.Scaffolding import Logger, NullLogger, Checkpointer, NullCheckpointer, ParameterManager
 from McUtils.Parallelizers import Parallelizer
 from McUtils.Combinatorics import CompleteSymmetricGroupSpace
+from ..Modes import MixtureModes
 
 from ..Molecools import Molecule
 from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace, HarmonicOscillatorProductBasis
@@ -38,6 +40,7 @@ class PerturbationTheoryHamiltonian:
                  modes=None,
                  mode_selection=None,
                  mode_transformation=None,
+                 rephase_modes=None,
                  local_mode_couplings=False,
                  local_mode_coupling_order=None,
                  full_surface_mode_selection=None,
@@ -105,6 +108,30 @@ class PerturbationTheoryHamiltonian:
         self.molecule = molecule
         if modes is None:
             modes = molecule.normal_modes.modes
+            if hasattr(modes, 'visualize'):
+                modes = modes.basis
+        if rephase_modes:
+            if potential_derivatives is None:
+                potential_derivatives = self.molecule.potential_surface.derivatives
+            cubics = np.asanyarray(potential_derivatives[2])
+            if cubics.shape[0] != cubics.shape[1]:
+                if hasattr(modes, 'to_new_modes'):
+                    phases = self.molecule.normal_modes.get_partial_cubic_based_rephasing(
+                        modes.to_new_modes().remove_mass_weighting(),
+                        cubics,
+                        frequency_scale=True
+                    )
+                    if phases is not None:
+                        modes = modes.rotate(phases)
+                else:
+                    modes: MixtureModes
+                    phases = self.molecule.normal_modes.get_partial_cubic_based_rephasing(
+                        modes.remove_mass_weighting(),
+                        cubics,
+                        frequency_scale=True
+                    )
+                    modes = modes.apply_transformation((phases, phases))
+
         full_modes = modes
         if isinstance(mode_selection, dict):
             submodes = mode_selection.get('modes', None)
@@ -112,9 +139,14 @@ class PerturbationTheoryHamiltonian:
                 modes = modes[submodes]
             rephase = mode_selection.get('rephase', True)
             if rephase:
-                phases = self.molecule.normal_modes.get_fchk_normal_mode_rephasing(modes.basis)
-                if phases is not None:
-                    modes = modes.rotate(phases)
+                if hasattr(modes, 'to_new_modes'):
+                    phases = self.molecule.normal_modes.get_fchk_normal_mode_rephasing(self.molecule, modes)
+                    if phases is not None:
+                        modes = modes.rotate(phases)
+                else:
+                    modes:MixtureModes
+                    phases = self.molecule.normal_modes.get_fchk_normal_mode_rephasing(self.molecule, modes)
+                    modes = modes.apply_transformation((phases, phases))
             mode_selection = mode_selection.get('derivatives', None)
 
         if mode_selection is not None:

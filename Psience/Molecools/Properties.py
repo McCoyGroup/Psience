@@ -2009,19 +2009,19 @@ class PotentialSurfaceManager(PropertyManager):
         elif mode == 'gspec':
             from McUtils.ExternalPrograms import GaussianLogReader
             with GaussianLogReader(file) as gr:
-                parse = gr.parse(['Gradients', 'Reports'])['Reports']
+                parse = gr.parse(['Reports'])['Reports']
 
             if len(parse) == 0:
                 if quiet:
                     return None
                 else:
-                    raise ValueError(f"couldn't load potential derivatives from {file}")
+                    raise ValueError(f"couldn't load potential derivatives from {file} as {mode}")
 
-            parse = parse[0]
-            if 'PotentialDeriv' not in parse:
-                raise ValueError(f"couldn't load potential derivatives from {file}")
-
-            return parse["PotentialDeriv"]
+            for report in parse:
+                if report == 'Freq':
+                    return parse["PotentialDeriv"]
+            else:
+                raise ValueError(f"couldn't load potential derivatives from {file} as {mode}")
         elif mode == "hess":
             from McUtils.ExternalPrograms import OrcaHessReader
             with OrcaHessReader(file) as gr:
@@ -2326,7 +2326,7 @@ class NormalModesManager(PropertyManager):
 
         if rephase:
             try:
-                phases = cls.get_fchk_normal_mode_rephasing(mol, modes)
+                phases = cls.get_fchk_normal_mode_rephasing(mol, modes.to_new_modes().remove_mass_weighting())
             except NotImplementedError:
                 pass
             else:
@@ -2391,7 +2391,7 @@ class NormalModesManager(PropertyManager):
 
             if recalculate:
                 fcs = self.get_force_constants()
-                new_modes = MolecularNormalModes.from_force_constants(self.mol, fcs, self.mol.atoms)
+                new_modes = MolecularNormalModes.from_force_constants(self.mol, fcs, atoms=self.mol.atoms)
                 new_old_phases = np.dot(modes.matrix.T, new_modes.matrix)
                 old_old_phases = np.dot(modes.matrix.T, modes.matrix)
                 new_new_phases = np.dot(new_modes.matrix.T, new_modes.matrix)
@@ -2429,6 +2429,21 @@ class NormalModesManager(PropertyManager):
             freqs, modes, inv = self._parse_log_file_modes(file, quiet=quiet)
 
             return MolecularNormalModes(self.mol, modes.T, inverse=inv.T, freqs=freqs)
+        elif mode == "gspec":
+
+            fcs = self.get_force_constants()
+            modes = MolecularNormalModes.from_force_constants(self.mol, fcs, atoms=self.mol.atoms)
+
+            if rephase:
+                if self.mol.potential_derivatives is not None and len(self.mol.potential_derivatives) > 2:
+                    v3 = self.mol.potential_derivatives[2]
+                    if v3.shape[0] == len(modes.freqs):
+                        phases = self.get_partial_cubic_based_rephasing(
+                            modes.to_new_modes().remove_mass_weighting(),
+                            v3
+                        )
+                        modes = modes.rotate(phases)
+            return modes
         elif mode == "molpro":
             freqs, modes, inv = self._parse_molpro_file_modes(self.mol, file, quiet=quiet)
 
@@ -2453,7 +2468,9 @@ class NormalModesManager(PropertyManager):
         """
 
         if self.mol.source_file is not None:
-            vibs = MolecularVibrations(self.mol, self.load_normal_modes(quiet=quiet))
+            modes = self.load_normal_modes(quiet=quiet)
+            if modes is None: return None
+            vibs = MolecularVibrations(self.mol, modes)
         else:
             fcs = self.get_force_constants()
             vibs = MolecularVibrations(self.mol,
@@ -2467,7 +2484,8 @@ class NormalModesManager(PropertyManager):
         if derivs is None:
             if self.mol.energy_evaluator is None:
                 raise ValueError("can't compute force constants without derivatives or energy evaluator")
-            derivs = self.mol.calculate_energy(order=2)[1:]
+            self.mol.potential_derivatives = self.mol.calculate_energy(order=2)[1:]
+            derivs = self.mol.potential_derivatives
         fcs = derivs[1]
         return fcs
 
@@ -2492,9 +2510,10 @@ class NormalModesManager(PropertyManager):
             if d1_numerical is None:
                 return None
 
-        mode_basis = modes.matrix
-        rot_analytic = np.dot(d1_analytic.T, mode_basis)
-        # normalize
+        # mode_basis = modes.coords_by_modes
+        # rot_analytic = np.dot(mode_basis, d1_analytic)
+        mode_basis = modes.coords_by_modes
+        rot_analytic = np.dot(mode_basis, d1_analytic).T
         rot_analytic = rot_analytic / np.linalg.norm(rot_analytic, axis=0)[np.newaxis, :]
         d1_numerical = d1_numerical / np.linalg.norm(d1_numerical, axis=1)[:, np.newaxis]
 
@@ -2531,6 +2550,7 @@ class NormalModesManager(PropertyManager):
                 rephasing_matrix[np.ix_(rot_pos, rot_pos)] = subrot
 
         return rephasing_matrix.T
+
     @classmethod
     def get_fchk_normal_mode_rephasing(cls, mol, modes):
         """
@@ -2545,6 +2565,135 @@ class NormalModesManager(PropertyManager):
             mol.dipole_surface.derivatives,
             mol.dipole_surface.numerical_derivatives
         )
+
+    @classmethod
+    def get_partial_cubic_based_rephasing(cls, modes, partial_cubics: np.ndarray, frequency_scale=True):
+        tf = modes.coords_by_modes
+        v3 = np.tensordot(
+            np.tensordot(partial_cubics, tf, axes=[1, -1]),
+            tf,
+            axes=[1, -1]
+        )
+        if frequency_scale:
+            ftf = np.diag(1 / np.sqrt(np.abs(modes.freqs)))
+            v3 = np.tensordot(np.tensordot(np.tensordot(v3, ftf, axes=[0, -1]), ftf, axes=[0, -1]), ftf, axes=[0, -1])
+
+        rephasing_targets = {}
+        for i, j, k in ip.combinations(range(v3.shape[0]), 3):
+            if i != j and i != k and j != k:
+                t1 = v3[i, j, k]
+                t2 = v3[j, i, k]
+                t3 = v3[k, i, j]
+
+                if (
+                        # large enough
+                        abs(t1) > 4.5e-6
+                        and abs(t2) > 4.5e-6
+                        and abs(t3) > 4.5e-6
+                ) and (
+                        # nearly equivalent
+                        (abs(t1) - abs(t2)) / (abs(t1)) < 1e-3
+                        and (abs(t1) - abs(t3)) / (abs(t3)) < 1e-3
+                        and (abs(t2) - abs(t3)) / (abs(t2)) < 1e-3
+                ):
+                    d12 = np.sign(t1) != np.sign(t2)
+                    d23 = np.sign(t2) != np.sign(t3)
+                    d13 = np.sign(t1) != np.sign(t3)
+                    x = None
+                    if d12:
+                        if d13:
+                            x = i
+                            y, z = j, k
+                        elif d23:
+                            x = j
+                            y, z = i, k
+                        else:
+                            t1 = t1 * UnitsData.hartrees_to_wavenumbers
+                            t2 = t2 * UnitsData.hartrees_to_wavenumbers
+                            t3 = t3 * UnitsData.hartrees_to_wavenumbers
+                            raise ValueError(
+                                f"rephasing asymmetry ({i},{j},{k})=-({j},{i},{k})!=({k},{i},{j})), {t1:.3f}=-{t2:.3f}!={t3:.3f}")
+                    elif d13:
+                        if d23:
+                            x = k
+                            y, z = j, i
+                        else:
+                            t1 = t1 * UnitsData.hartrees_to_wavenumbers
+                            t2 = t2 * UnitsData.hartrees_to_wavenumbers
+                            t3 = t3 * UnitsData.hartrees_to_wavenumbers
+                            raise ValueError(
+                                f"rephasing asymmetry ({k},{i},{j})=-({i},{j},{k})!=({j},{i},{k})), {t3:.3f}=-{t1:.3f}!={t2:.3f}")
+                    elif d23:
+                        t1 = t1 * UnitsData.hartrees_to_wavenumbers
+                        t2 = t2 * UnitsData.hartrees_to_wavenumbers
+                        t3 = t3 * UnitsData.hartrees_to_wavenumbers
+                        raise ValueError(
+                            f"rephasing asymmetry ({j},{i},{k})=-({k},{i},{j})!=({i},{j},{k})), {t2:.3f}=-{t3:.3f}!={t1:.3f}")
+
+                    if x is not None:
+                        for a in [x, y, z]:
+                            if a not in rephasing_targets:
+                                rephasing_targets[a] = [set(), set()]
+                        rephasing_targets[x][1].update([y, z])
+                        if len(rephasing_targets[x][1] & rephasing_targets[x][0]) > 0:
+                            raise ValueError(f"overlap for {i},{j},{k}: {rephasing_targets[x]}")
+                        rephasing_targets[y][0].update([z])
+                        rephasing_targets[y][1].update([x])
+                        if len(rephasing_targets[y][1] & rephasing_targets[y][0]) > 0:
+                            raise ValueError(f"overlap for {i},{j},{k}: {rephasing_targets[y]}")
+                        rephasing_targets[z][0].update([y])
+                        rephasing_targets[z][1].update([x])
+                        if len(rephasing_targets[z][1] & rephasing_targets[z][0]) > 0:
+                            raise ValueError(f"overlap for {i},{j},{k}: {rephasing_targets[z]}")
+                    else:
+                        for a in [i, j, k]:
+                            if a not in rephasing_targets:
+                                rephasing_targets[a] = [set(), set()]
+                        rephasing_targets[i][0].update([j, k])
+                        if len(rephasing_targets[i][1] & rephasing_targets[i][0]) > 0:
+                            raise ValueError(f"overlap for {i},{j},{k}: {rephasing_targets[i]}")
+                        rephasing_targets[j][0].update([i, k])
+                        if len(rephasing_targets[j][1] & rephasing_targets[j][0]) > 0:
+                            raise ValueError(f"overlap for {i},{j},{k}: {rephasing_targets[j]}")
+                        rephasing_targets[k][0].update([i, j])
+                        if len(rephasing_targets[k][1] & rephasing_targets[k][0]) > 0:
+                            raise ValueError(f"overlap for {i},{j},{k}: {rephasing_targets[k]}")
+            else:
+                if i == k:
+                    if i == j: continue
+                    j, k = k, j
+                elif j == k:
+                    i, j, k = j, k, i
+                elif i != j:
+                    continue  # need two to be equivalent at least
+
+                t1 = v3[k, i, i]
+                t2 = v3[i, i, k]
+                if (
+                        # large enough
+                        abs(t1) > 4.5e-6
+                        and abs(t2) > 4.5e-6
+                ) and (
+                        # nearly equivalent
+                        (abs(t1) - abs(t2)) / (abs(t1)) < 1e-3
+                ):
+                    if np.sign(t1) != np.sign(t2):
+                        for a in [i, k]:
+                            if a not in rephasing_targets:
+                                rephasing_targets[a] = [set(), set()]
+                        rephasing_targets[i][1].update([k])
+                        rephasing_targets[k][1].update([i])
+                    else:
+                        for a in [i, k]:
+                            if a not in rephasing_targets:
+                                rephasing_targets[a] = [set(), set()]
+                        rephasing_targets[i][0].update([k])
+                        rephasing_targets[k][0].update([i])
+
+        minimal_rephasing = list(sorted(({k} | v[0] for k, v in rephasing_targets.items()), key=len)[0])
+        tf = np.eye(tf.shape[0])
+        tf[minimal_rephasing, minimal_rephasing] = -1
+        return tf
 
     def apply_transformation(self, transf):
         # self.modes # load in for some reason?

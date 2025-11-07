@@ -576,7 +576,6 @@ class VPT2Tests(TestCase):
             logger=log_file
         )
 
-
     @validationTest
     def test_AnalyticWFC(self):
 
@@ -975,7 +974,7 @@ class VPT2Tests(TestCase):
         #     spec = runner.get_spectrum(states, verbose=False)
         # print(np.array(spec).T)
 
-    @debugTest
+    @validationTest
     def test_AnalyticHOONODeg(self):
 
         file_name = "HOONO_freq.fchk"
@@ -1495,6 +1494,26 @@ class VPT2Tests(TestCase):
         # woof = gg.reexpress(2, ke, ki)
         # print(woof[0])
         # print(woof[1])
+
+    @debugTest
+    def test_TermRephasing(self):
+        molg = Molecule.from_file(TestManager.test_data('ts_taup_anh_b2.log'), 'gspec')
+        no_dummy_pos = [i for i, a in enumerate(molg.atoms) if a != "X"]
+        mol2 = molg.modify(
+            atoms=np.array(molg.atoms)[no_dummy_pos,],
+            coords=molg.coords[no_dummy_pos, :],
+            potential_derivatives=molg.potential_derivatives,
+            dipole_derivatives=molg.dipole_derivatives,
+            internals=None  # internals can be set when loading from a file with a Z-matrix defined
+        )
+        runner, _ = mol2.setup_VPT(states=1, logger=True, mode_selection=list(range(1, 12)))
+        runner.print_tables(print_intensities=False)
+
+        VPTRunner.run_simple(TestManager.test_data('ts_taup_anh_b2.fchk'), 1,
+                             calculate_intensities=False,
+                             mode_selection=list(range(1, 12))
+                             )
+
 
     @inactiveTest
     def test_HOHNoKE(self):
