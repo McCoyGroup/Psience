@@ -726,6 +726,7 @@ class VPTHamiltonianOptions:
         "strip_embedding_coordinates",
         "mixed_derivative_handling_mode",
         "mixed_derivative_warning_threshold",
+        "mixed_derivative_handle_zeros",
         "rephase_modes",
         "backpropagate_internals",
         "direct_propagate_cartesians",
@@ -777,6 +778,7 @@ class VPTHamiltonianOptions:
                  strip_embedding_coordinates=None,
                  mixed_derivative_handling_mode=None,
                  mixed_derivative_warning_threshold=None,
+                 mixed_derivative_handle_zeros=None,
                  rephase_modes=None,
                  backpropagate_internals=None,
                  direct_propagate_cartesians=None,
@@ -882,6 +884,7 @@ class VPTHamiltonianOptions:
             strip_embedding=strip_embedding_coordinates,
             mixed_derivative_handling_mode=mixed_derivative_handling_mode,
             mixed_derivative_warning_threshold=mixed_derivative_warning_threshold,
+            mixed_derivative_handle_zeros=mixed_derivative_handle_zeros,
             rephase_modes=rephase_modes,
             backpropagate_internals=backpropagate_internals,
             direct_propagate_cartesians=direct_propagate_cartesians,
@@ -1415,9 +1418,10 @@ class VPTRunner:
 
         return wfns
 
-    def print_Nielsen_frequencies(self, logger=None):
+    def print_Nielsen_frequencies(self, logger=None, **potential_params):
         harm, anh = self.hamiltonian.get_Nielsen_energies(
-            self.states.state_list
+            self.states.state_list,
+            **potential_params
         )
         tot = harm + anh
         nielsh = (harm - harm[0]) * UnitsData.hartrees_to_wavenumbers
@@ -1425,6 +1429,7 @@ class VPTRunner:
         niels = (tot - tot[0]) * UnitsData.hartrees_to_wavenumbers
         niels[0] = tot[0] * UnitsData.hartrees_to_wavenumbers
         # runner.print_tables(print_intensities=False)
+        #TODO: allow alternate formatting
         tab = mfmt.format_state_vector_frequency_table(
             self.states.state_list,
             np.concatenate([nielsh[:, np.newaxis], niels[:, np.newaxis]], axis=-1),
