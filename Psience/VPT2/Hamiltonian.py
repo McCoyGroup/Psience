@@ -887,7 +887,12 @@ class PerturbationTheoryHamiltonian:
 
         return e_harm, e_anharm
 
-    def get_Nielsen_xmatrix(self, freqs=None):
+    def get_Nielsen_xmatrix(self,
+                            freqs=None,
+                            v3=None,
+                            v4=None,
+                            zeta_Be=None,
+                            ):
         """
         Provides Nielsen's X-Matrix when working in Cartesian coordinates
 
@@ -900,15 +905,19 @@ class PerturbationTheoryHamiltonian:
         #     freqs = freqs[self.mode_selection,]
         if freqs is None:
             freqs = np.diag(self.V_terms[0])
-        v3 = self.V_terms[1]
-        v4 = self.V_terms[2]
+        if v3 is None:
+            v3 = self.V_terms[1]
+        if v4 is None:
+            v4 = self.V_terms[2]
 
         # raise Exception(np.round( 6 * v3 * h2w))
-
-        if self.coriolis_terms is not None:
-            zeta, Be = self.coriolis_terms.base_terms.get_zetas_and_momi()
+        if zeta_Be is None:
+            if self.coriolis_terms is not None:
+                zeta, Be = self.coriolis_terms.base_terms.get_zetas_and_momi()
+            else:
+                zeta = Be = None
         else:
-            zeta = Be = None
+            zeta, Be = zeta_Be
 
         x = self._get_Nielsen_xmat(freqs, v3, v4, zeta, Be)
 
@@ -917,6 +926,9 @@ class PerturbationTheoryHamiltonian:
     def get_Nielsen_energies(self, states,
                              x_mat=None,
                              freqs=None,
+                             v3=None,
+                             v4=None,
+                             zeta_Be=None,
                              return_split=False):
         """
 
@@ -935,7 +947,12 @@ class PerturbationTheoryHamiltonian:
             if self.mode_selection is not None:
                 freqs = freqs[self.mode_selection,]
         if x_mat is None:
-            x_mat = self.get_Nielsen_xmatrix(freqs=freqs)
+            x_mat = self.get_Nielsen_xmatrix(
+                freqs=freqs,
+                v3=v3,
+                v4=v4,
+                zeta_Be=zeta_Be,
+            )
         else:
             x_mat = np.asanyarray(x_mat)
 
