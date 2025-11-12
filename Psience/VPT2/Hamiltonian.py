@@ -929,7 +929,8 @@ class PerturbationTheoryHamiltonian:
                              v3=None,
                              v4=None,
                              zeta_Be=None,
-                             return_split=False):
+                             return_split=False,
+                             return_X=False):
         """
 
         :param states:
@@ -963,6 +964,8 @@ class PerturbationTheoryHamiltonian:
 
         if return_split:
             return harm, anharm, x_mat
+        elif return_X:
+            return harm, anharm, np.sum(x_mat, axis=0)
         else:
             return harm, anharm
 
