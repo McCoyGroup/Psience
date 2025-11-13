@@ -954,7 +954,10 @@ class BasisStateSpace(AbstractStateSpace):
             # went and then pulling the uinds from that
             where_map = np.argsort(indexer)
             if self._sort_uinds is not None:
-                new._uinds = where_map[new._uinds]
+                if new._uinds is None:
+                    new._uinds = where_map
+                else:
+                    new._uinds = where_map[new._uinds]
 
         if track_excitations and self.has_excitations:
             new.excitations = self.excitations[indexer,]
@@ -2067,7 +2070,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
         else:
             raise ValueError("not sure what to do with mixed-mode state spaces...")
 
-    def as_indices(self):
+    def as_indices(self, include_representative=True):
         """
         Pulls the full set of indices out of all of the
         held spaces and returns them as a flat vector
@@ -2089,13 +2092,15 @@ class BasisMultiStateSpace(AbstractStateSpace):
                 s += l
 
         ind_arrays = [space.indices for space in self.spaces.flat if len(space) > 0]
+        if not include_representative:
+            ind_arrays = ind_arrays[1:]
         if len(ind_arrays) == 0:
             inds = np.array([], dtype=int)
         else:
             inds = np.concatenate(ind_arrays)
         return inds
 
-    def as_excitations(self):
+    def as_excitations(self, include_representative=True):
         """
         Pulls the full set excitations out of all of the
         held spaces and returns them as a flat vector
@@ -2120,6 +2125,8 @@ class BasisMultiStateSpace(AbstractStateSpace):
                 s += l
 
         exc_arrays = [space.excitations for space in self.spaces.flat if len(space) > 0]
+        if not exc_arrays:
+            exc_arrays = exc_arrays[1:]
         if len(exc_arrays) == 0:
             exc = np.array([], dtype=self.excitations_dtype)
         else:
@@ -2134,7 +2141,8 @@ class BasisMultiStateSpace(AbstractStateSpace):
 
     def to_single(self,
                   track_excitations=True,
-                  track_indices=True
+                  track_indices=True,
+                  include_representative=True
                   ):
         """
         Condenses the multi state space down to
@@ -2149,21 +2157,33 @@ class BasisMultiStateSpace(AbstractStateSpace):
         if track_excitations and self.mode == self.StateSpaceSpec.Excitations:
             states = BasisStateSpace(
                 self.basis,
-                self.excitations,
+                self.excitations
+                    if include_representative else
+                self.as_excitations(include_representative=False),
                 mode=BasisStateSpace.StateSpaceSpec.Excitations,
                 full_basis=self.representative_space.full_basis
             )
             if self.flat[0]._indices is not None and track_indices:
-                states.indices = self.indices
+                states.indices = (
+                    self.indices
+                        if include_representative else
+                    self.as_indices(include_representative=False),
+                )
         else:
             states = BasisStateSpace(
                 self.basis,
-                self.indices,
+                self.indices
+                    if include_representative else
+                self.as_indices(include_representative=False),
                 mode=BasisStateSpace.StateSpaceSpec.Indices,
                 full_basis=self.representative_space.full_basis
             )
             if len(self.flat) > 0 and self.flat[0]._excitations is not None and track_excitations:
-                states.excitations = self.excitations
+                states.excitations = (
+                    self.excitations
+                        if include_representative else
+                    self.as_excitations(include_representative=False)
+                )
         return states
 
     def take_states(self, states,
@@ -2404,31 +2424,37 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             selection_rules=serializer.deserialize(data['selection_rules'])
             )
 
-    def as_indices(self):
+    def as_indices(self, include_representative=True):
         """
         Pulls the full set indices out of all of the
         held spaces and returns them as a flat vector
         :return:
         :rtype:
         """
-        sups = super().as_indices()
-        base_inds = self._base_space.as_indices()
-        if len(sups) == 0:
-            return base_inds
-        return np.concatenate([base_inds, sups])
-    def as_excitations(self):
+        sups = super().as_indices(include_representative=True)
+        if include_representative:
+            base_inds = self._base_space.as_indices()
+            if len(sups) == 0:
+                return base_inds
+            return np.concatenate([base_inds, sups])
+        else:
+            return sups
+    def as_excitations(self, include_representative=True):
         """
         Pulls the full set excitations out of all of the
         held spaces and returns them as a flat vector
         :return:
         :rtype:
         """
-        sups = super().as_excitations()
-        if len(sups) == 0:
-            return self._base_space.excitations
+        sups = super().as_excitations(include_representative=True)
+        if include_representative:
+            if len(sups) == 0:
+                return self._base_space.excitations
+            else:
+                wat = self._base_space.excitations
+                return np.concatenate([wat, sups], axis=0)
         else:
-            wat = self._base_space.excitations
-            return np.concatenate([wat, sups], axis=0)
+            return sups
 
     @property
     def representative_space(self):

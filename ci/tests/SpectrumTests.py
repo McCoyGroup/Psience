@@ -22,7 +22,7 @@ class SpectrumTests(TestCase):
 
         ploot.show()
 
-    @debugTest
+    @validationTest
     def test_ExtractSpec(self):
         extractor = SpectrumExtractor.from_file(
             TestManager.test_data('spec_split.png')

@@ -11,6 +11,7 @@ from McUtils.Extensions import ModuleLoader
 import McUtils.Numputils as nput
 import McUtils.Iterators as itut
 from McUtils.Formatters import TableFormatter
+import McUtils.Devutils as dev
 import McUtils.Formatters as mfmt
 
 from ..BasisReps import (
@@ -1418,23 +1419,36 @@ class VPTRunner:
 
         return wfns
 
-    def print_Nielsen_frequencies(self, logger=None, **potential_params):
-        harm, anh = self.hamiltonian.get_Nielsen_energies(
+    def get_Nielsen_energies(self, return_split=False, return_X=False, **potential_params):
+        harm, anh, x = self.hamiltonian.get_Nielsen_energies(
             self.states.state_list,
+            return_split=return_split,
+            return_X=True,
             **potential_params
         )
         tot = harm + anh
+        if return_split or return_X:
+            return harm, tot, x
+        else:
+            return harm, tot
+
+    def print_Nielsen_frequencies(self, logger=None, state_formatting='vector', **potential_params):
+        harm, tot = self.get_Nielsen_energies(return_split=False, return_X=False, **potential_params)
         nielsh = (harm - harm[0]) * UnitsData.hartrees_to_wavenumbers
         nielsh[0] = harm[0] * UnitsData.hartrees_to_wavenumbers
         niels = (tot - tot[0]) * UnitsData.hartrees_to_wavenumbers
         niels[0] = tot[0] * UnitsData.hartrees_to_wavenumbers
         # runner.print_tables(print_intensities=False)
         #TODO: allow alternate formatting
+        states = self.states.state_list
+        if not dev.str_is(state_formatting, 'vector'):
+            states = [VPTStateMaker.parse_state(s) for s in states]
         tab = mfmt.format_state_vector_frequency_table(
-            self.states.state_list,
+            states,
             np.concatenate([nielsh[:, np.newaxis], niels[:, np.newaxis]], axis=-1),
             freq_header=["Harmonic", "Anharmonic"]
         )
+
         if logger is None:
             print(tab)
         else:
