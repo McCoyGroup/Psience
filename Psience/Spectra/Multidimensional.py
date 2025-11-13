@@ -37,7 +37,7 @@ class TwoDimensionalSpectrum:
         return type(self)(
             self.freq1[sample_x],
             self.freq2[sample_y],
-            self.intensities[np.ix_(sample_x, sample_y)],
+            self.intensities[np.ix_(sample_y, sample_x)],
             **self.meta
         )
 
@@ -58,13 +58,24 @@ class TwoDimensionalSpectrum:
             np.arange(y_min, y_max+1)
         )
 
-    def clip(self, int_min, int_max):
-        return type(self)(
-            self.freq1,
-            self.freq2,
-            np.clip(self.intensities, int_min, int_max),
-            **self.meta
-        )
+    def clip(self, int_min, int_max, clip_abs=True):
+        if clip_abs:
+            abs_I = np.abs(self.intensities)
+            mask = abs_I > int_min
+            signs = np.sign(self.intensities) * mask
+            return type(self)(
+                self.freq1,
+                self.freq2,
+                signs * np.clip(abs_I, int_min, int_max),
+                **self.meta
+            )
+        else:
+            return type(self)(
+                self.freq1,
+                self.freq2,
+                np.clip(self.intensities, int_min, int_max),
+                **self.meta
+            )
 
     default_styles = {
         "cmap":'RdBu',
@@ -77,6 +88,7 @@ class TwoDimensionalSpectrum:
              figure=None,
              **opts
              ):
+        # print(self.freq1.shape, self.freq2.shape, self.intensities.shape)
         if plot_filled:
             base_opts = dict(self.default_styles, **opts)
             figure = plt.ContourPlot(

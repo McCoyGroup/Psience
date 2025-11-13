@@ -33,7 +33,7 @@ class NonlinearTests(TestCase):
                 ((1,0), (2, 0)): {
                     'frequency': 1560,
                     'transition_moment': [0, .12, 0]
-                }
+                },
                 # ((0, 1), (1, 1)): {
                 #     'frequency': 1565,
                 #     'transition_moment': [0, 0, .1]
@@ -50,17 +50,23 @@ class NonlinearTests(TestCase):
             frequency_unit="Wavenumbers",
             application_domain="frequency",
             polarization=None,
-            included_signals=['rephasing']
+            response_function_generator="simple2dir",
+            central_frequency=1600,
+            included_signals=['non-rephasing']
         )
 
-        spec = responses.get_spectrum([1400, 1700], 1, [1400, 1700],
-                                      num_samples=1024,
-                                      time_step=.0625/2,
-                                      default_frequency_divisions=250
-                                      )
+        spec = responses.get_spectrum(
+            # [1550, 1620], 10, [1550, 1620],
+            [1400, 1700], 0, [1550, 1700],
+            num_samples=1024,
+            time_step=.0625,
+            default_frequency_divisions=250
+        )
         # subspec = spec.frequency_filter([1400, 1700], [1400, 1700])
         subspec = spec.frequency_filter([1550, 1620], [1550, 1620])
-        subspec.plot(levels=15).show()
+        # print(subspec.clip(1e-6, 1))
+        subspec.clip(1e-8, 1).plot(levels=15).show()
+
 
         # for p in paths[1]:
         #     print(p)
