@@ -1,6 +1,7 @@
 import numpy as np, json, abc, collections
 import McUtils.Plots as plt
 from McUtils.Data import UnitsData
+import McUtils.Numputils as nput
 
 __all__ = [
     "TwoDimensionalSpectrum"
@@ -86,15 +87,39 @@ class TwoDimensionalSpectrum:
              plot_filled=True,
              contour_line_style=None,
              figure=None,
+             symmetric_range=True,
+             remove_baseline=True,
+             vmin=None,
+             vmax=None,
+             levels=None,
              **opts
              ):
         # print(self.freq1.shape, self.freq2.shape, self.intensities.shape)
+        ints = self.intensities
+        if remove_baseline:
+            ints = ints - np.median(ints)
+        if symmetric_range:
+            if vmin is None:
+                if vmax is None:
+                    vmax = np.max(np.abs(ints))
+                vmin = -vmax
+            elif vmax is None:
+                vmax = -vmin
+            if levels is not None and nput.is_int(levels):
+                levels = np.linspace(vmin, vmax, levels)
+                levels = levels[np.abs(levels) > 1e-12]
+        opts.update(
+            levels=levels,
+            vmin=vmin,
+            vmax=vmax
+        )
+        # print(vmax, vmin)
         if plot_filled:
             base_opts = dict(self.default_styles, **opts)
             figure = plt.ContourPlot(
                 self.freq1,
                 self.freq2,
-                self.intensities,
+                ints,
                 figure=figure,
                 **base_opts
             )

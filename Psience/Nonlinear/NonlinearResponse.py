@@ -554,109 +554,107 @@ class NonlinearReponseApplicationDomain(enum.Enum):
     Time = "time"
     Frequency = "frequency"
 
-def nonlinear_path_response_function(frequencies, dipole_magnitudes, dipole_directions, couplings, averaging,
-                                     path, trans,
-                                     zero_dipole_cutoff=1e-8, application_domain="time"):
-    mag = np.prod([
-        dipole_magnitudes[i, j]
-        for i,j in trans
-    ])
-    if abs(zero_dipole_cutoff) < 1e-8:
-        return None
-    avg = averaging(
-        dipole_directions[tuple(p[0] for p in trans), tuple(p[1] for p in trans)]
-    )
-    prefactor = mag * avg
-    if abs(prefactor) < 1e-8:
-        return None
-    freqs = [
-        frequencies[i, j]
-        for i,j in path
-    ]
-    cups = [
-        couplings[i, j]
-        for i, j in path
-    ]
-    npulse = len(freqs)
 
-    application_domain = NonlinearReponseApplicationDomain(application_domain)
-    # print(path, freqs)
+default_zero_dipole_cutoff = 1e-12
+def _get_transition_dict(
+        states,
+        dipole_magnitudes,
+        allowed_bands=None,
+        zero_dipole_cutoff=None):
+    if zero_dipole_cutoff is None:
+        zero_dipole_cutoff = default_zero_dipole_cutoff
+    true_cutoff = np.sqrt(zero_dipole_cutoff)
+    mask = dipole_magnitudes > true_cutoff
+    if allowed_bands is not None:
+        quanta = np.sum(states, axis=1)
+        diffs = quanta[:, np.newaxis] - quanta[np.newaxis, :]
+        alt_mask = np.full(mask.shape, False)
+        for b in allowed_bands:
+            alt_mask = alt_mask | (diffs == b)
+        mask = mask & alt_mask
+    dipole_couplings = np.where(mask)
+    return dict(zip(*nput.group_by(dipole_couplings[1], dipole_couplings[0])[0]))
+def _prep_default_path_response_data(
+        response_function_data,
+        frequencies, dipole_magnitudes, dipole_directions, couplings, orientational_averaging,
+        zero_dipole_cutoff=None,
+        keys=None
+):
+    if zero_dipole_cutoff is None:
+        zero_dipole_cutoff = default_zero_dipole_cutoff
+    rfd = {}
+    if keys is not None:
+        response_function_data = {k:response_function_data[k] for k in response_function_data.keys() & set(keys)}
+    for k, tdata in response_function_data.items():
+        new_terms = []
+        for sign, path, transitions in tdata:
+            mag = np.prod([dipole_magnitudes[i, j] for i, j in transitions])
+            if mag < zero_dipole_cutoff: continue
+            prefactor = sign * mag * orientational_averaging(
+                dipole_directions[tuple(i for i, j in transitions), tuple(j for i, j in transitions)]
+            )
+            new_terms.append(
+                [
+                    prefactor,
+                    [frequencies[i, j] for i, j in path],
+                    [couplings[i, j] for i, j in path]
+                ]
+            )
+        rfd[k] = new_terms
+
+    return rfd
+
+def _default_path_response_function(response_function_data, application_domain):
+    smol = not isinstance(response_function_data, dict)
+    if smol:
+        response_function_data = {None:response_function_data}
     if application_domain == NonlinearReponseApplicationDomain.Time:
         def response(*times):
-            if len(times) < npulse:
-                raise ValueError(f"expected {npulse} interaction times, got {len(times)}")
-            return prefactor * np.prod([
-                np.exp((f * 1j - c) * t)
-                for f, c, t in zip(freqs, cups, times)
-            ], axis=0)
+            response_tensors = {}
+            for k,d in response_function_data.items():
+                resp = 0
+                for mag, freqs, cups in d:
+                    resp += mag * np.prod([
+                        np.exp((f * 1j - c) * t)
+                        for f, c, t in zip(freqs, cups, times)
+                    ], axis=0)
+                response_tensors[k] = resp
+            if smol:
+                response_tensors = response_tensors[None]
+            return response_tensors
+        return response
     elif application_domain == NonlinearReponseApplicationDomain.Frequency:
-        # only the first and last pulses are frequency domain
         def response(*fs):
-            if len(fs) < npulse:
-                raise ValueError(f"expected {npulse} interaction frequencies/times, got {len(fs)}")
-            # cum_freqs = np.cumsum(fs, axis=0)
-            return prefactor * np.prod([
-                ((w - f)*1j + c) / ((w - f) ** 2 + c ** 2 + 1e-14)  # just make it huge if we're at a pole
-                for f, c, w in zip([freqs[0], freqs[-1]], [cups[0], cups[-1]], [fs[0], fs[-1]])
-            ], axis=0) * np.prod([
-                np.exp((f * 1j - c) * t)
-                for f, c, t in zip(freqs[1:-1], cups[1:-1], fs[1:-1])
-            ], axis=0)
+            #TODO: check number of pulses
+            response_tensors = {}
+            for k,d in response_function_data.items():
+                resp = 0
+                for mag, freqs, cups in d:
+                    resp += mag * np.prod([
+                        ((w + f)*1j + c) / ((w + f) ** 2 + c ** 2 + 1e-14)  # just make it huge if we're at a pole
+                        for f, c, w in zip([freqs[0], freqs[-1]], [cups[0], cups[-1]], [fs[0], fs[-1]])
+                    ], axis=0) * np.prod([
+                        np.exp((f * 1j - c) * t)
+                        for f, c, t in zip(freqs[1:-1], cups[1:-1], fs[1:-1])
+                    ], axis=0)
+                response_tensors[k] = resp
+            if smol:
+                response_tensors = response_tensors[None]
+            return response_tensors
+        return response
     else:
         raise ValueError(f"unknown application domain {application_domain}")
-    return response
 
-def nonlinear_multipath_response_function(frequencies, dipole_magnitudes, dipole_directions, couplings, averaging,
-                                          paths_and_signs, zero_dipole_cutoff=1e-8, application_domain="time"):
-    signs = []
-    response_functions = []
-    for path, trans, sign in paths_and_signs:
-        response = nonlinear_path_response_function(
-            frequencies, dipole_magnitudes, dipole_directions, couplings, averaging,
-            path, trans,
-            zero_dipole_cutoff=zero_dipole_cutoff,
-            application_domain=application_domain
-        )
-        if response is not None:
-            response_functions.append(response)
-            signs.append(sign)
-
-    if len(response_functions) == 0: return None
-    def response(*times):
-        response_values = None
-        for s,r in zip(signs, response_functions):
-            contrib = s * r(*times)
-            if response_values is None:
-                response_values = contrib
-            else:
-                response_values += contrib
-        return response_values
-
-    return response
-
-def nonlinear_multipath_response_function_generators(tensor_element_paths, application_domain="time", aggregate=True):
-    def response_function_generator(frequencies, dipole_magnitudes, dipole_directions, couplings, averaging,
-                                    zero_dipole_cutoff=1e-8):
-        response_tensor_generators = {}
-        for element, path_data in tensor_element_paths.items():
-            generator = nonlinear_multipath_response_function(
-                frequencies, dipole_magnitudes, dipole_directions, couplings, averaging,
-                path_data, zero_dipole_cutoff=zero_dipole_cutoff,
-                application_domain=application_domain
-            )
-            if generator is not None:
-                response_tensor_generators[element] = generator
-        if aggregate:
-            def total_response(*times):
-                return sum(
-                    f(*times)
-                    for f in response_tensor_generators.values()
-                )
-            return total_response
-        else:
-            return response_tensor_generators
-    return response_function_generator
-
+def _cleanup_tensor_reponse_paths(response_tensor_paths):
+    res = {}
+    for transition_paths in response_tensor_paths.values():
+        for path, transitions, sign in transition_paths:
+            res[tuple(path)] = [
+                sign,
+                path,
+                transitions
+            ]
+    return sorted(res.values(), key=lambda x:x[1])
 
 def _complete_repsonse_function_generator(total_space, liouville_paths,
                                           frequencies,
@@ -666,10 +664,13 @@ def _complete_repsonse_function_generator(total_space, liouville_paths,
                                           *,
                                           application_domain,
                                           response_tensor_elements,
-                                          num_interactions
+                                          num_interactions,
+                                          zero_dipole_cutoff=None
                                           ):
+    if zero_dipole_cutoff is None:
+        zero_dipole_cutoff = default_zero_dipole_cutoff
     if isinstance(liouville_paths, dict):
-        nlf = {}
+        subpaths = {}
         for k, sububs in liouville_paths.items():
             response_tensor_paths = _identify_response_tensor_paths(
                 sububs,
@@ -678,10 +679,16 @@ def _complete_repsonse_function_generator(total_space, liouville_paths,
                 num_interactions=num_interactions
             )
 
-            nlf[k] = nonlinear_multipath_response_function_generators(response_tensor_paths,
-                                                                      application_domain=application_domain)(
-                frequencies, dipole_magnitudes, dipole_directions, couplings, orientational_averaging,
-            )
+            subpaths[k] = _cleanup_tensor_reponse_paths(response_tensor_paths)
+
+        response_function_data = _prep_default_path_response_data(
+            subpaths,
+            frequencies, dipole_magnitudes,
+            dipole_directions,
+            couplings,
+            orientational_averaging,
+            zero_dipole_cutoff=zero_dipole_cutoff
+        )
     else:
         response_tensor_paths = _identify_response_tensor_paths(
             liouville_paths,
@@ -690,12 +697,125 @@ def _complete_repsonse_function_generator(total_space, liouville_paths,
             num_interactions=num_interactions
         )
 
-        nlf = nonlinear_multipath_response_function_generators(response_tensor_paths,
-                                                               application_domain=application_domain)(
-            frequencies, dipole_magnitudes, dipole_directions, couplings, orientational_averaging,
+        subpaths = _cleanup_tensor_reponse_paths(response_tensor_paths)
 
-        )
-    return nlf
+        response_function_data = _prep_default_path_response_data(
+            {None:subpaths},
+            frequencies, dipole_magnitudes,
+            dipole_directions,
+            couplings,
+            orientational_averaging,
+            zero_dipole_cutoff=zero_dipole_cutoff
+        )[None]
+
+    return _default_path_response_function(
+        response_function_data,
+        application_domain
+    )
+
+def _simple_path_response(
+        paths,
+        frequencies,
+        dipole_magnitudes, dipole_directions,
+        couplings,
+        orientational_averaging,
+        *,
+        application_domain,
+        zero_dipole_cutoff=None,
+        keys=None,
+        **__
+):
+    if zero_dipole_cutoff is None:
+        zero_dipole_cutoff = default_zero_dipole_cutoff
+    response_function_data = _prep_default_path_response_data(
+        paths,
+        frequencies, dipole_magnitudes,
+        dipole_directions,
+        couplings,
+        orientational_averaging,
+        zero_dipole_cutoff=zero_dipole_cutoff,
+        keys=keys
+    )
+
+    return _default_path_response_function(
+        response_function_data,
+        application_domain
+    )
+
+def _get_simple_2dir_paths(
+        total_space,
+        dipole_magnitudes,
+        zero_dipole_cutoff=None
+):
+    # TODO: add example support for starting from a different initial state?
+    state_vectors = total_space.excitations
+    quanta = np.sum(state_vectors, axis=1)
+    gs = np.where(quanta == 0)[0]
+    if len(gs) == 0:
+        raise ValueError("ground state is required for now")
+    gs = gs[0]
+    coupling_dict = _get_transition_dict(
+        state_vectors,
+        dipole_magnitudes,
+        allowed_bands=[-1, 1],
+        zero_dipole_cutoff=zero_dipole_cutoff
+    )
+
+    response_function_data = {
+        "rephasing": [],
+        "non-rephasing": []
+    }
+    for i in coupling_dict[gs]:
+        # R1
+        for j in coupling_dict[gs]:
+            response_function_data["rephasing"].append(
+                [  # R1
+                    1,
+                    [(gs, j), (i, j), (i, gs)],
+                    [(gs, j), (gs, i), (j, gs), (i, gs)],
+                ]
+            )
+
+            response_function_data["rephasing"].append(
+                [  # R2
+                    1,
+                    [(gs, j), (gs, gs), (i, gs)],
+                    [(gs, j), (j, gs), (gs, i), (i, gs)],
+                ]
+            )
+
+            response_function_data["non-rephasing"].append(
+                [  # R4
+                    1,
+                    [(j, gs), (j, i), (j, gs)],
+                    [(gs, j), (gs, i), (i, gs), (j, gs)],
+                ]
+            )
+
+            response_function_data["non-rephasing"].append(
+                [  # R5
+                    1,
+                    [(j, gs), (gs, gs), (i, gs)],
+                    [(gs, j), (j, gs), (gs, i), (i, gs)],
+                ]
+            )
+            for k in np.setdiff1d(np.intersect1d(coupling_dict[i], coupling_dict[j]), [gs]):
+                response_function_data["rephasing"].append(
+                    [  # R3
+                        -1,
+                        [(gs, j), (i, j), (k, j)],
+                        [(gs, j), (gs, i), (i, k), (j, k)],
+                    ]
+                )
+                response_function_data["non-rephasing"].append(
+                    [  # R6
+                        -1,
+                        [(j, gs), (j, i), (k, i)],
+                        [(gs, j), (gs, i), (j, k), (i, k)],
+                    ]
+                )
+
+    return response_function_data
 
 def _simple_2d_ir_response(
         total_space,
@@ -706,155 +826,208 @@ def _simple_2d_ir_response(
         orientational_averaging,
         *,
         application_domain,
-        zero_dipole_cutoff=1e-8,
+        zero_dipole_cutoff=None,
         **__
 ):
-    #TODO: add example support for starting from a different initial state?
-    state_vectors = total_space.excitations
-    quanta = np.sum(state_vectors, axis=1)
-    gs = np.where(quanta == 0)[0]
-    if len(gs) == 0:
-        raise ValueError("ground state is required for now")
-    gs = gs[0]
-    dipole_couplings = np.where(dipole_magnitudes > zero_dipole_cutoff)
+    if zero_dipole_cutoff is None:
+        zero_dipole_cutoff = default_zero_dipole_cutoff
+    paths = _get_simple_2dir_paths(
+        total_space,
+        dipole_magnitudes,
+        zero_dipole_cutoff=zero_dipole_cutoff
+    )
+
+    return _simple_path_response(
+        paths,
+        frequencies,
+        dipole_magnitudes, dipole_directions,
+        couplings,
+        orientational_averaging,
+        application_domain=application_domain,
+        zero_dipole_cutoff=zero_dipole_cutoff,
+        keys=liouville_paths.keys()
+    )
+
+def _signed_transition_data_from_paths(raw_paths):
+    paths = []
+    for p in raw_paths:
+        right_ops = np.diff([r[1] for r in p]) != 0
+        sign = (-1)**np.sum(right_ops)
+        transitions = [
+            (p[i][1], p[i+1][1])
+                if r else
+            (p[i][0], p[i+1][0])
+            for i,r in enumerate(right_ops)
+        ]
+        paths.append(
+            [
+                sign,
+                p[1:],
+                transitions
+            ]
+        )
+    return paths
+
+def _enumerate_test_paths(states, dipole_magnitudes, phase=None, ordering=None, zero_dipole_cutoff=None):
+    if zero_dipole_cutoff is None:
+        zero_dipole_cutoff = default_zero_dipole_cutoff
+    # sample path function adapted from Eitan
+    band = np.sum(states, axis=1)
+
+    if phase is None:
+        phase = (None, None, None)
+    elif phase == 'rephasing':
+        phase = ('-', '+', '+')
+    elif phase == 'non-rephasing':
+        phase = ('+', '-', '+')
+    elif phase == 'anharm':
+        phase = ('+', '+', '-')
+
+    if ordering is None:
+        ordering = (None, None, None)
+    elif isinstance(ordering, str) and len(ordering) >= 2:
+        if ordering[1] == '1':
+            if len(ordering) == 2:
+                ordering = ('L', 'R', 'R')
+            else:
+                ordering = ('R', 'L', 'L')
+        elif ordering[1] == '2':
+            if len(ordering) == 2:
+                ordering = ('R', 'L', 'R')
+            else:
+                ordering = ('L', 'R', 'L')
+        elif ordering[1] == '3':
+            if len(ordering) == 2:
+                ordering = ('R', 'R', 'L')
+            else:
+                ordering = ('L', 'L', 'R')
+        elif ordering[1] == '4':
+            if len(ordering) == 2:
+                ordering = ('L', 'L', 'L')
+            else:
+                ordering = ('R', 'R', 'R')
+
+    nstate = len(band)
+
+    # get all possible next steps in the pathway
+    def getAllNext(mn, j):
+        m, n = mn
+        ori = phase[j]
+        pat = ordering[j]
+        result = []
+
+        if (pat is None) or (pat == 'L'):
+            # for mm in range(nstate):
+            for mm in coupling_dict.get(m, []):
+                if (
+                        (ori is None and abs(band[mm] - band[m]) == 1)
+                        or (ori == '+' and band[mm] == band[m] + 1)
+                        or (ori == '-' and band[mm] == band[m] - 1)
+                ):
+                    result.append((mm, n))
+
+        if (pat is None) or (pat == 'R'):
+            # for nn in range(nstate):
+            for nn in coupling_dict.get(n, []):
+                if (
+                        (ori is None and abs(band[nn] - band[n]) == 1)
+                        or (ori == '+' and band[nn] == band[n] - 1)
+                        or (ori == '-' and band[nn] == band[n] + 1)
+                ):
+                    result.append((m, nn))
+                del nn
+
+        return result
+
+    mask = dipole_magnitudes > zero_dipole_cutoff
+    # add extra selection rule restrictions here if desired
+    # mask = mask & np.abs(band[:, np.newaxis] - band[np.newaxis, :]) == 1
+    dipole_couplings = np.where(mask)
     coupling_dict = dict(zip(*nput.group_by(dipole_couplings[1], dipole_couplings[0])[0]))
 
-    response_function_data = {
-        "rephasing":[],
-        "non-rephasing":[]
+    # get all possible next steps in the pathway
+    def next_path_steps(mn, ori, pat):
+        m, n = mn
+        if (pat is None) or (pat == 'L'):
+            for mm in coupling_dict.get(m, []):
+                if (
+                        ori is None
+                        # or (ori == '+' and band[mm] == band[m] + 1)
+                        # or (ori == '-' and band[mm] == band[m] - 1)
+                        or (ori == '+' and band[mm] > band[m])
+                        or (ori == '-' and band[mm] < band[m])
+                ):
+                    yield (mm, n)
+
+        if (pat is None) or (pat == 'R'):
+            for nn in coupling_dict.get(n, []):
+                if (
+                        ori is None
+                        # or (ori == '+' and band[nn] == band[n] - 1)
+                        # or (ori == '-' and band[nn] == band[n] + 1)
+                        or (ori == '+' and band[nn] < band[n])
+                        or (ori == '-' and band[nn] > band[n])
+                ):
+                    yield (m, nn)
+
+    # construct pathways
+    queue = collections.deque()
+    queue.append([1, 0, [(0, 0)]])
+    nstep = len(ordering)
+    while queue:
+        dipole, cur, path = queue.pop()
+        if cur == nstep:
+            yield path
+        else:
+            prev = path[-1]
+            # for new in next_path_steps(prev, phase[cur], ordering[cur]):
+            for new in getAllNext(prev, cur):
+                if new[0] == prev[0]: # operated on the right
+                    transition = (prev[1], new[1])
+                else:
+                    transition = (prev[0], new[0])
+                dipole_new = dipole*dipole_magnitudes[transition[0], transition[1]]
+                if dipole_new < zero_dipole_cutoff:
+                    continue
+                else:
+                    queue.append([dipole_new, cur + 1,path + [new]])
+
+def _alternate_test_reponse(
+        total_space,
+        liouville_paths,
+        frequencies,
+        dipole_magnitudes, dipole_directions,
+        couplings,
+        orientational_averaging,
+        *,
+        application_domain,
+        zero_dipole_cutoff=None,
+        **__
+):
+    paths = {
+        k:_signed_transition_data_from_paths(list(_enumerate_test_paths(total_space.excitations, dipole_magnitudes,  phase=k)))
+        for k in liouville_paths.keys()
     }
-    for i in coupling_dict[gs]:
-        # R1
-        for j in coupling_dict[gs]:
-            mag = dipole_magnitudes[gs, i]**2 * dipole_magnitudes[gs, j]**2
-            if mag < zero_dipole_cutoff: continue
-            # rephasing: +--
-            # non-rephashing: -+-
-            response_function_data["rephasing"].append(
-                #R1
-                [
-                    mag * orientational_averaging(
-                        dipole_directions[(0, 0, 0, 0), (j, i, j, i)]
-                    ),
-                    [1, -1, -1],
-                    [frequencies[gs, j], frequencies[j, i], frequencies[gs, i]],
-                    [couplings[gs, j], couplings[i, j], couplings[gs, i]]
-                ]
-            )
-            response_function_data["rephasing"].append(
-                # R2
-                [
-                    mag * orientational_averaging(
-                        dipole_directions[(0, 0, 0, 0), (j, j, i, i)]
-                    ),
-                    [1, -1, -1],
-                    [frequencies[gs, j], 0, frequencies[gs, i]],
-                    [couplings[gs, j], 0, couplings[gs, i]]
-                ]
-            )
-            response_function_data["non-rephasing"].append(
-                # R4
-                [
-                    mag * orientational_averaging(
-                        dipole_directions[(0, 0, 0, 0), (j, i, i, j)]
-                    ),
-                    [-1, 1, -1],
-                    [frequencies[gs, j], frequencies[i, j], frequencies[gs, j]],
-                    [couplings[gs, j], couplings[i, j], couplings[gs, i]]
-                ]
-            )
-            response_function_data["non-rephasing"].append(
-                # R5
-                [
-                    mag * orientational_averaging(
-                        dipole_directions[(0, 0, 0, 0), (j, j, i, i)]
-                    ),
-                    [-1, 1, -1],
-                    [frequencies[gs, j], 0, frequencies[gs, i]],
-                    [couplings[gs, j], 0, couplings[gs, i]]
-                ]
-            )
-            for k in np.setdiff1d(np.intersect1d(coupling_dict[i], coupling_dict[j]), [gs]):
-                mag =  dipole_magnitudes[gs, i] * dipole_magnitudes[gs, j] * dipole_magnitudes[i, k] * dipole_magnitudes[j, k]
-                if mag < zero_dipole_cutoff: continue
 
-                response_function_data["rephasing"].append(
-                    # R3
-                    [
-                        -mag * orientational_averaging(
-                            dipole_directions[(0, 0, i, j), (j, i, k, k)]
-                        ),
-                        [1, -1, -1],
-                        [frequencies[gs, j], frequencies[j, i], frequencies[j, k]],
-                        [couplings[gs, j], couplings[i, j], couplings[j, k]]
-                    ]
-                )
-                response_function_data["non-rephasing"].append(
-                    # R6
-                    [
-                        -mag * orientational_averaging(
-                            dipole_directions[(0, 0, j, i), (j, i, k, k)]
-                        ),
-                        [-1, 1, -1],
-                        [frequencies[gs, j], frequencies[i, j], frequencies[i, k]],
-                        [couplings[gs, j], couplings[i, j], couplings[j, k]]
-                    ]
-                )
+    # print(len(paths['non-rephasing']), sorted([p[1] for p in paths['non-rephasing']]))
 
+    return _simple_path_response(
+        paths,
+        frequencies,
+        dipole_magnitudes, dipole_directions,
+        couplings,
+        orientational_averaging,
+        application_domain=application_domain,
+        zero_dipole_cutoff=zero_dipole_cutoff
+    )
 
-            # # Non-rephasing diagram R6
-            # mu_list = np.array([mu[[j, i]], mu2[k, [j, i]]]).reshape(4, 3)
-            # R6 -= dipole * orientational_average(mu_list, pol) * np.exp(
-            #     -1j * w[j] * t1 + 1j * (w[j] - w[i]) * t2 - 1j * (w2[k] - w[i]) * t3 - t1 / T2_ge - coherence(i,
-            #                                                                                                   j) - t3 / T2_ef)
-
-    response_function_data = {
-        k:v
-        for k,v in response_function_data.items()
-        if k in liouville_paths
-    }
-    if application_domain == NonlinearReponseApplicationDomain.Time:
-        def response(t1, t2, t3):
-            response_tensors = {}
-            times = t1, t2, t3
-            for k,d in response_function_data.items():
-                resp = 0
-                for mag, signs, freqs, cups in d:
-                    resp += mag * np.prod([
-                        np.exp((s*f * 1j - c) * t)
-                        for f, s, c, t in zip(freqs, signs, cups, times)
-                    ], axis=0)
-                response_tensors[k] = resp
-            return response_tensors
-        return response
-    elif application_domain == NonlinearReponseApplicationDomain.Frequency:
-        def response(w1, t2, w3):
-            response_tensors = {}
-            fs = w1, t2, w3
-            for k,d in response_function_data.items():
-                resp = 0
-                for mag, signs, freqs, cups in d:
-                    resp += mag * np.prod([
-                        (s*(w - f)*1j + c) / ((w - f) ** 2 + c ** 2 + 1e-14)  # just make it huge if we're at a pole
-                        for f, s,c, w in zip(
-                            [freqs[0], freqs[-1]], [signs[0], signs[-1]],
-                            [cups[0], cups[-1]], [fs[0], fs[-1]])
-                    ], axis=0) * np.prod([
-                        np.exp(s*(f * 1j - c) * t)
-                        for f, s, c, t in zip(freqs[1:-1], signs[1:-1], cups[1:-1], fs[1:-1])
-                    ], axis=0)
-                response_tensors[k] = resp
-            return response_tensors
-        return response
-    else:
-        raise ValueError(f"unknown application domain {application_domain}")
 class NonlinearResponseFunction:
-    def __init__(self, response_generator, central_frequency=0,
+    def __init__(self, response_generator, driving_frequency=0,
                  frequency_unit='Hartrees',
                  time_unit='PicoSeconds',
                  application_domain: NonlinearReponseApplicationDomain = "time"):
         self.caller = response_generator
-        self.center = central_frequency
+        self.center = driving_frequency
         self._fu = frequency_unit
         self._tu = time_unit
         self._dom = NonlinearReponseApplicationDomain(application_domain)
@@ -1058,7 +1231,7 @@ def nonlinear_response_generators(transition_data,
                                   state_filter_opts=None,
                                   response_tensor_elements=None,
                                   response_function_generator=None,
-                                  central_frequency=True,
+                                  driving_frequency=True,
                                   frequency_unit="Hartrees",
                                   time_unit="PicoSeconds",
                                   application_domain="time",
@@ -1066,18 +1239,25 @@ def nonlinear_response_generators(transition_data,
                                   **state_opts
                                   ):
     td = prep_nonlinear_transition_data(transition_data, **state_opts)
-    if central_frequency is True:
-        freqs = td.frequencies
-        sel = np.abs(freqs) > 1e-8
-        central_frequency = np.average(np.abs(freqs[sel]))
+    if driving_frequency is True:
+        bands = np.sum(td.states.excitations, axis=1)
+        gs = np.where(bands == 0)[0]
+        if len(gs) == 0:
+            raise ValueError("ground state is required for driving frequency determination")
+        fundamentals = np.where(bands == 1)[0]
+        if len(gs) == 0:
+            raise ValueError("at least one fundamental is required for driving frequency determination")
+        subfreqs = td.frequencies[gs, fundamentals]
+        driving_frequency = np.average(subfreqs[subfreqs > 1e-10])
 
-    if central_frequency is False or central_frequency is None:
-        central_frequency = 0
+    if driving_frequency is False or driving_frequency is None:
+        driving_frequency = 0
     else:
         freqs = td.frequencies.copy()
+        bands = np.sum(td.states.excitations, axis=1)
+        band_diffs = bands[np.newaxis, :] - bands[:, np.newaxis]
         sel = np.abs(freqs) > 1e-10
-        vals = freqs[sel]
-        freqs[sel] = np.sign(vals) * (np.abs(vals) - central_frequency)
+        freqs[sel] = (freqs[sel] - band_diffs[sel] * driving_frequency)
         td = td._replace(frequencies=freqs)
 
     states = td.states
@@ -1125,11 +1305,18 @@ def nonlinear_response_generators(transition_data,
     _, frequencies, transition_moments, couplings = expand_transition_data(td, total_space)
     dipole_directions, dipole_magnitudes = nput.vec_normalize(transition_moments, return_norms=True)
 
+    # print("!")
+    # print(
+    #     sorted(list(_enumerate_test_2d_paths(total_space.excitations, dipole_magnitudes, phase='nr')))
+    # )
+
     application_domain = NonlinearReponseApplicationDomain(application_domain)
     if response_function_generator is None:
         response_function_generator = _complete_repsonse_function_generator
     elif dev.str_is(response_function_generator, "simple2dir"):
         response_function_generator = _simple_2d_ir_response
+    elif dev.str_is(response_function_generator, "alt2d"):
+        response_function_generator = _alternate_test_reponse
     nlf = response_function_generator(
         total_space,
         subblocks,
@@ -1148,7 +1335,7 @@ def nonlinear_response_generators(transition_data,
 
     return response_function_class(
         nlf,
-        central_frequency=central_frequency,
+        driving_frequency=driving_frequency,
         frequency_unit=frequency_unit,
         time_unit=time_unit,
         application_domain=application_domain
@@ -1160,13 +1347,14 @@ class TwoDimensionalIRResponseFunction(NonlinearResponseFunction):
                    apply_ifft=True,
                    return_freqs=True,
                    shift_ifft=True,
+                   default_frequency_divisions=100,
                    **sampling_opts):
-        signal = super().call_freqs(w1, t2, w3,
-                                    apply_ifft=apply_ifft,
-                                    return_freqs=return_freqs,
-                                    shift_ifft=False,
-                                    **sampling_opts)
         if self._dom == NonlinearReponseApplicationDomain.Time:
+            signal = super().call_freqs(w1, t2, w3,
+                                        apply_ifft=apply_ifft,
+                                        return_freqs=return_freqs,
+                                        shift_ifft=False,
+                                        **sampling_opts)
             if not apply_ifft:
                 return signal
             else:
@@ -1189,13 +1377,37 @@ class TwoDimensionalIRResponseFunction(NonlinearResponseFunction):
                 else:
                     return S
         else:
+            w1_min, w1_max = w1[:2]
+            if len(w1) == 3:
+                w1_step = w1[2]
+            else:
+                w1_step = default_frequency_divisions
+            w3_min, w3_max = w3[:2]
+            if len(w3) == 3:
+                w3_step = w3[2]
+            else:
+                w3_step = default_frequency_divisions
+            dw = min([(w1_max - w1_min)/w1_step, (w3_max - w3_min)/w3_step])
+            w = max([
+                abs(w1_max - self.center),
+                abs(w1_min - self.center),
+                abs(w3_max - self.center),
+                abs(w3_min - self.center),
+            ])
+            nstep = int(np.ceil(2*w/dw))
+            w1 = w3 = (self.center - w, self.center + w, nstep)
+            signal = super().call_freqs(w1, t2, w3,
+                                        apply_ifft=apply_ifft,
+                                        return_freqs=return_freqs,
+                                        shift_ifft=False,
+                                        **sampling_opts)
             if return_freqs:
                 freqs, signal = signal
             else:
                 freqs = None
             signals = []
             if 'rephasing' in signal:
-                signals.append(np.flip(signal['rephasing'], axis=0))
+                signals.append(np.flip(signal['rephasing'], axis=1))
             if 'non-rephasing' in signal:
                 signals.append(signal['non-rephasing'])
             S = sum(signals)
@@ -1213,18 +1425,18 @@ experiment_defaults = {
     "2dir": {
         'num_interactions': 4,
         'paths': {
-            # 'rephasing': 3,
-            'rephasing': [
-                [1, 0, 1],
-                [1, 1, 0],
-                [1, 0, 0],
-            ],
-            # 'non-rephasing': 3
-            'non-rephasing': [
-                [0, 1, 0],
-                [0, 0, 0],
-                [0, 1, 1]
-            ]
+            'rephasing': 3,
+            # 'rephasing': [
+            #     [1, 0, 1],
+            #     [1, 1, 0],
+            #     [1, 0, 0],
+            # ],
+            'non-rephasing': 3
+            # 'non-rephasing': [
+            #     [0, 1, 0],
+            #     [0, 0, 0],
+            #     [0, 1, 1]
+            # ]
         },
         # 'selection_rules' : {
         #     'rephasing': [

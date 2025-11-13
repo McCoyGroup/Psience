@@ -4,6 +4,7 @@ from Psience.Nonlinear import *
 import McUtils.Plots as plt
 from McUtils.Data import UnitsData
 import sys, os, numpy as np
+import copy
 
 class NonlinearTests(TestCase):
 
@@ -34,14 +35,14 @@ class NonlinearTests(TestCase):
                     'frequency': 1560,
                     'transition_moment': [0, .12, 0]
                 },
-                # ((0, 1), (1, 1)): {
-                #     'frequency': 1565,
-                #     'transition_moment': [0, 0, .1]
-                # },
-                # ((1, 0), (1, 1)): {
-                #     'frequency': 1605,
-                #     'transition_moment': [0, .1, 0]
-                # }
+                ((0, 1), (1, 1)): {
+                    'frequency': 1570,
+                    'transition_moment': [0, .1, 0]
+                },
+                ((1, 0), (1, 1)): {
+                    'frequency': 1610,
+                    'transition_moment': [0,  0, .1]
+                }
             },
             band_coherences={
                 (0, 1):2,
@@ -50,17 +51,17 @@ class NonlinearTests(TestCase):
             frequency_unit="Wavenumbers",
             application_domain="frequency",
             polarization=None,
+            # response_function_generator="alt2d",
             response_function_generator="simple2dir",
-            central_frequency=1600,
-            included_signals=['non-rephasing']
+            # included_signals=['non-rephasing']
         )
 
         spec = responses.get_spectrum(
-            # [1550, 1620], 10, [1550, 1620],
-            [1400, 1700], 0, [1550, 1700],
+            # [1550, 1620], 0, [1550, 1620],
+            [1400, 1700], 0, [1400, 1700],
             num_samples=1024,
             time_step=.0625,
-            default_frequency_divisions=250
+            default_frequency_divisions=500
         )
         # subspec = spec.frequency_filter([1400, 1700], [1400, 1700])
         subspec = spec.frequency_filter([1550, 1620], [1550, 1620])
