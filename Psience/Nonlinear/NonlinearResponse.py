@@ -256,13 +256,17 @@ def get_interaction_basis(initial_states:BasisStateSpace, *, selection_rules, **
     def _apply_rules(space, rules):
         if hasattr(space, 'representative_space'):
             space = space.to_single(include_representative=False).take_unique()
-        return space.apply_selection_rules(rules, **filter_opts)
+        if len(space) == 0:
+            return None
+        else:
+            return space.apply_selection_rules(rules, **filter_opts)
 
     if nput.is_int(selection_rules[0][0][0]): # one path supplied
         bases = [initial_states]
         space = initial_states
         for rules in selection_rules:
             new = _apply_rules(bases[-1], rules)
+            if new is None: return None
             bases.append(new)
             space = space.union(new.to_single())
         total_space = space.to_single().take_unique().as_sorted()
@@ -399,7 +403,9 @@ def prep_liouville_spaces(initial_states, paths, num_interactions=None,
         for rules_tuple in flat_groups:
             if rules_tuple not in all_bases:
                 if len(rules_tuple) > 0:
-                    all_bases[rules_tuple] = get_interaction_basis(initial_states, selection_rules=rules_tuple, **filter_opts)
+                    basis = get_interaction_basis(initial_states, selection_rules=rules_tuple, **filter_opts)
+                    if basis is not None:
+                        all_bases[rules_tuple] = basis
                 else:
                     all_bases[()] = (initial_states, [initial_states])
         for p,g in zip(kpaths, rule_groups):
@@ -430,7 +436,9 @@ def prep_liouville_spaces(initial_states, paths, num_interactions=None,
         subinds = []
         for path, old in zip(path_sampling, paths):
             sign = (-1)**path[-1, -1]
-            groups = [all_inds[x] for x in path_map[(k, tuple(old))]]
+            groups = [all_inds.get(x) for x in path_map[(k, tuple(old))]]
+            if any(g is None for g in groups):
+                continue
             inds = [[g[i] for g, i in zip(groups, p)] for p in path]
             if len(inds) < num_interactions + 1:
                 inds.append([groups[0][path[-1][0]+1], groups[1][path[-1][1]+1]])
@@ -681,6 +689,7 @@ def _complete_repsonse_function_generator(total_space, liouville_paths,
 
             subpaths[k] = _cleanup_tensor_reponse_paths(response_tensor_paths)
 
+        # print(len(subpaths['non-rephasing']), [s[1] for s in subpaths['non-rephasing']])
         response_function_data = _prep_default_path_response_data(
             subpaths,
             frequencies, dipole_magnitudes,
@@ -837,6 +846,7 @@ def _simple_2d_ir_response(
         zero_dipole_cutoff=zero_dipole_cutoff
     )
 
+    # print(len(paths['non-rephasing']), [s[1] for s in paths['non-rephasing']])
     return _simple_path_response(
         paths,
         frequencies,
@@ -1225,7 +1235,7 @@ def nonlinear_response_generators(transition_data,
                                   paths,
                                   num_interactions=None,
                                   phases=None,
-                                  selection_rules=((1,), (-1,)),
+                                  selection_rules=None,
                                   polarization=None,
                                   initial_states=None,
                                   state_filter_opts=None,
