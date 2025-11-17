@@ -2864,7 +2864,7 @@ class MolecoolsTests(TestCase):
             gggg.internal_coordinates.converter_options['redundant_transformation']
         )
 
-    @debugTest
+    @validationTest
     def test_InternalConv(self):
         test_inverse = False
         test_vpt = False
@@ -3386,3 +3386,16 @@ class MolecoolsTests(TestCase):
         # # print(len(woof[0]))
         # raise Exception(...)
 
+
+    @debugTest
+    def test_MoreBondZMatrix(self):
+        import McUtils.Coordinerds as coordops
+
+        test = Molecule.from_string('OC(C=CC=C1)=C1/C=C/C2=[N+](CCCS(=O)([O-])=O)C3=CC=CC=C3C2(C)C')
+        z = test.get_bond_zmatrix()
+        coords = coordops.extract_zmatrix_internals(z)
+        if None in coords:
+            for c in z:
+                for i,j in itertools.combinations(c, 2):
+                    if i == j:
+                        raise ValueError(c)

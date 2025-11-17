@@ -46,11 +46,12 @@ class NonlinearTests(TestCase):
             },
             band_coherences={
                 (0, 1):2,
+                (1, 1):.5,
                 (1, 2):2
             },
             frequency_unit="Wavenumbers",
             application_domain="frequency",
-            polarization=None,
+            # polarization=None,
             # response_function_generator="alt2d",
             response_function_generator="simple2dir",
             # included_signals=['non-rephasing']
@@ -58,7 +59,7 @@ class NonlinearTests(TestCase):
 
         spec = responses.get_spectrum(
             # [1550, 1620], 0, [1550, 1620],
-            [1400, 1700], 0, [1400, 1700],
+            [1400, 1700], 10, [1400, 1700],
             num_samples=1024,
             time_step=.0625,
             default_frequency_divisions=500
