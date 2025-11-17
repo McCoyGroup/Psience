@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Runner.VPTHamiltonianOptions">VPTHamiltonianOptions</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L697)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L697?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L698)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L698?message=Update%20Docs)]
 </div>
 
 Provides a helper to keep track of the levers available for
@@ -25,8 +25,8 @@ setting up the Hamiltonian
 __init__(self, mode_selection=None, mode_transformation=None, local_mode_couplings=None, local_mode_coupling_order=None, full_surface_mode_selection=None, include_potential=None, include_gmatrix=None, include_coriolis_coupling=None, include_pseudopotential=None, include_only_mode_couplings=None, potential_terms=None, kinetic_terms=None, coriolis_terms=None, pseudopotential_terms=None, include_dipole=None, dipole_terms=None, dipole_derivatives=None, undimensionalize_normal_modes=None, use_numerical_jacobians=None, eckart_embed_derivatives=None, eckart_embed_planar_ref_tolerance=None, strip_dummy_atoms=None, strip_embedding_coordinates=None, mixed_derivative_handling_mode=None, mixed_derivative_warning_threshold=None, mixed_derivative_handle_zeros=None, rephase_modes=None, backpropagate_internals=None, direct_propagate_cartesians=None, zero_mass_term=None, internal_fd_mesh_spacing=None, internal_fd_stencil=None, cartesian_fd_mesh_spacing=None, cartesian_fd_stencil=None, cartesian_analytic_deriv_order=None, cartesian_by_internal_derivative_method=None, internal_by_cartesian_order=None, cartesian_by_internal_order=None, jacobian_warning_threshold=None, check_input_force_constants=None, hessian_tolerance=None, grad_tolerance=None, freq_tolerance=None, g_derivative_threshold=None, gmatrix_tolerance=None, use_internal_modes=None, use_cartesian_kinetic_energy=None, operator_coefficient_threshold=None, imaginary_frequency_handling_mode=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L755)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L755?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L756)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L756?message=Update%20Docs)]
 </div>
 
   - `mode_selection`: `Iterable[int]|None`
@@ -134,7 +134,7 @@ __init__(self, mode_selection=None, mode_transformation=None, local_mode_couplin
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTHamiltonianOptions.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTHamiltonianOptions.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L697?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L698?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
