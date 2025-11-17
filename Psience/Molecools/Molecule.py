@@ -1111,18 +1111,28 @@ class Molecule(AbstractMolecule):
     def find_backbone_segments(self, root=None):
         return self.edge_graph.segment_by_chains(root=root)
 
-    def get_backbone_zmatrix(self, root=None, segments=None, return_remainder=False, return_segments=False):
+    def get_backbone_zmatrix(self, root=None, segments=None, return_remainder=False, return_segments=False,
+                             validate=True
+                             ):
         if segments is None:
             segments = self.find_backbone_segments(root=root)
+            if validate:
+                flat_frags = list(itut.flatten(segments))
+                frag_counts = itut.counts(flat_frags)
+                bad_frags = {k: v for k, v in frag_counts.items() if v > 1}
+                if len(bad_frags) > 0:
+                    raise ValueError(f"diplicate atoms {list(bad_frags.keys())} encountered in {segments}")
 
         bond_list = [b[:2] for b in self.bonds]
         base_graph = coordops.bond_graph_zmatrix(
             bond_list,
-            segments
+            segments,
+            validate_additions=validate
         )
         zmat, new_bonds = coordops.add_missing_zmatrix_bonds(
             base_graph,
-            bond_list
+            bond_list,
+            validate_additions=validate
         )
 
         if return_segments or return_remainder:
@@ -1138,7 +1148,8 @@ class Molecule(AbstractMolecule):
 
     def get_bond_zmatrix(self, fragments=None, segments=None, root=None,
                          attachment_points=None,
-                         check_attachment_points=True
+                         check_attachment_points=True,
+                         validate=True
                          ):
         no_frag = fragments is None
         if no_frag:
@@ -1147,7 +1158,10 @@ class Molecule(AbstractMolecule):
         if len(fragments) == 1:
             if segments is not None and len(segments) == 1:
                 segments = segments[0]
-            return self.get_backbone_zmatrix(root=root, segments=segments)
+            return self.get_backbone_zmatrix(
+                root=root, segments=segments,
+                validate=validate
+                )
         else:
             inds = fragments
             if no_frag:
@@ -1197,7 +1211,8 @@ class Molecule(AbstractMolecule):
                 zmats,
                 distance_matrix=dm,
                 attachment_points=attachment_points,
-                check_attachment_points=check_attachment_points
+                check_attachment_points=check_attachment_points,
+                validate_additions=validate
             )
 
     @property
