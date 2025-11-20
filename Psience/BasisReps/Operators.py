@@ -748,7 +748,8 @@ class Operator:
     # @profile
     def _construct_elem_array(self, chunks):
 
-        if all(isinstance(x, np.ndarray) for x in chunks):
+        if any(isinstance(x, np.ndarray) for x in chunks):
+            chunks = [chunks.asarray() if not isinstance(x, np.ndarray) else x for x in chunks]
             elems = np.concatenate(chunks, axis=0)
         else:
             elems = chunks[0].concatenate(*chunks[1:])
@@ -1226,8 +1227,15 @@ class ContractedOperator(Operator):
 
         # need a special case for diagonal tensors
         chunks = [self._get_element_block(idx, check_orthogonality=check_orthogonality, memory_constrained=memory_constrained) for idx in idx_splits]
-        if all(isinstance(x, np.ndarray) for x in chunks):
-            subchunks = [np.array([y]) if y.shape == () else y for y in chunks]
+        if any(isinstance(x, np.ndarray) for x in chunks):
+            subchunks = [
+                y.asarray()
+                    if hasattr(y, 'asarray') else
+                np.array([y])
+                    if y.shape == () else
+                y
+                for y in chunks
+            ]
             contracted = np.concatenate(subchunks, axis=0)
         else:
             contracted = chunks[0].concatenate(*chunks[1:])

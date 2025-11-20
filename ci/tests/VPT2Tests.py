@@ -1511,7 +1511,8 @@ class VPT2Tests(TestCase):
 
         VPTRunner.run_simple(TestManager.test_data('ts_taup_anh_b2.fchk'), 1,
                              calculate_intensities=False,
-                             mode_selection=list(range(1, 12))
+                             mode_selection=list(range(1, 12)),
+                             degeneracy_specs='auto'
                              )
 
 
