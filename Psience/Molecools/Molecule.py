@@ -3363,6 +3363,7 @@ class Molecule(AbstractMolecule):
              mode_vector_display_cutoff=1e-2,
              principle_axes=None,
              principle_axes_origin=None,
+             principle_axes_origin_mode='set',
              principle_axes_style=None,
              dipole=None,
              dipole_origin=None,
@@ -3467,12 +3468,23 @@ class Molecule(AbstractMolecule):
         elif principle_axes is False:
             principle_axes = None
         if principle_axes is not None:
+            if principle_axes_style is None:
+                principle_axes_style = {}
             if isinstance(principle_axes_style, dict):
                 principle_axes_style = [principle_axes_style] * 3
             principle_axes_style = [
                 dict(self.principle_axes_style[i], **principle_axes_style[i])
                 for i in range(3)
             ]
+            if principle_axes is not None:
+                if principle_axes.ndim == 2:
+                    principle_axes = np.broadcast_to(
+                        principle_axes[np.newaxis],
+                        (len(geometries),) + principle_axes.shape
+                    )
+                if units is not None:
+                    principle_axes = principle_axes * UnitsData.convert("BohrRadius", units)
+
             if principle_axes_origin is not None:
                 if principle_axes_origin.ndim == 1:
                     principle_axes_origin = np.broadcast_to(
@@ -3773,12 +3785,12 @@ class Molecule(AbstractMolecule):
             if principle_axes is not None:
                 arrows[i] = []
                 pax:np.ndarray = principle_axes[i]
-                if principle_axes_origin is None or principle_axes_origin == 'shift':
+                if principle_axes_origin is None or principle_axes_origin_mode == 'shift':
                     com = np.tensordot(self.masses, geom, axes=[0, 0]) / np.sum(self.masses)
                     if principle_axes_origin is not None:
                         com = com + principle_axes_origin[i]
                 else:
-                    com = dipole_origin[i]
+                    com = principle_axes_origin[i]
                 for ax, sty in zip(pax.T, principle_axes_style):
                     pax_arrow = arrow_class(
                         com,

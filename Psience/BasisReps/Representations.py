@@ -721,11 +721,11 @@ class Representation:
                         s = i*cs; e = min((i+1)*cs, len(full_dat))
                         init = SparseArray.initializer_list(full_dat[s:e], full_inds[:, s:e])
                         subub = SparseArray.from_data(init,
-                                                shape=shape,
-                                                cache_block_data=False,
-                                                logger=logger
-                                                , init_kwargs=dict(assume_sorted=True)
-                                                )
+                                                      shape=shape,
+                                                      cache_block_data=False,
+                                                      logger=logger,
+                                                      init_kwargs=dict(assume_sorted=True)
+                                                      )
                         if sub is None:
                             sub = subub
                         else:
