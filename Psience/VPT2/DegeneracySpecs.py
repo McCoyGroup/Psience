@@ -38,6 +38,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
                  maximize_filtered_groups=True,
                  decoupling_overide=100,
                  extra_groups=None,
+                 uncoupled_states=0,
                  inconsistent_polyads=None,
                  wavefunction_corrections=None
                  ):
@@ -52,6 +53,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         self.maximize_filtered_groups = maximize_filtered_groups
         self.decoupling_overide = decoupling_overide
         self.extra_groups = extra_groups
+        self.uncoupled_states = uncoupled_states
         self.inconsistent_polyads = inconsistent_polyads
         self.wavefunction_corrections = wavefunction_corrections # to simplify corrections
 
@@ -68,6 +70,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
                                     frequencies=None,
                                     zero_order_energies=None,
                                     high_frequency_modes=None,
+                                    logger=None,
                                     low_frequency_mode_cutoff=1.15e-3,
                                     threshold=None):
         group_filter = self.group_filter
@@ -105,7 +108,9 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
                 target_modes=test_modes,
                 maximize_groups=self.maximize_filtered_groups,
                 decoupling_overide=self.decoupling_overide,
-                extra_groups=self.extra_groups
+                extra_groups=self.extra_groups,
+                uncoupled_states=self.uncoupled_states,
+                logger=logger
             )
         elif isinstance(group_filter, str) and group_filter == 'unfiltered':
             group_filter = None
@@ -271,6 +276,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
                          maximize_groups=None,
                          decoupling_overide=None,
                          extra_groups=None,
+                         uncoupled_states=None,
                          corrections=None,
                          **kwargs):
         if target_modes is None:
@@ -283,11 +289,14 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
             extra_groups = self.extra_groups
         if corrections is None:
             corrections = self.wavefunction_corrections
+        if uncoupled_states is None:
+            uncoupled_states = self.uncoupled_states
         return DegenerateMultiStateSpace.construct_filer(
             target_modes=target_modes,
             maximize_groups=maximize_groups,
             decoupling_overide=decoupling_overide,
             extra_groups=extra_groups,
+            uncoupled_states=uncoupled_states,
             corrections=corrections,
             **kwargs
         )
@@ -618,14 +627,18 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
                                     solver=None,
                                     evaluator=None,
                                     threshold=None,
+                                    logger=None,
                                     **kwargs
                                     ):
         if threshold is None:
             threshold = self.wfc_threshold
+        if logger is None:
+            logger = solver.logger
         return super().get_degenerate_group_filter(
             solver=solver,
             evaluator=evaluator,
             threshold=threshold,
+            logger=logger,
             **kwargs
         )
 
@@ -920,7 +933,9 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                              maximize_groups=True,
                              target_modes=None,
                              threshold_step_size=.1,
-                             extra_groups=None
+                             extra_groups=None,
+                             uncoupled_states=None,
+                             logger=None
                              ):
         """
         Excludes modes that differ in only one position, prioritizing states with fewer numbers of quanta
@@ -1204,6 +1219,33 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                 mask = np.setdiff1d(np.arange(len(exc)), elims)
                 group = group.take_subspace(mask)
 
+        if uncoupled_states is not None:
+            smol = isinstance(group, BasisStateSpace)
+            if smol:
+                group = [group]
+            new_groups = []
+            if nput.is_int(uncoupled_states):
+                uncoupled_states = BasisStateSpace.from_quanta(
+                    basis.basis,
+                    uncoupled_states
+                )
+            for g in group:
+                uncoupled_pos = g.find(uncoupled_states, dtype=int, missing_val=-1)
+                found_pos = np.where(uncoupled_pos > -1)[0]
+                if len(found_pos) > 0:
+                    if logger is not None:
+                        logger.log_print("WARNING: states {g0} were in degenerate group {g2}, coupling has been removed",
+                                         g0=uncoupled_states.excitations,
+                                         g2=g.excitations,
+                                         )
+                    #TODO: add warnings about coupling to the ground state
+                    mask = np.setdiff1d(np.arange(len(g)), found_pos)
+                    g = g.take_subspace(mask)
+                new_groups.append(g)
+            if smol:
+                new_groups = new_groups[0]
+            group = new_groups
+
         return group
 
     @classmethod
@@ -1250,7 +1292,10 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
             with logger.block(tag="getting degeneracies"):
                 deg_states = degenerate_states.get_groups(states, evaluator=evaluator, solver=solver, **kwargs)
                 if hasattr(group_filter, 'items'):
-                    group_filter = cls.construct_filer(**dict(group_filter, spec=degenerate_states))
+                    group_filter = cls.construct_filer(
+                        #TODO: use a ChainMap
+                        **dict(dict(logger=logger), **dict(group_filter, spec=degenerate_states))
+                    )
                 new = GroupsDegeneracySpec.canonicalize(deg_states)
                 if new is None:
                     raise ValueError("{} returned invalid degenerate subspace spec {}".format(

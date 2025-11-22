@@ -3482,8 +3482,8 @@ class Molecule(AbstractMolecule):
                         principle_axes[np.newaxis],
                         (len(geometries),) + principle_axes.shape
                     )
-                if units is not None:
-                    principle_axes = principle_axes * UnitsData.convert("BohrRadius", units)
+                # if units is not None:
+                #     principle_axes = principle_axes * UnitsData.convert("BohrRadius", units)
 
             if principle_axes_origin is not None:
                 if principle_axes_origin.ndim == 1:
