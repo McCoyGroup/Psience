@@ -280,9 +280,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-e97458" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e97458"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-d9bd01" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-d9bd01"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e97458" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-d9bd01" markdown="1">
  - [MultdiDegHOH](#MultdiDegHOH)
 - [HOHAnalytic](#HOHAnalytic)
 - [HOHLocal](#HOHLocal)
@@ -298,6 +298,7 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 - [AnalyticHOONO](#AnalyticHOONO)
 - [AnalyticHOONODeg](#AnalyticHOONODeg)
 - [TrimerAnalytic](#TrimerAnalytic)
+- [TrimerMatrix](#TrimerMatrix)
 - [SelAnharmAnalytic](#SelAnharmAnalytic)
 - [PyreneAnalytic](#PyreneAnalytic)
 - [NewEmbedding](#NewEmbedding)
@@ -344,9 +345,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-0962b9" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-0962b9"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-c8c227" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-c8c227"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-0962b9" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-c8c227" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -1546,6 +1547,39 @@ class VPT2Tests(TestCase):
         print(np.array(spec).T)
 ```
 
+#### <a name="TrimerMatrix">TrimerMatrix</a>
+```python
+    def test_TrimerMatrix(self):
+        file_name = "water_trimer_freq.fchk"
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     # mode_selection=mode_selection,
+        #     # internals=internals,
+        #     logger=True,
+        #     mixed_derivative_handling_mode='averaged'
+        # )
+
+        state = VPTStateMaker(21)
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                state(),
+                state(1),
+                state(2),
+                state(3),
+                state(1, 2),
+                state(1, 15),
+                state([1, 2]),
+                state(2, 15)
+            ],
+            degeneracy_specs='auto',
+            logger=True,
+            calculate_intensities=False,
+            operator_chunk_size=100000
+        )
+```
+
 #### <a name="SelAnharmAnalytic">SelAnharmAnalytic</a>
 ```python
     def test_SelAnharmAnalytic(self):
@@ -1778,7 +1812,8 @@ class VPT2Tests(TestCase):
 #### <a name="TermRephasing">TermRephasing</a>
 ```python
     def test_TermRephasing(self):
-        molg = Molecule.from_file(TestManager.test_data('ts_taup_anh_b2.log'), 'gspec')
+        # molg = Molecule.from_file(TestManager.test_data('ts_taup_anh_b2.log'), 'gspec')
+        molg = Molecule.from_file(TestManager.test_data('ts_taup_anh_b2_qz_old.log'), 'gspec')
         no_dummy_pos = [i for i, a in enumerate(molg.atoms) if a != "X"]
         mol2 = molg.modify(
             atoms=np.array(molg.atoms)[no_dummy_pos,],
@@ -1787,14 +1822,11 @@ class VPT2Tests(TestCase):
             dipole_derivatives=molg.dipole_derivatives,
             internals=None  # internals can be set when loading from a file with a Z-matrix defined
         )
-        runner, _ = mol2.setup_VPT(states=1, logger=True, mode_selection=list(range(1, 12)))
+        runner, _ = mol2.setup_VPT(states=1,
+                                   degeneracy_specs='auto',
+                                   logger=True, mode_selection=list(range(2, 12))
+                                   )
         runner.print_tables(print_intensities=False)
-
-        VPTRunner.run_simple(TestManager.test_data('ts_taup_anh_b2.fchk'), 1,
-                             calculate_intensities=False,
-                             mode_selection=list(range(1, 12)),
-                             degeneracy_specs='auto'
-                             )
 ```
 
 #### <a name="HOHNoKE">HOHNoKE</a>
