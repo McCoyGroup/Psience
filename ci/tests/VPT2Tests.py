@@ -1263,6 +1263,37 @@ class VPT2Tests(TestCase):
         print(np.array(spec).T)
 
     @validationTest
+    def test_TrimerMatrix(self):
+        file_name = "water_trimer_freq.fchk"
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     # mode_selection=mode_selection,
+        #     # internals=internals,
+        #     logger=True,
+        #     mixed_derivative_handling_mode='averaged'
+        # )
+
+        state = VPTStateMaker(21)
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            [
+                state(),
+                state(1),
+                state(2),
+                state(3),
+                state(1, 2),
+                state(1, 15),
+                state([1, 2]),
+                state(2, 15)
+            ],
+            degeneracy_specs='auto',
+            logger=True,
+            calculate_intensities=False,
+            operator_chunk_size=100000
+        )
+
+    @validationTest
     def test_SelAnharmAnalytic(self):
 
         file_name ="freq_anion.fchk"
@@ -1495,7 +1526,7 @@ class VPT2Tests(TestCase):
         # print(woof[0])
         # print(woof[1])
 
-    @debugTest
+    @validationTest
     def test_TermRephasing(self):
         molg = Molecule.from_file(TestManager.test_data('ts_taup_anh_b2.log'), 'gspec')
         no_dummy_pos = [i for i, a in enumerate(molg.atoms) if a != "X"]
@@ -1515,6 +1546,29 @@ class VPT2Tests(TestCase):
                              degeneracy_specs='auto'
                              )
 
+    @debugTest
+    def test_TermRephasing(self):
+        # molg = Molecule.from_file(TestManager.test_data('ts_taup_anh_b2.log'), 'gspec')
+        molg = Molecule.from_file(TestManager.test_data('ts_taup_anh_b2_qz_old.log'), 'gspec')
+        no_dummy_pos = [i for i, a in enumerate(molg.atoms) if a != "X"]
+        mol2 = molg.modify(
+            atoms=np.array(molg.atoms)[no_dummy_pos,],
+            coords=molg.coords[no_dummy_pos, :],
+            potential_derivatives=molg.potential_derivatives,
+            dipole_derivatives=molg.dipole_derivatives,
+            internals=None  # internals can be set when loading from a file with a Z-matrix defined
+        )
+        runner, _ = mol2.setup_VPT(states=1,
+                                   degeneracy_specs='auto',
+                                   logger=True, mode_selection=list(range(2, 12))
+                                   )
+        runner.print_tables(print_intensities=False)
+
+        # VPTRunner.run_simple(TestManager.test_data('ts_taup_anh_b2.fchk'), 1,
+        #                      calculate_intensities=False,
+        #                      mode_selection=list(range(1, 12)),
+        #                      degeneracy_specs='auto'
+        #                      )
 
     @inactiveTest
     def test_HOHNoKE(self):
