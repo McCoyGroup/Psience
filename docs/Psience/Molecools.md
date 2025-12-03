@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-ad4ef6" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-ad4ef6"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-03480b" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-03480b"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-ad4ef6" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-03480b" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -165,12 +165,14 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [AutomaticConversion](#AutomaticConversion)
 - [FastInternals](#FastInternals)
 - [MoreBondZMatrix](#MoreBondZMatrix)
+- [EvenMoreZMatrix](#EvenMoreZMatrix)
+- [RDKitInputFormats](#RDKitInputFormats)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-adbd38" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-adbd38"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-6d1258" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-6d1258"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-adbd38" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-6d1258" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3438,6 +3440,43 @@ class MolecoolsTests(TestCase):
                         if i == j:
                             raise ValueError(c)
             pprint.pprint(z)
+```
+
+#### <a name="EvenMoreZMatrix">EvenMoreZMatrix</a>
+```python
+    def test_EvenMoreZMatrix(self):
+        import McUtils.Coordinerds as coordops
+        # ts = Molecule.from_file(TestManager.test_data('ts_samp.xyz'))
+        # ts.get_bond_zmatrix(for_fragment=0)
+
+        ts = Molecule.from_file(TestManager.test_data('ts_samp2.xyz'))
+        # ts.get_bond_zmatrix()
+
+        zm_sub = ts.modify(
+            bonds=[b for b in ts.bonds if b[0] not in {19, 18} or b[1] not in {19, 18}]
+        ).get_bond_zmatrix(
+            for_fragment=ts.fragment_indices[1],
+            fragment_ordering=[0, 1],
+            attachment_points={19:18}
+        )
+        # pprint.pprint(zm_sub)
+
+        f1 = ts.fragments[1]
+        zm_f1 = f1.modify(
+            bonds=[b for b in f1.bonds if b[0] not in {0, 1} or b[1] not in {0, 1}]
+        ).get_bond_zmatrix(
+            fragment_ordering=[0, 1],
+            attachment_points={1: 0}
+        )
+
+        f1_int = f1.modify(internals={'specs':coordops.extract_zmatrix_internals(zm_f1)})
+        woof = f1_int.get_cartesians_by_internals(1)
+```
+
+#### <a name="RDKitInputFormats">RDKitInputFormats</a>
+```python
+    def test_RDKitInputFormats(self):
+        Molecule.from_string('MDSKGSGS', 'fasta')
 ```
 
  </div>
