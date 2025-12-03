@@ -3387,7 +3387,7 @@ class MolecoolsTests(TestCase):
         # raise Exception(...)
 
 
-    @debugTest
+    @validationTest
     def test_MoreBondZMatrix(self):
         import McUtils.Coordinerds as coordops
 
@@ -3405,3 +3405,37 @@ class MolecoolsTests(TestCase):
                         if i == j:
                             raise ValueError(c)
             pprint.pprint(z)
+
+    @validationTest
+    def test_EvenMoreZMatrix(self):
+        import McUtils.Coordinerds as coordops
+        # ts = Molecule.from_file(TestManager.test_data('ts_samp.xyz'))
+        # ts.get_bond_zmatrix(for_fragment=0)
+
+        ts = Molecule.from_file(TestManager.test_data('ts_samp2.xyz'))
+        # ts.get_bond_zmatrix()
+
+        zm_sub = ts.modify(
+            bonds=[b for b in ts.bonds if b[0] not in {19, 18} or b[1] not in {19, 18}]
+        ).get_bond_zmatrix(
+            for_fragment=ts.fragment_indices[1],
+            fragment_ordering=[0, 1],
+            attachment_points={19:18}
+        )
+        # pprint.pprint(zm_sub)
+
+        f1 = ts.fragments[1]
+        zm_f1 = f1.modify(
+            bonds=[b for b in f1.bonds if b[0] not in {0, 1} or b[1] not in {0, 1}]
+        ).get_bond_zmatrix(
+            fragment_ordering=[0, 1],
+            attachment_points={1: 0}
+        )
+
+        f1_int = f1.modify(internals={'specs':coordops.extract_zmatrix_internals(zm_f1)})
+        woof = f1_int.get_cartesians_by_internals(1)
+        # print(woof[0].shape)
+
+    @debugTest
+    def test_RDKitInputFormats(self):
+        Molecule.from_string('MDSKGSGS', 'fasta')

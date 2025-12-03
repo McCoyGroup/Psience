@@ -556,34 +556,64 @@ class Molecule(AbstractMolecule):
                                  include_stretches=True,
                                  include_bends=True,
                                  include_dihedrals=True,
-                                 pruning=None
+                                 pruning=None,
+                                 fragment=None
                                  ):
-        st, bo, di = coordops.get_stretch_coordinate_system(
-            [tuple(b[:2]) for b in self.bonds]
-        )
-        bits = []
-        if include_stretches:
-            bits.append(st)
-        if include_bends:
-            bits.append(bo)
-        if include_dihedrals:
-            bits.append(di)
-        internals = bits[0]
-        for b in bits[1:]:
-            internals = internals + b
-
-        if pruning:
-            if pruning is True:
-                g12 = self.get_gmatrix(power=1 / 2)
-                def b_gen(pos, crds):
-                    return g12 @ nput.internal_coordinate_tensors(self.coords, crds, order=1)[1]
-                pruning = {'method':'b_matrix', 'b_matrix':b_gen, 'max_coords':3*len(self.atoms) - 6}
-            internals = coordops.prune_internal_coordinates(
-                internals,
-                method=pruning
+        if fragment is not None:
+            if nput.is_int(fragment):
+                fragment = self.fragment_indices[fragment]
+            base_ints = self.take_submolecule(fragment).get_bond_graph_internals(
+                include_stretches=include_stretches,
+                include_bends=include_bends,
+                include_dihedrals=include_dihedrals,
+                pruning=pruning
             )
+            return coordops.permute_internals(base_ints, fragment)
+        else:
+            st, bo, di = coordops.get_stretch_coordinate_system(
+                [tuple(b[:2]) for b in self.bonds]
+            )
+            bits = []
+            if include_stretches:
+                bits.append(st)
+            if include_bends:
+                bits.append(bo)
+            if include_dihedrals:
+                bits.append(di)
+            internals = bits[0]
+            for b in bits[1:]:
+                internals = internals + b
 
-        return internals
+            if pruning:
+                if pruning is True:
+                    pruning = 'b_matrix'
+                internals = self.prune_internals(internals, method=pruning)
+
+            return internals
+    def prune_internals(self, coords, method='b_matrix'):
+        if isinstance(method, str):
+            method = {'method':method}
+        if hasattr(method, 'items'):
+            meth = method.get('method')
+            if meth is None:
+                method = method.copy()
+                method['method'] = 'b_matrix'
+                meth = 'b_matrix'
+            if dev.str_is(meth, 'b_matrix'):
+                if 'b_matrix' not in method:
+                    g12 = self.get_gmatrix(power=1 / 2)
+                    proj = nput.translation_rotation_projector(self.coords, self.atomic_masses, mass_weighted=True)
+                    def b_gen(pos, crds):
+                        return proj @ g12 @ nput.internal_coordinate_tensors(self.coords, crds, order=1)[1]
+                    method = method.copy()
+                    method['b_matrix'] = b_gen
+                if 'max_coords' not in method:
+                    method = method.copy()
+                    method['max_coords'] =  min([3 * len(self.atoms) - 6, len(coords)])
+        return coordops.prune_internal_coordinates(
+            coords,
+            method=method
+        )
     def get_labeled_internals(self,
                               coordinate_filter=None,
                               allowed_coordinate_types=None,
@@ -1149,71 +1179,98 @@ class Molecule(AbstractMolecule):
     def get_bond_zmatrix(self, fragments=None, segments=None, root=None,
                          attachment_points=None,
                          check_attachment_points=True,
-                         validate=True
+                         validate=True,
+                         for_fragment=None,
+                         fragment_ordering=None
                          ):
-        no_frag = fragments is None
-        if no_frag:
-            fragments = self.fragment_indices
-
-        if len(fragments) == 1:
-            if segments is not None and len(segments) == 1:
-                segments = segments[0]
-            return self.get_backbone_zmatrix(
-                root=root, segments=segments,
-                validate=validate
-                )
-        else:
-            inds = fragments
-            if no_frag:
-                ordering = np.argsort([-len(x) for x in inds])
-                inds = [inds[i] for i in ordering]
-            if root is not None:
-                if nput.is_numeric(root):
-                    inds = list(sorted(inds, key=lambda x:root not in x))
+        if for_fragment is not None:
+            if nput.is_int(for_fragment):
+                for_fragment = self.fragment_indices[for_fragment]
+            if attachment_points is not None:
+                frag_map = dict(zip(for_fragment, np.arange(len(for_fragment))))
+                if hasattr(attachment_points, 'items'):
+                    attachment_points = {
+                        frag_map[i]: (frag_map[k] if nput.is_numeric(k) else tuple(frag_map[kk] for kk in k))
+                        for i,k in attachment_points.items()
+                    }
                 else:
-                    inds = list(
-                        sorted(inds,
-                               key=lambda x:sum(i if r is not None and r in x else len(inds) for i,r in enumerate(root))
-                               )
-                    )
+                    attachment_points = [
+                        frag_map[i] for i in attachment_points
+                    ]
 
-            sort_attch = isinstance(attachment_points, dict)
-            if sort_attch:
-                check_attachment_points = False
-                inds, attachment_points = coordops.sort_complex_attachment_points(
-                    inds,
-                    attachment_points
-                )
-
-            frags = [self.take_submolecule(ix) for ix in inds]
-            if root is None and sort_attch:
-                root = [ix[0] for ix in inds]
-            if root is None:
-                root = [root]
-
-            root = list(root) + [None] * (len(inds) - len(root))
-            zmats = [
-                f.get_backbone_zmatrix(root=r)
-                for r,f in zip(root, frags)
-            ]
-
-            # inds = [inds[i] for i in ordering]
-            # zmats = [zmats[i] for i in ordering]
-
-            dm = nput.distance_matrix(self.coords)
-            h_pos = [i for i,a in enumerate(self.atoms) if a in {'H', 'D'}]
-            dm[:, h_pos] = 1e8
-            dm[h_pos, :] = 1e8
-
-            return coordops.complex_zmatrix(
-                [b[:2] for b in self.bonds],
-                inds,
-                zmats,
-                distance_matrix=dm,
+            base_ints = self.take_submolecule(for_fragment).get_bond_zmatrix(
+                fragments=fragments, segments=segments, root=root,
                 attachment_points=attachment_points,
                 check_attachment_points=check_attachment_points,
-                validate_additions=validate
+                fragment_ordering=fragment_ordering,
+                validate=validate
             )
+            return coordops.reindex_zmatrix(base_ints, for_fragment)
+        else:
+            no_frag = fragments is None
+            if no_frag:
+                fragments = self.fragment_indices
+
+            if len(fragments) == 1:
+                if segments is not None and len(segments) == 1:
+                    segments = segments[0]
+                return self.get_backbone_zmatrix(
+                    root=root, segments=segments,
+                    validate=validate
+                    )
+            else:
+                inds = fragments
+                if no_frag:
+                    if fragment_ordering is None:
+                        fragment_ordering = np.argsort([-len(x) for x in inds])
+                    inds = [inds[i] for i in fragment_ordering]
+                if root is not None:
+                    if nput.is_numeric(root):
+                        inds = list(sorted(inds, key=lambda x:root not in x))
+                    else:
+                        inds = list(
+                            sorted(inds,
+                                   key=lambda x:sum(i if r is not None and r in x else len(inds) for i,r in enumerate(root))
+                                   )
+                        )
+
+                sort_attch = isinstance(attachment_points, dict)
+                if sort_attch:
+                    check_attachment_points = False
+                    inds, attachment_points = coordops.sort_complex_attachment_points(
+                        inds,
+                        attachment_points
+                    )
+
+                frags = [self.take_submolecule(ix) for ix in inds]
+                if root is None and sort_attch:
+                    root = [ix[0] for ix in inds]
+                if root is None:
+                    root = [root]
+
+                root = list(root) + [None] * (len(inds) - len(root))
+                zmats = [
+                    f.get_backbone_zmatrix(root=r)
+                    for r,f in zip(root, frags)
+                ]
+
+                # inds = [inds[i] for i in ordering]
+                # zmats = [zmats[i] for i in ordering]
+
+                dm = nput.distance_matrix(self.coords)
+                h_pos = [i for i,a in enumerate(self.atoms) if a in {'H', 'D'}]
+                dm[:, h_pos] = 1e8
+                dm[h_pos, :] = 1e8
+
+                return coordops.complex_zmatrix(
+                    [b[:2] for b in self.bonds],
+                    inds,
+                    zmats,
+                    distance_matrix=dm,
+                    attachment_points=attachment_points,
+                    check_attachment_points=check_attachment_points,
+                    validate_additions=validate
+                )
 
     @property
     def fragment_indices(self):
@@ -2859,6 +2916,36 @@ class Molecule(AbstractMolecule):
         from McUtils.ExternalPrograms import RDMolecule
 
         return cls.from_rdmol(RDMolecule.from_molblock(sdf), **opts)
+    @classmethod
+    def _from_mol2(cls, mol, **opts):
+        from McUtils.ExternalPrograms import RDMolecule
+
+        return cls.from_rdmol(RDMolecule.from_mol2(mol), **opts)
+    @classmethod
+    def _from_pdb(cls, pdb, **opts):
+        from McUtils.ExternalPrograms import RDMolecule
+
+        return cls.from_rdmol(RDMolecule.from_pdb(pdb), **opts)
+    @classmethod
+    def _from_mrv(cls, mrv, **opts):
+        from McUtils.ExternalPrograms import RDMolecule
+
+        return cls.from_rdmol(RDMolecule.from_mrv(mrv), **opts)
+    @classmethod
+    def _from_fasta(cls, fasta, **opts):
+        from McUtils.ExternalPrograms import RDMolecule
+
+        return cls.from_rdmol(RDMolecule.from_fasta(fasta), **opts)
+    @classmethod
+    def _from_helm(cls, helm, **opts):
+        from McUtils.ExternalPrograms import RDMolecule
+
+        return cls.from_rdmol(RDMolecule.from_helm(helm), **opts)
+    @classmethod
+    def _from_cdxml(cls, helm, **opts):
+        from McUtils.ExternalPrograms import RDMolecule
+
+        return cls.from_rdmol(RDMolecule.from_cdxml(cdxml), **opts)
 
     @classmethod
     def _from_xyz(cls, xyz, units=None, **opts):
@@ -3076,7 +3163,12 @@ class Molecule(AbstractMolecule):
             "sdf": cls._from_sdf,
             "xyz": cls._from_xyz,
             "zmat": cls.from_zmat,
-            "gspec": cls._from_gspec
+            "gspec": cls._from_gspec,
+            "mol2": cls._from_mol2,
+            "pdb": cls._from_pdb,
+            "fasta": cls._from_fasta,
+            "helm": cls._from_helm,
+            "cdxml": cls._from_cdxml
         }
     @classmethod
     def from_string(cls, string, fmt=None, format_options=None, **opts):
@@ -3165,6 +3257,46 @@ class Molecule(AbstractMolecule):
             raise ValueError(f"couldn't get `rdmol` for {mol}")
 
     @classmethod
+    def _to_molblock(cls, mol, **opts):
+        rdmol = mol.rdmol
+        if rdmol is not None:
+            return rdmol.to_molblock(**opts)
+        else:
+            raise ValueError(f"couldn't get `rdmol` for {mol}")
+
+    @classmethod
+    def _to_sdf(cls, mol, **opts):
+        rdmol = mol.rdmol
+        if rdmol is not None:
+            return rdmol.to_sdf(**opts)
+        else:
+            raise ValueError(f"couldn't get `rdmol` for {mol}")
+
+    @classmethod
+    def _to_pdb(cls, mol, **opts):
+        rdmol = mol.rdmol
+        if rdmol is not None:
+            return rdmol.to_pdb(**opts)
+        else:
+            raise ValueError(f"couldn't get `rdmol` for {mol}")
+
+    @classmethod
+    def _to_cml(cls, mol, **opts):
+        rdmol = mol.rdmol
+        if rdmol is not None:
+            return rdmol.to_cml(**opts)
+        else:
+            raise ValueError(f"couldn't get `rdmol` for {mol}")
+
+    @classmethod
+    def _to_mrv(cls, mol, **opts):
+        rdmol = mol.rdmol
+        if rdmol is not None:
+            return rdmol.to_mrv(**opts)
+        else:
+            raise ValueError(f"couldn't get `rdmol` for {mol}")
+
+    @classmethod
     def _to_xyz_string(cls, mol, comment=None, units=None, num_prec=8):
         ats = mol.atoms
         crds = mol.coords
@@ -3206,8 +3338,11 @@ class Molecule(AbstractMolecule):
     def get_string_export_dispatchers(cls):
         return {
             "smi": cls._to_smiles,
-            # "mol": cls._to_molblock,
-            # "sdf": cls._to_sdf,
+            "mol": cls._to_molblock,
+            "sdf": cls._to_sdf,
+            "pdb": cls._to_pdb,
+            "cml": cls._to_cml,
+            "mrv": cls._to_mrv,
             "xyz": cls._to_xyz_string,
             "zmat": cls._to_zmat_string,
         }
