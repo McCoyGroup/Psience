@@ -1019,6 +1019,12 @@ class Molecule(AbstractMolecule):
     @bonds.setter
     def bonds(self, b):
         self._bonds = b
+    def break_bonds(self, bonds):
+        bond_sets = [{b[0], b[1]} for b in bonds]
+        return self.modify(
+            bonds=[b for b in self.bonds if
+                   all(b[0] not in bs or b[1] not in bs for bs in bond_sets)]
+        )
     @property
     def formula(self):
         return self.prop('chemical_formula')
@@ -1261,6 +1267,11 @@ class Molecule(AbstractMolecule):
                 h_pos = [i for i,a in enumerate(self.atoms) if a in {'H', 'D'}]
                 dm[:, h_pos] = 1e8
                 dm[h_pos, :] = 1e8
+
+                inds = [
+                    [ib[z[0]] for z in zm]
+                    for ib,zm in zip(inds, zmats)
+                ]
 
                 return coordops.complex_zmatrix(
                     [b[:2] for b in self.bonds],
@@ -2942,7 +2953,7 @@ class Molecule(AbstractMolecule):
 
         return cls.from_rdmol(RDMolecule.from_helm(helm), **opts)
     @classmethod
-    def _from_cdxml(cls, helm, **opts):
+    def _from_cdxml(cls, cdxml, **opts):
         from McUtils.ExternalPrograms import RDMolecule
 
         return cls.from_rdmol(RDMolecule.from_cdxml(cdxml), **opts)
@@ -4132,7 +4143,7 @@ class Molecule(AbstractMolecule):
                         if nput.is_int(zz):
                             zz = geom[zz]
                         elif callable(zz):
-                            zz = z(geom)
+                            zz = zz(geom)
                         if nput.is_int(ll):
                             ll = geom[ll]
                         elif callable(ll):
