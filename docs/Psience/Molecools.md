@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-e69844" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e69844"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-b25420" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-b25420"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e69844" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-b25420" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -167,12 +167,13 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [MoreBondZMatrix](#MoreBondZMatrix)
 - [EvenMoreZMatrix](#EvenMoreZMatrix)
 - [RDKitInputFormats](#RDKitInputFormats)
+- [Gen1](#Gen1)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-e00f58" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-e00f58"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-51fd2f" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-51fd2f"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-e00f58" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-51fd2f" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3477,6 +3478,19 @@ class MolecoolsTests(TestCase):
 ```python
     def test_RDKitInputFormats(self):
         Molecule.from_string('MDSKGSGS', 'fasta')
+```
+
+#### <a name="Gen1">Gen1</a>
+```python
+    def test_Gen1(self):
+        import McUtils.Coordinerds as coordops
+        # ts = Molecule.from_file(TestManager.test_data('ts_samp.xyz'))
+        # ts.get_bond_zmatrix(for_fragment=0)
+
+        ts = Molecule.from_file(TestManager.test_data('ts_samp.xyz'))
+        ts_mod = ts.break_bonds([(18, 22)])
+        zm = ts_mod.get_bond_zmatrix()
+        ts_int = ts.modify(internals=zm)
 ```
 
  </div>
