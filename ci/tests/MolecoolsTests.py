@@ -3436,6 +3436,19 @@ class MolecoolsTests(TestCase):
         woof = f1_int.get_cartesians_by_internals(1)
         # print(woof[0].shape)
 
-    @debugTest
+    @validationTest
     def test_RDKitInputFormats(self):
         Molecule.from_string('MDSKGSGS', 'fasta')
+
+    @debugTest
+    def test_Gen1(self):
+        import McUtils.Coordinerds as coordops
+        # ts = Molecule.from_file(TestManager.test_data('ts_samp.xyz'))
+        # ts.get_bond_zmatrix(for_fragment=0)
+
+        ts = Molecule.from_file(TestManager.test_data('ts_samp.xyz'))
+        ts_mod = ts.break_bonds([(18, 22)])
+        zm = ts_mod.get_bond_zmatrix()
+        ts_int = ts.modify(internals=zm)
+        # ts_int.animate_coordinate(0)
+        # pprint.pprint(ts_mod.get_bond_zmatrix())
