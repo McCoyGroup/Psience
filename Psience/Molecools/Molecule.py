@@ -1,6 +1,5 @@
 """
 Provides a simple Molecule class that we can adapt as we need
-Most standard functionality should be served by OpenBabel
 Uses AtomData to get properties and whatnot
 """
 import io
@@ -3314,7 +3313,7 @@ class Molecule(AbstractMolecule):
         if units is not None:
             crds = crds * UnitsData.convert("BohrRadius", units)
         num_ats = len(ats)
-        x_width = 1 + np.ceil(np.max(np.log10(np.abs(crds.flatten()))))
+        x_width = 1 + np.ceil(np.max(np.log10(np.abs(crds.flatten()) + 1e-6)))
         total_width = int(2 + x_width + num_prec)
         return "\n".join([
             str(num_ats),

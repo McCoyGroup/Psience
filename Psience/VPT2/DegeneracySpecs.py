@@ -35,6 +35,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
     def __init__(self,
                  application_order=None, group_filter=None, energy_cutoff=2.25e-3,
                  test_modes=None,
+                 max_mode_differences=None,
                  maximize_filtered_groups=True,
                  decoupling_overide=100,
                  extra_groups=None,
@@ -50,6 +51,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
             group_filter = self.group_filter
         self.group_filter = group_filter
         self.test_modes = test_modes
+        self.max_mode_differences = max_mode_differences
         self.maximize_filtered_groups = maximize_filtered_groups
         self.decoupling_overide = decoupling_overide
         self.extra_groups = extra_groups
@@ -273,6 +275,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
 
     def get_group_filter(self,
                          target_modes=None,
+                         max_mode_differences=None,
                          maximize_groups=None,
                          decoupling_overide=None,
                          extra_groups=None,
@@ -281,6 +284,8 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
                          **kwargs):
         if target_modes is None:
             target_modes = self.test_modes
+        if max_mode_differences is None:
+            max_mode_differences = self.max_mode_differences
         if maximize_groups is None:
             maximize_groups = self.maximize_filtered_groups
         if decoupling_overide is None:
@@ -298,6 +303,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
             extra_groups=extra_groups,
             uncoupled_states=uncoupled_states,
             corrections=corrections,
+            max_mode_differences=max_mode_differences,
             **kwargs
         )
 
@@ -932,6 +938,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                              decoupling_overide=10,
                              maximize_groups=True,
                              target_modes=None,
+                             max_mode_differences=None,
                              threshold_step_size=.1,
                              extra_groups=None,
                              uncoupled_states=None,
@@ -951,6 +958,42 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
 
         if len(group) < 2:
             return group
+
+
+        if uncoupled_states is not None:
+            if corrections is not None:
+                if hasattr(corrections, 'total_basis'):  # PT corrections
+                    states = corrections.states
+                    basis = corrections.total_basis
+                elif hasattr(corrections, 'matrices'):
+                    basis = corrections.full_basis
+                    states = corrections.initial_states
+
+            smol = isinstance(group, BasisStateSpace)
+            if smol:
+                group = [group]
+            new_groups = []
+            if nput.is_int(uncoupled_states):
+                uncoupled_states = BasisStateSpace.from_quanta(
+                    basis.basis,
+                    uncoupled_states
+                )
+            for g in group:
+                uncoupled_pos = g.find(uncoupled_states, dtype=int, missing_val=-1)
+                found_pos = np.where(uncoupled_pos > -1)[0]
+                if len(found_pos) > 0:
+                    if logger is not None:
+                        logger.log_print("WARNING: states {g0} were in degenerate group {g2}, coupling has been removed",
+                                         g0=uncoupled_states.excitations,
+                                         g2=g.excitations,
+                                         )
+                    #TODO: add warnings about coupling to the ground state
+                    mask = np.setdiff1d(np.arange(len(g)), found_pos)
+                    g = g.take_subspace(mask)
+                new_groups.append(g)
+            if smol:
+                new_groups = new_groups[0]
+            group = new_groups
 
         if target_modes is not None:
             sub = group.take_subdimensions(target_modes)
@@ -972,7 +1015,14 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                 state_inds = states.find(group, dtype=int, missing_val=len(states))
                 found_pos = state_inds < len(states)
                 kill_spots = (np.arange(len(group_inds))[found_pos], state_inds[found_pos])
-                corr_mat = [np.abs(x[:, group_inds].asarray().T) for x in corrections.wfn_corrections[1:]]
+                corr_mat = [
+                    np.abs(x[:, group_inds].asarray().T)
+                    for x in corrections.wfn_corrections[1:]
+                ]
+                corr_mat = [
+                    c[np.newaxis] if c.ndim == 1 else c
+                    for c in corr_mat
+                ]
                 max_corr = None
                 for c in corr_mat:
                     c[kill_spots] = 0
@@ -1219,34 +1269,47 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                 mask = np.setdiff1d(np.arange(len(exc)), elims)
                 group = group.take_subspace(mask)
 
-        if uncoupled_states is not None:
+
+        if max_mode_differences is not None:
             smol = isinstance(group, BasisStateSpace)
             if smol:
                 group = [group]
             new_groups = []
-            if nput.is_int(uncoupled_states):
-                uncoupled_states = BasisStateSpace.from_quanta(
-                    basis.basis,
-                    uncoupled_states
-                )
             for g in group:
-                uncoupled_pos = g.find(uncoupled_states, dtype=int, missing_val=-1)
-                found_pos = np.where(uncoupled_pos > -1)[0]
-                if len(found_pos) > 0:
-                    if logger is not None:
-                        logger.log_print("WARNING: states {g0} were in degenerate group {g2}, coupling has been removed",
-                                         g0=uncoupled_states.excitations,
-                                         g2=g.excitations,
-                                         )
-                    #TODO: add warnings about coupling to the ground state
-                    mask = np.setdiff1d(np.arange(len(g)), found_pos)
-                    g = g.take_subspace(mask)
+                exc = g.excitations
+                max_mode_differences = np.asanyarray(max_mode_differences)
+                test_loc = np.where(max_mode_differences > -1)[0]
+                if len(test_loc) > 0:
+                    rows, cols = np.triu_indices(len(exc))
+                    exc_diffs = np.abs(exc[rows,][:, test_loc] - exc[cols,][:, test_loc])
+                    clashes = np.any(exc_diffs > max_mode_differences[test_loc,][np.newaxis], axis=1)
+                    clash_rows = rows[clashes,]
+                    clash_cols = cols[clashes,]
+                    dead_states = set()
+                    for i,j in zip(clash_rows, clash_cols):
+                        if i in dead_states or j in dead_states:
+                            continue
+                        problems_i = np.sum(exc[i][test_loc,])
+                        problems_j = np.sum(exc[j][test_loc,])
+                        if problems_i > problems_j:
+                            dead_states.add(i)
+                        else:
+                            dead_states.add(j)
+                    dead_states = list(dead_states)
+                    good_states = np.setdiff1d(np.arange(len(exc)), dead_states)
+                    if len(good_states) == 0:
+                        return []
+                    else:
+                        g = g.take_subspace(good_states)
                 new_groups.append(g)
             if smol:
                 new_groups = new_groups[0]
             group = new_groups
 
-        return group
+        if isinstance(group, BasisStateSpace):
+            return group # too many errors otherwise
+        else:
+            return [g for g in group if len(g.excitations) > 1]
 
     @classmethod
     def construct_filer(cls, spec=None, **kwargs):

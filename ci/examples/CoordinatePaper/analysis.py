@@ -6,17 +6,21 @@ from McUtils.Formatters import TableFormatter
 import McUtils.Devutils as dev
 import McUtils.Numputils as nput
 import McUtils.Formatters as mfmt
+from McUtils.Data import UnitsData
 from Psience.VPT2 import VPTAnalyzer
 
 from .vpt import get_log_generator, LevelsOfTheory
 from .modes import get_cpmo3_modes
+from . import interp as cointerp
+
 
 _analyzer_cache = {}
-def get_energies(log_file:'str|typing.Callable', *logfile_args,
-                 energy_type='auto',
-                 cache=None,
-                 step_size=None,
-                 **logfile_opts):
+def load_analyzer(log_file,
+                  *logfile_args,
+                  cache=None,
+                  step_size=None,
+                  **logfile_opts
+                  ):
     if isinstance(log_file, LevelsOfTheory) or (isinstance(log_file, str) and not os.path.isfile(log_file)):
         log_gen = LevelsOfTheory(log_file)
         if any(
@@ -30,23 +34,33 @@ def get_energies(log_file:'str|typing.Callable', *logfile_args,
             *logfile_args,
             **logfile_opts
         )
-    if cache is None:
-        cache = _analyzer_cache
     if cache is False:
-        analyzer = VPTAnalyzer(log_file)
+        a1 = VPTAnalyzer(log_file)
     else:
+        if cache is None:
+            cache = _analyzer_cache
         if log_file in cache:
-            analyzer = cache[log_file]
+            a1 = cache[log_file]
         else:
-            analyzer = VPTAnalyzer(log_file)
-            cache[log_file] = analyzer
-    return (
+            a1 = VPTAnalyzer(log_file)
+            cache[log_file] = a1
+    return a1
+
+def get_energies(log_file:'str|typing.Callable', *logfile_args,
+                 energy_type='auto',
+                 states=None,
+                 **logfile_opts):
+    analyzer = load_analyzer(log_file, *logfile_args, **logfile_opts)
+    engs = (
         analyzer.deperturbed_energies
             if energy_type == 'deperturbed' else
         analyzer.zero_order_energies
             if energy_type == 'harmonic' else
         analyzer.energies
     )
+    if states is not None:
+        engs = engs[1][states,]
+    return engs
 
 _job_props_ = ("mode_selection", "step_size")
 def get_plot_data(k, log_gen,
@@ -120,6 +134,7 @@ def energy_plot(k, log_gen, key_function,
                 zpe_correct=False,
                 anharmonic_only=False,
                 plot_type=None,
+                # markers=None,
                 **opts):
     if plot_styles is None:
         plot_styles = {}
@@ -135,16 +150,26 @@ def energy_plot(k, log_gen, key_function,
         step_size=step_size,
         use_reaction_path=use_reaction_path
     )
-    return plot_type(
-        *get_plot_data(
+    core_opts = dict(plot_styles, **opts)
+    plot_data = get_plot_data(
             k, log_gen, key_function,
             plot_vals=plot_vals,
             **job_opts
-        ),
+        )
+    figure = plot_type(
+        *plot_data,
         figure=figure,
-        **opts,
-        **plot_styles
+        **core_opts
     )
+    # if markers is not None:
+    #     core_opts.pop('linestyle', None)
+    #     plt.ScatterPlot(*plot_data,
+    #                     figure=figure,
+    #                     markers=markers,
+    #                     **core_opts
+    #                     )
+    return figure
+
 
 def energy_comp_plot(
         k, log_gen, key_function,
@@ -498,13 +523,13 @@ def resolve_plotter(lot):
 label_map = {
     LevelsOfTheory.AIMNet2: 'AIMNet2',
     LevelsOfTheory.AIMNet2Old: 'AIMNet2',
-    LevelsOfTheory.MACE: 'MACE-OFF',
+    LevelsOfTheory.MACE: 'MACE',
     LevelsOfTheory.B3LYP: "B3LYP",
-    LevelsOfTheory.wB97: "$\\omega$B97X-D3",
+    LevelsOfTheory.wB97: "$\\omega$B97X",
 }
 label_formats = {
     'lot':'{lot_label}',
-    'freq':'{freq_type}{state}',
+    'freq':'{freq_type}$_{{{state}}}$',
     'subspace':'{subspace}'
 }
 freq_types = {
@@ -529,7 +554,7 @@ def resolve_subspace_label(mode_selection):
     if mode_selection is None:
         return 'All'
     else:
-        sel = [(12 + s) if s < 0 else s for s in mode_selection]
+        sel = [(11 + s) if s < 0 else s for s in mode_selection]
         oh = oh_stretch_pos in sel
         all_ch = all(c in sel for c in ch_stretch_pos)
         all_bend = all(c in sel for c in ch_bend_pos)
@@ -562,7 +587,13 @@ def resolve_label(*, lot, state, label=None,
             if mode_selection is not None:
                 label_format.append('subspace')
 
-    if label is not True: return label
+    opts.update(
+        energy_type=energy_type,
+        anharmonic_only=anharmonic_only,
+        mode_selection=mode_selection
+    )
+
+    if label is not True: return label, opts
 
     if not isinstance(label_format, str):
         label_format = label_format_join.join(
@@ -575,13 +606,14 @@ def resolve_label(*, lot, state, label=None,
         state=state,
         freq_type=resolve_freq_type_label(energy_type, anharmonic_only),
         subspace=resolve_subspace_label(mode_selection)
-    )
+    ), opts
 
 
 def plot_generic(*, lot, state, label=None, **opts):
     plotter = resolve_plotter(lot)
+    label, opts = resolve_label(lot=lot, state=state, label=label, **opts)
     return plotter(state,
-                   label=resolve_label(lot=lot, state=state, label=label, **opts),
+                   label=label,
                    **opts)
 
 default_multi_plot_styles = dict(
@@ -595,7 +627,11 @@ default_multi_plot_styles = dict(
     axes_labels=['$\\Delta\\tau$ ($^\\circ$)', 'Frequency (cm$^{-1}$)'],
     plot_legend=True,
     image_size=800,
-    legend_style={'ncol': 3, 'frameon': False}
+    legend_style={
+        'ncol': 3,
+        'frameon': False,
+        'fontsize':11
+    }
 )
 def plot_multi(
         *plot_specs: dict,
@@ -608,6 +644,7 @@ def plot_multi(
         zpe_correct=None,
         anharmonic_only=None,
         label=True,
+        label_format=None,
         lot_styles=None,
         figure=None,
         **global_settings
@@ -628,7 +665,8 @@ def plot_multi(
             use_internals=use_internals,
             zpe_correct=zpe_correct,
             anharmonic_only=anharmonic_only,
-            label=label
+            label=label,
+            label_format=label_format
         )
         f = dict(
             dict(
@@ -702,39 +740,68 @@ def make_freq_comp_tables(
         tags,
         log_files,
         header_spans=None,
-        use_zero_order=False,
-        use_deperturbed=True,
+        energy_type='deperturbed',
         use_tex=False,
+        cache=None,
+        mode_selection=None,
+        step_size=None,
+        use_degeneracies=True,
+        use_reaction_path=False,
+        use_internals=None,
         **etc
 ):
-    if len(states) == 2 and isinstance(tags[1], (tuple, list, np.ndarray)):
+    if isinstance(states, dict):
+        inds, states = list(states.keys()), list(states.values())
+    elif len(states) == 2 and isinstance(states[1], (tuple, list, np.ndarray)):
         states, inds = states
     else:
         inds = list(range(1, len(states)+1))
 
     data_sets = []
     for lf in log_files:
-        a1 = VPTAnalyzer(lf)
-        if use_zero_order:
-            e1 = a1.zero_order_energies[1][inds,]
-        elif use_deperturbed:
-            e1 = a1.deperturbed_energies[1][inds,]
+        if isinstance(lf, dict):
+            subopts = lf.copy()
+            lf = subopts.pop('key')
+        elif isinstance(lf, str):
+            lf = (lf,)
+            subopts = {}
         else:
+            subopts = {}
+        etype = subopts.pop('energy_type', energy_type)
+        a1 = load_analyzer(*lf,
+                           cache=cache,
+                           mode_selection=mode_selection,
+                           use_degeneracies=use_degeneracies,
+                           use_reaction_path=use_reaction_path,
+                           use_internals=use_internals,
+                           step_size=step_size
+                           )
+        if etype == 'harmonic':
+            e1 = a1.zero_order_energies[1][inds,]
+        elif etype == 'deperturbed':
+            e1 = a1.deperturbed_energies[1][inds,]
+        elif etype == 'degenerate':
             e1 = a1.energies[1][inds,]
+        else:
+            raise ValueError(etype)
         data_sets.append(e1)
 
     if isinstance(tags[0], str):
         tags = ["States"] + list(tags)
-        header_spans = None
     else:
         if header_spans is None:
             header_spans = [
                 [1] + [len(tags[1]) // len(tags[0])] * len(tags[0]),
                 [1] + [1] * len(tags[1])
             ]
+        else:
+            header_spans = [
+                [1] + list(h)
+                for h in header_spans
+            ]
         tags = [
-            [""] + list(tags[0]),
-            ["States"] + tags[1]
+            ([""] if i < len(tags)-1 else ["States"]) + list(t)
+            for i,t in enumerate(tags)
         ]
 
     if use_tex:
@@ -761,7 +828,7 @@ def make_freq_comp_tables(
         ).format_tex()
     else:
         return TableFormatter(
-            column_formats=[""] + ["{:>4.0f}"] * len(tags),
+            column_formats=[""] + ["{:>4.0f}"] * (len(tags) if header_spans is None else sum(header_spans[0])),
             headers=tags,
             header_spans=header_spans,
             column_join=" | ",
@@ -773,6 +840,114 @@ def make_freq_comp_tables(
                 np.array(data_sets).T
             )
         ])
+
+def _prep_ekey(path):
+    lot = [
+        p for p in path if p in {v.value for v in LevelsOfTheory}
+    ][0]
+    angle = [
+        p for p in path if isinstance(p, int)
+    ][0]
+    if LevelsOfTheory(lot) in {LevelsOfTheory.B3LYP, LevelsOfTheory.wB97}:
+        angle = {
+            0:1,
+            -10:2,
+            -20:3,
+            -30:4,
+            -40:5,
+            -50:6,
+            -60:7
+        }.get(angle, angle)
+    return lot, angle
+
+def get_tree_energies(lot_tree, base_path=None, **base_opts):
+    if base_path is None:
+        base_path = []
+    if isinstance(lot_tree, dict):
+        return {
+            k:(
+                get_energies( *_prep_ekey(base_path + [k]), **dict(base_opts, **v))
+                    if len(v) == 0 or not isinstance(next(iter(v.values())), dict) else
+                get_tree_energies(v, base_path + [k], **base_opts)
+            )
+            for k, v in lot_tree.items()
+        }
+    else:
+        return [
+            get_energies(*base_path, **dict(base_opts, **v))
+            for v in lot_tree.items()
+        ]
+
+default_name_remapping = {
+    e.value:e.name
+    for e in LevelsOfTheory
+}
+def tree_freq_comp_tables(states, lot_tree,
+                          use_tex=False,
+                          energy_type='deperturbed',
+                          cache=None,
+                          mode_selection=None,
+                          step_size=None,
+                          use_degeneracies=True,
+                          use_reaction_path=False,
+                          use_internals=None,
+                          column_join=" | ",
+                          column_formats=None,
+                          column_alignments=None,
+                          name_remapping=None,
+                          **table_opts):
+    if isinstance(states, dict):
+        states, rows = list(states.keys()), list(states.values())
+    else:
+        rows = states
+    tree_engs = get_tree_energies(
+        lot_tree,
+        states=states,
+        energy_type=energy_type,
+        cache=cache,
+        mode_selection=mode_selection,
+        step_size=step_size,
+        use_degeneracies=use_degeneracies,
+        use_reaction_path=use_reaction_path,
+        use_internals=use_internals
+    )
+    if name_remapping is None:
+        name_remapping = default_name_remapping
+    td, cols = TableFormatter.from_tree(tree_engs,
+                                        header_normalization_function=lambda h,s:(
+                                           list([""] + list(hh) for hh in h[:-1])
+                                            + [["States"] + h[-1]],
+                                            [[1] + ss for ss in s]
+                                        ),
+                                        header_function=lambda h,w:name_remapping.get(h, h)
+                                        )
+    if use_tex:
+        ...
+    cols = [
+        [r] + list(c)
+        for r,c in zip(rows, cols)
+    ]
+    if column_formats is None:
+        column_formats = ([""] + ["{:>4.0f}"] * len(cols[0]))
+    if column_alignments is None:
+        column_alignments = (["^"] + [">"] * len(cols[0]))
+    return td.format(cols,
+                     column_join=column_join,
+                     column_formats=column_formats,
+                     column_alignments=column_alignments,
+                     **table_opts)
+
+    tags.append(["$\\cmw{}$" for _ in tags[-1]])
+    header_spans.append([1 for _ in header_spans[-1]])
+    return make_freq_comp_tables(
+        states,
+        tags,
+        log_files,
+        header_spans=header_spans,
+        use_tex=use_tex,
+        energy_type=energy_type,
+        **base_opts
+    )
 
 def print_freq_comps_info(tag, log_getter, key, **opts):
     print("="*20, tag, "="*20)
@@ -813,3 +988,111 @@ def setup_cpmo3_hessian(struct_id, return_structure=False, **opts):
         return mol, (f, g)
     else:
         return f,g
+
+default_interp_plot_styles = dict(
+    aspect_ratio=1 / 1.61,
+    image_size=600,
+    axes_labels=["R (arb.)", "E (cm$^{-1}$)"],
+    plot_legend=True,
+    legend_style=dict(
+        frameon=False,
+        loc='upper left',
+        fontsize=11
+    )
+)
+def plot_interp_energies(evaluator, emb_geom_data, cache,
+                         grid=None,
+                         keys={
+                             "smooth":"Sigmoid",
+                             "acet":"Acetylene-like",
+                             "vinny":"Vinylidene-like",
+                             "merge":"Direct"
+                         },
+                         figure=None,
+                         key_plot_styles=None,
+                         **plot_opts
+                         ):
+    if isinstance(emb_geom_data, str):
+        emb_geom_data = cointerp.load_acet_interp_file(emb_geom_data)
+    engs = {
+        key:cointerp.get_emb_geom_energies(evaluator, emb_geom_data, key, cache=cache)
+        for key in keys.keys()
+    }
+    min_E = np.min(np.concatenate(list(engs.values())))
+    if key_plot_styles is None:
+        key_plot_styles = {}
+    for i,(key,eng) in enumerate(engs.items()):
+        base_styles = dict(
+            dict(label=keys[key]),
+            **key_plot_styles.get(key, {})
+        )
+        if i == 1:
+            base_styles = dict(
+                default_interp_plot_styles,
+                **base_styles
+            )
+        styles = dict(base_styles, **plot_opts)
+        if grid is None:
+            grid = np.linspace(0, 1, len(eng))
+        figure = plt.Plot(grid,
+                          (eng - min_E) * UnitsData.hartrees_to_wavenumbers,
+                          figure=figure,
+                          **styles
+                          )
+    return figure
+
+default_interp_bond_plot_styles = dict(
+    plot_legend=True,
+    plot_range=[[0, 1], [.96, 2.45]],
+    legend_style={
+        'frameon':False,
+        'fontsize': 11
+    },
+    aspect_ratio=1 / 1.61,
+    image_size=600,
+    axes_labels=["R (arb.)", "r ($\\AA$)"],
+)
+def plot_interp_bond_lengths(emb_geoms,
+                             terms=((0, 1), (0, 2), (0, 3), (1, 2), (1, 3)),
+                             atom_labels=("C", "C", "H_1", "H_2"),
+                             index_labels=None,
+                             figure=None,
+                             coord_plot_styles=None,
+                             label_format="$r_{{{ci} {cj}}}$",
+                             grid=None,
+                             **plot_opts
+                             ):
+    if isinstance(emb_geoms[0], str):
+        filename, key = emb_geoms
+        emb_geoms = cointerp.load_acet_interp_file(filename)[key]
+    emb_geoms = np.asanyarray(emb_geoms)
+    dm = nput.distance_matrix(emb_geoms) * UnitsData.convert("BohrRadius", "Angstroms")
+    coord_names = atom_labels
+    if coord_plot_styles is None:
+        coord_plot_styles = {}
+    if grid is None:
+        grid = np.linspace(0, 1, emb_geoms.shape[0])
+    for n, (i, j) in enumerate(terms):
+        if index_labels is not None:
+            label = index_labels[(i, j)]
+        else:
+            label = label_format.format(ci=coord_names[i], cj=coord_names[j])
+        base_styles = dict(
+            dict(
+                (default_interp_bond_plot_styles if n == 0 else {}),
+                label=label
+            ),
+            **dict(
+                coord_plot_styles.get((i, j), coord_plot_styles.get((j, i), {}))
+            )
+        )
+        figure = plt.Plot(
+            grid,
+            dm[:, i, j],
+            **dict(
+                base_styles,
+                figure=figure,
+                **plot_opts
+            )
+        )
+    return figure

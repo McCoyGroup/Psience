@@ -1546,7 +1546,7 @@ class VPT2Tests(TestCase):
                              degeneracy_specs='auto'
                              )
 
-    @debugTest
+    @validationTest
     def test_TermRephasing(self):
         # molg = Molecule.from_file(TestManager.test_data('ts_taup_anh_b2.log'), 'gspec')
         molg = Molecule.from_file(TestManager.test_data('ts_taup_anh_b2_qz_old.log'), 'gspec')
@@ -2846,6 +2846,33 @@ State             Frequency    Intensity       Frequency    Intensity
   0 1 2 0 0 0    4306.24556      0.00000      4167.25991      0.26680
   0 1 1 1 0 0    4506.28742      0.00000      4345.62126      0.47084
   """
+
+    @debugTest
+    def test_HOONOTargetModeDegen(self):
+
+        file_name = "HOONO_freq.fchk"
+
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     logger=True,
+        #     degeneracy_specs={
+        #         'wfc_threshold': .3,
+        #         # 'target_modes':[1, 2, 3, 4]
+        #     },
+        #     target_property='frequencies'
+        # )
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            logger=True,
+            degeneracy_specs={
+                'wfc_threshold': .3,
+                'max_mode_differences': [0 if i in {1, 2, 3, 4} else -1 for i in range(9)]
+            },
+            target_property='frequencies',
+            calculate_intensities=False
+        )
 
     @validationTest
     def test_HOONOFasterDegen(self):
