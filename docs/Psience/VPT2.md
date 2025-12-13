@@ -280,9 +280,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-7407ef" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-7407ef"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-87aa77" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-87aa77"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-7407ef" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-87aa77" markdown="1">
  - [MultdiDegHOH](#MultdiDegHOH)
 - [HOHAnalytic](#HOHAnalytic)
 - [HOHLocal](#HOHLocal)
@@ -318,6 +318,7 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 - [OCHHSubspaceTargetProps](#OCHHSubspaceTargetProps)
 - [OCHHFasterDegen](#OCHHFasterDegen)
 - [OCHHFasterDegenSubspace](#OCHHFasterDegenSubspace)
+- [HOONOTargetModeDegen](#HOONOTargetModeDegen)
 - [HOONOFasterDegen](#HOONOFasterDegen)
 - [HOONOFasterDegenSubspace](#HOONOFasterDegenSubspace)
 - [OCHHVPTRunnerShifted](#OCHHVPTRunnerShifted)
@@ -345,9 +346,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-4111aa" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-4111aa"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-5f9300" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-5f9300"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-4111aa" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-5f9300" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3126,6 +3127,35 @@ State             Frequency    Intensity       Frequency    Intensity
   0 1 2 0 0 0    4306.24556      0.00000      4167.25991      0.26680
   0 1 1 1 0 0    4506.28742      0.00000      4345.62126      0.47084
   """
+```
+
+#### <a name="HOONOTargetModeDegen">HOONOTargetModeDegen</a>
+```python
+    def test_HOONOTargetModeDegen(self):
+
+        file_name = "HOONO_freq.fchk"
+
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #     2,
+        #     logger=True,
+        #     degeneracy_specs={
+        #         'wfc_threshold': .3,
+        #         # 'target_modes':[1, 2, 3, 4]
+        #     },
+        #     target_property='frequencies'
+        # )
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            logger=True,
+            degeneracy_specs={
+                'wfc_threshold': .3,
+                'max_mode_differences': [0 if i in {1, 2, 3, 4} else -1 for i in range(9)]
+            },
+            target_property='frequencies',
+            calculate_intensities=False
+        )
 ```
 
 #### <a name="HOONOFasterDegen">HOONOFasterDegen</a>

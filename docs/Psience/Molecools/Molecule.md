@@ -5,7 +5,6 @@
 </div>
     
 Provides a simple Molecule class that we can adapt as we need
-Most standard functionality should be served by OpenBabel
 Uses AtomData to get properties and whatnot
 
 ### Members
