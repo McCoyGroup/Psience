@@ -1,0 +1,8 @@
+cff-version: 1.1.0
+message: "If you found this software useful, please cite it as below."
+authors:
+- family-names: Boyer
+  given-names: Mark
+  orcid: 0000-0003-4740-5307
+title: "Psience: a python package for the study of molecule motion"
+date-released: 2022-07-01
