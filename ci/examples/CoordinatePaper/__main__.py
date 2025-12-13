@@ -16,6 +16,7 @@ from . import modes
 from . import vpt
 from . import util
 from . import analysis
+from . import interp
 
 tests = []
 
@@ -121,12 +122,13 @@ def analytic_expansions():
 def AIMNetVPT():
     import warnings
     warnings.filterwarnings('error')
-    degs = True
+    degs = False
     # vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=False, use_reaction_path=False)
     # vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=True, use_reaction_path=False)
     step_size = None#.25
     use_rp = False
     overwrite = False
+    apply_transf=False
     # update_sel = []#, -40, -50, -60]
     # overwrite = True
     # for k in update_sel:#range(0, -70, -10):
@@ -177,32 +179,36 @@ def AIMNetVPT():
         # # print(f"MACE-OFF ({i}):", stat, rpnms.freqs * UnitsData.hartrees_to_wavenumbers)
         # return
         print(k, "-", "Full")
-        vpt.run_aimnet_vpt(k, use_degeneracies=degs, step_size=step_size, overwrite=overwrite, use_reaction_path=use_rp)
+        vpt.run_aimnet_vpt(k, use_degeneracies=degs, step_size=step_size, overwrite=overwrite, use_reaction_path=use_rp,
+                               apply_transformation=apply_transf)
         print(k, "-", "Full Internals")
-        vpt.run_aimnet_vpt(k, use_degeneracies=degs, use_internals=True, step_size=step_size, overwrite=overwrite, use_reaction_path=use_rp)
+        vpt.run_aimnet_vpt(k, use_degeneracies=degs, use_internals=True, step_size=step_size, overwrite=overwrite, use_reaction_path=use_rp,
+                               apply_transformation=apply_transf)
         for spec in [
-            [-4, -3, -2, -1],
-            [-7, -6, -5, -4, -3, -2, -1],
-            [-11, -10, -8, -1],
-            [-8, -1],
-            [-11, -1],
-            [-11, -4, -3, -2, -1],
-            [-11, -7, -6, -5, -4, -3, -2, -1],
-            [-1],
+            # [-4, -3, -2, -1],
+            # [-7, -6, -5, -4, -3, -2, -1],
+            # # [-11, -10, -8, -1],
+            # # [-8, -1],
+            # # [-11, -1],
+            # # [-11, -4, -3, -2, -1],
+            # # [-11, -7, -6, -5, -4, -3, -2, -1],
+            # [-1],
         ]:
             print(k, "-", "Partial", spec)
             vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec, overwrite=overwrite,
                                step_size=step_size,
-                               use_reaction_path=use_rp
+                               use_reaction_path=use_rp,
+                               apply_transformation=apply_transf
                                )
             print(k, "-", "Partial Internals", spec)
             vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec, use_internals=True, overwrite=overwrite,
                                step_size=step_size,
-                               use_reaction_path=use_rp)
+                               use_reaction_path=use_rp,
+                               apply_transformation=apply_transf)
 
 @inactive
 def MACEVPT():
-    degs = True
+    degs = False
     # vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=False, use_reaction_path=False)
     # vpt.run_aimnet_vpt(0, use_degeneracies=False, use_internals=True, use_reaction_path=False)
     step_size = None#.25
@@ -210,32 +216,37 @@ def MACEVPT():
     overwrite = False
     opt_sel = [ 0, -10, -20,
                -30, -40, -50, -60]
+    apply_transf=False
     for k in opt_sel:
         print(k, "-", "Full")
         vpt.run_mace_vpt(k, use_degeneracies=degs, step_size=step_size, use_reaction_path=use_rp,
-                         overwrite=overwrite)
+                         overwrite=overwrite,
+                               apply_transformation=apply_transf)
         print(k, "-", "Full Internals")
         vpt.run_mace_vpt(k, use_degeneracies=degs, use_internals=True, step_size=step_size,
                          use_reaction_path=use_rp,
-                         overwrite=overwrite)
+                         overwrite=overwrite,
+                               apply_transformation=apply_transf)
         for spec in [
-            [-4, -3, -2, -1],
-            [-7, -6, -5, -4, -3, -2, -1],
-            [-11, -10, -8, -1],
-            [-8, -1],
-            [-11, -1],
-            [-11, -4, -3, -2, -1],
-            [-11, -7, -6, -5, -4, -3, -2, -1],
-            [-1],
+            # [-4, -3, -2, -1],
+            # [-7, -6, -5, -4, -3, -2, -1],
+            # # [-11, -10, -8, -1],
+            # # [-8, -1],
+            # # [-11, -1],
+            # # [-11, -4, -3, -2, -1],
+            # # [-11, -7, -6, -5, -4, -3, -2, -1],
+            # [-1],
         ]:
             print(k, "-", "Partial", spec)
             vpt.run_mace_vpt(k, use_degeneracies=degs, mode_selection=spec,
                              use_reaction_path=use_rp,
-                             overwrite=overwrite)
+                             overwrite=overwrite,
+                               apply_transformation=apply_transf)
             print(k, "-", "Partial Internals", spec)
             vpt.run_mace_vpt(k, use_degeneracies=degs, mode_selection=spec, use_internals=True,
                              use_reaction_path=use_rp,
-                             overwrite=overwrite)
+                             overwrite=overwrite,
+                               apply_transformation=apply_transf)
 
 @inactive
 def AIMNetVPTMore():
@@ -250,11 +261,11 @@ def AIMNetVPTMore():
         for spec in [
             [-4, -3, -2, -1],
             [-7, -6, -5, -4, -3, -2, -1],
-            [-11, -10, -8, -1],
-            [-8, -1],
-            [-11, -1],
-            [-11, -4, -3, -2, -1],
-            [-11, -7, -6, -5, -4, -3, -2, -1],
+            # [-11, -10, -8, -1],
+            # [-8, -1],
+            # [-11, -1],
+            # [-11, -4, -3, -2, -1],
+            # [-11, -7, -6, -5, -4, -3, -2, -1],
             [-1],
         ]:
             print(k, "-", "Partial")
@@ -263,47 +274,55 @@ def AIMNetVPTMore():
             vpt.run_aimnet_vpt(k, use_degeneracies=degs, mode_selection=spec, use_internals=True)
 
 
-@runnable
+@inactive
 def B3LYPVPT():
-    degs = True
+    degs = False
     use_rp = False
-    overwrite = True
+    overwrite = False
+    apply_transf=False
     for k in [1, 2, 3, 4, 5, 6, 7]:
         # print(k, "-", "Full")
-        # vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs,
-        #                      use_reaction_path=use_rp,
-        #                      overwrite=overwrite)
-        # print(k, "-", "Full Internals")
-        # vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, use_internals=True,
-        #                      use_reaction_path=use_rp,
-        #                      overwrite=overwrite)
+        vpt.run_gaussian_vpt('b3lyp', k,
+                             use_degeneracies=degs,
+                             use_reaction_path=use_rp,
+                             overwrite=overwrite,
+                               apply_transformation=apply_transf)
+        print(k, "-", "Full Internals")
+        vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, use_internals=True,
+                             use_reaction_path=use_rp,
+                             overwrite=overwrite,
+                               apply_transformation=apply_transf)
         for spec in [
-            [-4, -3, -2, -1],
-            [-7, -6, -5, -4, -3, -2, -1],
-            [-11, -10, -8, -1],
-            [-8, -1],
-            [-11, -1],
-            [-11, -4, -3, -2, -1],
-            [-11, -7, -6, -5, -4, -3, -2, -1],
-            [-1],
+            # [-4, -3, -2, -1],
+            # [-7, -6, -5, -4, -3, -2, -1],
+            # # [-11, -10, -8, -1],
+            # # [-8, -1],
+            # # [-11, -1],
+            # # [-11, -4, -3, -2, -1],
+            # # [-11, -7, -6, -5, -4, -3, -2, -1],
+            # [-1],
         ]:
             print(k, "-", "Partial", spec)
             vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, mode_selection=spec
                                  , use_reaction_path=use_rp
-                                 , overwrite=overwrite)
-            # print(k, "-", "Partial Internals", spec)
-            # vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, mode_selection=spec, use_internals=True
-            #                      , overwrite=overwrite)
+                                 , overwrite=overwrite,
+                                 apply_transformation=apply_transf)
+            print(k, "-", "Partial Internals", spec)
+            vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, mode_selection=spec, use_internals=True
+                                 , use_reaction_path=use_rp
+                                 , overwrite=overwrite,
+                                 apply_transformation=apply_transf)
         # print(k, "-", "OH")
         # vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, mode_selection=[-1])
         # print(k, "-", "OH Internals")
         # vpt.run_gaussian_vpt('b3lyp', k, use_degeneracies=degs, mode_selection=[-1], use_internals=True)
 
-@runnable
+@inactive
 def wb97VPT():
-    degs = True
+    degs = False
     use_rp = False
-    overwrite = True
+    overwrite = False
+    apply_transf = False
     for k in [
         1,
         2, 3,
@@ -311,31 +330,37 @@ def wb97VPT():
         5, 6,
         7
     ]:
-        # print(k, "-", "Full")
-        # vpt.run_wb97_vpt(k, use_degeneracies=degs,  use_reaction_path=use_rp, overwrite=overwrite)
-        # print(k, "-", "Full Internals")
-        # vpt.run_wb97_vpt(k, use_degeneracies=degs, use_internals=True, use_reaction_path=use_rp, overwrite=overwrite)
+        print(k, "-", "Full")
+        vpt.run_wb97_vpt(k, use_degeneracies=degs,  use_reaction_path=use_rp, overwrite=overwrite,
+                               apply_transformation=apply_transf)
+        print(k, "-", "Full Internals")
+        vpt.run_wb97_vpt(k, use_degeneracies=degs, use_internals=True, use_reaction_path=use_rp, overwrite=overwrite,
+                               apply_transformation=apply_transf)
         for spec in [
-            [-4, -3, -2, -1],
-            [-7, -6, -5, -4, -3, -2, -1],
-            [-11, -10, -8, -1],
-            [-8, -1],
-            [-11, -1],
-            [-11, -4, -3, -2, -1],
-            [-11, -7, -6, -5, -4, -3, -2, -1],
-            [-1],
+            # [-4, -3, -2, -1],
+            # [-7, -6, -5, -4, -3, -2, -1],
+            # # [-11, -10, -8, -1],
+            # # [-8, -1],
+            # # [-11, -1],
+            # # [-11, -4, -3, -2, -1],
+            # # [-11, -7, -6, -5, -4, -3, -2, -1],
+            # [-1],
         ]:
             print(k, "-", "Partial", spec)
             vpt.run_wb97_vpt(k, use_degeneracies=degs, mode_selection=spec
-                             , use_reaction_path=use_rp, overwrite=overwrite)
-            # print(k, "-", "Partial Internals", spec)
-            # vpt.run_wb97_vpt(k, use_degeneracies=degs, mode_selection=spec, use_internals=True
-            #                  , use_reaction_path=use_rp, overwrite=overwrite)
+                             , use_reaction_path=use_rp, overwrite=overwrite,
+                               apply_transformation=apply_transf)
+            print(k, "-", "Partial Internals", spec)
+            vpt.run_wb97_vpt(k, use_degeneracies=degs, mode_selection=spec, use_internals=True
+                             , use_reaction_path=use_rp, overwrite=overwrite,
+                               apply_transformation=apply_transf)
 
 @inactive
 def NORPVPT():
         vpt.run_aimnet_vpt(0, use_internals=True, use_degeneracies=False, use_reaction_path=True)
         vpt.run_aimnet_vpt(0, use_internals=False, use_degeneracies=False, use_reaction_path=True)
+        vpt.run_mace_vpt(0, use_internals=True, use_degeneracies=False, use_reaction_path=True)
+        vpt.run_mace_vpt(0, use_internals=False, use_degeneracies=False, use_reaction_path=True)
         vpt.run_wb97_vpt(1, use_internals=False, use_degeneracies=False, use_reaction_path=True)
         vpt.run_wb97_vpt(1, use_internals=True, use_degeneracies=False, use_reaction_path=True)
         vpt.run_b3lyp_vpt(1, use_internals=False, use_degeneracies=False, use_reaction_path=True)
@@ -660,8 +685,15 @@ def plot_OH_stretch_surface():
         fig = plt.Plot(*util.symmetrize_potential(spec, e_list), figure=fig)
     fig.show()
 
-@inactive
+@runnable
 def get_timings():
+    """
+    get_timings :
+numerical: took 0:22:59.453672 per loop with 0:22:59.453672 overall
+analytic: took 0:00:06.045783 per loop with 0:00:06.045783 overall
+get_timings: took 0:23:06.322930 per loop with 0:23:06.322930 overall
+    :return:
+    """
     import time
     # anth = Molecule.from_string('anthracene')
     # print(anth.atoms)
@@ -698,20 +730,20 @@ def get_timings():
     order = 3
     with Timer("numerical", file=None, number=iterations):
         for _ in range(iterations):
-            ints_by_carts_numerical = anth.modify(internals=internals).get_cartesians_by_internals(order,
+            ints_by_carts_numerical = anth.modify(internals=internals).get_internals_by_cartesians(order,
                                                                                                    strip_embedding=True,
-                                                                                                   reembed=True,
-                                                                                                   method='classic',
+                                                                                                   # reembed=True,
+                                                                                                   # method='classic',
                                                                                                    analytic_deriv_order=0,
                                                                                                    stencil=5
                                                                                                    )
 
     with Timer("analytic", file=None, number=iterations):
         for _ in range(iterations):
-            analytic = anth.modify(internals=internals).get_cartesians_by_internals(order,
+            analytic = anth.modify(internals=internals).get_internals_by_cartesians(order,
                                                                                     strip_embedding=True,
                                                                                     reembed=True,
-                                                                                    method='fast'
+                                                                                    # method='fast'
                                                                                     )
 
     # print(
@@ -727,6 +759,151 @@ def get_timings():
     #             return_inverse=True
     #         )
 
+
+@inactive
+def acet_interps():
+    interp.write_acet_interp_file()
+
+    interp.write_acet_interp_file(
+        acet_struct=[
+            [ 1.12966226,  0.,  0.],
+            [-1.12966226,  0.,  0.],
+            [ 3.13892534,  0.00001, -0.],
+            [-3.13892534, -0.00001, -0.]],
+        vin_struct=[
+            [ 1.39240935,  0.,         -0.],
+            [-1.04486143, -0.,          0.],
+            [-2.06909676, -1.48369717, -0.98356485],
+            [-2.06909676,  1.48369717,  0.98356485]
+        ],
+        filename='acet_interp_mace.json'
+    )
+
+    interp.write_acet_interp_file(
+        acet_struct=[
+            [0., -0.,         -1.13013292],
+            [0.,  0.,          1.13013275],
+            [0., -0.0000001, -3.14106758],
+            [0.,  0.0000001,  3.14106725]],
+        vin_struct=[
+            [ 0.,         0.,  1.53916632],
+            [ 0.,         0., -0.89903106],
+            [ 1.77751344, 0., -1.91841159],
+            [-1.77751344, 0., -1.91841159]],
+        filename='acet_interp_aim.json'
+    )
+
+    interp.write_acet_interp_file(
+        acet_struct=[[ 0.        , -0.00000001, -1.14300109],
+               [ 0.        ,  0.00000002,  1.14300108],
+               [ 0.        ,  0.00000003, -3.15309587],
+               [ 0.        , -0.00000004,  3.15309587]],
+        vin_struct=[[ 0.        ,  0.        ,  1.5659276 ],
+               [ 0.        ,  0.        , -0.90397062],
+               [ 1.77629797,  0.        , -1.93300467],
+               [-1.77629797,  0.        , -1.93300467]],
+        filename='acet_interp_cc.json'
+    )
+
+    interp.write_acet_interp_file(
+        acet_struct=[[-0.00000001,  0.        , -1.22523357],
+               [ 0.00000002,  0.        ,  1.2252335 ],
+               [ 0.00000002,  0.        , -3.61388461],
+               [-0.00000004,  0.        ,  3.61388498]],
+        vin_struct=[[ 0.        ,  0.        ,  1.69862071],
+               [ 0.        ,  0.        , -0.99763429],
+               [ 1.74322311,  0.        , -2.10295927],
+               [-1.74322311,  0.        , -2.10295927]],
+        filename='acet_interp_eom.json'
+    )
+
+    interp.write_acet_interp_file(
+        acet_struct=[[ 1.23119708, -0.36565273, -0.        ],
+                   [-1.23119708,  0.36565273,  0.        ],
+                   [ 2.8159947 ,  0.95921466, -0.        ],
+                   [-2.8159947 , -0.95921466,  0.        ]],
+        vin_struct=[[0., 0., 1.69862071],
+                    [0., 0., -0.99763429],
+                    [1.74322311, 0., -2.10295927],
+                    [-1.74322311, 0., -2.10295927]],
+        filename='acet_bent_interp_eom.json'
+    )
+
+    interp.write_acet_interp_file(
+        acet_struct=[[1.23119708, -0.36565273, -0.],
+                     [-1.23119708, 0.36565273, 0.],
+                     [2.8159947, 0.95921466, -0.],
+                     [-2.8159947, -0.95921466, 0.]],
+        vin_struct=[[0., 0., 1.69862071],
+                    [0., 0., -0.99763429],
+                    [1.74322311, 0., -2.10295927],
+                    [-1.74322311, 0., -2.10295927]],
+        filename='acet_bent_interp_eom_exp.json',
+        interp_type='exp'
+    )
+
+@inactive
+def test_tables():
+    states = {
+        1: "OH",
+        2: "CH",
+        3: "CH",
+        4: "CH",
+        5: "HCH",
+        6: "HCH",
+        7: "HCH",
+        11: 'HCCH'
+    }
+    print(
+        analysis.tree_freq_comp_tables(
+            states,
+            {
+                lot: {
+                    angle: {
+                        'Harm.': {'energy_type': 'harmonic'},
+                        'Anh.': {'energy_type': 'deperturbed'}
+                    }
+                    for angle in [0, -10, -60]
+                }
+                for lot in ['aimnet', 'mace', 'b3lyp']
+            }
+          )
+    )
+
+    print(
+        analysis.tree_freq_comp_tables(
+            states,
+            {
+                angle:{
+                    lot:{
+                        'Harm.': {'energy_type': 'harmonic'},
+                        'Anh.': {'energy_type': 'deperturbed'}
+                    }
+                    for lot in ['aimnet', 'mace', 'b3lyp']
+                }
+                for angle in [0, -10, -60]
+            }
+          )
+    )
+
+    print(
+        analysis.tree_freq_comp_tables(
+            states,
+            {
+                lot: {
+                    'Harm.': {
+                        angle: {'energy_type': 'harmonic'}
+                        for angle in [0, -10, -60]
+                    },
+                    'Anh.': {
+                        angle: {'energy_type': 'deperturbed'}
+                        for angle in [0, -10, -60]
+                    }
+                }
+                for lot in ['aimnet', 'mace', 'b3lyp']
+            }
+        )
+    )
 
 if __name__ == '__main__':
     # print(expansions.methanol_gaussian_zmatrix)

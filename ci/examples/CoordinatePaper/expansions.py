@@ -35,29 +35,47 @@ methanol_mace = Molecule(
     energy_evaluator='mace'
 )
 
-methanol_zmatrix = coordops.reindex_zmatrix(
-    coordops.functionalized_zmatrix(
-        3,
-        {
-            (2, 1, 0): [
-                [0, -1, -2, -3],
-                [1, -1, 0, -2],
-                [2, -1, 0, 1],
-            ]
-        }
-    ),
-    [5, 1, 0, 2, 3, 4]
-)
+# methanol_zmatrix = coordops.reindex_zmatrix(
+#     coordops.functionalized_zmatrix(
+#         3,
+#         {
+#             (2, 1, 0): [
+#                 [0, -1, -2, -3],
+#                 [1, -1, 0, -2],
+#                 [2, -1, 0, 1],
+#             ]
+#         }
+#     ),
+#     [5, 1, 0, 2, 3, 4]
+# )
+methanol_zmatrix = [
+    [0, -1, -2, -3],
+    [1,  0, -1, -2],
+    [2,  0,  1, -1],
+    [3,  0,  2,  1],
+    [4,  0,  3,  2],
+    [5,  1,  0,  2]
+]
 
-methanol_gaussian_zmatrix = coordops.functionalized_zmatrix(
-    3,
-    {
-        (2, 1, 0): [
-            [0, -1, -2, -3],
-            [1, -1, 0, -2],
-            [2, -1, 0, 1],
-        ]
-    }
+# methanol_gaussian_zmatrix = coordops.functionalized_zmatrix(
+#     3,
+#     {
+#         (2, 1, 0): [
+#             [0, -1, -2, -3],
+#             [1, -1, 0, -2],
+#             [2, -1, 0, 1],
+#         ]
+#     }
+# )
+methanol_gaussian_zmatrix = coordops.reindex_zmatrix([
+    [0, -1, -2, -3],
+    [1, 0, -1, -2],
+    [2, 0, 1, -1],
+    [3, 0, 2, 1],
+    [4, 0, 3, 2],
+    [5, 1, 0, 2]
+],
+    [2, 1, 3, 4, 5, 0]
 )
 
 

@@ -3440,8 +3440,8 @@ class MolecoolsTests(TestCase):
     def test_RDKitInputFormats(self):
         Molecule.from_string('MDSKGSGS', 'fasta')
 
-    @debugTest
-    def test_Gen1(self):
+    @validationTest
+    def test_BreakBondZMat(self):
         import McUtils.Coordinerds as coordops
         # ts = Molecule.from_file(TestManager.test_data('ts_samp.xyz'))
         # ts.get_bond_zmatrix(for_fragment=0)

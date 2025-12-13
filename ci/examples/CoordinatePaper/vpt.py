@@ -22,7 +22,10 @@ class LevelsOfTheory(enum.Enum):
     AIMNet2Old = 'aimnet-old'
     MACE = 'mace'
 
-def get_gaussian_logfile(lot, subkey, use_reaction_path=True, use_degeneracies=True, mode_selection=None, use_internals=False):
+def get_gaussian_logfile(lot, subkey, use_reaction_path=True,
+                         use_degeneracies=True,
+                         apply_transformation=True,
+                         mode_selection=None, use_internals=False):
     ms = "".join(str(m) for m in
                  (mode_selection if mode_selection is not None else 'all')
                  )
@@ -31,16 +34,28 @@ def get_gaussian_logfile(lot, subkey, use_reaction_path=True, use_degeneracies=T
     else:
         deg = ""
 
-    if use_reaction_path:
-        if use_internals:
-            log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_rp_ints_{subkey}_{ms}{deg}.out')
+    if apply_transformation:
+        if use_reaction_path:
+            if use_internals:
+                log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_rp_ints_{subkey}_{ms}{deg}.out')
+            else:
+                log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_rp_{subkey}_{ms}{deg}.out')
         else:
-            log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_rp_{subkey}_{ms}{deg}.out')
+            if use_internals:
+                log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_norp_ints_{subkey}_{ms}{deg}.out')
+            else:
+                log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_norp_{subkey}_{ms}{deg}.out')
     else:
-        if use_internals:
-            log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_norp_ints_{subkey}_{ms}{deg}.out')
+        if use_reaction_path:
+            if use_internals:
+                log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_rp_ints_{subkey}_{ms}{deg}_notransf.out')
+            else:
+                log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_rp_{subkey}_{ms}{deg}_notransf.out')
         else:
-            log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_norp_{subkey}_{ms}{deg}.out')
+            if use_internals:
+                log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_norp_ints_{subkey}_{ms}{deg}_notransf.out')
+            else:
+                log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_norp_{subkey}_{ms}{deg}_notransf.out')
 
     return log_file
 
@@ -57,6 +72,7 @@ def run_gaussian_vpt(
         use_internals=False,
         use_reaction_path=None,
         mode_selection=None,
+        apply_transformation=True,
         use_degeneracies=True,
         log_file=None,
         return_runner=False,
@@ -82,17 +98,21 @@ def run_gaussian_vpt(
                                                project_transrot=False,
                                                try_reaction_path=use_reaction_path is not False
                                                )
-    tf = locs.localizing_transformation
-    ms = mode_selection
-    if mode_selection is not None:
-        tf = locs[mode_selection].localizing_transformation
-        mode_selection = None
+    if apply_transformation:
+        tf = locs.localizing_transformation
+        ms = mode_selection
+        if mode_selection is not None:
+            tf = locs[mode_selection].localizing_transformation
+            mode_selection = None
+        print_rpnm_hessian(me_gaussian, nms, rpnms, locs)
+    else:
+        tf = None
+        ms = mode_selection
 
         # print(">",
         #       TableFormatter("{:.1f}").format(locs.local_freqs*UnitsData.hartrees_to_wavenumbers)
         #       )
         # print(tf)
-    print_rpnm_hessian(me_gaussian, nms, rpnms, locs)
 
     # if use_reaction_path is not False:
     #     (locs, nms, rpnms), stat = prep_rp_modes(me_gaussian,
@@ -120,6 +140,7 @@ def run_gaussian_vpt(
                                                 and (status or (use_reaction_path is True))
                                         ),
                                         mode_selection=ms,
+                                        apply_transformation=apply_transformation,
                                         use_degeneracies=use_degeneracies,
                                         use_internals=use_internals)
 
@@ -183,11 +204,12 @@ def run_wb97_vpt(
     return run_gaussian_vpt('wb97', subkey, file_pattern=file_pattern, **args)
 
 def get_mlip_logfile(lot, key, use_reaction_path=True, use_degeneracies=True,
-                       mode_selection=None,
-                       use_internals=False,
-                       step_size=None,
-                       analytic_derivative_order=None
-                       ):
+                     mode_selection=None,
+                     use_internals=False,
+                     step_size=None,
+                     apply_transformation=True,
+                     analytic_derivative_order=None
+                     ):
     # if use_reaction_path:
     #     if mode_selection is None:
     #         ms = "_all"
@@ -239,49 +261,60 @@ def get_mlip_logfile(lot, key, use_reaction_path=True, use_degeneracies=True,
         ad = f"_ad{analytic_derivative_order}"
     else:
         ad = ""
-    log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_{rp}{coord}{key}{ms}{deg}{step}{ad}.out')
+    if not apply_transformation:
+        atf = f"_notransf"
+    else:
+        atf = ""
+    log_file = paths.torsion_scan_path(lot, 'results', f'methanol_vpt_{rp}{coord}{key}{ms}{deg}{step}{ad}{atf}.out')
     return log_file
 
 def get_aimnet_logfile(key, use_reaction_path=True, use_degeneracies=True,
                        mode_selection=None,
                        use_internals=False,
                        step_size=None,
-                       analytic_derivative_order=None
+                       analytic_derivative_order=None,
+                       apply_transformation=True
                        ):
     return get_mlip_logfile('aimnet', key, use_reaction_path=use_reaction_path, use_degeneracies=use_degeneracies,
                        mode_selection=mode_selection,
                        use_internals=use_internals,
                        step_size=step_size,
-                       analytic_derivative_order=analytic_derivative_order)
+                       analytic_derivative_order=analytic_derivative_order,
+                       apply_transformation=apply_transformation)
 
 def get_aimnet_old_logfile(key, use_reaction_path=True, use_degeneracies=True,
                        mode_selection=None,
                        use_internals=False,
                        step_size=None,
-                       analytic_derivative_order=None
+                       analytic_derivative_order=None,
+                       apply_transformation=True
                        ):
     return get_mlip_logfile('aimnet-old', key, use_reaction_path=use_reaction_path, use_degeneracies=use_degeneracies,
                        mode_selection=mode_selection,
                        use_internals=use_internals,
                        step_size=step_size,
-                       analytic_derivative_order=analytic_derivative_order)
+                       analytic_derivative_order=analytic_derivative_order,
+                       apply_transformation=apply_transformation)
 
 def get_mace_logfile(key, use_reaction_path=True, use_degeneracies=True,
                        mode_selection=None,
                        use_internals=False,
                        step_size=None,
-                       analytic_derivative_order=None
+                       analytic_derivative_order=None,
+                       apply_transformation=True
                        ):
     return get_mlip_logfile('mace', key, use_reaction_path=use_reaction_path, use_degeneracies=use_degeneracies,
                        mode_selection=mode_selection,
                        use_internals=use_internals,
                        step_size=step_size,
-                       analytic_derivative_order=analytic_derivative_order)
+                       analytic_derivative_order=analytic_derivative_order,
+                       apply_transformation=apply_transformation)
 
 
 def run_mlip_vpt(lot, logfile_getter, structure_getter, expansion_getter, key,
                  use_internals=False,
                  use_reaction_path=None,
+                 apply_transformation=True,
                  log_file=None,
                  overwrite=False,
                  mode_selection=None,
@@ -325,17 +358,21 @@ def run_mlip_vpt(lot, logfile_getter, structure_getter, expansion_getter, key,
                                                return_status=True,
                                                try_reaction_path=use_reaction_path is not False
                                                )
-    tf = locs.localizing_transformation
-    ms = mode_selection
-    if mode_selection is not None:
-        tf = locs[mode_selection].localizing_transformation
-        mode_selection = None
+    if apply_transformation:
+        tf = locs.localizing_transformation
+        ms = mode_selection
+        if mode_selection is not None:
+            tf = locs[mode_selection].localizing_transformation
+            mode_selection = None
 
-        # print(">",
-        #       TableFormatter("{:.1f}").format(locs.local_freqs*UnitsData.hartrees_to_wavenumbers)
-        #       )
-        # print(tf)
-    print_rpnm_hessian(me_aimnet, nms, rpnms, locs)
+            # print(">",
+            #       TableFormatter("{:.1f}").format(locs.local_freqs*UnitsData.hartrees_to_wavenumbers)
+            #       )
+            # print(tf)
+        print_rpnm_hessian(me_aimnet, nms, rpnms, locs)
+    else:
+        ms = mode_selection
+        tf = None
     # return nms.make_mass_weighted().apply_transformation(locs.localizing_transformation[1].T)
     # mode_selection = None
     # print(tf[0].T @ tf[0] )
@@ -360,6 +397,7 @@ def run_mlip_vpt(lot, logfile_getter, structure_getter, expansion_getter, key,
                                       (use_reaction_path is not False)
                                       and (status or (use_reaction_path is True))
                                   ),
+                                  apply_transformation=apply_transformation,
                                   mode_selection=ms,
                                   use_internals=use_internals,
                                   step_size=step_size,

@@ -19,7 +19,7 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
                        **styles):
 
     if isinstance(energy_list, dict): # replace with collections.Mapping...
-        labels = energy_list.keys()
+        labels = list(energy_list.keys())
         energy_list = list(energy_list.values())
 
     if isinstance(energy_list[0], dict):
@@ -74,7 +74,7 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
     if plot_range is None or nput.is_numeric(plot_range[0]):
         plot_range = [x_range, plot_range]
 
-    if ticks is None or nput.is_numeric(ticks[0]):
+    if ticks is None or (len(ticks) > 0 and nput.is_numeric(ticks[0])):
         if labels is None:
             x_ticks = []
         else:
@@ -83,7 +83,7 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
         ticks = [x_ticks, ticks]
     elif labels is not None:
         x_ticks, y_ticks = ticks
-        if nput.is_numeric(x_ticks[0]):
+        if len(x_ticks) > 0 and nput.is_numeric(x_ticks[0]):
             x_ticks = (x_ticks, dict(labels=labels))
         ticks = [x_ticks, y_ticks]
 
