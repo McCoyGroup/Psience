@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-e7ec4f" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e7ec4f"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-680102" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-680102"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e7ec4f" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-680102" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -168,12 +168,13 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [EvenMoreZMatrix](#EvenMoreZMatrix)
 - [RDKitInputFormats](#RDKitInputFormats)
 - [BreakBondZMat](#BreakBondZMat)
+- [NeverEndingZMatrix](#NeverEndingZMatrix)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-2950a8" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-2950a8"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-850e8b" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-850e8b"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-2950a8" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-850e8b" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3491,6 +3492,17 @@ class MolecoolsTests(TestCase):
         ts_mod = ts.break_bonds([(18, 22)])
         zm = ts_mod.get_bond_zmatrix()
         ts_int = ts.modify(internals=zm)
+```
+
+#### <a name="NeverEndingZMatrix">NeverEndingZMatrix</a>
+```python
+    def test_NeverEndingZMatrix(self):
+        # import McUtils.Coordinerds as coordops
+        # ts = Molecule.from_file(TestManager.test_data('ts_samp.xyz'))
+        # ts.get_bond_zmatrix(for_fragment=0)
+
+        react = Molecule.from_file(TestManager.test_data('test_react.xyz'), units='Angstroms')
+        react.get_bond_zmatrix()
 ```
 
  </div>

@@ -1,8 +1,8 @@
 ## <a id="Psience.Molecools.CoordinateSystems.ModeEmbedding">ModeEmbedding</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems.py#L874)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems.py#L874?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems.py#L883)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems.py#L883?message=Update%20Docs)]
 </div>
 
 Provides a specialization on a `MoleculaEmbedding` to express all properties
@@ -25,8 +25,8 @@ in terms of the attendant normal modes
 __init__(self, embedding: Psience.Molecools.CoordinateSystems.MolecularEmbedding, modes, mass_weight=None, dimensionless=None, masses=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems.py#L880)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems.py#L880?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems.py#L889)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems.py#L889?message=Update%20Docs)]
 </div>
 
 
@@ -35,8 +35,8 @@ __init__(self, embedding: Psience.Molecools.CoordinateSystems.MolecularEmbedding
 mw_conversion(self, strip_dummies=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L906)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L906?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L915)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L915?message=Update%20Docs)]
 </div>
 
 
@@ -45,8 +45,8 @@ mw_conversion(self, strip_dummies=None):
 mw_inverse(self, strip_dummies=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L917)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L917?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L926)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L926?message=Update%20Docs)]
 </div>
 
 
@@ -55,8 +55,8 @@ mw_inverse(self, strip_dummies=None):
 get_mw_cartesians_by_internals(self, order=None, mass_weighted=None, coords=None, strip_embedding=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L929)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L929?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L938)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L938?message=Update%20Docs)]
 </div>
 
 
@@ -65,8 +65,8 @@ get_mw_cartesians_by_internals(self, order=None, mass_weighted=None, coords=None
 get_internals_by_mw_cartesians(self, order=None, mass_weighted=None, coords=None, strip_embedding=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L944)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L944?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L953)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L953?message=Update%20Docs)]
 </div>
 
 
@@ -75,8 +75,8 @@ get_internals_by_mw_cartesians(self, order=None, mass_weighted=None, coords=None
 get_internals_by_cartesians(self, order=None, coords=None, strip_embedding=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L969)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L969?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L978)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L978?message=Update%20Docs)]
 </div>
 expresses raw internals or modes (internals or Cartesian) in terms of mass-weighted Cartesians
   - `order`: `Any`
@@ -92,8 +92,8 @@ expresses raw internals or modes (internals or Cartesian) in terms of mass-weigh
 get_cartesians_by_internals(self, order=None, coords=None, strip_embedding=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1021)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1021?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1030)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1030?message=Update%20Docs)]
 </div>
 expresses raw internals or modes (internals or Cartesian) in terms of mass-weighted Cartesians
   - `order`: `Any`
@@ -109,8 +109,8 @@ expresses raw internals or modes (internals or Cartesian) in terms of mass-weigh
 get_inertia_tensor_expansion(self, order=None, strip_embedding=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1076)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1076?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1085)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1085?message=Update%20Docs)]
 </div>
 
 
@@ -119,8 +119,8 @@ get_inertia_tensor_expansion(self, order=None, strip_embedding=True):
 get_inertial_frame(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1081)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1081?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1090)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1090?message=Update%20Docs)]
 </div>
 
 
@@ -129,8 +129,8 @@ get_inertial_frame(self):
 get_modes_by_coords(self, mass_weighted=None, frequency_scaled=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1084)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1084?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1093)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1093?message=Update%20Docs)]
 </div>
 
 
@@ -139,8 +139,8 @@ get_modes_by_coords(self, mass_weighted=None, frequency_scaled=None):
 get_coords_by_modes(self, mass_weighted=None, frequency_scaled=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1102)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1102?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1111)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems/ModeEmbedding.py#L1111?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -195,7 +195,7 @@ get_coords_by_modes(self, mass_weighted=None, frequency_scaled=None):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/CoordinateSystems/ModeEmbedding.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/CoordinateSystems/ModeEmbedding.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems.py#L874?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/CoordinateSystems.py#L883?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
