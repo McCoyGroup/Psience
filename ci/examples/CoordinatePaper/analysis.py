@@ -890,11 +890,14 @@ def tree_freq_comp_tables(states, lot_tree,
                           step_size=None,
                           use_degeneracies=True,
                           use_reaction_path=False,
+                          apply_transformation=True,
                           use_internals=None,
                           column_join=" | ",
                           column_formats=None,
                           column_alignments=None,
                           name_remapping=None,
+                          label=None,
+                          caption=None,
                           **table_opts):
     if isinstance(states, dict):
         states, rows = list(states.keys()), list(states.values())
@@ -909,20 +912,27 @@ def tree_freq_comp_tables(states, lot_tree,
         step_size=step_size,
         use_degeneracies=use_degeneracies,
         use_reaction_path=use_reaction_path,
-        use_internals=use_internals
+        use_internals=use_internals,
+        apply_transformation=apply_transformation
     )
     if name_remapping is None:
         name_remapping = default_name_remapping
     td, cols = TableFormatter.from_tree(tree_engs,
                                         header_normalization_function=lambda h,s:(
-                                           list([""] + list(hh) for hh in h[:-1])
-                                            + [["States"] + h[-1]],
-                                            [[1] + ss for ss in s]
-                                        ),
-                                        header_function=lambda h,w:name_remapping.get(h, h)
+                                               list([""] + list(hh) for hh in h[:-1])
+                                                + [["States"] + h[-1]],
+                                                [[1] + ss for ss in s]
+                                            ),
+                                        header_function=lambda h, w: (
+                                                name_remapping.get(h, h)
+                                                    if not use_tex else
+                                                ("\multicolumn{" + str(2*w-1) + "}{c}{" + name_remapping.get(h, str(h)) + "}")
+                                            )
                                         )
     if use_tex:
-        ...
+        column_join = " && "
+        table_opts['row_join'] = table_opts.get('row_join', " \\\\\n")
+        table_opts['separator'] = table_opts.get('separator', ":-$-:")
     cols = [
         [r] + list(c)
         for r,c in zip(rows, cols)
@@ -931,23 +941,61 @@ def tree_freq_comp_tables(states, lot_tree,
         column_formats = ([""] + ["{:>4.0f}"] * len(cols[0]))
     if column_alignments is None:
         column_alignments = (["^"] + [">"] * len(cols[0]))
-    return td.format(cols,
+    table = td.format(cols,
                      column_join=column_join,
                      column_formats=column_formats,
                      column_alignments=column_alignments,
                      **table_opts)
 
-    tags.append(["$\\cmw{}$" for _ in tags[-1]])
-    header_spans.append([1 for _ in header_spans[-1]])
-    return make_freq_comp_tables(
-        states,
-        tags,
-        log_files,
-        header_spans=header_spans,
-        use_tex=use_tex,
-        energy_type=energy_type,
-        **base_opts
-    )
+    if label is None:
+        label_bits = []
+        if use_internals is True:
+            label_bits.append("ints")
+        elif use_internals is False:
+            label_bits.append("carts")
+        # TODO: check if energy type used at all in headers
+        label_bits.append(energy_type)
+        if mode_selection is None:
+            label_bits.append("all")
+        else:
+            label_bits.extend(resolve_subspace_label(mode_selection).split())
+        if step_size is not None:
+            label_bits.extend(["step", "size", str(step_size)])
+        # TODO: check if degs used at all in headers
+        if not use_degeneracies:
+            label_bits.append("nodegs")
+        if not apply_transformation:
+            label_bits.append("norp")
+        label="_".join(label_bits)
+    if caption is None:
+        caption = label
+
+    if use_tex:
+        table = table.replace(":-$-:", "\\hline \\\\ [-4ex]\n", 1)
+        table = table.replace(":-$-: \\\\", "")
+        table = table.replace(":-$- \\\\", "")
+        table = table.replace(":-$- \\\\", "")
+        table = table.replace(":-$ \\\\", "")
+        table = table.replace(":- \\\\", "")
+        table = table.replace(": \\\\", "")
+        table = table.replace(":-$-:", "")
+        format_spec = "c" + "".join("Xr" for _ in cols[0])
+        table = r"""
+\begin{table}[ht]
+\begin{center}
+\begin{minipage}[c]{1 \textwidth}
+\begin{tabularx}{\textwidth}{"""+format_spec+r"""}
+\hline \\[-4ex]""" + table + r"""\\
+\hline \\[-4ex]
+\end{tabularx}
+\end{minipage}
+\end{center}
+\caption{"""+caption+r"""}
+\label{tab:"""+label+r"""}
+\end{table}
+"""
+
+    return table
 
 def print_freq_comps_info(tag, log_getter, key, **opts):
     print("="*20, tag, "="*20)
