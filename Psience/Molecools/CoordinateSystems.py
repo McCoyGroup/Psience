@@ -1284,12 +1284,12 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
         return self.converter_options['axes']
 
     def get_direct_converter(self, target):
-        if target.is_compatible(ZMatrixCoordinates):
+        if target.name == 'ZMatrix':
             zmat = MolecularZMatrixToRegularZMatrixConverter(self.coords.system)
             return zmat
     def get_inverse_converter(self, target):
-        if target.is_compatible(ZMatrixCoordinates):
-            carts = RegularZMatrixToMolecularZMatrixConverter(self.coords.system)
+        if target.name == 'ZMatrix':
+            zmat = RegularZMatrixToMolecularZMatrixConverter(self.coords.system)
             return zmat
 
     def pre_convert(self, system):
