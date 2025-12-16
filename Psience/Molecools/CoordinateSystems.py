@@ -54,6 +54,15 @@ class MolecularEmbedding:
         self._internal_fd_opts={} if internal_fd_opts is None else internal_fd_opts
         self._cart_fd_opts={} if cartesian_fd_opts is None else cartesian_fd_opts
 
+    def get_direct_converter(self, target):
+        if target.is_compatible(CartesianCoordinates3D):
+            carts = MolecularCartesianToRegularCartesianConverter(self.coords.system)
+            return carts
+    def get_inverse_converter(self, target):
+        if target.is_compatible(CartesianCoordinates3D):
+            carts = RegularCartesianToMolecularCartesianConverter(self.coords.system)
+            return carts
+
     @property
     def coords(self):
         return self._coords
@@ -1273,6 +1282,15 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
     @property
     def axes(self):
         return self.converter_options['axes']
+
+    def get_direct_converter(self, target):
+        if target.is_compatible(ZMatrixCoordinates):
+            zmat = MolecularZMatrixToRegularZMatrixConverter(self.coords.system)
+            return zmat
+    def get_inverse_converter(self, target):
+        if target.is_compatible(ZMatrixCoordinates):
+            carts = RegularZMatrixToMolecularZMatrixConverter(self.coords.system)
+            return zmat
 
     def pre_convert(self, system):
         # self.converter_options['molecule'] = self.molecule

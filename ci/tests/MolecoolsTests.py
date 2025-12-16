@@ -3452,3 +3452,12 @@ class MolecoolsTests(TestCase):
         ts_int = ts.modify(internals=zm)
         # ts_int.animate_coordinate(0)
         # pprint.pprint(ts_mod.get_bond_zmatrix())
+
+    @validationTest
+    def test_NeverEndingZMatrix(self):
+        # import McUtils.Coordinerds as coordops
+        # ts = Molecule.from_file(TestManager.test_data('ts_samp.xyz'))
+        # ts.get_bond_zmatrix(for_fragment=0)
+
+        react = Molecule.from_file(TestManager.test_data('test_react.xyz'), units='Angstroms')
+        react.get_bond_zmatrix()
