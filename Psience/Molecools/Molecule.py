@@ -555,8 +555,10 @@ class Molecule(AbstractMolecule):
                                  include_stretches=True,
                                  include_bends=True,
                                  include_dihedrals=True,
+                                 include_fragments=True,
                                  pruning=None,
-                                 fragment=None
+                                 fragment=None,
+                                 base_internals=None
                                  ):
         if fragment is not None:
             if nput.is_int(fragment):
@@ -565,14 +567,24 @@ class Molecule(AbstractMolecule):
                 include_stretches=include_stretches,
                 include_bends=include_bends,
                 include_dihedrals=include_dihedrals,
+                include_fragments=include_fragments,
+                base_internals=base_internals,
                 pruning=pruning
             )
             return coordops.permute_internals(base_ints, fragment)
         else:
             st, bo, di = coordops.get_stretch_coordinate_system(
-                [tuple(b[:2]) for b in self.bonds]
+                [tuple(b[:2]) for b in self.bonds],
+                include_bends=include_bends,
+                include_dihedrals=include_dihedrals
             )
             bits = []
+            if include_fragments:
+                frag_bits = coordops.get_fragment_coordinate_system(
+                    self.edge_graph,
+                    masses=self.masses
+                )
+                bits.append(frag_bits)
             if include_stretches:
                 bits.append(st)
             if include_bends:
@@ -4270,11 +4282,11 @@ class Molecule(AbstractMolecule):
             which=[which],
             coordinate_expansion=coordinate_expansion
         )
-        geoms = np.concatenate([geoms, np.flip(geoms, axis=0)], axis=0)
+        geoms = np.concatenate([geoms, np.flip(geoms, axis=0)[1:]], axis=0)
         if units is not None:
             geoms = geoms * UnitsData.convert("BohrRadius", units)
         return geoms
-    def animate_coordinate(self, which, extent=.5, steps=8, return_objects=False, strip_embedding=True,
+    def animate_coordinate(self, which, extent=.5, steps=3, return_objects=False, strip_embedding=True,
                            units="Angstroms",
                            backend=None,
                            mode=None,
@@ -4305,7 +4317,7 @@ class Molecule(AbstractMolecule):
     def animate_mode(self,
                      which,
                      extent=.5,
-                     steps=8,
+                     steps=3,
                      modes=None,
                      coordinate_expansion=None,
                      order=None,

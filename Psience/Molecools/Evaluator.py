@@ -411,7 +411,9 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         self.permutation = permutation
 
     def use_internal_coordinate_handlers(self):
-        return (self.use_internals and self.embedding.internals is not None)
+        return (self.use_internals
+                and self.embedding is not None
+                and self.embedding.internals is not None)
 
     def embed_coords(self, coords, embed_reembedded=True):
         coords = np.asanyarray(coords)
@@ -694,6 +696,9 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
             order = list(range(order+1))
         # TODO: we assume order sorted, handle when it's not
         expansion = []
+        ad = opts.pop('analytic_derivative_order', None)
+        if analytic_derivative_order is None:
+            analytic_derivative_order = ad
         if analytic_derivative_order is None:
             analytic_derivative_order = self.analytic_derivative_order
         if batched_orders is None:
@@ -752,6 +757,8 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         if fd_handler is None and self.use_internal_coordinate_handlers():
             fd_handler = self.internal_finite_difference_derivs
 
+        if analytic_derivative_order is None:
+            analytic_derivative_order = self.defaults.get('analytic_derivative_order')
         if analytic_derivative_order is None:
             analytic_derivative_order = self.analytic_derivative_order
 
@@ -864,8 +871,8 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
             dev.OptionsMethodDispatch,
             args=(cls.get_evaluators,),
             kwargs=dict(
-                default_method=cls.default_evaluator_type,
-                attributes_map=cls.get_evaluators_by_attributes()
+                # default_method=cls.default_evaluator_type,
+                attributes_map=cls.get_evaluators_by_attributes(),
             )
         )
         return cls._profile_dispatch
@@ -983,6 +990,7 @@ class EnergyEvaluator(PropertyEvaluator):
             'aimnet2': AIMNet2EnergyEvaluator,
             'mace': MACEEnergyEvaluator,
             'uma': UMAEnergyEvaluator,
+            'hipnn':HIPNNEnergyEvaluator,
             'ase': ASECalcEnergyEvaluator,
             'xtb': XTBEnergyEvaluator,
             'pyscf': PySCFEnergyEvaluator,
@@ -1886,49 +1894,152 @@ class UMAEnergyEvaluator(ASECalcEnergyEvaluator):
         return calc
 
 class HIPNNEnergyEvaluator(EnergyEvaluator):
-
-    def __init__(self, atoms, model_dir, module='HIPNN2', charge=0, multiplicity=None, quiet=True, **defaults):
+    property_key = 'energies'
+    gradient_key = 'Grad'
+    def __init__(self, atoms, model_dir,
+                 property_key=dev.default,
+                 gradient_key=dev.default,
+                 charge=0, multiplicity=None, quiet=True, **defaults):
         super().__init__(**defaults)
-        self.eval = self.setup_model(model_dir, module)
+        self.eval = self.setup_model(model_dir)
         self.atoms = atoms
         self.numbers = [AtomData[atom, "Number"] for atom in atoms]
         self.charge = charge
         self.multiplicity = multiplicity
         self.quiet = quiet
+        if dev.is_default(property_key, allow_None=False):
+            property_key = self.property_key
+        self.property_key = property_key
+        if dev.is_default(gradient_key, allow_None=False):
+            gradient_key = self.gradient_key
+        self.gradient_key = gradient_key
 
     @classmethod
-    def from_mol(cls, mol, charge=None, multiplicity=None, **opts):
-        return cls(mol.atoms, embedding=mol.embedding, multiplicity=multiplicity, **opts)
+    def from_mol(cls, mol, *, model_dir, charge=None, multiplicity=None, **opts):
+        return cls(mol.atoms, model_dir=model_dir, embedding=mol.embedding, multiplicity=multiplicity, **opts)
 
-    def setup_model(cls, model_dir, device=None, **opts):
+    @staticmethod
+    def autodiff(expr, coord_list, pad_dim, create_graph=False, retain_graph=False):
+        import torch
+        # here forces have shape (N, 3) and coord has shape (N+1, 3)
+        # return hessian with shape (N, 3, N, 3)
+        shape = coord_list.shape + expr.shape[1:]
+        grads = []
+        # N = coord.shape[0] - 1
+        # for p in itertools.combinations(coord.shape, expr.ndim):
+        npad = len(pad_dim)
+        rav_shape = tuple(
+            (expr.shape[1+2*i]*expr.shape[2+2*i])
+            for i in range((expr.ndim - 1 - npad) // 2)
+        )
+        cache = {}
+        if len(rav_shape) > 0:
+            inds = np.array(np.unravel_index(np.arange(np.prod(expr.shape[1:-npad], dtype=int)), rav_shape)).T
+            shinds = np.sort(inds, axis=1)
+            for n,subexpr in enumerate(expr):
+                for i,_f in enumerate(subexpr.flatten()):
+                    ravioli = tuple(inds[i])
+                    key = tuple(shinds[i])
+                    if ravioli == key:
+                        g = torch.autograd.grad(_f,
+                                                coord_list,
+                                                # allow_unused=True,
+                                                retain_graph=True,
+                                                create_graph=create_graph)
+                        g = g[0][n]
+                        grads.append(g)
+                        cache[key] = g
+                    else:
+                        grads.append(cache[key])
+        else:
+            for n,_f in enumerate(expr):
+                g = torch.autograd.grad(_f,
+                                        coord_list,
+                                        # allow_unused=True,
+                                        retain_graph=True,
+                                        create_graph=create_graph)[0]
+                grads.append(g[n])
+
+        deriv = torch.stack(grads).view(shape)
+        shape_tuple = (slice(None),) #+ (slice(None, None), slice(None)) * (len(expr.shape - 1) // 2)
+        return deriv, shape_tuple
+
+    def process_derivatives(self, expr, coords, order):
+        terms = [(expr, slice(None,))]
+        pad_dim = expr.shape[1:]
+        for o in range(1, order + 1):
+            terms.append(
+                self.autodiff(terms[-1][0],
+                              coords,
+                              pad_dim,
+                              # create_graph=(o==1),
+                              create_graph=(o < order),
+                              retain_graph=(o < order)
+                              )
+            )
+        return [
+            deriv.__getitem__(subshape)
+            for deriv, subshape in terms
+        ]
+
+    def setup_model(cls, model_dir, *, device=None, **opts):
         import torch
         import hippynn.experiment.serialization
         cur_dir = os.getcwd()
 
-        try:
-            os.chdir(model_dir)
-            with torch.no_grad():
-                model = hippynn.experiment.serialization.load_model_from_cwd()
-        finally:
-            os.chdir(cur_dir)
         if device is None:
             if torch.cuda.is_available():
                 device = "cuda"
             else:
                 device = "cpu"
-            model = model.to(device)
+        try:
+            os.chdir(model_dir)
+            with torch.no_grad():
+                model = hippynn.experiment.serialization.load_model_from_cwd(model_device=device)
+        finally:
+            os.chdir(cur_dir)
 
         predictor = hippynn.graphs.Predictor.from_graph(model)
         return predictor
 
+    def print_model_properties(self):
+        self.eval.graph.print_structure()
+
     property_units = 'Kilocalories/Mole'
     batched_orders = True
     analytic_derivative_order = 1
-    def process_results(self, outputs, forces=False, **etc):
-        if forces:
-            return [outputs['energies'], outputs['Grad']]
-        else:
-            return outputs['energies']
+    def process_results(self, base_shape, coords, outputs, order,
+                        property_key=None,
+                        gradient_key=None,
+                        property_shape=(),
+                        **etc):
+        if property_key is None:
+            property_key = self.property_key
+        if gradient_key is None:
+            gradient_key = self.gradient_key
+        property_shape = tuple(property_shape)
+        terms = [outputs[property_key]]
+        if order > 0:
+            if gradient_key is not None:
+                g = outputs[gradient_key]
+                terms.append(g)
+                order = order - 1
+            if order > 0:
+                terms.extend(
+                    self.process_derivatives(
+                        terms[-1],
+                        coords,
+                        order
+                    )[1:]
+                )
+
+        n = coords.shape[-1] * coords.shape[-2]
+        return [
+            e.detach().numpy().reshape(base_shape + (n,)*i + property_shape)
+            for i,e in enumerate(terms)
+        ]
+
+        g.reshape(base_shape + (g.shape[-(1 + nshape)] * g.shape[-(2 + nshape)],) + property_shape)
         # # total molecular energy [kcal/mol]
         # outputs['Grad']  # forces [kcal/mol/Å]
         # outputs['dipole']  # dipole moment [e∙Å]
@@ -1942,13 +2053,12 @@ class HIPNNEnergyEvaluator(EnergyEvaluator):
         #     (len(coords), len(self.numbers))
         # )
 
-        forces = order > 0
-
+        torch_coords = torch.tensor(coords, dtype=torch.float32, device=self.eval.model_device)
         arg_dict = {
-            'coordinates': torch.tensor(coords.reshape(-1, 3), dtype=torch.float32, device=self.eval.device),
+            'coordinates': torch_coords,
             'species': torch.tensor(
-                np.repeat(np.array([self.numbers]), coords.shape[0], axis=0).flatten(),
-                dtype=torch.int64, device=self.eval.device
+                np.repeat(np.array([self.numbers]), coords.shape[0], axis=0),
+                dtype=torch.int64, device=self.eval.model_device
             )
             # 'charge': torch.tensor(self.charge, dtype=torch.float32, device=self.eval.device),
             # 'cell': None,
@@ -1968,20 +2078,59 @@ class HIPNNEnergyEvaluator(EnergyEvaluator):
         #                                   stress=False,
         #                                   hessian=hessian
         #                                   )
-        with torch.jit.optimized_execution(False):
-            data = self.eval(**arg_dict)
 
-        data = self.process_results(
-            data,
-            forces=forces,
-            # hessian=hessian,
-            # **opts
-        )
+        req_grad = self.eval.requires_grad
+        prop_key = self.property_key
+        grad_key = self.gradient_key
+        outputs = None
+        output_names = None
+        output_dbnames = None
+        try:
+            self.eval.requires_grad = order > 0
+            if prop_key is not None and prop_key not in self.eval.out_names:
+                prop = self.eval.graph.node_from_name(prop_key)
+                prop.bname = prop.db_name
+                if outputs is None:
+                    outputs = list(self.eval.outputs)
+                    output_names = list(self.eval.out_names)
+                    output_dbnames = list(self.eval.out_dbnames)
+                self.eval.add_output(prop)
+            if grad_key is not None and grad_key not in self.eval.out_names:
+                prop = self.eval.graph.node_from_name(grad_key)
+                prop.bname = prop.db_name
+                if outputs is None:
+                    outputs = list(self.eval.outputs)
+                    output_names = list(self.eval.out_names)
+                    output_dbnames = list(self.eval.out_dbnames)
+                self.eval.add_output(grad_key)
 
-        return base_shape, coords, data
+            if self.quiet:
+                with self.quiet_mode():
+                    with torch.jit.optimized_execution(False):
+                        data = self.eval(**arg_dict, **opts)
+            else:
+                with torch.jit.optimized_execution(False):
+                    data = self.eval(**arg_dict, **opts)
+        finally:
+            self.eval.requires_grad = req_grad
+            if outputs is not None:
+                self.eval.outputs[:] = outputs
+                self.eval.out_names[:] = output_names
+                self.eval.out_dbnames[:] = output_dbnames
+
+        return base_shape, torch_coords, data
     def evaluate_term(self, coords, order, **opts):
         if coords.ndim == 2 or order < 2:
             base_shape, coords, data = self.prep_eval(coords, order, **opts)
+            data = self.process_results(
+                base_shape,
+                coords,
+                data,
+                order,
+                property_shape=()
+                # hessian=hessian,
+                # **opts
+            )
             return data
         else:
             base_shape = coords.shape[:-2]
@@ -2458,8 +2607,9 @@ class DipoleEvaluator(PropertyEvaluator):
     @classmethod
     def get_evaluators(cls):
         return {
-                'expansion':DipoleExpansionEnergyEvaluator
-            }
+            'expansion': DipoleExpansionDipoleEvaluator,
+            'hipnn': HIPNNDipoleEvaluator
+        }
     @classmethod
     def get_default_function_evaluator_type(cls):
         return DipoleFunctionDipoleEvaluator
@@ -2545,7 +2695,7 @@ class DipoleFunctionDipoleEvaluator(DipoleEvaluator):
     def bind_default(cls, potential):
         cls.default_property_function = potential
 
-class DipoleExpansionEnergyEvaluator(DipoleFunctionDipoleEvaluator):
+class DipoleExpansionDipoleEvaluator(DipoleFunctionDipoleEvaluator):
 
     def __init__(self,
                  expansion,
@@ -2646,6 +2796,34 @@ class DipoleExpansionEnergyEvaluator(DipoleFunctionDipoleEvaluator):
                                                )
         return expansion, ignored
 
+class HIPNNDipoleEvaluator(DipoleEvaluator):
+
+    def __init__(self, atoms, model_dir, charge=0, multiplicity=None, quiet=True, **defaults):
+        super().__init__(**defaults)
+        self.base = HIPNNEnergyEvaluator(atoms, model_dir, charge=charge, multiplicity=multiplicity, quiet=quiet,
+                                         property_key='dipole')
+        self.base.gradient_key = None
+
+    @classmethod
+    def from_mol(cls, mol, *, model_dir, charge=None, multiplicity=None, **opts):
+        return cls(mol.atoms, model_dir, multiplicity=multiplicity, **opts)
+
+    property_units = ("ElementaryCharge", "Angstroms")
+    distance_units = 'Angstroms'
+    batched_orders = True
+    analytic_derivative_order = 0
+    def evaluate_term(self, coords, order, **opts):
+        base_shape, coords, data = self.base.prep_eval(coords, order, **opts)
+
+        expansions = self.base.process_results(
+            base_shape, data,
+            forces=order > 0,
+            property_key='dipole',
+            gradient_key='dipole_grad',
+            property_shape=(coords.shape[-1],)
+        )
+
+        return expansions
 
 class ChargeEvaluator(PropertyEvaluator):
     target_property_units = "ElementaryCharge"
@@ -2653,9 +2831,9 @@ class ChargeEvaluator(PropertyEvaluator):
     @classmethod
     def get_evaluators(cls):
         return {
-                'rdkit':RDKitChargeEvaluator,
-                'aimnet2':AIMNet2ChargeEvaluator
-            }
+            'rdkit': RDKitChargeEvaluator,
+            'aimnet2': AIMNet2ChargeEvaluator
+        }
     @classmethod
     def get_default_function_evaluator_type(cls):
         return ChargeFunctionChargeEvaluator

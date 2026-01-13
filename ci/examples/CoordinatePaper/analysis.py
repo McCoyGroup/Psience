@@ -546,7 +546,7 @@ def resolve_freq_type_label(energy_type, anharmonic_only):
             ("$\\Delta$" + freq_label)
         )
     return freq_label
-oh_stretch_pos = [10]
+oh_stretch_pos = 10
 ch_stretch_pos = [9, 8, 7]
 ch_bend_pos = [6, 5, 4]
 misc_pos = [3, 2, 1, 0]
@@ -566,9 +566,9 @@ def resolve_subspace_label(mode_selection):
         if (oh and all_ch):
             label.append("Stretch")
         elif oh:
-            label.append("OH Stretch")
+            label.append("OH")
         elif all_ch:
-            label.append("CH Stretch")
+            label.append("CH")
         if all_bend:
             label.append("Bend")
         if any_misc:
@@ -882,6 +882,17 @@ default_name_remapping = {
     e.value:e.name
     for e in LevelsOfTheory
 }
+tex_remapping = {
+    "b3lyp":"B3LYP/cc-PVTZ",
+    "wb97":"$\\omega$B97X-D3/cc-pVTZ",
+    "aimnet":"AIMNet2/$\\omega$B97M-D3",
+    "mace":"MACE-oMOL/$\\omega$B97M"
+}
+def resolve_angle_label(name_mapping, h):
+    if nput.is_int(h):
+        return str(h) + "$^\circ$"
+    else:
+        return tex_remapping.get(h, default_name_remapping.get(h))
 def tree_freq_comp_tables(states, lot_tree,
                           use_tex=False,
                           energy_type='deperturbed',
@@ -926,7 +937,11 @@ def tree_freq_comp_tables(states, lot_tree,
                                         header_function=lambda h, w: (
                                                 name_remapping.get(h, h)
                                                     if not use_tex else
-                                                ("\multicolumn{" + str(2*w-1) + "}{c}{" + name_remapping.get(h, str(h)) + "}")
+                                                (
+                                                        "\multicolumn{" + str(2*w-1) + "}{c}{" +
+                                                            resolve_angle_label(name_remapping, h) +
+                                                        "}"
+                                                )
                                             )
                                         )
     if use_tex:

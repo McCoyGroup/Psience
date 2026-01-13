@@ -312,6 +312,7 @@ class NormalModes(MixtureModes):
                         mol.energy_evaluator is not None
                 ):
                     potential_derivatives = mol.calculate_energy(evaluator=energy_evaluator, order=2)[1:]
+                    mol.potential_derivatives = potential_derivatives
                 else:
                     modes = mol.normal_modes.get_modes(quiet=True)
                     if modes is not None:
