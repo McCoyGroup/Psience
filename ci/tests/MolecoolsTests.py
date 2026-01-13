@@ -3461,3 +3461,25 @@ class MolecoolsTests(TestCase):
 
         react = Molecule.from_file(TestManager.test_data('test_react.xyz'), units='Angstroms')
         react.get_bond_zmatrix()
+
+    @validationTest
+    def test_TRIC(self):
+        # import McUtils.Coordinerds as coordops
+        # ts = Molecule.from_file(TestManager.test_data('ts_samp.xyz'))
+        # ts.get_bond_zmatrix(for_fragment=0)
+
+        react = Molecule.from_file(TestManager.test_data('test_react.xyz'), units='Angstroms')
+        tr_react = react.modify(internals={
+            'specs':[
+                {'transrot':(0, 1, 2, 3)},
+                {'orientation': ((0, 1, 4), (2, 3, 5))}
+            ]
+        })
+        uuuh = tr_react.get_internals_by_cartesians(1)
+        tr_react.get_cartesians_by_internals(1)
+        tr_react.animate_coordinate(0, backend='x3d', highlight_atoms=[0, 1, 2, 3])
+
+    @debugTest
+    def test_NewAnim(self):
+        ohh = Molecule.from_file(TestManager.test_data('water_freq.fchk'))
+        ohh.animate_mode(0, backend='x3d')
