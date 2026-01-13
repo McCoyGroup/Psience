@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-5188e8" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-5188e8"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-70b808" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-70b808"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-5188e8" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-70b808" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -169,12 +169,14 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [RDKitInputFormats](#RDKitInputFormats)
 - [BreakBondZMat](#BreakBondZMat)
 - [NeverEndingZMatrix](#NeverEndingZMatrix)
+- [TRIC](#TRIC)
+- [NewAnim](#NewAnim)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-19ed39" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-19ed39"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-322bbe" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-322bbe"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-19ed39" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-322bbe" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3503,6 +3505,32 @@ class MolecoolsTests(TestCase):
 
         react = Molecule.from_file(TestManager.test_data('test_react.xyz'), units='Angstroms')
         react.get_bond_zmatrix()
+```
+
+#### <a name="TRIC">TRIC</a>
+```python
+    def test_TRIC(self):
+        # import McUtils.Coordinerds as coordops
+        # ts = Molecule.from_file(TestManager.test_data('ts_samp.xyz'))
+        # ts.get_bond_zmatrix(for_fragment=0)
+
+        react = Molecule.from_file(TestManager.test_data('test_react.xyz'), units='Angstroms')
+        tr_react = react.modify(internals={
+            'specs':[
+                {'transrot':(0, 1, 2, 3)},
+                {'orientation': ((0, 1, 4), (2, 3, 5))}
+            ]
+        })
+        uuuh = tr_react.get_internals_by_cartesians(1)
+        tr_react.get_cartesians_by_internals(1)
+        tr_react.animate_coordinate(0, backend='x3d', highlight_atoms=[0, 1, 2, 3])
+```
+
+#### <a name="NewAnim">NewAnim</a>
+```python
+    def test_NewAnim(self):
+        ohh = Molecule.from_file(TestManager.test_data('water_freq.fchk'))
+        ohh.animate_mode(0, backend='x3d')
 ```
 
  </div>
