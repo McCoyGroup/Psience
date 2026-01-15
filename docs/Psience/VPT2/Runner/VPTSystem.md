@@ -108,9 +108,9 @@ from_harmonic_scan(cls, scan_array):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-2c9642" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-2c9642"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Details-3eab87" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-3eab87"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Details-2c9642" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Details-3eab87" markdown="1">
  When using functions of internal (Z-matrix/polyspherical) coordinates, a sample form of the conversion function is
 ```python
 def conv(r, t, f, **kwargs):

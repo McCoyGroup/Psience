@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-1a2df2" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-1a2df2"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-a35d5a" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-a35d5a"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-1a2df2" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-a35d5a" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -171,12 +171,13 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [NeverEndingZMatrix](#NeverEndingZMatrix)
 - [TRIC](#TRIC)
 - [NewAnim](#NewAnim)
+- [RDKitIssues](#RDKitIssues)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-3de66b" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-3de66b"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-0ddbdc" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-0ddbdc"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-3de66b" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-0ddbdc" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3531,6 +3532,14 @@ class MolecoolsTests(TestCase):
     def test_NewAnim(self):
         ohh = Molecule.from_file(TestManager.test_data('water_freq.fchk'))
         ohh.animate_mode(0, backend='x3d')
+```
+
+#### <a name="RDKitIssues">RDKitIssues</a>
+```python
+    def test_RDKitIssues(self):
+        from Psience.Molecools import Molecule
+
+        Molecule.from_string('COc1cc([OH]C2([N+](c3c(C2(C)C)cc(OC)cc3)CCCOS([O-])=O)C=C4)c4cc1', 'smi')
 ```
 
  </div>
