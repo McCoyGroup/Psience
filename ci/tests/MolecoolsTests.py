@@ -3479,7 +3479,13 @@ class MolecoolsTests(TestCase):
         tr_react.get_cartesians_by_internals(1)
         tr_react.animate_coordinate(0, backend='x3d', highlight_atoms=[0, 1, 2, 3])
 
-    @debugTest
+    @validationTest
     def test_NewAnim(self):
         ohh = Molecule.from_file(TestManager.test_data('water_freq.fchk'))
         ohh.animate_mode(0, backend='x3d')
+
+    @debugTest
+    def test_RDKitIssues(self):
+        from Psience.Molecools import Molecule
+
+        Molecule.from_string('COc1cc([OH]C2([N+](c3c(C2(C)C)cc(OC)cc3)CCCOS([O-])=O)C=C4)c4cc1', 'smi')
