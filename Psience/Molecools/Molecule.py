@@ -3459,6 +3459,7 @@ class Molecule(AbstractMolecule):
             fmt, subopts = cls._infer_spec_format(spec, **opts)
         else:
             subopts = {}
+        opts = collections.ChainMap(opts, subopts)
         if fmt == 'rdmol':
             return cls.from_rdmol(spec, **opts)
         elif fmt == 'file':
@@ -3467,6 +3468,14 @@ class Molecule(AbstractMolecule):
             return cls.from_string(spec, **opts)
         elif fmt == 'dict':
             return cls(**dict(spec, **opts))
+        elif isinstance(fmt, str):
+            if isinstance(spec, str):
+                if os.path.isfile(spec):
+                    return cls.from_file(spec, fmt, **opts)
+                else:
+                    return cls.from_string(spec, fmt, **opts)
+            else:
+                raise NotImplementedError(f"constructing a mol from {spec} with fmt {fmt} not supported")
         else:
             atoms, coords = fmt
             if isinstance(coords, tuple) and len(coords) == 2:
