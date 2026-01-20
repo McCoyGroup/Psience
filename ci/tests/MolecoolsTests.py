@@ -3484,7 +3484,7 @@ class MolecoolsTests(TestCase):
         ohh = Molecule.from_file(TestManager.test_data('water_freq.fchk'))
         ohh.animate_mode(0, backend='x3d')
 
-    @debugTest
+    @validationTest
     def test_RDKitIssues(self):
         from Psience.Molecools import Molecule
 

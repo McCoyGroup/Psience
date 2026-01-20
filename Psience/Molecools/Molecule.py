@@ -3514,6 +3514,8 @@ class Molecule(AbstractMolecule):
              atom_radius_scaling=.25,
              atom_style=None,
              atom_radii=None,
+             atom_text=None,
+             display_atom_numbers=False,
              radius_type=None,
              bond_style=None,
              capped_bonds=False,
@@ -3702,7 +3704,6 @@ class Molecule(AbstractMolecule):
         if draw_coords_style is None:
             draw_coords_style = self.draw_coords_style
 
-
         geometries = geometries.convert(CartesianCoordinates3D)
         draw_bonds = bonds
 
@@ -3716,10 +3717,15 @@ class Molecule(AbstractMolecule):
             atom_radii = [atom_radii.get(a["ElementSymbol"]) for a in self._ats]
         atom_radii = [
             self._get_atomic_radius(at, radius_type)
-                if c is None else c for c, at in
+                if c is None else
+            c
+            for c, at in
             zip(atom_radii, self._ats)
         ]
-        radii = [ atom_radius_scaling * r for r in atom_radii ]
+        if nput.is_numeric(atom_radius_scaling):
+            atom_radius_scaling = [atom_radius_scaling] * len(atom_radii)
+        radii = [ s * r for s, r in zip(atom_radius_scaling, atom_radii) ]
+
 
         bonds = [None] * len(geometries)
         atoms = [None] * len(geometries)
@@ -3728,6 +3734,7 @@ class Molecule(AbstractMolecule):
         if vector_style is None:
             vector_style = {}
         vector_style = dict(self.vector_style, **vector_style)
+
         if atom_style is None or atom_style is True:
             atom_style = {}
         elif atom_style is False:
@@ -3752,6 +3759,14 @@ class Molecule(AbstractMolecule):
                 _atom_style[k] = dict(base_atom_style, **v)
                 colors[k] = v.get('color', colors[k])
             atom_style = _atom_style
+
+        if display_atom_numbers:
+            if display_atom_numbers is True:
+                display_atom_numbers = list(range(len(self._ats)))
+            display_atom_numbers = set(display_atom_numbers)
+            atom_text = [{"text":i} if i in display_atom_numbers else None for i in range(len(self._ats))]
+        if atom_text is None:
+            atom_text = [None] * len(self._ats)
 
         if highlight_styles is None:
             highlight_styles = self.highlight_styles
@@ -4251,6 +4266,35 @@ class Molecule(AbstractMolecule):
                                     arrows[i].append(plops[0])
                                 else:
                                     arrows[i].append(plops)
+
+            if atom_text is not None:
+                if arrows[i] is None:
+                    arrows[i] = []
+
+                for a,r,t in zip(geom, radii, atom_text):
+                    if t is None: continue
+
+                    if not isinstance(t, dict):
+                        t = {"text":t}
+                    t = t.copy()
+                    text = t.pop('text')
+                    if nput.is_numeric(text):
+                        text = str(text)
+                    pos = t.pop('pos', a + t.pop('offset', np.array([0, 0, r])))
+                    fs = t.pop('font_style', {})
+                    fs['size'] = fs.get('size', .5)
+                    t['font_style'] = fs
+                    t['billboard'] = t.get('billboard', True)
+                    t['color'] = t.get('color', 'black')
+                    lab = plt.Text(text, pos, **t)
+                    if objects:
+                        arrows[i].append(lab)
+                    else:
+                        plops = lab.plot(figure)
+                        if isinstance(plops, tuple):
+                            arrows[i].append(plops[0])
+                        else:
+                            arrows[i].append(plops)
         if animate:
             if animation_options is None: animation_options = {}
             figure = figure.animate_frames(

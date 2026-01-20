@@ -1109,7 +1109,7 @@ default_interp_bond_plot_styles = dict(
     plot_range=[[0, 1], [.96, 2.45]],
     legend_style={
         'frameon':False,
-        'fontsize': 11
+        'fontsize': 13
     },
     aspect_ratio=1 / 1.61,
     image_size=600,
