@@ -167,6 +167,19 @@ class DiscreteSpectrum(BaseSpectrum):
             **meta
         )
 
+    @classmethod
+    def from_raman_moments(cls, frequencies, transition_polarizabilities, pump_frequency=0, **meta):
+        #TODO: handle units
+        diff_freqs = (frequencies + pump_frequency)**4
+        transition_strengths = np.sum(np.sum(transition_polarizabilities**2, axis=-1), axis=-1)
+        units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
+        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        return cls(
+            frequencies * h2w,
+            units * diff_freqs * transition_strengths,
+            **meta
+        )
+
     def normalize(self, which=None):
         return type(self)(
             self.frequencies,

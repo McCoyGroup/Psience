@@ -896,6 +896,8 @@ class ModeEmbedding:
 
         self.embedding = embedding
         self.masses = masses
+        if hasattr(modes, 'get_modes'):
+            modes = modes.get_modes(quiet=True, allow_compute=False)
         if hasattr(modes, 'modes'):
             modes = modes.modes
         if hasattr(modes, 'basis') and hasattr(modes.basis, 'to_new_modes'):

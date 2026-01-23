@@ -1426,6 +1426,59 @@ class MolecoolsTests(TestCase):
 
         expansion = methanol.calculate_energy(order=3)
 
+    @debugTest
+    def test_Raman(self):
+        water = Molecule.from_file(TestManager.test_data("water_freq.fchk"))
+        print(water.get_harmonic_raman_spectrum())
+
+    @validationTest
+    def test_AIMNetDipoles(self):
+        water = Molecule(
+            ["O", "H", "H"],
+            [[-3.09880964e-09, 1.23091261e-01, 0.00000000e+00],
+             [-1.43810501e+00, -9.76773835e-01, 0.00000000e+00],
+             [1.43810505e+00, -9.76773797e-01, 0.00000000e+00]],
+            energy_evaluator='aimnet2',
+            charge_evaluator='aimnet2',
+            dipole_evaluator='aimnet2',
+            polarizability_evaluator='aimnet2'
+        )
+
+        print()
+        print(water.calculate_dipole())
+
+        pol = water.calculate_dipole_polarizability(order=1)
+        for p in pol:
+            print([pp.shape for pp in p])
+
+        print(pol[1][0])
+        print(pol[1][1].shape)
+
+        return
+
+        water2 = water.modify(dipole_evaluator='expansion')
+        water2.get_normal_modes()
+
+        print(water.get_cartesian_dipole_derivatives(include_constant_term=True))
+        print(water2.get_cartesian_dipole_derivatives(include_constant_term=True))
+
+        return
+
+        methanol = Molecule(
+            ['C', 'O', 'H', 'H', 'H', 'H'],
+            [[-0.71174571, 0.0161939, 0.02050266],
+             [1.71884591, -1.07310118, -0.2778059],
+             [-1.30426891, 0.02589585, 1.99632677],
+             [-0.77962613, 1.94036941, -0.7197672],
+             [-2.02413643, -1.14525287, -1.05166036],
+             [2.91548382, -0.08353621, 0.65084457]],
+            energy_evaluator='aimnet2',
+            dipole_evaluator='aimnet2'
+        )
+        # expansion = methanol.calculate_energy(order=2)
+        expansion = methanol.calculate_dipole(order=1)
+        print([e.shape for e in expansion])
+
     @validationTest
     def test_RPNMVPT(self):
         methanol = Molecule.from_file(TestManager.test_data('methanol_vpt_3.fchk'))
