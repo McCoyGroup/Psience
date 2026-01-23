@@ -813,7 +813,7 @@ class Molecule(AbstractMolecule):
                 opts = dict(evaluator=evaluator, order=order)
                 if dev.str_is(evaluator, 'expansion'):
                     opts['use_modes'] = False
-                dipole_derivatives = self.calculate_dipole(order=order, **opts)
+                dipole_derivatives = self.calculate_dipole(**opts)
                 if (
                         isinstance(evaluator, str)
                         and isinstance(self.dipole_evaluator, str)
