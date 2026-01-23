@@ -431,7 +431,7 @@ class ScalarExpansion:
             derivs = tuple(derivs) + (0,) * (order - len(derivs))
 
         derivs = self.canonicalize_derivs(derivs, shared=shared)
-        is_mixed, num_base = self.check_mixed_expansion(derivs)
+        is_mixed, num_base = self.check_mixed_expansion(derivs, shared=shared)
 
         zero_derivs = 0
         for d in derivs:
@@ -440,16 +440,20 @@ class ScalarExpansion:
             else:
                 break
 
-        QX = self.embedding.get_cartesians_by_internals(order=order - zero_derivs)
-        real_ders = [d for d in derivs if not nput.is_zero(d)]
-        if self.embedding.modes is not None and (
-                real_ders[0].shape[0] == self.embedding.modes.modes_by_coords.shape[1]
-        ):
-            XQ = self.embedding.modes.modes_by_coords
-            QX = nput.tensor_reexpand(QX, [XQ], order - zero_derivs, axes=[-1, 0])
+        if self.embedding.embedding.internals is None and self.embedding.modes is None:
+            coords = self.embedding.embedding.coords
+            QX = [nput.identity_tensors(coords.shape[:-2], coords.shape[-2]*coords.shape[-1])]
         else:
-            YX = self.embedding.mw_inverse()
-            QX = [np.tensordot(q, YX, axes=[-1, 0]) for q in QX]
+            QX = self.embedding.get_cartesians_by_internals(order=order - zero_derivs)
+            real_ders = [d for d in derivs if not nput.is_zero(d)]
+            if self.embedding.modes is not None and (
+                    real_ders[0].shape[0] == self.embedding.modes.modes_by_coords.shape[1]
+            ):
+                XQ = self.embedding.modes.modes_by_coords
+                QX = nput.tensor_reexpand(QX, [XQ], order - zero_derivs, axes=[-1, 0])
+            else:
+                YX = self.embedding.mw_inverse()
+                QX = [np.tensordot(q, YX, axes=[-1, 0]) for q in QX]
 
 
         if is_mixed:
@@ -521,7 +525,7 @@ class DipoleExpansion(ScalarExpansion):
             mixed_transformation=mixed_transformation,
             mixed_derivative_handling_mode=mixed_derivative_handling_mode,
             modes=modes,
-            shared=shared
+            shared=1+shared
         )
         expansion = [ref] + terms
         new_exp = [

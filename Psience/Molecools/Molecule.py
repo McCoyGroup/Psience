@@ -31,7 +31,7 @@ from .MoleculeInterface import *
 from .CoordinateSystems import MolecularEmbedding, ModeEmbedding
 from .Evaluator import (
     MolecularEvaluator, EnergyEvaluator, DipoleEvaluator, ChargeEvaluator,
-    ReducedDimensionalPotentialHandler
+    ReducedDimensionalPotentialHandler, DipolePolarizabilityEvaluator
 )
 from .Hamiltonian import MolecularHamiltonian
 from .Properties import *
@@ -74,6 +74,8 @@ class Molecule(AbstractMolecule):
                  energy_evaluator=None,
                  dipole_evaluator=None,
                  charge_evaluator=None,
+                 polarizability_evaluator=None,
+                 polarizability_derivatives=None,
                  checkpoint_file=None,
                  **metadata
                  ):
@@ -129,7 +131,8 @@ class Molecule(AbstractMolecule):
         self._rdmol = rdmol
         self._dips = DipoleSurfaceManager(self,
                                           surface=dipole_surface,
-                                          derivatives=dipole_derivatives
+                                          derivatives=dipole_derivatives,
+                                          polarizability_derivatives=polarizability_derivatives
                                           )
         self._pes = PotentialSurfaceManager(self,
                                             surface=potential_surface,
@@ -154,6 +157,7 @@ class Molecule(AbstractMolecule):
         self.energy_evaluator = energy_evaluator
         self.dipole_evaluator = dipole_evaluator
         self.charge_evaluator = charge_evaluator
+        self.polarizability_evaluator = polarizability_evaluator
 
         if checkpoint_file is True:
             checkpoint_file = self.molecule_hash() # TODO: define this based on DB work
@@ -171,6 +175,7 @@ class Molecule(AbstractMolecule):
                energy_evaluator=dev.default,
                dipole_evaluator=dev.default,
                charge_evaluator=dev.default,
+               polarizability_evaluator=dev.default,
                display_mode=dev.default,
                charge=dev.default,
                spin=dev.default,
@@ -179,6 +184,7 @@ class Molecule(AbstractMolecule):
                potential_surface=dev.default,
                dipole_derivatives=dev.default,
                potential_derivatives=dev.default,
+               polarizability_derivatives=dev.default,
                meta=dev.default,
                source_file=dev.default
                ):
@@ -197,12 +203,13 @@ class Molecule(AbstractMolecule):
             energy_evaluator=self.energy_evaluator if dev.is_default(energy_evaluator, allow_None=False) else energy_evaluator,
             dipole_evaluator=self.dipole_evaluator if dev.is_default(dipole_evaluator, allow_None=False) else dipole_evaluator,
             charge_evaluator=self.charge_evaluator if dev.is_default(charge_evaluator, allow_None=False) else charge_evaluator,
+            polarizability_evaluator=self.polarizability_evaluator if dev.is_default(polarizability_evaluator, allow_None=False) else polarizability_evaluator,
             display_mode=self.display_mode if dev.is_default(display_mode) else display_mode,
             charge=self.charge if dev.is_default(charge) else charge,
             spin=self.spin if dev.is_default(spin) else spin,
             internals=self.internals if dev.is_default(internals, allow_None=False) else internals,
             normal_modes=self.normal_modes if dev.is_default(normal_modes, allow_None=False) else normal_modes,
-            energy=self.energy if (
+            energy=self._energy if (
                     dev.is_default(energy, allow_None=False)
                     and dev.is_default(coords)
                     and dev.is_default(energy_evaluator, allow_None=False)
@@ -218,6 +225,7 @@ class Molecule(AbstractMolecule):
                 dipole_surface
             ),
             dipole_derivatives=None if dev.is_default(dipole_derivatives) else dipole_derivatives,
+            polarizability_derivatives=None if dev.is_default(polarizability_derivatives) else polarizability_derivatives,
             potential_surface=self.potential_surface if (
                     dev.is_default(potential_surface, allow_None=False)
                     and dev.is_default(potential_derivatives, allow_None=False)
@@ -284,6 +292,7 @@ class Molecule(AbstractMolecule):
             'energy_evaluator':self.energy_evaluator,
             'dipole_evaluator':self.dipole_evaluator,
             'charge_evaluator':self.charge_evaluator,
+            'polarizability_evaluator':self.polarizability_evaluator,
             'potential_derivatives':self.potential_derivatives,
             'dipole_derivatives':self.dipole_derivatives,
             'charge':self.charge,
@@ -801,7 +810,10 @@ class Molecule(AbstractMolecule):
             if evaluator is None: evaluator = self.dipole_evaluator
             if evaluator is not None:
                 if order is None: order = 1
-                dipole_derivatives = self.calculate_dipole(evaluator=evaluator, order=order)
+                opts = dict(evaluator=evaluator, order=order)
+                if dev.str_is(evaluator, 'expansion'):
+                    opts['use_modes'] = False
+                dipole_derivatives = self.calculate_dipole(order=order, **opts)
                 if (
                         isinstance(evaluator, str)
                         and isinstance(self.dipole_evaluator, str)
@@ -824,6 +836,33 @@ class Molecule(AbstractMolecule):
             derivs,
             order
         )
+    def get_cartesian_polarizability_derivatives(self, order=None, evaluator=None, include_constant_term=False):
+        derivs = self.polarizability_derivatives
+        # if dipole_derivatives is None and self.energy_evaluator is not None:
+        #     if order is None: order = 1
+        #     dipole_derivatives = self.calculate_dipole(order=order)
+        if derivs is None or (order is not None and len(derivs) < order):
+            if evaluator is None: evaluator = self.polarizability_evaluator
+            if evaluator is not None:
+                if order is None: order = 1
+                opts = dict(evaluator=evaluator, order=order)
+                # if dev.str_is(evaluator, 'expansion'):
+                #     opts['use_modes'] = False
+                derivs = self.calculate_dipole_polarizability(**opts)[1]
+                if (
+                        isinstance(evaluator, str)
+                        and isinstance(self.polarizability_evaluator, str)
+                        and evaluator == self.polarizability_evaluator
+                ) or evaluator is self.polarizability_evaluator:
+                    self.polarizability_derivatives = derivs
+        elif len(derivs) > 1 and derivs[1].shape[0] < (3*len(self._ats)):
+            derivs = [derivs[0]] + nput.tensor_reexpand(
+                [self.get_normal_modes(use_internals=False, project_transrot=False).modes_by_coords],
+                derivs[1:],
+                order=len(derivs) - 1
+            )
+
+        return derivs
 
     def get_hamiltonian(self,
                         embedding=None,
@@ -966,6 +1005,10 @@ class Molecule(AbstractMolecule):
     def get_harmonic_spectrum(self, **opts):
         from ..Spectra import HarmonicSpectrum
         return HarmonicSpectrum.from_mol(self, **opts)
+
+    def get_harmonic_raman_spectrum(self, **opts):
+        from ..Spectra import HarmonicSpectrum
+        return HarmonicSpectrum.raman_from_mol(self, **opts)
     #endregion
 
     def __repr__(self):
@@ -1564,6 +1607,33 @@ class Molecule(AbstractMolecule):
         )
         if smol: expansion = expansion[0]
         return expansion
+
+    def get_polarizability_evaluator(self, evaluator=None, **opts):
+        if evaluator is None:
+            evaluator = self.polarizability_evaluator
+        eval_type, new_opts = DipolePolarizabilityEvaluator.resolve_evaluator(evaluator)
+        if eval_type is None:
+            raise ValueError(f"can't resolve polarizability evaluator type for {evaluator}")
+        if hasattr(eval_type, 'from_mol') and isinstance(eval_type, type):
+            return eval_type.from_mol(self, **dict(opts, **new_opts))
+        else:
+            return eval_type
+    def calculate_dipole_polarizability(self, evaluator=None, order=None, **opts):
+        evaluator = self.get_polarizability_evaluator(evaluator, **opts)
+        smol = order is None
+        if smol: order = 0
+        expansion = evaluator.evaluate(
+            self.coords * UnitsData.convert("BohrRadius", evaluator.distance_units),
+            order=order
+        )
+        if smol: expansion = [e[0] for e in expansion]
+        return expansion
+    @property
+    def polarizability_derivatives(self):
+        return self.dipole_surface.polarizability_derivatives
+    @polarizability_derivatives.setter
+    def polarizability_derivatives(self, derivs):
+        self.dipole_surface.polarizability_derivatives = derivs
 
     def get_reduced_potential_generator(self):
         return ReducedDimensionalPotentialHandler(self)

@@ -1650,7 +1650,7 @@ class OpenBabelMolManager(PropertyManager):
 
 class DipoleSurfaceManager(PropertyManager):
     name='DipoleSurface'
-    def __init__(self, mol, surface=None, derivatives=None):
+    def __init__(self, mol, surface=None, derivatives=None, polarizability_derivatives=None):
         super().__init__(mol)
         if hasattr(surface, '_surf'):
             self._surf = surface._surf
@@ -1664,6 +1664,7 @@ class DipoleSurfaceManager(PropertyManager):
             else:
                 self._derivs = derivatives
                 self._analytic_derivatives = None
+        self._pol_derivs = polarizability_derivatives
 
     @classmethod
     def from_data(cls, mol, data):
@@ -1706,6 +1707,18 @@ class DipoleSurfaceManager(PropertyManager):
         else:
             self._numerical_derivs = None
             self._derivs = derivatives
+
+    def get_pol_derivatives(self, quiet=False):
+        if self._pol_derivs is None:
+            derivatives = self.load_polarizability_derivatives(quiet=quiet)
+            self._pol_derivs = derivatives
+        return self._pol_derivs
+    @property
+    def polarizability_derivatives(self):
+        return self.get_pol_derivatives()
+    @polarizability_derivatives.setter
+    def polarizability_derivatives(self, derivatives):
+        self._pol_derivs = derivatives
 
     def load(self):
         if self._surf is not None:
@@ -1819,6 +1832,42 @@ class DipoleSurfaceManager(PropertyManager):
                 "analytic": [np.zeros(3), dips],
                 "numerical": None
             }
+        else:
+            if quiet: return None
+
+            raise NotImplementedError("{}: support for loading dipole derivatives from {} files not there yet".format(
+                type(self).__name__,
+                ext
+            ))
+
+    def load_polarizability_derivatives(self, file=None, quiet=False):
+        """
+        Loads dipole derivatives from a file (or from `source_file` if set)
+
+        :param file:
+        :type file:
+        :return:
+        :rtype:
+        """
+
+        if file is None:
+            file = self.mol.source_file
+        if file is None:
+            return None
+
+        path, ext = os.path.splitext(file)
+        ext = ext.lower()
+
+        if ext == ".fchk":
+            with GaussianFChkReader(file) as parser:
+                try:
+                    res = parser.parse(["Polarizability", "Polarizability num derivs"])
+                except GaussianFChkReaderException:
+                    res = parser.parse(["Polarizability"])
+                    derivs = [res["Polarizability"]]
+                else:
+                    derivs = [res["Polarizability"]] + list(res["Polarizability num derivs"])
+            return derivs
         else:
             if quiet: return None
 
@@ -2186,9 +2235,9 @@ class NormalModesManager(PropertyManager):
         super().set_molecule(mol)
         if self._modes is not None:
             self._modes = self._modes.change_mol(mol)
-    def get_modes(self, quiet=False):
+    def get_modes(self, quiet=False, allow_compute=True):
         if self._modes is None:
-            self._modes = self.get_normal_modes(quiet=quiet)
+            self._modes = self.get_normal_modes(quiet=quiet, compute_force_constants=allow_compute)
         return self._modes
     @property
     def modes(self):
@@ -2456,7 +2505,7 @@ class NormalModesManager(PropertyManager):
                 type(self).__name__,
                 mode
             ))
-    def get_normal_modes(self, quiet=False, **kwargs):
+    def get_normal_modes(self, quiet=False, compute_force_constants=True, **kwargs):
         """
         Loads normal modes from file or calculates
         from force constants
@@ -2472,17 +2521,26 @@ class NormalModesManager(PropertyManager):
             if modes is None: return None
             vibs = MolecularVibrations(self.mol, modes)
         else:
-            fcs = self.get_force_constants()
+            fcs = self.get_force_constants(
+                compute_force_constants=compute_force_constants,
+                quiet=quiet
+            )
+            if fcs is None: return None
             vibs = MolecularVibrations(self.mol,
                                        MolecularNormalModes.from_force_constants(self.mol, fcs, atoms=self.mol.atoms, **kwargs)
                                        )
 
+
         return vibs
 
-    def get_force_constants(self):
+    def get_force_constants(self,
+                            compute_force_constants=True,
+                            quiet=False
+                            ):
         derivs = self.mol.potential_derivatives
         if derivs is None:
-            if self.mol.energy_evaluator is None:
+            if self.mol.energy_evaluator is None or not compute_force_constants:
+                if quiet: return None
                 raise ValueError("can't compute force constants without derivatives or energy evaluator")
             self.mol.potential_derivatives = self.mol.calculate_energy(order=2)[1:]
             derivs = self.mol.potential_derivatives

@@ -5,6 +5,8 @@ import sys, os
 import numpy as np
 import warnings
 
+from ase.calculators.excitation_list import polarizability
+
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Zachary import TensorDerivativeConverter, FiniteDifferenceDerivative, CoordinateFunction
 import McUtils.Numputils as nput
@@ -561,11 +563,22 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         if analytic_derivative_order is None:
             analytic_derivative_order = self.analytic_derivative_order
 
-        def derivs(structs, center=flat_coords):
+        expansion_shape = [None]
+        def derivs(structs, center=flat_coords, expansion_shape=expansion_shape):
             if displacement_generator is not None:
                 structs = displacement_generator(structs, evaluator=self, center=center)
             reconst = structs.reshape(structs.shape[:-1] + coord_shape)
             ders = self.evaluate_term(reconst, analytic_derivative_order, **opts)
+
+            if self.multi_expansion_order > 0:
+                nrec = reconst.shape[:-2]
+                if expansion_shape[0] is not None:
+                    expansion_shape[0] = [d[-1].shape for d in ders]
+                ders = [
+                    np.concatenate([d[-1].reshape(d[-1].shape[:nrec] + (-1,))], axis=-1)
+                    for d in ders
+                ]
+
             if batched_orders:
                 return ders[-1]
             else:
@@ -590,6 +603,10 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
             t
             for t in tensors
         ]
+
+        if self.multi_expansion_order > 0:
+            #TODO: un-split expansions
+            ...
 
         return res
 
@@ -676,6 +693,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
     distance_units = 'Angstroms'
     batched_orders = False
     analytic_derivative_order = 1
+    multi_expansion_order = 0
     def evaluate_expansion(self,
                            coords,
                            order=0,
@@ -705,7 +723,13 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
             batched_orders = self.batched_orders
         if batched_orders:
             terms = self.evaluate_term(coords, min(analytic_derivative_order, order[-1]), **opts)
-            expansion.extend([terms[o] for o in order if o <= analytic_derivative_order])
+            if self.multi_expansion_order > 0:
+                expansion.extend(
+                    [t[o] for o in order if o <= analytic_derivative_order]
+                    for t in terms
+                )
+            else:
+                expansion.extend([terms[o] for o in order if o <= analytic_derivative_order])
         else:
             for i in order:
                 if i > analytic_derivative_order: break
@@ -734,10 +758,19 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         else:
             bohr_conv = UnitsData.convert(self.distance_units, "BohrRadius")
 
-        return [
-            e * eng_conv / (bohr_conv ** o)
-            for o,e in zip(order, expansion)
-        ]
+        if self.multi_expansion_order > 0:
+            expansion = [
+                [
+                    e * eng_conv / (bohr_conv ** o)
+                    for o, e in zip(order, subexpansion)
+                ] for subexpansion in expansion
+            ]
+        else:
+            expansion = [
+                e * eng_conv / (bohr_conv ** o)
+                for o, e in zip(order, expansion)
+            ]
+        return expansion
 
     def evaluate(self,
                  coords,
@@ -784,10 +817,13 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                     strip_embedding=self.strip_embedding
                 )
 
-                expansion = expansion[:1] + nput.tensor_reexpand(
-                    tf,
-                    expansion[1:analytic_derivative_order+1]
-                ) + expansion[analytic_derivative_order+1:]
+                if self.multi_expansion_order > 0:
+                    raise NotImplementedError("transformations of multi-expansions not implemented yet")
+                else:
+                    expansion = expansion[:1] + nput.tensor_reexpand(
+                        tf,
+                        expansion[1:analytic_derivative_order+1]
+                    ) + expansion[analytic_derivative_order+1:]
 
         finally:
             self.use_internals = use_internals
@@ -795,7 +831,13 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
             self.permutation = perm
 
         if unembed_derivatives:
-            expansion = [expansion[0]] + self.unembed_derivs(base_coords, coords, expansion[1:], embed_reembedded=True)
+            if self.multi_expansion_order > 0:
+                expansion = [
+                    [e[0]] + self.unembed_derivs(base_coords, coords, e[1:], embed_reembedded=True)
+                    for e in expansion
+                ]
+            else:
+                expansion = [expansion[0]] + self.unembed_derivs(base_coords, coords, expansion[1:], embed_reembedded=True)
         return expansion
 
     @staticmethod
@@ -1575,38 +1617,62 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
         return calc
 
     @staticmethod
-    def autodiff(expr, coord, create_graph=False, retain_graph=False):
+    def autodiff(expr, coord, pad_dim, create_graph=False, retain_graph=False):
         import torch
         # here forces have shape (N, 3) and coord has shape (N+1, 3)
         # return hessian with shape (N, 3, N, 3)
+        coord_ndim = len(coord.shape)
         shape = coord.shape + expr.shape
         grads = []
         # N = coord.shape[0] - 1
         # for p in itertools.combinations(coord.shape, expr.ndim):
+        npad = len(pad_dim)
         rav_shape = tuple(
-            (expr.shape[2*i]*expr.shape[2*i+1])
-            for i in range(expr.ndim // 2)
-        )
-        cache = {}
-        inds = np.array(np.unravel_index(np.arange(np.prod(expr.shape, dtype=int)), rav_shape)).T
-        shinds = np.sort(inds, axis=1)
-        for i,_f in enumerate(expr.flatten()):
-            ravioli = tuple(inds[i])
-            key = tuple(shinds[i])
-            if ravioli == key:
-                g = torch.autograd.grad(_f,
+            np.prod([expr.shape[coord_ndim*i+k] for k in range(coord_ndim)], dtype=int)
+            for i in range((expr.ndim - npad) // coord_ndim)
+        ) + pad_dim
+        if len(rav_shape) > 0:
+            cache = {}
+            inds = np.array(np.unravel_index(np.arange(np.prod(expr.shape, dtype=int)), rav_shape)).T
+            if npad == 0:
+                shinds = np.sort(inds, axis=1)
+            else:
+                shinds = np.concatenate([np.sort(inds[:, :-(npad)], axis=1), inds[:, -npad:]], axis=-1)
+            for i,_f in enumerate(expr.flatten()):
+                ravioli = tuple(inds[i])
+                key = tuple(shinds[i])
+                if ravioli == key:
+                    g = torch.autograd.grad(_f,
+                                            coord,
+                                            # allow_unused=True,
+                                            retain_graph=True,
+                                            create_graph=create_graph)
+                    g = g[0]
+                    grads.append(g)
+                    cache[key] = g
+                else:
+                    grads.append(cache[key])
+        else:
+            grads = []
+            if len(expr.shape) == 0:
+                grads.append(
+                    torch.autograd.grad(expr,
                                         coord,
                                         # allow_unused=True,
                                         retain_graph=True,
-                                        create_graph=create_graph)
-                g = g[0]
-                grads.append(g)
-                cache[key] = g
+                                        create_graph=create_graph)[0]
+                )
             else:
-                grads.append(cache[key])
+                for n, _f in enumerate(expr):
+                    g = torch.autograd.grad(_f,
+                                            coord,
+                                            # allow_unused=True,
+                                            retain_graph=True,
+                                            create_graph=create_graph)[0]
+                    grads.append(g)
 
         deriv = torch.stack(grads).view(shape)
-        shape_tuple = (slice(None, -1), slice(None)) * (len(shape) // 2)
+        shape_tuple = ((slice(None, -1),) + (slice(None),) * (coord_ndim-1)) * ((len(shape) - npad) // coord_ndim)
         return deriv, shape_tuple
 
     # def calculate(self, atoms=None, properties=['energy'], system_changes=all_changes):
@@ -1631,7 +1697,7 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
     property_units = 'ElectronVolts'
     batched_orders = True
     analytic_derivative_order = 2
-    def prep_eval(self, coords, order, **opts):
+    def prep_eval(self, coords, order, keep_graph=None, forces=None, hessian=None, **opts):
         import torch
 
         base_shape = coords.shape[:-2]
@@ -1641,8 +1707,10 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
         #     (len(coords), len(self.numbers))
         # )
 
-        forces = order > 0
-        hessian = order > 1
+        if forces is None:
+            forces = order > 0
+        if hessian is None:
+            hessian = order > 1
 
         arg_dict = {
             'coord': torch.tensor(coords.reshape(-1, 3), dtype=torch.float32, device=self.eval.device),
@@ -1658,6 +1726,7 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                 device=self.eval.device
             )
         }
+
         if self.multiplicity is not None:
             arg_dict['mult'] = torch.tensor(self.multiplicity, dtype=torch.float32, device=self.eval.device)
 
@@ -1665,10 +1734,13 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
         if hessian and data['mol_idx'][-1] > 0:
             raise NotImplementedError('higher-derivative calculation is not supported for multiple molecules')
         data = self.eval.set_grad_tensors(data,
-                                          forces=forces,
+                                          forces=keep_graph or forces,
                                           stress=False,
-                                          hessian=hessian
+                                          hessian=keep_graph or hessian
                                           )
+        if keep_graph and not (forces or hessian):
+            data['coord'].requires_grad_(True)
+            self.eval._saved_for_grad['coord'] = data['coord']
         with torch.jit.optimized_execution(False):
             data = self.eval.model(data)
         data = self.eval.get_derivatives(
@@ -1680,38 +1752,94 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
 
         return base_shape, coords, data
 
-    def process_aimnet_derivs(self, base_shape, coords, data, root_key, order, deriv_key=None, property_shape=()):
+    def _apply_autodiff(self, data, root_key, deriv_key, order, property_shape,
+                        diff_var=None,
+                        key_tag='deriv',
+                        pad_coord=1,
+                        create_graph=None,
+                        retain_graph=None):
+        if pad_coord != 1:
+            raise NotImplementedError("all AIMNet coordinates are padded by 1, need to relax this condition")
+        keys = []
         if order > 0:
+            if diff_var is None:
+                diff_var = self.eval._saved_for_grad['coord']
             if deriv_key is not None:
-                data['deriv_1'] = (-data[deriv_key], (slice(None,), slice(None,)))
-                for o in range(2, order+1):
-                    data[f'deriv_{o}'] = self.autodiff(data[f'deriv_{o-1}'][0],
-                                                       self.eval._saved_for_grad['coord'],
-                                                       # create_graph=(o==1),
-                                                       create_graph=(o < order),
-                                                       retain_graph=(o < order)
+                keys.append(f'{key_tag}_1')
+                data[f'{key_tag}_1'] = (-data[deriv_key], (slice(None), slice(None)))
+                for o in range(2, order + 1):
+                    keys.append(f'{key_tag}_{o}')
+                    data[f'{key_tag}_{o}'] = self.autodiff(data[f'{key_tag}_{o - 1}'][0],
+                                                       diff_var,
+                                                       property_shape,
+                                                       create_graph=create_graph if create_graph is not None else ((o==1) or (o < order)),
+                                                       retain_graph=retain_graph if retain_graph is not None else (o < order)
                                                        )
             else:
-                data['deriv_0'] = (data[root_key], slice(None,))
-                for o in range(1, order+1):
-                    data[f'deriv_{o}'] = self.autodiff(data[f'deriv_{o - 1}'][0],
-                                                       self.eval._saved_for_grad['coord'],
-                                                       create_graph=(o==1),
-                                                       retain_graph=(o < order)
+                if 'forces' in data: data['forces'].unbind()
+                data[f'{key_tag}_0'] = (data[root_key], (slice(None),))
+                for o in range(1, order + 1):
+                    keys.append(f'{key_tag}_{o}')
+                    data[f'{key_tag}_{o}'] = self.autodiff(data[f'{key_tag}_{o - 1}'][0],
+                                                       diff_var,
+                                                       property_shape,
+                                                       create_graph=create_graph if create_graph is not None else ((o==1) or (o < order)),
+                                                       retain_graph=retain_graph if retain_graph is not None else (o < order)
                                                        )
+        return keys
 
-        deriv_keys = [
-            f'deriv_{o}'
-            for o in range(1, order + 1)
-        ]
+    def process_aimnet_derivs(self, base_shape, coords, data, root_key, order,
+                              extra_deriv_coord=None,
+                              deriv_key=None,
+                              property_shape=(),
+                              pad_coord=1,
+                              output_shape=None):
+        if extra_deriv_coord is not None:
+            deriv_keys = []
+            root_keys = []
+            if deriv_key is not None: raise ValueError("mixed derivatives with a deriv_key not supported")
+            var, suborder = extra_deriv_coord
+            self._apply_autodiff(data, root_key, deriv_key, suborder, property_shape,
+                                 diff_var=var,
+                                 pad_coord=pad_coord,
+                                 retain_graph=True,
+                                 create_graph=True
+                                 )
+            for n in range(suborder+1):
+                deriv, subshape = data[f"deriv_{n}"]
+                if len(subshape) > 0 and len(deriv.shape) > 0:
+                    deriv = deriv.__getitem__(subshape)
+                data[f"subderiv_{n}"] = deriv
+                dkeys = self._apply_autodiff(data, f"subderiv_{n}", None, suborder,
+                                             data[f"subderiv_{n}"].shape,
+                                             key_tag=f"deriv_{n}",
+                                             pad_coord=pad_coord
+                                             )
+                deriv_keys += dkeys
+                root_keys.append(f"subderiv_{n}")
+        else:
+            deriv_keys = self._apply_autodiff(data, root_key, deriv_key, order, property_shape,
+                                              diff_var=None, pad_coord=pad_coord)
+            root_keys = [root_key]
+
+        if output_shape is None:
+            output_shape = property_shape
+        else:
+            output_shape = tuple(output_shape)
+        slice_shape = tuple(slice(None, o) for o in output_shape)
         for key in deriv_keys:
             deriv,subshape = data[key]
-            data[key] = deriv.__getitem__(subshape)
+            if len(subshape + slice_shape) > 0:
+                deriv = deriv.__getitem__(subshape + slice_shape)
+            data[key] = deriv
+
         ko = self.eval.keys_out
         afk = self.eval.atom_feature_keys
         try:
-            self.eval.keys_out = self.eval.keys_out + deriv_keys
-            self.eval.atom_feature_keys = self.eval.atom_feature_keys + deriv_keys[:1]
+            self.eval.keys_out = self.eval.keys_out + root_keys + deriv_keys
+            if root_key not in self.eval.keys_out:
+                self.eval.keys_out.append(root_key)
+            self.eval.atom_feature_keys = self.eval.atom_feature_keys + deriv_keys
             expansion = self.eval.process_output(data)
         finally:
             self.eval.keys_out = ko
@@ -1719,12 +1847,29 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
 
         ndim = np.prod(coords.shape[-2:], dtype=int)
 
-        expansion = [
-            expansion[k].detach().cpu().numpy().reshape(
-                base_shape + (ndim,) * o + property_shape
-            )
-            for o,k in enumerate([root_key] + deriv_keys)
-        ]
+        if extra_deriv_coord is None:
+            expansion = [
+                expansion[k].detach().cpu().numpy().reshape(
+                    base_shape + (ndim,) * o + output_shape
+                )
+                for o,k in enumerate(root_keys + deriv_keys)
+            ]
+        else:
+            var, nsub = extra_deriv_coord
+            targ_shape = list(var.shape[len(base_shape):])
+            targ_shape[0] -= pad_coord
+            vdim = np.prod(targ_shape, dtype=int)
+            _ = []
+            for n in range(extra_deriv_coord[1]+1):
+                subexpansion = []
+                for i in range(order + 1):
+                    esub = expansion[f"subderiv_{n}" if i == 0 else f"deriv_{n}_{i}"].detach().cpu().numpy()
+                    e_new = esub.reshape(
+                        base_shape + (ndim,) * i + (vdim,) * n + output_shape
+                    )
+                    subexpansion.append(e_new)
+                _.append(subexpansion)
+            expansion = _
 
         return expansion
     def evaluate_term(self, coords, order, **opts):
@@ -2012,6 +2157,7 @@ class HIPNNEnergyEvaluator(EnergyEvaluator):
                         property_key=None,
                         gradient_key=None,
                         property_shape=(),
+                        output_shape=None,
                         **etc):
         if property_key is None:
             property_key = self.property_key
@@ -2034,8 +2180,12 @@ class HIPNNEnergyEvaluator(EnergyEvaluator):
                 )
 
         n = coords.shape[-1] * coords.shape[-2]
+        if output_shape is None:
+            output_shape = property_shape
+        else:
+            output_shape = tuple(output_shape)
         return [
-            e.detach().numpy().reshape(base_shape + (n,)*i + property_shape)
+            e.detach().numpy().reshape(base_shape + (n,)*i + output_shape)
             for i,e in enumerate(terms)
         ]
 
@@ -2608,7 +2758,9 @@ class DipoleEvaluator(PropertyEvaluator):
     def get_evaluators(cls):
         return {
             'expansion': DipoleExpansionDipoleEvaluator,
-            'hipnn': HIPNNDipoleEvaluator
+            'hipnn': HIPNNDipoleEvaluator,
+            'aimnet2': AIMNet2DipoleEvaluator,
+            'rdkit': RDKitDipoleEvaluator,
         }
     @classmethod
     def get_default_function_evaluator_type(cls):
@@ -2630,24 +2782,27 @@ class DipoleFunctionDipoleEvaluator(DipoleEvaluator):
             **opts
         )
 
-    def embed_coords(self, coords):
+    def embed_coords(self, coords, **kwargs):
         return PropertyFunctionEvaluator.embed_coords(
             self,
-            coords
+            coords,
+            **kwargs
         )
 
-    def unembed_coords(self, coords):
+    def unembed_coords(self, coords, **kwargs):
         return PropertyFunctionEvaluator.unembed_coords(
             self,
-            coords
+            coords,
+            **kwargs
         )
 
-    def unembed_derivs(self, base_coords, coords, derivs):
+    def unembed_derivs(self, base_coords, coords, derivs, **kwargs):
         return PropertyFunctionEvaluator.unembed_derivs(
             self,
             base_coords,
             coords,
-            derivs
+            derivs,
+            **kwargs
         )
 
     def evaluate_term(self, coords, order, **opts):
@@ -2732,7 +2887,7 @@ class DipoleExpansionDipoleEvaluator(DipoleFunctionDipoleEvaluator):
         dip_contribs = charges[:, np.newaxis] * disps
         deriv = np.zeros(dip_contribs.shape + (3,), dtype=dip_contribs.dtype)
         for i in range(3):
-            deriv[:, i, i] = dip_contribs[:, i]
+            deriv[:, i, i] = charges
         return [np.sum(dip_contribs, axis=0), deriv.reshape(-1, 3)]
 
     @classmethod
@@ -2749,7 +2904,7 @@ class DipoleExpansionDipoleEvaluator(DipoleFunctionDipoleEvaluator):
             **opts
         )
     @classmethod
-    def get_property_function(cls, expansion, mol, center=None, transforms=None, **ignored):
+    def get_property_function(cls, expansion, mol, center=None, transforms=None, use_modes=True, **ignored):
         if not callable(expansion):
             transformed_derivatives = False
             if expansion is None:
@@ -2758,35 +2913,38 @@ class DipoleExpansionDipoleEvaluator(DipoleFunctionDipoleEvaluator):
                     expansion = cls.expansion_from_mol_charges(mol)
                 # handle partial quatics
 
-            dip_exp = mol.hamiltonian.dipole_expansion(expansion=expansion)
-            expansion = dip_exp.get_terms(transformation=transforms)
-            transformed_derivatives = True
-            if transforms is None:
-                transforms = [
-                    [dip_exp.embedding.get_coords_by_modes(mass_weighted=False)],
-                    [dip_exp.embedding.get_modes_by_coords(mass_weighted=False)]
-                ]
-                # print("FWD:", [f.shape for f in transforms[0]])
-                # print("REV:", [f.shape for f in transforms[1]])
+            if use_modes:
+                dip_exp = mol.hamiltonian.dipole_expansion(expansion=expansion)
+                expansion = dip_exp.get_terms(transformation=transforms)
+                transformed_derivatives = True
+                if transforms is None:
+                    exp = dip_exp.embedding.get_coords_by_modes(mass_weighted=False)
+                    if exp is not None:
+                        transforms = [
+                            [exp],
+                            [dip_exp.embedding.get_modes_by_coords(mass_weighted=False)]
+                        ]
+                    # print("FWD:", [f.shape for f in transforms[0]])
+                    # print("REV:", [f.shape for f in transforms[1]])
 
 
-            # if len(expansion) > 2 and expansion[2].shape[0] < expansion[1].shape[0]:
-            #     raise Exception("?")
-            #     if transforms is None:
-            #         modes = mol.get_normal_modes(use_internals=False, project_transrot=False).remove_mass_weighting()
-            #         transforms = [[modes.coords_by_modes], [modes.modes_by_coords]]
-            #     if nput.is_numeric_array_like(transforms[0]):
-            #         tf = np.asanyarray(transforms[0])
-            #         if tf.ndim > 2:
-            #             tf = tf[0]
-            #     else:
-            #         tf = np.asanyarray(transforms[0][0])
-            #     _ = []
-            #     for i, e in enumerate(expansion[1:]):
-            #         e = np.tensordot(tf, e, axes=[1, -2])
-            #         _.append(e)
-            #     expansion = [expansion[0]] + _
-            #     transformed_derivatives = True
+                # if len(expansion) > 2 and expansion[2].shape[0] < expansion[1].shape[0]:
+                #     raise Exception("?")
+                #     if transforms is None:
+                #         modes = mol.get_normal_modes(use_internals=False, project_transrot=False).remove_mass_weighting()
+                #         transforms = [[modes.coords_by_modes], [modes.modes_by_coords]]
+                #     if nput.is_numeric_array_like(transforms[0]):
+                #         tf = np.asanyarray(transforms[0])
+                #         if tf.ndim > 2:
+                #             tf = tf[0]
+                #     else:
+                #         tf = np.asanyarray(transforms[0][0])
+                #     _ = []
+                #     for i, e in enumerate(expansion[1:]):
+                #         e = np.tensordot(tf, e, axes=[1, -2])
+                #         _.append(e)
+                #     expansion = [expansion[0]] + _
+                #     transformed_derivatives = True
 
             expansion = DipoleSurface.from_mol(mol,
                                                center=center,
@@ -2816,7 +2974,10 @@ class HIPNNDipoleEvaluator(DipoleEvaluator):
         base_shape, coords, data = self.base.prep_eval(coords, order, **opts)
 
         expansions = self.base.process_results(
-            base_shape, data,
+            base_shape,
+            coords,
+            data,
+            order,
             forces=order > 0,
             property_key='dipole',
             gradient_key='dipole_grad',
@@ -2910,7 +3071,6 @@ class RDKitChargeEvaluator(ChargeEvaluator):
             self.rdmol.evaluate_charges(coords, model=model, **opts)
         ) / np.sqrt(2) # TODO: I think my base dipoles are just scaled incorrectly...
 
-
 class AIMNet2ChargeEvaluator(ChargeEvaluator):
 
     def __init__(self, atoms, model='aimnet2', charge=0, multiplicity=None, quiet=True, **defaults):
@@ -2925,20 +3085,248 @@ class AIMNet2ChargeEvaluator(ChargeEvaluator):
     distance_units = 'Angstroms'
     batched_orders = True
     analytic_derivative_order = 6
-    scaling_factor = 0.59667 # necessary to make water work...but I don't know what the actual units are
+    scaling_factor = 1#0.59667 # necessary to make water work...but I don't know what the actual units are
     def evaluate_term(self, coords, order, **opts):
-        base_shape, coords, data = self.base.prep_eval(coords, order, **opts)
+        base_shape, coords, data = self.base.prep_eval(coords, order, keep_graph=order>0, forces=False, hessian=False, **opts)
 
         expansions = self.base.process_aimnet_derivs(
             base_shape, coords, data,
             'charges',
             order,
-            property_shape=(coords.shape[-2],)
+            property_shape=(coords.shape[-2]+1,),
+            output_shape=(coords.shape[-2],)
         )
         s = self.scaling_factor / np.sqrt(2)
         expansions = [e * s for e in expansions]
 
         return expansions
+
+class ChargeEvaluatorDipoleEvaluator(DipoleEvaluator):
+    def __init__(self, charge_evaluator:'ChargeEvaluator', **etc):
+        self.evaluator = charge_evaluator
+        super().__init__(**etc)
+        self.distance_units = self.evaluator.distance_units
+        self.property_units = (self.evaluator.property_units, self.evaluator.distance_units)
+        self.analytic_derivative_order = self.evaluator.analytic_derivative_order
+
+    batched_orders = True
+    def evaluate_term(self, coords, order, **opts):
+        coords = np.asanyarray(coords)
+        charges = self.evaluator.evaluate(coords, order=order, **opts)
+        coord_deriv = nput.identity_tensors(coords.shape[:-2], coords.shape[-2]*coords.shape[-1])
+        coord_deriv = coord_deriv.reshape(coord_deriv.shape[:-2] + (coord_deriv.shape[-2], -1, 3))
+        coord_expansion = [coords, coord_deriv]
+        expansion = nput.tensordot_deriv(
+            charges, coord_expansion,
+            order=order,
+            axes=[-1, -2]
+        )
+        return expansion
+
+class AIMNet2DipoleEvaluator(ChargeEvaluatorDipoleEvaluator):
+
+    @classmethod
+    def from_mol(cls, mol, **opts):
+        return cls(AIMNet2ChargeEvaluator.from_mol(mol, **opts))
+
+class RDKitDipoleEvaluator(ChargeEvaluatorDipoleEvaluator):
+
+    @classmethod
+    def from_mol(cls, mol, **opts):
+        return cls(RDKitChargeEvaluator.from_mol(mol, **opts))
+
+class DipolePolarizabilityEvaluator(PropertyEvaluator):
+    target_property_units = "ElementaryCharge"
+
+    @classmethod
+    def get_evaluators(cls):
+        return {
+            'aimnet2': AIMNet2DipolePolarizabilityEvaluator
+        }
+
+    @classmethod
+    def get_default_function_evaluator_type(cls):
+        return PolarizabilityFunctionDipolePolarizabilityEvaluator
+
+    @abc.abstractmethod
+    def evaluate_polarizability_term(self, coords, coord_order, electrostatic_order, **opts):
+        ...
+
+    multi_expansion_order = 2
+    def evaluate_term(self, coords, order, **opts):
+        if nput.is_int(order):
+            order = (order, self.multi_expansion_order)
+        return self.evaluate_polarizability_term(coords, *order, **opts)
+
+class PolarizabilityFunctionDipolePolarizabilityEvaluator(DipolePolarizabilityEvaluator):
+    ...
+
+class FluctuatingChargeDipolePolarizabilityEvaluator(DipolePolarizabilityEvaluator):
+
+    @classmethod
+    def mu_factor(cls, total_charge, X, J_inv):
+        return (total_charge + np.sum(np.dot(J_inv, X), axis=0)) / np.sum(J_inv)
+
+    @classmethod
+    def dipole_factor_expansion(cls, coords, total_charge, X, J_inv):
+
+        charge_factor = np.dot(J_inv, X) + cls.mu_factor(total_charge, X, J_inv) * np.sum(J_inv, axis=-1)
+        return np.tensordot(coords, charge_factor, axes=[-2, 0])
+
+    @classmethod
+    def polarizability_factor(cls, coords, J_inv):
+        coord_factor = np.tensordot(coords, J_inv, axes=[-2, -1])
+        sum_factor = np.sum(coord_factor, axis=0)
+        return (
+                np.tensordot(coord_factor, coords, axes=[-1, -2])
+                + sum_factor[:, np.newaxis] * sum_factor[np.newaxis, :] / np.sum(J_inv)
+        )
+
+    @abc.abstractmethod
+    def evaluate_electrostatic_potential_derivatives(self, coords, coord_order, electrostatic_order, **opts):
+        ...
+
+    batched_orders = True
+    def evaluate_polarizability_term(self, coords, coord_order, electrostatic_order, *, charge, **opts):
+        potential_by_charges_by_coords = self.evaluate_electrostatic_potential_derivatives(coords, coord_order, electrostatic_order, **opts)
+        return self.expand_electrostatic_potential(
+            charge, coords, potential_by_charges_by_coords
+        )
+
+    @classmethod
+    def expand_electrostatic_potential(cls, total_charge, coords, potential_by_charges_by_coords):
+        expansion = []
+        es_order = len(potential_by_charges_by_coords) - 1
+        order = len(potential_by_charges_by_coords[0]) - 1
+        if es_order > 2:
+            raise NotImplementedError("hyperpolarizabilities require more electrostatic derivatives than I currently have")
+        if es_order > 0:
+            # pull electrostatic derivatives
+            chi_expansion = [e.astype('float64') for e in potential_by_charges_by_coords[1]]
+            J_expansion = [e.astype('float64') for e in potential_by_charges_by_coords[2]]
+            J_inv_expansion = nput.matinv_deriv(J_expansion, order=order)
+            # prep coordinate expansion
+            coords = np.asanyarray(coords)
+            coord_deriv = nput.identity_tensors(coords.shape[:-2], coords.shape[-2]*coords.shape[-1])
+            coord_deriv = coord_deriv.reshape(coord_deriv.shape[:-2] + (coord_deriv.shape[-2], -1, 3))
+            coord_expansion = [coords, coord_deriv]
+            # construct terms that are common throughout expansions
+            J_inv_sum_1 = [np.sum(e, axis=-1) for e in J_inv_expansion]
+            J_inv_tot = [np.sum(e, axis=-1) for e in J_inv_sum_1]
+            J_inv_tot_inv = nput.scalarinv_deriv(J_inv_tot, order=order)
+
+            # (total_charge + np.sum(np.dot(J_inv, X), axis=0)) / np.sum(J_inv)
+            # charge_factor = np.dot(J_inv, X) + cls.mu_factor(total_charge, X, J_inv) * np.sum(J_inv, axis=-1)
+            # return np.tensordot(coords, charge_factor, axes=[-2, 0])
+            J_inv_chi_expansion = nput.tensordot_deriv(chi_expansion, J_inv_expansion, order=order, axes=[-1, -1])
+            J_inv_chi_sum_expansion = nput.tensordot_deriv(J_inv_sum_1, chi_expansion, order=order, axes=[-1, -1])
+            mu_expansion =  nput.scalarprod_deriv(J_inv_chi_sum_expansion, J_inv_tot_inv, order=order)
+            mu_expansion[0] +=  total_charge * J_inv_tot_inv[0]
+
+            mu_prod_expansion = nput.scalarprod_deriv(mu_expansion, J_inv_sum_1, order=order)
+            dipole_expansion_charge_factor = nput.add_expansions(J_inv_chi_expansion, mu_prod_expansion)
+            dipole_expansion = nput.tensordot_deriv(dipole_expansion_charge_factor, coord_expansion, axes=[-1, -2], order=order)
+            expansion.append(dipole_expansion)
+
+            if es_order > 1:
+                # pad_j = [
+                #     np.repeat(np.expand_dims(np.moveaxis(j, -1, 0), 0), 3, axis=0)
+                #     for j in J_inv_expansion
+                # ]
+                # pad_c = [
+                #     np.moveaxis(np.repeat(np.expand_dims(c, 0), len(J_expansion[0]), axis=0), -1, 0)
+                #     for c in coord_expansion
+                # ]
+                # print([j.shape for j in pad_j], [c.shape for c in pad_c])
+                J_inv_X_expansion = nput.tensordot_deriv(
+                    J_inv_expansion,
+                    coord_expansion,
+                    order=order,
+                    axes=[-1, -2],
+                    shared=coords.ndim-2
+                )
+                X_J_inv_X_expansion = nput.tensordot_deriv(
+                    J_inv_X_expansion,
+                    coord_expansion,
+                    order=order,
+                    axes=[-2, -2]
+                )
+
+                J_inv_X_1_expansion = [np.sum(jj, axis=-2) for jj in J_inv_X_expansion]
+                JX_x_JX_expansion = nput.tensorprod_deriv(J_inv_X_1_expansion, J_inv_X_1_expansion, order=order,
+                                                          axes=[-1, -1]
+                                                          )
+                outer_expansion = nput.scalarprod_deriv(JX_x_JX_expansion, J_inv_tot_inv, order=order)
+                polarizability_expansion = nput.add_expansions(
+                    X_J_inv_X_expansion,
+                    outer_expansion
+                )
+                expansion.append(polarizability_expansion)
+
+        return expansion
+
+    @classmethod
+    def _distorted_harmonic_polarizabilities(cls, charges, dipole_expansion, coords, hessians):
+        coords = np.asanyarray(coords)
+        charges = np.asanyarray(charges)
+        hessians = np.asanyarray(hessians)
+        x = charges[..., :, np.newaxis] * coords
+        nats = charges.shape[-1]
+        hessians = hessians.reshape(hessians.shape[:-2] + (nats, 3, nats, 3))
+        f_factors = np.array([
+            np.sum(x[..., i] ** 2) /
+            nput.vec_tensordot(
+                nput.vec_tensordot(
+                    hessians[..., :, i, :, i],
+                    x[..., i],
+                    axes=[-1, -1],
+                    shared=x.ndim - 2
+                ),
+                x[..., i],
+                axes=[-1, -1],
+                shared=x.ndim - 2
+            )
+            for i in range(3)
+        ])
+        dx_f = x * np.moveaxis(f_factors, 0, -1)[..., np.newaxis, :]
+        pad_derivs = np.zeros(x.shape[:-2] + (x.shape[-1] * x.shape[-2], 3))
+        for i in range(3):
+            pad_derivs[..., i::3, i] = dx_f[..., i]
+        dx_expansion = [pad_derivs]
+        return nput.tensordot_deriv(dx_expansion, dipole_expansion[1:], axes=[-2, -2], order=len(dipole_expansion) - 2)
+
+class AIMNet2DipolePolarizabilityEvaluator(FluctuatingChargeDipolePolarizabilityEvaluator):
+    def __init__(self, atoms, model='aimnet2', charge=0, multiplicity=None, quiet=True, **defaults):
+        super().__init__(**defaults)
+        self.base = AIMNet2EnergyEvaluator(atoms, model=model, charge=charge, multiplicity=multiplicity, quiet=quiet)
+
+    @classmethod
+    def from_mol(cls, mol, charge=None, multiplicity=None, **opts):
+        return cls(mol.atoms, multiplicity=multiplicity, **opts)
+
+    def evaluate_polarizability_term(self, coords, coord_order, electrostatic_order, *, charge=None, **opts):
+        if charge is None:
+            charge = self.base.charge
+        return super().evaluate_polarizability_term(
+            coords, coord_order, electrostatic_order, charge=charge, **opts
+        )
+
+    def evaluate_electrostatic_potential_derivatives(self, coords, coord_order, electrostatic_order, **opts):
+        self.base.eval.model.outputs.lrcoulomb.key_out = 'coul_energy'
+        base_shape, coords, data = self.base.prep_eval(coords, 0,
+                                                       keep_graph=electrostatic_order>0 or coord_order>0,
+                                                       **opts)
+        data['coul_energy'] = data['coul_energy'].sum()
+
+        electrostatic_expansions = self.base.process_aimnet_derivs(
+            base_shape, coords, data,
+            'coul_energy',
+            coord_order,
+            property_shape=data['coul_energy'].shape[len(base_shape):],
+            extra_deriv_coord=(data['charges'], electrostatic_order)
+        )
+
+        return electrostatic_expansions
 
 class ReducedDimensionalPotentialHandler:
 
