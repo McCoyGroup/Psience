@@ -300,6 +300,8 @@ class MolecularVibrations:
         :rtype:
         """
 
+        print(scaling)
+
         return type(self)(self._mol,
                           self.basis.rotate(scaling),
                           freqs=self._freqs,

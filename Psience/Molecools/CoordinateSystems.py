@@ -39,8 +39,7 @@ class MolecularEmbedding:
                  ):
 
         self._coords = CoordinateSet(coords, MolecularCartesianCoordinateSystem(masses, coords))
-        MolecularCartesianToRegularCartesianConverter(self.coords.system).register()
-        RegularCartesianToMolecularCartesianConverter(self.coords.system).register()
+        self._regged = False
         if isinstance(internals, CoordinateSet):
             self._int_spec = None
             self._ints = internals
@@ -63,19 +62,26 @@ class MolecularEmbedding:
             carts = RegularCartesianToMolecularCartesianConverter(self.coords.system)
             return carts
 
+    def register(self):
+        if not self._regged:
+            self._regged = True
+            MolecularCartesianToRegularCartesianConverter(self._coords.system).register()
+            RegularCartesianToMolecularCartesianConverter(self._coords.system).register()
     @property
     def coords(self):
+        self.register()
         return self._coords
     @coords.setter
     def coords(self, coords):
         if hasattr(coords, "system"):
             sys = coords.system
         else:
-            sys = self.coords.system
+            sys = self._coords.system
             coords = CoordinateSet(coords, sys)
-        if sys is not self.coords.system:
-            MolecularCartesianToRegularCartesianConverter(sys).register()
-            RegularCartesianToMolecularCartesianConverter(sys).register()
+        if sys is not self._coords.system:
+            self._regged = False
+            # MolecularCartesianToRegularCartesianConverter(sys).register()
+            # RegularCartesianToMolecularCartesianConverter(sys).register()
         self._jacobians = self._get_jacobian_storage()
         self._frame = None
         self._coords = coords
@@ -229,7 +235,7 @@ class MolecularEmbedding:
 
     def internal_coordinates_from_spec(self, spec:dict):
         return self.convert_to_internals(
-            self.coords,
+            self._coords,
             self.masses,
             spec
         )
