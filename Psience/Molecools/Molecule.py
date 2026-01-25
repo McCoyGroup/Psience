@@ -503,7 +503,7 @@ class Molecule(AbstractMolecule):
         self.embedding = MolecularEmbedding(
             self.masses,
             self.coords,
-            spec
+            self.canonicalize_internals(spec, self.atoms, self.coords, self.bonds, masses=self._mass)
         )
     @property
     def internal_coordinates(self):

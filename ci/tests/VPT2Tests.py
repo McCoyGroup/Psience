@@ -2847,7 +2847,7 @@ State             Frequency    Intensity       Frequency    Intensity
   0 1 1 1 0 0    4506.28742      0.00000      4345.62126      0.47084
   """
 
-    @debugTest
+    @validationTest
     def test_HOONOTargetModeDegen(self):
 
         file_name = "HOONO_freq.fchk"
@@ -2941,6 +2941,54 @@ State                   Frequency    Intensity       Frequency    Intensity
   1 0 0 1 1 0 0 0 0    1908.01157      0.00000      2131.62528      0.00035
   0 0 1 1 1 0 0 0 0    2076.37744      0.00000      2080.76165      0.00332
         """
+
+    @debugTest
+    def test_BenzeneInternals(self):
+        import McUtils.Coordinerds as coordops
+        zmat = coordops.parse_zmatrix_string("""
+1          
+2   1	
+3  	2		1	
+4  	2		3		1	
+5  	3		2		1	
+6  	3		5		2	
+7  	5		3		2	
+8  	5		7		3	
+9  	7		5		3	
+10 	7		9		5	
+11 	9		1		7	
+12 	1		2		9""", has_values=False, atoms_are_order=True)[1]
+
+        # benze = Molecule.from_file(TestManager.test_data("benzene.fchk"))
+        # print(benze.get_normal_modes().freqs * UnitsData.hartrees_to_wavenumbers)
+        # return
+
+        state = VPTStateMaker(30)
+        runner, _ = VPTRunner.construct(
+            TestManager.test_data("benzene.fchk"),
+            [state()] + [state(i) for i in range(1, 7)],
+            logger=True,
+            # internals=zmat,
+            internals='auto',
+            degeneracy_specs='auto',
+            expansion_handling_mode='new'
+            # cartesian_analytic_deriv_order=-1,
+            # cartesian_by_internal_derivative_method="fast"
+        )
+
+        import McUtils.Formatters as mfmt
+        v4, v3 = runner.hamiltonian.V_terms[2], runner.hamiltonian.V_terms[1]
+        print(mfmt.format_symmetric_tensor_elements(
+            v3 * UnitsData.hartrees_to_wavenumbers,
+            allowed_indices=[(27, 28, 29)] * 3,
+            symmetries=[(1, 2)],
+            cutoff=0.01,
+            # filter=lambda x:np.abs(x[1] - x[2]) > 20
+        ))
+
+        runner.print_tables()
+
+
 
     @validationTest
     def test_OCHHVPTRunnerShifted(self):
@@ -3626,10 +3674,30 @@ State                   Frequency    Intensity       Frequency    Intensity
     @validationTest
     def test_HOONO(self):
 
+        # woof = Molecule.from_file(
+        #         TestManager.test_data('HOONO_freq.fchk'),
+        #         internals={'primitives': 'auto'},
+        #     )
+        # print(
+        #     [s.shape for s in woof.get_cartesians_by_internals(order=3)]
+        # )
+        # raise Exception(woof.internal_coordinates)
+
+        # VPTRunner.run_simple(
+        #     TestManager.test_data('HOONO_freq.fchk'),
+        #     1,
+        #     degeneracy_specs=None,
+        #     # order=4,
+        #     # expansion_order=2
+        # )
+
         VPTRunner.run_simple(
             TestManager.test_data('HOONO_freq.fchk'),
             1,
-            degeneracy_specs=None,
+            internals='auto',
+            cartesian_analytic_deriv_order=-1,
+            cartesian_by_internal_derivative_method="fast"
+            # degeneracy_specs=None,
             # order=4,
             # expansion_order=2
         )

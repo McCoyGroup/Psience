@@ -201,6 +201,7 @@ class ExpansionTerms:
         "cartesian_by_internal_derivative_method",
         "internal_by_cartesian_order",
         "cartesian_by_internal_order",
+        "expansion_handling_mode",
         "jacobian_warning_threshold",
         "coordinate_transformations",
         "coordinate_derivatives",
@@ -222,18 +223,19 @@ class ExpansionTerms:
                  eckart_embed_planar_ref_tolerance=None,
                  strip_dummies=False,
                  strip_embedding=True,
-                 mixed_derivative_handling_mode="old",
+                 mixed_derivative_handling_mode=None,
                  mixed_derivative_warning_threshold=0.00025,
                  mixed_derivative_handle_zeros=False,
                  backpropagate_internals=False,
                  direct_propagate_cartesians=False,
                  zero_mass_term=1e7,
+                 expansion_handling_mode='old',
                  internal_fd_mesh_spacing=1.0e-2,
                  internal_fd_stencil=None,
                  cartesian_fd_mesh_spacing=1.0e-2,
                  cartesian_fd_stencil=None,
-                 cartesian_analytic_deriv_order=0,
-                 cartesian_by_internal_derivative_method='old',
+                 cartesian_analytic_deriv_order=None,
+                 cartesian_by_internal_derivative_method=None,
                  internal_by_cartesian_order=3,
                  cartesian_by_internal_order=4,
                  jacobian_warning_threshold=1e4,
@@ -251,6 +253,21 @@ class ExpansionTerms:
         :param undimensionalize: whether or not we need to do some units fuckery on the modes
         :type undimensionalize: bool
         """
+        if expansion_handling_mode == 'old':
+            if cartesian_by_internal_derivative_method is None:
+                cartesian_by_internal_derivative_method = 'old'
+            if mixed_derivative_handling_mode is None:
+                mixed_derivative_handling_mode = 'old'
+            if cartesian_analytic_deriv_order is None:
+                cartesian_analytic_deriv_order = 0
+        else:
+            if cartesian_by_internal_derivative_method is None:
+                cartesian_by_internal_derivative_method = 'fast'
+            if mixed_derivative_handling_mode is None:
+                mixed_derivative_handling_mode = 'analytical'
+            if cartesian_analytic_deriv_order is None:
+                cartesian_analytic_deriv_order = -1
+
         self._terms = None
         self.molecule = molecule
 
@@ -1675,7 +1692,7 @@ class PotentialTerms(ExpansionTerms):
     def _symmetrize_mixed_derivatives(cls, derivs, handling_mode, mode_axes, *, logger,
                                       zero_rest=True,
                                       diagonal=True, restricted_diagonal=False, term_id=None, val_axes=0,
-                                      handle_zeros=False,
+                                      handle_zeros=True,
                                       warning_diff=-1
                                       ):
 
