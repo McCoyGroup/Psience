@@ -2969,24 +2969,40 @@ State                   Frequency    Intensity       Frequency    Intensity
             [state()] + [state(i) for i in range(1, 7)],
             logger=True,
             # internals=zmat,
-            internals='auto',
+            # internals='auto',
             degeneracy_specs='auto',
-            expansion_handling_mode='new'
+            mixed_derivative_handling_mode='old'
+            # expansion_handling_mode='new'
             # cartesian_analytic_deriv_order=-1,
             # cartesian_by_internal_derivative_method="fast"
         )
 
         import McUtils.Formatters as mfmt
-        v4, v3 = runner.hamiltonian.V_terms[2], runner.hamiltonian.V_terms[1]
+        v4, v3, v0 = runner.hamiltonian.V_terms[2], runner.hamiltonian.V_terms[1], runner.hamiltonian.V_terms[0]
+        print(mfmt.format_symmetric_tensor_elements(
+            v0 * UnitsData.hartrees_to_wavenumbers,
+            # allowed_indices=[(27, 28, 29)] * 3,
+            symmetries=[(0, 1)],
+            cutoff=0.01,
+            # filter=lambda x:np.abs(x[1] - x[2]) > 20
+        ))
         print(mfmt.format_symmetric_tensor_elements(
             v3 * UnitsData.hartrees_to_wavenumbers,
-            allowed_indices=[(27, 28, 29)] * 3,
+            # allowed_indices=[(27, 28, 29)] * 3,
             symmetries=[(1, 2)],
             cutoff=0.01,
             # filter=lambda x:np.abs(x[1] - x[2]) > 20
         ))
 
-        runner.print_tables()
+        print(mfmt.format_symmetric_tensor_elements(
+            v4 * UnitsData.hartrees_to_wavenumbers,
+            # allowed_indices=[(27, 28, 29)] * 4,
+            symmetries=[(0, 1), (2, 3)],
+            cutoff=0.01,
+            # filter=lambda x:np.abs(x[1] - x[2]) > 20
+        ))
+
+        # runner.print_tables()
 
 
 

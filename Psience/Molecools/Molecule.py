@@ -3781,6 +3781,7 @@ class Molecule(AbstractMolecule):
             figure = graphics_class(backend=backend, **graphics_opts)
 
         colors = [ at["IconColor"] for at in self._ats ]
+        glows = [ None for at in self._ats ]
         if atom_radii is None:
             atom_radii = [None] * len(self._ats)
         elif dev.is_dict_like(atom_radii):
@@ -3828,6 +3829,7 @@ class Molecule(AbstractMolecule):
             for k,v in _atom_style.items():
                 _atom_style[k] = dict(base_atom_style, **v)
                 colors[k] = v.get('color', colors[k])
+                glows[k] = v.get('glow', glows[k])
             atom_style = _atom_style
 
         if display_atom_numbers:
@@ -3911,6 +3913,8 @@ class Molecule(AbstractMolecule):
 
                     c1 = colors[atom1]
                     c2 = colors[atom2]
+                    g1 = glows[atom1]
+                    g2 = glows[atom1]
                     base_bstyle = dict(
                         bond_style.get((atom2, atom1), {}),
                         **bond_style.get((atom1, atom2), {})
@@ -3921,12 +3925,16 @@ class Molecule(AbstractMolecule):
                     )
                     if b_sty_1.get('color') is None:
                         b_sty_1['color'] = c1
+                    if b_sty_1.get('glow') is None and g1 is not None:
+                        b_sty_1['glow'] = g1
                     b_sty_2 = dict(
                         bond_style.get(atom2, {}),
                         **base_bstyle
                     )
                     if b_sty_2.get('color') is None:
                         b_sty_2['color'] = c2
+                    if b_sty_2.get('glow') is None and g2 is not None:
+                        b_sty_2['glow'] = g2
 
                     p1 = geom[atom1]
                     p2 = geom[atom2]
