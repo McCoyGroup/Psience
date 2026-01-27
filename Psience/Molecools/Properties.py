@@ -251,7 +251,7 @@ class StructuralProperties:
         return transforms
 
     @classmethod
-    def get_principle_axis_embedded_coords(cls, coords, masses):
+    def get_principle_axis_embedded_coords(cls, coords, masses, sel=None):
         """
         Returns coordinate embedded in the principle axis frame
 
@@ -262,12 +262,24 @@ class StructuralProperties:
         :return:
         :rtype:
         """
+
+        og_coords = coords
+        if sel is not None:
+            coords = coords[..., sel, :]
+            masses = masses[sel]
+
+        real_pos = masses > 0
+        # print(real_pos)
+        # og_coords = coords
+        coords = coords[..., real_pos, :]
+        masses = masses[real_pos,]
+
         com = cls.get_prop_center_of_mass(coords, masses)
         # crds_ = coords
         coords = coords - com[..., np.newaxis, :]
         moms, pax_axes = cls.get_prop_moments_of_inertia(coords, masses)
         # pax_axes = np.swapaxes(pax_axes, -2, -1)
-        coords = np.matmul(coords, pax_axes)
+        coords = np.matmul(og_coords - com[..., np.newaxis, :], pax_axes)
 
         return coords, com, pax_axes
 
@@ -439,8 +451,8 @@ class StructuralProperties:
             planar_ref_tolerance = cls.planar_ref_tolerance
 
         if not in_paf:
-            coords, com, pax_axes = cls.get_principle_axis_embedded_coords(coords, masses)
-            ref, ref_com, ref_axes = cls.get_principle_axis_embedded_coords(ref, masses)
+            coords, com, pax_axes = cls.get_principle_axis_embedded_coords(coords, masses, sel=sel)
+            ref, ref_com, ref_axes = cls.get_principle_axis_embedded_coords(ref, masses, sel=sel)
             # raise ValueError(ref)
         else:
             com = pax_axes = None

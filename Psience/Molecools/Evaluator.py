@@ -2129,6 +2129,7 @@ class HIPNNEnergyEvaluator(EnergyEvaluator):
 
     def setup_model(cls, model_dir, *, device=None, **opts):
         import torch
+        import hippynn.graphs
         import hippynn.experiment.serialization
         cur_dir = os.getcwd()
 
