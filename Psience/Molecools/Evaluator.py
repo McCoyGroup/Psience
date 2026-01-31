@@ -1,4 +1,5 @@
 import abc
+import enum
 import itertools
 import math
 import sys, os
@@ -392,6 +393,20 @@ class MolecularEvaluator:
         )
         return self.get_nearest_displacement_coordinates(displacement_mesh, axes=axes, sel=sel)
 
+class InternalHandlingMode(enum.Enum):
+    ReembedCartesians = "reembed"
+    Convert = "convert"
+    Cartesians = "cartesians"
+
+    @classmethod
+    def resolve(cls, mode):
+        if mode is True:
+            return cls.Convert
+        elif mode is False:
+            return cls.Cartesians
+        else:
+            return cls(mode)
+
 class PropertyEvaluator(metaclass=abc.ABCMeta):
 
     def __init__(self,
@@ -401,9 +416,13 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                  strip_embedding=True,
                  flatten_internals=True,
                  reembed_cartesians=False,
+                 supports_internals=None,
                  **defaults):
         self.defaults = defaults
         self.embedding = embedding
+        if supports_internals is None:
+            supports_internals = self.supports_internals
+        self.supports_internals = supports_internals
         if use_internals and not self.supports_internals:
             use_internals = 'reembed'
         self.use_internals = use_internals
@@ -526,6 +545,15 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         ...
 
     @classmethod
+    def prep_mol_opts(cls, mol, embedding=None, charge=None, multiplicity=None, **opts):
+        if embedding is None: embedding = mol.embedding
+        if embedding is not None: opts['embedding'] = embedding
+        if charge is None: charge = mol.charge
+        if charge is not None: opts['charge'] = charge
+        if multiplicity is None: multiplicity = mol.spin
+        if multiplicity is not None: opts['multiplicity'] = multiplicity
+        return opts
+    @classmethod
     @abc.abstractmethod
     def from_mol(cls, mol, **opts):
         ...
@@ -598,8 +626,12 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
             tensors = [np.moveaxis(d, n + 1, 0) for n, d in enumerate(tensors)]
 
         res = [
-            t.reshape(base_shape + t.shape[1:])
-                if t.ndim > 0 and flat_coords.shape[0] != 1 else
+            (
+                t.reshape(base_shape + t.shape[1:])
+                    if flat_coords.shape[0] != 1 else
+                t.reshape(base_shape + t.shape)
+            )
+                if t.ndim > 0 else
             t
             for t in tensors
         ]
@@ -607,6 +639,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         if self.multi_expansion_order > 0:
             #TODO: un-split expansions
             ...
+            raise NotImplementedError("unsplitting not yet supported")
 
         return res
 
@@ -679,8 +712,12 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         if flat_coords.shape[0] > 1:
             tensors = [np.moveaxis(d, n+1, 0) for n,d in enumerate(tensors)]
         res = [
-            t.reshape(base_shape + t.shape[1:])
-                if t.ndim > 0 and flat_coords.shape[0] != 1 else
+            (
+                t.reshape(base_shape + t.shape[1:])
+                    if flat_coords.shape[0] != 1 else
+                t.reshape(base_shape + t.shape)
+            )
+                if t.ndim > 0 else
             t
             for t in tensors
         ]
@@ -926,13 +963,18 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
 
     @classmethod
     def resolve_evaluator(cls, name):
-        if name is not None and not isinstance(name, (str, dict, tuple)) and callable(name):
-            if hasattr(name, 'evaluate_term'):
+        if (
+                name is not None
+                and not isinstance(name, (str, dict, tuple, list))
+        ):
+            if hasattr(name, 'evaluate'):
                 return name, {}
-            else:
+            elif callable(name):
                 eval = cls.get_default_function_evaluator_type()
                 eval.bind_default(name)
                 return eval, {}
+            else:
+                raise ValueError(f"can't get construct evalautor of type {cls} from {name}")
         return cls.profile_generator_dispatch().resolve(name)
 
     class quiet_mode:
@@ -959,7 +1001,6 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
                  property_units=None,
                  distance_units='Angstroms',
                  batched_orders=False,
-                 supports_internals=True,
                  analytic_derivative_order=0,
                  **defaults
                  ):
@@ -969,7 +1010,6 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
         self.analytic_derivative_order = analytic_derivative_order
         self.property_units = property_units
         self.distance_units = distance_units
-        self.supports_internals = supports_internals
 
     def evaluate_term(self, coords, order, **opts):
         return self.property_function(coords, order=order, **opts)
@@ -1535,7 +1575,7 @@ class RDKitEnergyEvaluator(EnergyEvaluator):
 
     @classmethod
     def from_mol(cls, mol, **opts):
-        return cls(mol.rdmol, embedding=mol.embedding, **opts)
+        return cls(mol.rdmol, **cls.prep_mol_opts(mol, **opts))
 
     property_units = 'Kilocalories/Mole'
     analytic_derivative_order = 1
@@ -1602,8 +1642,8 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
         self.quiet = quiet
 
     @classmethod
-    def from_mol(cls, mol, charge=None, multiplicity=None, **opts):
-        return cls(mol.atoms, embedding=mol.embedding, multiplicity=multiplicity, **opts)
+    def from_mol(cls, mol, **opts):
+        return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
 
     @classmethod
     def setup_aimnet(cls, model):
@@ -1946,8 +1986,8 @@ class ASECalcEnergyEvaluator(EnergyEvaluator):
         self.embedding = embedding
 
     @classmethod
-    def from_mol(cls, mol, charge=None, multiplicity=None, **opts):
-        return cls(mol.atoms, embedding=mol.embedding, multiplicity=multiplicity, **opts)
+    def from_mol(cls, mol, **opts):
+        return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
 
     @classmethod
     def setup_calc(cls, *, calc, **settings):
@@ -2060,8 +2100,8 @@ class HIPNNEnergyEvaluator(EnergyEvaluator):
         self.gradient_key = gradient_key
 
     @classmethod
-    def from_mol(cls, mol, *, model_dir, charge=None, multiplicity=None, **opts):
-        return cls(mol.atoms, model_dir=model_dir, embedding=mol.embedding, multiplicity=multiplicity, **opts)
+    def from_mol(cls, mol, *, model_dir, **opts):
+        return cls(mol.atoms, model_dir=model_dir, **cls.prep_mol_opts(mol, **opts))
 
     @staticmethod
     def autodiff(expr, coord_list, pad_dim, create_graph=False, retain_graph=False):
@@ -2315,7 +2355,7 @@ class XTBEnergyEvaluator(EnergyEvaluator):
 
     @classmethod
     def from_mol(cls, mol, **opts):
-        return cls(mol.atoms, embedding=mol.embedding, charge=mol.charge, **opts)
+        return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
 
     def get_single_point(self, coords):
         from xtb.interface import Calculator
@@ -2474,7 +2514,7 @@ class PySCFEnergyEvaluator(EnergyEvaluator):
 
     @classmethod
     def from_mol(cls, mol, **opts):
-        return cls(mol.atoms, embedding=mol.embedding, charge=mol.charge, **opts)
+        return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
 
     def get_molecule(self, coords):
         from pyscf import gto
@@ -2964,8 +3004,8 @@ class HIPNNDipoleEvaluator(DipoleEvaluator):
         self.base.gradient_key = None
 
     @classmethod
-    def from_mol(cls, mol, *, model_dir, charge=None, multiplicity=None, **opts):
-        return cls(mol.atoms, model_dir, multiplicity=multiplicity, **opts)
+    def from_mol(cls, mol, *, model_dir, **opts):
+        return cls(mol.atoms, model_dir=model_dir, **cls.prep_mol_opts(mol, **opts))
 
     property_units = ("ElementaryCharge", "Angstroms")
     distance_units = 'Angstroms'
@@ -3060,8 +3100,8 @@ class RDKitChargeEvaluator(ChargeEvaluator):
         self.model = model
 
     @classmethod
-    def from_mol(cls, mol, **opts):
-        return cls(mol.rdmol)
+    def from_mol(cls, mol, charge=None, multiplicity=None, **opts):
+        return cls(mol.rdmol, **cls.prep_mol_opts(mol, **opts))
 
     property_units = 'ElementaryCharge'
     analytic_derivative_order = 0
@@ -3079,8 +3119,8 @@ class AIMNet2ChargeEvaluator(ChargeEvaluator):
         self.base = AIMNet2EnergyEvaluator(atoms, model=model, charge=charge, multiplicity=multiplicity, quiet=quiet)
 
     @classmethod
-    def from_mol(cls, mol, charge=None, multiplicity=None, **opts):
-        return cls(mol.atoms, multiplicity=multiplicity, **opts)
+    def from_mol(cls, mol, **opts):
+        return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
 
     property_units = 'ElementaryCharge'
     distance_units = 'Angstroms'
@@ -3142,7 +3182,8 @@ class DipolePolarizabilityEvaluator(PropertyEvaluator):
     @classmethod
     def get_evaluators(cls):
         return {
-            'aimnet2': AIMNet2DipolePolarizabilityEvaluator
+            'aimnet2': AIMNet2DipolePolarizabilityEvaluator,
+            'hipnn': HIPNNDipolePolarizabilityEvaluator,
         }
 
     @classmethod
@@ -3302,8 +3343,54 @@ class AIMNet2DipolePolarizabilityEvaluator(FluctuatingChargeDipolePolarizability
         self.base = AIMNet2EnergyEvaluator(atoms, model=model, charge=charge, multiplicity=multiplicity, quiet=quiet)
 
     @classmethod
-    def from_mol(cls, mol, charge=None, multiplicity=None, **opts):
-        return cls(mol.atoms, multiplicity=multiplicity, **opts)
+    def from_mol(cls, mol, **opts):
+        return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
+
+    def evaluate_polarizability_term(self, coords, coord_order, electrostatic_order, *, charge=None, **opts):
+        if charge is None:
+            charge = self.base.charge
+        return super().evaluate_polarizability_term(
+            coords, coord_order, electrostatic_order, charge=charge, **opts
+        )
+
+    def evaluate_electrostatic_potential_derivatives(self, coords, coord_order, electrostatic_order, **opts):
+        self.base.eval.model.outputs.lrcoulomb.key_out = 'coul_energy'
+        base_shape, coords, data = self.base.prep_eval(coords, 0,
+                                                       keep_graph=electrostatic_order>0 or coord_order>0,
+                                                       **opts)
+        data['coul_energy'] = data['coul_energy'].sum()
+
+        electrostatic_expansions = self.base.process_aimnet_derivs(
+            base_shape, coords, data,
+            'coul_energy',
+            coord_order,
+            property_shape=data['coul_energy'].shape[len(base_shape):],
+            extra_deriv_coord=(data['charges'], electrostatic_order)
+        )
+
+        return electrostatic_expansions
+
+class HIPNNDipolePolarizabilityEvaluator(FluctuatingChargeDipolePolarizabilityEvaluator):
+    def __init__(self, atoms, model_dir, **defaults):
+        super().__init__()
+        self.base = HIPNNEnergyEvaluator(atoms, model_dir, **defaults)
+        self._set_extra_outputs(self.base)
+
+    @classmethod
+    def _set_extra_outputs(cls, base):
+        import hippynn.graphs
+        predictor = hippynn.graphs.Predictor.from_graph(base.eval.graph,
+                                                        additional_outputs=[
+                                                            'ChEQ.coul_energy'
+                                                        ]
+                                                        )
+        cheq = predictor.graph.node_from_name('ChEQ')
+        predictor.outputs.extend(cheq.parents[-2:])
+        base.eval = predictor
+
+    @classmethod
+    def from_mol(cls, mol, *, model_dir, embedding=None, charge=None, multiplicity=None, **opts):
+        return cls(mol.atoms, model_dir=model_dir, **cls.prep_mol_opts(mol, opts))
 
     def evaluate_polarizability_term(self, coords, coord_order, electrostatic_order, *, charge=None, **opts):
         if charge is None:

@@ -1666,6 +1666,7 @@ class DipoleSurfaceManager(PropertyManager):
     name='DipoleSurface'
     def __init__(self, mol, surface=None, derivatives=None, polarizability_derivatives=None):
         super().__init__(mol)
+        self._numerical_derivs = None
         if hasattr(surface, '_surf'):
             self._surf = surface._surf
             self._derivs = surface._derivs
@@ -2648,7 +2649,11 @@ class NormalModesManager(PropertyManager):
         :rtype:
         """
 
-        if use_dipoles:
+        if (
+                use_dipoles or
+                mol.potential_derivatives is None
+                or len(mol.potential_derivatives) < 3
+        ):
             return cls.get_dipole_derivative_based_rephasing(
                 modes,
                 mol.dipole_surface.derivatives,
