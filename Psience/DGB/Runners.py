@@ -928,6 +928,7 @@ class DGBRunner:
                 similarity_chunk_size=None,
                 similar_det_cutoff=None,
                 num_print=None,
+                spectrum_plotting_options=None,
                 **plot_options
                 ):
 
@@ -991,7 +992,9 @@ class DGBRunner:
                     # if isinstance(which, int):
                     #     which = list(range(which))
                     # print(which, spec.intensities, spec.frequencies, spec[which])
-                    spec_plot = spec.plot()
+                    if spectrum_plotting_options is None:
+                        spectrum_plotting_options = {}
+                    spec_plot = spec.plot(**spectrum_plotting_options)
                     if plot_dir is not None:
                         os.makedirs(plot_dir, exist_ok=True)
                         if spectrum_plot_name is None:

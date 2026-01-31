@@ -2373,8 +2373,17 @@ class Molecule(AbstractMolecule):
                     sampled_modes = list(range(freqs.shape[0]))
 
                 initial_energies = np.zeros((len(initial_mode_directions), freqs.shape[0]))
-                subdirs = np.asanyarray(initial_mode_directions) * freqs[sampled_modes,][np.newaxis]
+                initial_mode_directions = np.asanyarray(initial_mode_directions)
+                subdirs = initial_mode_directions[:, sampled_modes] * freqs[sampled_modes,][np.newaxis]
                 initial_energies[:, sampled_modes] = subdirs
+
+                print(np.sum(initial_energies, axis=1) * UnitsData.hartrees_to_wavenumbers)
+                if total_energy is not None:
+                    dirs = initial_energies
+                    dirs = dirs / np.sum(np.abs(dirs), axis=1)[:, np.newaxis]  # weights in each dimension
+                    energies = dirs * freqs[np.newaxis, :]
+                    initial_energies = total_energy * energies / np.sum(np.abs(energies), axis=1)[:, np.newaxis]
+                print(np.sum(initial_energies, axis=1) * UnitsData.hartrees_to_wavenumbers)
 
             if initial_energies is None:
                 freqs = new.normal_modes.modes.freqs
@@ -3620,6 +3629,7 @@ class Molecule(AbstractMolecule):
              sphere_class=None,
              arrow_class=None,
              animate=None,
+             recording_options=None,
              animation_options=None,
              jsmol_load_script=None,
              include_jsmol_script_interface=False,
@@ -3659,6 +3669,7 @@ class Molecule(AbstractMolecule):
             )
             return self.jsmol_viz(
                 script=jsmol_load_script,
+                recording_options=recording_options,
                 **plot_ops
             )
 
@@ -3779,6 +3790,15 @@ class Molecule(AbstractMolecule):
 
         if figure is None:
             figure = graphics_class(backend=backend, **graphics_opts)
+
+        if backend == 'x3d':
+            if include_save_buttons is not None:
+                figure.figure.include_export_button = include_save_buttons
+                figure.figure.include_record_button = include_save_buttons
+                figure.figure.include_view_settings_button = include_save_buttons
+
+            if recording_options is not None:
+                figure.figure.recording_options = recording_options
 
         colors = [ at["IconColor"] for at in self._ats ]
         glows = [ None for at in self._ats ]
@@ -4384,11 +4404,6 @@ class Molecule(AbstractMolecule):
                 ],
                 **animation_options
             )
-
-        if include_save_buttons is not None:
-            plt.X3D.include_export_button = include_save_buttons
-            plt.X3D.include_record_button = include_save_buttons
-            plt.X3D.include_view_settings_button = include_save_buttons
 
         if return_objects:
             return figure, atoms, bonds, arrows

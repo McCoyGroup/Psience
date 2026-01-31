@@ -210,7 +210,7 @@ class DiscreteSpectrum(BaseSpectrum):
                              **opts
                              )
 
-    def broaden(self, broadening_type="gaussian", breadth=10):
+    def broaden(self, breadth=10, *, broadening_type="gaussian", noising_function=None,):
         """
         Applies a broadening to the spectrum
 
@@ -223,6 +223,7 @@ class DiscreteSpectrum(BaseSpectrum):
         """
         return BroadenedSpectrum(self.frequencies, self.intensities,
                                  broadening_type=broadening_type, breadth=breadth,
+                                 noising_function=noising_function,
                                  **self.meta
                                  )
 
@@ -268,7 +269,9 @@ class BroadenedSpectrum(BaseSpectrum):
     A stick spectrum with associated broadening function
     """
 
-    def __init__(self, frequencies, intensities, broadening_type="gaussian", breadth=10, **meta):
+    def __init__(self, frequencies, intensities, broadening_type="gaussian", breadth=10,
+                 noising_function=None,
+                 **meta):
         """
         :param frequencies:
         :type frequencies:
@@ -286,6 +289,7 @@ class BroadenedSpectrum(BaseSpectrum):
 
         self.broadening_type = broadening_type
         self.breadth = breadth
+        self.noising_function = noising_function
 
     def _eval_gauss_broadening(self, pts, height, center, breadth, target_zero=.1,
                                renormalize=True, adjust_width=True):
@@ -387,6 +391,10 @@ class BroadenedSpectrum(BaseSpectrum):
             bt(freq_vals, i, c, b, adjust_width=adjust_width, renormalize=renormalize)
             for i, c, b in zip(ints, freqs, breadths)
         ], axis=0)
+
+        if self.noising_function is not None:
+            noise = self.noising_function(freq_vals, vals)
+            vals = noise + vals
 
         return freq_vals, vals
 
