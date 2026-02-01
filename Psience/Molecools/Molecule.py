@@ -3616,6 +3616,7 @@ class Molecule(AbstractMolecule):
              dipole_origin=None,
              dipole_origin_mode='set',
              render_multiple_bonds=True,
+             render_fractional_bonds=True,
              draw_coords=None,
              draw_coords_style=None,
              up_vector=None,
@@ -3926,6 +3927,11 @@ class Molecule(AbstractMolecule):
         for i, geom in enumerate(geometries):
             bond_list = draw_bonds[i]
             if bond_style is not False and bond_list is not None:
+                bond_list = sorted(bond_list, key = lambda b:(
+                        self._ats[b[0]]["ElementSymbol"] in {"H", "X", "D"}
+                            or
+                        self._ats[b[1]]["ElementSymbol"] in {"H", "X", "D"}
+                ))
                 bonds[i] = [None] * len(bond_list)
                 for j, b in enumerate(bond_list):
                     atom1 = b[0]
@@ -3961,33 +3967,83 @@ class Molecule(AbstractMolecule):
                     disp_vector = p2 - p1
                     midpoint = disp_vector/2 + p1
 
-                    if not render_multiple_bonds or len(b) == 2 or b[2] < 2 or b[2] > 3:
+                    if not render_multiple_bonds or len(b) == 2 or b[2] <= 1 or b[2] > 3:
                         bond_point_list = [
                             [p1, p2, midpoint]
                         ]
-                    elif b[2] == 2:
+                    else:
                         if up_vector is None:
                             up_vector = [0, 0, 1]
+
+                        for bb in bond_list:
+                            atom3 = bb[0]
+                            atom4 = bb[1]
+                            if atom3 in {atom1, atom2} and atom4 not in {atom1, atom2}:
+                                u_vec = np.cross(disp_vector, geom[atom4] - geom[atom3])
+                                break
+                            elif atom4 not in {atom1, atom2} and atom3 in {atom1, atom2}:
+                                u_vec = np.cross(disp_vector, geom[atom3] - geom[atom4])
+                                break
+                        else:
+                            u_vec = up_vector
                         if multiple_bond_spacing is None:
                             multiple_bond_spacing = bond_radius * 1.1
 
                         axis = nput.vec_normalize(
-                            np.cross(disp_vector, up_vector)
+                            np.cross(disp_vector, u_vec)
                         )
 
-                        p11 = p1 - axis * multiple_bond_spacing
-                        p21 = p2 - axis * multiple_bond_spacing
-                        mp1 = midpoint - axis * multiple_bond_spacing
+                        if render_fractional_bonds:
+                            dr = (b[2] - int(b[2]))
+                            if dr > .05 :
+                                dr = dr * (.35 / .5)
+                                dr = (1 - dr) / 2
+                                p10 = p1 + disp_vector * dr
+                                p20 = p2 - disp_vector * dr
+                            else:
+                                p10 = p1
+                                p20 = p2
+                        else:
+                            p10 = p1
+                            p20 = p2
 
+                        if b[2] <= 2:
 
-                        p12 = p1 + axis * multiple_bond_spacing
-                        p22 = p2 + axis * multiple_bond_spacing
-                        mp2 = midpoint + axis * multiple_bond_spacing
-                        bond_point_list = [
-                            [p11, p21, mp1],
-                            [p12, p22, mp2]
-                        ]
+                            p11 = p10 - axis * multiple_bond_spacing
+                            p21 = p20 - axis * multiple_bond_spacing
+                            mp1 = midpoint - axis * multiple_bond_spacing
 
+                            p12 = p1 + axis * multiple_bond_spacing
+                            p22 = p2 + axis * multiple_bond_spacing
+                            mp2 = midpoint + axis * multiple_bond_spacing
+                            bond_point_list = [
+                                [p11, p21, mp1],
+                                [p12, p22, mp2]
+                            ]
+                        else:
+                            dx = (multiple_bond_spacing)
+
+                            u_vec = nput.vec_normalize(u_vec)
+
+                            dv = axis * dx
+                            p11 = p10 - dv
+                            p21 = p20 - dv
+                            mp1 = midpoint - dv
+
+                            dv = (np.cos(2*np.pi/3) * axis + np.sin(2*np.pi/3) * u_vec) * dx
+                            p12 = p1 - dv
+                            p22 = p2 - dv
+                            mp2 = midpoint - dv
+
+                            dv = (np.cos(2*np.pi/3) * axis - np.sin(2*np.pi/3) * u_vec) * dx
+                            p13 = p1 - dv
+                            p23 = p2 - dv
+                            mp3 = midpoint - dv
+                            bond_point_list = [
+                                [p11, p21, mp1],
+                                [p12, p22, mp2],
+                                [p13, p23, mp3],
+                            ]
 
                     bond_objs = []
                     for pp1, pp2, mp in bond_point_list:

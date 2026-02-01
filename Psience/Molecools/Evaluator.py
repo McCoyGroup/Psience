@@ -6,8 +6,6 @@ import sys, os
 import numpy as np
 import warnings
 
-from ase.calculators.excitation_list import polarizability
-
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Zachary import TensorDerivativeConverter, FiniteDifferenceDerivative, CoordinateFunction
 import McUtils.Numputils as nput
