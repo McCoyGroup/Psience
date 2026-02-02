@@ -2972,6 +2972,7 @@ class Molecule(AbstractMolecule):
                      remove_hydrogens=False,
                      replacements=None,
                      parser_options=None,
+                     confgen_opts=None,
                      **opts):
         from McUtils.ExternalPrograms import RDMolecule
 
@@ -2989,6 +2990,7 @@ class Molecule(AbstractMolecule):
                                    strict_cxsmiles=strict_cxsmiles,
                                    remove_hydrogens=remove_hydrogens,
                                    replacements=replacements,
+                                   confgen_opts=confgen_opts,
                                    **parser_options
                                    ),
             **opts
@@ -3680,6 +3682,9 @@ class Molecule(AbstractMolecule):
         graphics_keys = Graphics3D.known_keys | Graphics3D.opt_keys | Graphics3D.figure_keys
         graphics_opts = {k:plot_ops[k] for k in plot_ops.keys() & graphics_keys}
         plot_ops = {k:plot_ops[k] for k in plot_ops.keys() - graphics_keys}
+
+        if 'background' not in graphics_opts:
+            graphics_opts['background'] = 'transparent'
 
         if graphics_class is None:
             graphics_class = Graphics3D
