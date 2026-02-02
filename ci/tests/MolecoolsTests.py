@@ -1426,7 +1426,7 @@ class MolecoolsTests(TestCase):
 
         expansion = methanol.calculate_energy(order=3)
 
-    @debugTest
+    @validationTest
     def test_Raman(self):
         water = Molecule.from_file(TestManager.test_data("water_freq.fchk"))
         print(water.get_harmonic_raman_spectrum())
@@ -3542,3 +3542,19 @@ class MolecoolsTests(TestCase):
         from Psience.Molecools import Molecule
 
         Molecule.from_string('COc1cc([OH]C2([N+](c3c(C2(C)C)cc(OC)cc3)CCCOS([O-])=O)C=C4)c4cc1', 'smi')
+
+    @debugTest
+    def test_RDKitConfGen(self):
+        from Psience.Molecools import Molecule
+
+        mol = Molecule.from_string(
+            'Cc1ccc(OC[C:6]([NH:5]/[N:4]=[CH:3]/[c:2]2cc(=O)[nH]c(=O)[nH:1]2)=[O:7])c([N+](=O)[O-])c1',
+            'smi',
+            confgen_opts={
+                'distance_constraints': {(4, 5): [1.2, 1.4]},
+                'random_seed': 100
+            }
+        )
+        print(
+            np.linalg.norm(mol.coords[4] - mol.coords[5]) * UnitsData.bohr_to_angstroms
+        )
