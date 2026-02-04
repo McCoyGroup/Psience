@@ -975,7 +975,13 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
             new_groups = []
             if nput.is_int(uncoupled_states):
                 uncoupled_states = BasisStateSpace.from_quanta(
-                    basis.basis,
+                    basis.basis
+                        if basis is not None else
+                    (
+                        group[0].basis
+                            if len(group) > 0 else
+                        HarmonicOscillatorProductBasis(len(states[0]))
+                    ),
                     uncoupled_states
                 )
             for g in group:
