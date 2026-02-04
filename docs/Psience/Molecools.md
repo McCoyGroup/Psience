@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-5f5a03" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-5f5a03"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-b053fe" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-b053fe"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-5f5a03" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-b053fe" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -133,6 +133,8 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [DihedConstrainedOpt](#DihedConstrainedOpt)
 - [DihedOptRPNMScan](#DihedOptRPNMScan)
 - [AIMNetExpansions](#AIMNetExpansions)
+- [Raman](#Raman)
+- [AIMNetDipoles](#AIMNetDipoles)
 - [RPNMVPT](#RPNMVPT)
 - [LocalModeCHModel](#LocalModeCHModel)
 - [Caching](#Caching)
@@ -172,12 +174,13 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [TRIC](#TRIC)
 - [NewAnim](#NewAnim)
 - [RDKitIssues](#RDKitIssues)
+- [RDKitConfGen](#RDKitConfGen)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-3dd8ec" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-3dd8ec"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-d3f2c8" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-d3f2c8"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-3dd8ec" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-d3f2c8" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -1585,6 +1588,63 @@ class MolecoolsTests(TestCase):
         )
 
         expansion = methanol.calculate_energy(order=3)
+```
+
+#### <a name="Raman">Raman</a>
+```python
+    def test_Raman(self):
+        water = Molecule.from_file(TestManager.test_data("water_freq.fchk"))
+        print(water.get_harmonic_raman_spectrum())
+```
+
+#### <a name="AIMNetDipoles">AIMNetDipoles</a>
+```python
+    def test_AIMNetDipoles(self):
+        water = Molecule(
+            ["O", "H", "H"],
+            [[-3.09880964e-09, 1.23091261e-01, 0.00000000e+00],
+             [-1.43810501e+00, -9.76773835e-01, 0.00000000e+00],
+             [1.43810505e+00, -9.76773797e-01, 0.00000000e+00]],
+            energy_evaluator='aimnet2',
+            charge_evaluator='aimnet2',
+            dipole_evaluator='aimnet2',
+            polarizability_evaluator='aimnet2'
+        )
+
+        print()
+        print(water.calculate_dipole())
+
+        pol = water.calculate_dipole_polarizability(order=1)
+        for p in pol:
+            print([pp.shape for pp in p])
+
+        print(pol[1][0])
+        print(pol[1][1].shape)
+
+        return
+
+        water2 = water.modify(dipole_evaluator='expansion')
+        water2.get_normal_modes()
+
+        print(water.get_cartesian_dipole_derivatives(include_constant_term=True))
+        print(water2.get_cartesian_dipole_derivatives(include_constant_term=True))
+
+        return
+
+        methanol = Molecule(
+            ['C', 'O', 'H', 'H', 'H', 'H'],
+            [[-0.71174571, 0.0161939, 0.02050266],
+             [1.71884591, -1.07310118, -0.2778059],
+             [-1.30426891, 0.02589585, 1.99632677],
+             [-0.77962613, 1.94036941, -0.7197672],
+             [-2.02413643, -1.14525287, -1.05166036],
+             [2.91548382, -0.08353621, 0.65084457]],
+            energy_evaluator='aimnet2',
+            dipole_evaluator='aimnet2'
+        )
+        # expansion = methanol.calculate_energy(order=2)
+        expansion = methanol.calculate_dipole(order=1)
+        print([e.shape for e in expansion])
 ```
 
 #### <a name="RPNMVPT">RPNMVPT</a>
@@ -3540,6 +3600,29 @@ class MolecoolsTests(TestCase):
         from Psience.Molecools import Molecule
 
         Molecule.from_string('COc1cc([OH]C2([N+](c3c(C2(C)C)cc(OC)cc3)CCCOS([O-])=O)C=C4)c4cc1', 'smi')
+```
+
+#### <a name="RDKitConfGen">RDKitConfGen</a>
+```python
+    def test_RDKitConfGen(self):
+        from Psience.Molecools import Molecule
+
+        mol = Molecule.from_string(
+            'Cc1ccc(OC[C:6]([NH:5]/[N:4]=[CH:3]/[c:2]2cc(=O)[nH]c(=O)[nH:1]2)=[O:7])c([N+](=O)[O-])c1',
+            'smi',
+            confgen_opts={
+                'distance_constraints': {(4, 5): [1.2, 1.4]},
+                'random_seed': 100
+            }
+        )
+        print(
+            np.linalg.norm(mol.coords[4] - mol.coords[5]) * UnitsData.bohr_to_angstroms
+        )
+
+        Molecule.from_string(
+            "NC(N)=NC(=O)c1[nH]c(C(=O)O)c2cc3c(cc12)c1c2cc4c(C(=O)O)[nH]c(C(=O)N=C(N)N)c4cc2c2c4cc5c(C(=O)O)[nH:1][c:2]([C:3](=O)[N:4]=[C:5](N)[NH2:6])c5cc4c4c5cc6c(C(=O)O)[nH]c(C(=O)N=C(N)N)c6cc5c5c6cc7c(C(=O)O)[nH]c(C(=O)N=C(N)N)c7cc6c3c3c1c2c4c53",
+            "smi"
+        )
 ```
 
  </div>

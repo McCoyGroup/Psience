@@ -1,8 +1,8 @@
 ## <a id="Psience.Molecools.Properties.MolecularProperties">MolecularProperties</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L924)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L924?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L938)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L938?message=Update%20Docs)]
 </div>
 
 An object whose sole purpose in life is to get molecular properties
@@ -30,8 +30,8 @@ All properties should be appropriately vectorized to work on a single configurat
 mass_weighted_coords(cls, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L934)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L934?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L948)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L948?message=Update%20Docs)]
 </div>
 Computes the moments of inertia
   - `mol`: `AbstractMolecule`
@@ -46,8 +46,8 @@ Computes the moments of inertia
 g_matrix(cls, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L948)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L948?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L962)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L962?message=Update%20Docs)]
 </div>
 
   - `mol`: `AbstractMolecule`
@@ -62,8 +62,8 @@ g_matrix(cls, mol):
 center_of_mass(cls, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L959)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L959?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L973)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L973?message=Update%20Docs)]
 </div>
 Computes the moments of inertia
   - `mol`: `AbstractMolecule`
@@ -78,8 +78,8 @@ Computes the moments of inertia
 inertia_tensor(cls, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L972)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L972?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L986)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L986?message=Update%20Docs)]
 </div>
 Computes the inertia tensors for the stored geometries
   - `mol`: `AbstractMolecule`
@@ -94,8 +94,8 @@ Computes the inertia tensors for the stored geometries
 moments_of_inertia(cls, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L985)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L985?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L999)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L999?message=Update%20Docs)]
 </div>
 Computes the moments of inertia
   - `mol`: `AbstractMolecule`
@@ -110,8 +110,8 @@ Computes the moments of inertia
 principle_axis_data(cls, mol, sel=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L998)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L998?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1012)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1012?message=Update%20Docs)]
 </div>
 Generates the center of masses and inertial axes
   - `mol`: `AbstractMolecule`
@@ -126,8 +126,8 @@ Generates the center of masses and inertial axes
 principle_axis_transformation(cls, mol, sel=None, inverse=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1015)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1015?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1029)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1029?message=Update%20Docs)]
 </div>
 Generates the principle axis transformation for a Molecule
   - `mol`: `AbstractMolecule`
@@ -142,8 +142,8 @@ Generates the principle axis transformation for a Molecule
 eckart_embedding_data(cls, mol, coords, sel=None, in_paf=False, planar_ref_tolerance=None, proper_rotation=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1027)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1027?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1041)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1041?message=Update%20Docs)]
 </div>
 
   - `mol`: `AbstractMolecule`
@@ -162,8 +162,8 @@ eckart_embedding_data(cls, mol, coords, sel=None, in_paf=False, planar_ref_toler
 eckart_transformation(cls, mol, ref_mol, sel=None, inverse=False, planar_ref_tolerance=None, proper_rotation=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1049)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1049?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1063)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1063?message=Update%20Docs)]
 </div>
 
   - `ref_mol`: `AbstractMolecule`
@@ -182,8 +182,8 @@ eckart_transformation(cls, mol, ref_mol, sel=None, inverse=False, planar_ref_tol
 eckart_embedded_coords(cls, mol, coords, sel=None, in_paf=False, reset_com=True, planar_ref_tolerance=None, proper_rotation=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1076)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1076?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1090)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1090?message=Update%20Docs)]
 </div>
 
   - `mol`: `AbstractMolecule`
@@ -202,8 +202,8 @@ eckart_embedded_coords(cls, mol, coords, sel=None, in_paf=False, reset_com=True,
 coriolis_constants(cls, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1101)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1101?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1115)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1115?message=Update%20Docs)]
 </div>
 
 
@@ -213,8 +213,8 @@ coriolis_constants(cls, mol):
 translation_rotation_eigenvectors(cls, mol, sel=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1109)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1109?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1123)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1123?message=Update%20Docs)]
 </div>
 
   - `mol`: `AbstractMolecule`
@@ -231,8 +231,8 @@ translation_rotation_eigenvectors(cls, mol, sel=None):
 fragments(cls, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1124)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1124?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1138)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1138?message=Update%20Docs)]
 </div>
 
   - `mol`: `AbstractMolecule`
@@ -247,8 +247,8 @@ fragments(cls, mol):
 fragment_indices(cls, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1160)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1160?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1174)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1174?message=Update%20Docs)]
 </div>
 
   - `mol`: `AbstractMolecule`
@@ -263,8 +263,8 @@ fragment_indices(cls, mol):
 edge_graph(cls, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1176)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1176?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1190)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1190?message=Update%20Docs)]
 </div>
 
   - `mol`: `AbstractMolecule`
@@ -279,8 +279,8 @@ edge_graph(cls, mol):
 guessed_bonds(cls, mol, tol=1.05, guess_type=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1193)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1193?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1207)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1207?message=Update%20Docs)]
 </div>
 Guesses the bonds for the molecule by finding the ones that are less than some percentage of a single bond for that
 pair of elements
@@ -294,8 +294,8 @@ pair of elements
 get_prop_chemical_formula(cls, atoms): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1205)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1205?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1219)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1219?message=Update%20Docs)]
 </div>
 
   - `atoms`: `Tuple[str]`
@@ -310,8 +310,8 @@ get_prop_chemical_formula(cls, atoms):
 chemical_formula(cls, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1215)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1215?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1229)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1229?message=Update%20Docs)]
 </div>
 
   - `mol`: `AbstractMolecule`
@@ -371,7 +371,7 @@ chemical_formula(cls, mol):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/Properties/MolecularProperties.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/Properties/MolecularProperties.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L924?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L938?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

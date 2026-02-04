@@ -41,9 +41,9 @@
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-db8225" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-db8225"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-251618" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-251618"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-db8225" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-251618" markdown="1">
  - [Harmonic](#Harmonic)
 - [Morse](#Morse)
 - [SampleRotated](#SampleRotated)
@@ -68,9 +68,9 @@
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-ee7c41" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-ee7c41"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-2d9512" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-2d9512"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-ee7c41" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-2d9512" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -1293,6 +1293,7 @@ class DGBTests(TestCase):
             mol = mol.modify(
                 atoms=mol.atoms[:2],
                 coords=mol.coords[:2],
+                dipole_evaluator='expansion',
                 dipole_derivatives=[
                     mol.dipole_derivatives[0],
                     mol.dipole_derivatives[1][:6, :]
@@ -1473,7 +1474,8 @@ class DGBTests(TestCase):
                         'potential_function': internal_pot,
                         "distance_units": "Angstroms",
                         "energy_units": "Wavenumbers",
-                        'strip_embedding': True
+                        'strip_embedding': True,
+                        'supports_internals':True
                     },
                     **fd_opts
                 ),
@@ -1486,11 +1488,12 @@ class DGBTests(TestCase):
             )
         base_dip = ochh.dipole_derivatives[:2]
         ochh = ochh.modify(
-            coords=[[0,               0,  1.27603352e+00],
-                    [0,               0, -9.98625259e-01],
-                    [0,  1.77174246e+00, -2.09630576e+00],
+            coords=[[0, 0,                1.27603352e+00],
+                    [0, 0,               -9.98625259e-01],
+                    [0, 1.77174246e+00,  -2.09630576e+00],
                     [0, -1.77174246e+00, -2.09630576e+00]],
-            dipole_derivatives=base_dip
+            dipole_derivatives=base_dip,
+            dipole_evaluator='expansion',
         )
         if embed:
             ochh = ochh.get_embedded_molecule(embed_properties=True)
@@ -4181,60 +4184,98 @@ class DGBTests(TestCase):
         # dip_plot.show()
         # return
 
-        plot_dir = os.path.expanduser("~/Documents/Postdoc/Projects/DGB/ochh/figs/int_1800_50")
-        os.makedirs(plot_dir, exist_ok=True)
-        dgb, res = DGBRunner.run_simple(
-            ochh_int,
-            dipole_function=ochh_cart.get_dipole_function(),
-            use_dipole_embedding=False,
-            plot_wavefunctions={
-                'cartesians':[0, 1] if embed_struct else [1, 2],
-                'num': 8
-            },
-            initial_mode_directions=[
-                # [0, 0, 0, 0, 0, 1],
-                # [0, 0, 0, 0, 1, 0],
+        opts = {
+            'use_internals':False,
+            'total_energy':1200,
+            'trajectory_seed':12332123,
+            'trajectories':25,
+            'timestep':15,
+            'propagation_time':50,
+            # 'sampled_modes':[4, 5],
+            'initial_mode_directions':[
+                [0, 0, 0, 0, 0, 1],
+                [0, 0, 0, 0, 1, 0],
                 # [0, 0, 0, 1, 0, 0],
                 # [0, 0, 1, 0, 0, 0],
                 # [0, 1, 0, 0, 0, 0],
-                [1, 0, 0, 0, 0, 0],
+                # [1, 0, 0, 0, 0, 0],
             ],
-            # coordinate_selection=[4, 5],
-            # modes=ochh.get_normal_modes(),#[(3, 4, 5),],
-            trajectory_seed=12332123,
-            total_energy=1200 * UnitsData.convert("Wavenumbers", "Hartrees"),
-            trajectories=25,
-            sampled_modes=[4, 5],
-            timestep=15,
-            propagation_time=50,
-            optimize_centers=[
-                {
-                    'method': 'energy-cutoff',
-                    'probabilities': [
-                        [1800 / UnitsData.hartrees_to_wavenumbers, 100],
-                        # [3000 / UnitsData.hartrees_to_wavenumbers, 25]
-                    ],
-                    'cutoff': None
-                }
+            'energy_cutoffs': [
+                [1800, 100],
+                # [3000, 25]
             ],
-            similarity_cutoff=.99,
-            # subspace_size=15,
-            # use_momenta=True,
-            # momentum_scaling=1 / 8,
-            kinetic_options=dict(
+            'similarity_cutoff': .99,
+            'kinetic_options': dict(
                 include_diagonal_contribution=True,
                 include_coriolis_coupling=True,
                 include_watson_term=True
             ),
-            use_interpolation=False,
-            padding=[[50, 0], [50, 30]],
-            plot_dir=plot_dir,
-            axes_labels=["$x$ (a.u.)", "$y$ (a.u.)"]
+            'use_interpolation':False,
+            # 'use_momenta': False,
+            # 'momentum_scaling': None,
             # pairwise_potential_functions={
             #     (0, 1): 'auto',
             #     (1, 2): 'auto',
             #     (1, 3): 'auto'
             # }
+        }
+
+        bits = [
+            'cart' if not opts.get('use_internals') else 'int',
+            "_".join(f"{e}_{n}" for e, n in opts['energy_cutoffs']),
+            f'ntraj_{opts["trajectories"]}'
+                if opts.get('initial_mode_directions') is None else
+            f'ndirs_{len(opts["initial_mode_directions"])}',
+            f'nstep_{opts["propagation_time"]}',
+            f'dt_{opts["timestep"]}',
+            None if opts.get('kinetic_options', {}).get('include_coriolis_coupling', True) else 'no_corr',
+            None if opts.get('kinetic_options', {}).get('include_watson_term', True) else 'no_wat',
+            None if opts.get('kinetic_options', {}).get('include_diagonal_contribution', True) else 'no_diag',
+            f'{opts["trajectory_seed"]}',
+        ]
+        tag = "_".join(b for b in bits if b is not None)
+        root_dir = os.path.expanduser("~/Documents/Postdoc/Projects/DGB/ochh/figs")
+
+        # Runner, don't need to mess with this
+        plot_dir = os.path.join(root_dir, tag)
+        try:
+            shutil.rmtree(plot_dir)
+        except FileNotFoundError:
+            ...
+        os.makedirs(plot_dir, exist_ok=True)
+        dev.write_json(os.path.join(plot_dir, 'config.json'), opts)
+        use_internals = opts.pop('use_internals')
+        cutoffs = opts.pop('energy_cutoffs')
+        tot_E = opts.pop('total_energy')
+        dgb, res = DGBRunner.run_simple(
+            ochh_int if use_internals else ochh_cart,
+            dipole_function=ochh_cart.get_dipole_function(),
+            use_dipole_embedding=False,
+            logger=os.path.join(plot_dir, 'log.txt'),
+            # coordinate_selection=[4, 5],
+            # modes=ochh.get_normal_modes(),#[(3, 4, 5),],
+            total_energy=tot_E * UnitsData.convert("Wavenumbers", "Hartrees"),
+            optimize_centers=[
+                {
+                    'method': 'energy-cutoff',
+                    'probabilities': [
+                        [e[0] / UnitsData.hartrees_to_wavenumbers, e[1]]
+                        for e in cutoffs
+                    ],
+                    'cutoff': None
+                }
+            ],
+            **opts,
+            plot_wavefunctions={
+                'cartesians': [0, 1] if embed_struct else [1, 2],
+                'num': 8
+            },
+            plot_dir=plot_dir,
+            axes_labels=["$x$ (a.u.)", "$y$ (a.u.)"],
+            padding=[[50, 0], [50, 30]],
+            spectrum_plotting_options=dict(
+                plot_range=[[0, 4500], None]
+            )
         )
 
         from Psience.Spectra import DiscreteSpectrum

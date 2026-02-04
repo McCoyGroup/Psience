@@ -38,13 +38,24 @@ Assumes frequencies and transition moments in a.u.
     >
 
 
+<a id="Psience.Spectra.BaseSpectrum.DiscreteSpectrum.from_raman_moments" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_raman_moments(cls, frequencies, transition_polarizabilities, pump_frequency=0, **meta): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L170)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L170?message=Update%20Docs)]
+</div>
+
+
 <a id="Psience.Spectra.BaseSpectrum.DiscreteSpectrum.normalize" class="docs-object-method">&nbsp;</a> 
 ```python
 normalize(self, which=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L170)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L170?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L183)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L183?message=Update%20Docs)]
 </div>
 
 
@@ -53,8 +64,8 @@ normalize(self, which=None):
 plot(self, figure=None, plot_style=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L177)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L177?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L190)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L190?message=Update%20Docs)]
 </div>
 Plots a spectrum using `McUtils.Plots.StickSpectrum`
   - `figure`: `None | McUtils.Plots.Graphics`
@@ -67,11 +78,11 @@ Plots a spectrum using `McUtils.Plots.StickSpectrum`
 
 <a id="Psience.Spectra.BaseSpectrum.DiscreteSpectrum.broaden" class="docs-object-method">&nbsp;</a> 
 ```python
-broaden(self, broadening_type='gaussian', breadth=10): 
+broaden(self, breadth=10, *, broadening_type='gaussian', noising_function=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L200)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L200?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L213)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L213?message=Update%20Docs)]
 </div>
 Applies a broadening to the spectrum
   - `broadening_type`: `Any`

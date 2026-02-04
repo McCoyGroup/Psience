@@ -224,8 +224,8 @@ Multiplies each mode by some scaling factor
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularVibrations.py#L309)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularVibrations.py#L309?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularVibrations.py#L311)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularVibrations.py#L311?message=Update%20Docs)]
 </div>
  </div>
 </div>

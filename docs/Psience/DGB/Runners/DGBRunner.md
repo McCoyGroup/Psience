@@ -152,7 +152,7 @@ prep_plot_wavefunctions_spec(cls, dgb, spec):
 <a id="Psience.DGB.Runners.DGBRunner.run_dgb" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-run_dgb(cls, dgb: Psience.DGB.DGB.DGB, mol, plot_centers=True, plot_wavefunctions=True, plot_spectrum=False, spectrum_plot_name=None, pot_cmap='viridis', wfn_cmap='RdBu', wfn_points=100, wfn_contours=12, plot_dir=None, plot_potential=True, pot_points=100, domain=None, domain_padding=1, wavefunction_scaling=None, potential_cutoff=None, potential_units='Wavenumbers', mode=None, nodeless_ground_state=None, min_singular_value=None, subspace_size=None, plot_similarity=False, similarity_plot_name=None, similarity_cutoff=None, similarity_chunk_size=None, similar_det_cutoff=None, num_print=None, **plot_options): 
+run_dgb(cls, dgb: Psience.DGB.DGB.DGB, mol, plot_centers=True, plot_wavefunctions=True, plot_spectrum=False, spectrum_plot_name=None, pot_cmap='viridis', wfn_cmap='RdBu', wfn_points=100, wfn_contours=12, plot_dir=None, plot_potential=True, pot_points=100, domain=None, domain_padding=1, wavefunction_scaling=None, potential_cutoff=None, potential_units='Wavenumbers', mode=None, nodeless_ground_state=None, min_singular_value=None, subspace_size=None, plot_similarity=False, similarity_plot_name=None, similarity_cutoff=None, similarity_chunk_size=None, similar_det_cutoff=None, num_print=None, spectrum_plotting_options=None, **plot_options): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L901)/
@@ -166,8 +166,8 @@ run_dgb(cls, dgb: Psience.DGB.DGB.DGB, mol, plot_centers=True, plot_wavefunction
 getMorseParameters(cls, w=None, wx=None, m1=None, m2=None, re=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1067)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1067?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1070)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1070?message=Update%20Docs)]
 </div>
 
 
@@ -177,8 +177,8 @@ getMorseParameters(cls, w=None, wx=None, m1=None, m2=None, re=None):
 setupMorseFunction(cls, model, i, j, w=None, wx=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1088)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1088?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1091)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1091?message=Update%20Docs)]
 </div>
 
 
@@ -188,8 +188,8 @@ setupMorseFunction(cls, model, i, j, w=None, wx=None):
 plot_interpolation_error(cls, dgb, pot): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1115)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1115?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1118)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1118?message=Update%20Docs)]
 </div>
  </div>
 </div>

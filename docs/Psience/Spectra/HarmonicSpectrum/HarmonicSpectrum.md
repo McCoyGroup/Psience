@@ -30,14 +30,36 @@ from_normal_modes(cls, nms, dipole_derivatives, **opts):
 </div>
 
 
-<a id="Psience.Spectra.HarmonicSpectrum.HarmonicSpectrum.from_mol" class="docs-object-method">&nbsp;</a> 
+<a id="Psience.Spectra.HarmonicSpectrum.HarmonicSpectrum.raman_from_modes" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-from_mol(cls, mol, **opts): 
+raman_from_modes(cls, nms, polarizability_derivatives, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L22)/
 [edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L22?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Spectra.HarmonicSpectrum.HarmonicSpectrum.from_mol" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_mol(cls, mol, modes=None, dipole_derivatives=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L33)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L33?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.Spectra.HarmonicSpectrum.HarmonicSpectrum.raman_from_mol" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+raman_from_mol(cls, mol, modes=None, polarizability_derivatives=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L41)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L41?message=Update%20Docs)]
 </div>
  </div>
 </div>

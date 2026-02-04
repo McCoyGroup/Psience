@@ -1,8 +1,8 @@
 ## <a id="Psience.Molecools.Vibrations.MolecularNormalModes">MolecularNormalModes</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L311)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L311?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L313)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L313?message=Update%20Docs)]
 </div>
 
 A Coordinerds CoordinateSystem object that manages all of the data needed to
@@ -27,8 +27,8 @@ name: str
 __init__(self, molecule, coeffs, name=None, freqs=None, internal=False, origin=None, basis=None, inverse=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L317)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L317?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations.py#L319)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L319?message=Update%20Docs)]
 </div>
 
   - `molecule`: `AbstractMolecule`
@@ -55,8 +55,8 @@ __init__(self, molecule, coeffs, name=None, freqs=None, internal=False, origin=N
 molecule(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L372)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L372?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L374)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L374?message=Update%20Docs)]
 </div>
 
 
@@ -65,8 +65,8 @@ molecule(self):
 change_mol(self, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L381)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L381?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L383)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L383?message=Update%20Docs)]
 </div>
 
 
@@ -76,8 +76,8 @@ change_mol(self, mol):
 coords_by_modes(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L393)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L393?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L395)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L395?message=Update%20Docs)]
 </div>
 
 
@@ -87,8 +87,8 @@ coords_by_modes(self):
 modes_by_coords(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L396)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L396?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L398)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L398?message=Update%20Docs)]
 </div>
 
 
@@ -97,8 +97,8 @@ modes_by_coords(self):
 to_internals(self, intcrds=None, dYdR=None, dRdY=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L401)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L401?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L403)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L403?message=Update%20Docs)]
 </div>
 
 
@@ -108,8 +108,8 @@ to_internals(self, intcrds=None, dYdR=None, dRdY=None):
 origin(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L434)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L434?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L436)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L436?message=Update%20Docs)]
 </div>
 
 
@@ -118,8 +118,8 @@ origin(self):
 embed(self, frame): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L444)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L444?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L446)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L446?message=Update%20Docs)]
 </div>
 
   - `frame`: `MolecularTransformation`
@@ -133,8 +133,8 @@ embed(self, frame):
 insert(self, val, where): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L507)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L507?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L509)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L509?message=Update%20Docs)]
 </div>
 Inserts values into the appropriate positions in the mode matrix
   - `val`: `Any`
@@ -150,8 +150,8 @@ Inserts values into the appropriate positions in the mode matrix
 to_new_modes(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L560)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L560?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L562)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L562?message=Update%20Docs)]
 </div>
 Converts to the new generalized normal modes
   - `:returns`: `_`
@@ -164,8 +164,8 @@ Converts to the new generalized normal modes
 from_new_modes(cls, mol, modes): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L580)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L580?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L582)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L582?message=Update%20Docs)]
 </div>
 Converts to the new generalized normal modes
   - `:returns`: `_`
@@ -178,8 +178,8 @@ Converts to the new generalized normal modes
 from_force_constants(cls, molecule, fcs, *, atoms=None, masses=None, mass_units='AtomicMassUnits', inverse_mass_matrix=False, remove_transrot=True, dimensionless=False, mass_weighted=False, normalize=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L596)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L596?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L598)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L598?message=Update%20Docs)]
 </div>
 Generates normal modes from the specified force constants
   - `molecule`: `AbstractMolecule`
@@ -209,8 +209,8 @@ Generates normal modes from the specified force constants
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L653)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L653?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L655)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations/MolecularNormalModes.py#L655?message=Update%20Docs)]
 </div>
 Takes a slice of the modes
   - `item`: `Any`
@@ -270,7 +270,7 @@ Takes a slice of the modes
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/Vibrations/MolecularNormalModes.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/Vibrations/MolecularNormalModes.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L311?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Vibrations.py#L313?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

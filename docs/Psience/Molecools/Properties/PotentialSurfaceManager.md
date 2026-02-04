@@ -1,8 +1,8 @@
 ## <a id="Psience.Molecools.Properties.PotentialSurfaceManager">PotentialSurfaceManager</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L1895)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L1895?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L1959)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L1959?message=Update%20Docs)]
 </div>
 
 
@@ -26,8 +26,8 @@ name: str
 __init__(self, mol, surface=None, derivatives=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L1897)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L1897?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L1961)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L1961?message=Update%20Docs)]
 </div>
 
 
@@ -37,8 +37,8 @@ __init__(self, mol, surface=None, derivatives=None):
 from_data(cls, mol, data): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1909)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1909?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1973)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1973?message=Update%20Docs)]
 </div>
 
 
@@ -48,8 +48,8 @@ from_data(cls, mol, data):
 surface(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1913)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1913?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1977)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1977?message=Update%20Docs)]
 </div>
 
 
@@ -59,8 +59,8 @@ surface(self):
 surface_coords(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1918)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1918?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1982)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1982?message=Update%20Docs)]
 </div>
 
 
@@ -69,8 +69,8 @@ surface_coords(self):
 get_derivs(self, quiet=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1925)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1925?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1989)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1989?message=Update%20Docs)]
 </div>
 
 
@@ -80,8 +80,8 @@ get_derivs(self, quiet=False):
 derivatives(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1929)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1929?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1993)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1993?message=Update%20Docs)]
 </div>
 
 
@@ -91,8 +91,8 @@ derivatives(self):
 force_constants(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1936)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1936?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2000)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2000?message=Update%20Docs)]
 </div>
 
 
@@ -101,8 +101,8 @@ force_constants(self):
 load_potential_derivatives(self, file=None, mode=None, quiet=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1940)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L1940?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2004)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2004?message=Update%20Docs)]
 </div>
 Loads potential derivatives from a file (or from `source_file` if set)
   - `file`: `Any`
@@ -116,8 +116,8 @@ Loads potential derivatives from a file (or from `source_file` if set)
 load_potential_surface(self, coordinates): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2038)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2038?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2102)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2102?message=Update%20Docs)]
 </div>
 
 
@@ -126,8 +126,8 @@ load_potential_surface(self, coordinates):
 load(self, coordinates=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2067)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2067?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2131)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2131?message=Update%20Docs)]
 </div>
 
 
@@ -136,8 +136,8 @@ load(self, coordinates=None):
 update(self, val): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2074)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2074?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2138)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2138?message=Update%20Docs)]
 </div>
 Updates the held values
   - `val`: `Any`
@@ -151,8 +151,8 @@ Updates the held values
 apply_transformation(self, transf): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2085)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2085?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2149)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2149?message=Update%20Docs)]
 </div>
 
 
@@ -161,8 +161,8 @@ apply_transformation(self, transf):
 insert_atoms(self, atoms, coords, where): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2103)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2103?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2167)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2167?message=Update%20Docs)]
 </div>
 Handles the insertion of new atoms into the structure
   - `atoms`: `tuple[str]`
@@ -180,8 +180,8 @@ Handles the insertion of new atoms into the structure
 delete_atoms(self, where): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2122)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2122?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2186)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/PotentialSurfaceManager.py#L2186?message=Update%20Docs)]
 </div>
 Handles the deletion from the structure
   - `atoms`: `tuple[str]`
@@ -245,7 +245,7 @@ Handles the deletion from the structure
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/Properties/PotentialSurfaceManager.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/Properties/PotentialSurfaceManager.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L1895?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L1959?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

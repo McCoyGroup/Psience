@@ -1,8 +1,8 @@
 ## <a id="Psience.Spectra.BaseSpectrum.MultiSpectrum">MultiSpectrum</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L429)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L429?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L450)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L450?message=Update%20Docs)]
 </div>
 
 A wrapper for multiple spectra, really just for the plotting convenience
@@ -24,8 +24,8 @@ A wrapper for multiple spectra, really just for the plotting convenience
 __init__(self, spectra: 'Iterable[BaseSpectrum]', **meta): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L437)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L437?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L458)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L458?message=Update%20Docs)]
 </div>
 
   - `frequencies`: `np.ndarray`
@@ -41,8 +41,8 @@ __init__(self, spectra: 'Iterable[BaseSpectrum]', **meta):
 __getitem__(self, item): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/MultiSpectrum.py#L449)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/MultiSpectrum.py#L449?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/MultiSpectrum.py#L470)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/MultiSpectrum.py#L470?message=Update%20Docs)]
 </div>
 
 
@@ -51,8 +51,8 @@ __getitem__(self, item):
 frequency_filter(self, freq_min, freq_max): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/MultiSpectrum.py#L457)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/MultiSpectrum.py#L457?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/MultiSpectrum.py#L478)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/MultiSpectrum.py#L478?message=Update%20Docs)]
 </div>
 Filters by frequencies >= `freq_min` and <= `freq_max`
   - `freq_min`: `float`
@@ -78,8 +78,8 @@ m
 intensity_filter(self, int_min, int_max): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/MultiSpectrum.py#L474)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/MultiSpectrum.py#L474?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/MultiSpectrum.py#L495)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/MultiSpectrum.py#L495?message=Update%20Docs)]
 </div>
 Filters by intensities >= `int_min` and <= `int_max`
   - `int_min`: `float`
@@ -105,8 +105,8 @@ m
 plot(self, figure=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/MultiSpectrum.py#L491)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/MultiSpectrum.py#L491?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/MultiSpectrum.py#L512)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/MultiSpectrum.py#L512?message=Update%20Docs)]
 </div>
 A just plots all the spectra on the same figure
   - `opts`: `Any`
@@ -166,7 +166,7 @@ A just plots all the spectra on the same figure
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Spectra/BaseSpectrum/MultiSpectrum.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Spectra/BaseSpectrum/MultiSpectrum.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L429?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L450?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

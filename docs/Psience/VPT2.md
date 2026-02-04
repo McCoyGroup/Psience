@@ -280,9 +280,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-f87ee8" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-f87ee8"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-13045e" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-13045e"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-f87ee8" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-13045e" markdown="1">
  - [MultdiDegHOH](#MultdiDegHOH)
 - [HOHAnalytic](#HOHAnalytic)
 - [HOHLocal](#HOHLocal)
@@ -303,6 +303,7 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 - [PyreneAnalytic](#PyreneAnalytic)
 - [NewEmbedding](#NewEmbedding)
 - [TermRephasing](#TermRephasing)
+- [SimpleVPTDegs](#SimpleVPTDegs)
 - [HOHNoKE](#HOHNoKE)
 - [HOHVPTRunner](#HOHVPTRunner)
 - [HODVPTRunner](#HODVPTRunner)
@@ -321,6 +322,7 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 - [HOONOTargetModeDegen](#HOONOTargetModeDegen)
 - [HOONOFasterDegen](#HOONOFasterDegen)
 - [HOONOFasterDegenSubspace](#HOONOFasterDegenSubspace)
+- [BenzeneInternals](#BenzeneInternals)
 - [OCHHVPTRunnerShifted](#OCHHVPTRunnerShifted)
 - [HOONOVPTRunnerShifted](#HOONOVPTRunnerShifted)
 - [CrieegeeVPTRunnerShifted](#CrieegeeVPTRunnerShifted)
@@ -346,9 +348,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-6df9d3" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-6df9d3"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-8f1472" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-8f1472"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-6df9d3" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-8f1472" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -1830,6 +1832,23 @@ class VPT2Tests(TestCase):
         runner.print_tables(print_intensities=False)
 ```
 
+#### <a name="SimpleVPTDegs">SimpleVPTDegs</a>
+```python
+    def test_SimpleVPTDegs(self):
+        VPTRunner.run_simple(
+            TestManager.test_data("water_freq.fchk"),
+            2,
+            degeneracy_specs={'groups':[
+                [
+                    [0, 0, 2],
+                    [0, 2, 0],
+                    [2, 1, 0],
+                    [2, 0, 1]
+                ]
+            ]}
+        )
+```
+
 #### <a name="HOHNoKE">HOHNoKE</a>
 ```python
     def test_HOHNoKE(self):
@@ -3230,6 +3249,68 @@ State                   Frequency    Intensity       Frequency    Intensity
         """
 ```
 
+#### <a name="BenzeneInternals">BenzeneInternals</a>
+```python
+    def test_BenzeneInternals(self):
+        import McUtils.Coordinerds as coordops
+        zmat = coordops.parse_zmatrix_string("""
+1          
+2   1	
+3  	2		1	
+4  	2		3		1	
+5  	3		2		1	
+6  	3		5		2	
+7  	5		3		2	
+8  	5		7		3	
+9  	7		5		3	
+10 	7		9		5	
+11 	9		1		7	
+12 	1		2		9""", has_values=False, atoms_are_order=True)[1]
+
+        # benze = Molecule.from_file(TestManager.test_data("benzene.fchk"))
+        # print(benze.get_normal_modes().freqs * UnitsData.hartrees_to_wavenumbers)
+        # return
+
+        state = VPTStateMaker(30)
+        runner, _ = VPTRunner.construct(
+            TestManager.test_data("benzene.fchk"),
+            [state()] + [state(i) for i in range(1, 7)],
+            logger=True,
+            # internals=zmat,
+            # internals='auto',
+            degeneracy_specs='auto',
+            mixed_derivative_handling_mode='old'
+            # expansion_handling_mode='new'
+            # cartesian_analytic_deriv_order=-1,
+            # cartesian_by_internal_derivative_method="fast"
+        )
+
+        import McUtils.Formatters as mfmt
+        v4, v3, v0 = runner.hamiltonian.V_terms[2], runner.hamiltonian.V_terms[1], runner.hamiltonian.V_terms[0]
+        print(mfmt.format_symmetric_tensor_elements(
+            v0 * UnitsData.hartrees_to_wavenumbers,
+            # allowed_indices=[(27, 28, 29)] * 3,
+            symmetries=[(0, 1)],
+            cutoff=0.01,
+            # filter=lambda x:np.abs(x[1] - x[2]) > 20
+        ))
+        print(mfmt.format_symmetric_tensor_elements(
+            v3 * UnitsData.hartrees_to_wavenumbers,
+            # allowed_indices=[(27, 28, 29)] * 3,
+            symmetries=[(1, 2)],
+            cutoff=0.01,
+            # filter=lambda x:np.abs(x[1] - x[2]) > 20
+        ))
+
+        print(mfmt.format_symmetric_tensor_elements(
+            v4 * UnitsData.hartrees_to_wavenumbers,
+            # allowed_indices=[(27, 28, 29)] * 4,
+            symmetries=[(0, 1), (2, 3)],
+            cutoff=0.01,
+            # filter=lambda x:np.abs(x[1] - x[2]) > 20
+        ))
+```
+
 #### <a name="OCHHVPTRunnerShifted">OCHHVPTRunnerShifted</a>
 ```python
     def test_OCHHVPTRunnerShifted(self):
@@ -3898,10 +3979,30 @@ State                   Frequency    Intensity       Frequency    Intensity
 ```python
     def test_HOONO(self):
 
+        # woof = Molecule.from_file(
+        #         TestManager.test_data('HOONO_freq.fchk'),
+        #         internals={'primitives': 'auto'},
+        #     )
+        # print(
+        #     [s.shape for s in woof.get_cartesians_by_internals(order=3)]
+        # )
+        # raise Exception(woof.internal_coordinates)
+
+        # VPTRunner.run_simple(
+        #     TestManager.test_data('HOONO_freq.fchk'),
+        #     1,
+        #     degeneracy_specs=None,
+        #     # order=4,
+        #     # expansion_order=2
+        # )
+
         VPTRunner.run_simple(
             TestManager.test_data('HOONO_freq.fchk'),
             1,
-            degeneracy_specs=None,
+            internals='auto',
+            cartesian_analytic_deriv_order=-1,
+            cartesian_by_internal_derivative_method="fast"
+            # degeneracy_specs=None,
             # order=4,
             # expansion_order=2
         )
