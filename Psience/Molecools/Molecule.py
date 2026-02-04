@@ -198,7 +198,7 @@ class Molecule(AbstractMolecule):
                     dev.is_default(masses)
                 else masses
             ),
-            bonds=self._bonds if dev.is_default(bonds) else bonds,
+            bonds=self._bonds if dev.is_default(bonds, allow_None=False) else bonds,
             guess_bonds=self.guess_bonds if dev.is_default(guess_bonds) else guess_bonds,
             energy_evaluator=self.energy_evaluator if dev.is_default(energy_evaluator, allow_None=False) else energy_evaluator,
             dipole_evaluator=self.dipole_evaluator if dev.is_default(dipole_evaluator, allow_None=False) else dipole_evaluator,

@@ -3100,6 +3100,9 @@ class NormalModesManager(PropertyManager):
                     new_graphs.append(gg)
             phase_graphs = new_graphs
 
+        if len(phase_graphs) == 0:
+            return np.eye(tf.shape[0])
+
         # determine which clusters are complement to eachother
         # and just take one
         include_graph = [True] * len(phase_graphs)

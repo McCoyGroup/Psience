@@ -1546,6 +1546,21 @@ class VPT2Tests(TestCase):
                              degeneracy_specs='auto'
                              )
 
+    @debugTest
+    def test_SimpleVPTDegs(self):
+        VPTRunner.run_simple(
+            TestManager.test_data("water_freq.fchk"),
+            2,
+            degeneracy_specs={'groups':[
+                [
+                    [0, 0, 2],
+                    [0, 2, 0],
+                    [2, 1, 0],
+                    [2, 0, 1]
+                ]
+            ]}
+        )
+
     @validationTest
     def test_TermRephasing(self):
         # molg = Molecule.from_file(TestManager.test_data('ts_taup_anh_b2.log'), 'gspec')
@@ -2942,7 +2957,7 @@ State                   Frequency    Intensity       Frequency    Intensity
   0 0 1 1 1 0 0 0 0    2076.37744      0.00000      2080.76165      0.00332
         """
 
-    @debugTest
+    @validationTest
     def test_BenzeneInternals(self):
         import McUtils.Coordinerds as coordops
         zmat = coordops.parse_zmatrix_string("""

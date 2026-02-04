@@ -3558,3 +3558,8 @@ class MolecoolsTests(TestCase):
         print(
             np.linalg.norm(mol.coords[4] - mol.coords[5]) * UnitsData.bohr_to_angstroms
         )
+
+        Molecule.from_string(
+            "NC(N)=NC(=O)c1[nH]c(C(=O)O)c2cc3c(cc12)c1c2cc4c(C(=O)O)[nH]c(C(=O)N=C(N)N)c4cc2c2c4cc5c(C(=O)O)[nH:1][c:2]([C:3](=O)[N:4]=[C:5](N)[NH2:6])c5cc4c4c5cc6c(C(=O)O)[nH]c(C(=O)N=C(N)N)c6cc5c5c6cc7c(C(=O)O)[nH]c(C(=O)N=C(N)N)c7cc6c3c3c1c2c4c53",
+            "smi"
+        )
