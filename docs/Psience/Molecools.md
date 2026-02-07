@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-b053fe" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-b053fe"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-1e1f3b" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-1e1f3b"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-b053fe" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-1e1f3b" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -178,9 +178,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-d3f2c8" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-d3f2c8"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-96e2fa" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-96e2fa"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-d3f2c8" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-96e2fa" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3607,6 +3607,13 @@ class MolecoolsTests(TestCase):
     def test_RDKitConfGen(self):
         from Psience.Molecools import Molecule
 
+        print(
+            Molecule(
+                ["O", "H", "H"],
+                [[0, 0, 0], [0, 1, 0], [1, 0, 0]]
+            ).bonds
+        )
+
         mol = Molecule.from_string(
             'Cc1ccc(OC[C:6]([NH:5]/[N:4]=[CH:3]/[c:2]2cc(=O)[nH]c(=O)[nH:1]2)=[O:7])c([N+](=O)[O-])c1',
             'smi',
@@ -3615,6 +3622,14 @@ class MolecoolsTests(TestCase):
                 'random_seed': 100
             }
         )
+
+        print(
+            Molecule(
+                mol.atoms,
+                mol.coords
+            ).bonds[:3]
+        )
+
         print(
             np.linalg.norm(mol.coords[4] - mol.coords[5]) * UnitsData.bohr_to_angstroms
         )
