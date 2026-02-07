@@ -3547,6 +3547,13 @@ class MolecoolsTests(TestCase):
     def test_RDKitConfGen(self):
         from Psience.Molecools import Molecule
 
+        print(
+            Molecule(
+                ["O", "H", "H"],
+                [[0, 0, 0], [0, 1, 0], [1, 0, 0]]
+            ).bonds
+        )
+
         mol = Molecule.from_string(
             'Cc1ccc(OC[C:6]([NH:5]/[N:4]=[CH:3]/[c:2]2cc(=O)[nH]c(=O)[nH:1]2)=[O:7])c([N+](=O)[O-])c1',
             'smi',
@@ -3555,6 +3562,14 @@ class MolecoolsTests(TestCase):
                 'random_seed': 100
             }
         )
+
+        print(
+            Molecule(
+                mol.atoms,
+                mol.coords
+            ).bonds[:3]
+        )
+
         print(
             np.linalg.norm(mol.coords[4] - mol.coords[5]) * UnitsData.bohr_to_angstroms
         )

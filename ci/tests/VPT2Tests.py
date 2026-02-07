@@ -1546,7 +1546,7 @@ class VPT2Tests(TestCase):
                              degeneracy_specs='auto'
                              )
 
-    @debugTest
+    @validationTest
     def test_SimpleVPTDegs(self):
         VPTRunner.run_simple(
             TestManager.test_data("water_freq.fchk"),
@@ -2957,7 +2957,7 @@ State                   Frequency    Intensity       Frequency    Intensity
   0 0 1 1 1 0 0 0 0    2076.37744      0.00000      2080.76165      0.00332
         """
 
-    @validationTest
+    @debugTest
     def test_BenzeneInternals(self):
         import McUtils.Coordinerds as coordops
         zmat = coordops.parse_zmatrix_string("""
