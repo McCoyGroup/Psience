@@ -2954,6 +2954,7 @@ class Molecule(AbstractMolecule):
             rdmol.atoms,
             rdmol.coords * UnitsData.convert("Angstroms", "BohrRadius"),
             bonds=rdmol.bonds,
+            charge=rdmol.charge,
             **dict(
                 rdmol.meta,
                 **opts
