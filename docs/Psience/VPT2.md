@@ -280,9 +280,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-67e67f" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-67e67f"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-fb0609" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-fb0609"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-67e67f" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-fb0609" markdown="1">
  - [MultdiDegHOH](#MultdiDegHOH)
 - [HOHAnalytic](#HOHAnalytic)
 - [HOHLocal](#HOHLocal)
@@ -348,9 +348,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-83b27a" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-83b27a"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-3a9869" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-3a9869"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-83b27a" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-3a9869" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -874,6 +874,7 @@ class VPT2Tests(TestCase):
     def test_AnalyticWFC(self):
 
         file_name = "OCHH_freq.fchk"
+
         AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
             [
@@ -894,9 +895,11 @@ class VPT2Tests(TestCase):
                     ]
                 ]
             ],
-            expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
-            degeneracy_specs='auto',
-            handle_degeneracies=True
+            degeneracy_specs={"wfc_threshold":0.3},
+            # logger=True
+            # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+            # degeneracy_specs='auto',
+            # handle_degeneracies=True
         )
 ```
 

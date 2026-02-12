@@ -402,8 +402,8 @@ y(self, i, j, k, l):
 convert(unit, target): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/McUtils/Data/ConstantsData/UnitsDataHandler.py#L515)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/McUtils/Data/ConstantsData/UnitsDataHandler.py#L515?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/McUtils/Data/ConstantsData/UnitsDataHandler.py#L524)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/McUtils/Data/ConstantsData/UnitsDataHandler.py#L524?message=Update%20Docs)]
 </div>
 Converts base unit into target using the scraped NIST data
   - `unit`: `Any`
