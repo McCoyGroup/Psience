@@ -3547,6 +3547,27 @@ class MolecoolsTests(TestCase):
     def test_RDKitConfGen(self):
         from Psience.Molecools import Molecule
 
+        mols = Molecule.from_string(
+            'Cc1ccc(OC[C:6]([NH:5]/[N:4]=[CH:3]/[c:2]2cc(=O)[nH]c(=O)[nH:1]2)=[O:7])c([N+](=O)[O-])c1',
+            'smi',
+            confgen_opts={
+                'distance_constraints': {(4, 5): [1.2, 1.4]},
+                'random_seed': 100
+            }
+        )
+
+        mols = Molecule.from_string(
+            'Cc1ccc(OC[C:6]([NH:5]/[N:4]=[CH:3]/[c:2]2cc(=O)[nH]c(=O)[nH:1]2)=[O:7])c([N+](=O)[O-])c1',
+            'smi',
+            num_confs=10,
+            confgen_opts={
+                'distance_constraints': {(4, 5): [1.2, 1.4]},
+                'random_seed': 100
+            }
+        )
+
+        raise Exception(mols)
+
         print(
             Molecule(
                 ["O", "H", "H"],
