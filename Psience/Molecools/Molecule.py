@@ -2990,7 +2990,7 @@ class Molecule(AbstractMolecule):
                      add_implicit_hydrogens=True,
                      num_confs=None,
                      conf_id=None,
-                     take_min=False,
+                     take_min=None,
                      optimize=False,
                      sanitize=False,
                      parse_name=True,
