@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-5e104e" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-5e104e"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-46e536" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-46e536"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-5e104e" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-46e536" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -178,9 +178,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-8e1c24" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-8e1c24"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-d80962" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-d80962"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-8e1c24" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-d80962" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3606,6 +3606,27 @@ class MolecoolsTests(TestCase):
 ```python
     def test_RDKitConfGen(self):
         from Psience.Molecools import Molecule
+
+        mols = Molecule.from_string(
+            'Cc1ccc(OC[C:6]([NH:5]/[N:4]=[CH:3]/[c:2]2cc(=O)[nH]c(=O)[nH:1]2)=[O:7])c([N+](=O)[O-])c1',
+            'smi',
+            confgen_opts={
+                'distance_constraints': {(4, 5): [1.2, 1.4]},
+                'random_seed': 100
+            }
+        )
+
+        mols = Molecule.from_string(
+            'Cc1ccc(OC[C:6]([NH:5]/[N:4]=[CH:3]/[c:2]2cc(=O)[nH]c(=O)[nH:1]2)=[O:7])c([N+](=O)[O-])c1',
+            'smi',
+            num_confs=10,
+            confgen_opts={
+                'distance_constraints': {(4, 5): [1.2, 1.4]},
+                'random_seed': 100
+            }
+        )
+
+        raise Exception(mols)
 
         print(
             Molecule(
