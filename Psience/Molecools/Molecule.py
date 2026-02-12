@@ -70,6 +70,7 @@ class Molecule(AbstractMolecule):
                  charge=None,
                  spin=None,
                  display_mode=None,
+                 display_settings=None,
                  energy=None,
                  energy_evaluator=None,
                  dipole_evaluator=None,
@@ -153,6 +154,7 @@ class Molecule(AbstractMolecule):
         self._meta = metadata
 
         self.display_mode = display_mode
+        self.display_settings = display_settings
         self._energy = energy
         self.energy_evaluator = energy_evaluator
         self.dipole_evaluator = dipole_evaluator
@@ -176,9 +178,11 @@ class Molecule(AbstractMolecule):
                dipole_evaluator=dev.default,
                charge_evaluator=dev.default,
                polarizability_evaluator=dev.default,
-               display_mode=dev.default,
                charge=dev.default,
                spin=dev.default,
+               rdmol=dev.default,
+               display_mode=dev.default,
+               display_settings=dev.default,
                normal_modes=dev.default,
                dipole_surface=dev.default,
                potential_surface=dev.default,
@@ -204,7 +208,6 @@ class Molecule(AbstractMolecule):
             dipole_evaluator=self.dipole_evaluator if dev.is_default(dipole_evaluator, allow_None=False) else dipole_evaluator,
             charge_evaluator=self.charge_evaluator if dev.is_default(charge_evaluator, allow_None=False) else charge_evaluator,
             polarizability_evaluator=self.polarizability_evaluator if dev.is_default(polarizability_evaluator, allow_None=False) else polarizability_evaluator,
-            display_mode=self.display_mode if dev.is_default(display_mode) else display_mode,
             charge=self.charge if dev.is_default(charge) else charge,
             spin=self.spin if dev.is_default(spin) else spin,
             internals=self.internals if dev.is_default(internals, allow_None=False) else internals,
@@ -235,6 +238,26 @@ class Molecule(AbstractMolecule):
                 None
                     if dev.is_default(potential_surface) else
                 potential_surface
+            ),
+            rdmol=(
+                self._rdmol
+                   if (
+                        dev.is_default(rdmol)
+                        and dev.is_default(atoms)
+                        and dev.is_default(coords)
+                        and dev.is_default(bonds)
+                    ) else
+                None
+            ),
+            display_mode=(
+                self.display_mode
+                    if dev.is_default(display_mode, allow_None=False) else
+                display_mode
+            ),
+            display_settings=(
+                self.display_settings
+                    if dev.is_default(display_settings, allow_None=False) else
+                display_settings
             ),
             potential_derivatives=(
                 None
@@ -1018,7 +1041,7 @@ class Molecule(AbstractMolecule):
             if src is not None:
                 name = os.path.basename(src)
         if name is None:
-            rdmol = self.rdmol
+            rdmol = self._rdmol
             if rdmol is not None:
                 name = rdmol.to_smiles()
         if name is None:
@@ -2955,6 +2978,7 @@ class Molecule(AbstractMolecule):
             rdmol.coords * UnitsData.convert("Angstroms", "BohrRadius"),
             bonds=rdmol.bonds,
             charge=rdmol.charge,
+            rdmol=rdmol,
             **dict(
                 rdmol.meta,
                 **opts
@@ -2964,7 +2988,9 @@ class Molecule(AbstractMolecule):
     @classmethod
     def _from_smiles(cls, smi,
                      add_implicit_hydrogens=True,
-                     num_confs=1,
+                     num_confs=None,
+                     conf_id=None,
+                     take_min=False,
                      optimize=False,
                      sanitize=False,
                      parse_name=True,
@@ -2980,22 +3006,26 @@ class Molecule(AbstractMolecule):
         if parser_options is None:
             parser_options = {}
 
-        return cls.from_rdmol(
-            RDMolecule.from_smiles(smi,
-                                   add_implicit_hydrogens=add_implicit_hydrogens,
-                                   num_confs=num_confs,
-                                   optimize=optimize,
-                                   sanitize=sanitize,
-                                   parse_name=parse_name,
-                                   allow_cxsmiles=allow_cxsmiles,
-                                   strict_cxsmiles=strict_cxsmiles,
-                                   remove_hydrogens=remove_hydrogens,
-                                   replacements=replacements,
-                                   confgen_opts=confgen_opts,
-                                   **parser_options
-                                   ),
-            **opts
-        )
+        confs = RDMolecule.from_smiles(smi,
+                                       add_implicit_hydrogens=add_implicit_hydrogens,
+                                       num_confs=num_confs,
+                                       conf_id=conf_id,
+                                       take_min=take_min,
+                                       optimize=optimize,
+                                       sanitize=sanitize,
+                                       parse_name=parse_name,
+                                       allow_cxsmiles=allow_cxsmiles,
+                                       strict_cxsmiles=strict_cxsmiles,
+                                       remove_hydrogens=remove_hydrogens,
+                                       replacements=replacements,
+                                       confgen_opts=confgen_opts,
+                                       **parser_options
+                                       )
+
+        if isinstance(confs, list):
+            return [cls.from_rdmol(s, **opts) for s in confs]
+        else:
+            return cls.from_rdmol(confs, **opts)
     @classmethod
     def _from_name(cls, name, api_key=None, add_implicit_hydrogens=True, **opts):
         from McUtils.ExternalPrograms import ChemSpiderAPI
@@ -3637,6 +3667,7 @@ class Molecule(AbstractMolecule):
              animation_options=None,
              jsmol_load_script=None,
              include_jsmol_script_interface=False,
+             dynamic_loading=None,
              units="Angstroms",
              **plot_ops
              ):
@@ -3674,6 +3705,7 @@ class Molecule(AbstractMolecule):
             return self.jsmol_viz(
                 script=jsmol_load_script,
                 recording_options=recording_options,
+                dynamic_loading=dynamic_loading,
                 **plot_ops
             )
 
@@ -3803,6 +3835,9 @@ class Molecule(AbstractMolecule):
                 figure.figure.include_export_button = include_save_buttons
                 figure.figure.include_record_button = include_save_buttons
                 figure.figure.include_view_settings_button = include_save_buttons
+
+            if dynamic_loading is not None:
+                figure.figure.dynamic_loading = dynamic_loading
 
             if recording_options is not None:
                 figure.figure.recording_options = recording_options
@@ -4666,16 +4701,21 @@ class Molecule(AbstractMolecule):
                                 )
 
     def to_widget(self):
+        display_opts = self.display_settings
+        if display_opts is None: display_opts = {}
         if self.display_mode == 'jsmol':
-            obj = self.plot(mode='jsmol', return_objects=False)
+            obj = self.plot(mode='jsmol', return_objects=False, **display_opts)
         else:
-            obj = self.plot(backend='x3d', return_objects=False).figure.to_x3d()
+            obj = self.plot(backend='x3d', return_objects=False, **display_opts).figure.to_x3d()
         return obj
 
     default_display_mode = 'jsmol'
     def _ipython_display_(self):
-        obj = self.plot(mode=self.display_mode, return_objects=False)
-        return obj._ipython_display_()
+        return self.to_widget()._ipython_display_()
+        # display_opts = self.display_settings
+        # if display_opts is None: display_opts = {}
+        # obj = self.plot(mode=self.display_mode, return_objects=False, **display_opts)
+        # return obj._ipython_display_()
         # return self.jupyter_viz()._ipython_display_()
     #endregion
 
