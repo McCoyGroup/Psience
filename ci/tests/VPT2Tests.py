@@ -576,10 +576,11 @@ class VPT2Tests(TestCase):
             logger=log_file
         )
 
-    @validationTest
+    @debugTest
     def test_AnalyticWFC(self):
 
         file_name = "OCHH_freq.fchk"
+
         AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
             [
@@ -600,9 +601,11 @@ class VPT2Tests(TestCase):
                     ]
                 ]
             ],
-            expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
-            degeneracy_specs='auto',
-            handle_degeneracies=True
+            degeneracy_specs={"wfc_threshold":0.3},
+            # logger=True
+            # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+            # degeneracy_specs='auto',
+            # handle_degeneracies=True
         )
 
     @inactiveTest
@@ -2957,7 +2960,7 @@ State                   Frequency    Intensity       Frequency    Intensity
   0 0 1 1 1 0 0 0 0    2076.37744      0.00000      2080.76165      0.00332
         """
 
-    @debugTest
+    @validationTest
     def test_BenzeneInternals(self):
         import McUtils.Coordinerds as coordops
         zmat = coordops.parse_zmatrix_string("""

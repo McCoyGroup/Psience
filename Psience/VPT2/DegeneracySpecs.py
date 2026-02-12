@@ -639,7 +639,10 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         if threshold is None:
             threshold = self.wfc_threshold
         if logger is None:
-            logger = solver.logger
+            if solver is not None:
+                logger = solver.logger
+            elif evaluator is not None:
+                logger = evaluator.solver.logger
         return super().get_degenerate_group_filter(
             solver=solver,
             evaluator=evaluator,
