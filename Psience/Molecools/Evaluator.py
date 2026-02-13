@@ -1564,7 +1564,7 @@ class EnergyEvaluator(PropertyEvaluator):
                                     )
 
 class RDKitEnergyEvaluator(EnergyEvaluator):
-    def __init__(self, rdmol, force_field='mmff', **defaults):
+    def __init__(self, rdmol, force_field='mmff', charge=None, multiplicity=None, **defaults):
         super().__init__(**defaults)
         # if hasattr(mol, 'rdmol'):
         #     mol = mol.rdmol
