@@ -68,6 +68,7 @@ class Molecule(AbstractMolecule):
                  source_file=None,
                  guess_bonds=True,
                  charge=None,
+                 formal_charges=None,
                  spin=None,
                  display_mode=None,
                  display_settings=None,
@@ -148,9 +149,12 @@ class Molecule(AbstractMolecule):
                                                 modes_manager=self._normal_modes,
                                                 dipole_manager=self._dips,
                                                 )
-
-        metadata['charge'] = charge
-        metadata['spin'] = spin
+        if charge is not None:
+            metadata['charge'] = charge
+        if spin is not None:
+            metadata['spin'] = spin
+        if formal_charges is not None:
+            metadata['formal_charges'] = formal_charges
         self._meta = metadata
 
         self.display_mode = display_mode
@@ -161,8 +165,8 @@ class Molecule(AbstractMolecule):
         self.charge_evaluator = charge_evaluator
         self.polarizability_evaluator = polarizability_evaluator
 
-        if checkpoint_file is True:
-            checkpoint_file = self.molecule_hash() # TODO: define this based on DB work
+        # if checkpoint_file is True:
+        #     checkpoint_file = self.molecule_hash() # TODO: define this based on DB work
         self.checkpoint = MoleculePropertyCache(self, checkpoint_file)
 
     def modify(self,
@@ -355,17 +359,19 @@ class Molecule(AbstractMolecule):
 
     @classmethod
     def _auto_auto_spec(cls, spec_generator, atoms, coords, bonds, redundant=False, base_coordinates=None,
-                   masses=None,
-                   untransformed_coordinates=None,
-                   prune_coordinates=True,
-                   pruning_options=None,
-                   **opts):
+                        masses=None,
+                        untransformed_coordinates=None,
+                        prune_coordinates=True,
+                        pruning_options=None,
+                        formal_charges=None,
+                        **opts):
         base_coords = base_coordinates
         if bonds is None:
             bonds = RDMolecule.from_coords(
                                            atoms,
                                            coords * UnitsData.convert("BohrRadius", "Angstroms"),
                                            bonds,
+                                           formal_charges=formal_charges,
                                            guess_bonds=True
                                            ).bonds
         if redundant and untransformed_coordinates is None:
@@ -500,6 +506,12 @@ class Molecule(AbstractMolecule):
     @charges.setter
     def charges(self, c):
         self._meta['charges'] = c
+    @property
+    def formal_charges(self):
+        return self._meta.get('formal_charges', None)
+    @formal_charges.setter
+    def formal_charges(self, c):
+        self._meta['formal_charges'] = c
 
     def get_charge_evaluator(self, evaluator=None, **opts):
         if evaluator is None:
@@ -1208,6 +1220,7 @@ class Molecule(AbstractMolecule):
                 self.coords * UnitsData.convert("BohrRadius", "Angstroms"),
                 None,
                 guess_bonds=True,
+                formal_charges=self.formal_charges,
                 **opts
             ).bonds
         else:
@@ -2857,12 +2870,14 @@ class Molecule(AbstractMolecule):
     #region Input Formats
     @property
     def rdmol(self):
-        from McUtils.ExternalPrograms import RDMolecule
+        if self._rdmol is None:
+            from McUtils.ExternalPrograms import RDMolecule
 
-        try:
-            return RDMolecule.from_mol(self, coord_unit="BohrRadius")
-        except ImportError:
-            return None
+            try:
+                self._rdmol = RDMolecule.from_mol(self, coord_unit="BohrRadius")
+            except ImportError:
+                ...
+        return self._rdmol
 
     @classmethod
     def from_zmat(cls, zmat, internals=None, axes=None, origin=None, **opts):
@@ -2983,6 +2998,7 @@ class Molecule(AbstractMolecule):
             rdmol.coords * UnitsData.convert("Angstroms", "BohrRadius"),
             bonds=rdmol.bonds,
             charge=rdmol.charge,
+            formal_charges=rdmol.formal_charges,
             rdmol=rdmol,
             **dict(
                 rdmol.meta,
