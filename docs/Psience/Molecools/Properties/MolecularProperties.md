@@ -182,8 +182,8 @@ eckart_transformation(cls, mol, ref_mol, sel=None, inverse=False, planar_ref_tol
 eckart_embedded_coords(cls, mol, coords, sel=None, in_paf=False, reset_com=True, planar_ref_tolerance=None, proper_rotation=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1090)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1090?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1093)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1093?message=Update%20Docs)]
 </div>
 
   - `mol`: `AbstractMolecule`
@@ -202,8 +202,8 @@ eckart_embedded_coords(cls, mol, coords, sel=None, in_paf=False, reset_com=True,
 coriolis_constants(cls, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1115)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1115?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1118)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1118?message=Update%20Docs)]
 </div>
 
 
@@ -213,8 +213,8 @@ coriolis_constants(cls, mol):
 translation_rotation_eigenvectors(cls, mol, sel=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1123)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1123?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1126)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1126?message=Update%20Docs)]
 </div>
 
   - `mol`: `AbstractMolecule`
@@ -231,8 +231,8 @@ translation_rotation_eigenvectors(cls, mol, sel=None):
 fragments(cls, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1138)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1138?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1141)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1141?message=Update%20Docs)]
 </div>
 
   - `mol`: `AbstractMolecule`
@@ -247,8 +247,8 @@ fragments(cls, mol):
 fragment_indices(cls, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1174)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1174?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1177)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1177?message=Update%20Docs)]
 </div>
 
   - `mol`: `AbstractMolecule`
@@ -263,8 +263,8 @@ fragment_indices(cls, mol):
 edge_graph(cls, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1190)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1190?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1193)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1193?message=Update%20Docs)]
 </div>
 
   - `mol`: `AbstractMolecule`
@@ -279,8 +279,8 @@ edge_graph(cls, mol):
 guessed_bonds(cls, mol, tol=1.05, guess_type=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1207)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1207?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1210)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1210?message=Update%20Docs)]
 </div>
 Guesses the bonds for the molecule by finding the ones that are less than some percentage of a single bond for that
 pair of elements
@@ -294,8 +294,8 @@ pair of elements
 get_prop_chemical_formula(cls, atoms): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1219)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1219?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1222)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1222?message=Update%20Docs)]
 </div>
 
   - `atoms`: `Tuple[str]`
@@ -310,8 +310,8 @@ get_prop_chemical_formula(cls, atoms):
 chemical_formula(cls, mol): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1229)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1229?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1232)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1232?message=Update%20Docs)]
 </div>
 
   - `mol`: `AbstractMolecule`

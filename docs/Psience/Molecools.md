@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-5da796" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-5da796"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-044012" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-044012"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-5da796" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-044012" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -179,9 +179,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-596701" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-596701"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-fe4f50" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-fe4f50"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-596701" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-fe4f50" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3675,19 +3675,29 @@ class MolecoolsTests(TestCase):
         # smi = mol.to_string('smi', include_tag=True, remove_hydrogens=True)
         # mol2 = Molecule.from_string(smi, 'smi', add_implicit_hydrogens=False)
 
-        from Psience.Molecools import Molecule
+        # from Psience.Molecools import Molecule
+        #
+        # mol = Molecule.from_string(
+        #     'Cc1ccc(OCC(NN=CC2CC(=O)NC(=O)N2)=O)c(N(=O)O)c1',
+        #     add_implicit_hydrogens=True
+        # )
+        #
+        # smi = mol.to_string('smi', preserve_atom_order=True, include_tag=True, remove_hydrogens=True)
+        # print(smi.partition("_")[0])
+        # mol2 = Molecule.from_string(smi, 'smi', add_implicit_hydrogens=True)
+        #
+        # mol = mol.get_embedded_molecule()
+        # mol2 = mol2.get_embedded_molecule(ref=mol)
+        import McUtils.Coordinerds as coordops
 
+
+        test_smi = 'Cc1ccc(OC[C]([NH]/[N]=[CH]/[c]2cc(=O)[nH]c(=O)[nH]2)=[O])c([N+](=O)[O-])c1'
         mol = Molecule.from_string(
-            'Cc1ccc(OCC(NN=CC2CC(=O)NC(=O)N2)=O)c(N(=O)O)c1',
-            add_implicit_hydrogens=True
+            test_smi
         )
+        smi = mol.to_string('smi', include_tag=True, remove_hydrogens=True)
 
-        smi = mol.to_string('smi', preserve_atom_order=True, include_tag=True, remove_hydrogens=True)
-        print(smi.partition("_")[0])
-        mol2 = Molecule.from_string(smi, 'smi', add_implicit_hydrogens=True)
-
-        mol = mol.get_embedded_molecule()
-        mol2 = mol2.get_embedded_molecule(ref=mol)
+        mol2 = mol.from_string(smi, 'smi', add_implicit_hydrogens=True)
 ```
 
  </div>
