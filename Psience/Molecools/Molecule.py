@@ -1043,7 +1043,7 @@ class Molecule(AbstractMolecule):
         if name is None:
             rdmol = self._rdmol
             if rdmol is not None:
-                name = rdmol.to_smiles()
+                name = rdmol.to_smiles(remove_hydrogens=True)
         if name is None:
             name = self.formula
 
@@ -1258,6 +1258,11 @@ class Molecule(AbstractMolecule):
             return res
         else:
             return zmat
+
+    def get_canonical_zmatrix(self, ordering=None, validate=True):
+        if ordering is None: ordering = np.arange(len(self.atoms))
+        frags = self.edge_graph.get_canonical_fragments(ordering)
+        return coordops.canonical_fragment_zmatrix(frags, validate_additions=validate)
 
     def get_bond_zmatrix(self, fragments=None, segments=None, root=None,
                          attachment_points=None,

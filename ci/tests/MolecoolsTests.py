@@ -3543,7 +3543,7 @@ class MolecoolsTests(TestCase):
 
         Molecule.from_string('COc1cc([OH]C2([N+](c3c(C2(C)C)cc(OC)cc3)CCCOS([O-])=O)C=C4)c4cc1', 'smi')
 
-    @debugTest
+    @validationTest
     def test_RDKitConfGen(self):
         from Psience.Molecools import Molecule
 
@@ -3599,3 +3599,44 @@ class MolecoolsTests(TestCase):
             "NC(N)=NC(=O)c1[nH]c(C(=O)O)c2cc3c(cc12)c1c2cc4c(C(=O)O)[nH]c(C(=O)N=C(N)N)c4cc2c2c4cc5c(C(=O)O)[nH:1][c:2]([C:3](=O)[N:4]=[C:5](N)[NH2:6])c5cc4c4c5cc6c(C(=O)O)[nH]c(C(=O)N=C(N)N)c6cc5c5c6cc7c(C(=O)O)[nH]c(C(=O)N=C(N)N)c7cc6c3c3c1c2c4c53",
             "smi"
         )
+
+    @debugTest
+    def test_CanonicalZMatrix(self):
+        from Psience.Molecools import Molecule
+
+        # mol = Molecule.from_string(
+        #     'Cc1ccc(OCC(NN=CC2CC(=O)NC(=O)N2)=O)c(N(=O)O)c1',
+        #     add_implicit_hydrogens=False
+        # )
+        #
+        # smi = mol.to_string('smi', include_tag=True, remove_hydrogens=True)
+        # mol2 = Molecule.from_string(smi, 'smi', add_implicit_hydrogens=False)
+
+        from Psience.Molecools import Molecule
+
+        mol = Molecule.from_string(
+            'Cc1ccc(OCC(NN=CC2CC(=O)NC(=O)N2)=O)c(N(=O)O)c1',
+            add_implicit_hydrogens=True
+        )
+
+        smi = mol.to_string('smi', preserve_atom_order=True, include_tag=True, remove_hydrogens=True)
+        print(smi.partition("_")[0])
+        mol2 = Molecule.from_string(smi, 'smi', add_implicit_hydrogens=True)
+
+        mol = mol.get_embedded_molecule()
+        mol2 = mol2.get_embedded_molecule(ref=mol)
+
+
+        # mol = Molecule.from_string(
+        #     'Cc1ccc(OC[C]([NH]/[N]=[CH]/[c]2cc(=O)[nH]c(=O)[nH]2)=[O])c([N+](=O)[O-])c1'
+        # )
+        # # zmat = mol.get_canonical_zmatrix()
+        # # yeesh = mol.modify(internals=zmat)
+        # # yeesh.internal_coordinates.convert(yeesh.coords.system)
+        #
+        # print(
+        #     np.array(mol.get_canonical_zmatrix()).tolist()
+        # )
+        #
+        # smi = (mol.to_string('smi', include_tag=True, remove_hydrogens=True))
+        # print(mol.from_string(smi, 'smi').coords.shape)
