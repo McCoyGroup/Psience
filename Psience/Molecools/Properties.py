@@ -1077,6 +1077,9 @@ class MolecularProperties:
         """
         m1 = ref_mol._atomic_masses()
         m2 = mol._atomic_masses()
+        if sel is not None:
+            m1 = m1[sel,]
+            m2 = m2[sel,]
         if not np.allclose(m1, m2, rtol=1e-4):
             raise ValueError("Eckart reference has different masses from scan ({}) vs. ({})".format(
                 m1,

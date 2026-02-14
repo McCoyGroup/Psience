@@ -3612,31 +3612,37 @@ class MolecoolsTests(TestCase):
         # smi = mol.to_string('smi', include_tag=True, remove_hydrogens=True)
         # mol2 = Molecule.from_string(smi, 'smi', add_implicit_hydrogens=False)
 
-        from Psience.Molecools import Molecule
-
-        mol = Molecule.from_string(
-            'Cc1ccc(OCC(NN=CC2CC(=O)NC(=O)N2)=O)c(N(=O)O)c1',
-            add_implicit_hydrogens=True
-        )
-
-        smi = mol.to_string('smi', preserve_atom_order=True, include_tag=True, remove_hydrogens=True)
-        print(smi.partition("_")[0])
-        mol2 = Molecule.from_string(smi, 'smi', add_implicit_hydrogens=True)
-
-        mol = mol.get_embedded_molecule()
-        mol2 = mol2.get_embedded_molecule(ref=mol)
-
-
+        # from Psience.Molecools import Molecule
+        #
         # mol = Molecule.from_string(
-        #     'Cc1ccc(OC[C]([NH]/[N]=[CH]/[c]2cc(=O)[nH]c(=O)[nH]2)=[O])c([N+](=O)[O-])c1'
-        # )
-        # # zmat = mol.get_canonical_zmatrix()
-        # # yeesh = mol.modify(internals=zmat)
-        # # yeesh.internal_coordinates.convert(yeesh.coords.system)
-        #
-        # print(
-        #     np.array(mol.get_canonical_zmatrix()).tolist()
+        #     'Cc1ccc(OCC(NN=CC2CC(=O)NC(=O)N2)=O)c(N(=O)O)c1',
+        #     add_implicit_hydrogens=True
         # )
         #
-        # smi = (mol.to_string('smi', include_tag=True, remove_hydrogens=True))
-        # print(mol.from_string(smi, 'smi').coords.shape)
+        # smi = mol.to_string('smi', preserve_atom_order=True, include_tag=True, remove_hydrogens=True)
+        # print(smi.partition("_")[0])
+        # mol2 = Molecule.from_string(smi, 'smi', add_implicit_hydrogens=True)
+        #
+        # mol = mol.get_embedded_molecule()
+        # mol2 = mol2.get_embedded_molecule(ref=mol)
+        import McUtils.Coordinerds as coordops
+
+
+        test_smi = 'Cc1ccc(OC[C]([NH]/[N]=[CH]/[c]2cc(=O)[nH]c(=O)[nH]2)=[O])c([N+](=O)[O-])c1'
+        mol = Molecule.from_string(
+            test_smi
+        )
+        smi = mol.to_string('smi', include_tag=True, remove_hydrogens=True)
+
+        mol2 = mol.from_string(smi, 'smi', add_implicit_hydrogens=True)
+
+        # yeesh2 = mol2.modify(internals=mol2.get_canonical_zmatrix())
+        #
+        # zmat = mol.get_canonical_zmatrix()
+        # yeesh = mol.modify(internals=zmat)
+        # ca = yeesh.internal_coordinates
+        # cb = yeesh2.internal_coordinates
+        #
+        # print(coordops.set_zmatrix_embedding(ca[:25] - cb[:25], embedding=np.zeros(6)))
+
+
