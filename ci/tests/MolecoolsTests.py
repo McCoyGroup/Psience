@@ -3653,7 +3653,7 @@ class MolecoolsTests(TestCase):
         mol = Molecule.from_string('O=[C:2]([NH:1]c1cccc(C(F)(F)F)c1)[O:3]/[N:4]=[C:5](\C1COc2ccccc2O1)[NH2:6]', 'smi')
         # smi = mol.to_string('smi', preserve_atom_order=True, include_tag=True, remove_hydrogens=True)
         # mol2 = Molecule.from_string(smi, 'smi')
-        mol.plot(
+        fig1 = mol.plot(
             highlight_bonds=[(0, 1), (2, 3), (4, 5)],
             bond_style={(0,1):{'color':'blue'}},
             bond_radius=5,
@@ -3663,5 +3663,29 @@ class MolecoolsTests(TestCase):
             # background='blue',
             image_size=[800, 500],
             background='blue',
+            draw_coords={
+                (0, 2):{
+                    'label':'r<msub>1</msub>'
+                },
+                (0, 1, 2):{
+                    'scaling':.5,
+                    # 'label':{'text':'r<msub>1</msub>', 'color':'green'},
+                    'styles':{'color':'red'}
+                },
+                (3, 4, 5): {
+                    'scaling': 1,
+                    'label': {'text': 'a', 'offset': [3.1, 0]}
+                },
+                (5, 6, 7):{
+                    'color':None,
+                    'label':{'text':'6'}
+                }
+            },
             backend='2d'
-        )#.tostring()
+        )
+
+        mol.plot(
+            figure=fig1,
+            background='#FFFFFFFF',
+            backend='2d'
+        )

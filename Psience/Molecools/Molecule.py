@@ -3894,6 +3894,7 @@ class Molecule(AbstractMolecule):
             **extra_opts
         )
     def _prep_rdkit_draw_opts(self,
+                              figure=None,
                               atom_style=None,
                               bond_style=None,
                               atom_radius_scaling=None,
@@ -3904,6 +3905,7 @@ class Molecule(AbstractMolecule):
                               highlight_color=None,
                               highlight_rings=None,
                               highlight_styles=None,
+                              draw_coords=None,
                               extra_opts=None,
                               include_save_buttons=None,
                               display_atom_numbers=None,
@@ -4005,6 +4007,7 @@ class Molecule(AbstractMolecule):
 
         highlight_atom_radii = None
         if atom_radii is not None:
+            scaling_factor = 3 # works well for Angstroms to RDKit coords
             if nput.is_numeric(atom_radii):
                 atom_radii = [atom_radii] * len(self._ats)
             elif dev.is_dict_like(atom_radii):
@@ -4024,7 +4027,7 @@ class Molecule(AbstractMolecule):
                         highlight_atom_radii = {}
                     if nput.is_numeric(r) and nput.is_numeric(s):
                         r = r * s
-                    highlight_atom_radii[i] = r
+                    highlight_atom_radii[i] = scaling_factor * r
 
         highlight_bond_radii = None
         if use_default_radii:
@@ -4032,6 +4035,7 @@ class Molecule(AbstractMolecule):
 
         return dict(
             dict(
+                figure=figure,
                 highlight_atoms=highlight_atoms,
                 highlight_bonds=highlight_bonds,
                 highlight_rings=highlight_rings,
@@ -4041,7 +4045,12 @@ class Molecule(AbstractMolecule):
                 highlight_bond_colors=highlight_bond_colors,
                 include_save_buttons=include_save_buttons,
                 display_atom_numbers=display_atom_numbers,
-                highlight_bond_width_multiplier=int(np.ceil(7 * bond_radius / .2))
+                draw_coords=draw_coords,
+                highlight_bond_width_multiplier=(
+                        int(np.ceil(7 * bond_radius / .2))
+                            if bond_radius is not None else
+                        bond_radius
+                )
             ),
             **extra_opts
         )
@@ -4192,15 +4201,15 @@ class Molecule(AbstractMolecule):
             figure = self.jupyter_viz()
             return figure
         elif mode == 'jsmol':
-            plot_ops = self._prep_jsmol_plot_opts(**full_opts)
+            plot_ops = self._prep_jsmol_plot_opts(figure=figure, **full_opts)
             figure = self.jsmol_viz(**plot_ops)
         elif mode == 'rdkit':
             return_immediately = True
             if backend == '2d':
-                draw_opts = self._prep_rdkit_draw_opts(**full_opts)
+                draw_opts = self._prep_rdkit_draw_opts(figure=figure, **full_opts)
                 figure = self.rdmol.draw(**draw_opts)
             else:
-                plot_opts = self._prep_rdkit_plot_opts(**full_opts)
+                plot_opts = self._prep_rdkit_plot_opts(figure=figure, **full_opts)
                 figure = self.rdmol.plot(**plot_opts)
 
         if return_immediately:
