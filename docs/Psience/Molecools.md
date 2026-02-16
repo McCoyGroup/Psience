@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-165e32" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-165e32"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-d065b0" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-d065b0"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-165e32" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-d065b0" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -176,12 +176,13 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [RDKitIssues](#RDKitIssues)
 - [RDKitConfGen](#RDKitConfGen)
 - [CanonicalZMatrix](#CanonicalZMatrix)
+- [FlexiblePlotting](#FlexiblePlotting)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-149bf4" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-149bf4"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-c888a6" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-c888a6"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-149bf4" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-c888a6" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3698,6 +3699,23 @@ class MolecoolsTests(TestCase):
         smi = mol.to_string('smi', include_tag=True, remove_hydrogens=True)
 
         mol2 = mol.from_string(smi, 'smi', add_implicit_hydrogens=True)
+```
+
+#### <a name="FlexiblePlotting">FlexiblePlotting</a>
+```python
+    def test_FlexiblePlotting(self):
+        from Psience.Molecools import Molecule
+
+        mol = Molecule.from_string('O=[C:2]([NH:1]c1cccc(C(F)(F)F)c1)[O:3]/[N:4]=[C:5](\C1COc2ccccc2O1)[NH2:6]', 'smi')
+        # smi = mol.to_string('smi', preserve_atom_order=True, include_tag=True, remove_hydrogens=True)
+        # mol2 = Molecule.from_string(smi, 'smi')
+        mol.plot(
+            highlight_bonds=[(0, 1), (2, 3), (4, 5)],
+            bond_style={(0,1):{'color':'blue'}},
+            # include_script_interface=True,
+            background='blue',
+            backend='2d'
+        )
 ```
 
  </div>
