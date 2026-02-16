@@ -1658,8 +1658,8 @@ plot(self, *geometries, figure=None, return_objects=False, bonds=None, bond_radi
 get_animation_geoms(self, which, extent=0.35, steps=8, strip_embedding=True, units=None, coordinate_expansion=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5014)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5014?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5015)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5015?message=Update%20Docs)]
 </div>
 
 
@@ -1668,8 +1668,8 @@ get_animation_geoms(self, which, extent=0.35, steps=8, strip_embedding=True, uni
 animate_coordinate(self, which, extent=0.5, steps=3, return_objects=False, strip_embedding=True, units='Angstroms', backend=None, mode=None, jsmol_load_script=None, coordinate_expansion=None, **plot_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5036)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5036?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5037)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5037?message=Update%20Docs)]
 </div>
 
 
@@ -1678,8 +1678,8 @@ animate_coordinate(self, which, extent=0.5, steps=3, return_objects=False, strip
 animate_mode(self, which, extent=0.5, steps=3, modes=None, coordinate_expansion=None, order=None, normalize=True, mass_weight=False, mass_scale=True, frequency_scale=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5062)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5062?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5063)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5063?message=Update%20Docs)]
 </div>
 
 
@@ -1688,8 +1688,8 @@ animate_mode(self, which, extent=0.5, steps=3, modes=None, coordinate_expansion=
 format_structs(self, geoms, format='xyz'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5112)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5112?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5113)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5113?message=Update%20Docs)]
 </div>
 
 
@@ -1698,8 +1698,8 @@ format_structs(self, geoms, format='xyz'):
 format_animation_file(self, which, format='xyz', extent=0.35, steps=8, strip_embedding=True, units='Angstroms', coordinate_expansion=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5144)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5144?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5145)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5145?message=Update%20Docs)]
 </div>
 
 
@@ -1708,8 +1708,8 @@ format_animation_file(self, which, format='xyz', extent=0.35, steps=8, strip_emb
 jsmol_viz(self, xyz=None, animate=False, vibrate=False, script=None, include_script_interface=False, image_size=None, width=None, height=None, **etc): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5161)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5161?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5162)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5162?message=Update%20Docs)]
 </div>
 
 
@@ -1718,8 +1718,8 @@ jsmol_viz(self, xyz=None, animate=False, vibrate=False, script=None, include_scr
 jupyter_viz(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5197)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5197?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5198)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5198?message=Update%20Docs)]
 </div>
 
 
@@ -1728,8 +1728,8 @@ jupyter_viz(self):
 to_widget(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5205)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5205?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5206)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5206?message=Update%20Docs)]
 </div>
  </div>
 </div>
