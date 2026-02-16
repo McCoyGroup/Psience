@@ -41,9 +41,9 @@
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-828cd9" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-828cd9"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-ceff5d" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-ceff5d"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-828cd9" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-ceff5d" markdown="1">
  - [Harmonic](#Harmonic)
 - [Morse](#Morse)
 - [SampleRotated](#SampleRotated)
@@ -68,9 +68,9 @@
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-d47386" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-d47386"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-30a70d" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-30a70d"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-d47386" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-30a70d" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces

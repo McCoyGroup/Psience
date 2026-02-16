@@ -97,9 +97,9 @@ get_zero_order_energies(corrected_fundamental_freqs, states):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-ccb492" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-ccb492"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Details-d540e0" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-d540e0"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Details-ccb492" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Details-d540e0" markdown="1">
  The `basis_postfilters` have multiple possible values.
 Here are the currently supported cases
 
