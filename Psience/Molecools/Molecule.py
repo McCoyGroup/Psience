@@ -3906,6 +3906,7 @@ class Molecule(AbstractMolecule):
                               highlight_styles=None,
                               extra_opts=None,
                               include_save_buttons=None,
+                              display_atom_numbers=None,
                               **etc
                               ):
         if extra_opts is None:
@@ -4025,15 +4026,22 @@ class Molecule(AbstractMolecule):
                         r = r * s
                     highlight_atom_radii[i] = r
 
+        highlight_bond_radii = None
+        if use_default_radii:
+            bond_radius = None
+
         return dict(
             dict(
                 highlight_atoms=highlight_atoms,
                 highlight_bonds=highlight_bonds,
                 highlight_rings=highlight_rings,
                 highlight_atom_radii=highlight_atom_radii,
+                highlight_bond_radii=highlight_bond_radii,
                 highlight_atom_colors=highlight_atom_colors,
                 highlight_bond_colors=highlight_bond_colors,
-                include_save_buttons=include_save_buttons
+                include_save_buttons=include_save_buttons,
+                display_atom_numbers=display_atom_numbers,
+                highlight_bond_width_multiplier=int(np.ceil(7 * bond_radius / .2))
             ),
             **extra_opts
         )
