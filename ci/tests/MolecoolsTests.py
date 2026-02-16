@@ -3656,7 +3656,12 @@ class MolecoolsTests(TestCase):
         mol.plot(
             highlight_bonds=[(0, 1), (2, 3), (4, 5)],
             bond_style={(0,1):{'color':'blue'}},
+            bond_radius=5,
+            use_default_radii=False,
             # include_script_interface=True,
+            atom_style={i: {"color": "#FF00FF"} for i in range(5)},
+            # background='blue',
+            image_size=[800, 500],
             background='blue',
             backend='2d'
         )#.tostring()
