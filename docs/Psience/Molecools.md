@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-c47792" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-c47792"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-823517" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-823517"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-c47792" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-823517" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -180,9 +180,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-65de33" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-65de33"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-a66cee" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-a66cee"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-65de33" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-a66cee" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3709,7 +3709,7 @@ class MolecoolsTests(TestCase):
         mol = Molecule.from_string('O=[C:2]([NH:1]c1cccc(C(F)(F)F)c1)[O:3]/[N:4]=[C:5](\C1COc2ccccc2O1)[NH2:6]', 'smi')
         # smi = mol.to_string('smi', preserve_atom_order=True, include_tag=True, remove_hydrogens=True)
         # mol2 = Molecule.from_string(smi, 'smi')
-        mol.plot(
+        fig1 = mol.plot(
             highlight_bonds=[(0, 1), (2, 3), (4, 5)],
             bond_style={(0,1):{'color':'blue'}},
             bond_radius=5,
@@ -3719,6 +3719,30 @@ class MolecoolsTests(TestCase):
             # background='blue',
             image_size=[800, 500],
             background='blue',
+            draw_coords={
+                (0, 2):{
+                    'label':'r<msub>1</msub>'
+                },
+                (0, 1, 2):{
+                    'scaling':.5,
+                    # 'label':{'text':'r<msub>1</msub>', 'color':'green'},
+                    'styles':{'color':'red'}
+                },
+                (3, 4, 5): {
+                    'scaling': 1,
+                    'label': {'text': 'a', 'offset': [3.1, 0]}
+                },
+                (5, 6, 7):{
+                    'color':None,
+                    'label':{'text':'6'}
+                }
+            },
+            backend='2d'
+        )
+
+        mol.plot(
+            figure=fig1,
+            background='#FFFFFFFF',
             backend='2d'
         )
 ```
