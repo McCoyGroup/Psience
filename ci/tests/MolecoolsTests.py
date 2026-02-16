@@ -3600,7 +3600,7 @@ class MolecoolsTests(TestCase):
             "smi"
         )
 
-    @debugTest
+    @validationTest
     def test_CanonicalZMatrix(self):
         from Psience.Molecools import Molecule
 
@@ -3646,3 +3646,17 @@ class MolecoolsTests(TestCase):
         # print(coordops.set_zmatrix_embedding(ca[:25] - cb[:25], embedding=np.zeros(6)))
 
 
+    @debugTest
+    def test_FlexiblePlotting(self):
+        from Psience.Molecools import Molecule
+
+        mol = Molecule.from_string('O=[C:2]([NH:1]c1cccc(C(F)(F)F)c1)[O:3]/[N:4]=[C:5](\C1COc2ccccc2O1)[NH2:6]', 'smi')
+        # smi = mol.to_string('smi', preserve_atom_order=True, include_tag=True, remove_hydrogens=True)
+        # mol2 = Molecule.from_string(smi, 'smi')
+        mol.plot(
+            highlight_bonds=[(0, 1), (2, 3), (4, 5)],
+            bond_style={(0,1):{'color':'blue'}},
+            # include_script_interface=True,
+            background='blue',
+            backend='2d'
+        )#.tostring()

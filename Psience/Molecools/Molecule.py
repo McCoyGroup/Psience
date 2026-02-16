@@ -157,6 +157,8 @@ class Molecule(AbstractMolecule):
             metadata['formal_charges'] = formal_charges
         self._meta = metadata
 
+        if display_mode is None:
+            display_mode = self.default_display_mode
         self.display_mode = display_mode
         self.display_settings = display_settings
         self._energy = energy
@@ -1230,6 +1232,9 @@ class Molecule(AbstractMolecule):
     @property
     def edge_graph(self):
         return MolecularProperties.edge_graph(self)
+
+    def find_substructure(self, pattern):
+        return self.rdmol.find_substructure(pattern)
 
     def find_heavy_atom_backbone(self, root=None):
         return self.edge_graph.find_longest_chain(root=root)
@@ -3638,6 +3643,428 @@ class Molecule(AbstractMolecule):
     draw_coords_label_style = {
         'color':'black'
     }
+    backend_options_resolution = {
+        'mode_vectors':'x3d',
+        'dipole':'x3d',
+        'include_jsmol_script_interface':'jsmol'
+    }
+    def _resolve_plot_mode(self,
+                           mode,
+                           backend,
+                           geometries,
+                           **ignored
+                           ):
+
+        if mode is None:
+            if backend is not None:
+                if backend == 'x3d':
+                    mode = 'x3d'
+                elif backend == 'jsmol':
+                    mode = 'jsmol'
+                elif backend in {'2d', 'rdkit'}:
+                    mode = 'rdkit'
+            else:
+                if len(geometries) > 0:
+                    backend = 'x3d'
+                else:
+                    for k, v in self.backend_options_resolution.items():
+                        if ignored.get(k) is not None:
+                            backend = v
+                            break
+                mode = backend
+        if mode is None:
+            mode = self.display_mode
+        if backend is None:
+            backend = mode
+
+        return mode, backend
+    @classmethod
+    def _jsmol_atom_sel_block(cls, atoms, *exprs):
+        block = []
+        if not isinstance(atoms, str):
+            atoms = "atomno=[{}]".format(
+                ",".join(
+                    str(h + 1 if nput.is_int(h) else h)
+                    for h in atoms
+                ))
+        block.append(f'select {atoms}')
+        block.extend(exprs)
+        block.append('select none')
+        return block
+    def _prep_jsmol_load_script(self,
+                                background=None,
+                                atom_style=None,
+                                bond_style=None,
+                                use_default_radii=True,
+                                atom_radius_scaling=None,
+                                atom_radii=None,
+                                bond_radius=None,
+                                highlight_atoms=None,
+                                highlight_bonds=None,
+                                highlight_rings=None,
+                                highlight_styles=None,
+                                display_atom_numbers=None,
+                                **ignored
+                                ):
+        bits = []
+        if background is not None:
+            if isinstance(background, str) and background.startswith("#"):
+                background = "[{}]".format(background.replace("#", "x"))
+            bits.append(f'background {background}')
+        if highlight_styles is None:
+            highlight_styles = self.highlight_styles
+        if highlight_bonds is not None:
+            if highlight_atoms is None: highlight_atoms = []
+            highlight_atoms = set(highlight_atoms)
+            for b in highlight_bonds:
+                highlight_atoms.update(b)
+            highlight_atoms = list(highlight_atoms)
+        if highlight_rings is not None:
+            if highlight_atoms is None: highlight_atoms = []
+            highlight_atoms = set(highlight_atoms)
+            for b in highlight_rings:
+                highlight_atoms.update(b)
+            highlight_atoms = list(highlight_atoms)
+        if highlight_atoms is not None:
+            glow_color = highlight_styles.get('glow')
+            if glow_color is not None:
+                bits.extend(
+                    self._jsmol_atom_sel_block(
+                        highlight_atoms,
+                        f'color {glow_color}',
+                        'halos on'
+                    )
+                )
+            else:
+                color = highlight_styles.get('color', 'green')
+                bits.extend(
+                    self._jsmol_atom_sel_block(
+                        highlight_atoms,
+                        f'color {color}',
+                    )
+                )
+        if atom_style is not None:
+            default_styles = {
+                k:s
+                for k,s in atom_style.items()
+                if isinstance(k, str)
+            }
+            all_styles = {
+                'all':default_styles
+            } | {
+                k:s
+                for k,s in atom_style.items()
+                if not isinstance(k, str)
+            }
+            non_empty = False
+            for k,s in all_styles.items():
+                if len(s) > 0:
+                    non_empty = True
+                    if not isinstance(k, str):
+                        if not nput.is_int(k):
+                            k = 'atomno=[{}]'.format(",".join(str(i+1) for i in k))
+                        else:
+                            k = f'@{k}'
+                    bits.append(f'select {k}')
+                    for kk, v in s.items():
+                        bits.append(f'{kk} {v}')
+            if non_empty:
+                bits.append('select none')
+        if bond_style is not None:
+            default_styles = {
+                k:s
+                for k,s in bond_style.items()
+                if isinstance(k, str)
+            }
+            all_styles = {
+                'all':default_styles
+            } | {
+                k:s
+                for k,s in bond_style.items()
+                if not isinstance(k, str)
+            }
+            non_empty = False
+            for k,s in all_styles.items():
+                if len(s) > 0:
+                    non_empty = True
+                    if not isinstance(k, str):
+                        k = 'atomno=[{}]'.format(",".join(str(i+1) for i in k))
+                    bits.append(f'select {k}')
+                    for kk, v in s.items():
+                        bits.append(f'{kk} bonds {v}')
+            if non_empty:
+                bits.append('select none')
+        if not use_default_radii:
+            if atom_radii is not None:
+                if nput.is_numeric(atom_radii):
+                    atom_radii = [atom_radii] * len(self._ats)
+                elif dev.is_dict_like(atom_radii):
+                    atom_radii = [
+                        atom_radii.get(i,
+                            atom_radii.get(a["ElementSymbol"])
+                        ) for i,a in enumerate(self._ats)
+                    ]
+                if atom_radius_scaling is None:
+                    atom_radius_scaling = [1] * len(atom_radii)
+                elif nput.is_numeric(atom_radius_scaling):
+                    atom_radius_scaling = [atom_radius_scaling] * len(atom_radii)
+
+                non_empty = False
+                for i, (r,s) in enumerate(zip(atom_radii, atom_radius_scaling)):
+                    if r is not None:
+                        non_empty = True
+                        if nput.is_numeric(r) and nput.is_numeric(s):
+                            r = r * s
+                        bits.extend(
+                            self._jsmol_atom_sel_block(
+                                f'@{i + 1}',
+                                f'spacefill {r}'
+                            )
+                        )
+                if non_empty:
+                    bits.append('select none')
+            elif atom_radius_scaling is not None:
+                if nput.is_numeric(atom_radius_scaling):
+                    bits.extend(
+                        self._jsmol_atom_sel_block(
+                            'all',
+                            f'spacefill {100*atom_radius_scaling:.0f}%'
+                        )
+                    )
+                else:
+                    non_empty = False
+                    for i,r in enumerate(atom_radius_scaling):
+                        if r is not None:
+                            non_empty=True
+                            bits.extend(
+                                self._jsmol_atom_sel_block(
+                                    f'@{i+1}',
+                                    f'spacefill {100 * r:.0f}%'
+                                )
+                            )
+                    if non_empty:
+                        bits.append('select none')
+            if bond_radius is not None:
+                bits.extend(
+                    self._jsmol_atom_sel_block(
+                        'all',
+                        f'wireframe {bond_radius}'
+                    )
+                )
+        if display_atom_numbers:
+            if display_atom_numbers is True:
+                bits.extend(
+                    self._jsmol_atom_sel_block(
+                        'all',
+                        'label %i'
+                    )
+                )
+            else:
+                bits.extend(
+                    self._jsmol_atom_sel_block(
+                        display_atom_numbers,
+                        'label %i'
+                    )
+                )
+        return bits
+
+    def _prep_jsmol_plot_opts(self,
+                    jsmol_load_script=None,
+                    script=None,
+                    recording_options=None,
+                    dynamic_loading=None,
+                    extra_opts=None,
+                    **etc
+                    ):
+        if extra_opts is None:
+            extra_opts = {}
+        use_default_radii = extra_opts.pop('use_default_radii', True)
+        background = extra_opts.get('background')
+
+        if script is None:
+            script = jsmol_load_script
+        if script is None:
+            script = self._prep_jsmol_load_script(
+                background=background,
+                use_default_radii=use_default_radii, **etc)
+        return dict(
+            script=script,
+            recording_options=recording_options,
+            dynamic_loading=dynamic_loading,
+            **extra_opts
+        )
+    def _prep_rdkit_draw_opts(self,
+                              atom_style=None,
+                              bond_style=None,
+                              atom_radius_scaling=None,
+                              atom_radii=None,
+                              bond_radius=None,
+                              highlight_atoms=None,
+                              highlight_bonds=None,
+                              highlight_color=None,
+                              highlight_rings=None,
+                              highlight_styles=None,
+                              extra_opts=None,
+                              include_save_buttons=None,
+                              **etc
+                              ):
+        if extra_opts is None:
+            extra_opts = {}
+        use_default_radii = extra_opts.pop('use_default_radii', True)
+        if highlight_styles is None:
+            highlight_styles = self.highlight_styles
+
+        highlight_atom_colors = None
+        if highlight_color is None and (highlight_atoms is not None or highlight_bonds is not None):
+            glow = highlight_styles.get('glow')
+            color = highlight_styles.get('color')
+            if glow is not None:
+                if color is None:
+                    if isinstance(glow, str):
+                        glow = np.array(plt.ColorPalette.parse_color_string(glow)) / 255
+                    if len(glow) == 3:
+                        glow = tuple(glow) + (.5,)
+                    color = glow
+                else:
+                    if isinstance(glow, str):
+                        glow = plt.ColorPalette.parse_color_string(glow)
+                    if isinstance(color, str):
+                        color = plt.ColorPalette.parse_color_string(color)
+                    color = plt.prep_color(palette=[glow, color], blending=0.5, return_color_code=False)
+                    color = np.array(color)
+            highlight_color = color
+        if highlight_atoms is not None:
+            highlight_atom_colors = {}
+            for a in highlight_atoms:
+                highlight_atom_colors[a] = highlight_color
+        if highlight_bonds is not None:
+            highlight_bond_colors = {}
+            for b in highlight_bonds:
+                if not nput.is_int(b):  b = tuple(b)
+                highlight_bond_colors[b] = highlight_color
+
+        if atom_style is not None:
+            default_styles = {
+                k: s
+                for k, s in atom_style.items()
+                if isinstance(k, str)
+            }
+            all_styles = {
+                             'all': default_styles
+                         } | {
+                             k: s
+                             for k, s in atom_style.items()
+                             if not isinstance(k, str)
+                         }
+            for k,s in all_styles.items():
+                color = s.get('color')
+                if color is not None:
+                    if highlight_atom_colors is None:
+                        highlight_atom_colors = {}
+                    if dev.str_is(k, 'all'):
+                        target_atoms = list(range(len(self._ats)))
+                    elif nput.is_int(k):
+                        target_atoms = [k]
+                    else:
+                        target_atoms = k
+                    if highlight_atoms is None:
+                        highlight_atoms = []
+                    highlight_atoms = set(highlight_atoms) | set(target_atoms)
+                    for t in target_atoms:
+                        highlight_atom_colors[t] = color
+
+        highlight_bond_colors = None
+        if bond_style is not None:
+            default_styles = {
+                k: s
+                for k, s in bond_style.items()
+                if isinstance(k, str)
+            }
+            all_styles = {
+                             'all': default_styles
+                         } | {
+                             k: s
+                             for k, s in bond_style.items()
+                             if not isinstance(k, str)
+                         }
+            for k, s in all_styles.items():
+                color = s.get('color')
+                if color is not None:
+                    if highlight_bond_colors is None:
+                        highlight_bond_colors = {}
+                    if dev.str_is(k, 'all'):
+                        target_bonds = [tuple(b[:2]) for b in self.bonds]
+                    else:
+                        target_bonds = [k]
+                    if highlight_bonds is None:
+                        highlight_bonds = []
+                    highlight_bonds = set(highlight_bonds) | set(target_bonds)
+                    for t in target_bonds:
+                        highlight_bond_colors[t] = color
+
+        highlight_atom_radii = None
+        if atom_radii is not None:
+            if nput.is_numeric(atom_radii):
+                atom_radii = [atom_radii] * len(self._ats)
+            elif dev.is_dict_like(atom_radii):
+                atom_radii = [
+                    atom_radii.get(i,
+                        atom_radii.get(a["ElementSymbol"])
+                    ) for i,a in enumerate(self._ats)
+                ]
+            if atom_radius_scaling is None:
+                atom_radius_scaling = [1] * len(atom_radii)
+            elif nput.is_numeric(atom_radius_scaling):
+                atom_radius_scaling = [atom_radius_scaling] * len(atom_radii)
+
+            for i, (r,s) in enumerate(zip(atom_radii, atom_radius_scaling)):
+                if r is not None:
+                    if highlight_atom_radii is None:
+                        highlight_atom_radii = {}
+                    if nput.is_numeric(r) and nput.is_numeric(s):
+                        r = r * s
+                    highlight_atom_radii[i] = r
+
+        return dict(
+            dict(
+                highlight_atoms=highlight_atoms,
+                highlight_bonds=highlight_bonds,
+                highlight_rings=highlight_rings,
+                highlight_atom_radii=highlight_atom_radii,
+                highlight_atom_colors=highlight_atom_colors,
+                highlight_bond_colors=highlight_bond_colors,
+                include_save_buttons=include_save_buttons
+            ),
+            **extra_opts
+        )
+    def _prep_rdkit_plot_opts(self,
+                              extra_opts=None,
+                              **etc
+                              ):
+        if extra_opts is None:
+            extra_opts = {}
+        return extra_opts
+
+    def _set_backend_figure_options(self,
+                                    figure,
+                                    mode,
+                                    backend,
+                                    include_save_buttons=None,
+                                    dynamic_loading=None,
+                                    recording_options=None,
+                                    **ignored):
+        if backend == 'x3d':
+            if include_save_buttons is not None:
+                figure.figure.include_export_button = include_save_buttons
+                figure.figure.include_record_button = include_save_buttons
+                figure.figure.include_view_settings_button = include_save_buttons
+
+            if dynamic_loading is not None:
+                figure.figure.dynamic_loading = dynamic_loading
+
+            if recording_options is not None:
+                figure.figure.recording_options = recording_options
+
     def plot(self,
              *geometries,
              figure=None,
@@ -3695,43 +4122,82 @@ class Molecule(AbstractMolecule):
 
         from McUtils.Plots import Graphics3D, Sphere, Cylinder, Line, Disk, Arrow
 
-        if backend is None:
-            backend = self.display_mode
-        if backend is None:
-            backend = self.default_display_mode
-        if mode is None:
-            mode = backend
+        full_opts = dict(
+            return_objects=return_objects,
+            bonds=bonds,
+            bond_radius=bond_radius,
+            atom_radius_scaling=atom_radius_scaling,
+            atom_style=atom_style,
+            atom_radii=atom_radii,
+            atom_text=atom_text,
+            display_atom_numbers=display_atom_numbers,
+            radius_type=radius_type,
+            bond_style=bond_style,
+            capped_bonds=capped_bonds,
+            reflectiveness=reflectiveness,
+            vector_style=vector_style,
+            highlight_atoms=highlight_atoms,
+            highlight_bonds=highlight_bonds,
+            highlight_rings=highlight_rings,
+            highlight_styles=highlight_styles,
+            mode_vectors=mode_vectors,
+            mode_vector_origins=mode_vector_origins,
+            mode_vector_origin_mode=mode_vector_origin_mode,
+            mode_vector_display_cutoff=mode_vector_display_cutoff,
+            principle_axes=principle_axes,
+            principle_axes_origin=principle_axes_origin,
+            principle_axes_origin_mode=principle_axes_origin_mode,
+            principle_axes_style=principle_axes_style,
+            dipole=dipole,
+            dipole_origin=dipole_origin,
+            dipole_origin_mode=dipole_origin_mode,
+            render_multiple_bonds=render_multiple_bonds,
+            render_fractional_bonds=render_fractional_bonds,
+            draw_coords=draw_coords,
+            draw_coords_style=draw_coords_style,
+            up_vector=up_vector,
+            multiple_bond_spacing=multiple_bond_spacing,
+            include_save_buttons=include_save_buttons,
+            objects=objects,
+            graphics_class=graphics_class,
+            cylinder_class=cylinder_class,
+            sphere_class=sphere_class,
+            arrow_class=arrow_class,
+            animate=animate,
+            recording_options=recording_options,
+            animation_options=animation_options,
+            jsmol_load_script=jsmol_load_script,
+            include_jsmol_script_interface=include_jsmol_script_interface,
+            dynamic_loading=dynamic_loading,
+            extra_opts=plot_ops
+        )
+        mode, backend = self._resolve_plot_mode(
+            mode,
+            backend,
+            geometries,
+            figure=figure,
+            **full_opts
+        )
 
-        if len(geometries) > 0 or any(
-            opt is not None
-            for opt in [
-                highlight_atoms,
-                highlight_bonds,
-                highlight_rings,
-                highlight_styles,
-                mode_vectors,
-                dipole
-            ]
-        ):
-            if mode in {'jupyter', 'jsmol'}:
-                mode = 'x3d'
-
+        return_immediately = False
         if mode == 'jupyter':
-            return self.jupyter_viz()
+            figure = self.jupyter_viz()
+            return figure
         elif mode == 'jsmol':
-            plot_ops['include_script_interface'] = plot_ops.get(
-                'include_script_interface',
-                include_jsmol_script_interface
-            )
-            return self.jsmol_viz(
-                script=jsmol_load_script,
-                recording_options=recording_options,
-                dynamic_loading=dynamic_loading,
-                **plot_ops
-            )
+            plot_ops = self._prep_jsmol_plot_opts(**full_opts)
+            figure = self.jsmol_viz(**plot_ops)
+        elif mode == 'rdkit':
+            return_immediately = True
+            if backend == '2d':
+                draw_opts = self._prep_rdkit_draw_opts(**full_opts)
+                figure = self.rdmol.draw(**draw_opts)
+            else:
+                plot_opts = self._prep_rdkit_plot_opts(**full_opts)
+                figure = self.rdmol.plot(**plot_opts)
 
-        if backend in {'jupyter', 'jsmol'}:
-            backend = 'x3d'
+        if return_immediately:
+            self._set_backend_figure_options(figure, mode, backend, **full_opts)
+            return figure
 
         graphics_keys = Graphics3D.known_keys | Graphics3D.opt_keys | Graphics3D.figure_keys
         graphics_opts = {k:plot_ops[k] for k in plot_ops.keys() & graphics_keys}
@@ -3742,6 +4208,12 @@ class Molecule(AbstractMolecule):
 
         if graphics_class is None:
             graphics_class = Graphics3D
+
+        if figure is None:
+            figure = graphics_class(backend=backend, **graphics_opts)
+
+        self._set_backend_figure_options(figure, mode, backend, **full_opts)
+
         if cylinder_class is None:
             cylinder_class = Line if mode == 'fast' else Cylinder
         if sphere_class is None:
@@ -3848,27 +4320,18 @@ class Molecule(AbstractMolecule):
         geometries = geometries.convert(CartesianCoordinates3D)
         draw_bonds = bonds
 
-        if figure is None:
-            figure = graphics_class(backend=backend, **graphics_opts)
-
-        if backend == 'x3d':
-            if include_save_buttons is not None:
-                figure.figure.include_export_button = include_save_buttons
-                figure.figure.include_record_button = include_save_buttons
-                figure.figure.include_view_settings_button = include_save_buttons
-
-            if dynamic_loading is not None:
-                figure.figure.dynamic_loading = dynamic_loading
-
-            if recording_options is not None:
-                figure.figure.recording_options = recording_options
-
         colors = [ at["IconColor"] for at in self._ats ]
         glows = [ None for at in self._ats ]
         if atom_radii is None:
             atom_radii = [None] * len(self._ats)
+        elif nput.is_numeric(atom_radii):
+            atom_radii = [atom_radii] * len(self._ats)
         elif dev.is_dict_like(atom_radii):
-            atom_radii = [atom_radii.get(a["ElementSymbol"]) for a in self._ats]
+            atom_radii = [
+                atom_radii.get(i,
+                    atom_radii.get(a["ElementSymbol"])
+                ) for i,a in enumerate(self._ats)
+            ]
         atom_radii = [
             self._get_atomic_radius(at, radius_type)
                 if c is None else
@@ -3962,7 +4425,10 @@ class Molecule(AbstractMolecule):
                     'specularity': 'white',
                     'shininess': 100 * np.clip(1.1 - reflectiveness, 0, 1)
                 })
-            _bond_style = {(i,j):{} for i,j in itertools.combinations(range(len(self._ats)), 2)}
+            _bond_style = {
+                (i,j):{}
+                for i,j in itertools.combinations(range(len(self._ats)), 2)
+            }
             for k,v in bond_style.items():
                 if isinstance(k, str):
                     base_bond_style[k] = v
@@ -4002,7 +4468,7 @@ class Molecule(AbstractMolecule):
                     c1 = colors[atom1]
                     c2 = colors[atom2]
                     g1 = glows[atom1]
-                    g2 = glows[atom1]
+                    g2 = glows[atom2]
                     base_bstyle = dict(
                         bond_style.get((atom2, atom1), {}),
                         **bond_style.get((atom1, atom2), {})
@@ -4560,8 +5026,6 @@ class Molecule(AbstractMolecule):
                            ):
         if backend is None:
             backend = self.display_mode
-        if backend is None:
-            backend = self.default_display_mode
         if mode is None:
             mode = backend
         if mode == 'jsmol':
