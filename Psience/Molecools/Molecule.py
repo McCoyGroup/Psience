@@ -4201,6 +4201,7 @@ class Molecule(AbstractMolecule):
             figure = self.jupyter_viz()
             return figure
         elif mode == 'jsmol':
+            return_immediately=True
             plot_ops = self._prep_jsmol_plot_opts(figure=figure, **full_opts)
             figure = self.jsmol_viz(**plot_ops)
         elif mode == 'rdkit':
