@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-d065b0" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-d065b0"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-c47792" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-c47792"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-d065b0" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-c47792" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -180,9 +180,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-c888a6" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-c888a6"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-65de33" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-65de33"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-c888a6" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-65de33" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3712,7 +3712,12 @@ class MolecoolsTests(TestCase):
         mol.plot(
             highlight_bonds=[(0, 1), (2, 3), (4, 5)],
             bond_style={(0,1):{'color':'blue'}},
+            bond_radius=5,
+            use_default_radii=False,
             # include_script_interface=True,
+            atom_style={i: {"color": "#FF00FF"} for i in range(5)},
+            # background='blue',
+            image_size=[800, 500],
             background='blue',
             backend='2d'
         )
