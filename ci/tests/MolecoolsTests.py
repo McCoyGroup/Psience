@@ -3714,6 +3714,7 @@ class MolecoolsTests(TestCase):
 
     @debugTest
     def test_Opts(self):
+        import McUtils.Coordinerds as coordops
 
         mol = Molecule.from_file(
             TestManager.test_data('tbhp_180.fchk'),
@@ -3723,16 +3724,37 @@ class MolecoolsTests(TestCase):
         int_tbhp = mol.modify(internals=mol.get_bond_zmatrix())
         dx = int_tbhp.get_cartesians_by_internals(order=1)[0]
 
-        u_traj = []
-        ugh = mol.optimize(
-            # func=lambda s:(-np.dot(s, dx[6])),
-            gradient_modification_function=lambda c,g:g+.2*dx[6].reshape(g.shape),
-            # initialization_function=lambda c:c+5*dx[6].reshape(-1, 3),
-            return_trajectory=True,
-            line_search=False,
-            mode='scipy'
-            # logger=True
+        # u_traj = []
+        # ugh = mol.optimize(
+        #     # func=lambda s:(-np.dot(s, dx[6])),
+        #     gradient_modification_function=lambda c,g:g+.2*dx[6].reshape(g.shape),
+        #     # initialization_function=lambda c:c+5*dx[6].reshape(-1, 3),
+        #     return_trajectory=True,
+        #     line_search=False,
+        #     mode='scipy'
+        #     # logger=True
+        # )
+        # print(
+        #     len(ugh[1])
+        # )
+
+        zmat = mol.get_bond_zmatrix()
+        ugh =  mol.modify(internals=zmat).optimize(
+            coordinate_constraints=[
+                c
+                for c in coordops.extract_zmatrix_internals(zmat)
+                if len(c) == 4
+            ],
+            track_best=True,
+            max_iterations=50
+        )
+
+        print(
+            np.concatenate([
+                ugh.modify(internals=zmat).internal_coordinates,
+                mol.modify(internals=zmat).internal_coordinates
+                ], axis=-1),
         )
         print(
-            len(ugh[1])
+            (ugh.calculate_energy() - mol.calculate_energy())*UnitsData.convert("Hartrees", "Kilocalories/Mole")
         )

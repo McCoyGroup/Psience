@@ -1282,7 +1282,7 @@ class EnergyEvaluator(PropertyEvaluator):
             #     checks = mask(base_tensors[0])
             #     #TODO: handle the mixed-shape case
             #     base_tensors = base_tensors[1][..., :, checks]
-            base_tensors = np.concatenate(bases, axis=1)
+            base_tensors = np.concatenate(bases, axis=-1)
 
             # print(bases[0])
             proj = nput.orthogonal_projection_matrix(base_tensors, orthonormal=True)
@@ -1627,6 +1627,8 @@ class EnergyEvaluator(PropertyEvaluator):
                  coordinate_constraints=None,
                  orthogonal_projection_generator=None,
                  gradient_modification_function=None,
+                 initialization_function=None,
+                 return_trajectory=False,
                  **opts
                  ):
         if use_internals is None: use_internals = self.use_internals
@@ -1654,6 +1656,8 @@ class EnergyEvaluator(PropertyEvaluator):
                                                                                 orthogonal_projection_generator=orthogonal_projection_generator,
                                                                                 gradient_modification_function=gradient_modification_function,
                                                                                 convert_modification_distances=False,
+                                                                                initialization_function=initialization_function,
+                                                                                return_trajectory=return_trajectory,
                                                                                 **opts
                                                                                 )
                 coords = self.unembed_coords(opt_coords)
@@ -1667,6 +1671,8 @@ class EnergyEvaluator(PropertyEvaluator):
                                            coordinate_constraints=coordinate_constraints,
                                            orthogonal_projection_generator=orthogonal_projection_generator,
                                            gradient_modification_function=gradient_modification_function,
+                                           initialization_function=initialization_function,
+                                           return_trajectory=return_trajectory,
                                            **opts
                                            )
 
