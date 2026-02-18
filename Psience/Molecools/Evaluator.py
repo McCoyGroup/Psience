@@ -1244,7 +1244,7 @@ class EnergyEvaluator(PropertyEvaluator):
         damping_exponent=None,
         restart_interval=None,
         max_displacement=.2,
-        line_search=False,
+        line_search=None,
         optimizer_settings=None,
         mode=None,
         func=None,
@@ -1317,6 +1317,7 @@ class EnergyEvaluator(PropertyEvaluator):
                            convert_modification_distances=True,
                            return_trajectory=False,
                            initialization_function=None,
+                           line_search_step=None,
                            **opts
                            ):
         from McUtils.Numputils import iterative_step_minimize
@@ -1396,7 +1397,13 @@ class EnergyEvaluator(PropertyEvaluator):
             coords = initialization_function(d_conv*coords)
             coords = coords / d_conv
         if mode == 'scipy' or method == 'scipy':
-            from scipy.optimize import minimize
+            from scipy.optimize import minimize, _optimize, _minimize
+
+            if line_search is None:
+                line_search = True
+
+            if not line_search:
+                optimizer_settings = {'c1': 0.00001, 'c2': 0.999} | optimizer_settings
 
             def sfunc(crd):
                 wat = func(crd, None)
@@ -1410,9 +1417,10 @@ class EnergyEvaluator(PropertyEvaluator):
                     huh = orthogonal_projection_generator(crd) @ huh
                 # print(huh)
                 if huh.ndim == 2:
-                    return huh[0]
+                    res = huh[0]
                 else:
-                    return huh
+                    res = huh
+                return res
 
             if gradient_modification_function is not None:
                 if convert_modification_distances:
@@ -1422,7 +1430,8 @@ class EnergyEvaluator(PropertyEvaluator):
                 def sjacobian(crds, _caller=sjacobian):
                     res = _caller(crds)
                     res = gradient_modification_function(crds * d_conv, res)
-                    return res * d_conv
+                    res = res * d_conv
+                    return res
 
             if self.analytic_derivative_order > 1:
                 def shessian(crd):
@@ -1518,17 +1527,38 @@ class EnergyEvaluator(PropertyEvaluator):
             )
             bounds = min_ops.pop('bounds', None)
             constraints = min_ops.pop('constraints', ())
-            min = minimize(sfunc,
-                           coords.flatten(),
-                           method=scipy_meth,
-                           tol=tol,
-                           jac=sjacobian,
-                           hess=shessian,
-                           callback=callback,
-                           bounds=bounds,
-                           constraints=constraints,
-                           options=min_ops
-                           )
+            try:
+                if not line_search:
+                    old_wolfe = _optimize.line_search_wolfe1
+                    def _find_max_displacement_step(
+                            f, fprime, xk, pk, gfk=None,
+                            old_fval=None, old_old_fval=None,
+                            args=(), c1=1e-4, c2=0.9, amax=50, amin=1e-8,
+                            xtol=1e-14
+                    ):
+                        if line_search_step is not None:
+                            return line_search_step
+                        else:
+                            max_pk = np.max(np.abs(pk))
+                            if max_pk < 1e-6:
+                                return max_displacement, None, None, old_fval, old_old_fval, None
+                            else:
+                                return max_displacement/max_pk, None, None, old_fval, old_old_fval, None
+                    _optimize.line_search_wolfe1 = _find_max_displacement_step
+                min = minimize(sfunc,
+                               coords.flatten(),
+                               method=scipy_meth,
+                               tol=tol,
+                               jac=sjacobian,
+                               hess=shessian,
+                               callback=callback,
+                               bounds=bounds,
+                               constraints=constraints,
+                               options=min_ops
+                               )
+            finally:
+                if not line_search:
+                    _optimize.line_search_wolfe1 = old_wolfe
             if return_trajectory:
                 return min.success, (
                     min.x.reshape(coords.shape),
@@ -2051,12 +2081,13 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
             )
             if gradient_modification_function is not None:
                 old_get_forces = calc.get_forces
+                d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+                e_conv = UnitsData.convert(self.property_units, "Hartrees")
                 def jacobian(atoms=None):
-                    d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
                     res = old_get_forces(atoms)
                     if atoms is None: atoms = mol.mol
                     crds = atoms.positions
-                    return -gradient_modification_function(crds * d_conv, -res) * d_conv
+                    return -gradient_modification_function(crds * d_conv, -res * e_conv) * d_conv / e_conv
                 calc.get_forces = jacobian
 
             try:
@@ -2087,8 +2118,12 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                 coords,
                 method=method,
                 tol=tol,
+                mode=mode,
                 max_iterations=max_iterations,
                 max_displacement=max_displacement,
+                return_trajectory=return_trajectory,
+                initialization_function=initialization_function,
+                gradient_modification_function=gradient_modification_function,
                 **opts
             )
 
@@ -2138,7 +2173,7 @@ class ASECalcEnergyEvaluator(EnergyEvaluator):
 
     def optimize(self,
                  coords,
-                 method=None,
+                 mode=None,
                  initialization_function=None,
                  gradient_modification_function=None,
                  return_trajectory=False,
@@ -2148,7 +2183,7 @@ class ASECalcEnergyEvaluator(EnergyEvaluator):
             opts.pop(k, self.optimizer_defaults[k])
             for k in ["tol", "max_iterations", "max_displacement"]
         ]
-        if method == 'ase':
+        if mode == 'ase':
             coords = np.asanyarray(coords)
             mol = self.prep_ase(coords.reshape((-1,) + coords.shape[-2:])[0])
             if initialization_function is not None:
@@ -2158,13 +2193,16 @@ class ASECalcEnergyEvaluator(EnergyEvaluator):
 
             if gradient_modification_function is not None:
                 calc = mol.mol.calc
+                import scipy.optimize as opt
+                opt.minimize()
                 old_get_forces = calc.get_forces
+                d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+                e_conv = UnitsData.convert(self.property_units, "Hartrees")
                 def jacobian(atoms=None):
-                    d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
                     res = old_get_forces(atoms)
                     if atoms is None: atoms = mol.mol
                     crds = atoms.positions
-                    return -gradient_modification_function(crds * d_conv, -res) * d_conv
+                    return -gradient_modification_function(crds * d_conv, -res * e_conv) * d_conv / e_conv
                 calc.get_forces = jacobian
 
             if return_trajectory:
@@ -2198,10 +2236,13 @@ class ASECalcEnergyEvaluator(EnergyEvaluator):
         else:
             return super().optimize(
                 coords,
-                method=method,
+                mode=mode,
                 tol=tol,
                 max_iterations=max_iterations,
                 max_displacement=max_displacement,
+                return_trajectory=return_trajectory,
+                initialization_function=initialization_function,
+                gradient_modification_function=gradient_modification_function,
                 **opts
             )
 

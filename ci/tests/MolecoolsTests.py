@@ -3726,10 +3726,11 @@ class MolecoolsTests(TestCase):
         u_traj = []
         ugh = mol.optimize(
             # func=lambda s:(-np.dot(s, dx[6])),
-            gradient_modification_function=lambda c,g:g+.2*dx[6].reshape(-1, 3),
-            initialization_function=lambda c:c+5*dx[6].reshape(-1, 3),
+            gradient_modification_function=lambda c,g:g+.2*dx[6].reshape(g.shape),
+            # initialization_function=lambda c:c+5*dx[6].reshape(-1, 3),
             return_trajectory=True,
-            mode='ase'
+            line_search=False,
+            mode='scipy'
             # logger=True
         )
         print(
