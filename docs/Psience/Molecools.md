@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-348569" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-348569"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-e42271" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e42271"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-348569" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e42271" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -177,12 +177,14 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [RDKitConfGen](#RDKitConfGen)
 - [CanonicalZMatrix](#CanonicalZMatrix)
 - [FlexiblePlotting](#FlexiblePlotting)
+- [StableInternals](#StableInternals)
+- [Opts](#Opts)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-c7b7db" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-c7b7db"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-961d41" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-961d41"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-c7b7db" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-961d41" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3719,6 +3721,10 @@ class MolecoolsTests(TestCase):
             # background='blue',
             image_size=[800, 500],
             background='blue',
+            atom_labels={
+                i: {}
+                for i in range(27)
+            },
             draw_coords={
                 (0, 2):{
                     'label':'r<msub>1</msub>'
@@ -3737,13 +3743,54 @@ class MolecoolsTests(TestCase):
                     'label':{'text':'6'}
                 }
             },
+            # atom_note_color='gray',
+            label_style={
+                'color': 'gray',
+                'font_size': 7
+            },
+            # drawing_extents_include=['all'],
             backend='2d'
         )
+```
 
-        mol.plot(
-            figure=fig1,
-            background='#FFFFFFFF',
-            backend='2d'
+#### <a name="StableInternals">StableInternals</a>
+```python
+    def test_StableInternals(self):
+        mol = Molecule.from_file('water_freq.fchk',
+                                   internals=[
+                                       [0, -1, -2, -3],
+                                       [1,  0, -1, -2],
+                                       [2,  0,  1, -1],
+                                   ]
+                                   )
+
+        print(mol.get_internals_by_cartesians())
+```
+
+#### <a name="Opts">Opts</a>
+```python
+    def test_Opts(self):
+
+        mol = Molecule.from_file(
+            TestManager.test_data('tbhp_180.fchk'),
+            energy_evaluator='aimnet2'
+        )
+
+        int_tbhp = mol.modify(internals=mol.get_bond_zmatrix())
+        dx = int_tbhp.get_cartesians_by_internals(order=1)[0]
+
+        u_traj = []
+        ugh = mol.optimize(
+            # func=lambda s:(-np.dot(s, dx[6])),
+            gradient_modification_function=lambda c,g:g+.2*dx[6].reshape(g.shape),
+            # initialization_function=lambda c:c+5*dx[6].reshape(-1, 3),
+            return_trajectory=True,
+            line_search=False,
+            mode='scipy'
+            # logger=True
+        )
+        print(
+            len(ugh[1])
         )
 ```
 
