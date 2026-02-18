@@ -1609,12 +1609,25 @@ class Molecule(AbstractMolecule):
             if logger is not None:
                 logger = Logger.lookup(logger)
                 logger.log_print('WARNING: failed to optimize molecule')
+        no_traj = isinstance(opt_coords, np.ndarray)
+        if no_traj: opt_coords = (opt_coords, [])
+        opt_coords, traj = opt_coords
         opt_coords = opt_coords / conv
         if reembed:
             opt_coords = nput.eckart_embedding(
                 self.coords, opt_coords, masses=self.masses
             ).coordinates
-        return self.modify(coords=opt_coords, meta=settings)
+        _ = []
+        for t in traj:
+            t = nput.eckart_embedding(
+                self.coords, t, masses=self.masses
+            ).coordinates
+            _.append(t)
+        traj = _
+        if no_traj:
+            return self.modify(coords=opt_coords, meta=settings)
+        else:
+            return self.modify(coords=opt_coords, meta=settings), traj
 
     def get_dipole_evaluator(self, evaluator=None, **opts):
         if evaluator is None:
@@ -3704,9 +3717,13 @@ class Molecule(AbstractMolecule):
                                 highlight_rings=None,
                                 highlight_styles=None,
                                 display_atom_numbers=None,
+                                jsmol_load_script=None,
                                 **ignored
                                 ):
-        bits = []
+        if jsmol_load_script is not None:
+            bits = jsmol_load_script.split(";") if isinstance(jsmol_load_script, str) else list(jsmol_load_script)
+        else:
+            bits = []
         if background is not None:
             if isinstance(background, str) and background.startswith("#"):
                 background = "[{}]".format(background.replace("#", "x"))
@@ -3882,9 +3899,8 @@ class Molecule(AbstractMolecule):
         background = extra_opts.get('background')
 
         if script is None:
-            script = jsmol_load_script
-        if script is None:
             script = self._prep_jsmol_load_script(
+                jsmol_load_script=jsmol_load_script,
                 background=background,
                 use_default_radii=use_default_radii, **etc)
         return dict(
@@ -3909,6 +3925,7 @@ class Molecule(AbstractMolecule):
                               extra_opts=None,
                               include_save_buttons=None,
                               display_atom_numbers=None,
+                              label_style=None,
                               **etc
                               ):
         if extra_opts is None:
@@ -4046,6 +4063,7 @@ class Molecule(AbstractMolecule):
                 include_save_buttons=include_save_buttons,
                 display_atom_numbers=display_atom_numbers,
                 draw_coords=draw_coords,
+                label_style=label_style,
                 highlight_bond_width_multiplier=(
                         int(np.ceil(7 * bond_radius / .2))
                             if bond_radius is not None else
@@ -4134,6 +4152,7 @@ class Molecule(AbstractMolecule):
              include_jsmol_script_interface=False,
              dynamic_loading=None,
              units="Angstroms",
+             label_style=None,
              **plot_ops
              ):
 
@@ -4186,6 +4205,7 @@ class Molecule(AbstractMolecule):
             jsmol_load_script=jsmol_load_script,
             include_jsmol_script_interface=include_jsmol_script_interface,
             dynamic_loading=dynamic_loading,
+            label_style=label_style,
             extra_opts=plot_ops
         )
         mode, backend = self._resolve_plot_mode(
@@ -4396,11 +4416,20 @@ class Molecule(AbstractMolecule):
                 glows[k] = v.get('glow', glows[k])
             atom_style = _atom_style
 
+        if label_style is None:
+            label_style = {}
+
         if display_atom_numbers:
             if display_atom_numbers is True:
                 display_atom_numbers = list(range(len(self._ats)))
-            display_atom_numbers = set(display_atom_numbers)
-            atom_text = [{"text":i} if i in display_atom_numbers else None for i in range(len(self._ats))]
+            if not isinstance(display_atom_numbers, dict):
+                display_atom_numbers = {i:{} for i in display_atom_numbers}
+            atom_text = [
+                {"text":i} | label_style | display_atom_numbers.get(i, {})
+                    if i in display_atom_numbers else
+                None
+                for i in range(len(self._ats))
+            ]
         if atom_text is None:
             atom_text = [None] * len(self._ats)
 
@@ -4470,6 +4499,7 @@ class Molecule(AbstractMolecule):
         elif nput.is_int(draw_bonds[0][0]):
             draw_bonds = [draw_bonds] * len(geometries)
 
+        default_label_style = label_style | self.draw_coords_label_style
         for i, geom in enumerate(geometries):
             bond_list = draw_bonds[i]
             if bond_style is not False and bond_list is not None:
@@ -4749,7 +4779,7 @@ class Molecule(AbstractMolecule):
                         offset = np.array(v.pop('offset', [0, 0, 0]))
                         label = v.pop('label', None)
                         color = v.pop('line_color', v.pop('color', 'black'))
-                        label_style = dict(self.draw_coords_label_style, **v.pop('label_style', {}))
+                        label_style = dict(default_label_style, **v.pop('label_style', {}))
                         label_style['billboard'] = label_style.get('billboard',
                                                                    zz is None and 'normal' not in label_style
                                                                    )
@@ -4816,7 +4846,7 @@ class Molecule(AbstractMolecule):
                             angle=nput.vec_angles(*axes, return_crosses=False)
 
                         label = v.pop('label', None)
-                        label_style = dict(self.draw_coords_label_style, **v.pop('label_style', {}))
+                        label_style = dict(default_label_style, **v.pop('label_style', {}))
                         arc = plt.Disk(
                             yy,
                             uv_axes=axes,
@@ -4909,8 +4939,10 @@ class Molecule(AbstractMolecule):
                         ) + c2
                         axes = [
                             axis,
-                            c3 - c2
+                            c3 - c2,
                         ]
+                        if np.dot(np.cross(*axes), normal) < 0:
+                            normal = -normal
 
                         radius = v.pop('radius', None)
                         if radius is None:
@@ -4918,7 +4950,7 @@ class Molecule(AbstractMolecule):
                             # angle=nput.vec_angles(*axes, return_crosses=False)
 
                         label = v.pop('label', None)
-                        label_style = dict(self.draw_coords_label_style, **v.pop('label_style', {}))
+                        label_style = dict(default_label_style, **v.pop('label_style', {}))
                         arc = plt.Disk(
                             c2,
                             uv_axes=axes,
@@ -4980,7 +5012,7 @@ class Molecule(AbstractMolecule):
                     text = t.pop('text')
                     if nput.is_numeric(text):
                         text = str(text)
-                    pos = t.pop('pos', a + t.pop('offset', np.array([0, 0, r])))
+                    pos = t.pop('pos', a + t.pop('offset', np.array([r/2, r/2, r])))
                     fs = t.pop('font_style', {})
                     fs['size'] = fs.get('size', .5)
                     t['font_style'] = fs
@@ -5052,9 +5084,12 @@ class Molecule(AbstractMolecule):
                                                units="Angstroms" if units is None else units,
                                                coordinate_expansion=coordinate_expansion
                                                )
-            return self.jsmol_viz(disps, vibrate=True, script=jsmol_load_script,
-                                  **plot_opts
-                                  )
+            return self.plot(xyz=disps,
+                             mode='jsmol',
+                             vibrate=True,
+                             jsmol_load_script=jsmol_load_script,
+                             **plot_opts
+                             )
         else:
             geoms = self.get_animation_geoms(which, extent=extent, steps=steps, strip_embedding=strip_embedding, units=units,
                                              coordinate_expansion=coordinate_expansion)
