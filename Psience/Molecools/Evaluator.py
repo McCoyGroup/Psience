@@ -1,5 +1,7 @@
 import abc
 import enum
+import functools
+import tempfile
 import itertools
 import math
 import sys, os
@@ -1085,21 +1087,25 @@ class EnergyEvaluator(PropertyEvaluator):
     def get_default_function_evaluator_type(cls):
         return PotentialFunctionEnergyEvaluator
 
-    def minimizer_function_by_order(self, order, allow_fd=False, **opts):
+    def minimizer_function_by_order(self, order, allow_fd=False, modifier=None, **opts):
         conv = UnitsData.convert(self.property_units, "Hartrees")
         if self.analytic_derivative_order >= order:
             def func(crd, _):
                 res = self.evaluate_term(crd.reshape(1, -1, 3), order, **opts)
                 if self.batched_orders:
-                    return res[-1] * conv
+                    base = res[-1] * conv
                 else:
-                    return res * conv
+                    base = res * conv
+                return base
         elif allow_fd:
             def func(crd, _):
                 res = self.finite_difference_derivs(crd.reshape(1, -1, 3), order, **opts)[-1]
                 return res[np.newaxis] * conv # it obliterates the 1
         else:
             func = None
+        if modifier is not None:
+            def func(crd, _, _caller=func):
+                return modifier(_caller(crd, _))
         return func
     def minimizer_func(self, **opts):
         return self.minimizer_function_by_order(0, **opts)
@@ -1108,7 +1114,7 @@ class EnergyEvaluator(PropertyEvaluator):
     def minimizer_hessian(self, **opts):
         return self.minimizer_function_by_order(2, **opts)
 
-    def minimizer_internal_function_by_order(self, order, allow_fd=False, **opts):
+    def minimizer_internal_function_by_order(self, order, allow_fd=False, modifier=None, **opts):
         conv = UnitsData.convert(self.property_units, "Hartrees")
         if self.analytic_derivative_order >= order:
             opts = dev.OptionsSet(opts)
@@ -1143,6 +1149,10 @@ class EnergyEvaluator(PropertyEvaluator):
                 return res[np.newaxis] * conv  # it obliterates the 1
         else:
             func = None
+
+        if modifier is not None:
+            def func(crd, _, _caller=func):
+                return modifier(_caller(crd, _))
         return func
 
     def get_internal_coordinate_projector(self, coord_spec, mask=None):
@@ -1234,7 +1244,7 @@ class EnergyEvaluator(PropertyEvaluator):
         damping_exponent=None,
         restart_interval=None,
         max_displacement=.2,
-        line_search=False,
+        line_search=None,
         optimizer_settings=None,
         mode=None,
         func=None,
@@ -1258,7 +1268,7 @@ class EnergyEvaluator(PropertyEvaluator):
         # import scipy.optimize._optimize
         return (
                 tuple(self.optimizer_defaults.keys())
-                + ('coordinate_constraints',)
+                + ('coordinate_constraints', 'gradient_modification_function', "initialization_function", "return_trajectory")
                 + FiniteDifferenceDerivative.__props__
         )
 
@@ -1301,10 +1311,15 @@ class EnergyEvaluator(PropertyEvaluator):
     scipy_no_hessian_methods = {'cg', 'bfgs'}
     scipy_no_grad_methods = {'nelder-mead'}
     def optimize_iterative(self,
-                 coords,
-                 coordinate_constraints=None,
-                 **opts
-                 ):
+                           coords,
+                           coordinate_constraints=None,
+                           gradient_modification_function=None,
+                           convert_modification_distances=True,
+                           return_trajectory=False,
+                           initialization_function=None,
+                           line_search_step=None,
+                           **opts
+                           ):
         from McUtils.Numputils import iterative_step_minimize
         opts = dict(self.optimizer_defaults, **{o:k for o,k in opts.items() if k is not None})
 
@@ -1374,8 +1389,21 @@ class EnergyEvaluator(PropertyEvaluator):
         if orthogonal_projection_generator is None:
             orthogonal_projection_generator = self.get_coordinate_constraints(coordinate_constraints)
 
+        if initialization_function is not None:
+            if convert_modification_distances:
+                d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+            else:
+                d_conv = 1
+            coords = initialization_function(d_conv*coords)
+            coords = coords / d_conv
         if mode == 'scipy' or method == 'scipy':
-            from scipy.optimize import minimize
+            from scipy.optimize import minimize, _optimize, _minimize
+
+            if line_search is None:
+                line_search = True
+
+            if not line_search:
+                optimizer_settings = {'c1': 0.00001, 'c2': 0.999} | optimizer_settings
 
             def sfunc(crd):
                 wat = func(crd, None)
@@ -1389,9 +1417,21 @@ class EnergyEvaluator(PropertyEvaluator):
                     huh = orthogonal_projection_generator(crd) @ huh
                 # print(huh)
                 if huh.ndim == 2:
-                    return huh[0]
+                    res = huh[0]
                 else:
-                    return huh
+                    res = huh
+                return res
+
+            if gradient_modification_function is not None:
+                if convert_modification_distances:
+                    d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+                else:
+                    d_conv = 1
+                def sjacobian(crds, _caller=sjacobian):
+                    res = _caller(crds)
+                    res = gradient_modification_function(crds * d_conv, res)
+                    res = res * d_conv
+                    return res
 
             if self.analytic_derivative_order > 1:
                 def shessian(crd):
@@ -1400,10 +1440,20 @@ class EnergyEvaluator(PropertyEvaluator):
                 shessian = None
 
             callback = optimizer_settings.pop('callback', None)
-            if logger.active:
+            if return_trajectory:
+                traj = []
                 if callback is None:
-                    prev_re=[coords.flatten().view(np.ndarray)]
-                    callback = lambda intermediate_result, prev_re=prev_re: (
+                    def callback(x):
+                        traj.append(x)
+                else:
+                    def append_callback(intermediate_result, cb):
+                        traj.append(intermediate_result)
+                        return cb(intermediate_result)
+                    callback = functools.partial(append_callback, cb=callback)
+            if logger.active:
+                prev_re=[coords.flatten().view(np.ndarray)]
+                if callback is None:
+                    def log_callback(intermediate_result, prev_re):
                         logger.log_print(
                             [
                                 "Struct: {intermediate_result}",
@@ -1413,15 +1463,20 @@ class EnergyEvaluator(PropertyEvaluator):
                             intermediate_step=intermediate_result - prev_re[-1]
                         ),
                         prev_re.append(intermediate_result)
-                    )
+                    callback = functools.partial(log_callback, prev_re=prev_re)
                 else:
-                    callback = lambda intermediate_result, cb=callback: [
+                    def log_callback(intermediate_result, cb, prev_re):
                         logger.log_print(
-                            "Step: {intermediate_result}",
-                            intermediate_result=intermediate_result
+                            [
+                                "Struct: {intermediate_result}",
+                                "Step: {intermediate_step}"
+                            ],
+                            intermediate_result=intermediate_result,
+                            intermediate_step=intermediate_result - prev_re[-1]
                         ),
-                        cb(intermediate_result)
-                    ][-1]
+                        prev_re.append(intermediate_result)
+                        return cb(intermediate_result)
+                    callback = functools.partial(log_callback, cb=callback, prev_re=prev_re)
 
             method = (
                 method
@@ -1472,19 +1527,56 @@ class EnergyEvaluator(PropertyEvaluator):
             )
             bounds = min_ops.pop('bounds', None)
             constraints = min_ops.pop('constraints', ())
-            min = minimize(sfunc,
-                           coords.flatten(),
-                           method=scipy_meth,
-                           tol=tol,
-                           jac=sjacobian,
-                           hess=shessian,
-                           callback=callback,
-                           bounds=bounds,
-                           constraints=constraints,
-                           options=min_ops
-                           )
-            return min.success, min.x.reshape(coords.shape), min
+            try:
+                if not line_search:
+                    old_wolfe = _optimize.line_search_wolfe1
+                    def _find_max_displacement_step(
+                            f, fprime, xk, pk, gfk=None,
+                            old_fval=None, old_old_fval=None,
+                            args=(), c1=1e-4, c2=0.9, amax=50, amin=1e-8,
+                            xtol=1e-14
+                    ):
+                        if line_search_step is not None:
+                            return line_search_step
+                        else:
+                            max_pk = np.max(np.abs(pk))
+                            if max_pk < 1e-6:
+                                return max_displacement, None, None, old_fval, old_old_fval, None
+                            else:
+                                return max_displacement/max_pk, None, None, old_fval, old_old_fval, None
+                    _optimize.line_search_wolfe1 = _find_max_displacement_step
+                min = minimize(sfunc,
+                               coords.flatten(),
+                               method=scipy_meth,
+                               tol=tol,
+                               jac=sjacobian,
+                               hess=shessian,
+                               callback=callback,
+                               bounds=bounds,
+                               constraints=constraints,
+                               options=min_ops
+                               )
+            finally:
+                if not line_search:
+                    _optimize.line_search_wolfe1 = old_wolfe
+            if return_trajectory:
+                return min.success, (
+                    min.x.reshape(coords.shape),
+                    [t.reshape(coords.shape) for t in traj],
+                ), min
+            else:
+                return min.success, min.x.reshape(coords.shape), min
         else:
+            if gradient_modification_function is not None:
+                if convert_modification_distances:
+                    d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+                else:
+                    d_conv = 1
+
+                def jacobian(crds, _, _caller=jacobian):
+                    res = _caller(crds, _)
+                    return gradient_modification_function(crds * d_conv, res) * d_conv
+
             if method is None or isinstance(method, str):
                 method = {
                         'method': method,
@@ -1498,7 +1590,7 @@ class EnergyEvaluator(PropertyEvaluator):
                     }
                 method = {k:v for k,v in method.items() if v is not None}
                 method = dict(method, **optimizer_settings)
-            opt_coords, converged, (errs, its) = iterative_step_minimize(
+            opt_data = iterative_step_minimize(
                 coords.flatten(),
                 method,
                 unitary=unitary,
@@ -1510,9 +1602,19 @@ class EnergyEvaluator(PropertyEvaluator):
                 max_displacement=max_displacement,
                 logger=logger,
                 orthogonal_projection_generator=orthogonal_projection_generator,
+                return_trajectory=return_trajectory,
                 **opt_opts
             )
-            return converged, opt_coords.reshape(coords.shape), {'errors':errs, 'iterations':its}
+            if return_trajectory:
+                (opt_coords, converged, (errs, its)), traj = opt_data
+                return (
+                    converged,
+                    (opt_coords.reshape(coords.shape), [t.reshape(coords.shape) for _,t in traj]),
+                    {'errors': errs, 'iterations': its}
+                )
+            else:
+                opt_coords, converged, (errs, its) = opt_data
+                return converged, opt_coords.reshape(coords.shape), {'errors':errs, 'iterations':its}
 
 
     def optimize(self,
@@ -1524,6 +1626,7 @@ class EnergyEvaluator(PropertyEvaluator):
                  logger=None,
                  coordinate_constraints=None,
                  orthogonal_projection_generator=None,
+                 gradient_modification_function=None,
                  **opts
                  ):
         if use_internals is None: use_internals = self.use_internals
@@ -1533,7 +1636,8 @@ class EnergyEvaluator(PropertyEvaluator):
             if func is None:
                 func = self.minimizer_internal_function_by_order(0, **fopts)
             if jacobian is None:
-                jacobian = self.minimizer_internal_function_by_order(1, allow_fd=True, **fopts)
+                jacobian = self.minimizer_internal_function_by_order(1, allow_fd=True,
+                                                                     **fopts)
             if hessian is None:
                 hessian = self.minimizer_internal_function_by_order(2, **fopts)
             try:
@@ -1548,6 +1652,8 @@ class EnergyEvaluator(PropertyEvaluator):
                                                                                 logger=logger,
                                                                                 coordinate_constraints=coordinate_constraints,
                                                                                 orthogonal_projection_generator=orthogonal_projection_generator,
+                                                                                gradient_modification_function=gradient_modification_function,
+                                                                                convert_modification_distances=False,
                                                                                 **opts
                                                                                 )
                 coords = self.unembed_coords(opt_coords)
@@ -1557,11 +1663,12 @@ class EnergyEvaluator(PropertyEvaluator):
 
         else:
             return self.optimize_iterative(coords,
-                                    logger=logger,
-                                    coordinate_constraints=coordinate_constraints,
-                                    orthogonal_projection_generator=orthogonal_projection_generator,
-                                    **opts
-                                    )
+                                           logger=logger,
+                                           coordinate_constraints=coordinate_constraints,
+                                           orthogonal_projection_generator=orthogonal_projection_generator,
+                                           gradient_modification_function=gradient_modification_function,
+                                           **opts
+                                           )
 
 class RDKitEnergyEvaluator(EnergyEvaluator):
     def __init__(self, rdmol, force_field='mmff', charge=None, multiplicity=None, **defaults):
@@ -1935,13 +2042,17 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
     def optimize(self,
                  coords,
                  method=None,
+                 mode=None,
+                 initialization_function=None,
+                 gradient_modification_function=None,
+                 return_trajectory=False,
                  **opts
                  ):
         tol, max_iterations, max_displacement = [
             opts.pop(k, self.optimizer_defaults[k])
             for k in ["tol", "max_iterations", "max_displacement"]
         ]
-        if method == 'ase':
+        if mode == 'ase':
             from McUtils.ExternalPrograms import ASEMolecule
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
@@ -1953,22 +2064,66 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                                   mult=self.multiplicity
                                   )
 
+            if initialization_function is not None:
+                d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+                coords = initialization_function(d_conv * coords)
+                coords = coords / d_conv
+
+            if return_trajectory:
+                traj = tempfile.NamedTemporaryFile().name
+            else:
+                traj = None
+
             mol = ASEMolecule.from_coords(
                 self.atoms,
                 coords.reshape((-1,) + coords.shape[-2:])[0],
                 calculator=calc
             )
-            return mol.optimize_structure(coords,
-                                          fmax=tol, steps=max_iterations,
-                                          maxstep=max_displacement
-                                          )
+            if gradient_modification_function is not None:
+                old_get_forces = calc.get_forces
+                d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+                e_conv = UnitsData.convert(self.property_units, "Hartrees")
+                def jacobian(atoms=None):
+                    res = old_get_forces(atoms)
+                    if atoms is None: atoms = mol.mol
+                    crds = atoms.positions
+                    return -gradient_modification_function(crds * d_conv, -res * e_conv) * d_conv / e_conv
+                calc.get_forces = jacobian
+
+            try:
+                new_opt = mol.optimize_structure(coords,
+                                                 fmax=tol, steps=max_iterations,
+                                                 maxstep=max_displacement,
+                                                 trajectory=traj,
+                                                 method=method)
+            finally:
+                if gradient_modification_function is not None:
+                    calc.get_forces = old_get_forces
+            if return_trajectory:
+                from ase.io.trajectory import Trajectory
+                try:
+                    with Trajectory(traj, mode='r') as reader:
+                        traj_data = [
+                            a.positions for a in reader
+                        ]
+                except FileNotFoundError:
+                    ...
+                else:
+                    os.remove(traj)
+                cond, coords, d = new_opt
+                new_opt = (cond, (coords, traj_data), d)
+            return new_opt
         else:
             return super().optimize(
                 coords,
                 method=method,
                 tol=tol,
+                mode=mode,
                 max_iterations=max_iterations,
                 max_displacement=max_displacement,
+                return_trajectory=return_trajectory,
+                initialization_function=initialization_function,
+                gradient_modification_function=gradient_modification_function,
                 **opts
             )
 
@@ -2018,27 +2173,76 @@ class ASECalcEnergyEvaluator(EnergyEvaluator):
 
     def optimize(self,
                  coords,
-                 method=None,
+                 mode=None,
+                 initialization_function=None,
+                 gradient_modification_function=None,
+                 return_trajectory=False,
                  **opts
                  ):
         tol, max_iterations, max_displacement = [
             opts.pop(k, self.optimizer_defaults[k])
             for k in ["tol", "max_iterations", "max_displacement"]
         ]
-        if method == 'ase':
+        if mode == 'ase':
             coords = np.asanyarray(coords)
             mol = self.prep_ase(coords.reshape((-1,) + coords.shape[-2:])[0])
-            return mol.optimize_structure(coords,
-                                          fmax=tol, steps=max_iterations,
-                                          maxstep=max_displacement
-                                          )
+            if initialization_function is not None:
+                d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+                coords = initialization_function(d_conv * coords)
+                coords = coords / d_conv
+
+            if gradient_modification_function is not None:
+                calc = mol.mol.calc
+                import scipy.optimize as opt
+                opt.minimize()
+                old_get_forces = calc.get_forces
+                d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+                e_conv = UnitsData.convert(self.property_units, "Hartrees")
+                def jacobian(atoms=None):
+                    res = old_get_forces(atoms)
+                    if atoms is None: atoms = mol.mol
+                    crds = atoms.positions
+                    return -gradient_modification_function(crds * d_conv, -res * e_conv) * d_conv / e_conv
+                calc.get_forces = jacobian
+
+            if return_trajectory:
+                traj = tempfile.NamedTemporaryFile().name
+            else:
+                traj = None
+
+            try:
+                new_opt = mol.optimize_structure(coords,
+                                                 fmax=tol, steps=max_iterations,
+                                                 maxstep=max_displacement,
+                                                 trajectory=traj,
+                                                 method=method)
+            finally:
+                if gradient_modification_function is not None:
+                    calc.get_forces = old_get_forces
+            if return_trajectory:
+                from ase.io.trajectory import Trajectory
+                try:
+                    with Trajectory(traj, mode='r') as reader:
+                        traj_data = [
+                            a.positions for a in reader
+                        ]
+                except FileNotFoundError:
+                    ...
+                else:
+                    os.remove(traj)
+                cond, coords, d = new_opt
+                new_opt = (cond, (coords, traj_data), d)
+            return new_opt
         else:
             return super().optimize(
                 coords,
-                method=method,
+                mode=mode,
                 tol=tol,
                 max_iterations=max_iterations,
                 max_displacement=max_displacement,
+                return_trajectory=return_trajectory,
+                initialization_function=initialization_function,
+                gradient_modification_function=gradient_modification_function,
                 **opts
             )
 

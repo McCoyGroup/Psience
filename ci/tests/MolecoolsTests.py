@@ -3646,7 +3646,7 @@ class MolecoolsTests(TestCase):
         # print(coordops.set_zmatrix_embedding(ca[:25] - cb[:25], embedding=np.zeros(6)))
 
 
-    @debugTest
+    @validationTest
     def test_FlexiblePlotting(self):
         from Psience.Molecools import Molecule
 
@@ -3663,6 +3663,10 @@ class MolecoolsTests(TestCase):
             # background='blue',
             image_size=[800, 500],
             background='blue',
+            atom_labels={
+                i: {}
+                for i in range(27)
+            },
             draw_coords={
                 (0, 2):{
                     'label':'r<msub>1</msub>'
@@ -3681,11 +3685,54 @@ class MolecoolsTests(TestCase):
                     'label':{'text':'6'}
                 }
             },
+            # atom_note_color='gray',
+            label_style={
+                'color': 'gray',
+                'font_size': 7
+            },
+            # drawing_extents_include=['all'],
             backend='2d'
         )
 
-        mol.plot(
-            figure=fig1,
-            background='#FFFFFFFF',
-            backend='2d'
+        # mol.plot(
+        #     figure=fig1,
+        #     background='#FFFFFFFF',
+        #     backend='2d'
+        # )
+
+    @validationTest
+    def test_StableInternals(self):
+        mol = Molecule.from_file('water_freq.fchk',
+                                   internals=[
+                                       [0, -1, -2, -3],
+                                       [1,  0, -1, -2],
+                                       [2,  0,  1, -1],
+                                   ]
+                                   )
+
+        print(mol.get_internals_by_cartesians())
+
+    @debugTest
+    def test_Opts(self):
+
+        mol = Molecule.from_file(
+            TestManager.test_data('tbhp_180.fchk'),
+            energy_evaluator='aimnet2'
+        )
+
+        int_tbhp = mol.modify(internals=mol.get_bond_zmatrix())
+        dx = int_tbhp.get_cartesians_by_internals(order=1)[0]
+
+        u_traj = []
+        ugh = mol.optimize(
+            # func=lambda s:(-np.dot(s, dx[6])),
+            gradient_modification_function=lambda c,g:g+.2*dx[6].reshape(g.shape),
+            # initialization_function=lambda c:c+5*dx[6].reshape(-1, 3),
+            return_trajectory=True,
+            line_search=False,
+            mode='scipy'
+            # logger=True
+        )
+        print(
+            len(ugh[1])
         )
