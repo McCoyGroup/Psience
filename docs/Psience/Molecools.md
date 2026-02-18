@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-e42271" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e42271"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-b6ba1c" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-b6ba1c"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e42271" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-b6ba1c" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -182,9 +182,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-961d41" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-961d41"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-a6795c" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-a6795c"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-961d41" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-a6795c" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3770,6 +3770,7 @@ class MolecoolsTests(TestCase):
 #### <a name="Opts">Opts</a>
 ```python
     def test_Opts(self):
+        import McUtils.Coordinerds as coordops
 
         mol = Molecule.from_file(
             TestManager.test_data('tbhp_180.fchk'),
@@ -3779,18 +3780,39 @@ class MolecoolsTests(TestCase):
         int_tbhp = mol.modify(internals=mol.get_bond_zmatrix())
         dx = int_tbhp.get_cartesians_by_internals(order=1)[0]
 
-        u_traj = []
-        ugh = mol.optimize(
-            # func=lambda s:(-np.dot(s, dx[6])),
-            gradient_modification_function=lambda c,g:g+.2*dx[6].reshape(g.shape),
-            # initialization_function=lambda c:c+5*dx[6].reshape(-1, 3),
-            return_trajectory=True,
-            line_search=False,
-            mode='scipy'
-            # logger=True
+        # u_traj = []
+        # ugh = mol.optimize(
+        #     # func=lambda s:(-np.dot(s, dx[6])),
+        #     gradient_modification_function=lambda c,g:g+.2*dx[6].reshape(g.shape),
+        #     # initialization_function=lambda c:c+5*dx[6].reshape(-1, 3),
+        #     return_trajectory=True,
+        #     line_search=False,
+        #     mode='scipy'
+        #     # logger=True
+        # )
+        # print(
+        #     len(ugh[1])
+        # )
+
+        zmat = mol.get_bond_zmatrix()
+        ugh =  mol.modify(internals=zmat).optimize(
+            coordinate_constraints=[
+                c
+                for c in coordops.extract_zmatrix_internals(zmat)
+                if len(c) == 4
+            ],
+            track_best=True,
+            max_iterations=50
+        )
+
+        print(
+            np.concatenate([
+                ugh.modify(internals=zmat).internal_coordinates,
+                mol.modify(internals=zmat).internal_coordinates
+                ], axis=-1),
         )
         print(
-            len(ugh[1])
+            (ugh.calculate_energy() - mol.calculate_energy())*UnitsData.convert("Hartrees", "Kilocalories/Mole")
         )
 ```
 
