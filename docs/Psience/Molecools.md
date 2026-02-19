@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-28920a" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-28920a"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-fd4cdd" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-fd4cdd"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-28920a" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-fd4cdd" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -182,9 +182,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-8f5ff8" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-8f5ff8"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-b1eef2" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-b1eef2"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-8f5ff8" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-b1eef2" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3772,13 +3772,22 @@ class MolecoolsTests(TestCase):
     def test_Opts(self):
         import McUtils.Coordinerds as coordops
 
+        # mol = Molecule.from_file(
+        #     TestManager.test_data('OCHH_freq.fchk'),
+        #     energy_evaluator='aimnet2'
+        # )
+        import McUtils.Formatters as mfmt
         mol = Molecule.from_file(
-            TestManager.test_data('tbhp_180.fchk'),
-            energy_evaluator='aimnet2'
+            TestManager.test_data('react_samp.xyz')
         )
+        zmat = mol.get_bond_zmatrix()
+        print()
+        print(mfmt.format_zmatrix(zmat))
+        print(mol.fragment_indices)
+        return
 
-        int_tbhp = mol.modify(internals=mol.get_bond_zmatrix())
-        dx = int_tbhp.get_cartesians_by_internals(order=1)[0]
+        # int_tbhp = mol.modify(internals=mol.get_bond_zmatrix())
+        # dx = int_tbhp.get_cartesians_by_internals(order=1)[0]
 
         # u_traj = []
         # ugh = mol.optimize(
@@ -3795,6 +3804,38 @@ class MolecoolsTests(TestCase):
         # )
 
         zmat = mol.get_bond_zmatrix()
+
+        # spec = coordops.InternalSpec(coordops.extract_zmatrix_internals(zmat))
+        # _, inv = spec.get_expansion(mol.coords, order=1, return_inverse=True, orthogonalize=False)
+        # print(inv[0])
+        # return
+
+        exp = mol.modify(internals=zmat).get_cartesians_by_internals(
+            method='classic',
+            use_direct_expansions=True,
+            orthogonalize_derivatives=False,
+            allow_fd=False,
+            order=1,
+            strip_embedding=False
+        )
+        print(exp[0])
+        exp = mol.modify(internals=zmat).get_cartesians_by_internals(
+            # method='classic',
+            # use_direct_expansions=True,
+            # orthogonalize_derivatives=False,
+            allow_fd=False,
+            order=1,
+            strip_embedding=False
+        )
+        print(exp[0][0])
+        return
+        # raise Exception(exp[0].shape)
+
+        mol = Molecule.from_file(
+            TestManager.test_data('tbhp_180.fchk'),
+            energy_evaluator='aimnet2'
+        )
+
         ugh =  mol.modify(internals=zmat).optimize(
             coordinate_constraints=[
                 c
