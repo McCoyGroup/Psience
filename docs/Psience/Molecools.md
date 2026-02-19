@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-fd4cdd" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-fd4cdd"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-57d2da" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-57d2da"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-fd4cdd" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-57d2da" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -182,9 +182,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-b1eef2" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-b1eef2"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-a8bc2a" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-a8bc2a"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-b1eef2" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-a8bc2a" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3771,20 +3771,25 @@ class MolecoolsTests(TestCase):
 ```python
     def test_Opts(self):
         import McUtils.Coordinerds as coordops
+        import McUtils.Formatters as mfmt
+        import numpy as np
+        np.seterr(all='raise')
 
         # mol = Molecule.from_file(
         #     TestManager.test_data('OCHH_freq.fchk'),
         #     energy_evaluator='aimnet2'
         # )
-        import McUtils.Formatters as mfmt
+        # mol = Molecule.from_file(
+        #     TestManager.test_data('tbhp_180.fchk')
+        # )
         mol = Molecule.from_file(
             TestManager.test_data('react_samp.xyz')
         )
-        zmat = mol.get_bond_zmatrix()
-        print()
-        print(mfmt.format_zmatrix(zmat))
-        print(mol.fragment_indices)
-        return
+        # zmat = mol.get_bond_zmatrix()
+        # print()
+        # print(mfmt.format_zmatrix(zmat))
+        # print(mol.fragment_indices)
+        # return
 
         # int_tbhp = mol.modify(internals=mol.get_bond_zmatrix())
         # dx = int_tbhp.get_cartesians_by_internals(order=1)[0]
@@ -3803,31 +3808,34 @@ class MolecoolsTests(TestCase):
         #     len(ugh[1])
         # )
 
-        zmat = mol.get_bond_zmatrix()
+        zmat = mol.get_bond_zmatrix(validate=True)
 
         # spec = coordops.InternalSpec(coordops.extract_zmatrix_internals(zmat))
         # _, inv = spec.get_expansion(mol.coords, order=1, return_inverse=True, orthogonalize=False)
         # print(inv[0])
         # return
 
-        exp = mol.modify(internals=zmat).get_cartesians_by_internals(
+        int_mol = mol.modify(internals=zmat)
+        # print(int_mol.internal_coordinates)
+        print(mol.coords[:5])
+        exp = int_mol.get_cartesians_by_internals(
             method='classic',
-            use_direct_expansions=True,
+            use_direct_expansions=True,#[2],
             orthogonalize_derivatives=False,
             allow_fd=False,
             order=1,
             strip_embedding=False
         )
-        print(exp[0])
+        # print(exp[0][0])
         exp = mol.modify(internals=zmat).get_cartesians_by_internals(
             # method='classic',
             # use_direct_expansions=True,
             # orthogonalize_derivatives=False,
             allow_fd=False,
             order=1,
-            strip_embedding=False
+            strip_embedding=True
         )
-        print(exp[0][0])
+        # print(exp[0][0])
         return
         # raise Exception(exp[0].shape)
 
