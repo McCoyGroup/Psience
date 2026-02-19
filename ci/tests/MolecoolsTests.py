@@ -3719,6 +3719,12 @@ class MolecoolsTests(TestCase):
         import numpy as np
         np.seterr(all='raise')
 
+        coordops.InternalCoordinateType.resolve(
+            {"orientation":((0, 1, 2), (3, 4, 5))}
+        )
+
+        return
+
         # mol = Molecule.from_file(
         #     TestManager.test_data('OCHH_freq.fchk'),
         #     energy_evaluator='aimnet2'

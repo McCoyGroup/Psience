@@ -910,6 +910,24 @@ class MixtureModes(CoordinateSystem):
             self.LocalizationMethods.MassScaled.value:(self.get_mass_scaled_mode_transformation, 'mass_scaling'),
         }
 
+    localization_options = (
+        "method",
+        "atoms",
+        "masses",
+        "target_modes",
+        "internals",
+        "mode_blocks",
+        "coordinate_constraints",
+        "projections",
+        "reorthogonalize",
+        "mass_scaling",
+        "unitarize",
+        "localization_cutoff",
+        "num_modes",
+        "project_transrot"
+        "mass_weighted",
+        "maximum_similarity"
+    )
     def localize(self,
                  method=None,
                  *,
