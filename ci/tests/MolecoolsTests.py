@@ -3715,20 +3715,25 @@ class MolecoolsTests(TestCase):
     @debugTest
     def test_Opts(self):
         import McUtils.Coordinerds as coordops
+        import McUtils.Formatters as mfmt
+        import numpy as np
+        np.seterr(all='raise')
 
         # mol = Molecule.from_file(
         #     TestManager.test_data('OCHH_freq.fchk'),
         #     energy_evaluator='aimnet2'
         # )
-        import McUtils.Formatters as mfmt
+        # mol = Molecule.from_file(
+        #     TestManager.test_data('tbhp_180.fchk')
+        # )
         mol = Molecule.from_file(
             TestManager.test_data('react_samp.xyz')
         )
-        zmat = mol.get_bond_zmatrix()
-        print()
-        print(mfmt.format_zmatrix(zmat))
-        print(mol.fragment_indices)
-        return
+        # zmat = mol.get_bond_zmatrix()
+        # print()
+        # print(mfmt.format_zmatrix(zmat))
+        # print(mol.fragment_indices)
+        # return
 
         # int_tbhp = mol.modify(internals=mol.get_bond_zmatrix())
         # dx = int_tbhp.get_cartesians_by_internals(order=1)[0]
@@ -3747,31 +3752,34 @@ class MolecoolsTests(TestCase):
         #     len(ugh[1])
         # )
 
-        zmat = mol.get_bond_zmatrix()
+        zmat = mol.get_bond_zmatrix(validate=True)
 
         # spec = coordops.InternalSpec(coordops.extract_zmatrix_internals(zmat))
         # _, inv = spec.get_expansion(mol.coords, order=1, return_inverse=True, orthogonalize=False)
         # print(inv[0])
         # return
 
-        exp = mol.modify(internals=zmat).get_cartesians_by_internals(
+        int_mol = mol.modify(internals=zmat)
+        # print(int_mol.internal_coordinates)
+        print(mol.coords[:5])
+        exp = int_mol.get_cartesians_by_internals(
             method='classic',
-            use_direct_expansions=True,
+            use_direct_expansions=True,#[2],
             orthogonalize_derivatives=False,
             allow_fd=False,
             order=1,
             strip_embedding=False
         )
-        print(exp[0])
+        # print(exp[0][0])
         exp = mol.modify(internals=zmat).get_cartesians_by_internals(
             # method='classic',
             # use_direct_expansions=True,
             # orthogonalize_derivatives=False,
             allow_fd=False,
             order=1,
-            strip_embedding=False
+            strip_embedding=True
         )
-        print(exp[0][0])
+        # print(exp[0][0])
         return
         # raise Exception(exp[0].shape)
 
