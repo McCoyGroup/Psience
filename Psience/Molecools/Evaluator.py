@@ -1286,7 +1286,7 @@ class EnergyEvaluator(PropertyEvaluator):
             base_tensors = np.concatenate(bases, axis=-1)
 
             # print(bases[0])
-            proj = nput.orthogonal_projection_matrix(base_tensors, orthonormal=True)
+            proj = nput.orthogonal_projection_matrix(base_tensors, orthonormal=False)
             # print(proj)
             # raise Exception(...)
 
@@ -1695,9 +1695,9 @@ class RDKitEnergyEvaluator(EnergyEvaluator):
         if force_field_type is None:
             force_field_type = self.force_field
         if order == 0:
-            return self.rdmol.calculate_energy(coords, force_field_type=force_field_type, **opts)
+            return self.rdmol.calculate_energy(coords, force_field_type=force_field_type, **(self.defaults | opts))
         elif order == 1:
-            return self.rdmol.calculate_gradient(coords, force_field_type=force_field_type, **opts)
+            return self.rdmol.calculate_gradient(coords, force_field_type=force_field_type, **(self.defaults | opts))
         else:
             raise ValueError(f"order {order} not supported")
 

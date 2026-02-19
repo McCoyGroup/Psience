@@ -2,6 +2,8 @@
 Provides a simple Molecule class that we can adapt as we need
 Uses AtomData to get properties and whatnot
 """
+from __future__ import annotations
+
 import io
 import itertools
 import math
@@ -806,14 +808,14 @@ class Molecule(AbstractMolecule):
         if self._mode_embedding is None:
             self._mode_embedding = ModeEmbedding(self.embedding, self.normal_modes)
         return self._mode_embedding
-    def get_internals(self, strip_embedding=True):
-        return self.embedding.get_internals(strip_embedding=strip_embedding)
+    def get_internals(self, coords=None, *, strip_embedding=True):
+        return self.embedding.get_internals(coords=coords, strip_embedding=strip_embedding)
 
-    def get_cartesians_by_internals(self, order=None, strip_embedding=False, **kw):
-        return self.embedding.get_cartesians_by_internals(order=order, strip_embedding=strip_embedding, **kw)
+    def get_cartesians_by_internals(self, order=None, coords=None, *, strip_embedding=False, **kw):
+        return self.embedding.get_cartesians_by_internals(coords=coords, order=order, strip_embedding=strip_embedding, **kw)
 
-    def get_internals_by_cartesians(self, order=None, strip_embedding=False, **kw):
-        return self.embedding.get_internals_by_cartesians(order=order, strip_embedding=strip_embedding, **kw)
+    def get_internals_by_cartesians(self, order=None, *, strip_embedding=False, **kw):
+        return self.embedding.get_internals_by_cartesians(order=order, coords=None, strip_embedding=strip_embedding, **kw)
 
     def get_cartesians_by_modes(self, order=None, **kw):
         return self.mode_embedding.get_cartesians_by_internals(order=order, **kw)
@@ -3393,7 +3395,7 @@ class Molecule(AbstractMolecule):
             "xyz": cls._from_xyz_file
         }
     @classmethod
-    def from_file(cls, file, mode=None, format_options=None, **opts):
+    def from_file(cls, file, mode=None, format_options=None, **opts) -> Molecule:
         """In general we'll delegate to pybel except for like Fchk and Log files
 
         :param file:
