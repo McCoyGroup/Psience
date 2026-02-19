@@ -3729,6 +3729,19 @@ class MolecoolsTests(TestCase):
         mol = Molecule.from_file(
             TestManager.test_data('react_samp.xyz')
         )
+        print(mol.get_bond_zmatrix())
+        coordops.validate_zmatrix(mol.get_bond_zmatrix())
+
+        hmm = mol.modify(internals=mol.get_bond_zmatrix()).get_scan_coordinates(
+            [[-.05, .05, 3]],
+            which=[5],
+            internals='reembed',
+            shift=True,
+            strip_embedding=True
+        )
+        print(hmm[1] - mol.coords)
+        return
+
         # zmat = mol.get_bond_zmatrix()
         # print()
         # print(mfmt.format_zmatrix(zmat))

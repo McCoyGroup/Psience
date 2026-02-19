@@ -217,9 +217,10 @@ class MolecularEvaluator:
 
         if use_internals:
             # track the embedding info...
-            base_coords = self.embedding.internal_coordinates.system(base_coords,
-                                                                     **self.embedding.internal_coordinates.converter_options
-                                                                     )
+            base_coords = self.embedding.internal_coordinates.system(
+                base_coords,
+                **self.embedding.internal_coordinates.converter_options
+            )
             if isinstance(use_internals, str):
                 if use_internals == 'convert':
                     base_coords = base_coords.convert(self.embedding.coords.system)

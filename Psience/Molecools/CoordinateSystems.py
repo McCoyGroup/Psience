@@ -1897,28 +1897,34 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
                 ordering = ordering + 3
                 ordering = np.concatenate([ [[0, -1, -2, -3], [1, 0, -1, -2], [2, 0, 1, -1]], ordering])
 
+            # print(ordering[15:19])
+            # raise Exception(
+            #     [i for i,c in enumerate(McUtils.Coordinerds.extract_zmatrix_internals(ordering))
+            #      if c is None]
+            # )
             # if spec is None:
-            internals = McUtils.Coordinerds.extract_zmatrix_internals(ordering)
-            if not strip_embedding:
-                spec = McUtils.Coordinerds.InternalSpec(
-                    internals[3:],
-                    ungraphed_internals=[
-                        internals[3+i]
-                        for i in MolecularZMatrixCoordinateSystem.embedding_coords
-                    ],
-                    masses=np.concatenate([[1e6]*3, embedding_masses])
-                )
-            else:
-                spec = McUtils.Coordinerds.InternalSpec(
-                    [
-                        internals[3 + i]
-                        for i in np.setdiff1d(
-                            np.arange(len(internals) - 3),
-                            MolecularZMatrixCoordinateSystem.embedding_coords
-                        )
-                    ],
-                    masses=np.concatenate([[1e6]*3, embedding_masses])
-                )
+            if return_derivs:
+                internals = McUtils.Coordinerds.extract_zmatrix_internals(ordering)
+                if not strip_embedding:
+                    spec = McUtils.Coordinerds.InternalSpec(
+                        internals[3:],
+                        ungraphed_internals=[
+                            internals[3+i]
+                            for i in MolecularZMatrixCoordinateSystem.embedding_coords
+                        ],
+                        masses=np.concatenate([[1e6]*3, embedding_masses])
+                    )
+                else:
+                    spec = McUtils.Coordinerds.InternalSpec(
+                        [
+                            internals[3 + i]
+                            for i in np.setdiff1d(
+                                np.arange(len(internals) - 3),
+                                MolecularZMatrixCoordinateSystem.embedding_coords
+                            )
+                        ],
+                        masses=np.concatenate([[1e6]*3, embedding_masses])
+                    )
             # else:
             #     internals = McUtils.Coordinerds.extract_zmatrix_internals(ordering)
             #     reindexing = np.arange(len(masses)) + 3
