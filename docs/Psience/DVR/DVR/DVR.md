@@ -43,9 +43,9 @@ Constructs a DVR object
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-269ccb" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-269ccb"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-e7b760" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e7b760"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-269ccb" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e7b760" markdown="1">
  - [1D](#1D)
 - [energies_1D](#energies_1D)
 - [energies_2D](#energies_2D)
@@ -62,9 +62,9 @@ Constructs a DVR object
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-fdf55a" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-fdf55a"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-e80dce" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-e80dce"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-fdf55a" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-e80dce" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces

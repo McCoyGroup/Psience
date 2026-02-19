@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-1fd959" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-1fd959"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-78ccc8" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-78ccc8"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-1fd959" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-78ccc8" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -182,9 +182,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-d4e26a" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-d4e26a"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-758c26" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-758c26"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-d4e26a" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-758c26" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3783,19 +3783,82 @@ class MolecoolsTests(TestCase):
         #     TestManager.test_data('tbhp_180.fchk')
         # )
         mol = Molecule.from_file(
-            TestManager.test_data('react_samp.xyz')
+            TestManager.test_data('react_samp.xyz'),
+            energy_evaluator='rdkit'
         )
-        print(mol.get_bond_zmatrix())
         coordops.validate_zmatrix(mol.get_bond_zmatrix())
+        zmcs = mol.get_bond_zmatrix()
 
-        hmm = mol.modify(internals=mol.get_bond_zmatrix()).get_scan_coordinates(
-            [[-.05, .05, 3]],
-            which=[5],
-            internals='reembed',
-            shift=True,
-            strip_embedding=True
+        n = 4
+        constraints = [
+                z
+                    for z in coordops.extract_zmatrix_internals(zmcs)
+                if len(z) == n
+            ][:3]
+
+        # bases, _, _ = nput.internal_basis(mol.coords, constraints)
+        # # base_tensors = tf_fun(coords)
+        # # if mask is not None:
+        # #     checks = mask(base_tensors[0])
+        # #     #TODO: handle the mixed-shape case
+        # #     base_tensors = base_tensors[1][..., :, checks]
+        # base_tensors = np.concatenate(bases, axis=-1)
+        # a, b = nput.orthogonalize_transformations([
+        #     [[base_tensors.T], [base_tensors]]
+        # ])
+        #
+        # # print(a[0] @ b[0])
+        # # return
+        #
+        # # print(bases[0])
+        # proj = nput.orthogonal_projection_matrix(base_tensors, orthonormal=False)
+        #
+        # rdm = np.random.rand(*mol.coords.shape).flatten()[np.newaxis] @ proj
+        #
+        # disps = mol.get_scan_coordinates(
+        #     [[-1, 1, 3]],
+        #     which=[0],
+        #     coordinate_expansion=[rdm]
+        # )
+        #
+        # di = mol.modify(internals=zmcs).get_internals(coords=disps, strip_embedding=False)
+        # print(di.shape)
+        # idx = coordops.zmatrix_indices(zmcs, constraints)
+        #
+        # pop_vals = lambda ints: coordops.extract_zmatrix_values(ints, idx)
+        #
+        # print(pop_vals(di[1]))
+        # print(pop_vals(di[0]))
+        #
+        # return
+
+
+        opt = mol.optimize(
+            coordinate_constraints=constraints
         )
-        print(hmm[1] - mol.coords)
+        opt2 = mol.optimize(
+            # coordinate_contraints=[
+            #     z
+            #     for z in coordops.extract_zmatrix_internals(zmcs)
+            #     if len(z) == 4
+            # ][:3]
+        )
+        print(constraints)
+        idx = coordops.zmatrix_indices(zmcs, constraints)
+        pop_vals = lambda m:coordops.extract_zmatrix_values(m.modify(internals=zmcs).internal_coordinates, idx)
+
+        print(pop_vals(mol))
+        print(pop_vals(opt))
+        print(pop_vals(opt2))
+
+        # hmm = mol.modify(internals=mol.get_bond_zmatrix()).get_scan_coordinates(
+        #     [[-.05, .05, 3]],
+        #     which=[5],
+        #     internals='reembed',
+        #     shift=True,
+        #     strip_embedding=True
+        # )
+        # print(hmm[1] - mol.coords)
         return
 
         # zmat = mol.get_bond_zmatrix()
