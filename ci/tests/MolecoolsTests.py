@@ -3716,13 +3716,22 @@ class MolecoolsTests(TestCase):
     def test_Opts(self):
         import McUtils.Coordinerds as coordops
 
+        # mol = Molecule.from_file(
+        #     TestManager.test_data('OCHH_freq.fchk'),
+        #     energy_evaluator='aimnet2'
+        # )
+        import McUtils.Formatters as mfmt
         mol = Molecule.from_file(
-            TestManager.test_data('tbhp_180.fchk'),
-            energy_evaluator='aimnet2'
+            TestManager.test_data('react_samp.xyz')
         )
+        zmat = mol.get_bond_zmatrix()
+        print()
+        print(mfmt.format_zmatrix(zmat))
+        print(mol.fragment_indices)
+        return
 
-        int_tbhp = mol.modify(internals=mol.get_bond_zmatrix())
-        dx = int_tbhp.get_cartesians_by_internals(order=1)[0]
+        # int_tbhp = mol.modify(internals=mol.get_bond_zmatrix())
+        # dx = int_tbhp.get_cartesians_by_internals(order=1)[0]
 
         # u_traj = []
         # ugh = mol.optimize(
@@ -3739,6 +3748,38 @@ class MolecoolsTests(TestCase):
         # )
 
         zmat = mol.get_bond_zmatrix()
+
+        # spec = coordops.InternalSpec(coordops.extract_zmatrix_internals(zmat))
+        # _, inv = spec.get_expansion(mol.coords, order=1, return_inverse=True, orthogonalize=False)
+        # print(inv[0])
+        # return
+
+        exp = mol.modify(internals=zmat).get_cartesians_by_internals(
+            method='classic',
+            use_direct_expansions=True,
+            orthogonalize_derivatives=False,
+            allow_fd=False,
+            order=1,
+            strip_embedding=False
+        )
+        print(exp[0])
+        exp = mol.modify(internals=zmat).get_cartesians_by_internals(
+            # method='classic',
+            # use_direct_expansions=True,
+            # orthogonalize_derivatives=False,
+            allow_fd=False,
+            order=1,
+            strip_embedding=False
+        )
+        print(exp[0][0])
+        return
+        # raise Exception(exp[0].shape)
+
+        mol = Molecule.from_file(
+            TestManager.test_data('tbhp_180.fchk'),
+            energy_evaluator='aimnet2'
+        )
+
         ugh =  mol.modify(internals=zmat).optimize(
             coordinate_constraints=[
                 c

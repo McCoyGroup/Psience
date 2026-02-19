@@ -604,7 +604,8 @@ class Molecule(AbstractMolecule):
                                  include_fragments=True,
                                  pruning=None,
                                  fragment=None,
-                                 base_internals=None
+                                 base_internals=None,
+                                 use_distance_matrix=True
                                  ):
         if fragment is not None:
             if nput.is_int(fragment):
@@ -626,9 +627,14 @@ class Molecule(AbstractMolecule):
             )
             bits = []
             if include_fragments:
+                if use_distance_matrix:
+                    dm = nput.distance_matrix(self.coords)
+                else:
+                    dm = None
                 frag_bits = coordops.get_fragment_coordinate_system(
                     self.edge_graph,
-                    masses=self.masses
+                    masses=self.masses,
+                    distance_matrix=dm
                 )
                 bits.append(frag_bits)
             if include_stretches:
@@ -1368,11 +1374,15 @@ class Molecule(AbstractMolecule):
                 dm[:, h_pos] = 1e8
                 dm[h_pos, :] = 1e8
 
-                inds = [
-                    [ib[z[0]] for z in zm]
-                    for ib,zm in zip(inds, zmats)
-                ]
-
+                # inds = [
+                #     [ib[z[0]] for z in zm]
+                #     for ib,zm in zip(inds, zmats)
+                # ]
+                # import McUtils.Formatters as mfmt
+                # print()
+                # print(self.fragment_indices[1])
+                # print(mfmt.format_zmatrix(zmats[1]))
+                # print(inds)
                 return coordops.complex_zmatrix(
                     [b[:2] for b in self.bonds],
                     inds,
