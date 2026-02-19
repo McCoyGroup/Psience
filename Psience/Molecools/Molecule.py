@@ -690,6 +690,7 @@ class Molecule(AbstractMolecule):
                               include_stretches=True,
                               include_bends=True,
                               include_dihedrals=True,
+                              include_fragments=True,
                               coordinate_sorting=None,
                               pruning=False
                               ):
@@ -697,12 +698,13 @@ class Molecule(AbstractMolecule):
             include_stretches=include_stretches,
             include_bends=include_bends,
             include_dihedrals=include_dihedrals,
+            include_fragments=include_fragments,
             pruning=pruning
         )
 
         labels = self.edge_graph.get_label_types()
         internals = {
-            c: coordops.get_coordinate_label(
+            (c if isinstance(c, tuple) else coordops.InternalCoordinateType.resolve(c)): coordops.get_coordinate_label(
                 c,
                 labels
             )

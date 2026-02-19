@@ -237,11 +237,15 @@ class LocalHarmonicModel:
                                 nms, internals,
                                 localization_mode_spaces=None,
                                 mode_labels=None,
-                                use_nonnegative_modes=True
+                                use_nonnegative_modes=True,
+                                localization_frequency_cutoff=None,
+                                **localization_options
                                 ):
-
-        if use_nonnegative_modes:
-            neg_modes = np.where(nms.freqs < 1e-4 / UnitsData.hartrees_to_wavenumbers)
+        if use_nonnegative_modes or localization_frequency_cutoff is not None:
+            if localization_frequency_cutoff is not None:
+                neg_modes = np.where(nms.freqs < localization_frequency_cutoff)
+            else:
+                neg_modes = np.where(nms.freqs < 1e-4 / UnitsData.hartrees_to_wavenumbers)
             if len(neg_modes) > 0 and len(neg_modes[0]) > 0:
                 neg_modes = neg_modes[0]
                 rem = np.setdiff1d(np.arange(len(nms.freqs)), neg_modes)
@@ -382,7 +386,7 @@ class LocalHarmonicModel:
                     #     space = np.setdiff1d(space, noneg_selection)
 
                     subnms = nms[space]
-                    sublocs = subnms.localize(internals=ints)
+                    sublocs = subnms.localize(internals=ints, **localization_options)
                     tf = np.zeros((dim, len(ints)))
                     inv = np.zeros((len(ints), dim))
                     t_sub, inv_sub = sublocs.localizing_transformation
@@ -398,7 +402,7 @@ class LocalHarmonicModel:
                 inv = inv[ord, :]
                 loc_modes = nms.apply_transformation((tf, inv))
             else:
-                loc_modes = nms.localize(internals=internals)
+                loc_modes = nms.localize(internals=internals, **localization_options)
         else:
             # noneg_selection = None
             # if use_nonnegative_modes:
@@ -419,7 +423,7 @@ class LocalHarmonicModel:
             #     inv[:, noneg_selection] = inv_sub
             #     loc_modes = nms.apply_transformation((tf, inv))
             # else:
-            loc_modes = nms.localize(internals=internals)
+            loc_modes = nms.localize(internals=internals, **localization_options)
 
         return loc_modes
 
@@ -438,6 +442,10 @@ class LocalHarmonicModel:
         from ..Modes import NormalModes
         nms:NormalModes
 
+        localization_options, opts = dev.OptionsSet(opts).split(
+            None,
+            NormalModes.localization_options + ("localization_frequency_cutoff",)
+        )
         nms = nms.remove_frequency_scaling().remove_mass_weighting()
         if localize:
             loc_modes = cls.localize_internal_modes(
@@ -445,7 +453,8 @@ class LocalHarmonicModel:
                 internals,
                 localization_mode_spaces=localization_mode_spaces,
                 mode_labels=mode_labels,
-                use_nonnegative_modes=use_nonnegative_modes
+                use_nonnegative_modes=use_nonnegative_modes,
+                **localization_options
             )
 
             if oblique:
@@ -575,6 +584,7 @@ class LocalHarmonicModel:
                       include_stretches=True,
                       include_bends=True,
                       include_dihedrals=False,
+                      include_fragments=False,
                       dipole_derivatives=None,
                       include_dipole=True,
                       internal_coordinate_sorting=None,
@@ -598,6 +608,7 @@ class LocalHarmonicModel:
                 include_stretches=include_stretches,
                 include_bends=include_bends,
                 include_dihedrals=include_dihedrals,
+                include_fragments=include_fragments,
                 coordinate_sorting=internal_coordinate_sorting,
                 pruning=prune_excess_internals
             )
@@ -607,7 +618,11 @@ class LocalHarmonicModel:
                 # internals,
                 modes=modes,
                 pruning=prune_excess_internals,
-                use_redundants=not prune_excess_internals
+                use_redundants=not prune_excess_internals,
+                include_stretches=include_stretches,
+                include_bends=include_bends,
+                include_dihedrals=include_dihedrals,
+                include_fragments=include_fragments
             )
 
         if dipole_derivatives is None and include_dipole:
