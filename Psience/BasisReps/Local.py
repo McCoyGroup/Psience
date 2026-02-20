@@ -626,8 +626,9 @@ class LocalHarmonicModel:
             )
 
         if dipole_derivatives is None and include_dipole:
-            if mol.dipole_derivatives is not None:
-                dipole_derivatives = mol.dipole_derivatives[1].T
+            dipole_derivatives = mol.get_cartesian_dipole_derivatives(order=1)[0].T
+            # if mol.dipole_derivatives is not None:
+            #     dipole_derivatives = mol.dipole_derivatives[1].T
 
         return cls.from_modes(
             modes,
