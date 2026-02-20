@@ -844,7 +844,7 @@ class Molecule(AbstractMolecule):
         self._dips = val
     @property
     def dipole_derivatives(self):
-        return self.dipole_surface.derivatives
+        return self.dipole_surface.get_derivatives(quiet=True)
     @dipole_derivatives.setter
     def dipole_derivatives(self, derivs):
         self.dipole_surface.derivatives = derivs
@@ -3706,12 +3706,14 @@ class Molecule(AbstractMolecule):
 
         return mode, backend
     @classmethod
-    def _jsmol_atom_sel_block(cls, atoms, *exprs):
+    def _jsmol_atom_sel_block(cls, atom_offset, atoms, *exprs):
         block = []
         if not isinstance(atoms, str):
             atoms = "atomno=[{}]".format(
                 ",".join(
-                    str(h + 1 if nput.is_int(h) else h)
+                    str(atom_offset + h + 1)
+                        if nput.is_int(h) else
+                    h
                     for h in atoms
                 ))
         block.append(f'select {atoms}')
@@ -3732,6 +3734,8 @@ class Molecule(AbstractMolecule):
                                 highlight_styles=None,
                                 display_atom_numbers=None,
                                 jsmol_load_script=None,
+                                atom_offset=0,
+                                use_default_bonds=True,
                                 **ignored
                                 ):
         if jsmol_load_script is not None:
@@ -3742,6 +3746,29 @@ class Molecule(AbstractMolecule):
             if isinstance(background, str) and background.startswith("#"):
                 background = "[{}]".format(background.replace("#", "x"))
             bits.append(f'background {background}')
+        if not use_default_bonds:
+            for b in self.bonds:
+                i,j = b[:2]
+                if len(b) > 2:
+                    t = b[2]
+                else:
+                    t = 1
+                if not isinstance(t, str):
+                    if t < .9:
+                        t = "AROMATIC"
+                    elif t < 1.1:
+                        t = "SINGLE"
+                    elif t < 1.9:
+                        t = 'AROMATIC'#"AROMATICDOUBLE"
+                    elif t < 2.1:
+                        t = "DOUBLE"
+                    elif t < 2.9:
+                        t = "AROMATICDOUBLE"
+                    else:
+                        t = "TRIPLE"
+                bits.append(
+                    f"connect (atomno={i + atom_offset + 1}) (atomno={j + atom_offset + 1}) {t}"
+                )
         if highlight_styles is None:
             highlight_styles = self.highlight_styles
         if highlight_bonds is not None:
@@ -3761,6 +3788,7 @@ class Molecule(AbstractMolecule):
             if glow_color is not None:
                 bits.extend(
                     self._jsmol_atom_sel_block(
+                        atom_offset,
                         highlight_atoms,
                         f'color {glow_color}',
                         'halos on'
@@ -3770,6 +3798,7 @@ class Molecule(AbstractMolecule):
                 color = highlight_styles.get('color', 'green')
                 bits.extend(
                     self._jsmol_atom_sel_block(
+                        atom_offset,
                         highlight_atoms,
                         f'color {color}',
                     )
@@ -3793,9 +3822,9 @@ class Molecule(AbstractMolecule):
                     non_empty = True
                     if not isinstance(k, str):
                         if not nput.is_int(k):
-                            k = 'atomno=[{}]'.format(",".join(str(i+1) for i in k))
+                            k = 'atomno=[{}]'.format(",".join(str(i+atom_offset+1) for i in k))
                         else:
-                            k = f'@{k}'
+                            k = f'@{atom_offset + k + 1}'
                     bits.append(f'select {k}')
                     for kk, v in s.items():
                         bits.append(f'{kk} {v}')
@@ -3819,7 +3848,7 @@ class Molecule(AbstractMolecule):
                 if len(s) > 0:
                     non_empty = True
                     if not isinstance(k, str):
-                        k = 'atomno=[{}]'.format(",".join(str(i+1) for i in k))
+                        k = 'atomno=[{}]'.format(",".join(str(i+1+atom_offset) for i in k))
                     bits.append(f'select {k}')
                     for kk, v in s.items():
                         bits.append(f'{kk} bonds {v}')
@@ -3848,7 +3877,8 @@ class Molecule(AbstractMolecule):
                             r = r * s
                         bits.extend(
                             self._jsmol_atom_sel_block(
-                                f'@{i + 1}',
+                                atom_offset,
+                                f'@{atom_offset + i + 1}',
                                 f'spacefill {r}'
                             )
                         )
@@ -3858,6 +3888,7 @@ class Molecule(AbstractMolecule):
                 if nput.is_numeric(atom_radius_scaling):
                     bits.extend(
                         self._jsmol_atom_sel_block(
+                            atom_offset,
                             'all',
                             f'spacefill {100*atom_radius_scaling:.0f}%'
                         )
@@ -3869,7 +3900,8 @@ class Molecule(AbstractMolecule):
                             non_empty=True
                             bits.extend(
                                 self._jsmol_atom_sel_block(
-                                    f'@{i+1}',
+                                    atom_offset,
+                                    f'@{atom_offset + i+1}',
                                     f'spacefill {100 * r:.0f}%'
                                 )
                             )
@@ -3878,6 +3910,7 @@ class Molecule(AbstractMolecule):
             if bond_radius is not None:
                 bits.extend(
                     self._jsmol_atom_sel_block(
+                        atom_offset,
                         'all',
                         f'wireframe {bond_radius}'
                     )
@@ -3886,6 +3919,7 @@ class Molecule(AbstractMolecule):
             if display_atom_numbers is True:
                 bits.extend(
                     self._jsmol_atom_sel_block(
+                        atom_offset,
                         'all',
                         'label %i'
                     )
@@ -3893,6 +3927,7 @@ class Molecule(AbstractMolecule):
             else:
                 bits.extend(
                     self._jsmol_atom_sel_block(
+                        atom_offset,
                         display_atom_numbers,
                         'label %i'
                     )
@@ -3900,27 +3935,66 @@ class Molecule(AbstractMolecule):
         return bits
 
     def _prep_jsmol_plot_opts(self,
-                    jsmol_load_script=None,
-                    script=None,
-                    recording_options=None,
-                    dynamic_loading=None,
-                    extra_opts=None,
-                    **etc
-                    ):
+                              geometries=None,
+                              jsmol_load_script=None,
+                              script=None,
+                              recording_options=None,
+                              dynamic_loading=None,
+                              extra_opts=None,
+                              figure=None,
+                              xyz=None,
+                              atom_offset=0,
+                              **etc
+                              ):
+        prev_script = []
+        if figure is not None:
+            model_state = figure.model_file
+            nats, base_xyz = model_state.split("\n", 1)
+            nats = int(nats)
+            prev_script = figure.load_script
+            etc = dict(figure.attrs, **etc)
+            atom_offset = atom_offset + nats
+            xyz = f"{nats + len(self.atoms)}\n" + base_xyz + "\n" + self._format_xyz(
+                0,
+                len(self.atoms),
+                self.atoms,
+                self.coords * UnitsData.convert("BohrRadius", "Angstroms")
+            ).split("\n", 2)[-1]
+        elif xyz is None and geometries is not None and len(geometries) > 0:
+            geometries = np.asanyarray(geometries)
+            if geometries.ndim == 3 and geometries.shape[0] == 1:
+                geometries = geometries[0]
+            if geometries.ndim > 2:
+                raise ValueError(f"Jmol can't handle {geometries.shape}")
+            xyz = self._format_xyz(
+                0,
+                len(self.atoms),
+                self.atoms,
+                geometries * UnitsData.convert("BohrRadius", "Angstroms")
+            ).split("\n", 2)[-1]
+
         if extra_opts is None:
             extra_opts = {}
         use_default_radii = extra_opts.pop('use_default_radii', True)
+        use_default_bonds = extra_opts.pop('use_default_bonds', True)
         background = extra_opts.get('background')
 
         if script is None:
-            script = self._prep_jsmol_load_script(
+            script = prev_script + self._prep_jsmol_load_script(
+                atom_offset=atom_offset,
                 jsmol_load_script=jsmol_load_script,
                 background=background,
-                use_default_radii=use_default_radii, **etc)
+                use_default_radii=use_default_radii,
+                use_default_bonds=use_default_bonds,
+                **etc
+            )
+
         return dict(
+            xyz=xyz,
             script=script,
             recording_options=recording_options,
             dynamic_loading=dynamic_loading,
+            autobond=use_default_bonds,
             **extra_opts
         )
     def _prep_rdkit_draw_opts(self,
@@ -4236,7 +4310,7 @@ class Molecule(AbstractMolecule):
             return figure
         elif mode == 'jsmol':
             return_immediately=True
-            plot_ops = self._prep_jsmol_plot_opts(figure=figure, **full_opts)
+            plot_ops = self._prep_jsmol_plot_opts(geometries=geometries, figure=figure, **full_opts)
             figure = self.jsmol_viz(**plot_ops)
         elif mode == 'rdkit':
             return_immediately = True
@@ -5208,10 +5282,16 @@ class Molecule(AbstractMolecule):
                                              coordinate_expansion=coordinate_expansion)
             return self.format_structs(geoms, format)
 
-    def jsmol_viz(self, xyz=None, animate=False, vibrate=False, script=None, include_script_interface=False,
+    def jsmol_viz(self,
+                  xyz=None,
+                  animate=False,
+                  vibrate=False,
+                  script=None,
+                  include_script_interface=False,
                   image_size=None,
                   width=None,
                   height=None,
+                  figure=None,
                   **etc
                   ):
         from McUtils.Jupyter import JSMol
