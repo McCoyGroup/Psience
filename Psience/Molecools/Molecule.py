@@ -470,7 +470,7 @@ class Molecule(AbstractMolecule):
             spec,
             self.atoms,
             self.coords,
-            self.bonds,
+            self._bonds,
             relocalize=relocalize,
             masses=masses
         )
@@ -542,7 +542,7 @@ class Molecule(AbstractMolecule):
         self.embedding = MolecularEmbedding(
             self.masses,
             self.coords,
-            self.canonicalize_internals(spec, self.atoms, self.coords, self.bonds, masses=self._mass)
+            self.canonicalize_internals(spec, self.atoms, self.coords, self._bonds, masses=self._mass)
         )
     @property
     def internal_coordinates(self):
@@ -2909,6 +2909,8 @@ class Molecule(AbstractMolecule):
                 self._rdmol = RDMolecule.from_mol(self, coord_unit="BohrRadius")
             except ImportError:
                 ...
+        else:
+            self._rdmol.coords = self.coords * UnitsData.convert("BohrRadius", "Angstroms")
         return self._rdmol
 
     @classmethod
@@ -3942,10 +3944,12 @@ class Molecule(AbstractMolecule):
                               dynamic_loading=None,
                               extra_opts=None,
                               figure=None,
-                              xyz=None,
                               atom_offset=0,
                               **etc
                               ):
+        if extra_opts is None:
+            extra_opts = {}
+        xyz = extra_opts.pop('xyz', None)
         prev_script = []
         if figure is not None:
             model_state = figure.model_file
@@ -5167,7 +5171,8 @@ class Molecule(AbstractMolecule):
         if mode is None:
             mode = backend
         if mode == 'jsmol':
-            disps = self.format_animation_file(which, format="jmol",
+            disps = self.format_animation_file(which,
+                                               format="jmol",
                                                extent=extent, steps=steps, strip_embedding=strip_embedding,
                                                units="Angstroms" if units is None else units,
                                                coordinate_expansion=coordinate_expansion

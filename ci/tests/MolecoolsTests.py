@@ -3707,12 +3707,11 @@ class MolecoolsTests(TestCase):
                                        [0, -1, -2, -3],
                                        [1,  0, -1, -2],
                                        [2,  0,  1, -1],
-                                   ]
-                                   )
+                                   ])
 
         print(mol.get_internals_by_cartesians())
 
-    @debugTest
+    @validationTest
     def test_Opts(self):
         import McUtils.Coordinerds as coordops
         import McUtils.Formatters as mfmt
@@ -3897,3 +3896,48 @@ class MolecoolsTests(TestCase):
         print(
             (ugh.calculate_energy() - mol.calculate_energy())*UnitsData.convert("Hartrees", "Kilocalories/Mole")
         )
+
+    @debugTest
+    def test_FragEmbedding(self):
+        bits = Molecule.from_string(
+            'FC1CCC(C(C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
+            'smi',
+            confgen_opts=dict(verbose=True, random_seed=12321)
+        ).get_embedded_molecule()
+        bits.coords[bits.fragment_indices[1], :] += 10
+
+        bits.to_file("/Users/Mark/Desktop/struct.mol")
+
+        ugh = bits.modify(
+            internals=bits.get_canonical_zmatrix()
+        ).to_string("zmat")
+
+        # print(ugh)
+
+        new_bits = Molecule.from_string(ugh)
+        print(np.linalg.norm(bits.fragments[0].center_of_mass - bits.fragments[1].center_of_mass))
+        print(np.linalg.norm(new_bits.fragments[0].center_of_mass - new_bits.fragments[1].center_of_mass))
+        # return
+
+        enc_smi = bits.to_string('smi', remove_hydrogens=True, include_tag=True)
+        print(enc_smi)
+        uuuh = Molecule.from_string(
+            enc_smi,
+            'smi',
+            add_implicit_hydrogens=True,
+            confgen_opts=dict(
+                verbose=True,
+                ignore_smoothing_failures=True
+            )
+        )
+        print(enc_smi)
+
+        print(np.linalg.norm(bits.fragments[0].center_of_mass - bits.fragments[1].center_of_mass))
+        print(np.linalg.norm(uuuh.fragments[0].center_of_mass - uuuh.fragments[1].center_of_mass))
+
+        # print(nput.distance_matrix(uuuh.coords, return_triu=True))
+        # print(nput.distance_matrix(bits.coords, return_triu=True))
+        # print(bits.center_of_mass, uuuh.center_of_mass)
+
+        # print(np.linalg.norm(bits.fragments[0].center_of_mass - bits.fragments[1].center_of_mass))
+        # print(np.linalg.norm(uuuh.fragments[0].center_of_mass - uuuh.fragments[1].center_of_mass))
