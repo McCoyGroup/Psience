@@ -211,7 +211,7 @@ class StructuralProperties:
         return moms, axes
 
     @classmethod
-    def get_prop_principle_axis_rotation(cls, coords, masses, sel=None, inverse=False):
+    def get_prop_principle_axis_rotation(cls, coords, masses, sel=None, inverse=False, shift_sel=True):
         """
         Generates the principle axis transformation for a set of coordinates and positions
 
@@ -236,7 +236,10 @@ class StructuralProperties:
             coords = [coords]
         mass = masses
         for i, (c, c2) in enumerate(zip(coords, com_coords)):
-            com = cls.get_prop_center_of_mass(com_coords, com_mass)
+            if shift_sel:
+                com = cls.get_prop_center_of_mass(c, masses)
+            else:
+                com = cls.get_prop_center_of_mass(com_coords, com_mass)
             transf = MolecularTransformation(-com)
             c = transf(c)
             moms, axes = cls.get_prop_moments_of_inertia(c, mass)
@@ -266,7 +269,7 @@ class StructuralProperties:
         og_coords = coords
         if sel is not None:
             coords = coords[..., sel, :]
-            masses = masses[sel]
+            masses = masses[sel,]
 
         real_pos = masses > 0
         # print(real_pos)
@@ -1078,12 +1081,15 @@ class MolecularProperties:
         m1 = ref_mol._atomic_masses()
         m2 = mol._atomic_masses()
         if sel is not None:
-            m1 = m1[sel,]
-            m2 = m2[sel,]
-        if not np.allclose(m1, m2, rtol=1e-4):
+            mt1 = m1[sel,]
+            mt2 = m2[sel,]
+        else:
+            mt1 = m1
+            mt2 = m2
+        if not np.allclose(mt1, mt2, rtol=1e-4):
             raise ValueError("Eckart reference has different masses from scan ({}) vs. ({})".format(
-                m1,
-                m2
+                mt1,
+                mt2
             ))
         return StructuralProperties.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords, sel=sel, inverse=inverse,
                                                                    planar_ref_tolerance=planar_ref_tolerance,
