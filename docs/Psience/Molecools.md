@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-d5b3e2" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-d5b3e2"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-97c595" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-97c595"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-d5b3e2" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-97c595" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -179,12 +179,13 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [FlexiblePlotting](#FlexiblePlotting)
 - [StableInternals](#StableInternals)
 - [Opts](#Opts)
+- [FragEmbedding](#FragEmbedding)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-84ff15" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-84ff15"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-50a97e" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-50a97e"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-84ff15" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-50a97e" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3761,8 +3762,7 @@ class MolecoolsTests(TestCase):
                                        [0, -1, -2, -3],
                                        [1,  0, -1, -2],
                                        [2,  0,  1, -1],
-                                   ]
-                                   )
+                                   ])
 
         print(mol.get_internals_by_cartesians())
 ```
@@ -3953,6 +3953,46 @@ class MolecoolsTests(TestCase):
         print(
             (ugh.calculate_energy() - mol.calculate_energy())*UnitsData.convert("Hartrees", "Kilocalories/Mole")
         )
+```
+
+#### <a name="FragEmbedding">FragEmbedding</a>
+```python
+    def test_FragEmbedding(self):
+        bits = Molecule.from_string(
+            'FC1CCC(C(C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
+            'smi',
+            confgen_opts=dict(verbose=True, random_seed=12321)
+        ).get_embedded_molecule()
+        bits.coords[bits.fragment_indices[1], :] += 10
+
+        bits.to_file("/Users/Mark/Desktop/struct.mol")
+
+        ugh = bits.modify(
+            internals=bits.get_canonical_zmatrix()
+        ).to_string("zmat")
+
+        # print(ugh)
+
+        new_bits = Molecule.from_string(ugh)
+        print(np.linalg.norm(bits.fragments[0].center_of_mass - bits.fragments[1].center_of_mass))
+        print(np.linalg.norm(new_bits.fragments[0].center_of_mass - new_bits.fragments[1].center_of_mass))
+        # return
+
+        enc_smi = bits.to_string('smi', remove_hydrogens=True, include_tag=True)
+        print(enc_smi)
+        uuuh = Molecule.from_string(
+            enc_smi,
+            'smi',
+            add_implicit_hydrogens=True,
+            confgen_opts=dict(
+                verbose=True,
+                ignore_smoothing_failures=True
+            )
+        )
+        print(enc_smi)
+
+        print(np.linalg.norm(bits.fragments[0].center_of_mass - bits.fragments[1].center_of_mass))
+        print(np.linalg.norm(uuuh.fragments[0].center_of_mass - uuuh.fragments[1].center_of_mass))
 ```
 
  </div>

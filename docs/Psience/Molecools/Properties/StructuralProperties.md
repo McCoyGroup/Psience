@@ -110,7 +110,7 @@ Computes the moment of inertia tensor for the walkers with coordinates coords (a
 <a id="Psience.Molecools.Properties.StructuralProperties.get_prop_principle_axis_rotation" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-get_prop_principle_axis_rotation(cls, coords, masses, sel=None, inverse=False): 
+get_prop_principle_axis_rotation(cls, coords, masses, sel=None, inverse=False, shift_sel=True): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L213)/
@@ -131,8 +131,8 @@ Generates the principle axis transformation for a set of coordinates and positio
 get_principle_axis_embedded_coords(cls, coords, masses, sel=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L253)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L253?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L256)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L256?message=Update%20Docs)]
 </div>
 Returns coordinate embedded in the principle axis frame
   - `coords`: `Any`
@@ -149,8 +149,8 @@ Returns coordinate embedded in the principle axis frame
 get_prop_principle_axis_data(cls, coords, masses): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L286)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L286?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L289)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L289?message=Update%20Docs)]
 </div>
 Generates the principle axis transformation for a set of coordinates and positions
   - `coords`: `CoordinateSet`
@@ -167,8 +167,8 @@ Generates the principle axis transformation for a set of coordinates and positio
 get_prop_translation_rotation_eigenvectors(cls, coords, masses): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L302)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L302?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L305)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L305?message=Update%20Docs)]
 </div>
 Returns the eigenvectors corresponding to translations and rotations
 in the system
@@ -186,8 +186,8 @@ in the system
 get_eckart_rotations(cls, masses, ref, coords, sel=None, in_paf=False, planar_ref_tolerance=None, proper_rotation=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L429)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L429?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L432)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L432?message=Update%20Docs)]
 </div>
 Generates the Eckart rotation that will align ref and coords, assuming initially that `ref` and `coords` are
 in the principle axis frame
@@ -207,8 +207,8 @@ in the principle axis frame
 get_eckart_embedding_data(cls, masses, ref, coords, sel=None, in_paf=False, planar_ref_tolerance=None, proper_rotation=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L541)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L541?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L544)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L544?message=Update%20Docs)]
 </div>
 Embeds a set of coordinates in the reference frame
   - `masses`: `np.ndarray`
@@ -227,8 +227,8 @@ Embeds a set of coordinates in the reference frame
 get_prop_eckart_transformation(cls, masses, ref, coords, sel=None, inverse=False, reset_com=False, planar_ref_tolerance=None, proper_rotation=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L564)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L564?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L567)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L567?message=Update%20Docs)]
 </div>
 Computes Eckart transformations for a set of coordinates
   - `masses`: `np.ndarray`
@@ -247,8 +247,8 @@ Computes Eckart transformations for a set of coordinates
 get_eckart_embedded_coords(cls, masses, ref, coords, reset_com=False, in_paf=False, sel=None, planar_ref_tolerance=None, proper_rotation=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L618)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L618?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L621)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L621?message=Update%20Docs)]
 </div>
 Embeds a set of coordinates in the reference frame
   - `masses`: `np.ndarray`
@@ -267,8 +267,8 @@ Embeds a set of coordinates in the reference frame
 get_prop_g_matrix(cls, masses, coords, internal_coords): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L679)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L679?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L682)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L682?message=Update%20Docs)]
 </div>
 Gets the molecular g-matrix
   - `masses`: `np.ndarray`
@@ -287,8 +287,8 @@ Gets the molecular g-matrix
 get_prop_coriolis_constants(cls, carts, modes, masses): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L719)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L719?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L722)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L722?message=Update%20Docs)]
 </div>
  </div>
 </div>
