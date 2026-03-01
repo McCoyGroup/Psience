@@ -1297,7 +1297,8 @@ class Molecule(AbstractMolecule):
                          check_attachment_points=True,
                          validate=True,
                          for_fragment=None,
-                         fragment_ordering=None
+                         fragment_ordering=None,
+                         connect_fragments=True
                          ):
         if for_fragment is not None:
             if nput.is_int(for_fragment):
@@ -1330,10 +1331,14 @@ class Molecule(AbstractMolecule):
             if len(fragments) == 1:
                 if segments is not None and len(segments) == 1:
                     segments = segments[0]
-                return self.get_backbone_zmatrix(
-                    root=root, segments=segments,
-                    validate=validate
-                    )
+                zm = self.get_backbone_zmatrix(
+                        root=root, segments=segments,
+                        validate=validate
+                        )
+                if connect_fragments:
+                    return zm
+                else:
+                    return [zm]
             else:
                 inds = fragments
                 if no_frag:
@@ -1370,32 +1375,44 @@ class Molecule(AbstractMolecule):
                     for r,f in zip(root, frags)
                 ]
 
-                # inds = [inds[i] for i in ordering]
-                # zmats = [zmats[i] for i in ordering]
+                if connect_fragments:
 
-                dm = nput.distance_matrix(self.coords)
-                h_pos = [i for i,a in enumerate(self.atoms) if a in {'H', 'D'}]
-                dm[:, h_pos] = 1e8
-                dm[h_pos, :] = 1e8
+                    # inds = [inds[i] for i in ordering]
+                    # zmats = [zmats[i] for i in ordering]
 
-                # inds = [
-                #     [ib[z[0]] for z in zm]
-                #     for ib,zm in zip(inds, zmats)
-                # ]
-                # import McUtils.Formatters as mfmt
-                # print()
-                # print(self.fragment_indices[1])
-                # print(mfmt.format_zmatrix(zmats[1]))
-                # print(inds)
-                return coordops.complex_zmatrix(
-                    [b[:2] for b in self.bonds],
-                    inds,
-                    zmats,
-                    distance_matrix=dm,
-                    attachment_points=attachment_points,
-                    check_attachment_points=check_attachment_points,
-                    validate_additions=validate
-                )
+                    dm = nput.distance_matrix(self.coords)
+                    h_pos = [i for i,a in enumerate(self.atoms) if a in {'H', 'D'}]
+                    dm[:, h_pos] = 1e8
+                    dm[h_pos, :] = 1e8
+
+                    # inds = [
+                    #     [ib[z[0]] for z in zm]
+                    #     for ib,zm in zip(inds, zmats)
+                    # ]
+                    # import McUtils.Formatters as mfmt
+                    # print()
+                    # print(self.fragment_indices[1])
+                    # print(mfmt.format_zmatrix(zmats[1]))
+                    # print(inds)
+                    return coordops.complex_zmatrix(
+                        [b[:2] for b in self.bonds],
+                        inds,
+                        zmats,
+                        distance_matrix=dm,
+                        attachment_points=attachment_points,
+                        check_attachment_points=check_attachment_points,
+                        validate_additions=validate
+                    )
+                else:
+                    shift_mats = []
+                    offsets = 0
+                    for zmat in zmats:
+                        shift_mats.append([
+                            [(z + offsets) if z >= 0 else z for z in zm]
+                            for zm in zmat
+                        ])
+                        offsets += len(zmat)
+                    return shift_mats
 
     @property
     def fragment_indices(self):
@@ -2450,13 +2467,11 @@ class Molecule(AbstractMolecule):
                 subdirs = initial_mode_directions[:, sampled_modes] * freqs[sampled_modes,][np.newaxis]
                 initial_energies[:, sampled_modes] = subdirs
 
-                print(np.sum(initial_energies, axis=1) * UnitsData.hartrees_to_wavenumbers)
                 if total_energy is not None:
                     dirs = initial_energies
                     dirs = dirs / np.sum(np.abs(dirs), axis=1)[:, np.newaxis]  # weights in each dimension
                     energies = dirs * freqs[np.newaxis, :]
                     initial_energies = total_energy * energies / np.sum(np.abs(energies), axis=1)[:, np.newaxis]
-                print(np.sum(initial_energies, axis=1) * UnitsData.hartrees_to_wavenumbers)
 
             if initial_energies is None:
                 freqs = new.normal_modes.modes.freqs
@@ -2698,9 +2713,8 @@ class Molecule(AbstractMolecule):
         new = transformation.apply(self)
         if embed_properties:
             if load_properties is None:
-                try:
-                    _ = self.normal_modes.modes
-                except ValueError:
+                _ = self.normal_modes.get_normal_modes(quiet=True, compute_force_constants=False)
+                if _ is None:
                     load_properties = False
 
             if load_properties or new._normal_modes._modes is not None:
@@ -4235,8 +4249,15 @@ class Molecule(AbstractMolecule):
              objects=False,
              graphics_class=None,
              cylinder_class=None,
+             cylinder_options=None,
              sphere_class=None,
+             sphere_options=None,
              arrow_class=None,
+             arrow_options=None,
+             line_class=None,
+             line_options=None,
+             disk_class=None,
+             disk_options=None,
              animate=None,
              recording_options=None,
              animation_options=None,
@@ -4248,7 +4269,7 @@ class Molecule(AbstractMolecule):
              **plot_ops
              ):
 
-        from McUtils.Plots import Graphics3D, Sphere, Cylinder, Line, Disk, Arrow
+        from McUtils.Plots import Graphics3D, Sphere, Cylinder, Arrow, Line, Disk
 
         full_opts = dict(
             return_objects=return_objects,
@@ -4289,8 +4310,15 @@ class Molecule(AbstractMolecule):
             objects=objects,
             graphics_class=graphics_class,
             cylinder_class=cylinder_class,
+            cylinder_options=cylinder_options,
             sphere_class=sphere_class,
+            sphere_options=sphere_options,
             arrow_class=arrow_class,
+            arrow_options=arrow_options,
+            line_class=line_class,
+            line_options=line_options,
+            disk_class=disk_class,
+            disk_options=disk_options,
             animate=animate,
             recording_options=recording_options,
             animation_options=animation_options,
@@ -4308,6 +4336,13 @@ class Molecule(AbstractMolecule):
             **full_opts
         )
 
+        if len(geometries) == 0:
+            geometries = self.coords
+        elif len(geometries) == 1:
+            geometries = CoordinateSet(np.asanyarray(geometries[0]), self.coords.system)
+        else:
+            geometries = CoordinateSet([np.asanyarray(g) for g in geometries], self.coords.system)
+
         return_immediately = False
         if mode == 'jupyter':
             figure = self.jupyter_viz()
@@ -4324,12 +4359,22 @@ class Molecule(AbstractMolecule):
             else:
                 plot_opts = self._prep_rdkit_plot_opts(figure=figure, **full_opts)
                 figure = self.rdmol.plot(**plot_opts)
+        elif backend == 'matplotlib3D':
+            plot_ops['box_ratios'] = plot_ops.get('box_ratios', 'auto')
+            # plot_ops['aspect_ratio'] = plot_ops.get('aspect_ratio', 1)
+            plot_ops['frame'] = plot_ops.get('frame', False)
+            # pr = plot_ops.get('plot_range', None)
+            # if pr is None:
+            #     min_any = np.min(geometries)
+            #     max_any = np.max(geometries)
+            # plot_ops['plot_range'] = pr
+
 
         if return_immediately:
             self._set_backend_figure_options(figure, mode, backend, **full_opts)
             return figure
 
-        graphics_keys = Graphics3D.known_keys | Graphics3D.opt_keys | Graphics3D.figure_keys
+        graphics_keys = Graphics3D.known_keys | Graphics3D.opt_keys | Graphics3D.figure_keys | Graphics3D.axes_keys
         graphics_opts = {k:plot_ops[k] for k in plot_ops.keys() & graphics_keys}
         plot_ops = {k:plot_ops[k] for k in plot_ops.keys() - graphics_keys}
 
@@ -4345,18 +4390,29 @@ class Molecule(AbstractMolecule):
         self._set_backend_figure_options(figure, mode, backend, **full_opts)
 
         if cylinder_class is None:
-            cylinder_class = Line if mode == 'fast' else Cylinder
+            cylinder_class = Cylinder
+        if cylinder_options is None:
+            cylinder_options = {}
         if sphere_class is None:
-            sphere_class = Disk if mode == 'fast' else Sphere
+            sphere_class = Sphere
+        if sphere_options is None:
+            sphere_options = {}
         if arrow_class is None:
             arrow_class = Arrow
+        if line_class is None:
+            line_class = Line
+        if line_options is None:
+            line_options = {}
+        if disk_class is None:
+            disk_class = Disk
+        if disk_options is None:
+            disk_options = {}
 
-        if len(geometries) == 0:
-            geometries = self.coords
-        elif len(geometries) == 1:
-            geometries = CoordinateSet(np.asanyarray(geometries[0]), self.coords.system)
-        else:
-            geometries = CoordinateSet([np.asanyarray(g) for g in geometries], self.coords.system)
+        if backend == 'matplotlib3D':
+            if mode != 'quality':
+                plot_ops['rendering'] = plot_ops.get('rendering', 'flat')
+                cylinder_options['edge_color'] = cylinder_options.get('edge_color', [.3]*3)
+                sphere_options['edge_color'] = sphere_options.get('edge_color', [.3]*3)
 
         if units is not None:
             geometries = geometries * UnitsData.convert("BohrRadius", units)
@@ -4592,7 +4648,24 @@ class Molecule(AbstractMolecule):
             draw_bonds = [draw_bonds] * len(geometries)
 
         default_label_style = label_style | self.draw_coords_label_style
+        radii = np.asanyarray(radii)
         for i, geom in enumerate(geometries):
+            plotos = plot_ops.copy()
+            if backend == 'matplotlib3D':
+                box_scalings = plotos.get('box_scalings')
+                if box_scalings is None:
+                    min_x = np.min(geom[:, 0] - radii)
+                    max_x = np.max(geom[:, 0] + radii)
+                    min_y = np.min(geom[:, 1] - radii)
+                    max_y = np.max(geom[:, 1] + radii)
+                    min_z = np.min(geom[:, 2] - radii)
+                    max_z = np.max(geom[:, 2] + radii)
+                    box_scalings = (
+                            (np.max(figure.image_size) / 72) /
+                                np.array([max_x - min_x, max_y - min_y, max_z - min_z])
+                    )
+                    plotos['box_scalings'] = box_scalings
+
             bond_list = draw_bonds[i]
             if bond_style is not False and bond_list is not None:
                 bond_list = sorted(bond_list, key = lambda b:(
@@ -4719,15 +4792,13 @@ class Molecule(AbstractMolecule):
                             pp1,
                             mp,
                             bond_radius,
-                            **plot_ops,
-                            **b_sty_1
+                            **(plotos | cylinder_options | b_sty_1)
                         )
                         cc2 = cylinder_class(
                             mp,
                             pp2,
                             bond_radius,
-                            **plot_ops,
-                            **b_sty_2
+                            **(plotos | cylinder_options | b_sty_2)
                         )
 
                         if objects:
@@ -4751,7 +4822,7 @@ class Molecule(AbstractMolecule):
                     if a_sty.get('color') is None:
                         a_sty['color'] = color
 
-                    sphere = sphere_class(coord, radius, **plot_ops, **a_sty)
+                    sphere = sphere_class(coord, radius, **(plotos | sphere_options | a_sty))
                     if objects:
                         atoms[i][j] = sphere
                     else:
@@ -4774,7 +4845,7 @@ class Molecule(AbstractMolecule):
                     dipole_arrow = arrow_class(
                         com,
                         com + dip,
-                        **vector_style
+                        **(plotos | vector_style)
                     )
                     if objects:
                         arrows[i].append(dipole_arrow)
@@ -4798,7 +4869,7 @@ class Molecule(AbstractMolecule):
                     pax_arrow = arrow_class(
                         com,
                         com + ax,
-                        **dict(vector_style, **sty)
+                        **(plotos | vector_style | sty)
                     )
                     if objects:
                         arrows[i].append(pax_arrow)
@@ -4823,7 +4894,7 @@ class Molecule(AbstractMolecule):
                         mode_arrow = arrow_class(
                             com,
                             com + v,
-                            **vector_style
+                            **(plotos | vector_style)
                         )
                         if objects:
                             arrows[i].append(mode_arrow)
@@ -4876,7 +4947,8 @@ class Molecule(AbstractMolecule):
                                                                    zz is None and 'normal' not in label_style
                                                                    )
 
-                        arc = plt.Line([xx + offset, yy + offset], color=color, **v)
+                        arc = line_class([xx + offset, yy + offset], color=color,
+                                         **(plotos | line_options | v))
                         if objects:
                             arrows[i].append(arc)
                         else:
@@ -4894,7 +4966,7 @@ class Molecule(AbstractMolecule):
                                 label,
                                 (xx+yy)/2 + label_offset,
                                 normal=normal,
-                                **label_style
+                                **(plotos | label_style)
                             )
                             if objects:
                                 arrows[i].append(lab)
@@ -4939,12 +5011,12 @@ class Molecule(AbstractMolecule):
 
                         label = v.pop('label', None)
                         label_style = dict(default_label_style, **v.pop('label_style', {}))
-                        arc = plt.Disk(
+                        arc = disk_class(
                             yy,
                             uv_axes=axes,
                             angle=angle,
                             radius=radius,
-                            **v
+                            **(plotos | disk_options | v)
                         )
                         if objects:
                             arrows[i].append(arc)
@@ -4975,7 +5047,7 @@ class Molecule(AbstractMolecule):
                                 label_center + label_offset,
                                 billboard=label_billboard,
                                 normal=label_normal,
-                                **label_style
+                                **(plotos | label_style)
                             )
                             if objects:
                                 arrows[i].append(lab)
@@ -5043,13 +5115,13 @@ class Molecule(AbstractMolecule):
 
                         label = v.pop('label', None)
                         label_style = dict(default_label_style, **v.pop('label_style', {}))
-                        arc = plt.Disk(
+                        arc = disk_class(
                             c2,
                             uv_axes=axes,
                             normal=normal,
                             angle=angle,
                             radius=radius,
-                            **v
+                            **(plotos | disk_options | v)
                         )
                         if objects:
                             arrows[i].append(arc)
@@ -5080,7 +5152,7 @@ class Molecule(AbstractMolecule):
                                 label_center + label_offset,
                                 billboard=label_billboard,
                                 normal=label_normal,
-                                **label_style
+                                **(plotos | label_style)
                             )
                             if objects:
                                 arrows[i].append(lab)
@@ -5110,7 +5182,7 @@ class Molecule(AbstractMolecule):
                     t['font_style'] = fs
                     t['billboard'] = t.get('billboard', True)
                     t['color'] = t.get('color', 'black')
-                    lab = plt.Text(text, pos, **t)
+                    lab = plt.Text(text, pos, **(plotos | t))
                     if objects:
                         arrows[i].append(lab)
                     else:

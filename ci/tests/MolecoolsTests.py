@@ -3899,12 +3899,63 @@ class MolecoolsTests(TestCase):
 
     @debugTest
     def test_FragEmbedding(self):
+        import McUtils.Coordinerds as coordops
+
         bits = Molecule.from_string(
             'FC1CCC(C(C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
             'smi',
             confgen_opts=dict(verbose=True, random_seed=12321)
-        ).get_embedded_molecule()
-        bits.coords[bits.fragment_indices[1], :] += 10
+        ).fragments[0].get_embedded_molecule()
+        bits.plot(mode='fast',
+                  # backend='matplotlib3D',
+                  backend='x3d',
+                  # background='white',
+                  # principle_axes=True,
+                  bond_radius=.05,
+                  atom_radius_scaling=.15,
+                  image_size=[500, 500],
+                  cylinder_options={
+                      'edge_width':.05,
+                      'edge_color':'black',
+                      'circle_points':8
+                  },
+                  sphere_options={
+                      'edge_width':.025,
+                      'edge_color':'black',
+                      'sphere_points':8
+                  },
+                  # plot_range=[[-5, 5], [-5, 5], [-5, 5]],
+                  view_settings={
+                      # 'view_distance':15,
+                      'view_vector':[0, 0, 1]
+                  }).show()#.savefig("/Users/Mark/Desktop/woof.svg")
+        return
+
+
+        # bits.coords[bits.fragment_indices[1], :] += 10
+        # pprint.pprint(bits.get_canonical_zmatrix())
+        # print(np.array(bits.get_canonical_zmatrix()[:6]))
+        # print()
+        # for f in bits.get_bond_zmatrix(validate=True, connect_fragments=False):
+        #     print(f)
+        spec = coordops.InternalSpec.from_zmatrix(
+            *bits.get_bond_zmatrix(validate=True, connect_fragments=False)
+        )
+
+        ints = spec.cartesians_to_internals(bits.coords)
+        print(spec.internals_to_cartesians(ints))
+
+        return
+
+        s3 = bits.modify(internals={'specs': [
+            {"transrot": bits.fragment_indices[1]}
+        ]})
+
+        s3.calculate_energy(order=1)
+
+        # bits.modify(energy_evaluator='aimnet2').get_embedded_molecule()
+
+        return
 
         bits.to_file("/Users/Mark/Desktop/struct.mol")
 

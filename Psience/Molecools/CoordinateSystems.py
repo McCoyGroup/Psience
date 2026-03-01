@@ -413,7 +413,7 @@ class MolecularEmbedding:
         else:
             # intcds = self.internal_coordinates
             ccoords = type(self.coords)(coords, self.coords.system)
-            intcds = self.convert_to_internals(ccoords, self.masses, self.internals)
+            intcds, _ = self.convert_to_internals(ccoords, self.masses, self.internals)
         # intcds = self.internal_coordinates
         # ccoords = self.coords
         carts = ccoords.system
