@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-896671" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-896671"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-2d6ae4" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-2d6ae4"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-896671" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-2d6ae4" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -183,9 +183,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-106f58" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-106f58"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-ca3780" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-ca3780"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-106f58" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-ca3780" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3958,12 +3958,63 @@ class MolecoolsTests(TestCase):
 #### <a name="FragEmbedding">FragEmbedding</a>
 ```python
     def test_FragEmbedding(self):
+        import McUtils.Coordinerds as coordops
+
         bits = Molecule.from_string(
             'FC1CCC(C(C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
             'smi',
             confgen_opts=dict(verbose=True, random_seed=12321)
-        ).get_embedded_molecule()
-        bits.coords[bits.fragment_indices[1], :] += 10
+        ).fragments[0].get_embedded_molecule()
+        bits.plot(mode='fast',
+                  # backend='matplotlib3D',
+                  backend='x3d',
+                  # background='white',
+                  # principle_axes=True,
+                  bond_radius=.05,
+                  atom_radius_scaling=.15,
+                  image_size=[500, 500],
+                  cylinder_options={
+                      'edge_width':.05,
+                      'edge_color':'black',
+                      'circle_points':8
+                  },
+                  sphere_options={
+                      'edge_width':.025,
+                      'edge_color':'black',
+                      'sphere_points':8
+                  },
+                  # plot_range=[[-5, 5], [-5, 5], [-5, 5]],
+                  view_settings={
+                      # 'view_distance':15,
+                      'view_vector':[0, 0, 1]
+                  }).show()#.savefig("/Users/Mark/Desktop/woof.svg")
+        return
+
+
+        # bits.coords[bits.fragment_indices[1], :] += 10
+        # pprint.pprint(bits.get_canonical_zmatrix())
+        # print(np.array(bits.get_canonical_zmatrix()[:6]))
+        # print()
+        # for f in bits.get_bond_zmatrix(validate=True, connect_fragments=False):
+        #     print(f)
+        spec = coordops.InternalSpec.from_zmatrix(
+            *bits.get_bond_zmatrix(validate=True, connect_fragments=False)
+        )
+
+        ints = spec.cartesians_to_internals(bits.coords)
+        print(spec.internals_to_cartesians(ints))
+
+        return
+
+        s3 = bits.modify(internals={'specs': [
+            {"transrot": bits.fragment_indices[1]}
+        ]})
+
+        s3.calculate_energy(order=1)
+
+        # bits.modify(energy_evaluator='aimnet2').get_embedded_molecule()
+
+        return
 
         bits.to_file("/Users/Mark/Desktop/struct.mol")
 
