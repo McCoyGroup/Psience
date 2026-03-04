@@ -3902,33 +3902,47 @@ class MolecoolsTests(TestCase):
         import McUtils.Coordinerds as coordops
 
         bits = Molecule.from_string(
-            'FC1CCC(C(C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
+            'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
             'smi',
             confgen_opts=dict(verbose=True, random_seed=12321)
-        ).fragments[0].get_embedded_molecule()
-        bits.plot(mode='fast',
-                  # backend='matplotlib3D',
-                  backend='x3d',
-                  # background='white',
-                  # principle_axes=True,
-                  bond_radius=.05,
-                  atom_radius_scaling=.15,
+        ).fragments[0].get_embedded_molecule(
+            # sel=[5, 6, 7]
+        )
+        """[-0.08710888  0.40615981 -0.90964073] CoordinateSet(Cartesian3D, [ 1.35562694 -0.07611535 -0.16380328]) CoordinateSet(Cartesian3D, [-0.70125809 -1.26699965 -0.49856885]) 2.713214674191846"""
+        """[0.14438272 0.06488451 0.98739234] CoordinateSet(Cartesian3D, [ 0.08571215  1.36110392 -0.10197559]) CoordinateSet(Cartesian3D, [-1.44122039 -0.45877749  0.24089196]) 0.1589606465055425"""
+        bits.plot(mode=(
+            'matplotlib3D'
+            # 'x3d'
+        ),
+                  principle_axes=True,
+                  # bond_radius=.01,
+                  # atom_radius_scaling=.15,
+                  # multiple_bond_spacing=.2,
                   image_size=[500, 500],
-                  cylinder_options={
-                      'edge_width':.05,
-                      'edge_color':'black',
-                      'circle_points':8
+                  background='white',
+                  highlight_atoms=[3, 4, 5, 7],
+                  # bond_style={'color':'none'},
+                  # cylinder_options={
+                  #     'edge_width':.05,
+                  #     'edge_color':'black',
+                  #     # 'segments':24
+                  # },
+                  # sphere_options={
+                  #     'edge_width':.025,
+                  #     'edge_color':'black'
+                  # },
+                  draw_coords={
+                      (0, 1, 2):{'label':r'$\theta$',
+                                 'label_style':{
+                                     'offset_magnitude':1.1,
+                                     'billboard':True,
+                                     'color':'red', 'fontsize':24
+                                 }}
                   },
-                  sphere_options={
-                      'edge_width':.025,
-                      'edge_color':'black',
-                      'sphere_points':8
-                  },
-                  # plot_range=[[-5, 5], [-5, 5], [-5, 5]],
                   view_settings={
-                      # 'view_distance':15,
-                      'view_vector':[0, 0, 1]
-                  }).show()#.savefig("/Users/Mark/Desktop/woof.svg")
+                      'view_distance':20,
+                      'view_vector':[0, 0, 1],
+                  }).show()#.savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
         return
 
 
