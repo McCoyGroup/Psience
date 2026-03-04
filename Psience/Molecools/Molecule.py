@@ -3706,6 +3706,8 @@ class Molecule(AbstractMolecule):
                     mode = 'jsmol'
                 elif backend in {'2d', 'rdkit'}:
                     mode = 'rdkit'
+                elif backend in {'flat', 'matplotlib'}:
+                    mode = 'fast'
             else:
                 if len(geometries) > 0:
                     backend = 'x3d'
@@ -4206,20 +4208,65 @@ class Molecule(AbstractMolecule):
             if recording_options is not None:
                 figure.figure.recording_options = recording_options
 
+    plot_themes = {
+        'default': {
+            'bond_radius': .1,
+            'atom_radius_scaling': .25,
+            'capped_bonds':False,
+            'render_multiple_bonds':True,
+            'render_fractional_bonds':True
+        },
+        "matplotlib3D": {
+            'default': {
+                'bond_radius':.05,
+                'atom_radius_scaling':.15,
+                'multiple_bond_spacing':.2,
+                'cylinder_options':{
+                    'edge_width':.05,
+                    'edge_color':'black',
+                    'segments':5,
+                },
+                'sphere_options':{
+                    'edge_width':.025,
+                    'edge_color':'black'
+                },
+                'extra_opts':{
+                    'projection_type':'ortho'
+                }
+            }
+        }
+    }
+    def _resolve_plot_theme(self, mode, backend, theme, base_opts):
+        if (backend, mode) in self.plot_themes:
+            theme_set = self.plot_themes[(backend, mode)]
+        elif backend in self.plot_themes:
+            theme_set = self.plot_themes[backend]
+        elif mode in self.plot_themes:
+            theme_set = self.plot_themes[mode]
+        else:
+            theme_set = self.plot_themes
+        core_theme = self.plot_themes.get('default', {}) | theme_set.get(theme, {})
+        for c,v in core_theme.items():
+            if base_opts[c] is None:
+                base_opts[c] = v
+            elif isinstance(base_opts[c], dict):
+                base_opts[c] = dev.merge_dicts(v, base_opts[c])
+        return base_opts
+
     def plot(self,
              *geometries,
              figure=None,
              return_objects=False,
              bonds=None,
-             bond_radius=.1,
-             atom_radius_scaling=.25,
+             bond_radius=None,
+             atom_radius_scaling=None,
              atom_style=None,
              atom_radii=None,
              atom_text=None,
              display_atom_numbers=False,
              radius_type=None,
              bond_style=None,
-             capped_bonds=False,
+             capped_bonds=None,
              reflectiveness=None,
              vector_style=None,
              highlight_atoms=None,
@@ -4237,8 +4284,8 @@ class Molecule(AbstractMolecule):
              dipole=None,
              dipole_origin=None,
              dipole_origin_mode='set',
-             render_multiple_bonds=True,
-             render_fractional_bonds=True,
+             render_multiple_bonds=None,
+             render_fractional_bonds=None,
              draw_coords=None,
              draw_coords_style=None,
              up_vector=None,
@@ -4266,6 +4313,7 @@ class Molecule(AbstractMolecule):
              dynamic_loading=None,
              units="Angstroms",
              label_style=None,
+             theme='default',
              **plot_ops
              ):
 
@@ -4335,6 +4383,7 @@ class Molecule(AbstractMolecule):
             figure=figure,
             **full_opts
         )
+        full_opts = self._resolve_plot_theme(mode, backend, theme, full_opts)
 
         if len(geometries) == 0:
             geometries = self.coords
@@ -4370,10 +4419,12 @@ class Molecule(AbstractMolecule):
             # plot_ops['plot_range'] = pr
 
 
+
         if return_immediately:
             self._set_backend_figure_options(figure, mode, backend, **full_opts)
             return figure
 
+        plot_ops = full_opts.pop('extra_opts') | plot_ops
         graphics_keys = Graphics3D.known_keys | Graphics3D.opt_keys | Graphics3D.figure_keys | Graphics3D.axes_keys
         graphics_opts = {k:plot_ops[k] for k in plot_ops.keys() & graphics_keys}
         plot_ops = {k:plot_ops[k] for k in plot_ops.keys() - graphics_keys}
@@ -4388,6 +4439,122 @@ class Molecule(AbstractMolecule):
             figure = graphics_class(backend=backend, **graphics_opts)
 
         self._set_backend_figure_options(figure, mode, backend, **full_opts)
+
+        (
+            return_objects,
+            bonds,
+            bond_radius,
+            atom_radius_scaling,
+            atom_style,
+            atom_radii,
+            atom_text,
+            display_atom_numbers,
+            radius_type,
+            bond_style,
+            capped_bonds,
+            reflectiveness,
+            vector_style,
+            highlight_atoms,
+            highlight_bonds,
+            highlight_rings,
+            highlight_styles,
+            mode_vectors,
+            mode_vector_origins,
+            mode_vector_origin_mode,
+            mode_vector_display_cutoff,
+            principle_axes,
+            principle_axes_origin,
+            principle_axes_origin_mode,
+            principle_axes_style,
+            dipole,
+            dipole_origin,
+            dipole_origin_mode,
+            render_multiple_bonds,
+            render_fractional_bonds,
+            draw_coords,
+            draw_coords_style,
+            up_vector,
+            multiple_bond_spacing,
+            include_save_buttons,
+            objects,
+            graphics_class,
+            cylinder_class,
+            cylinder_options,
+            sphere_class,
+            sphere_options,
+            arrow_class,
+            arrow_options,
+            line_class,
+            line_options,
+            disk_class,
+            disk_options,
+            animate,
+            recording_options,
+            animation_options,
+            jsmol_load_script,
+            include_jsmol_script_interface,
+            dynamic_loading,
+            label_style
+        ) = [
+            full_opts.pop(f) for f in ( # allows for theme flexibility
+                "return_objects",
+                "bonds",
+                "bond_radius",
+                "atom_radius_scaling",
+                "atom_style",
+                "atom_radii",
+                "atom_text",
+                "display_atom_numbers",
+                "radius_type",
+                "bond_style",
+                "capped_bonds",
+                "reflectiveness",
+                "vector_style",
+                "highlight_atoms",
+                "highlight_bonds",
+                "highlight_rings",
+                "highlight_styles",
+                "mode_vectors",
+                "mode_vector_origins",
+                "mode_vector_origin_mode",
+                "mode_vector_display_cutoff",
+                "principle_axes",
+                "principle_axes_origin",
+                "principle_axes_origin_mode",
+                "principle_axes_style",
+                "dipole",
+                "dipole_origin",
+                "dipole_origin_mode",
+                "render_multiple_bonds",
+                "render_fractional_bonds",
+                "draw_coords",
+                "draw_coords_style",
+                "up_vector",
+                "multiple_bond_spacing",
+                "include_save_buttons",
+                "objects",
+                "graphics_class",
+                "cylinder_class",
+                "cylinder_options",
+                "sphere_class",
+                "sphere_options",
+                "arrow_class",
+                "arrow_options",
+                "line_class",
+                "line_options",
+                "disk_class",
+                "disk_options",
+                "animate",
+                "recording_options",
+                "animation_options",
+                "jsmol_load_script",
+                "include_jsmol_script_interface",
+                "dynamic_loading",
+                "label_style",
+            )
+            ]
+        if len(full_opts) > 0:
+            raise ValueError(f"options unhandled: {full_opts}")
 
         if cylinder_class is None:
             cylinder_class = Cylinder
@@ -4706,7 +4873,8 @@ class Molecule(AbstractMolecule):
                     p1 = geom[atom1]
                     p2 = geom[atom2]
                     disp_vector = p2 - p1
-                    midpoint = disp_vector/2 + p1
+                    nv = nput.vec_normalize(disp_vector)
+                    midpoint = ((p1 + nv*radii[atom1]) + (p2 - nv*radii[atom2])) / 2
 
                     if not render_multiple_bonds or len(b) == 2 or b[2] <= 1 or b[2] > 3:
                         bond_point_list = [
@@ -4909,6 +5077,8 @@ class Molecule(AbstractMolecule):
                 if arrows[i] is None:
                     arrows[i] = []
                 for k,v in draw_coords.items():
+                    if isinstance(v, str):
+                        v = {'label':v}
                     v = dict(draw_coords_style, **v)
                     if len(k) == 2:
                         # draw bond
@@ -5039,9 +5209,9 @@ class Molecule(AbstractMolecule):
                             label_billboard = np.asanyarray(label_style.pop('billboard', False))
                             offset_magnitude = label_style.pop('offset_magnitude', .8)
                             label_center = np.dot(
-                                axes[0] * offset_magnitude + yy,
+                                axes[0] * offset_magnitude,
                                 nput.rotation_matrix(label_normal, -angle/2)
-                            )
+                            ) + yy
                             lab = plt.Text(
                                 label,
                                 label_center + label_offset,
@@ -5144,9 +5314,9 @@ class Molecule(AbstractMolecule):
                             label_billboard = np.asanyarray(label_style.pop('billboard', False))
                             offset_magnitude = label_style.pop('offset_magnitude', .8)
                             label_center = np.dot(
-                                axes[0] * offset_magnitude + c2,
+                                axes[0] * offset_magnitude,
                                 nput.rotation_matrix(label_normal, -angle/2)
-                            )
+                            ) + c2
                             lab = plt.Text(
                                 label,
                                 label_center + label_offset,
