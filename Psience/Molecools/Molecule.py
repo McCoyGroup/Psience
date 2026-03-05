@@ -4211,6 +4211,7 @@ class Molecule(AbstractMolecule):
     plot_themes = {
         'default': {
             'bond_radius': .1,
+            'bond_center_radius_offset': .2, # percentage of radius
             'atom_radius_scaling': .25,
             'capped_bonds':False,
             'render_multiple_bonds':True,
@@ -4218,8 +4219,8 @@ class Molecule(AbstractMolecule):
         },
         "matplotlib3D": {
             'default': {
-                'bond_radius':.05,
-                'atom_radius_scaling':.15,
+                'bond_radius':.1,
+                'atom_radius_scaling':.25,
                 'multiple_bond_spacing':.2,
                 'cylinder_options':{
                     'edge_width':.05,
@@ -4232,6 +4233,24 @@ class Molecule(AbstractMolecule):
                 },
                 'extra_opts':{
                     'projection_type':'ortho'
+                }
+            },
+            'simple' : {
+                'bond_radius': 0,
+                'bond_style':{'color': 'none'},
+                'atom_radius_scaling': .25,
+                'multiple_bond_spacing': .1,
+                'cylinder_options': {
+                    'edge_width': .05,
+                    'edge_color': 'black',
+                    'segments': 5,
+                },
+                'sphere_options': {
+                    'edge_width': .025,
+                    'edge_color': 'black'
+                },
+                'extra_opts': {
+                    'projection_type': 'ortho'
                 }
             }
         }
@@ -4286,6 +4305,7 @@ class Molecule(AbstractMolecule):
              dipole_origin_mode='set',
              render_multiple_bonds=None,
              render_fractional_bonds=None,
+             bond_center_radius_offset=None,
              draw_coords=None,
              draw_coords_style=None,
              up_vector=None,
@@ -4350,6 +4370,7 @@ class Molecule(AbstractMolecule):
             dipole_origin_mode=dipole_origin_mode,
             render_multiple_bonds=render_multiple_bonds,
             render_fractional_bonds=render_fractional_bonds,
+            bond_center_radius_offset=bond_center_radius_offset,
             draw_coords=draw_coords,
             draw_coords_style=draw_coords_style,
             up_vector=up_vector,
@@ -4410,13 +4431,15 @@ class Molecule(AbstractMolecule):
                 figure = self.rdmol.plot(**plot_opts)
         elif backend == 'matplotlib3D':
             plot_ops['box_ratios'] = plot_ops.get('box_ratios', 'auto')
-            # plot_ops['aspect_ratio'] = plot_ops.get('aspect_ratio', 1)
+            plot_ops['aspect_ratio'] = plot_ops.get('aspect_ratio', 'equal')
             plot_ops['frame'] = plot_ops.get('frame', False)
-            # pr = plot_ops.get('plot_range', None)
-            # if pr is None:
-            #     min_any = np.min(geometries)
-            #     max_any = np.max(geometries)
-            # plot_ops['plot_range'] = pr
+            pr = plot_ops.get('plot_range', None)
+            if pr is None:
+                min_any = np.min(geometries) + 2
+                max_any = np.max(geometries) + 2
+                pr = [[min_any, max_any], [min_any, max_any], [min_any, max_any]]
+            plot_ops['plot_range'] = pr
+            plot_ops['autoscale'] = plot_ops.get('autoscale', False)
 
 
 
@@ -4471,6 +4494,7 @@ class Molecule(AbstractMolecule):
             dipole_origin_mode,
             render_multiple_bonds,
             render_fractional_bonds,
+            bond_center_radius_offset,
             draw_coords,
             draw_coords_style,
             up_vector,
@@ -4527,6 +4551,7 @@ class Molecule(AbstractMolecule):
                 "dipole_origin_mode",
                 "render_multiple_bonds",
                 "render_fractional_bonds",
+                "bond_center_radius_offset",
                 "draw_coords",
                 "draw_coords_style",
                 "up_vector",
@@ -4821,12 +4846,25 @@ class Molecule(AbstractMolecule):
             if backend == 'matplotlib3D':
                 box_scalings = plotos.get('box_scalings')
                 if box_scalings is None:
-                    min_x = np.min(geom[:, 0] - radii)
-                    max_x = np.max(geom[:, 0] + radii)
-                    min_y = np.min(geom[:, 1] - radii)
-                    max_y = np.max(geom[:, 1] + radii)
-                    min_z = np.min(geom[:, 2] - radii)
-                    max_z = np.max(geom[:, 2] + radii)
+                    pr = graphics_opts.get('plot_range')
+                    if pr is None:
+                        pr = [None, None, None]
+                    rx, ry, rz = pr
+                    if rx is None:
+                        min_x = np.min(geom[:, 0] - radii)
+                        max_x = np.max(geom[:, 0] + radii)
+                    else:
+                        min_x, max_x = rx
+                    if ry is None:
+                        min_y = np.min(geom[:, 1] - radii)
+                        max_y = np.max(geom[:, 1] + radii)
+                    else:
+                        min_y, max_y = ry
+                    if rz is None:
+                        min_z = np.min(geom[:, 2] - radii)
+                        max_z = np.max(geom[:, 2] + radii)
+                    else:
+                        min_z, max_z = rz
                     box_scalings = (
                             (np.max(figure.image_size) / 72) /
                                 np.array([max_x - min_x, max_y - min_y, max_z - min_z])
@@ -4875,6 +4913,9 @@ class Molecule(AbstractMolecule):
                     disp_vector = p2 - p1
                     nv = nput.vec_normalize(disp_vector)
                     midpoint = ((p1 + nv*radii[atom1]) + (p2 - nv*radii[atom2])) / 2
+                    if bond_center_radius_offset is not None:
+                        p1 = p1 + bond_center_radius_offset * atom_radius_scaling[atom1] * radii[atom1] * nv
+                        p2 = p2 - bond_center_radius_offset * atom_radius_scaling[atom2] * radii[atom2] * nv
 
                     if not render_multiple_bonds or len(b) == 2 or b[2] <= 1 or b[2] > 3:
                         bond_point_list = [
@@ -4979,6 +5020,15 @@ class Molecule(AbstractMolecule):
                             if isinstance(cyl_2, (list, tuple)):
                                 cyl_2 = cyl_2[0]
                             bond_objs.extend(( cyl_1, cyl_2 ))
+
+                        # centroid = sphere_class(
+                        #     mp,
+                        #     .05,
+                        #     rendering='flat',
+                        #     color='red',
+                        #     zorder=1000
+                        # )
+                        # centroid.plot(figure)
 
                     bonds[i][j] = bond_objs
 

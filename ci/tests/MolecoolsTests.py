@@ -3901,48 +3901,43 @@ class MolecoolsTests(TestCase):
     def test_FragEmbedding(self):
         import McUtils.Coordinerds as coordops
 
+
+        """
+        
+Exception: (2.585752923032349e-06, 0.8880291089100423)"""
+
         bits = Molecule.from_string(
             'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
+            # 'c1ccccn1',
             'smi',
             confgen_opts=dict(verbose=True, random_seed=12321)
         ).fragments[0].get_embedded_molecule(
             # sel=[5, 6, 7]
         )
+        """"""
         """[-0.08710888  0.40615981 -0.90964073] CoordinateSet(Cartesian3D, [ 1.35562694 -0.07611535 -0.16380328]) CoordinateSet(Cartesian3D, [-0.70125809 -1.26699965 -0.49856885]) 2.713214674191846"""
         """[0.14438272 0.06488451 0.98739234] CoordinateSet(Cartesian3D, [ 0.08571215  1.36110392 -0.10197559]) CoordinateSet(Cartesian3D, [-1.44122039 -0.45877749  0.24089196]) 0.1589606465055425"""
-        bits.plot(mode=(
-            'matplotlib3D'
-            # 'x3d'
-        ),
-                  principle_axes=True,
-                  # bond_radius=.01,
-                  # atom_radius_scaling=.15,
-                  # multiple_bond_spacing=.2,
-                  image_size=[500, 500],
-                  background='white',
-                  highlight_atoms=[3, 4, 5, 7],
-                  # bond_style={'color':'none'},
-                  # cylinder_options={
-                  #     'edge_width':.05,
-                  #     'edge_color':'black',
-                  #     # 'segments':24
-                  # },
-                  # sphere_options={
-                  #     'edge_width':.025,
-                  #     'edge_color':'black'
-                  # },
-                  draw_coords={
-                      (0, 1, 2):{'label':r'$\theta$',
-                                 'label_style':{
-                                     'offset_magnitude':1.1,
-                                     'billboard':True,
-                                     'color':'red', 'fontsize':24
-                                 }}
-                  },
-                  view_settings={
-                      'view_distance':20,
-                      'view_vector':[0, 0, 1],
-                  }).show()#.savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
+        bits.plot(
+            mode=(
+                'matplotlib3D'
+                # 'x3d'
+            ),
+            principle_axes=True,
+            image_size=[500, 500],
+            # theme='simple',
+            draw_coords={
+                (0, 1, 2):{'label':r'$\theta$',
+                           'label_style':{
+                               'offset_magnitude':1.1,
+                               'billboard':True,
+                               'color':'red', 'fontsize':24
+                           }}
+            },
+            highlight_atoms=[0, 1, 2],
+            view_settings={
+                # 'view_distance':200,
+                'view_vector': [1, 0, 0],
+            }).show()#.savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
         return
 
 
