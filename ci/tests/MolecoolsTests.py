@@ -3919,8 +3919,8 @@ Exception: (2.585752923032349e-06, 0.8880291089100423)"""
         """[0.14438272 0.06488451 0.98739234] CoordinateSet(Cartesian3D, [ 0.08571215  1.36110392 -0.10197559]) CoordinateSet(Cartesian3D, [-1.44122039 -0.45877749  0.24089196]) 0.1589606465055425"""
         bits.plot(
             mode=(
-                'matplotlib3D'
-                # 'x3d'
+                # 'matplotlib3D'
+                'x3d'
             ),
             principle_axes=True,
             image_size=[500, 500],
@@ -3936,7 +3936,7 @@ Exception: (2.585752923032349e-06, 0.8880291089100423)"""
             highlight_atoms=[0, 1, 2],
             view_settings={
                 # 'view_distance':200,
-                'view_vector': [1, 0, 0],
+                'view_vector': [0, 0, 1],
             }).show()#.savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
         return
 
