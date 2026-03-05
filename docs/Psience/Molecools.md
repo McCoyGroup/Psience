@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-de52e2" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-de52e2"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-34adac" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-34adac"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-de52e2" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-34adac" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -183,9 +183,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-2a61b0" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-2a61b0"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-267902" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-267902"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-2a61b0" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-267902" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3978,8 +3978,8 @@ Exception: (2.585752923032349e-06, 0.8880291089100423)"""
         """[0.14438272 0.06488451 0.98739234] CoordinateSet(Cartesian3D, [ 0.08571215  1.36110392 -0.10197559]) CoordinateSet(Cartesian3D, [-1.44122039 -0.45877749  0.24089196]) 0.1589606465055425"""
         bits.plot(
             mode=(
-                'matplotlib3D'
-                # 'x3d'
+                # 'matplotlib3D'
+                'x3d'
             ),
             principle_axes=True,
             image_size=[500, 500],
@@ -3995,7 +3995,7 @@ Exception: (2.585752923032349e-06, 0.8880291089100423)"""
             highlight_atoms=[0, 1, 2],
             view_settings={
                 # 'view_distance':200,
-                'view_vector': [1, 0, 0],
+                'view_vector': [0, 0, 1],
             }).show()#.savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
         return
 
