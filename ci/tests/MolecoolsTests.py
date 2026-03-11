@@ -3901,11 +3901,6 @@ class MolecoolsTests(TestCase):
     def test_FragEmbedding(self):
         import McUtils.Coordinerds as coordops
 
-
-        """
-        
-Exception: (2.585752923032349e-06, 0.8880291089100423)"""
-
         bits = Molecule.from_string(
             'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
             # 'c1ccccn1',
@@ -3914,9 +3909,6 @@ Exception: (2.585752923032349e-06, 0.8880291089100423)"""
         ).fragments[0].get_embedded_molecule(
             # sel=[5, 6, 7]
         )
-        """"""
-        """[-0.08710888  0.40615981 -0.90964073] CoordinateSet(Cartesian3D, [ 1.35562694 -0.07611535 -0.16380328]) CoordinateSet(Cartesian3D, [-0.70125809 -1.26699965 -0.49856885]) 2.713214674191846"""
-        """[0.14438272 0.06488451 0.98739234] CoordinateSet(Cartesian3D, [ 0.08571215  1.36110392 -0.10197559]) CoordinateSet(Cartesian3D, [-1.44122039 -0.45877749  0.24089196]) 0.1589606465055425"""
         bits.plot(
             mode=(
                 # 'matplotlib3D'
@@ -3924,7 +3916,7 @@ Exception: (2.585752923032349e-06, 0.8880291089100423)"""
             ),
             principle_axes=True,
             image_size=[500, 500],
-            # theme='simple',
+            theme='flat',
             draw_coords={
                 (0, 1, 2):{'label':r'$\theta$',
                            'label_style':{
