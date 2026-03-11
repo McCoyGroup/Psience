@@ -3691,6 +3691,16 @@ class Molecule(AbstractMolecule):
         'dipole':'x3d',
         'include_jsmol_script_interface':'jsmol'
     }
+    backend_aliases = {
+        'x3d': ('x3d', 'x3d'),
+        'jsmol': ('jsmol', 'jsmol'),
+        'rdkit': ('rdkit', 'rdkit'),
+        '2d': ('rdkit', 'rdkit'),
+        'matplotlib': ('fast', 'matplotlib3D'),
+        'matplotlib3D': ('fast', 'matplotlib3D'),
+        'matplotlib3d': ('fast', 'matplotlib3D'),
+        'flat': ('fast', 'matplotlib3D'),
+    }
     def _resolve_plot_mode(self,
                            mode,
                            backend,
@@ -3700,14 +3710,7 @@ class Molecule(AbstractMolecule):
 
         if mode is None:
             if backend is not None:
-                if backend == 'x3d':
-                    mode = 'x3d'
-                elif backend == 'jsmol':
-                    mode = 'jsmol'
-                elif backend in {'2d', 'rdkit'}:
-                    mode = 'rdkit'
-                elif backend in {'flat', 'matplotlib'}:
-                    mode = 'fast'
+                mode, backend = self.backend_aliases.get(backend, (None, backend))
             else:
                 if len(geometries) > 0:
                     backend = 'x3d'
@@ -4208,6 +4211,19 @@ class Molecule(AbstractMolecule):
             if recording_options is not None:
                 figure.figure.recording_options = recording_options
 
+    @staticmethod
+    def _flat_color(i, a, styles):
+        if 'color' in styles:
+            styles = styles | {
+                "color": "black",
+                "glow": plt.ColorPalette.color_lighten(styles.get("glow", styles["color"]), -.05)
+            }
+        # if 'line_color' in styles:
+        #     styles = styles | {
+        #         "line_color": "line_color",
+        #         "glow": styles.get("glow", styles["line_color"])
+        #     }
+        return styles
     plot_themes = {
         'default': {
             'bond_radius': .1,
@@ -4217,10 +4233,15 @@ class Molecule(AbstractMolecule):
             'render_multiple_bonds':True,
             'render_fractional_bonds':True
         },
+        "x3d": {
+            "flat":{
+                'atom_style':{"modifier":_flat_color},
+                'bond_style':{"modifier":_flat_color},
+                'theme_function':_flat_color
+            }
+        },
         "matplotlib3D": {
             'default': {
-                'bond_radius':.1,
-                'atom_radius_scaling':.25,
                 'multiple_bond_spacing':.2,
                 'cylinder_options':{
                     'edge_width':.05,
@@ -4238,7 +4259,6 @@ class Molecule(AbstractMolecule):
             'simple' : {
                 'bond_radius': 0,
                 'bond_style':{'color': 'none'},
-                'atom_radius_scaling': .25,
                 'multiple_bond_spacing': .1,
                 'cylinder_options': {
                     'edge_width': .05,
@@ -4334,6 +4354,7 @@ class Molecule(AbstractMolecule):
              units="Angstroms",
              label_style=None,
              theme='default',
+             theme_function=None,
              **plot_ops
              ):
 
@@ -4395,6 +4416,7 @@ class Molecule(AbstractMolecule):
             include_jsmol_script_interface=include_jsmol_script_interface,
             dynamic_loading=dynamic_loading,
             label_style=label_style,
+            theme_function=theme_function,
             extra_opts=plot_ops
         )
         mode, backend = self._resolve_plot_mode(
@@ -4518,7 +4540,8 @@ class Molecule(AbstractMolecule):
             jsmol_load_script,
             include_jsmol_script_interface,
             dynamic_loading,
-            label_style
+            label_style,
+            theme_function
         ) = [
             full_opts.pop(f) for f in ( # allows for theme flexibility
                 "return_objects",
@@ -4576,6 +4599,7 @@ class Molecule(AbstractMolecule):
                 "include_jsmol_script_interface",
                 "dynamic_loading",
                 "label_style",
+                "theme_function"
             )
             ]
         if len(full_opts) > 0:
@@ -4899,6 +4923,11 @@ class Molecule(AbstractMolecule):
                         b_sty_1['color'] = c1
                     if b_sty_1.get('glow') is None and g1 is not None:
                         b_sty_1['glow'] = g1
+                    b_sty_1 = b_sty_1.copy()
+                    modifier = b_sty_1.pop('modifier', None)
+                    if modifier is not None:
+                        b_sty_1 = modifier((atom1,atom2), (self.atoms[atom1],self.atoms[atom2]), b_sty_1)
+
                     b_sty_2 = dict(
                         bond_style.get(atom2, {}),
                         **base_bstyle
@@ -4907,6 +4936,10 @@ class Molecule(AbstractMolecule):
                         b_sty_2['color'] = c2
                     if b_sty_2.get('glow') is None and g2 is not None:
                         b_sty_2['glow'] = g2
+                    b_sty_2 = b_sty_2.copy()
+                    modifier = b_sty_2.pop('modifier', None)
+                    if modifier is not None:
+                        b_sty_2 = modifier((atom2,atom1), (self.atoms[atom2],self.atoms[atom1]), b_sty_2)
 
                     p1 = geom[atom1]
                     p2 = geom[atom2]
@@ -4997,17 +5030,23 @@ class Molecule(AbstractMolecule):
 
                     bond_objs = []
                     for pp1, pp2, mp in bond_point_list:
+                        sty1 = (plotos | cylinder_options | b_sty_1)
+                        if theme_function is not None:
+                            sty1 = theme_function((atom1, atom2), cylinder_class, sty1)
                         cc1 = cylinder_class(
                             pp1,
                             mp,
                             bond_radius,
-                            **(plotos | cylinder_options | b_sty_1)
+                            **sty1
                         )
+                        sty2 = (plotos | cylinder_options | b_sty_2)
+                        if theme_function is not None:
+                            sty2 = theme_function((atom2, atom1), cylinder_class, sty2)
                         cc2 = cylinder_class(
                             mp,
                             pp2,
                             bond_radius,
-                            **(plotos | cylinder_options | b_sty_2)
+                            **sty2
                         )
 
                         if objects:
@@ -5039,8 +5078,15 @@ class Molecule(AbstractMolecule):
                     a_sty = atom_style.get(j, {})
                     if a_sty.get('color') is None:
                         a_sty['color'] = color
+                    a_sty = a_sty.copy()
+                    modifier = a_sty.pop('modifier', None)
+                    if modifier is not None:
+                        a_sty = modifier(j, self.atoms[j], a_sty)
 
-                    sphere = sphere_class(coord, radius, **(plotos | sphere_options | a_sty))
+                    asty = (plotos | sphere_options | a_sty)
+                    if theme_function is not None:
+                        asty = theme_function(j, sphere_class, asty)
+                    sphere = sphere_class(coord, radius, **asty)
                     if objects:
                         atoms[i][j] = sphere
                     else:
@@ -5060,10 +5106,13 @@ class Molecule(AbstractMolecule):
                             com = com + dipole_origin[i]
                     else:
                         com = dipole_origin[i]
+                    sty = (plotos | vector_style)
+                    if theme_function is not None:
+                        sty = theme_function(None, arrow_class, sty)
                     dipole_arrow = arrow_class(
                         com,
                         com + dip,
-                        **(plotos | vector_style)
+                        **sty
                     )
                     if objects:
                         arrows[i].append(dipole_arrow)
@@ -5084,10 +5133,13 @@ class Molecule(AbstractMolecule):
                 else:
                     com = principle_axes_origin[i]
                 for ax, sty in zip(pax.T, principle_axes_style):
+                    sty = (plotos | vector_style | sty)
+                    if theme_function is not None:
+                        sty = theme_function(None, arrow_class, sty)
                     pax_arrow = arrow_class(
                         com,
                         com + ax,
-                        **(plotos | vector_style | sty)
+                        **sty
                     )
                     if objects:
                         arrows[i].append(pax_arrow)
@@ -5109,10 +5161,13 @@ class Molecule(AbstractMolecule):
                                 com = com + mode_vector_origins[i][j]
                         else:
                             com = mode_vector_origins[i][j]
+                        sty = (plotos | vector_style)
+                        if theme_function is not None:
+                            sty = theme_function(None, arrow_class, sty)
                         mode_arrow = arrow_class(
                             com,
                             com + v,
-                            **(plotos | vector_style)
+                            **sty
                         )
                         if objects:
                             arrows[i].append(mode_arrow)
@@ -5167,8 +5222,10 @@ class Molecule(AbstractMolecule):
                                                                    zz is None and 'normal' not in label_style
                                                                    )
 
-                        arc = line_class([xx + offset, yy + offset], color=color,
-                                         **(plotos | line_options | v))
+                        sty = (plotos | line_options | dict(color=color) | v)
+                        if theme_function is not None:
+                            sty = theme_function(None, line_class, sty)
+                        arc = line_class([xx + offset, yy + offset], **sty)
                         if objects:
                             arrows[i].append(arc)
                         else:
@@ -5231,12 +5288,15 @@ class Molecule(AbstractMolecule):
 
                         label = v.pop('label', None)
                         label_style = dict(default_label_style, **v.pop('label_style', {}))
+                        sty = (plotos | disk_options | v)
+                        if theme_function is not None:
+                            sty = theme_function(None, disk_class, sty)
                         arc = disk_class(
                             yy,
                             uv_axes=axes,
                             angle=angle,
                             radius=radius,
-                            **(plotos | disk_options | v)
+                            **sty
                         )
                         if objects:
                             arrows[i].append(arc)
@@ -5335,13 +5395,16 @@ class Molecule(AbstractMolecule):
 
                         label = v.pop('label', None)
                         label_style = dict(default_label_style, **v.pop('label_style', {}))
+                        sty = (plotos | disk_options | v)
+                        if theme_function is not None:
+                            sty = theme_function(None, disk_class, sty)
                         arc = disk_class(
                             c2,
                             uv_axes=axes,
                             normal=normal,
                             angle=angle,
                             radius=radius,
-                            **(plotos | disk_options | v)
+                            **sty
                         )
                         if objects:
                             arrows[i].append(arc)
