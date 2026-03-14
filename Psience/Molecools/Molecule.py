@@ -3700,6 +3700,9 @@ class Molecule(AbstractMolecule):
         'matplotlib3D': ('fast', 'matplotlib3D'),
         'matplotlib3d': ('fast', 'matplotlib3D'),
         'flat': ('fast', 'matplotlib3D'),
+        'plotly': ('fast', 'plotly3D'),
+        'plotly3D': ('fast', 'plotly3D'),
+        'plotly3d': ('fast', 'plotly3D')
     }
     def _resolve_plot_mode(self,
                            mode,
@@ -4273,6 +4276,35 @@ class Molecule(AbstractMolecule):
                     'projection_type': 'ortho'
                 }
             }
+        },
+        "plotly3D": {
+            'default': {
+                'multiple_bond_spacing': .2,
+                'bond_center_radius_offset': 2, # percentage of radius
+                'cylinder_options': {
+                    'edge_width': .05,
+                    'edge_color': 'black',
+                    'segments': 1
+                },
+                'sphere_options': {
+                    'edge_width': .025,
+                    'edge_color': 'black'
+                }
+            },
+            'simple': {
+                'bond_radius': 0,
+                'bond_style': {'color': 'none'},
+                'multiple_bond_spacing': .1,
+                'cylinder_options': {
+                    'edge_width': .05,
+                    'edge_color': 'black',
+                    'segments': 1
+                },
+                'sphere_options': {
+                    'edge_width': .025,
+                    'edge_color': 'black'
+                }
+            }
         }
     }
     def _resolve_plot_theme(self, mode, backend, theme, base_opts):
@@ -4457,11 +4489,23 @@ class Molecule(AbstractMolecule):
             plot_ops['frame'] = plot_ops.get('frame', False)
             pr = plot_ops.get('plot_range', None)
             if pr is None:
-                min_any = np.min(geometries) + 2
+                min_any = np.min(geometries) - 2
                 max_any = np.max(geometries) + 2
                 pr = [[min_any, max_any], [min_any, max_any], [min_any, max_any]]
             plot_ops['plot_range'] = pr
             plot_ops['autoscale'] = plot_ops.get('autoscale', False)
+        elif backend == 'plotly3D':
+            # plot_ops['box_ratios'] = plot_ops.get('box_ratios', 'auto')
+            # plot_ops['aspect_ratio'] = plot_ops.get('aspect_ratio', 'equal')
+            plot_ops['frame'] = plot_ops.get('frame', False)
+            pr = plot_ops.get('plot_range', None)
+            if pr is None:
+                min_any = np.min(geometries) - 2
+                max_any = np.max(geometries) + 2
+                pr = [[min_any, max_any], [min_any, max_any], [min_any, max_any]]
+            plot_ops['plot_range'] = pr
+
+            # plot_ops['autoscale'] = plot_ops.get('autoscale', False)
 
 
 
@@ -4867,7 +4911,7 @@ class Molecule(AbstractMolecule):
         radii = np.asanyarray(radii)
         for i, geom in enumerate(geometries):
             plotos = plot_ops.copy()
-            if backend == 'matplotlib3D':
+            if backend in {'matplotlib3D', 'plotly3D'}:
                 box_scalings = plotos.get('box_scalings')
                 if box_scalings is None:
                     pr = graphics_opts.get('plot_range')
