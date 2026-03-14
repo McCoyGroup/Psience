@@ -3897,7 +3897,7 @@ class MolecoolsTests(TestCase):
             (ugh.calculate_energy() - mol.calculate_energy())*UnitsData.convert("Hartrees", "Kilocalories/Mole")
         )
 
-    @debugTest
+    @validationTest
     def test_FragEmbedding(self):
         import McUtils.Coordinerds as coordops
 
@@ -3993,3 +3993,32 @@ class MolecoolsTests(TestCase):
 
         # print(np.linalg.norm(bits.fragments[0].center_of_mass - bits.fragments[1].center_of_mass))
         # print(np.linalg.norm(uuuh.fragments[0].center_of_mass - uuuh.fragments[1].center_of_mass))
+
+    @debugTest
+    def test_PlotlyBackend(self):
+
+        bits = Molecule.from_file(TestManager.test_data("water_freq.fchk"))
+        bits.plot(
+            backend=(
+                # 'matplotlib3D'
+                # 'x3d'
+                'plotly'
+            ),
+            # principle_axes=True,
+            image_size=[500, 500],
+            # theme='flat',
+            # draw_coords={
+            #     (0, 1, 2): {'label': r'$\theta$',
+            #                 'label_style': {
+            #                     'offset_magnitude': 1.1,
+            #                     'billboard': True,
+            #                     'color': 'red', 'fontsize': 24
+            #                 }}
+            # },
+            # highlight_atoms=[0, 1, 2],
+            # view_settings={
+            #     # 'view_distance':200,
+            #     'view_vector': [0, 0, 1],
+            # }
+        ).show()  # .savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
+        return
