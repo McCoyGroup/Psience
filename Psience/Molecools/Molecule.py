@@ -3696,6 +3696,7 @@ class Molecule(AbstractMolecule):
         'jsmol': ('jsmol', 'jsmol'),
         'rdkit': ('rdkit', 'rdkit'),
         '2d': ('rdkit', 'rdkit'),
+        'rdkit3d': ('rdkit3d', 'rdkit3d'),
         'matplotlib': ('fast', 'matplotlib3D'),
         'matplotlib3D': ('fast', 'matplotlib3D'),
         'matplotlib3d': ('fast', 'matplotlib3D'),
@@ -3997,7 +3998,7 @@ class Molecule(AbstractMolecule):
                 len(self.atoms),
                 self.atoms,
                 geometries * UnitsData.convert("BohrRadius", "Angstroms")
-            ).split("\n", 2)[-1]
+            )#.split("\n", 2)[-1]
 
         if extra_opts is None:
             extra_opts = {}
@@ -4213,6 +4214,9 @@ class Molecule(AbstractMolecule):
 
             if recording_options is not None:
                 figure.figure.recording_options = recording_options
+        elif backend == 'plotly3D':
+            if include_save_buttons is not None:
+                figure.figure.include_save_buttons = True
 
     @staticmethod
     def _flat_color(i, a, styles):
@@ -4230,17 +4234,26 @@ class Molecule(AbstractMolecule):
     plot_themes = {
         'default': {
             'bond_radius': .1,
-            'bond_center_radius_offset': .2, # percentage of radius
+            'bond_center_radius_offset': 'auto', # percentage of radius
             'atom_radius_scaling': .25,
-            'capped_bonds':False,
-            'render_multiple_bonds':True,
-            'render_fractional_bonds':True
+            'capped_bonds': False,
+            'render_multiple_bonds': True,
+            'render_fractional_bonds': True,
+            'fractional_bond_offset': 1.1#(.35 / .5)
         },
         "x3d": {
             "flat":{
                 'atom_style':{"modifier":_flat_color},
                 'bond_style':{"modifier":_flat_color},
                 'theme_function':_flat_color
+            }
+        },
+        'jsmol': {
+            'default':{
+                'extra_opts':{'use_default_bonds':False,
+                              'use_default_radii':False}
+            },
+            'simple': {
             }
         },
         "matplotlib3D": {
@@ -4279,17 +4292,19 @@ class Molecule(AbstractMolecule):
         },
         "plotly3D": {
             'default': {
+                'bond_radius': .15,
                 'multiple_bond_spacing': .2,
-                'bond_center_radius_offset': 2, # percentage of radius
+                'bond_center_radius_offset': {'padding':.065}, # percentage of radius
                 'cylinder_options': {
-                    'edge_width': .05,
+                    'edge_width': .1,
                     'edge_color': 'black',
                     'segments': 1
                 },
                 'sphere_options': {
-                    'edge_width': .025,
+                    'edge_width': .05,
                     'edge_color': 'black'
-                }
+                },
+                # 'fractional_bond_offset':.35
             },
             'simple': {
                 'bond_radius': 0,
@@ -4324,6 +4339,37 @@ class Molecule(AbstractMolecule):
                 base_opts[c] = dev.merge_dicts(v, base_opts[c])
         return base_opts
 
+    @classmethod
+    def _default_plot_range(cls, geometries, pr, plot_range_padding, radii):
+        if pr is None:
+            min_any = np.min(geometries)
+            max_any = np.max(geometries)
+            pr = [[min_any, max_any], [min_any, max_any], [min_any, max_any]]
+        if plot_range_padding is not None:
+            if dev.str_is(plot_range_padding, 'auto'):
+                plot_range_padding = np.max(radii)
+            if nput.is_numeric(plot_range_padding):
+                plot_range_padding = (plot_range_padding, plot_range_padding, plot_range_padding)
+            x, y, z = plot_range_padding
+            if nput.is_numeric(x):
+                x = [x, x]
+            if nput.is_numeric(y):
+                y = [y, y]
+            if nput.is_numeric(z):
+                z = [z, z]
+            px, py, pz = pr
+            if nput.is_numeric(px):
+                px = [px, px]
+            px = [px[0] - x[0], px[1] + x[1]]
+            if nput.is_numeric(py):
+                py = [py, py]
+            py = [py[0] - y[0], py[1] + y[1]]
+            if nput.is_numeric(pz):
+                pz = [pz, pz]
+            pz = [pz[0] - z[0], pz[1] + z[1]]
+            pr = (px, py, pz)
+        return pr
+
     def plot(self,
              *geometries,
              figure=None,
@@ -4357,6 +4403,7 @@ class Molecule(AbstractMolecule):
              dipole_origin_mode='set',
              render_multiple_bonds=None,
              render_fractional_bonds=None,
+             fractional_bond_offset=None,
              bond_center_radius_offset=None,
              draw_coords=None,
              draw_coords_style=None,
@@ -4387,6 +4434,7 @@ class Molecule(AbstractMolecule):
              label_style=None,
              theme='default',
              theme_function=None,
+             plot_range_padding='auto',
              **plot_ops
              ):
 
@@ -4423,6 +4471,7 @@ class Molecule(AbstractMolecule):
             dipole_origin_mode=dipole_origin_mode,
             render_multiple_bonds=render_multiple_bonds,
             render_fractional_bonds=render_fractional_bonds,
+            fractional_bond_offset=fractional_bond_offset,
             bond_center_radius_offset=bond_center_radius_offset,
             draw_coords=draw_coords,
             draw_coords_style=draw_coords_style,
@@ -4449,6 +4498,7 @@ class Molecule(AbstractMolecule):
             dynamic_loading=dynamic_loading,
             label_style=label_style,
             theme_function=theme_function,
+            plot_range_padding=plot_range_padding,
             extra_opts=plot_ops
         )
         mode, backend = self._resolve_plot_mode(
@@ -4475,39 +4525,14 @@ class Molecule(AbstractMolecule):
             return_immediately=True
             plot_ops = self._prep_jsmol_plot_opts(geometries=geometries, figure=figure, **full_opts)
             figure = self.jsmol_viz(**plot_ops)
+        elif mode == 'rdkit3d':
+            return_immediately = True
+            plot_opts = self._prep_rdkit_plot_opts(figure=figure, **full_opts)
+            figure = self.rdmol.plot(**plot_opts)
         elif mode == 'rdkit':
             return_immediately = True
-            if backend == '2d':
-                draw_opts = self._prep_rdkit_draw_opts(figure=figure, **full_opts)
-                figure = self.rdmol.draw(**draw_opts)
-            else:
-                plot_opts = self._prep_rdkit_plot_opts(figure=figure, **full_opts)
-                figure = self.rdmol.plot(**plot_opts)
-        elif backend == 'matplotlib3D':
-            plot_ops['box_ratios'] = plot_ops.get('box_ratios', 'auto')
-            plot_ops['aspect_ratio'] = plot_ops.get('aspect_ratio', 'equal')
-            plot_ops['frame'] = plot_ops.get('frame', False)
-            pr = plot_ops.get('plot_range', None)
-            if pr is None:
-                min_any = np.min(geometries) - 2
-                max_any = np.max(geometries) + 2
-                pr = [[min_any, max_any], [min_any, max_any], [min_any, max_any]]
-            plot_ops['plot_range'] = pr
-            plot_ops['autoscale'] = plot_ops.get('autoscale', False)
-        elif backend == 'plotly3D':
-            # plot_ops['box_ratios'] = plot_ops.get('box_ratios', 'auto')
-            # plot_ops['aspect_ratio'] = plot_ops.get('aspect_ratio', 'equal')
-            plot_ops['frame'] = plot_ops.get('frame', False)
-            pr = plot_ops.get('plot_range', None)
-            if pr is None:
-                min_any = np.min(geometries) - 2
-                max_any = np.max(geometries) + 2
-                pr = [[min_any, max_any], [min_any, max_any], [min_any, max_any]]
-            plot_ops['plot_range'] = pr
-
-            # plot_ops['autoscale'] = plot_ops.get('autoscale', False)
-
-
+            draw_opts = self._prep_rdkit_draw_opts(figure=figure, **full_opts)
+            figure = self.rdmol.draw(**draw_opts)
 
         if return_immediately:
             self._set_backend_figure_options(figure, mode, backend, **full_opts)
@@ -4521,13 +4546,7 @@ class Molecule(AbstractMolecule):
         if 'background' not in graphics_opts:
             graphics_opts['background'] = 'transparent'
 
-        if graphics_class is None:
-            graphics_class = Graphics3D
-
-        if figure is None:
-            figure = graphics_class(backend=backend, **graphics_opts)
-
-        self._set_backend_figure_options(figure, mode, backend, **full_opts)
+        full_opts_base = full_opts.copy()
 
         (
             return_objects,
@@ -4560,6 +4579,7 @@ class Molecule(AbstractMolecule):
             dipole_origin_mode,
             render_multiple_bonds,
             render_fractional_bonds,
+            fractional_bond_offset,
             bond_center_radius_offset,
             draw_coords,
             draw_coords_style,
@@ -4585,6 +4605,7 @@ class Molecule(AbstractMolecule):
             include_jsmol_script_interface,
             dynamic_loading,
             label_style,
+            plot_range_padding,
             theme_function
         ) = [
             full_opts.pop(f) for f in ( # allows for theme flexibility
@@ -4618,6 +4639,7 @@ class Molecule(AbstractMolecule):
                 "dipole_origin_mode",
                 "render_multiple_bonds",
                 "render_fractional_bonds",
+                "fractional_bond_offset",
                 "bond_center_radius_offset",
                 "draw_coords",
                 "draw_coords_style",
@@ -4643,6 +4665,7 @@ class Molecule(AbstractMolecule):
                 "include_jsmol_script_interface",
                 "dynamic_loading",
                 "label_style",
+                'plot_range_padding',
                 "theme_function"
             )
             ]
@@ -4909,12 +4932,33 @@ class Molecule(AbstractMolecule):
 
         default_label_style = label_style | self.draw_coords_label_style
         radii = np.asanyarray(radii)
+
+        if backend == 'matplotlib3D':
+            graphics_opts['box_ratios'] = graphics_opts.get('box_ratios', 'auto')
+            graphics_opts['aspect_ratio'] = graphics_opts.get('aspect_ratio', 'equal')
+            graphics_opts['frame'] = graphics_opts.get('frame', False)
+            pr = plot_ops.get('plot_range', None)
+            plot_ops['plot_range'] = self._default_plot_range(geometries, pr, plot_range_padding, atom_radius_scaling * radii)
+            plot_ops['autoscale'] = plot_ops.get('autoscale', False)
+        elif backend == 'plotly3D':
+            graphics_opts['box_ratios'] = graphics_opts.get('box_ratios', 'cube')
+            graphics_opts['frame'] = graphics_opts.get('frame', False)
+            pr = graphics_opts.get('plot_range', None)
+            graphics_opts['plot_range'] = self._default_plot_range(geometries, pr, plot_range_padding, atom_radius_scaling * radii)
+
+        if figure is None:
+            if graphics_class is None:
+                graphics_class = Graphics3D
+            figure = graphics_class(backend=backend, **graphics_opts)
+
+        self._set_backend_figure_options(figure, mode, backend, **full_opts_base)
+
         for i, geom in enumerate(geometries):
             plotos = plot_ops.copy()
             if backend in {'matplotlib3D', 'plotly3D'}:
                 box_scalings = plotos.get('box_scalings')
+                pr = graphics_opts.get('plot_range')
                 if box_scalings is None:
-                    pr = graphics_opts.get('plot_range')
                     if pr is None:
                         pr = [None, None, None]
                     rx, ry, rz = pr
@@ -4988,12 +5032,30 @@ class Molecule(AbstractMolecule):
                     p1 = geom[atom1]
                     p2 = geom[atom2]
                     disp_vector = p2 - p1
-                    nv = nput.vec_normalize(disp_vector)
+                    nv, vn = nput.vec_normalize(disp_vector, return_norms=True)
                     midpoint = ((p1 + nv*radii[atom1]) + (p2 - nv*radii[atom2])) / 2
                     if bond_center_radius_offset is not None:
-                        p1 = p1 + bond_center_radius_offset * atom_radius_scaling[atom1] * radii[atom1] * nv
-                        p2 = p2 - bond_center_radius_offset * atom_radius_scaling[atom2] * radii[atom2] * nv
+                        if dev.str_is(bond_center_radius_offset, 'auto'):
+                            bond_center_radius_offset = {'padding':0}
+                        if isinstance(bond_center_radius_offset, dict):
+                            pad = bond_center_radius_offset['padding']
+                            rz1 = (radii[atom1]**2 - (bond_radius+pad)**2)
+                            if rz1 > 0:
+                                rz1 = np.sqrt(rz1)
+                            else:
+                                rz1 = 0
+                            p1 = p1 + rz1 * nv
+                            rz2 = (radii[atom2]**2 - (bond_radius+pad)**2)
+                            if rz2 > 0:
+                                rz2 = np.sqrt(rz2)
+                            else:
+                                rz2 = 0
+                            p2 = p2 - rz2 * nv
+                        else:
+                            p1 = p1 + bond_center_radius_offset * radii[atom1] * nv
+                            p2 = p2 - bond_center_radius_offset * radii[atom2] * nv
 
+                    disp_vector = p2 - p1
                     if not render_multiple_bonds or len(b) == 2 or b[2] <= 1 or b[2] > 3:
                         bond_point_list = [
                             [p1, p2, midpoint]
@@ -5023,7 +5085,7 @@ class Molecule(AbstractMolecule):
                         if render_fractional_bonds:
                             dr = (b[2] - int(b[2]))
                             if dr > .05 :
-                                dr = dr * (.35 / .5)
+                                dr = dr * fractional_bond_offset
                                 dr = (1 - dr) / 2
                                 p10 = p1 + disp_vector * dr
                                 p20 = p2 - disp_vector * dr
@@ -5033,6 +5095,28 @@ class Molecule(AbstractMolecule):
                         else:
                             p10 = p1
                             p20 = p2
+
+                        if isinstance(bond_center_radius_offset, dict):
+                            pad = bond_center_radius_offset['padding']
+                            rz1 = (radii[atom1]**2 - (bond_radius+pad)**2)
+                            if rz1 > 0:
+                                rz1 = np.sqrt(rz1)
+                                rz12 = (radii[atom1]**2 - (bond_radius+pad+multiple_bond_spacing)**2)
+                                if rz12 > 0:
+                                    rzd = rz1 - np.sqrt(rz12)
+                                else:
+                                    rzd = rz1
+                                p1 = p1 - rzd * nv
+
+                            rz2 = (radii[atom2]**2 - (bond_radius+pad)**2)
+                            if rz2 > 0:
+                                rz2 = np.sqrt(rz2)
+                                rz22 = (radii[atom2]**2 - (bond_radius+pad+multiple_bond_spacing)**2)
+                                if rz22 > 0:
+                                    rzd = rz2 - np.sqrt(rz22)
+                                else:
+                                    rzd = rz2
+                                p2 = p2 + rzd * nv
 
                         if b[2] <= 2:
 
