@@ -3997,29 +3997,47 @@ class MolecoolsTests(TestCase):
     @debugTest
     def test_PlotlyBackend(self):
 
-        bits = Molecule.from_file(TestManager.test_data("water_freq.fchk"))
-        bits.plot(
-            backend=(
-                # 'matplotlib3D'
-                # 'x3d'
-                'plotly'
-            ),
-            # principle_axes=True,
-            image_size=[500, 500],
-            # theme='flat',
-            # draw_coords={
-            #     (0, 1, 2): {'label': r'$\theta$',
-            #                 'label_style': {
-            #                     'offset_magnitude': 1.1,
-            #                     'billboard': True,
-            #                     'color': 'red', 'fontsize': 24
-            #                 }}
-            # },
-            # highlight_atoms=[0, 1, 2],
-            # view_settings={
-            #     # 'view_distance':200,
-            #     'view_vector': [0, 0, 1],
-            # },
-            include_save_buttons=True
-        ).show()  # .savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
-        # return
+        uuh2 = Molecule.from_string("C1CCOCC1", "smi")
+        # uuh2 = Molecule.from_file(TestManager.test_data("water_freq.fchk"))
+        ploot = uuh2.get_embedded_molecule().plot(backend='plotly',
+                                          include_save_buttons=True,
+                                          highlight_atoms=[0, 1, 2],
+                                          draw_coords={
+                                              (0, 1, 2):{
+                                                  'label':"\u03B8",
+                                                  'label_style':{'color':'red'}
+                                              }
+                                          },
+                                          view_settings={
+                                              'view_vector': [0, 0, 1],
+                                              # 'view_distance': 5
+                                          })
+        # ploot.to_widget().write("/Users/Mark/Desktop/why.html")
+        ploot.show()
+
+        # bits = Molecule.from_file(TestManager.test_data("water_freq.fchk"))
+        # bits.plot(
+        #     backend=(
+        #         # 'matplotlib3D'
+        #         # 'x3d'
+        #         'plotly'
+        #     ),
+        #     # principle_axes=True,
+        #     image_size=[500, 500],
+        #     # theme='flat',
+        #     # draw_coords={
+        #     #     (0, 1, 2): {'label': r'$\theta$',
+        #     #                 'label_style': {
+        #     #                     'offset_magnitude': 1.1,
+        #     #                     'billboard': True,
+        #     #                     'color': 'red', 'fontsize': 24
+        #     #                 }}
+        #     # },
+        #     # highlight_atoms=[0, 1, 2],
+        #     # view_settings={
+        #     #     # 'view_distance':200,
+        #     #     'view_vector': [0, 0, 1],
+        #     # },
+        #     include_save_buttons=True
+        # ).show()  # .savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
+        # # return
