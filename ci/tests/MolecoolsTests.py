@@ -4019,6 +4019,7 @@ class MolecoolsTests(TestCase):
             # view_settings={
             #     # 'view_distance':200,
             #     'view_vector': [0, 0, 1],
-            # }
+            # },
+            include_save_buttons=True
         ).show()  # .savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
-        return
+        # return
