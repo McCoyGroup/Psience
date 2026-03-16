@@ -4295,6 +4295,7 @@ class Molecule(AbstractMolecule):
                 'bond_radius': .15,
                 'multiple_bond_spacing': .2,
                 'bond_center_radius_offset': {'padding':.065}, # percentage of radius
+                'label_style': {'font_size': 25},
                 'cylinder_options': {
                     'edge_width': .1,
                     'edge_color': 'black',
@@ -4310,6 +4311,7 @@ class Molecule(AbstractMolecule):
                 'bond_radius': 0,
                 'bond_style': {'color': 'none'},
                 'multiple_bond_spacing': .1,
+                'label_style': {'font_size': 25},
                 'cylinder_options': {
                     'edge_width': .05,
                     'edge_color': 'black',
@@ -4937,9 +4939,9 @@ class Molecule(AbstractMolecule):
             graphics_opts['box_ratios'] = graphics_opts.get('box_ratios', 'auto')
             graphics_opts['aspect_ratio'] = graphics_opts.get('aspect_ratio', 'equal')
             graphics_opts['frame'] = graphics_opts.get('frame', False)
-            pr = plot_ops.get('plot_range', None)
-            plot_ops['plot_range'] = self._default_plot_range(geometries, pr, plot_range_padding, atom_radius_scaling * radii)
-            plot_ops['autoscale'] = plot_ops.get('autoscale', False)
+            pr = graphics_opts.get('plot_range', None)
+            graphics_opts['plot_range'] = self._default_plot_range(geometries, pr, plot_range_padding, atom_radius_scaling * radii)
+            graphics_opts['autoscale'] = graphics_opts.get('autoscale', False)
         elif backend == 'plotly3D':
             graphics_opts['box_ratios'] = graphics_opts.get('box_ratios', 'cube')
             graphics_opts['frame'] = graphics_opts.get('frame', False)
@@ -5620,8 +5622,7 @@ class Molecule(AbstractMolecule):
             return figure
 
     def get_animation_geoms(self, which, extent=.35, steps=8, strip_embedding=True, units=None,
-                            coordinate_expansion=None
-                            ):
+                            coordinate_expansion=None):
         if isinstance(which, int):
             if coordinate_expansion is None:
                 coordinate_expansion = self.get_cartesians_by_internals(2, strip_embedding=strip_embedding)
