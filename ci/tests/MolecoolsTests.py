@@ -4069,22 +4069,27 @@ class MolecoolsTests(TestCase):
              [-2.73132791e+00, -3.93039213e-01, -3.79281507e+00]]
             ## u/flip: (array([ 0., -0., -1.]), array([ 0.781, -0.624,  0.   ]), array([-0.781, -0.624,  0.   ]), -0.975)
         )
-        ploot = uuh3.plot(backend='x3d',
-                          include_save_buttons=True,
+        ploot = uuh3.plot(backend='matplotlib3D',
+                          # include_save_buttons=True,
+                          # include_script_interface=True,
                           highlight_atoms=[0, 1, 2],
                           draw_coords={
+                              (0, 4): {
+                                  'label': 'r',
+                                  'label_style': {'color': 'blue', 'font_size': 20}
+                              },
                               (0, 1, 2): {
-                                  'label': "\u03B8",
-                                  'label_style': {'color': 'red', 'billboard': True}
+                                  'label': "q",
+                                  'label_style': {'color': 'red', 'font_size':32, 'font_family':'serif'}
                               }
                           },
                           view_settings={
                               'view_vector': [0, 0, 1],
                               # 'view_distance': 5
                           })
-        # print(ploot.to_widget().tostring())
-        # ploot.to_widget().write("/Users/Mark/Desktop/why.html")
-        ploot.show()
+        # print(ploot.tostring())
+        ploot.write("/Users/Mark/Desktop/why.html")
+        # ploot.show()
 
         # bits = Molecule.from_file(TestManager.test_data("water_freq.fchk"))
         # bits.plot(

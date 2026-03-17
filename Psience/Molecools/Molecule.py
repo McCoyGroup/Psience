@@ -3684,7 +3684,8 @@ class Molecule(AbstractMolecule):
         'line_thickness':.05
     }
     draw_coords_label_style = {
-        'color':'black'
+        'color':'black',
+        'billboard':True
     }
     backend_options_resolution = {
         'mode_vectors':'x3d',
@@ -3746,6 +3747,7 @@ class Molecule(AbstractMolecule):
         block.append('select none')
         return block
     def _prep_jsmol_load_script(self,
+                                geom=None,
                                 background=None,
                                 atom_style=None,
                                 bond_style=None,
@@ -3761,6 +3763,8 @@ class Molecule(AbstractMolecule):
                                 jsmol_load_script=None,
                                 atom_offset=0,
                                 use_default_bonds=True,
+                                draw_coords=None,
+                                draw_coords_style=None,
                                 **ignored
                                 ):
         if jsmol_load_script is not None:
@@ -3957,6 +3961,92 @@ class Molecule(AbstractMolecule):
                         'label %i'
                     )
                 )
+
+        if draw_coords is not None:
+            draw_coords, draw_coords_style = self._prep_display_draw_coords(draw_coords, draw_coords_style)
+            no_hover = False
+            draw_font = None
+            for n, (k, v) in enumerate(draw_coords.items()):
+                if isinstance(v, str):
+                    v = {'label': v}
+                props = dict(draw_coords_style, **v)
+                id = None
+                style = None
+                label_props = None
+                if len(k) == 2:
+                    id = f'bondline{n}'
+                    points, label_props, style, label_style = self._prep_draw_line(
+                        geom, k, props,
+                        default_label_style=self.draw_coords_label_style,
+                        line_class=None,
+                        theme_function=None,
+                        plotos={},
+                        line_options={}
+                    )
+                    points = " ".join(f"{{{x:.3f} {y:.3f} {z:.3f}}}" for x, y, z in points)
+                    bits.append(f'draw ID {id} LINE {points}')
+                elif len(k) == 3:
+                    id = f'bondang{n}'
+                    arc_props, label_props, style, label_style = self._prep_draw_arc(
+                        geom, k, props,
+                        up_vector=[0, 0, 1],
+                        default_label_style=self.draw_coords_label_style,
+                        disk_class=None,
+                        theme_function=None,
+                        plotos={},
+                        disk_options={}
+                    )
+                    if 'line_color' in style:
+                        style['color'] = style.get('color', style['line_color'])
+                    yy, axes, _, radius = arc_props
+                    density = style.pop('angular_density', None)
+                    normal, offset_angle, span_angle = nput.angle_arc_parameters(*axes)
+                    points = nput.arc_points(yy, normal, radius, offset_angle, span_angle, angular_density=density)
+                    points = " ".join(f"{{{x:.3f} {y:.3f} {z:.3f}}}" for x,y,z in points)
+                    bits.append(f'draw ID {id} CURVE {points}')
+                else:
+                    ...
+
+                if id is not None and style is not None:
+                    color = style.pop('color', None)
+                    if color is not None:
+                        bits.append(f'color ${id} {color}')
+
+                if label_props is not None:
+                    label, label_props = label_props[0], label_props[1:]
+                    if label is not None:
+                        # if not no_hover:
+                        #     bits.append('set drawHover False')
+                        #     no_hover = True
+                        if nput.is_numeric(label_props[0]):
+                            points = label_props
+                        else:
+                            points = label_props[0]
+                        x,y,z = points
+                        points = f"{{{x:.3f} {y:.3f} {z:.3f}}}"
+                        title_command = f'TITLE "{label}"'
+                        label_color = label_style.get('color', label_style.get('font_color'))
+                        if label_color is not None:
+                            title_command = f'{title_command} TITLE COLOR {label_color}'
+                        font_command = ""
+                        font_size = label_style.get('font_size')
+                        if font_size is not None:
+                            font_command = f'{font_command} {font_size}'.strip()
+                            label_style['font_family'] = label_style.get('font_family', "sansserif")
+                            label_style['font_type'] = label_style.get('font_type', "plain")
+                        font_face = label_style.get('font_family')
+                        if font_face is not None:
+                            font_command = f'{font_command} {font_face}'.strip()
+                        font_type = label_style.get('font_type')
+                        if font_type is not None:
+                            font_command = f'{font_command} {font_type}'.strip()
+                        bits.append(f'draw ID {id}label LINE [{points} {points}] {title_command} DIAMETER .01')
+                        if len(font_command) > 0:
+                            draw_font = font_command
+            if draw_font is not None:
+                #JSMol is broken and its documentation is wrong, only one font style is supported
+                bits.append(f'FONT draw {draw_font}')
+
         return bits
 
     def _prep_jsmol_plot_opts(self,
@@ -3968,6 +4058,7 @@ class Molecule(AbstractMolecule):
                               extra_opts=None,
                               figure=None,
                               atom_offset=0,
+                              draw_coords=None,
                               **etc
                               ):
         if extra_opts is None:
@@ -4007,12 +4098,17 @@ class Molecule(AbstractMolecule):
         background = extra_opts.get('background')
 
         if script is None:
+            if geometries is None:
+                geometries = self.coords
+            geometries = geometries * UnitsData.convert("BohrRadius", "Angstroms")
             script = prev_script + self._prep_jsmol_load_script(
+                geom=geometries,
                 atom_offset=atom_offset,
                 jsmol_load_script=jsmol_load_script,
                 background=background,
                 use_default_radii=use_default_radii,
                 use_default_bonds=use_default_bonds,
+                draw_coords=draw_coords,
                 **etc
             )
 
@@ -4372,6 +4468,971 @@ class Molecule(AbstractMolecule):
             pr = (px, py, pz)
         return pr
 
+    def _prep_display_atom_style(self,
+                                 atom_style,
+                                 highlight_atoms,
+                                 *,
+                                 backend,
+                                 reflectiveness,
+                                 highlight_styles
+                                 ):
+        colors = [ at["IconColor"] for at in self._ats ]
+        glows = [ None for at in self._ats ]
+        if atom_style is None or atom_style is True:
+            atom_style = {}
+        elif atom_style is False:
+            ...
+        elif not isinstance(atom_style, dict):
+            atom_style = {i: a for i, a in enumerate(atom_style)}
+
+        if atom_style is not False:
+            base_atom_style = {}
+            if reflectiveness is not None and backend == 'x3d':
+                base_atom_style.update({
+                    'specularity': 'white',
+                    'shininess': 100 * np.clip(1.1 - reflectiveness, 0, 1)
+                })
+            _atom_style = {i: {} for i in range(len(self._ats))}
+            for k, v in atom_style.items():
+                if isinstance(k, str):
+                    base_atom_style[k] = v
+                else:
+                    _atom_style[k] = v
+            for k, v in _atom_style.items():
+                _atom_style[k] = dict(base_atom_style, **v)
+                colors[k] = v.get('color', colors[k])
+                glows[k] = v.get('glow', glows[k])
+            atom_style = _atom_style
+
+        if highlight_atoms is not None:
+            for k in highlight_atoms:
+                if k not in atom_style: atom_style[k] = {}
+                atom_style[k].update(highlight_styles)
+
+        return atom_style, highlight_atoms, colors, glows
+
+    def _prep_display_bond_style(self,
+                                 bond_style,
+                                 highlight_bonds,
+                                 *,
+                                 backend,
+                                 reflectiveness,
+                                 highlight_atoms,
+                                 highlight_styles,
+                                 capped_bonds):
+        if bond_style is None or bond_style is True:
+            bond_style = {}
+        elif bond_style is False:
+            ...
+        elif not isinstance(bond_style, dict):
+            bond_style = {i:a for i,a in enumerate(bond_style)}
+
+        if bond_style is not False:
+            base_bond_style = {}
+            if capped_bonds:
+                base_bond_style['capped'] = True
+            if reflectiveness is not None and backend == 'x3d':
+                base_bond_style.update({
+                    'specularity': 'white',
+                    'shininess': 100 * np.clip(1.1 - reflectiveness, 0, 1)
+                })
+            _bond_style = {
+                (i,j):{}
+                for i,j in itertools.combinations(range(len(self._ats)), 2)
+            }
+            for k,v in bond_style.items():
+                if isinstance(k, str):
+                    base_bond_style[k] = v
+                else:
+                    _bond_style[k] = v
+            for k,v in _bond_style.items():
+                _bond_style[k] = dict(base_bond_style, **v)
+            bond_style = _bond_style
+            if highlight_bonds is None and highlight_atoms is not None:
+                highlight_bonds = highlight_atoms
+            if highlight_bonds is not None:
+                for k in highlight_bonds:
+                    if not nput.is_numeric(k): k = tuple(k)
+                    if k not in bond_style: bond_style[k] = {}
+                    bond_style[k].update(highlight_styles)
+        return bond_style, highlight_bonds
+
+    def _get_atom_radii(self, atom_radii, atom_radius_scaling, radius_type):
+        if atom_radii is None:
+            atom_radii = [None] * len(self._ats)
+        elif nput.is_numeric(atom_radii):
+            atom_radii = [atom_radii] * len(self._ats)
+        elif dev.is_dict_like(atom_radii):
+            atom_radii = [
+                atom_radii.get(i,
+                    atom_radii.get(a["ElementSymbol"])
+                ) for i,a in enumerate(self._ats)
+            ]
+        atom_radii = [
+            self._get_atomic_radius(at, radius_type)
+                if c is None else
+            c
+            for c, at in
+            zip(atom_radii, self._ats)
+        ]
+        if nput.is_numeric(atom_radius_scaling):
+            atom_radius_scaling = [atom_radius_scaling] * len(atom_radii)
+        radii = [ s * r for s, r in zip(atom_radius_scaling, atom_radii) ]
+        return radii
+
+    def _prep_display_dipole(self, geometries, dipole, dipole_origin, units):
+        if dipole is not None:
+            dipole = np.asanyarray(dipole)
+            if dipole.ndim == 1:
+                dipole = np.broadcast_to(dipole[np.newaxis], (len(geometries),) + dipole.shape)
+
+            if units is not None:
+                dipole = dipole * UnitsData.convert("BohrRadius", units)
+
+            if dipole_origin is not None:
+                dipole_origin = np.asanyarray(dipole_origin)
+                if dipole_origin.ndim == 1:
+                    dipole_origin = np.broadcast_to(
+                        dipole_origin[np.newaxis],
+                        (len(geometries),) + dipole_origin.shape
+                    )
+
+                if units is not None:
+                    dipole_origin = dipole_origin * UnitsData.convert("BohrRadius", units)
+        return dipole, dipole_origin
+
+    def _prep_principle_axes(self, geometries, units, principle_axes, principle_axes_origin, principle_axes_style):
+        if principle_axes is True:
+            _, principle_axes = nput.moments_of_inertia(geometries, self.atomic_masses)
+        elif principle_axes is False:
+            principle_axes = None
+        if principle_axes is not None:
+            if principle_axes_style is None:
+                principle_axes_style = {}
+            if isinstance(principle_axes_style, dict):
+                principle_axes_style = [principle_axes_style] * 3
+            principle_axes_style = [
+                dict(self.principle_axes_style[i], **principle_axes_style[i])
+                for i in range(3)
+            ]
+            if principle_axes is not None:
+                if principle_axes.ndim == 2:
+                    principle_axes = np.broadcast_to(
+                        principle_axes[np.newaxis],
+                        (len(geometries),) + principle_axes.shape
+                    )
+                # if units is not None:
+                #     principle_axes = principle_axes * UnitsData.convert("BohrRadius", units)
+
+            if principle_axes_origin is not None:
+                if principle_axes_origin.ndim == 1:
+                    principle_axes_origin = np.broadcast_to(
+                        principle_axes_origin[np.newaxis],
+                        (len(geometries),) + principle_axes_origin.shape
+                    )
+
+                if units is not None:
+                    principle_axes_origin = principle_axes_origin * UnitsData.convert("BohrRadius", units)
+        return principle_axes, principle_axes_origin, principle_axes_style
+
+    def _prep_display_mode_vectors(self, geometries, units, mode_vectors, mode_vector_origins):
+        if mode_vectors is not None:
+            mode_vectors = np.asanyarray(mode_vectors)
+            if mode_vectors.ndim == 1:
+                mode_vectors = np.reshape(mode_vectors, (-1, 3))
+            if mode_vectors.ndim == 2:
+                mode_vectors = np.broadcast_to(mode_vectors[np.newaxis], (len(geometries),) + mode_vectors.shape)
+
+            if units is not None:
+                mode_vectors = mode_vectors * UnitsData.convert("BohrRadius", units)
+
+            if mode_vector_origins is not None:
+                mode_vector_origins = np.asanyarray(mode_vector_origins)
+                if mode_vector_origins.ndim == 1:
+                    mode_vector_origins = np.reshape(mode_vector_origins, (-1, 3))
+                if mode_vector_origins.ndim == 2:
+                    mode_vector_origins = np.broadcast_to(mode_vector_origins[np.newaxis],
+                                                          (len(geometries),) + mode_vector_origins.shape)
+
+                if units is not None:
+                    mode_vector_origins = mode_vector_origins * UnitsData.convert("BohrRadius", units)
+
+        return mode_vectors, mode_vector_origins
+
+    def _prep_display_draw_coords(self, draw_coords, draw_coords_style):
+        if draw_coords is not None:
+            if not isinstance(draw_coords, dict):
+                draw_coords = {
+                    tuple(a):{}
+                    for a in draw_coords
+                }
+        if draw_coords_style is None:
+            draw_coords_style = self.draw_coords_style
+        return draw_coords, draw_coords_style
+
+    def _get_bond_primitives(self,
+                             geom,
+                             b,
+                             *,
+                             bond_list,
+                             bond_radius,
+                             radii,
+                             bond_center_radius_offset,
+                             multiple_bond_spacing,
+                             render_multiple_bonds,
+                             render_fractional_bonds,
+                             fractional_bond_offset,
+                             up_vector,
+                             cylinder_class,
+                             colors,
+                             glows,
+                             bond_style,
+                             theme_function,
+                             plotos,
+                             cylinder_options
+                             ):
+        atom1 = b[0]
+        atom2 = b[1]
+
+        c1 = colors[atom1]
+        c2 = colors[atom2]
+        g1 = glows[atom1]
+        g2 = glows[atom2]
+        base_bstyle = dict(
+            bond_style.get((atom2, atom1), {}),
+            **bond_style.get((atom1, atom2), {})
+        )
+        b_sty_1 = dict(
+            bond_style.get(atom1, {}),
+            **base_bstyle
+        )
+        if b_sty_1.get('color') is None:
+            b_sty_1['color'] = c1
+        if b_sty_1.get('glow') is None and g1 is not None:
+            b_sty_1['glow'] = g1
+        b_sty_1 = b_sty_1.copy()
+        modifier = b_sty_1.pop('modifier', None)
+        if modifier is not None:
+            b_sty_1 = modifier((atom1, atom2), (self.atoms[atom1], self.atoms[atom2]), b_sty_1)
+
+        b_sty_2 = dict(
+            bond_style.get(atom2, {}),
+            **base_bstyle
+        )
+        if b_sty_2.get('color') is None:
+            b_sty_2['color'] = c2
+        if b_sty_2.get('glow') is None and g2 is not None:
+            b_sty_2['glow'] = g2
+        b_sty_2 = b_sty_2.copy()
+        modifier = b_sty_2.pop('modifier', None)
+        if modifier is not None:
+            b_sty_2 = modifier((atom2, atom1), (self.atoms[atom2], self.atoms[atom1]), b_sty_2)
+
+        p1 = geom[atom1]
+        p2 = geom[atom2]
+        disp_vector = p2 - p1
+        nv, vn = nput.vec_normalize(disp_vector, return_norms=True)
+        midpoint = ((p1 + nv * radii[atom1]) + (p2 - nv * radii[atom2])) / 2
+        if bond_center_radius_offset is not None:
+            if dev.str_is(bond_center_radius_offset, 'auto'):
+                bond_center_radius_offset = {'padding': 0}
+            if isinstance(bond_center_radius_offset, dict):
+                pad = bond_center_radius_offset['padding']
+                rz1 = (radii[atom1] ** 2 - (bond_radius + pad) ** 2)
+                if rz1 > 0:
+                    rz1 = np.sqrt(rz1)
+                else:
+                    rz1 = 0
+                p1 = p1 + rz1 * nv
+                rz2 = (radii[atom2] ** 2 - (bond_radius + pad) ** 2)
+                if rz2 > 0:
+                    rz2 = np.sqrt(rz2)
+                else:
+                    rz2 = 0
+                p2 = p2 - rz2 * nv
+            else:
+                p1 = p1 + bond_center_radius_offset * radii[atom1] * nv
+                p2 = p2 - bond_center_radius_offset * radii[atom2] * nv
+
+        disp_vector = p2 - p1
+        if not render_multiple_bonds or len(b) == 2 or b[2] <= 1 or b[2] > 3:
+            bond_point_list = [
+                [p1, p2, midpoint]
+            ]
+        else:
+            if up_vector is None:
+                up_vector = [0, 0, 1]
+
+            for bb in bond_list:
+                atom3 = bb[0]
+                atom4 = bb[1]
+                if atom3 in {atom1, atom2} and atom4 not in {atom1, atom2}:
+                    u_vec = np.cross(disp_vector, geom[atom4] - geom[atom3])
+                    break
+                elif atom4 not in {atom1, atom2} and atom3 in {atom1, atom2}:
+                    u_vec = np.cross(disp_vector, geom[atom3] - geom[atom4])
+                    break
+            else:
+                u_vec = up_vector
+            if multiple_bond_spacing is None:
+                multiple_bond_spacing = bond_radius * 1.1
+
+            axis = nput.vec_normalize(
+                np.cross(disp_vector, u_vec)
+            )
+
+            if render_fractional_bonds:
+                dr = (b[2] - int(b[2]))
+                if dr > .05:
+                    dr = dr * fractional_bond_offset
+                    dr = (1 - dr) / 2
+                    p10 = p1 + disp_vector * dr
+                    p20 = p2 - disp_vector * dr
+                else:
+                    p10 = p1
+                    p20 = p2
+            else:
+                p10 = p1
+                p20 = p2
+
+            if isinstance(bond_center_radius_offset, dict):
+                pad = bond_center_radius_offset['padding']
+                rz1 = (radii[atom1] ** 2 - (bond_radius + pad) ** 2)
+                if rz1 > 0:
+                    rz1 = np.sqrt(rz1)
+                    rz12 = (radii[atom1] ** 2 - (bond_radius + pad + multiple_bond_spacing) ** 2)
+                    if rz12 > 0:
+                        rzd = rz1 - np.sqrt(rz12)
+                    else:
+                        rzd = rz1
+                    p1 = p1 - rzd * nv
+
+                rz2 = (radii[atom2] ** 2 - (bond_radius + pad) ** 2)
+                if rz2 > 0:
+                    rz2 = np.sqrt(rz2)
+                    rz22 = (radii[atom2] ** 2 - (bond_radius + pad + multiple_bond_spacing) ** 2)
+                    if rz22 > 0:
+                        rzd = rz2 - np.sqrt(rz22)
+                    else:
+                        rzd = rz2
+                    p2 = p2 + rzd * nv
+
+            if b[2] <= 2:
+
+                p11 = p10 - axis * multiple_bond_spacing
+                p21 = p20 - axis * multiple_bond_spacing
+                mp1 = midpoint - axis * multiple_bond_spacing
+
+                p12 = p1 + axis * multiple_bond_spacing
+                p22 = p2 + axis * multiple_bond_spacing
+                mp2 = midpoint + axis * multiple_bond_spacing
+                bond_point_list = [
+                    [p11, p21, mp1],
+                    [p12, p22, mp2]
+                ]
+            else:
+                dx = (multiple_bond_spacing)
+
+                u_vec = nput.vec_normalize(u_vec)
+
+                dv = axis * dx
+                p11 = p10 - dv
+                p21 = p20 - dv
+                mp1 = midpoint - dv
+
+                dv = (np.cos(2 * np.pi / 3) * axis + np.sin(2 * np.pi / 3) * u_vec) * dx
+                p12 = p1 - dv
+                p22 = p2 - dv
+                mp2 = midpoint - dv
+
+                dv = (np.cos(2 * np.pi / 3) * axis - np.sin(2 * np.pi / 3) * u_vec) * dx
+                p13 = p1 - dv
+                p23 = p2 - dv
+                mp3 = midpoint - dv
+                bond_point_list = [
+                    [p11, p21, mp1],
+                    [p12, p22, mp2],
+                    [p13, p23, mp3],
+                ]
+
+        bond_objs = []
+        for pp1, pp2, mp in bond_point_list:
+            sty1 = (plotos | cylinder_options | b_sty_1)
+            if theme_function is not None:
+                sty1 = theme_function((atom1, atom2), cylinder_class, sty1)
+            cc1 = cylinder_class(
+                pp1,
+                mp,
+                bond_radius,
+                **sty1
+            )
+            sty2 = (plotos | cylinder_options | b_sty_2)
+            if theme_function is not None:
+                sty2 = theme_function((atom2, atom1), cylinder_class, sty2)
+            cc2 = cylinder_class(
+                mp,
+                pp2,
+                bond_radius,
+                **sty2
+            )
+            bond_objs.extend([cc1, cc2])
+
+        return bond_objs
+
+    def _get_bondlist_primitives(self,
+                                 geom,
+                                 bond_list,
+                                 *,
+                                 bond_radius,
+                                 radii,
+                                 bond_center_radius_offset,
+                                 multiple_bond_spacing,
+                                 render_multiple_bonds,
+                                 render_fractional_bonds,
+                                 fractional_bond_offset,
+                                 up_vector,
+                                 cylinder_class,
+                                 colors,
+                                 glows,
+                                 bond_style,
+                                 theme_function,
+                                 plotos,
+                                 cylinder_options
+                                 ):
+        all_bonds = []
+        for j, b in enumerate(bond_list):
+            all_bonds.append(
+                self._get_bond_primitives(
+                    geom,
+                    b,
+                    bond_list=bond_list,
+                    bond_radius=bond_radius,
+                    radii=radii,
+                    bond_center_radius_offset=bond_center_radius_offset,
+                    multiple_bond_spacing=multiple_bond_spacing,
+                    render_multiple_bonds=render_multiple_bonds,
+                    render_fractional_bonds=render_fractional_bonds,
+                    fractional_bond_offset=fractional_bond_offset,
+                    up_vector=up_vector,
+                    cylinder_class=cylinder_class,
+                    colors=colors,
+                    glows=glows,
+                    bond_style=bond_style,
+                    theme_function=theme_function,
+                    plotos=plotos,
+                    cylinder_options=cylinder_options
+                )
+            )
+        return all_bonds
+
+    def _get_atom_primitives(self,
+                             geom,
+                             atoms,
+                             *,
+                             colors,
+                             radii,
+                             sphere_class,
+                             atom_style,
+                             theme_function,
+                             plotos,
+                             sphere_options
+                             ):
+        atom_objs = []
+        for j, stuff in enumerate(zip(colors, radii, geom)):
+            color, radius, coord = stuff
+            a_sty = atom_style.get(j, {})
+            if a_sty.get('color') is None:
+                a_sty['color'] = color
+            a_sty = a_sty.copy()
+            modifier = a_sty.pop('modifier', None)
+            if modifier is not None:
+                a_sty = modifier(j, self.atoms[j], a_sty)
+
+            asty = (plotos | sphere_options | a_sty)
+            if theme_function is not None:
+                asty = theme_function(j, sphere_class, asty)
+            sphere = sphere_class(coord, radius, **asty)
+            atom_objs.append(sphere)
+        return atom_objs
+
+    def _get_dipole_primitives(self,
+                               geom,
+                               dip,
+                               *,
+                               dipole_origin,
+                               dipole_origin_mode,
+                               mode_vector_display_cutoff,
+                               arrow_class,
+                               theme_function,
+                               plotos,
+                               vector_style
+                               ):
+        dipole_primitives = []
+        if np.linalg.norm(dip) > mode_vector_display_cutoff:
+            if dipole_origin is None or dipole_origin_mode == 'shift':
+                com = np.tensordot(self.masses, geom, axes=[0, 0]) / np.sum(self.masses)
+                if dipole_origin is not None:
+                    com = com + dipole_origin
+            else:
+                com = dipole_origin
+            sty = (plotos | vector_style)
+            if theme_function is not None:
+                sty = theme_function(None, arrow_class, sty)
+            dipole_arrow = arrow_class(
+                com,
+                com + dip,
+                **sty
+            )
+            dipole_primitives.append(dipole_arrow)
+        return dipole_primitives
+
+    def _get_pax_primitives(self,
+                            geom,
+                            pax:np.ndarray,
+                            *,
+                            principle_axes_origin,
+                            principle_axes_origin_mode,
+                            principle_axes_style,
+                            arrow_class,
+                            theme_function,
+                            plotos,
+                            vector_style
+                            ):
+        pax_objs = []
+        if principle_axes_origin is None or principle_axes_origin_mode == 'shift':
+            com = np.tensordot(self.masses, geom, axes=[0, 0]) / np.sum(self.masses)
+            if principle_axes_origin is not None:
+                com = com + principle_axes_origin
+        else:
+            com = principle_axes_origin
+        for ax, sty in zip(pax.T, principle_axes_style):
+            sty = (plotos | vector_style | sty)
+            if theme_function is not None:
+                sty = theme_function(None, arrow_class, sty)
+            pax_arrow = arrow_class(
+                com,
+                com + ax,
+                **sty
+            )
+            pax_objs.append(pax_arrow)
+        return pax_objs
+
+    def _get_draw_line_points(self, geom, k, v):
+        # draw bond
+        # draw angle
+        xx, yy = k
+        if nput.is_int(xx):
+            xx = geom[xx]
+        elif callable(xx):
+            xx = xx(geom)
+        if nput.is_int(yy):
+            yy = geom[yy]
+        elif callable(yy):
+            yy = yy(geom)
+
+        zz = v.pop('ref', None)
+        if zz is not None:
+            if nput.is_int(zz):
+                zz = geom[zz]
+            elif callable(zz):
+                zz = zz(geom)
+            zz = np.asanyarray(zz)
+
+        xx = np.asanyarray(xx)
+        yy = np.asanyarray(yy)
+        if zz is not None:
+            normal = nput.vec_crosses(xx - yy, zz - yy)
+        else:
+            normal = [0, 1, 0]
+        offset = np.array(v.pop('offset', [0, 0, 0]))
+        points = [xx + offset, yy + offset]
+        return points, zz, normal
+
+    def _get_draw_line_label_props(self, xx, yy, zz, v,
+                                   *,
+                                   normal,
+                                   default_label_style
+                                   ):
+        label = v.pop('label', None)
+        if label is not None:
+            label_style = dict(default_label_style, **v.pop('label_style', {}))
+            label_style['billboard'] = label_style.get('billboard',
+                                                       zz is None and 'normal' not in label_style)
+            if not label_style['billboard']:
+                label_style['normal'] = label_style.get('normal', normal)
+            offset_magnitude = label_style.pop('offset_magnitude', .2)
+            offset_axis = nput.vec_crosses(xx - yy, label_style.get('normal', normal), normalize=True)
+            label_offset = np.asanyarray(label_style.pop('offset', offset_magnitude * offset_axis))
+            label_center = (xx + yy) / 2 + label_offset
+            label_props = label, label_center
+        else:
+            label_props = None
+            label_style = None
+        return label_props, label_style
+
+    def _prep_draw_line(self,
+                        geom,
+                        key,
+                        props,
+                        *,
+                        default_label_style,
+                        line_class,
+                        theme_function,
+                        plotos,
+                        line_options
+                        ):
+
+        (xx, yy), zz, normal = self._get_draw_line_points(geom, key, props)
+        color = props.pop('line_color', props.pop('color', 'black'))
+
+        label_props, label_style = self._get_draw_line_label_props(xx, yy, zz, props,
+                                                                   normal=normal,
+                                                                   default_label_style=default_label_style)
+
+        sty = (plotos | line_options | dict(color=color) | props)
+        if theme_function is not None:
+            sty = theme_function(None, line_class, sty)
+
+        return (xx, yy), label_props, sty, label_style
+    def _get_draw_coords_line(self,
+                              geom,
+                              key,
+                              props,
+                              *,
+                              default_label_style,
+                              line_class,
+                              theme_function,
+                              plotos,
+                              line_options
+                              ):
+        prims = []
+
+        points, label_props, sty, label_style = self._prep_draw_line(
+            geom,
+            key,
+            props,
+            default_label_style=default_label_style,
+            line_class=line_class,
+            theme_function=theme_function,
+            plotos=plotos,
+            line_options=line_options
+        )
+
+        arc = line_class(points, **sty)
+        prims.append(arc)
+
+        if label_props is not None:
+            label, label_center = label_props
+            lab = plt.Text(
+                label, label_center,
+                **(plotos | label_style)
+            )
+            prims.append(lab)
+
+        return prims
+
+    def _prep_draw_arc_points(self,
+                              geom,
+                              k,
+                              v):
+        # draw angle
+        xx, yy, zz = k
+        if nput.is_int(xx):
+            xx = geom[xx]
+        elif callable(xx):
+            xx = xx(geom)
+        if nput.is_int(yy):
+            yy = geom[yy]
+        elif callable(yy):
+            yy = yy(geom)
+        if nput.is_int(zz):
+            zz = geom[zz]
+        elif callable(zz):
+            zz = zz(geom)
+
+        yy = np.asanyarray(yy)
+        axes = v.pop('axes', None)
+        if axes is None:
+            xx = np.asanyarray(xx)
+            zz = np.asanyarray(zz)
+            axes = [xx - yy, zz - yy]
+        radius = v.pop('radius', None)
+        if radius is None:
+            radius = min([
+                np.linalg.norm(axes[0]),
+                np.linalg.norm(axes[1]),
+            ])
+        angle = v.pop('angle', None)
+        if angle is None:
+            angle = nput.vec_angles(*axes, return_crosses=False)
+
+        return (xx,yy,zz), angle, axes, radius
+
+    def _prep_draw_arc_label(self,
+                             yy, angle, axes,
+                             label, label_style, up_vector):
+        label_offset = np.asanyarray(label_style.pop('offset', [0, 0, 0]))
+        label_normal = label_style.pop('normal', None)
+        if label_normal is None:
+            label_normal = nput.vec_crosses(*axes, normalize=True)
+            if np.linalg.norm(label_normal) < 1e-8:
+                if up_vector is None:
+                    up_vector = [0, 0, 1]
+                label_normal = nput.vec_crosses(axes[0], up_vector, normalize=True)
+        label_billboard = np.asanyarray(label_style.pop('billboard', False))
+        offset_magnitude = label_style.pop('offset_magnitude', .8)
+        label_center = np.dot(
+            axes[0] * offset_magnitude,
+            nput.rotation_matrix(label_normal, -angle / 2)
+        ) + yy
+        return label, label_offset + label_center, label_normal, label_billboard
+
+    def _prep_draw_arc(self,
+                       geom, key, props,
+                       *,
+                       up_vector,
+                       default_label_style,
+                       disk_class,
+                       theme_function,
+                       plotos,
+                       disk_options
+                       ):
+
+        v = props
+        (xx, yy, zz), angle, axes, radius = self._prep_draw_arc_points(geom, key, props)
+
+        label = v.pop('label', None)
+        label_style = dict(default_label_style, **v.pop('label_style', {}))
+        sty = (plotos | disk_options | v)
+        if theme_function is not None:
+            sty = theme_function(None, disk_class, sty)
+
+        if label is not None:
+            label_props = self._prep_draw_arc_label(
+                yy, angle, axes,
+                label, label_style, up_vector
+            )
+        else:
+            label_props = None
+
+        return (yy, axes, angle, radius), label_props, sty, label_style
+
+    def _get_draw_coords_arc(self,
+                             geom,
+                             key,
+                             props,
+                             *,
+                             up_vector,
+                             default_label_style,
+                             disk_class,
+                             theme_function,
+                             plotos,
+                             disk_options
+                             ):
+        prims = []
+
+        arc_props, label_props, sty, label_style = self._prep_draw_arc(
+            geom, key, props,
+            up_vector=up_vector,
+            default_label_style=default_label_style,
+            disk_class=disk_class,
+            theme_function=theme_function,
+            plotos=plotos,
+            disk_options=disk_options
+        )
+
+        yy, axes, angle, radius = arc_props
+        arc = disk_class(
+            yy,
+            uv_axes=axes,
+            angle=angle,
+            radius=radius,
+            **sty
+        )
+        prims.append(arc)
+
+        if label_props is not None:
+            label, center, normal, billboard = label_props
+            lab = plt.Text(
+                label,
+                center,
+                billboard=billboard,
+                normal=normal,
+                **(plotos | label_style)
+            )
+            prims.append(lab)
+
+
+        return prims
+
+    def _get_atom_text_primitives(self,
+                                  geom,
+                                  atom_text,
+                                  *,
+                                  radii,
+                                  plotos):
+        prims = []
+        for a, r, t in zip(geom, radii, atom_text):
+            if t is None: continue
+
+            if not isinstance(t, dict):
+                t = {"text": t}
+            t = t.copy()
+            text = t.pop('text')
+            if nput.is_numeric(text):
+                text = str(text)
+            pos = t.pop('pos', a + t.pop('offset', np.array([r / 2, r / 2, r])))
+            fs = t.pop('font_style', {})
+            fs['size'] = fs.get('size', .5)
+            t['font_style'] = fs
+            t['billboard'] = t.get('billboard', True)
+            t['color'] = t.get('color', 'black')
+            lab = plt.Text(text, pos, **(plotos | t))
+            prims.append(lab)
+        return prims
+
+    def _get_draw_coords_dihed(self,
+                               geom,
+                               key,
+                               props,
+                               *,
+                               default_label_style,
+                               disk_class,
+                               theme_function,
+                               plotos,
+                               disk_options
+                               ):
+        prims = []
+        k = key
+        v = props
+
+        # draw angle
+        xx, yy, zz, ll = k
+        if nput.is_int(xx):
+            xx = geom[xx]
+        elif callable(xx):
+            xx = xx(geom)
+        if nput.is_int(yy):
+            yy = geom[yy]
+        elif callable(yy):
+            yy = yy(geom)
+        if nput.is_int(zz):
+            zz = geom[zz]
+        elif callable(zz):
+            zz = zz(geom)
+        if nput.is_int(ll):
+            ll = geom[ll]
+        elif callable(ll):
+            ll = ll(geom)
+
+        xx = np.asanyarray(xx)
+        yy = np.asanyarray(yy)
+        zz = np.asanyarray(zz)
+        ll = np.asanyarray(ll)
+
+        normal = yy - zz
+        ax1 = nput.project_out((xx - yy), normal[:, np.newaxis])
+        ax2 = nput.project_out((ll - zz), normal[:, np.newaxis])
+        angle = v.pop('angle', None)
+        if angle is None:
+            angle = nput.pts_dihedrals(xx, yy, zz, ll)
+
+        c2 = (yy + zz) / 2
+        if np.linalg.norm(ax1) < np.linalg.norm(ax2):
+            c1 = c2 + ax1
+        else:
+            c1 = c2 + ax2
+            normal = -normal
+        axis = c1 - c2
+        c3 = np.dot(
+            axis,
+            nput.rotation_matrix(normal, angle)
+        ) + c2
+        axes = [
+            axis,
+            c3 - c2,
+        ]
+        if np.dot(np.cross(*axes), normal) < 0:
+            normal = -normal
+
+        radius = v.pop('radius', None)
+        if radius is None:
+            radius = np.linalg.norm(axis)
+            # angle=nput.vec_angles(*axes, return_crosses=False)
+
+        label = v.pop('label', None)
+        label_style = dict(default_label_style, **v.pop('label_style', {}))
+        sty = (plotos | disk_options | v)
+        if theme_function is not None:
+            sty = theme_function(None, disk_class, sty)
+        arc = disk_class(
+            c2,
+            uv_axes=axes,
+            normal=normal,
+            angle=angle,
+            radius=radius,
+            **sty
+        )
+        prims.append(arc)
+
+        if label is not None:
+            label_offset = np.asanyarray(label_style.pop('offset', [0, 0, 0]))
+            label_normal = label_style.pop('normal', None)
+            if label_normal is None:
+                label_normal = normal
+                # if np.linalg.norm(label_normal) < 1e-8:
+                #     if up_vector is None:
+                #         up_vector = [0, 0, 1]
+                #     label_normal = nput.vec_crosses(axes[0], up_vector, normalize=True)
+            label_billboard = np.asanyarray(label_style.pop('billboard', False))
+            offset_magnitude = label_style.pop('offset_magnitude', .8)
+            label_center = np.dot(
+                axes[0] * offset_magnitude,
+                nput.rotation_matrix(label_normal, -angle / 2)
+            ) + c2
+            lab = plt.Text(
+                label,
+                label_center + label_offset,
+                billboard=label_billboard,
+                normal=label_normal,
+                **(plotos | label_style)
+            )
+            prims.append(lab)
+
+        return prims
+
+    def _get_mode_vector_primitives(self,
+                                    geom,
+                                    mode_vectors,
+                                    *,
+                                    mode_vector_display_cutoff,
+                                    mode_vector_origins,
+                                    mode_vector_origin_mode,
+                                    arrow_class,
+                                    theme_function,
+                                    plotos,
+                                    vector_style
+                                    ):
+        mode_arrows = []
+        for j, v in enumerate(mode_vectors):
+            if np.linalg.norm(v) > mode_vector_display_cutoff:
+                if mode_vector_origins is None or mode_vector_origin_mode == 'shift':
+                    com = geom[j]
+                    if mode_vector_origins is not None:
+                        com = com + mode_vector_origins[j]
+                else:
+                    com = mode_vector_origins[j]
+                sty = (plotos | vector_style)
+                if theme_function is not None:
+                    sty = theme_function(None, arrow_class, sty)
+                mode_arrow = arrow_class(
+                    com,
+                    com + v,
+                    **sty
+                )
+                mode_arrows.append(mode_arrow)
+        return mode_arrows
+
     def plot(self,
              *geometries,
              figure=None,
@@ -4707,113 +5768,23 @@ class Molecule(AbstractMolecule):
         if animate is None:
             animate = geometries.shape[0] > 1
 
-        if dipole is not None:
-            dipole = np.asanyarray(dipole)
-            if dipole.ndim == 1:
-                dipole = np.broadcast_to(dipole[np.newaxis], (len(geometries),) + dipole.shape)
+        dipole, dipole_origin = self._prep_display_dipole(geometries, dipole, dipole_origin, units)
+        principle_axes, principle_axes_origin, principle_axes_style = self._prep_principle_axes(
+            geometries, units, principle_axes, principle_axes_origin, principle_axes_style
+        )
+        mode_vectors, mode_vector_origins = self._prep_display_mode_vectors(
+            geometries, units,
+            mode_vectors, mode_vector_origins
+        )
 
-            if units is not None:
-                dipole = dipole * UnitsData.convert("BohrRadius", units)
-
-        if principle_axes is True:
-            _, principle_axes = nput.moments_of_inertia(geometries, self.atomic_masses)
-        elif principle_axes is False:
-            principle_axes = None
-        if principle_axes is not None:
-            if principle_axes_style is None:
-                principle_axes_style = {}
-            if isinstance(principle_axes_style, dict):
-                principle_axes_style = [principle_axes_style] * 3
-            principle_axes_style = [
-                dict(self.principle_axes_style[i], **principle_axes_style[i])
-                for i in range(3)
-            ]
-            if principle_axes is not None:
-                if principle_axes.ndim == 2:
-                    principle_axes = np.broadcast_to(
-                        principle_axes[np.newaxis],
-                        (len(geometries),) + principle_axes.shape
-                    )
-                # if units is not None:
-                #     principle_axes = principle_axes * UnitsData.convert("BohrRadius", units)
-
-            if principle_axes_origin is not None:
-                if principle_axes_origin.ndim == 1:
-                    principle_axes_origin = np.broadcast_to(
-                        principle_axes_origin[np.newaxis],
-                        (len(geometries),) + principle_axes_origin.shape
-                    )
-
-                if units is not None:
-                    principle_axes_origin = principle_axes_origin * UnitsData.convert("BohrRadius", units)
-
-        if dipole_origin is not None:
-            dipole_origin = np.asanyarray(dipole_origin)
-            if dipole_origin.ndim == 1:
-                dipole_origin = np.broadcast_to(
-                    dipole_origin[np.newaxis],
-                    (len(geometries),) + dipole_origin.shape
-                )
-
-            if units is not None:
-                dipole_origin = dipole_origin * UnitsData.convert("BohrRadius", units)
-
-        if mode_vectors is not None:
-            mode_vectors = np.asanyarray(mode_vectors)
-            if mode_vectors.ndim == 1:
-                mode_vectors = np.reshape(mode_vectors, (-1, 3))
-            if mode_vectors.ndim == 2:
-                mode_vectors = np.broadcast_to(mode_vectors[np.newaxis], (len(geometries),) + mode_vectors.shape)
-
-            if units is not None:
-                mode_vectors = mode_vectors * UnitsData.convert("BohrRadius", units)
-
-        if mode_vector_origins is not None:
-            mode_vector_origins = np.asanyarray(mode_vector_origins)
-            if mode_vector_origins.ndim == 1:
-                mode_vector_origins = np.reshape(mode_vector_origins, (-1, 3))
-            if mode_vector_origins.ndim == 2:
-                mode_vector_origins = np.broadcast_to(mode_vector_origins[np.newaxis],
-                                                      (len(geometries),) + mode_vector_origins.shape)
-
-            if units is not None:
-                mode_vector_origins = mode_vector_origins * UnitsData.convert("BohrRadius", units)
-
-        if draw_coords is not None:
-            if not isinstance(draw_coords, dict):
-                draw_coords = {
-                    tuple(a):{}
-                    for a in draw_coords
-                }
-        if draw_coords_style is None:
-            draw_coords_style = self.draw_coords_style
+        draw_coords, draw_coords_style = self._prep_display_draw_coords(
+            draw_coords, draw_coords_style
+        )
 
         geometries = geometries.convert(CartesianCoordinates3D)
         draw_bonds = bonds
 
-        colors = [ at["IconColor"] for at in self._ats ]
-        glows = [ None for at in self._ats ]
-        if atom_radii is None:
-            atom_radii = [None] * len(self._ats)
-        elif nput.is_numeric(atom_radii):
-            atom_radii = [atom_radii] * len(self._ats)
-        elif dev.is_dict_like(atom_radii):
-            atom_radii = [
-                atom_radii.get(i,
-                    atom_radii.get(a["ElementSymbol"])
-                ) for i,a in enumerate(self._ats)
-            ]
-        atom_radii = [
-            self._get_atomic_radius(at, radius_type)
-                if c is None else
-            c
-            for c, at in
-            zip(atom_radii, self._ats)
-        ]
-        if nput.is_numeric(atom_radius_scaling):
-            atom_radius_scaling = [atom_radius_scaling] * len(atom_radii)
-        radii = [ s * r for s, r in zip(atom_radius_scaling, atom_radii) ]
-
+        radii = self._get_atom_radii(atom_radii, atom_radius_scaling, radius_type)
 
         bonds = [None] * len(geometries)
         atoms = [None] * len(geometries)
@@ -4822,32 +5793,6 @@ class Molecule(AbstractMolecule):
         if vector_style is None:
             vector_style = {}
         vector_style = dict(self.vector_style, **vector_style)
-
-        if atom_style is None or atom_style is True:
-            atom_style = {}
-        elif atom_style is False:
-            ...
-        elif not isinstance(atom_style, dict):
-            atom_style = {i:a for i,a in enumerate(atom_style)}
-
-        if atom_style is not False:
-            base_atom_style = {}
-            if reflectiveness is not None and backend == 'x3d':
-                base_atom_style.update({
-                    'specularity': 'white',
-                    'shininess': 100 * np.clip(1.1 - reflectiveness, 0, 1)
-                })
-            _atom_style = {i:{} for i in range(len(self._ats))}
-            for k,v in atom_style.items():
-                if isinstance(k, str):
-                    base_atom_style[k] = v
-                else:
-                    _atom_style[k] = v
-            for k,v in _atom_style.items():
-                _atom_style[k] = dict(base_atom_style, **v)
-                colors[k] = v.get('color', colors[k])
-                glows[k] = v.get('glow', glows[k])
-            atom_style = _atom_style
 
         if label_style is None:
             label_style = {}
@@ -4884,46 +5829,23 @@ class Molecule(AbstractMolecule):
                     r, r[1:] + r[:1]
                 ))
 
-        if highlight_atoms is not None:
-            for k in highlight_atoms:
-                if k not in atom_style: atom_style[k] = {}
-                atom_style[k].update(highlight_styles)
+        atom_style, highlight_atoms, colors, glows = self._prep_display_atom_style(
+            atom_style,
+            highlight_atoms,
+            backend=backend,
+            reflectiveness=reflectiveness,
+            highlight_styles=highlight_styles
+        )
 
-        if bond_style is None or bond_style is True:
-            bond_style = {}
-        elif bond_style is False:
-            ...
-        elif not isinstance(bond_style, dict):
-            bond_style = {i:a for i,a in enumerate(bond_style)}
-
-        if bond_style is not False:
-            base_bond_style = {}
-            if capped_bonds:
-                base_bond_style['capped'] = True
-            if reflectiveness is not None and backend == 'x3d':
-                base_bond_style.update({
-                    'specularity': 'white',
-                    'shininess': 100 * np.clip(1.1 - reflectiveness, 0, 1)
-                })
-            _bond_style = {
-                (i,j):{}
-                for i,j in itertools.combinations(range(len(self._ats)), 2)
-            }
-            for k,v in bond_style.items():
-                if isinstance(k, str):
-                    base_bond_style[k] = v
-                else:
-                    _bond_style[k] = v
-            for k,v in _bond_style.items():
-                _bond_style[k] = dict(base_bond_style, **v)
-            bond_style = _bond_style
-            if highlight_bonds is None and highlight_atoms is not None:
-                highlight_bonds = highlight_atoms
-            if highlight_bonds is not None:
-                for k in highlight_bonds:
-                    if not nput.is_numeric(k): k = tuple(k)
-                    if k not in bond_style: bond_style[k] = {}
-                    bond_style[k].update(highlight_styles)
+        bond_style, highlight_bonds = self._prep_display_bond_style(
+            bond_style,
+            highlight_bonds,
+            backend=backend,
+            reflectiveness=reflectiveness,
+            highlight_atoms=highlight_atoms,
+            highlight_styles=highlight_styles,
+            capped_bonds=capped_bonds
+        )
 
         if draw_bonds is None:
             draw_bonds = self.bonds
@@ -4935,6 +5857,7 @@ class Molecule(AbstractMolecule):
         default_label_style = label_style | self.draw_coords_label_style
         radii = np.asanyarray(radii)
 
+        #TODO: create overload-able function for this
         if backend == 'matplotlib3D':
             graphics_opts['box_ratios'] = graphics_opts.get('box_ratios', 'auto')
             graphics_opts['aspect_ratio'] = graphics_opts.get('aspect_ratio', 'equal')
@@ -4992,618 +5915,204 @@ class Molecule(AbstractMolecule):
                             or
                         self._ats[b[1]]["ElementSymbol"] in {"H", "X", "D"}
                 ))
-                bonds[i] = [None] * len(bond_list)
-                for j, b in enumerate(bond_list):
-                    atom1 = b[0]
-                    atom2 = b[1]
+                bond_objs = self._get_bondlist_primitives(
+                    geom,
+                    bond_list,
+                    bond_radius=bond_radius,
+                    radii=radii,
+                    bond_center_radius_offset=bond_center_radius_offset,
+                    multiple_bond_spacing=multiple_bond_spacing,
+                    render_multiple_bonds=render_multiple_bonds,
+                    render_fractional_bonds=render_fractional_bonds,
+                    fractional_bond_offset=fractional_bond_offset,
+                    up_vector=up_vector,
+                    cylinder_class=cylinder_class,
+                    colors=colors,
+                    glows=glows,
+                    bond_style=bond_style,
+                    theme_function=theme_function,
+                    plotos=plotos,
+                    cylinder_options=cylinder_options
+                )
 
-                    c1 = colors[atom1]
-                    c2 = colors[atom2]
-                    g1 = glows[atom1]
-                    g2 = glows[atom2]
-                    base_bstyle = dict(
-                        bond_style.get((atom2, atom1), {}),
-                        **bond_style.get((atom1, atom2), {})
-                    )
-                    b_sty_1 = dict(
-                        bond_style.get(atom1, {}),
-                        **base_bstyle
-                    )
-                    if b_sty_1.get('color') is None:
-                        b_sty_1['color'] = c1
-                    if b_sty_1.get('glow') is None and g1 is not None:
-                        b_sty_1['glow'] = g1
-                    b_sty_1 = b_sty_1.copy()
-                    modifier = b_sty_1.pop('modifier', None)
-                    if modifier is not None:
-                        b_sty_1 = modifier((atom1,atom2), (self.atoms[atom1],self.atoms[atom2]), b_sty_1)
-
-                    b_sty_2 = dict(
-                        bond_style.get(atom2, {}),
-                        **base_bstyle
-                    )
-                    if b_sty_2.get('color') is None:
-                        b_sty_2['color'] = c2
-                    if b_sty_2.get('glow') is None and g2 is not None:
-                        b_sty_2['glow'] = g2
-                    b_sty_2 = b_sty_2.copy()
-                    modifier = b_sty_2.pop('modifier', None)
-                    if modifier is not None:
-                        b_sty_2 = modifier((atom2,atom1), (self.atoms[atom2],self.atoms[atom1]), b_sty_2)
-
-                    p1 = geom[atom1]
-                    p2 = geom[atom2]
-                    disp_vector = p2 - p1
-                    nv, vn = nput.vec_normalize(disp_vector, return_norms=True)
-                    midpoint = ((p1 + nv*radii[atom1]) + (p2 - nv*radii[atom2])) / 2
-                    if bond_center_radius_offset is not None:
-                        if dev.str_is(bond_center_radius_offset, 'auto'):
-                            bond_center_radius_offset = {'padding':0}
-                        if isinstance(bond_center_radius_offset, dict):
-                            pad = bond_center_radius_offset['padding']
-                            rz1 = (radii[atom1]**2 - (bond_radius+pad)**2)
-                            if rz1 > 0:
-                                rz1 = np.sqrt(rz1)
-                            else:
-                                rz1 = 0
-                            p1 = p1 + rz1 * nv
-                            rz2 = (radii[atom2]**2 - (bond_radius+pad)**2)
-                            if rz2 > 0:
-                                rz2 = np.sqrt(rz2)
-                            else:
-                                rz2 = 0
-                            p2 = p2 - rz2 * nv
-                        else:
-                            p1 = p1 + bond_center_radius_offset * radii[atom1] * nv
-                            p2 = p2 - bond_center_radius_offset * radii[atom2] * nv
-
-                    disp_vector = p2 - p1
-                    if not render_multiple_bonds or len(b) == 2 or b[2] <= 1 or b[2] > 3:
-                        bond_point_list = [
-                            [p1, p2, midpoint]
-                        ]
-                    else:
-                        if up_vector is None:
-                            up_vector = [0, 0, 1]
-
-                        for bb in bond_list:
-                            atom3 = bb[0]
-                            atom4 = bb[1]
-                            if atom3 in {atom1, atom2} and atom4 not in {atom1, atom2}:
-                                u_vec = np.cross(disp_vector, geom[atom4] - geom[atom3])
-                                break
-                            elif atom4 not in {atom1, atom2} and atom3 in {atom1, atom2}:
-                                u_vec = np.cross(disp_vector, geom[atom3] - geom[atom4])
-                                break
-                        else:
-                            u_vec = up_vector
-                        if multiple_bond_spacing is None:
-                            multiple_bond_spacing = bond_radius * 1.1
-
-                        axis = nput.vec_normalize(
-                            np.cross(disp_vector, u_vec)
-                        )
-
-                        if render_fractional_bonds:
-                            dr = (b[2] - int(b[2]))
-                            if dr > .05 :
-                                dr = dr * fractional_bond_offset
-                                dr = (1 - dr) / 2
-                                p10 = p1 + disp_vector * dr
-                                p20 = p2 - disp_vector * dr
-                            else:
-                                p10 = p1
-                                p20 = p2
-                        else:
-                            p10 = p1
-                            p20 = p2
-
-                        if isinstance(bond_center_radius_offset, dict):
-                            pad = bond_center_radius_offset['padding']
-                            rz1 = (radii[atom1]**2 - (bond_radius+pad)**2)
-                            if rz1 > 0:
-                                rz1 = np.sqrt(rz1)
-                                rz12 = (radii[atom1]**2 - (bond_radius+pad+multiple_bond_spacing)**2)
-                                if rz12 > 0:
-                                    rzd = rz1 - np.sqrt(rz12)
-                                else:
-                                    rzd = rz1
-                                p1 = p1 - rzd * nv
-
-                            rz2 = (radii[atom2]**2 - (bond_radius+pad)**2)
-                            if rz2 > 0:
-                                rz2 = np.sqrt(rz2)
-                                rz22 = (radii[atom2]**2 - (bond_radius+pad+multiple_bond_spacing)**2)
-                                if rz22 > 0:
-                                    rzd = rz2 - np.sqrt(rz22)
-                                else:
-                                    rzd = rz2
-                                p2 = p2 + rzd * nv
-
-                        if b[2] <= 2:
-
-                            p11 = p10 - axis * multiple_bond_spacing
-                            p21 = p20 - axis * multiple_bond_spacing
-                            mp1 = midpoint - axis * multiple_bond_spacing
-
-                            p12 = p1 + axis * multiple_bond_spacing
-                            p22 = p2 + axis * multiple_bond_spacing
-                            mp2 = midpoint + axis * multiple_bond_spacing
-                            bond_point_list = [
-                                [p11, p21, mp1],
-                                [p12, p22, mp2]
-                            ]
-                        else:
-                            dx = (multiple_bond_spacing)
-
-                            u_vec = nput.vec_normalize(u_vec)
-
-                            dv = axis * dx
-                            p11 = p10 - dv
-                            p21 = p20 - dv
-                            mp1 = midpoint - dv
-
-                            dv = (np.cos(2*np.pi/3) * axis + np.sin(2*np.pi/3) * u_vec) * dx
-                            p12 = p1 - dv
-                            p22 = p2 - dv
-                            mp2 = midpoint - dv
-
-                            dv = (np.cos(2*np.pi/3) * axis - np.sin(2*np.pi/3) * u_vec) * dx
-                            p13 = p1 - dv
-                            p23 = p2 - dv
-                            mp3 = midpoint - dv
-                            bond_point_list = [
-                                [p11, p21, mp1],
-                                [p12, p22, mp2],
-                                [p13, p23, mp3],
-                            ]
-
-                    bond_objs = []
-                    for pp1, pp2, mp in bond_point_list:
-                        sty1 = (plotos | cylinder_options | b_sty_1)
-                        if theme_function is not None:
-                            sty1 = theme_function((atom1, atom2), cylinder_class, sty1)
-                        cc1 = cylinder_class(
-                            pp1,
-                            mp,
-                            bond_radius,
-                            **sty1
-                        )
-                        sty2 = (plotos | cylinder_options | b_sty_2)
-                        if theme_function is not None:
-                            sty2 = theme_function((atom2, atom1), cylinder_class, sty2)
-                        cc2 = cylinder_class(
-                            mp,
-                            pp2,
-                            bond_radius,
-                            **sty2
-                        )
-
-                        if objects:
-                            bond_objs.extend(( cc1, cc2 ))
-                        else:
-                            cyl_1 = cc1.plot(figure)
-                            cyl_2 = cc2.plot(figure)
-                            if isinstance(cyl_1, (list, tuple)):
-                                cyl_1 = cyl_1[0]
-                            if isinstance(cyl_2, (list, tuple)):
-                                cyl_2 = cyl_2[0]
-                            bond_objs.extend(( cyl_1, cyl_2 ))
-
-                        # centroid = sphere_class(
-                        #     mp,
-                        #     .05,
-                        #     rendering='flat',
-                        #     color='red',
-                        #     zorder=1000
-                        # )
-                        # centroid.plot(figure)
-
-                    bonds[i][j] = bond_objs
+                if not objects:
+                    _ = []
+                    for cset in bond_objs:
+                        subbonds = []
+                        for c in cset:
+                            cyl = c.plot(figure)
+                            if isinstance(cyl, (list, tuple)):
+                                cyl = cyl[0]
+                            subbonds.append(cyl)
+                        _.append(subbonds)
+                    bond_objs = _
+                bonds[i] = bond_objs
 
             if atom_style is not False:
                 atoms[i] = [None] * len(geom)
-                for j, stuff in enumerate(zip(colors, radii, geom)):
-                    color, radius, coord = stuff
-                    a_sty = atom_style.get(j, {})
-                    if a_sty.get('color') is None:
-                        a_sty['color'] = color
-                    a_sty = a_sty.copy()
-                    modifier = a_sty.pop('modifier', None)
-                    if modifier is not None:
-                        a_sty = modifier(j, self.atoms[j], a_sty)
+                atom_objs = self._get_atom_primitives(
+                             geom,
+                             self._ats,
+                             colors=colors,
+                             radii=radii,
+                             sphere_class=sphere_class,
+                             atom_style=atom_style,
+                             theme_function=theme_function,
+                             plotos=plotos,
+                             sphere_options=sphere_options
+                             )
 
-                    asty = (plotos | sphere_options | a_sty)
-                    if theme_function is not None:
-                        asty = theme_function(j, sphere_class, asty)
-                    sphere = sphere_class(coord, radius, **asty)
-                    if objects:
-                        atoms[i][j] = sphere
-                    else:
-                        plops = sphere.plot(figure)
-                        if isinstance(plops, tuple):
-                            atoms[i][j] = plops[0]
-                        else:
-                            atoms[i][j] = plops
+                if not objects:
+                    _ = []
+                    for c in atom_objs:
+                        cyl = c.plot(figure)
+                        if isinstance(cyl, (list, tuple)):
+                            cyl = cyl[0]
+                        _.append(cyl)
+                    atom_objs = _
+                atoms[i] = atom_objs
 
             if dipole is not None:
-                arrows[i] = []
+                if arrows[i] is None: arrows[i] = []
                 dip = dipole[i]
-                if np.linalg.norm(dip) > mode_vector_display_cutoff:
-                    if dipole_origin is None or dipole_origin_mode == 'shift':
-                        com = np.tensordot(self.masses, geom, axes=[0, 0]) / np.sum(self.masses)
-                        if dipole_origin is not None:
-                            com = com + dipole_origin[i]
-                    else:
-                        com = dipole_origin[i]
-                    sty = (plotos | vector_style)
-                    if theme_function is not None:
-                        sty = theme_function(None, arrow_class, sty)
-                    dipole_arrow = arrow_class(
-                        com,
-                        com + dip,
-                        **sty
-                    )
-                    if objects:
-                        arrows[i].append(dipole_arrow)
-                    else:
-                        plops = dipole_arrow.plot(figure)
-                        if isinstance(plops, tuple):
-                            arrows[i].append(plops[0])
-                        else:
-                            arrows[i].append(plops)
+                dip_obs = self._get_dipole_primitives(
+                    geom,
+                    dip,
+                    dipole_origin=dipole_origin[i] if dipole_origin is not None else dipole_origin,
+                    dipole_origin_mode=dipole_origin_mode,
+                    mode_vector_display_cutoff=mode_vector_display_cutoff,
+                    arrow_class=arrow_class,
+                    theme_function=theme_function,
+                    plotos=plotos,
+                    vector_style=vector_style
+                )
+                if not objects:
+                    _ = []
+                    for c in dip_obs:
+                        cyl = c.plot(figure)
+                        if isinstance(cyl, (list, tuple)):
+                            cyl = cyl[0]
+                        _.append(cyl)
+                    dip_obs = _
+                arrows[i].extend(dip_obs)
 
             if principle_axes is not None:
-                arrows[i] = []
-                pax:np.ndarray = principle_axes[i]
-                if principle_axes_origin is None or principle_axes_origin_mode == 'shift':
-                    com = np.tensordot(self.masses, geom, axes=[0, 0]) / np.sum(self.masses)
-                    if principle_axes_origin is not None:
-                        com = com + principle_axes_origin[i]
-                else:
-                    com = principle_axes_origin[i]
-                for ax, sty in zip(pax.T, principle_axes_style):
-                    sty = (plotos | vector_style | sty)
-                    if theme_function is not None:
-                        sty = theme_function(None, arrow_class, sty)
-                    pax_arrow = arrow_class(
-                        com,
-                        com + ax,
-                        **sty
-                    )
-                    if objects:
-                        arrows[i].append(pax_arrow)
-                    else:
-                        plops = pax_arrow.plot(figure)
-                        if isinstance(plops, tuple):
-                            arrows[i].append(plops[0])
-                        else:
-                            arrows[i].append(plops)
+                if arrows[i] is None: arrows[i] = []
+                pax_objs = self._get_pax_primitives(
+                    geom,
+                    principle_axes[i],
+                    principle_axes_origin=principle_axes_origin,
+                    principle_axes_origin_mode=principle_axes_origin_mode,
+                    principle_axes_style=principle_axes_style,
+                    arrow_class=arrow_class,
+                    theme_function=theme_function,
+                    plotos=plotos,
+                    vector_style=vector_style
+                )
+
+                if not objects:
+                    _ = []
+                    for c in pax_objs:
+                        cyl = c.plot(figure)
+                        if isinstance(cyl, (list, tuple)):
+                            cyl = cyl[0]
+                        _.append(cyl)
+                    pax_objs = _
+                arrows[i].extend(pax_objs)
 
             if mode_vectors is not None:
-                if arrows[i] is None:
-                    arrows[i] = []
-                for j,v in enumerate(mode_vectors[i]):
-                    if np.linalg.norm(v) > mode_vector_display_cutoff:
-                        if mode_vector_origins is None or mode_vector_origin_mode == 'shift':
-                            com = geom[j]
-                            if mode_vector_origins is not None:
-                                com = com + mode_vector_origins[i][j]
-                        else:
-                            com = mode_vector_origins[i][j]
-                        sty = (plotos | vector_style)
-                        if theme_function is not None:
-                            sty = theme_function(None, arrow_class, sty)
-                        mode_arrow = arrow_class(
-                            com,
-                            com + v,
-                            **sty
-                        )
-                        if objects:
-                            arrows[i].append(mode_arrow)
-                        else:
-                            plops = mode_arrow.plot(figure)
-                            if isinstance(plops, tuple):
-                                arrows[i].append(plops[0])
-                            else:
-                                arrows[i].append(plops)
+                if arrows[i] is None: arrows[i] = []
+                mode_arrows = self._get_mode_vector_primitives(
+                    geom,
+                    mode_vectors[i],
+                    mode_vector_display_cutoff=mode_vector_display_cutoff,
+                    mode_vector_origins=mode_vector_origins[i] if mode_vector_origins is not None else mode_vector_origins,
+                    mode_vector_origin_mode=mode_vector_origin_mode,
+                    arrow_class=arrow_class,
+                    theme_function=theme_function,
+                    plotos=plotos,
+                    vector_style=vector_style
+                )
+
+                if not objects:
+                    _ = []
+                    for c in mode_arrows:
+                        cyl = c.plot(figure)
+                        if isinstance(cyl, (list, tuple)):
+                            cyl = cyl[0]
+                        _.append(cyl)
+                    mode_arrows = _
+                arrows[i].extend(mode_arrows)
 
             if draw_coords is not None:
-                if arrows[i] is None:
-                    arrows[i] = []
+                if arrows[i] is None: arrows[i] = []
                 for k,v in draw_coords.items():
                     if isinstance(v, str):
                         v = {'label':v}
                     v = dict(draw_coords_style, **v)
                     if len(k) == 2:
-                        # draw bond
-                        # draw angle
-                        xx, yy = k
-                        if nput.is_int(xx):
-                            xx = geom[xx]
-                        elif callable(xx):
-                            xx = xx(geom)
-                        if nput.is_int(yy):
-                            yy = geom[yy]
-                        elif callable(yy):
-                            yy = yy(geom)
-
-                        zz = v.pop('ref', None)
-                        if zz is not None:
-                            if nput.is_int(zz):
-                                zz = geom[zz]
-                            elif callable(zz):
-                                zz = zz(geom)
-                            zz = np.asanyarray(zz)
-
-                        xx = np.asanyarray(xx)
-                        yy = np.asanyarray(yy)
-                        if zz is not None:
-                            normal = nput.vec_crosses(xx-yy, zz - yy)
-                        else:
-                            normal = [0, 1, 0]
-                        offset_axis = nput.vec_crosses(xx-yy, normal, normalize=True)
-
-                        offset = np.array(v.pop('offset', [0, 0, 0]))
-                        label = v.pop('label', None)
-                        color = v.pop('line_color', v.pop('color', 'black'))
-                        label_style = dict(default_label_style, **v.pop('label_style', {}))
-                        label_style['billboard'] = label_style.get('billboard',
-                                                                   zz is None and 'normal' not in label_style
-                                                                   )
-
-                        sty = (plotos | line_options | dict(color=color) | v)
-                        if theme_function is not None:
-                            sty = theme_function(None, line_class, sty)
-                        arc = line_class([xx + offset, yy + offset], **sty)
-                        if objects:
-                            arrows[i].append(arc)
-                        else:
-                            plops = arc.plot(figure)
-                            if isinstance(plops, tuple):
-                                arrows[i].append(plops[0])
-                            else:
-                                arrows[i].append(plops)
-
-                        if label is not None:
-                            offset_magnitude = label_style.pop('offset_magnitude', .2)
-                            label_offset = np.asanyarray(label_style.pop('offset', offset_magnitude*offset_axis))
-                            normal = label_style.pop('normal', normal)
-                            lab = plt.Text(
-                                label,
-                                (xx+yy)/2 + label_offset,
-                                normal=normal,
-                                **(plotos | label_style)
-                            )
-                            if objects:
-                                arrows[i].append(lab)
-                            else:
-                                plops = lab.plot(figure)
-                                if isinstance(plops, tuple):
-                                    arrows[i].append(plops[0])
-                                else:
-                                    arrows[i].append(plops)
+                        prims = self._get_draw_coords_line(
+                            geom,
+                            k,
+                            v,
+                            default_label_style=default_label_style,
+                            line_class=line_class,
+                            theme_function=theme_function,
+                            plotos=plotos,
+                            line_options=line_options
+                        )
 
                     elif len(k) == 3:
-                        # draw angle
-                        xx,yy,zz = k
-                        if nput.is_int(xx):
-                            xx = geom[xx]
-                        elif callable(xx):
-                            xx = xx(geom)
-                        if nput.is_int(yy):
-                            yy = geom[yy]
-                        elif callable(yy):
-                            yy = yy(geom)
-                        if nput.is_int(zz):
-                            zz = geom[zz]
-                        elif callable(zz):
-                            zz = zz(geom)
-
-                        yy = np.asanyarray(yy)
-                        axes =  v.pop('axes', None)
-                        if axes is None:
-                            xx = np.asanyarray(xx)
-                            zz = np.asanyarray(zz)
-                            axes=[xx-yy, zz-yy]
-                        radius = v.pop('radius', None)
-                        if radius is None:
-                            radius = min([
-                                np.linalg.norm(axes[0]),
-                                np.linalg.norm(axes[1]),
-                            ])
-                        angle =  v.pop('angle', None)
-                        if angle is None:
-                            angle=nput.vec_angles(*axes, return_crosses=False)
-
-                        label = v.pop('label', None)
-                        label_style = dict(default_label_style, **v.pop('label_style', {}))
-                        sty = (plotos | disk_options | v)
-                        if theme_function is not None:
-                            sty = theme_function(None, disk_class, sty)
-                        arc = disk_class(
-                            yy,
-                            uv_axes=axes,
-                            angle=angle,
-                            radius=radius,
-                            **sty
+                        prims = self._get_draw_coords_arc(
+                            geom,
+                            k,
+                            v,
+                            up_vector=up_vector,
+                            default_label_style=default_label_style,
+                            disk_class=disk_class,
+                            theme_function=theme_function,
+                            plotos=plotos,
+                            disk_options=disk_options
                         )
-                        if objects:
-                            arrows[i].append(arc)
-                        else:
-                            plops = arc.plot(figure)
-                            if isinstance(plops, tuple):
-                                arrows[i].append(plops[0])
-                            else:
-                                arrows[i].append(plops)
-
-                        if label is not None:
-                            label_offset = np.asanyarray(label_style.pop('offset', [0, 0, 0]))
-                            label_normal = label_style.pop('normal', None)
-                            if label_normal is None:
-                                label_normal = nput.vec_crosses(*axes, normalize=True)
-                                if np.linalg.norm(label_normal) < 1e-8:
-                                    if up_vector is None:
-                                        up_vector = [0, 0, 1]
-                                    label_normal = nput.vec_crosses(axes[0], up_vector, normalize=True)
-                            label_billboard = np.asanyarray(label_style.pop('billboard', False))
-                            offset_magnitude = label_style.pop('offset_magnitude', .8)
-                            label_center = np.dot(
-                                axes[0] * offset_magnitude,
-                                nput.rotation_matrix(label_normal, -angle/2)
-                            ) + yy
-                            lab = plt.Text(
-                                label,
-                                label_center + label_offset,
-                                billboard=label_billboard,
-                                normal=label_normal,
-                                **(plotos | label_style)
-                            )
-                            if objects:
-                                arrows[i].append(lab)
-                            else:
-                                plops = lab.plot(figure)
-                                if isinstance(plops, tuple):
-                                    arrows[i].append(plops[0])
-                                else:
-                                    arrows[i].append(plops)
                     else:
-
-                        # draw angle
-                        xx,yy,zz,ll = k
-                        if nput.is_int(xx):
-                            xx = geom[xx]
-                        elif callable(xx):
-                            xx = xx(geom)
-                        if nput.is_int(yy):
-                            yy = geom[yy]
-                        elif callable(yy):
-                            yy = yy(geom)
-                        if nput.is_int(zz):
-                            zz = geom[zz]
-                        elif callable(zz):
-                            zz = zz(geom)
-                        if nput.is_int(ll):
-                            ll = geom[ll]
-                        elif callable(ll):
-                            ll = ll(geom)
-
-                        xx = np.asanyarray(xx)
-                        yy = np.asanyarray(yy)
-                        zz = np.asanyarray(zz)
-                        ll = np.asanyarray(ll)
-
-                        normal = yy - zz
-                        ax1 = nput.project_out((xx - yy), normal[:, np.newaxis])
-                        ax2 = nput.project_out((ll - zz), normal[:, np.newaxis])
-                        angle =  v.pop('angle', None)
-                        if angle is None:
-                            angle = nput.pts_dihedrals(xx, yy, zz, ll)
-
-                        c2 = (yy + zz) / 2
-                        if np.linalg.norm(ax1) < np.linalg.norm(ax2):
-                            c1 = c2 + ax1
-                        else:
-                            c1 = c2 + ax2
-                            normal = -normal
-                        axis = c1 - c2
-                        c3 = np.dot(
-                            axis,
-                            nput.rotation_matrix(normal, angle)
-                        ) + c2
-                        axes = [
-                            axis,
-                            c3 - c2,
-                        ]
-                        if np.dot(np.cross(*axes), normal) < 0:
-                            normal = -normal
-
-                        radius = v.pop('radius', None)
-                        if radius is None:
-                            radius = np.linalg.norm(axis)
-                            # angle=nput.vec_angles(*axes, return_crosses=False)
-
-                        label = v.pop('label', None)
-                        label_style = dict(default_label_style, **v.pop('label_style', {}))
-                        sty = (plotos | disk_options | v)
-                        if theme_function is not None:
-                            sty = theme_function(None, disk_class, sty)
-                        arc = disk_class(
-                            c2,
-                            uv_axes=axes,
-                            normal=normal,
-                            angle=angle,
-                            radius=radius,
-                            **sty
+                        prims = self._get_draw_coords_dihed(
+                            geom,
+                            k,
+                            v,
+                            default_label_style=default_label_style,
+                            disk_class=disk_class,
+                            theme_function=theme_function,
+                            plotos=plotos,
+                            disk_options=disk_options
                         )
-                        if objects:
-                            arrows[i].append(arc)
-                        else:
-                            plops = arc.plot(figure)
-                            if isinstance(plops, tuple):
-                                arrows[i].append(plops[0])
-                            else:
-                                arrows[i].append(plops)
 
-                        if label is not None:
-                            label_offset = np.asanyarray(label_style.pop('offset', [0, 0, 0]))
-                            label_normal = label_style.pop('normal', None)
-                            if label_normal is None:
-                                label_normal = normal
-                                # if np.linalg.norm(label_normal) < 1e-8:
-                                #     if up_vector is None:
-                                #         up_vector = [0, 0, 1]
-                                #     label_normal = nput.vec_crosses(axes[0], up_vector, normalize=True)
-                            label_billboard = np.asanyarray(label_style.pop('billboard', False))
-                            offset_magnitude = label_style.pop('offset_magnitude', .8)
-                            label_center = np.dot(
-                                axes[0] * offset_magnitude,
-                                nput.rotation_matrix(label_normal, -angle/2)
-                            ) + c2
-                            lab = plt.Text(
-                                label,
-                                label_center + label_offset,
-                                billboard=label_billboard,
-                                normal=label_normal,
-                                **(plotos | label_style)
-                            )
-                            if objects:
-                                arrows[i].append(lab)
-                            else:
-                                plops = lab.plot(figure)
-                                if isinstance(plops, tuple):
-                                    arrows[i].append(plops[0])
-                                else:
-                                    arrows[i].append(plops)
+                    if not objects:
+                        _ = []
+                        for c in prims:
+                            cyl = c.plot(figure)
+                            if isinstance(cyl, (list, tuple)):
+                                cyl = cyl[0]
+                            _.append(cyl)
+                        prims = _
+                    arrows[i].extend(prims)
 
             if atom_text is not None:
-                if arrows[i] is None:
-                    arrows[i] = []
-
-                for a,r,t in zip(geom, radii, atom_text):
-                    if t is None: continue
-
-                    if not isinstance(t, dict):
-                        t = {"text":t}
-                    t = t.copy()
-                    text = t.pop('text')
-                    if nput.is_numeric(text):
-                        text = str(text)
-                    pos = t.pop('pos', a + t.pop('offset', np.array([r/2, r/2, r])))
-                    fs = t.pop('font_style', {})
-                    fs['size'] = fs.get('size', .5)
-                    t['font_style'] = fs
-                    t['billboard'] = t.get('billboard', True)
-                    t['color'] = t.get('color', 'black')
-                    lab = plt.Text(text, pos, **(plotos | t))
-                    if objects:
-                        arrows[i].append(lab)
-                    else:
-                        plops = lab.plot(figure)
-                        if isinstance(plops, tuple):
-                            arrows[i].append(plops[0])
-                        else:
-                            arrows[i].append(plops)
+                if arrows[i] is None: arrows[i] = []
+                prims = self._get_atom_text_primitives(
+                    geom,
+                    atom_text,
+                    radii=radii,
+                    plotos=plotos
+                )
+                if not objects:
+                    _ = []
+                    for c in prims:
+                        cyl = c.plot(figure)
+                        if isinstance(cyl, (list, tuple)):
+                            cyl = cyl[0]
+                        _.append(cyl)
+                    prims = _
+                arrows[i].extend(prims)
         if animate:
             if animation_options is None: animation_options = {}
             figure = figure.animate_frames(
