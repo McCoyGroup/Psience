@@ -3746,6 +3746,64 @@ class Molecule(AbstractMolecule):
         block.extend(exprs)
         block.append('select none')
         return block
+    def _jsmol_view_settings(
+            self,
+            up_vector=None, right_vector=None, view_vector=None, view_distance=None,
+            view_matrix=None, view_center=None):
+        if view_matrix is None and (
+                view_vector is not None
+                or right_vector is not None
+                or up_vector is not None
+        ):
+            if view_vector is None:
+                if (
+                        up_vector is not None and right_vector is not None
+                ):
+                    view_vector = nput.vec_crosses(up_vector, right_vector, normalize=True)
+                elif right_vector is not None:
+                    view_vector = nput.vec_crosses([0, 0, 1], right_vector, normalize=True)
+                elif up_vector is not None:
+                    view_vector = nput.vec_crosses(up_vector, [0, 1, 0], normalize=True)
+
+            if view_vector is not None:
+                m = nput.rotation_matrix(
+                    view_vector,
+                    [1, 0, 0]
+                )
+            else:
+                m = np.eye(3)
+
+            if up_vector is None and right_vector is not None:
+                if view_vector is None:
+                    view_vector = [1, 0, 0]
+                up_vector = nput.vec_normalize(
+                    nput.vec_crosses(right_vector, view_vector)
+                )
+            elif up_vector is not None and view_vector is not None:
+                up_vector = nput.vec_crosses(
+                    view_vector,
+                    nput.vec_crosses(view_vector, up_vector),
+                    normalize=True
+                )
+            if up_vector is not None:
+                m = m @ nput.rotation_matrix(
+                    m.T @ up_vector,
+                    [1, 0, 0]
+                )
+            view_matrix = m
+
+        ang, cross = nput.extract_rotation_angle_axis(view_matrix)
+        ang = np.rad2deg(ang)
+        if view_vector is None:
+            view_vector = view_matrix[:, -1]
+        return {
+            'view_angle': ang,
+            'rotation_axis': cross,
+            'view': view_vector,
+            'center': view_center,
+            'dist': view_distance
+        }
+
     def _prep_jsmol_load_script(self,
                                 geom=None,
                                 background=None,
@@ -3765,6 +3823,8 @@ class Molecule(AbstractMolecule):
                                 use_default_bonds=True,
                                 draw_coords=None,
                                 draw_coords_style=None,
+                                reflectiveness=None,
+                                view_settings=None,
                                 **ignored
                                 ):
         if jsmol_load_script is not None:
@@ -3962,6 +4022,14 @@ class Molecule(AbstractMolecule):
                     )
                 )
 
+        if reflectiveness is not None:
+            if reflectiveness is True:
+                bits.append('set specular on')
+            elif reflectiveness is False:
+                bits.append('set specular off')
+            else:
+                bits.append(f'set specular {100*reflectiveness:.0f}')
+
         if draw_coords is not None:
             draw_coords, draw_coords_style = self._prep_display_draw_coords(draw_coords, draw_coords_style)
             no_hover = False
@@ -4047,6 +4115,44 @@ class Molecule(AbstractMolecule):
                 #JSMol is broken and its documentation is wrong, only one font style is supported
                 bits.append(f'FONT draw {draw_font}')
 
+        if view_settings is not None:
+            vps = self._jsmol_view_settings(**view_settings)
+            center = vps.pop('center')
+            if center is not None:
+                x, y, z = center
+                bits.append(f"translate {{{x:.3f} {y:.3f} {z:.3f}}}")
+            else:
+                center = np.tensordot(self.masses, geom, axes=[0, 0]) / np.sum(self.masses)
+                x, y, z = -center
+                bits.append(f"translate {{{x:.3f} {y:.3f} {z:.3f}}}")
+            center = np.asanyarray(center)
+            ang = vps.pop('view_angle')
+            ax = vps.pop('rotation_axis')
+            x, y, z = center
+            x2, y2, z2 = center + ax
+            bits.append(f"rotate {{{x:.3f} {y:.3f} {z:.3f}}} {{{x2:.3f} {y2:.3f} {z2:.3f}}} {ang:.3f}")
+            dist = vps.pop('dist')
+            if dist is not None:
+                view_geom = (geom - center[np.newaxis]) @ nput.rotation_matrix(ax, ang)
+                x = view_geom[:, 0]
+                x_range = np.max(x) - np.min(x)
+                y = view_geom[:, 0]
+                y_range = np.max(y) - np.min(y)
+                default_dist = np.max([x_range, y_range])
+                if use_default_radii:
+                    if atom_radii is not None:
+                        if nput.is_numeric(atom_radii):
+                            atom_radii = [atom_radii] * len(self._ats)
+                        elif dev.is_dict_like(atom_radii):
+                            atom_radii = [
+                                atom_radii.get(i,
+                                               atom_radii.get(a["ElementSymbol"])
+                                               ) for i, a in enumerate(self._ats)
+                            ]
+                    default_dist = default_dist + np.max(atom_radii)
+                target_zoom = default_dist / np.sqrt(dist)
+                bits.append(f"zoom {100*target_zoom:.0f}")
+
         return bits
 
     def _prep_jsmol_plot_opts(self,
@@ -4095,6 +4201,7 @@ class Molecule(AbstractMolecule):
             extra_opts = {}
         use_default_radii = extra_opts.pop('use_default_radii', True)
         use_default_bonds = extra_opts.pop('use_default_bonds', True)
+        view_settings = extra_opts.pop('view_settings', None)
         background = extra_opts.get('background')
 
         if script is None:
@@ -4109,6 +4216,7 @@ class Molecule(AbstractMolecule):
                 use_default_radii=use_default_radii,
                 use_default_bonds=use_default_bonds,
                 draw_coords=draw_coords,
+                view_settings=view_settings,
                 **etc
             )
 
@@ -5870,6 +5978,16 @@ class Molecule(AbstractMolecule):
             graphics_opts['frame'] = graphics_opts.get('frame', False)
             pr = graphics_opts.get('plot_range', None)
             graphics_opts['plot_range'] = self._default_plot_range(geometries, pr, plot_range_padding, atom_radius_scaling * radii)
+            vs = graphics_opts.pop('view_settings', None)
+            if vs is not None:
+                view_dist = vs.pop('view_distance', None)
+                if view_dist is not None:
+                    pr = graphics_opts['plot_range']
+                    # (xmin, xmax), (ymin, ymax), (zmin, zmax) = pr
+                    # compute the portion of the field of view we actually want to sample
+                    view_percents = view_dist / np.max([M-m for m,M in pr])
+                    vs['view_distance'] = np.sqrt(view_percents) #* np.sqrt(25 / 16 * 3)
+                graphics_opts['view_settings'] = vs
 
         if figure is None:
             if graphics_class is None:
