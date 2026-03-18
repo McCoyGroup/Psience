@@ -3997,6 +3997,49 @@ class MolecoolsTests(TestCase):
     @debugTest
     def test_PlotlyBackend(self):
 
+        from Psience.Molecools import Molecule
+        uuh2 = Molecule(
+            ('C', 'C', 'C', 'O', 'C', 'C', 'H', 'H',
+             'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H'),
+            [[-2.37496538e+00, -5.16913078e-01, -2.22044605e-16],
+             [-1.51564096e-03, 1.03283778e+00, 4.44089210e-16],
+             [2.37648102e+00, -5.15924698e-01, 0.00000000e+00],
+             [2.36112435e+00, -2.49907484e+00, 1.67326377e+00],
+             [2.67785361e-01, -4.03453305e+00, 1.54551068e+00],
+             [-2.20303996e+00, -2.64979149e+00, 1.86935105e+00],
+             [-3.92449341e+00, 7.52133206e-01, 6.81237472e-01],
+             [-2.88710909e+00, -1.17905511e+00, -1.90284281e+00],
+             [-2.53225012e-03, 2.11878872e+00, -1.81438423e+00],
+             [3.79870511e-02, 2.45152654e+00, 1.54550417e+00],
+             [3.91483037e+00, 7.97233384e-01, 6.25195636e-01],
+             [2.89487215e+00, -1.07093185e+00, -1.97610252e+00],
+             [1.33465406e-01, -5.19598512e+00, -1.68889241e-01],
+             [3.92752782e-01, -5.37624976e+00, 3.17017578e+00],
+             [-2.57208138e+00, -2.04623188e+00, 3.82601529e+00],
+             [-3.70060088e+00, -4.03037183e+00, 1.36342150e+00]]
+        ).get_embedded_molecule()
+        # uuh2 = Molecule.from_string("C1CCOCC1", "smi").get_embedded_molecule(sel=[0, 1, 2])
+
+        uuh2.plot(backend='plotly',
+                  highlight_atoms=[0, 1, 2],
+                  reflectiveness=.5,
+                  draw_coords={
+                      (0, 4): "r",
+                      (0, 1, 2): {
+                          'label': "\u03B8",
+                          'label_style': {'font_size': 12, 'color': 'red'}
+                      }
+                  },
+                  # frame=True,
+                  principle_axes=True,
+                  view_settings={
+                      'view_vector': [1, 0, 1],
+                      # 'right_vector': uuh2.coords[0] - uuh2.coords[1],
+                      'view_distance': 10
+                  }
+                  ).show()
+        return
+
         # uuh2 = Molecule.from_string("C1CCOCC1", "smi")
         uuh3 = Molecule(
             ['C', 'C', 'C', 'O', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H'],
