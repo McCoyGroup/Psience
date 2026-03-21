@@ -4120,7 +4120,6 @@ class MolecoolsTests(TestCase):
         fig = uuh2.plot(backend='rdkit',
                         image_size=[500, 500],
                         highlight_atoms=[0, 1, 2],
-                        bond_style={'color': 'red'},
                         draw_coords={
                             (0, 4): {
                                 'label': "r",
