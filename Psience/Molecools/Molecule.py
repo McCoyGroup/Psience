@@ -3812,6 +3812,7 @@ class Molecule(AbstractMolecule):
                                 use_default_radii=True,
                                 atom_radius_scaling=None,
                                 atom_radii=None,
+                                radius_type=None,
                                 bond_radius=None,
                                 highlight_atoms=None,
                                 highlight_bonds=None,
@@ -4031,6 +4032,7 @@ class Molecule(AbstractMolecule):
                 bits.append(f'set specular {100*reflectiveness:.0f}')
 
         if draw_coords is not None:
+            radii = self._get_atom_radii(atom_radii, atom_radius_scaling, radius_type)
             draw_coords, draw_coords_style = self._prep_display_draw_coords(draw_coords, draw_coords_style)
             no_hover = False
             draw_font = None
@@ -4048,6 +4050,7 @@ class Molecule(AbstractMolecule):
                         default_label_style=self.draw_coords_label_style,
                         line_class=None,
                         theme_function=None,
+                        radii=radii,
                         plotos={},
                         line_options={}
                     )
@@ -4061,6 +4064,7 @@ class Molecule(AbstractMolecule):
                         default_label_style=self.draw_coords_label_style,
                         disk_class=None,
                         theme_function=None,
+                        radii=radii,
                         plotos={},
                         disk_options={}
                     )
@@ -4073,7 +4077,7 @@ class Molecule(AbstractMolecule):
                     points = " ".join(f"{{{x:.3f} {y:.3f} {z:.3f}}}" for x,y,z in points)
                     bits.append(f'draw ID {id} CURVE {points}')
                 else:
-                    ...
+                    raise NotImplementedError(...)
 
                 if id is not None and style is not None:
                     color = style.pop('color', None)
@@ -4165,6 +4169,8 @@ class Molecule(AbstractMolecule):
                               figure=None,
                               atom_offset=0,
                               draw_coords=None,
+                              include_jsmol_script_interface=None,
+                              include_save_buttons=None,
                               **etc
                               ):
         if extra_opts is None:
@@ -4204,6 +4210,12 @@ class Molecule(AbstractMolecule):
         view_settings = extra_opts.pop('view_settings', None)
         background = extra_opts.get('background')
 
+        include_script_interface = extra_opts.pop('include_script_interface', None)
+        if include_script_interface is None:
+            if include_jsmol_script_interface is None:
+                include_jsmol_script_interface = include_save_buttons
+            include_script_interface = include_jsmol_script_interface
+
         if script is None:
             if geometries is None:
                 geometries = self.coords
@@ -4226,6 +4238,7 @@ class Molecule(AbstractMolecule):
             recording_options=recording_options,
             dynamic_loading=dynamic_loading,
             autobond=use_default_bonds,
+            include_script_interface=include_script_interface,
             **extra_opts
         )
     def _prep_rdkit_draw_opts(self,
@@ -5652,7 +5665,7 @@ class Molecule(AbstractMolecule):
              recording_options=None,
              animation_options=None,
              jsmol_load_script=None,
-             include_jsmol_script_interface=False,
+             include_jsmol_script_interface=None,
              dynamic_loading=None,
              units="Angstroms",
              label_style=None,
