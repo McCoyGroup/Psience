@@ -4232,11 +4232,14 @@ class Molecule(AbstractMolecule):
                               figure=None,
                               atom_style=None,
                               bond_style=None,
-                              atom_radius_scaling=None,
                               atom_radii=None,
+                              atom_radius_scaling=None,
+                              radius_type=None,
                               bond_radius=None,
                               highlight_atoms=None,
+                              highlight_atom_radii=None,
                               highlight_bonds=None,
+                              highlight_bond_radii=None,
                               highlight_color=None,
                               highlight_rings=None,
                               highlight_styles=None,
@@ -4341,32 +4344,33 @@ class Molecule(AbstractMolecule):
                     for t in target_bonds:
                         highlight_bond_colors[t] = color
 
-        highlight_atom_radii = None
-        if atom_radii is not None:
-            scaling_factor = 3 # works well for Angstroms to RDKit coords
-            if nput.is_numeric(atom_radii):
-                atom_radii = [atom_radii] * len(self._ats)
-            elif dev.is_dict_like(atom_radii):
-                atom_radii = [
-                    atom_radii.get(i,
-                        atom_radii.get(a["ElementSymbol"])
-                    ) for i,a in enumerate(self._ats)
-                ]
-            if atom_radius_scaling is None:
-                atom_radius_scaling = [1] * len(atom_radii)
-            elif nput.is_numeric(atom_radius_scaling):
-                atom_radius_scaling = [atom_radius_scaling] * len(atom_radii)
+        if not use_default_radii:
+            atom_radii = self._get_atom_radii(atom_radii, atom_radius_scaling, radius_type)
+        # if atom_radii is not None:
+        #     _ = {}
+        #     scaling_factor = 1 #3 # works well for Angstroms to RDKit coords
+        #     if nput.is_numeric(atom_radii):
+        #         atom_radii = [atom_radii] * len(self._ats)
+        #     elif dev.is_dict_like(atom_radii):
+        #         atom_radii = [
+        #             atom_radii.get(i,
+        #                 atom_radii.get(a["ElementSymbol"])
+        #             ) for i,a in enumerate(self._ats)
+        #         ]
+        #     if atom_radius_scaling is None:
+        #         atom_radius_scaling = [1] * len(atom_radii)
+        #     elif nput.is_numeric(atom_radius_scaling):
+        #         atom_radius_scaling = [atom_radius_scaling] * len(atom_radii)
+        #
+        #     for i, (r,s) in enumerate(zip(atom_radii, atom_radius_scaling)):
+        #         if r is not None:
+        #             if nput.is_numeric(r) and nput.is_numeric(s):
+        #                 r = r * s
+        #             _[i] = scaling_factor * r
+        #     atom_radii = _
 
-            for i, (r,s) in enumerate(zip(atom_radii, atom_radius_scaling)):
-                if r is not None:
-                    if highlight_atom_radii is None:
-                        highlight_atom_radii = {}
-                    if nput.is_numeric(r) and nput.is_numeric(s):
-                        r = r * s
-                    highlight_atom_radii[i] = scaling_factor * r
-
-        highlight_bond_radii = None
         if use_default_radii:
+            atom_radii = None
             bond_radius = None
 
         return dict(
@@ -4377,17 +4381,15 @@ class Molecule(AbstractMolecule):
                 highlight_rings=highlight_rings,
                 highlight_atom_radii=highlight_atom_radii,
                 highlight_bond_radii=highlight_bond_radii,
+                atom_radii=atom_radii,
+                bond_radius=bond_radius,
                 highlight_atom_colors=highlight_atom_colors,
                 highlight_bond_colors=highlight_bond_colors,
                 include_save_buttons=include_save_buttons,
                 display_atom_numbers=display_atom_numbers,
                 draw_coords=draw_coords,
                 label_style=label_style,
-                highlight_bond_width_multiplier=(
-                        int(np.ceil(7 * bond_radius / .2))
-                            if bond_radius is not None else
-                        bond_radius
-                )
+                highlight_bond_width_multiplier=None
             ),
             **extra_opts
         )
@@ -4498,16 +4500,23 @@ class Molecule(AbstractMolecule):
             'default': {
                 'bond_radius': .15,
                 'multiple_bond_spacing': .2,
-                'bond_center_radius_offset': {'padding':.065}, # percentage of radius
+                'bond_center_radius_offset': {
+                    'padding':.065,
+                    'multi':-.05
+                }, # percentage of radius
                 'label_style': {'font_size': 25},
                 'cylinder_options': {
                     'edge_width': .1,
                     'edge_color': 'black',
-                    'segments': 1
+                    'segments': 1,
+                    'hoverinfo':'skip',
+                    'hovertemplate':None
                 },
                 'sphere_options': {
                     'edge_width': .05,
-                    'edge_color': 'black'
+                    'edge_color': 'black',
+                    'hoverinfo':'skip',
+                    'hovertemplate':None
                 },
                 # 'fractional_bond_offset':.35
             },
@@ -4525,6 +4534,14 @@ class Molecule(AbstractMolecule):
                     'edge_width': .025,
                     'edge_color': 'black'
                 }
+            }
+        },
+        "rdkit": {
+            "default":{
+                "atom_radii": .15,
+                "atom_radius_scaling":1,
+                "bond_radius": .2,
+                'extra_opts': {'use_default_radii': False}
             }
         }
     }
@@ -4889,6 +4906,30 @@ class Molecule(AbstractMolecule):
                 np.cross(disp_vector, u_vec)
             )
 
+            if isinstance(bond_center_radius_offset, dict):
+                pad = bond_center_radius_offset['padding']
+                mpad = bond_center_radius_offset.get('multi', pad)
+                rz1 = (radii[atom1] ** 2 - (bond_radius + pad) ** 2)
+                if rz1 > 0:
+                    rz1 = np.sqrt(rz1)
+                    rz12 = (radii[atom1] ** 2 - (bond_radius + mpad + multiple_bond_spacing) ** 2)
+                    if rz12 > 0:
+                        rzd = rz1 - np.sqrt(rz12)
+                    else:
+                        rzd = rz1
+                    p1 = p1 - rzd * nv
+
+                rz2 = (radii[atom2] ** 2 - (bond_radius + pad) ** 2)
+                if rz2 > 0:
+                    rz2 = np.sqrt(rz2)
+                    rz22 = (radii[atom2] ** 2 - (bond_radius + mpad + multiple_bond_spacing) ** 2)
+                    if rz22 > 0:
+                        rzd = rz2 - np.sqrt(rz22)
+                    else:
+                        rzd = rz2
+                    p2 = p2 + rzd * nv
+                    # print(" _", rzd, rz2, (bond_radius + pad + multiple_bond_spacing), radii[atom2])
+
             if render_fractional_bonds:
                 dr = (b[2] - int(b[2]))
                 if dr > .05:
@@ -4902,28 +4943,6 @@ class Molecule(AbstractMolecule):
             else:
                 p10 = p1
                 p20 = p2
-
-            if isinstance(bond_center_radius_offset, dict):
-                pad = bond_center_radius_offset['padding']
-                rz1 = (radii[atom1] ** 2 - (bond_radius + pad) ** 2)
-                if rz1 > 0:
-                    rz1 = np.sqrt(rz1)
-                    rz12 = (radii[atom1] ** 2 - (bond_radius + pad + multiple_bond_spacing) ** 2)
-                    if rz12 > 0:
-                        rzd = rz1 - np.sqrt(rz12)
-                    else:
-                        rzd = rz1
-                    p1 = p1 - rzd * nv
-
-                rz2 = (radii[atom2] ** 2 - (bond_radius + pad) ** 2)
-                if rz2 > 0:
-                    rz2 = np.sqrt(rz2)
-                    rz22 = (radii[atom2] ** 2 - (bond_radius + pad + multiple_bond_spacing) ** 2)
-                    if rz22 > 0:
-                        rzd = rz2 - np.sqrt(rz22)
-                    else:
-                        rzd = rz2
-                    p2 = p2 + rzd * nv
 
             if b[2] <= 2:
 
@@ -5125,15 +5144,19 @@ class Molecule(AbstractMolecule):
             pax_objs.append(pax_arrow)
         return pax_objs
 
-    def _get_draw_line_points(self, geom, k, v):
+    def _get_draw_line_points(self, geom, k, v, radii):
         # draw bond
         # draw angle
         xx, yy = k
+        rx = 0
+        ry = 0
         if nput.is_int(xx):
+            rx = radii[xx]
             xx = geom[xx]
         elif callable(xx):
             xx = xx(geom)
         if nput.is_int(yy):
+            ry = radii[yy]
             yy = geom[yy]
         elif callable(yy):
             yy = yy(geom)
@@ -5148,6 +5171,9 @@ class Molecule(AbstractMolecule):
 
         xx = np.asanyarray(xx)
         yy = np.asanyarray(yy)
+        ax = nput.vec_normalize(xx - yy)
+        xx = xx - rx * ax
+        yy = yy + ry * ax
         if zz is not None:
             normal = nput.vec_crosses(xx - yy, zz - yy)
         else:
@@ -5187,10 +5213,11 @@ class Molecule(AbstractMolecule):
                         line_class,
                         theme_function,
                         plotos,
-                        line_options
+                        line_options,
+                        radii
                         ):
 
-        (xx, yy), zz, normal = self._get_draw_line_points(geom, key, props)
+        (xx, yy), zz, normal = self._get_draw_line_points(geom, key, props, radii)
         color = props.pop('line_color', props.pop('color', 'black'))
 
         label_props, label_style = self._get_draw_line_label_props(xx, yy, zz, props,
@@ -5207,6 +5234,7 @@ class Molecule(AbstractMolecule):
                               key,
                               props,
                               *,
+                              radii,
                               default_label_style,
                               line_class,
                               theme_function,
@@ -5219,6 +5247,7 @@ class Molecule(AbstractMolecule):
             geom,
             key,
             props,
+            radii=radii,
             default_label_style=default_label_style,
             line_class=line_class,
             theme_function=theme_function,
@@ -5242,18 +5271,23 @@ class Molecule(AbstractMolecule):
     def _prep_draw_arc_points(self,
                               geom,
                               k,
-                              v):
+                              v,
+                              radii):
         # draw angle
         xx, yy, zz = k
+        rx, ry, rz = 0, 0, 0
         if nput.is_int(xx):
+            rx = radii[xx]
             xx = geom[xx]
         elif callable(xx):
             xx = xx(geom)
         if nput.is_int(yy):
+            ry = radii[yy]
             yy = geom[yy]
         elif callable(yy):
             yy = yy(geom)
         if nput.is_int(zz):
+            rz = radii[zz]
             zz = geom[zz]
         elif callable(zz):
             zz = zz(geom)
@@ -5264,12 +5298,28 @@ class Molecule(AbstractMolecule):
             xx = np.asanyarray(xx)
             zz = np.asanyarray(zz)
             axes = [xx - yy, zz - yy]
+        else:
+            axes = nput.vec_normalize(axes)
+            xx = yy + axes[0] * np.linalg.norm(yy - xx)
+            zz = yy + axes[1] * np.linalg.norm(yy - zz)
+
         radius = v.pop('radius', None)
         if radius is None:
-            radius = min([
-                np.linalg.norm(axes[0]),
-                np.linalg.norm(axes[1]),
-            ])
+            axes, norms = nput.vec_normalize(axes, return_norms=True)
+            radius = min(norms)
+        else:
+            axes = nput.vec_normalize(axes)
+
+        if rx > 0 or rz > 0:
+            normal = np.cross(*axes)
+            if rx > 0:
+                perp_x = nput.vec_crosses(axes[0], normal, normalize=True)
+                xx = xx - perp_x * rx
+            if rz > 0:
+                perp_z = nput.vec_crosses(normal, axes[1], normalize=True)
+                zz = zz - perp_z * rz
+            axes = nput.vec_normalize([xx - yy, zz - yy])
+
         angle = v.pop('angle', None)
         if angle is None:
             angle = nput.vec_angles(*axes, return_crosses=False)
@@ -5299,6 +5349,7 @@ class Molecule(AbstractMolecule):
                        geom, key, props,
                        *,
                        up_vector,
+                       radii,
                        default_label_style,
                        disk_class,
                        theme_function,
@@ -5307,7 +5358,7 @@ class Molecule(AbstractMolecule):
                        ):
 
         v = props
-        (xx, yy, zz), angle, axes, radius = self._prep_draw_arc_points(geom, key, props)
+        (xx, yy, zz), angle, axes, radius = self._prep_draw_arc_points(geom, key, props, radii)
 
         label = v.pop('label', None)
         label_style = dict(default_label_style, **v.pop('label_style', {}))
@@ -5331,6 +5382,7 @@ class Molecule(AbstractMolecule):
                              props,
                              *,
                              up_vector,
+                             radii,
                              default_label_style,
                              disk_class,
                              theme_function,
@@ -5342,6 +5394,7 @@ class Molecule(AbstractMolecule):
         arc_props, label_props, sty, label_style = self._prep_draw_arc(
             geom, key, props,
             up_vector=up_vector,
+            radii=radii,
             default_label_style=default_label_style,
             disk_class=disk_class,
             theme_function=theme_function,
@@ -6174,6 +6227,7 @@ class Molecule(AbstractMolecule):
                             k,
                             v,
                             default_label_style=default_label_style,
+                            radii=radii,
                             line_class=line_class,
                             theme_function=theme_function,
                             plotos=plotos,
@@ -6187,6 +6241,7 @@ class Molecule(AbstractMolecule):
                             v,
                             up_vector=up_vector,
                             default_label_style=default_label_style,
+                            radii=radii,
                             disk_class=disk_class,
                             theme_function=theme_function,
                             plotos=plotos,
@@ -6199,6 +6254,7 @@ class Molecule(AbstractMolecule):
                             v,
                             default_label_style=default_label_style,
                             disk_class=disk_class,
+                            radii=radii,
                             theme_function=theme_function,
                             plotos=plotos,
                             disk_options=disk_options
