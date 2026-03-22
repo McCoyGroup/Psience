@@ -4477,7 +4477,11 @@ class Molecule(AbstractMolecule):
         },
         "matplotlib3D": {
             'default': {
-                'multiple_bond_spacing':.2,
+                'multiple_bond_spacing':.15,
+                'bond_center_radius_offset': {
+                    'padding':-.2,
+                    'multi':-.5
+                },
                 'cylinder_options':{
                     'edge_width':.05,
                     'edge_color':'black',
@@ -4487,9 +4491,9 @@ class Molecule(AbstractMolecule):
                     'edge_width':.025,
                     'edge_color':'black'
                 },
-                'extra_opts':{
-                    'projection_type':'ortho'
-                }
+                # 'extra_opts':{
+                #     'projection_type':'ortho'
+                # }
             },
             'simple' : {
                 'bond_radius': 0,
@@ -4504,9 +4508,9 @@ class Molecule(AbstractMolecule):
                     'edge_width': .025,
                     'edge_color': 'black'
                 },
-                'extra_opts': {
-                    'projection_type': 'ortho'
-                }
+                # 'extra_opts': {
+                #     'projection_type': 'ortho'
+                # }
             }
         },
         "plotly3D": {
