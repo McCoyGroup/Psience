@@ -3701,10 +3701,14 @@ class Molecule(AbstractMolecule):
         'matplotlib': ('fast', 'matplotlib3D'),
         'matplotlib3D': ('fast', 'matplotlib3D'),
         'matplotlib3d': ('fast', 'matplotlib3D'),
-        'flat': ('fast', 'matplotlib3D'),
+        # 'flat': ('fast', 'matplotlib3D'),
         'plotly': ('fast', 'plotly3D'),
         'plotly3D': ('fast', 'plotly3D'),
-        'plotly3d': ('fast', 'plotly3D')
+        'plotly3d': ('fast', 'plotly3D'),
+        'svg3D': ('svg3D', 'svg3D'),
+        'svg3d': ('svg3D', 'svg3D'),
+        'svg': ('svg3D', 'svg3D'),
+        'flat': ('svg3D', 'svg3D')
     }
     def _resolve_plot_mode(self,
                            mode,
@@ -4073,7 +4077,7 @@ class Molecule(AbstractMolecule):
                     yy, axes, _, radius = arc_props
                     density = style.pop('angular_density', None)
                     normal, offset_angle, span_angle = nput.angle_arc_parameters(*axes)
-                    points = nput.arc_points(yy, normal, radius, offset_angle, span_angle, angular_density=density)
+                    points = nput.arc_points(yy, radius, offset_angle, span_angle, normal=normal, angular_density=density)
                     points = " ".join(f"{{{x:.3f} {y:.3f} {z:.3f}}}" for x,y,z in points)
                     bits.append(f'draw ID {id} CURVE {points}')
                 else:
@@ -4552,6 +4556,28 @@ class Molecule(AbstractMolecule):
                     'edge_color': 'black'
                 }
             }
+        },
+        "svg3D": {
+            'default': {
+                # 'bond_radius': .15,
+                # 'multiple_bond_spacing': .2,
+                # 'bond_center_radius_offset': {
+                #     'padding': .065,
+                #     'multi': -.05
+                # },  # percentage of radius
+                # 'label_style': {'font_size': 25},
+                'cylinder_options': {
+                    # 'vector-effect':'non-scaling-stroke',
+                    'stroke-width': ".01px",
+                    'stroke': 'black'
+                },
+                'sphere_options': {
+                    # 'vector-effect':'non-scaling-stroke',
+                    'stroke-width': ".01px",
+                    'stroke': 'black'
+                },
+                # 'fractional_bond_offset':.35
+            },
         },
         "rdkit": {
             "default":{
