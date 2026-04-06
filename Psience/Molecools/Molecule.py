@@ -4576,6 +4576,19 @@ class Molecule(AbstractMolecule):
                     'stroke-width': ".01px",
                     'stroke': 'black'
                 },
+                'line_options': {
+                    # 'vector-effect':'non-scaling-stroke',
+                    'stroke-width': ".05px",
+                    'stroke': 'black'
+                },
+                'disk_options': {
+                    # 'vector-effect':'non-scaling-stroke',
+                    'stroke-width': ".05px",
+                    'stroke': 'black'
+                },
+                'label_style': {
+                    'font_size':'.5px'
+                }
                 # 'fractional_bond_offset':.35
             },
         },

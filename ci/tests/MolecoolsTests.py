@@ -4524,24 +4524,24 @@ class MolecoolsTests(TestCase):
             output_order=['x', 'y', 'z']
         ).T #@ nput.rotation_matrix([1, 1, 0], np.pi/1.5)
         uuh2.coords = uuh2.coords - uuh2.center_of_mass[np.newaxis]
-        fig = uuh2.plot(backend='svg',
+        fig = uuh2.plot(backend='x3d',
                         image_size=[500, 500],
                         highlight_atoms=[0, 1, 2],
-                        # draw_coords={
-                        #     (0, 4): {
-                        #         'label': "r",
-                        #         'line_color': 'pink',
-                        #         'label_style': {'font_size': 22, 'color': 'red'}
-                        #     },
-                        #     (0, 1, 2): {
-                        #         'label': "O",
-                        #         'line_color': 'pink',
-                        #         'label_style': {'font_size': 40, 'color': 'blue'}
-                        #     }
-                        # },
+                        draw_coords={
+                            (0, 4): {
+                                'label': "r",
+                                'line_color': 'pink',
+                                'label_style': {'color': 'red'}
+                            },
+                            (0, 1, 2): {
+                                'label': "O",
+                                'line_color': 'pink',
+                                'label_style': {'color': 'blue'}
+                            }
+                        },
                         view_settings={
                             'up_vector': up_vector,
-                            'view_vector': -view_vector,
+                            'view_vector': view_vector,
                             # 'viewAll':True,
                             # 'right_vector': uuh2.coords[0] - uuh2.coords[1],
                             'view_distance': 15,
