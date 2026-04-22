@@ -251,6 +251,8 @@ class MolecularEvaluator:
                                               coordinate_expansion=coordinate_expansion,
                                               strip_embedding=strip_embedding
                                               )
+        if displacement_mesh.shape[-1] == 1 and disps.shape[1] == 1:
+            disps = disps.reshape(disps.shape[:1] + disps.shape[2:])
         if return_displacements:
             return displacement_mesh, disps
         else:
