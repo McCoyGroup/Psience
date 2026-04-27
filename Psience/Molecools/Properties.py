@@ -639,6 +639,21 @@ class StructuralProperties:
         :return:
         :rtype:
         """
+        if planar_ref_tolerance is None:
+            planar_ref_tolerance = cls.planar_ref_tolerance
+        eck_data = nput.eckart_embedding(ref, coords, masses=masses,
+                                         sel=sel,
+                                         in_paf=in_paf,
+                                         planar_ref_tolerance=planar_ref_tolerance,
+                                         proper_rotation=proper_rotation
+                                         )
+        return eck_data.coordinates
+        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords,
+                                                                  sel=sel,
+                                                                  in_paf=in_paf,
+                                                                  planar_ref_tolerance=planar_ref_tolerance,
+                                                                  proper_rotation=proper_rotation
+                                                                  )
 
         smol = coords.ndim == 2
         base_coords = coords
@@ -646,7 +661,6 @@ class StructuralProperties:
         #     coords = coords[..., sel, :]
         #     masses = masses[sel]
         #     ref = ref[..., sel, :]
-
         ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords,
                                                                   sel=sel,
                                                                   in_paf=in_paf,

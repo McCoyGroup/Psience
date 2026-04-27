@@ -8,7 +8,7 @@ from Psience.Plots import *
 
 class PlotTests(TestCase):
 
-    @debugTest
+    @validationTest
     def test_EnergyLevels(self):
         ploot = plot_energy_levels(
             {
@@ -36,3 +36,11 @@ class PlotTests(TestCase):
         # ])
 
         ploot.show()
+
+    @debugTest
+    def test_ConnectEnergyLevels(self):
+        plot_energy_levels({
+            'r': [0., 1.85532628],
+            'ts': [19.7746029, 19.80986744],
+            'prod': [-25.01321145379916]
+        }, connect=True).show()

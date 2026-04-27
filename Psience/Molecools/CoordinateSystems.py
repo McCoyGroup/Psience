@@ -2079,6 +2079,7 @@ class MolecularCartesianToGICConverter(CartesianToGICSystemConverter):
         """
         internals, opts = super().convert_many(coords, order=order, return_derivs=return_derivs, **kw)
         if redundant_generator is not None or redundant_transformation is not None:
+            #TODO: merge the redundant handling into the lower order stuff...
             if redundant_transformation is not None:
                 red_tf = redundant_transformation
                 red_exp = nput.tensor_reexpand(opts['derivs'], [red_tf], order=len(opts['derivs']))
@@ -2136,8 +2137,8 @@ class MolecularGICToCartesianConverter(GICSystemToCartesianConverter):
         # if redundant_inverse is None and redundant_transformation is not None:
         #     redundant_inverse = np.moveaxis(redundant_transformation, -1, -2)
         carts, opts = super().convert_many(coords,
-                                           base_transformation=(
-                                               [redundant_transformation]
+                                           transformations=(
+                                               [[redundant_transformation.T], [redundant_transformation]]
                                                  if redundant_transformation is not None else
                                                None
                                            ),

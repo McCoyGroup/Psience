@@ -119,7 +119,7 @@ class Molecule(AbstractMolecule):
         coords = CoordinateSet(coords, CartesianCoordinates3D)
 
         internals = self.canonicalize_internals(internals, self.atoms, coords, bonds, masses=self._mass)
-        self.embedding = MolecularEmbedding(self.atomic_masses, coords, internals)
+        self._embedding = MolecularEmbedding(self.atomic_masses, coords, internals)
         self._mode_embedding = None
 
         self._name = name
@@ -145,12 +145,9 @@ class Molecule(AbstractMolecule):
 
         self._normal_modes = NormalModesManager(self, normal_modes=normal_modes)
 
-        self.evaluator = MolecularEvaluator(self.embedding, self._normal_modes)
-        self.hamiltonian = MolecularHamiltonian(self.embedding,
-                                                potential_manager=self._pes,
-                                                modes_manager=self._normal_modes,
-                                                dipole_manager=self._dips,
-                                                )
+        self._evaluator = None
+        self._hamiltonian = None
+
         if charge is not None:
             metadata['charge'] = charge
         if spin is not None:
@@ -464,6 +461,12 @@ class Molecule(AbstractMolecule):
                     spec['untransformed_coordinates'] = untransformed_coordinates
             if spec.get('redundant'):
                 spec['relocalize'] = spec.get('relocalize', relocalize)
+        elif not isinstance(spec, dict) and spec is not None:
+            if all(not isinstance(x, dict) and len(x) == 4 for x in spec):
+                spec = {'zmatrix': spec}
+            else:
+                spec = {'primitives':spec}
+            spec = cls.canonicalize_internals(spec, atoms, coords, bonds, relocalize=relocalize, masses=masses)
         return spec
     def prep_internal_spec(self, spec, relocalize=True, masses=None):
         return self.canonicalize_internals(
@@ -475,6 +478,26 @@ class Molecule(AbstractMolecule):
             masses=masses
         )
 
+    @property
+    def embedding(self):
+        return self._embedding
+    @embedding.setter
+    def embedding(self, e):
+        self._embedding = e
+        self.evaluator = None
+        self.hamiltonian = None
+    def get_evaluator(self, embedding=None, normal_modes=dev.default):
+        if embedding is None: embedding = self.embedding
+        if dev.is_default(normal_modes, allow_None=False): normal_modes = self._normal_modes
+        return MolecularEvaluator(embedding, normal_modes)
+    @property
+    def evaluator(self):
+        if self._evaluator is None:
+            self._evaluator = self.get_evaluator()
+        return self._evaluator
+    @evaluator.setter
+    def evaluator(self, e):
+        self._evaluator = e
     #region Base Coords
     @property
     def coords(self):
@@ -540,7 +563,7 @@ class Molecule(AbstractMolecule):
     @internals.setter
     def internals(self, spec):
         self.embedding = MolecularEmbedding(
-            self.masses,
+            self.atomic_masses,
             self.coords,
             self.canonicalize_internals(spec, self.atoms, self.coords, self._bonds, masses=self._mass)
         )
@@ -599,6 +622,7 @@ class Molecule(AbstractMolecule):
 
         return coordinate_filter
 
+    default_coordinate_pruning = 'graph'
     def get_bond_graph_internals(self,
                                  include_stretches=True,
                                  include_bends=True,
@@ -607,7 +631,8 @@ class Molecule(AbstractMolecule):
                                  pruning=None,
                                  fragment=None,
                                  base_internals=None,
-                                 use_distance_matrix=True
+                                 use_distance_matrix=True,
+                                 concatenate=True
                                  ):
         if fragment is not None:
             if nput.is_int(fragment):
@@ -618,9 +643,16 @@ class Molecule(AbstractMolecule):
                 include_dihedrals=include_dihedrals,
                 include_fragments=include_fragments,
                 base_internals=base_internals,
-                pruning=pruning
+                pruning=pruning,
+                concatenate=concatenate
             )
-            return coordops.permute_internals(base_ints, fragment)
+            if concatenate:
+                return coordops.permute_internals(base_ints, fragment)
+            else:
+                return [
+                    coordops.permute_internals(b, fragment)
+                    for b in base_ints
+                ]
         else:
             st, bo, di = coordops.get_stretch_coordinate_system(
                 [tuple(b[:2]) for b in self.bonds],
@@ -645,14 +677,20 @@ class Molecule(AbstractMolecule):
                 bits.append(bo)
             if include_dihedrals:
                 bits.append(di)
-            internals = bits[0]
-            for b in bits[1:]:
-                internals = internals + b
 
-            if pruning:
-                if pruning is True:
-                    pruning = 'b_matrix'
-                internals = self.prune_internals(internals, method=pruning)
+            if concatenate:
+                internals = bits[0]
+                for b in bits[1:]:
+                    internals = internals + b
+
+                if pruning:
+                    if pruning is True:
+                        pruning = self.default_coordinate_pruning
+                    internals = self.prune_internals(internals, method=pruning)
+            else:
+                if pruning:
+                    raise ValueError("can't prune without concatenating")
+                internals = bits
 
             return internals
     def prune_internals(self, coords, method='b_matrix'):
@@ -932,6 +970,14 @@ class Molecule(AbstractMolecule):
                                     dipole_derivatives=dipole_derivatives,
                                     **etc
                                     )
+    @property
+    def hamiltonian(self):
+        if self._hamiltonian is None:
+            self._hamiltonian = self.get_hamiltonian()
+        return self._hamiltonian
+    @hamiltonian.setter
+    def hamiltonian(self, e):
+        self._hamiltonian = e
 
     @property
     def potential_surface(self):
@@ -3151,21 +3197,48 @@ class Molecule(AbstractMolecule):
         return cls.from_rdmol(RDMolecule.from_cdxml(cdxml), **opts)
 
     @classmethod
-    def _from_xyz(cls, xyz, units=None, **opts):
-        from McUtils.Parsers import Number, Word
-        if xyz[0].isdigit():
-            xyz = "\n".join(xyz.splitlines()[2:]) # should confirm that regular `xyz.split("\n", 2)[-1]` would work
-        atoms = Word.findall(xyz)
-        coords = np.array(Number.findall(xyz)).astype(float).reshape(-1, 3)
+    def _from_xyz(cls, xyz, units=None, max_blocks=None, **opts):
+        from McUtils.Devutils import StreamInterface
+        from McUtils.Parsers import XYZParser
+
+        single = max_blocks is None
+        if single:
+            max_blocks = 1
+        if max_blocks < 0:
+            max_blocks = None
+
+        with StreamInterface(xyz, file_backed=True, mode='r+') as stream:
+            with XYZParser(stream) as parser:
+                blocks = parser.parse(max_blocks=max_blocks)
+
         if units is not None:
-            coords *= UnitsData.convert(units, "BohrRadius")
-        return cls(atoms, coords, **opts)
-        # return cls.from_rdmol(RDMolecule.from_molblock(sdf), **opts)
+            units = UnitsData.convert(units, "BohrRadius")
+        else:
+            units = 1
+
+        structs = []
+        for comment, atoms, coords in blocks:
+            comment = comment.strip()
+            if len(comment.strip()) > 0:
+                mol_opts = {'comment':comment} | opts
+            else:
+                mol_opts = opts
+            structs.append(
+                cls(
+                    atoms,
+                    coords * units,
+                    **mol_opts
+                )
+            )
+
+        if single: structs = structs[0]
+        return structs
 
     @classmethod
     def _from_xyz_file(cls, xyz_file, **opts):
-        with open(xyz_file) as xyz:
-            return cls._from_xyz(xyz.read(), **opts)
+        return cls._from_xyz(xyz_file, **opts)
+        # with open(xyz_file) as xyz:
+        #     return cls._from_xyz(xyz.read(), **opts)
 
 
     @classmethod

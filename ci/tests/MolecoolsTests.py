@@ -27,6 +27,10 @@ class MolecoolsTests(TestCase):
         self.test_HOD = TestManager.test_data("HOD_freq.fchk")
         self.test_fchk = TestManager.test_data("water_freq.fchk")
         self.test_log_h2 = TestManager.test_data("outer_H2_scan_new.log")
+        # np.seterr(all='ignore')
+
+    def tearDown(self):
+        ...
 
     @validationTest
     def test_NormalModeRephasing(self):
@@ -3898,9 +3902,7 @@ class MolecoolsTests(TestCase):
         )
 
     @validationTest
-    def test_FragEmbedding(self):
-        import McUtils.Coordinerds as coordops
-
+    def test_FragBaseDraw(self):
         bits = Molecule.from_string(
             'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
             # 'c1ccccn1',
@@ -3930,23 +3932,262 @@ class MolecoolsTests(TestCase):
                 # 'view_distance':200,
                 'view_vector': [0, 0, 1],
             }).show()#.savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
-        return
 
+    @validationTest
+    def test_FragInternalsSpec(self):
+        import McUtils.Coordinerds as coordops
+
+        ints3 = [[2.59092749, 0., 0.],
+             [2.89495928, 1.93458804, 0.],
+             [2.89963503, 1.8239319, 3.37828743],
+             [2.83053209, 1.83815421, 5.06413309],
+             [2.79207623, 2.00065824, 3.29813193],
+             [2.52079324, 2.15594405, 4.10504516],
+             [2.82036909, 2.05789597, 0.9634783],
+             [2.82837755, 1.91974668, 1.11715569],
+             [2.8622616, 1.93798376, 5.26578887],
+             [2.09534423, 1.97234113, 4.22162045],
+             [2.0556097, 1.98211883, 5.54531358],
+             [2.12037191, 1.97468473, 4.16514767],
+             [2.10238981, 1.86667929, 0.80257191],
+             [2.07437367, 1.97295648, 4.17603043],
+             [2.12921129, 1.8901408, 5.36779409],
+             [2.04513453, 2.1175231, 3.14158509],
+             [2.05011789, 2.05580992, 3.1416388],
+             [2.06074897, 2.453391, 0.31696486],
+             [2.09040482, 1.89999553, 2.33908385],
+             [2.11914653, 1.84889244, 1.97498365],
+             [2.13523637, 1.74785729, 5.16708695],
+             [2.08252609, 1.9355175, 4.49096479],
+             [2.07995171, 1.95503155, 5.23240844],
+             [2.09065558, 1.93768086, 2.16018763]]
+        zm3 = [[0, -1, -2, -3],
+               [1, 0, -1, -2],
+               [2, 1, 0, -1],
+               [3, 2, 1, 0],
+               [4, 3, 2, 1],
+               [5, 4, 3, 2],
+               [6, 5, 4, 3],
+               [7, 5, 4, 3],
+               [8, 4, 3, 2],
+               [9, 8, 4, 3],
+               [10, 1, 0, 2],
+               [11, 2, 1, 0],
+               [12, 2, 11, 1],
+               [13, 3, 2, 1],
+               [14, 3, 13, 2],
+               [15, 4, 3, 2],
+               [16, 6, 5, 4],
+               [17, 6, 16, 5],
+               [18, 7, 6, 5],
+               [19, 7, 18, 6],
+               [20, 7, 18, 19],
+               [21, 8, 7, 6],
+               [22, 8, 21, 7],
+               [23, 9, 8, 7],
+               [24, 9, 23, 8]]
+
+        bits = Molecule.from_string(
+            'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
+            # 'c1ccccn1',
+            'smi',
+            confgen_opts=dict(verbose=True, random_seed=12321)
+        )#.fragments[0]
 
         # bits.coords[bits.fragment_indices[1], :] += 10
         # pprint.pprint(bits.get_canonical_zmatrix())
         # print(np.array(bits.get_canonical_zmatrix()[:6]))
         # print()
         # for f in bits.get_bond_zmatrix(validate=True, connect_fragments=False):
-        #     print(f)
+        #     print(np.array(f))
+        zm = bits.get_bond_zmatrix(validate=True, connect_fragments=False)
         spec = coordops.InternalSpec.from_zmatrix(
-            *bits.get_bond_zmatrix(validate=True, connect_fragments=False)
+            *(np.array(z).tolist() for z in zm)
         )
 
+        # carts3 = coordops.zmatrix_to_cartesian(
+        #     ints3,
+        #     zm3
+        # )
+        # print(coordops.cartesian_to_zmatrix(
+        #     carts3,
+        #     zm3
+        # ).coords)
+        # raise Exception(...)
+
         ints = spec.cartesians_to_internals(bits.coords)
-        print(spec.internals_to_cartesians(ints))
+        # zints = coordops.cartesian_to_zmatrix(bits.coords, zm[0])
+        # print(coordops.zmatrix_from_values(ints, partial_embedding=True))
+        # print(zints.coords)
+        # return
+
+        # print(np.array(zm[0])[:4])
+        # conv = coordops.find_internal_conversion(spec.rad_set, [(0, 1, 2, 3)],
+        #                                          triangles_and_dihedrons=spec.get_triangulation(),
+        #                                          allow_completion=False,
+        #                                          prep_conversions=False)
+        # print(conv(ints))
+        # print(ints[:6])
+        # return
+        # intzm = coordops.zmatrix_from_values(ints, partial_embedding=True)
+        # zmstuff3 = coordops.cartesian_to_zmatrix(bits.coords, zm[0])
+        # intzm3 = zmstuff3.coords
+        # c3 = coordops.zmatrix_to_cartesian(intzm3, zm[0])
+        # ints2 = spec.cartesians_to_internals(c3)
+        # print(ints[:9])
+        # print(ints2[:9])
+        # return
+        zm2, _ = spec.get_zmat_conv()
+        carts, exp = spec.internals_to_cartesians(ints, reference_cartesians=bits.coords, order=1)
+        # print(carts - bits.coords)
+        # print(exp[0][1].shape)
+        uuuh = spec.get_direct_inverses(carts, order=1)
+        # print(uuuh)
+        print(uuuh[1][0].shape, exp[0][1].shape)
+        print(np.round(uuuh[1] @ exp[0][1], 8)[:6, :6])
+
+        # ints2 = spec.cartesians_to_internals(carts)
+        # print(np.array(zm[0])[:4])
+        # print(np.array(zm2)[:4])
+        # print(ints[:9])
+        # print(ints2[:9])
+        #
+        # print(np.round(ints - ints2, 8))
+
 
         return
+
+    @validationTest
+    def test_FragInternalsScan(self):
+        import McUtils.Coordinerds as coordops
+
+        mol = Molecule.from_string(
+            # 'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
+            # 'FC1CCC(C(=C)C)CC1',
+            'OC=O',
+            # "N",
+            'smi',
+            confgen_opts=dict(verbose=True, random_seed=12321)
+        )
+
+        # mol.plot(highlight_atoms=[0, 1, 3, 4]).show()
+
+        spec = coordops.InternalSpec.from_zmatrix(mol.get_bond_zmatrix())
+        pprint.pprint(spec.rad_set)
+        pprint.pprint(spec.get_triangulation())
+
+        # graph = coordops.InternalCoordinateGraph(spec.rad_set)
+        # conv = graph.find_conversions([(3, 4)])
+        # print(...)
+        # print(conv)
+        # return
+
+
+        mol = Molecule.from_string(
+            # 'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
+            'FC1CCC(C(=C)C)CC1',
+            # 'COC=O',
+            # "N",
+            'smi',
+            confgen_opts=dict(verbose=True, random_seed=12321)
+        )
+        # mol.plot(backend='2d',
+        #          include_save_buttons=True,
+        #          draw_coords=[
+        #              (0, 2),
+        #              (1, 2, 3)
+        #          ]).show()
+        # return
+        # dists, bends, diheds =  mol.get_bond_graph_internals(include_fragments=False, concatenate=False)
+        # import pprint
+        # pprint.pprint(diheds[:50])
+        print(len(mol.atoms) * 3 - 6)
+
+
+        # from McUtils.Graphs import analyze_internal_coords
+        # pprint.pprint(
+        #     analyze_internal_coords(dists, bends, diheds)
+        # )
+        # return
+        # mol.internals = {
+        #     'primitives':dists + bends + diheds#[:50],
+        #     # 'method':'iterative'
+        # }
+        # mol.internals = coordops.extract_zmatrix_internals(
+        #     mol.get_bond_zmatrix()
+        # )
+
+        with BlockProfiler():
+            specs = mol.get_bond_graph_internals(include_fragments=False, pruning='b_matrix')
+        print(len(specs))
+        # specs = mol.get_bond_graph_internals(include_fragments=False, pruning='b_matrix')
+        # specs = mol.get_bond_graph_internals(include_fragments=False)
+        # import pprint
+        # pprint.pprint([
+        #     s for s in specs
+        #     if all(k in [1, 2, 3, 4, 8, 9] for k in s)
+        # ])
+
+        # pprint.pprint(specs2)
+        # pprint.pprint([
+        #     x for x in specs if x not in specs2
+        # ])
+        # pprint.pprint([
+        #     x for x in specs2 if x not in specs
+        # ])
+        pprint.pprint(specs)
+        # return
+        # raise Exception(len(specs))
+        mol.internals = {
+            'specs':specs,
+            # 'method':'iterative'
+        }
+
+        # print(mol.internal_coordinates.tolist())
+        # return
+
+        # mol.animate_coordinate(-5).show()
+        # return
+        geoms = mol.get_scan_coordinates(
+            [[-.5, .5, 5]],
+            which=[-5],
+            internals='reembed'
+        )
+
+        mol.plot(geoms,
+                 backend='x3d',
+                 highlight_atoms=[0, 2, 3],
+                 image_size=800,
+                 include_save_buttons=True).show()
+
+    @debugTest
+    def test_MultiXYZParsing(self):
+        mol = Molecule.from_file(
+            TestManager.test_data('traj.xyz'),
+            units='Angstroms'
+        )
+        self.assertEquals(mol.coords.shape, (27, 3))
+
+
+        traj = Molecule.from_file(
+            TestManager.test_data('traj.xyz'),
+            units='Angstroms',
+            max_blocks=-1
+        )
+        traj[0].plot([t.coords for t in traj], image_size=800, include_save_buttons=True).show()
+
+    @validationTest
+    def test_RDKitNumberIssues(self):
+        Molecule.from_string("""CC(N1)=NC2=C1C(/C=C/C3=[N+](CCC[S-](=O)(=O)=O)C4=CC=CC=C4S3)=CC=C2""", 'smi')
+
+    @validationTest
+    def test_FragEmbedding(self):
+        bits = Molecule.from_string(
+            'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
+            # 'c1ccccn1',
+            'smi',
+            confgen_opts=dict(verbose=True, random_seed=12321)
+        )
 
         s3 = bits.modify(internals={'specs': [
             {"transrot": bits.fragment_indices[1]}
@@ -4363,7 +4604,7 @@ class MolecoolsTests(TestCase):
         # ).show()  # .savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
         # # return
 
-    @debugTest
+    @validationTest
     def test_SVGBackend(self):
         from Psience.Molecools import Molecule
         tests = [

@@ -16,6 +16,8 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
                        ticks=None,
                        labels=None,
                        bar_styles=None,
+                       connect=False,
+                       connection_style=None,
                        **styles):
 
     if isinstance(energy_list, dict): # replace with collections.Mapping...
@@ -106,4 +108,19 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
             ticks=ticks,
             **style_dict
         )
+    if connect:
+        if connection_style is None:
+            connection_style = {'linestyle':'dashed'}
+        dat = list(zip(energy_list, x_list, color, bar_styles))
+        for i, ((f, x, c, s), (f2, x2, c2, s2)) in enumerate(zip(dat[:-1], dat[1:])):
+            style_dict = styles | connection_style | s | s2
+            c = style_dict.pop('color', c)
+            for fp in zip(f, f2):
+                plt.Plot(
+                    [x[-1], x2[0]],
+                    fp,
+                    figure=figure,
+                    color=c,
+                    **style_dict
+                )
     return figure

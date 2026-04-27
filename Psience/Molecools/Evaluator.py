@@ -251,6 +251,8 @@ class MolecularEvaluator:
                                               coordinate_expansion=coordinate_expansion,
                                               strip_embedding=strip_embedding
                                               )
+        if displacement_mesh.shape[-1] == 1 and disps.shape[1] == 1:
+            disps = disps.reshape(disps.shape[:1] + disps.shape[2:])
         if return_displacements:
             return displacement_mesh, disps
         else:
@@ -1759,12 +1761,18 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
 
     @classmethod
     def setup_aimnet(cls, model):
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
-            from aimnet2calc import AIMNet2Calculator
+        if isinstance(model, str):
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                try:
+                    from aimnet.calculators import AIMNet2Calculator
+                except ModuleNotFoundError:
+                    from aimnet2calc import AIMNet2Calculator
 
-        with cls.quiet_mode():
-            calc = AIMNet2Calculator(model)
+            with cls.quiet_mode():
+                calc = AIMNet2Calculator(model)
+        else:
+            calc = model
 
         return calc
 
