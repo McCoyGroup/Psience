@@ -1761,12 +1761,18 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
 
     @classmethod
     def setup_aimnet(cls, model):
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
-            from aimnet2calc import AIMNet2Calculator
+        if isinstance(model, str):
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                try:
+                    from aimnet.calculators import AIMNet2Calculator
+                except ModuleNotFoundError:
+                    from aimnet2calc import AIMNet2Calculator
 
-        with cls.quiet_mode():
-            calc = AIMNet2Calculator(model)
+            with cls.quiet_mode():
+                calc = AIMNet2Calculator(model)
+        else:
+            calc = model
 
         return calc
 

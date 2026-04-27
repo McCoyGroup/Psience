@@ -3197,21 +3197,48 @@ class Molecule(AbstractMolecule):
         return cls.from_rdmol(RDMolecule.from_cdxml(cdxml), **opts)
 
     @classmethod
-    def _from_xyz(cls, xyz, units=None, **opts):
-        from McUtils.Parsers import Number, Word
-        if xyz[0].isdigit():
-            xyz = "\n".join(xyz.splitlines()[2:]) # should confirm that regular `xyz.split("\n", 2)[-1]` would work
-        atoms = Word.findall(xyz)
-        coords = np.array(Number.findall(xyz)).astype(float).reshape(-1, 3)
+    def _from_xyz(cls, xyz, units=None, max_blocks=None, **opts):
+        from McUtils.Devutils import StreamInterface
+        from McUtils.Parsers import XYZParser
+
+        single = max_blocks is None
+        if single:
+            max_blocks = 1
+        if max_blocks < 0:
+            max_blocks = None
+
+        with StreamInterface(xyz, file_backed=True, mode='r+') as stream:
+            with XYZParser(stream) as parser:
+                blocks = parser.parse(max_blocks=max_blocks)
+
         if units is not None:
-            coords *= UnitsData.convert(units, "BohrRadius")
-        return cls(atoms, coords, **opts)
-        # return cls.from_rdmol(RDMolecule.from_molblock(sdf), **opts)
+            units = UnitsData.convert(units, "BohrRadius")
+        else:
+            units = 1
+
+        structs = []
+        for comment, atoms, coords in blocks:
+            comment = comment.strip()
+            if len(comment.strip()) > 0:
+                mol_opts = {'comment':comment} | opts
+            else:
+                mol_opts = opts
+            structs.append(
+                cls(
+                    atoms,
+                    coords * units,
+                    **mol_opts
+                )
+            )
+
+        if single: structs = structs[0]
+        return structs
 
     @classmethod
     def _from_xyz_file(cls, xyz_file, **opts):
-        with open(xyz_file) as xyz:
-            return cls._from_xyz(xyz.read(), **opts)
+        return cls._from_xyz(xyz_file, **opts)
+        # with open(xyz_file) as xyz:
+        #     return cls._from_xyz(xyz.read(), **opts)
 
 
     @classmethod

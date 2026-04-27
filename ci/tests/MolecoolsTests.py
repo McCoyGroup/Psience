@@ -4057,9 +4057,32 @@ class MolecoolsTests(TestCase):
 
         return
 
-    @debugTest
+    @validationTest
     def test_FragInternalsScan(self):
         import McUtils.Coordinerds as coordops
+
+        mol = Molecule.from_string(
+            # 'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
+            # 'FC1CCC(C(=C)C)CC1',
+            'OC=O',
+            # "N",
+            'smi',
+            confgen_opts=dict(verbose=True, random_seed=12321)
+        )
+
+        # mol.plot(highlight_atoms=[0, 1, 3, 4]).show()
+
+        spec = coordops.InternalSpec.from_zmatrix(mol.get_bond_zmatrix())
+        pprint.pprint(spec.rad_set)
+        pprint.pprint(spec.get_triangulation())
+
+        # graph = coordops.InternalCoordinateGraph(spec.rad_set)
+        # conv = graph.find_conversions([(3, 4)])
+        # print(...)
+        # print(conv)
+        # return
+
+
         mol = Molecule.from_string(
             # 'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
             'FC1CCC(C(=C)C)CC1',
@@ -4094,7 +4117,8 @@ class MolecoolsTests(TestCase):
         #     mol.get_bond_zmatrix()
         # )
 
-        specs = mol.get_bond_graph_internals(include_fragments=False, pruning=True)
+        with BlockProfiler():
+            specs = mol.get_bond_graph_internals(include_fragments=False, pruning='b_matrix')
         print(len(specs))
         # specs = mol.get_bond_graph_internals(include_fragments=False, pruning='b_matrix')
         # specs = mol.get_bond_graph_internals(include_fragments=False)
@@ -4124,7 +4148,6 @@ class MolecoolsTests(TestCase):
 
         # mol.animate_coordinate(-5).show()
         # return
-
         geoms = mol.get_scan_coordinates(
             [[-.5, .5, 5]],
             which=[-5],
@@ -4137,6 +4160,25 @@ class MolecoolsTests(TestCase):
                  image_size=800,
                  include_save_buttons=True).show()
 
+    @debugTest
+    def test_MultiXYZParsing(self):
+        mol = Molecule.from_file(
+            TestManager.test_data('traj.xyz'),
+            units='Angstroms'
+        )
+        self.assertEquals(mol.coords.shape, (27, 3))
+
+
+        traj = Molecule.from_file(
+            TestManager.test_data('traj.xyz'),
+            units='Angstroms',
+            max_blocks=-1
+        )
+        traj[0].plot([t.coords for t in traj], image_size=800, include_save_buttons=True).show()
+
+    @validationTest
+    def test_RDKitNumberIssues(self):
+        Molecule.from_string("""CC(N1)=NC2=C1C(/C=C/C3=[N+](CCC[S-](=O)(=O)=O)C4=CC=CC=C4S3)=CC=C2""", 'smi')
 
     @validationTest
     def test_FragEmbedding(self):
