@@ -4160,7 +4160,7 @@ class MolecoolsTests(TestCase):
                  image_size=800,
                  include_save_buttons=True).show()
 
-    @debugTest
+    @validationTest
     def test_MultiXYZParsing(self):
         mol = Molecule.from_file(
             TestManager.test_data('traj.xyz'),
@@ -4175,6 +4175,94 @@ class MolecoolsTests(TestCase):
             max_blocks=-1
         )
         traj[0].plot([t.coords for t in traj], image_size=800, include_save_buttons=True).show()
+
+    @validationTest
+    def test_ZMatOpt(self):
+        import McUtils.Coordinerds as coordops
+
+#         z1 = Molecule.from_string("""C
+# C  1   1.4008
+# C  2   1.3827  1 120.2081
+# C  3   1.3804  2 121.0304  1    1.0784
+# C  4   1.3971  3 119.2584  2   -2.3141
+# C  5   1.3898  4 118.4788  3   -3.0201
+# S  6   1.7465  5 118.8810  4  176.9933
+# C  7   1.7497  6 103.1779  5   74.6801
+# C  8   1.4215  7 128.2225  6   48.8667
+# C  9   1.5373  8 119.6962  7   -2.2336
+# O 10   1.1998  9 122.7413  8   81.1035
+# O  7   1.4245  6 106.4017  5  -38.8122
+# O 10   3.4864  9  72.5418  8   25.4569
+# N 10   1.3508  9 112.3805  8 -107.5567
+# H  8   1.0854  7 103.6846  6  -71.8987
+# H  9   1.0965  8 108.2016  7 -120.1102
+# H  5   1.0809  4 122.4201  3  176.9501
+# H  4   1.0751  3 121.5289  2  177.5960
+# H  3   1.0834  2 119.4871  1 -179.3770
+# H  2   1.0660  1 119.4576  3 -179.8877
+# H  1   1.0766  2 122.3884  3  177.4101
+# H 14   1.0057 13 109.6920 12  131.3817
+# H 14   1.0048 22 116.7792 13  113.3685
+# C  8   3.1451  7 118.3616  9  131.5411
+# C 24   1.5207  8  86.1233  7  -92.2703
+# C 25   1.5467 24  94.5056  8  -63.7068
+# C 26   1.4443 25 100.1371 24  -48.5602
+# C 27   1.3944 26 105.4206 25   43.0025
+# H 24   1.0929 25 119.7568 26  174.9601
+# H 26   1.0919 25 117.8925 24  179.0337
+# H 28   1.0990 27 127.8184 26  175.0305
+# H 27   1.0754 26 124.8731 25 -150.8246
+# H 25   1.0816 24 111.1788 26 -119.2753
+# H 25   1.1009 33 109.9263 24  128.2950""", 'zmat', energy_evaluator='rdkit')
+
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning) # new mac annoyance
+
+        z1 = Molecule.from_string(
+            'C(=O)O', 'smi',
+            energy_evaluator='aimnet2',
+            conf_get_options={'random_seed': 12321}
+        ).optimize(max_iterations=80)
+        z1.internals = z1.get_bond_zmatrix()
+
+        disp_coords = z1.get_displaced_coordinates(
+            [[np.pi/6]],
+            which=[-1],
+            use_internals='reembed',
+            strip_embedding=True
+        )[0]
+        z1 = z1.modify(coords=disp_coords)
+
+
+        # int_scan = z1.get_internals(
+        #     z1.get_scan_coordinates(
+        #         [[0, np.pi, 10]],
+        #         which=[-1],
+        #         internals='reembed'
+        #     )
+        # )[:, -1]
+        #
+        # raise Exception(int_scan)
+
+        # woof2 = scan_ahh.modify(internals={'specs': coordops.extract_zmatrix_internals(zm0)})
+        # scan_ahh.animate_coordinate(1, .05, coordinate_expansion=bbb)
+
+        opt = z1.optimize(max_iterations=25)#, mode='scipy', method='nelder-mead')
+
+        opt2 = z1.modify(internals=None).optimize(max_iterations=15)
+        print(opt.calculate_energy() - z1.calculate_energy())
+        print(opt.calculate_energy() - opt2.calculate_energy())
+
+        print(
+            coordops.set_zmatrix_embedding(
+                np.round(z1.internal_coordinates - z1.modify(coords=opt.coords).internal_coordinates, 2)
+            )
+        )
+        print(
+            coordops.set_zmatrix_embedding(
+                np.round(z1.internal_coordinates - z1.modify(coords=opt2.coords).internal_coordinates, 2)
+            )
+        )
 
     @validationTest
     def test_RDKitNumberIssues(self):
@@ -4981,3 +5069,250 @@ class MolecoolsTests(TestCase):
         #     include_save_buttons=True
         # ).show()  # .savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
         # # return
+
+    @validationTest
+    def test_BondGraphZMatrixIssues(self):
+        horizontal_structure = '''
+  C   -0.0531542   -0.2705697   -0.4038580
+  C   -1.2672917   -0.9889447   -0.5655902
+  C   -2.5115504   -0.3220336   -0.4206904
+  C   -3.7326727   -1.0553190   -0.5317414
+  C   -3.7004761   -2.4495575   -0.8014742
+  C   -2.4508476   -3.1180666   -0.9547299
+  C   -2.4145647   -4.5238734   -1.2198701
+  C   -3.6621332   -5.2283272   -1.3328590
+  C   -4.8569665   -4.5892997   -1.1846209
+  H   -5.7886526   -5.1430158   -1.2712961
+  C   -4.9257958   -3.1802597   -0.9094725
+  C   -6.1422696   -2.5061569   -0.7417504
+  H   -7.0716942   -3.0658565   -0.8238723
+  C   -6.1964402   -1.1330449   -0.4675717
+  C   -7.4373714   -0.4323877   -0.2841295
+  H   -8.3634594   -0.9960396   -0.3668735
+  C   -7.4675572    0.9027752   -0.0104014
+  H   -8.4176460    1.4127807    0.1290235
+  C   -6.2596814    1.6721378    0.1065559
+  C   -6.2671014    3.0419631    0.4027137
+  H   -7.2201538    3.5465627    0.5477102
+  C   -5.0827029    3.7776905    0.5303886
+  C   -5.0759603    5.1765715    0.8640348
+  H   -6.0312166    5.6798428    0.9938500
+  C   -3.9096314    5.8651178    1.0239392
+  H   -3.9280356    6.9205177    1.2854065
+  C   -2.6313319    5.2261265    0.8675107
+  C   -2.6065567    3.8427713    0.5018790
+  C   -3.8255173    3.1208176    0.3413015
+  C   -3.7956779    1.7351059    0.0306407
+  C   -5.0084680    1.0043192   -0.0784111
+  C   -4.9769052   -0.3925329   -0.3620967
+  C   -2.5425203    1.0693727   -0.1391634
+  C   -1.3290713    1.7891599    0.0179298
+  C   -0.0839449    1.1156505   -0.0953746
+  C    1.1355172    1.8214190    0.1444458
+  C    1.1010171    3.1946003    0.5049308
+  C   -0.1474428    3.8757259    0.6003097
+  C   -1.3601817    3.1780730    0.3542430
+  C   -0.1858234    5.2499558    0.9952833
+  C   -1.4242191    5.8941573    1.1061277
+  H   -1.4495383    6.9350662    1.4194308
+  C    1.0532032    5.9119919    1.2917556
+  C    2.2465413    5.2622367    1.1941631
+  C    2.3197271    3.8832904    0.7977264
+  C    3.5352228    3.1943918    0.6970674
+  C    3.5930945    1.8423682    0.3340199
+  C    2.3778386    1.1384405    0.0625407
+  C    2.4102323   -0.2468567   -0.2728220
+  C    1.1993952   -0.9519230   -0.5029697
+  C    1.2283278   -2.3432451   -0.7890186
+  C    0.0098448   -3.0637208   -0.9542032
+  C   -1.2361383   -2.3926339   -0.8313463
+  C    0.0349492   -4.4697870   -1.2200387
+  C   -1.1751012   -5.1636932   -1.3514989
+  H   -1.1509809   -6.2327171   -1.5521573
+  C    1.3123634   -5.1187284   -1.3301511
+  H    1.3318089   -6.1850993   -1.5412707
+  C    2.4774035   -4.4302726   -1.1665430
+  C    2.4838369   -3.0225639   -0.8768600
+  C    3.6676819   -2.3042610   -0.6642272
+  C    3.6602742   -0.9382196   -0.3533601
+  C    4.8654746   -0.1983466   -0.0980494
+  H    5.8151245   -0.7232786   -0.1667677
+  C    4.8334523    1.1238831    0.2322146
+  H    5.7571926    1.6620172    0.4300728
+  H    4.6199581   -2.8265000   -0.7288371
+  H    3.4322477   -4.9442495   -1.2457993
+  H    4.4607529    3.7230634    0.9146432
+  H    3.1731065    5.7801519    1.4281981
+  H    1.0166878    6.9498086    1.6110402
+  H   -3.6334126   -6.2956952   -1.5377463
+  N   -0.9768306   -0.8645727    2.6960567
+  C   -1.1153261    0.4844050    3.0234710
+  C   -0.0778126    1.3920491    3.2650545
+  C   -0.3249244    2.7228872    3.5872077
+  C   -1.6325156    3.2294720    3.7094695
+  C   -2.6582688    2.3098377    3.4306428
+  C   -2.4217818    0.9854865    3.0975439
+  F   -3.4554562    0.1841828    2.8127935
+  F   -3.9567056    2.6815385    3.4512927
+  C   -1.8441701    4.6700822    4.1229961
+  O   -0.9060656    5.3915137    4.4314908
+  N   -3.1391561    5.1091075    4.1948416
+  H   -3.8828970    4.6489540    3.6932711
+  H   -3.2290700    6.1045076    4.3462867
+  F    0.7511767    3.4882777    3.7556598
+  F    1.1959563    0.9736924    3.1611571
+  N    0.1556565   -1.3754611    2.6214998
+  N    1.0867607   -2.0159052    2.5061938'''
+        horp = Molecule.from_string(horizontal_structure, units='Angstroms')
+        f1:Molecule = horp.fragments[1]
+        zmat = f1.get_bond_zmatrix()
+        hmm = [z[0] for z in zmat[:8]]
+        segs = f1.find_backbone_segments()
+        f1.plot(highlight_atoms=segs[0]).show()
+
+    @validationTest
+    def test_SimpleRelaxedScan(self):
+        # import McUtils.Iterators as itut
+        #
+        # for x in itut.zigzag_product(['a', 'b', 'c'], [0, 1, 2], [-2, 1, 0]):
+        #     print(x)
+        # return
+
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning) # new mac annoyance
+
+        mol = Molecule.from_string('[CH3:1][O:2][H:3]',
+                                   energy_evaluator='aimnet2',
+                                   internals='zmatrix'
+                                   )
+        # mol.plot(highlight_atoms=[1, 2]).show()
+
+
+        _, scan_geoms, _ = mol.relaxed_scan(
+            [0, np.pi/6, 10],
+            (2, 1, 0, 3),
+            max_iterations=50
+        )
+
+        _, rigid_geoms, _ = mol.relaxed_scan(
+            [0, np.pi / 6, 10],
+            (2, 1, 0, 3),
+            max_iterations=0
+        )
+
+        import McUtils.Plots as plt
+
+        fig = plt.Plot(
+            np.linspace(0, np.pi/6, 10),
+            mol.calculate_energy(coords=scan_geoms, use_internals=False)
+        )
+        plt.Plot(
+            np.linspace(0, np.pi / 6, 10),
+            mol.calculate_energy(coords=rigid_geoms, use_internals=False),
+            figure=fig
+        )
+        fig.show()
+
+        # mol.plot(scan_geoms, include_save_buttons=True).show()
+
+        return
+
+
+        # import rdkit.Chem
+        # import numpy as np
+
+        # mol1 = rdkit.Chem.MolFromSmiles("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        # mol1 = rdkit.Chem.AddHs(mol1)
+        # mol2 = rdkit.Chem.MolFromSmiles("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        # mol2 = rdkit.Chem.AddHs(mol2)
+        # mol1 = rdkit.Chem.RemoveHs(mol1)
+        # mol2 = rdkit.Chem.RemoveHs(mol2)
+        # mol = rdkit.Chem.CombineMols(mol1, mol2)
+        # mol = rdkit.Chem.AddHs(mol)
+        #
+        # coords = np.random.rand(mol.GetNumAtoms(), 3)
+        # conf = rdkit.Chem.Conformer(coords.shape[0])
+        # conf.SetPositions(coords)
+        # conf.SetId(0)
+        # conf_id = mol.AddConformer(conf)
+        # conf = mol.GetConformer(conf_id)
+        # print(conf_id, conf.GetPositions())
+        # return
+
+
+        # prod:Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        # react = prod.apply_smarts("[C:1]1[C:2][C:3]=[C:4][C:5][C:6]1 >> [C:1]=[C:6].[C:2]=[C:3]-[C:4]=[C:5]")
+        prod: Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        new = prod.break_bonds([(0, 2), (1, 3)], use_rdkit=True)
+        new.plot().show()
+        return
+        react = prod.apply_smarts("[C:1]1[C:3][C:5]=[C:6][C:4][C:2]1 >> [C:1]=[C:2].[C:3]=[C:5]-[C:6]=[C:4]")
+
+
+
+        # raise Exception(react[0].coords)
+        # react[0].plot().show()
+
+    @validationTest
+    def test_RequiredCoordinateZMatrix(self):
+
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning)  # new mac annoyance
+
+        mol: Molecule = Molecule.from_string('[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1',
+                                             energy_evaluator='aimnet2',
+                                             internals='zmatrix'
+                                             )
+
+        zm = mol.get_bond_zmatrix(required_coordinates=[
+            # (0, 2),
+            (1, 3),
+            (0, 1),
+            # (3, 2, 4)
+        ])
+
+    @inactiveTest
+    def test_ProblemTransformedZMatrix(self):
+        import McUtils.Coordinerds as coordops
+
+        prod: Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        react = prod.apply_smarts("[C:1]1[C:3][C:5]=[C:6][C:4][C:2]1 >> [C:1]=[C:2].[C:3]=[C:5]-[C:6]=[C:4]")
+
+        # print(react[0].fragment_indices)
+        zzz = react[0].get_bond_zmatrix()
+        print(np.array(zzz))
+        int_react = react[0].modify(internals=zzz)
+        pos = coordops.zmatrix_indices(zzz, [(2, 0)], strip_embedding=True)
+        # react[0].plot(highlight_atoms=[3, 5, 4, 2]).show()
+        int_react.animate_coordinate(pos,
+                                     strip_embedding=True,
+                                     draw_coords=[(2, 1)]).show()
+
+
+    @debugTest
+    def test_ComplexRelaxedScan(self):
+
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning)  # new mac annoyance
+
+        mol:Molecule = Molecule.from_string('[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1',
+                                   energy_evaluator='aimnet2',
+                                   internals='zmatrix'
+                                   )
+
+        zm = mol.get_bond_zmatrix(required_coordinates=[
+            (0, 2),
+            (1, 3)
+        ])
+
+        int_mol = mol.modify(internals=zm)
+        _, geoms, _ = int_mol.relaxed_scan(
+            [0, 4, 10],
+            {
+                (0,2):1,
+                (1,3):1
+            },
+            max_iterations=50
+        )
+
+        int_mol.plot(geoms).show()

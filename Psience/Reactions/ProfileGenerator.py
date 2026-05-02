@@ -11,6 +11,10 @@ from McUtils.Data import UnitsData
 from ..Molecools import Molecule
 from ..Molecools.Evaluator import EnergyEvaluator
 
+__all__ = [
+    "ProfileGenerator"
+]
+
 class ProfileGenerator:
     def __init__(self,
                  reactant_complex:Molecule
@@ -30,7 +34,8 @@ class ProfileGenerator:
     def get_profile_generators(cls):
         return {
             'interpolate': InterpolatingProfileGenerator,
-            'neb': NudgedElasticBand
+            'neb': NudgedElasticBand,
+            'bonds': BrokenBondGenerator
         }
     _profile_dispatch = dev.uninitialized
     @classmethod
@@ -274,9 +279,10 @@ class NudgedElasticBand(InterpolatingProfileGenerator):
             )
 
     def generate(self, num_images=None, spring_constant=None, energy_evaluator=None, return_preopt=False,
-                 embedding_options=None,
+                 embedding_options=None, base_images=None,
                  **opt_opts):
-        base_images = super().generate(num_images=num_images)
+        if base_images is None:
+            base_images = super().generate(num_images=num_images)
         step_finder = self.get_step_finder(spring_constant=spring_constant, energy_evaluator=energy_evaluator)
 
         if embedding_options is None:
@@ -297,3 +303,113 @@ class NudgedElasticBand(InterpolatingProfileGenerator):
 
 class GrowingString(ProfileGenerator):
     ...
+
+class ASENEBGenerator(InterpolatingProfileGenerator):
+    def __init__(self,
+                 reactant_complex: Molecule,
+                 product_complex: Molecule,
+                 *,
+                 energy_evaluator: EnergyEvaluator,
+                 coordinate_interpolator='ase',
+                 num_images=10,
+                 initial_image_positions=None,
+                 spring_constant=.01,
+                 internals=None,
+                 max_displacement_step=None,
+                 interpolation_gradient_scaling=None,
+                 intermediates=None
+                 ):
+        self.interpolation_gradient_scaling = interpolation_gradient_scaling
+        self._energy_evaluator = energy_evaluator
+        if dev.str_is(coordinate_interpolator, 'ase'):
+            if intermediates is not None:
+                pre_traj = [reactant_complex] + list(intermediates) + [product_complex]
+            else:
+                pre_traj = [reactant_complex, product_complex]
+            coordinate_interpolator = self.ASECoordinateInterpolator(pre_traj)
+        super().__init__(
+            reactant_complex,
+            product_complex,
+            coordinate_interpolator=coordinate_interpolator,
+            num_images=num_images,
+            initial_image_positions=initial_image_positions,
+            internals=internals,
+            max_displacement_step=max_displacement_step
+        )
+        self.num_images = num_images
+        self.initial_image_positions = initial_image_positions
+        self.spring_constant = spring_constant
+
+    class ASECoordinateInterpolator:
+        def __init__(self, initial_path):
+            self.path = initial_path
+
+
+    def generate(self, num_images=None, spring_constant=None, energy_evaluator=None, return_preopt=False):
+        ...
+        from ase.neb import NEB
+        from ase.optimize import FIRE
+
+        # 2.1 Create 5 images between initial and final
+        images = [initial]
+        for i in range(5):
+            image = initial.copy()
+            image.calc = calc
+            images.append(image)
+        images.append(final)
+
+        # 2.2 Interpolate to create a rough path
+        neb = NEB(images)
+        neb.interpolate()
+
+        # 2.3 Optimize the path (CI-NEB for TS)
+        optimizer = FIRE(images)
+        optimizer.run(fmax=0.05)
+
+class BrokenBondGenerator(ProfileGenerator):
+    def __init__(self,
+                 product_complex: Molecule,
+                 bonds,
+                 *,
+                 energy_evaluator=None,
+                 steps=10,
+                 displacement=5,
+                 internals=None,
+                 coordinate_constraints=None,
+                 **optimation_settings
+                 ):
+        if energy_evaluator is not None:
+            product_complex = product_complex.modify(energy_evaluator=energy_evaluator)
+        if internals is not None:
+            product_complex = product_complex.modify(internals=internals)
+        super().__init__(product_complex)
+        self.steps = steps
+        self.bonds = bonds
+        self.displacement = displacement
+        self.constraints = coordinate_constraints
+        self.optimation_settings = optimation_settings
+
+    def generate(self, **opts):
+        steps = self.steps
+        if nput.is_int(steps):
+            steps = np.linspace(0, self.displacement, steps)
+        disps = np.concatenate([steps[:1], np.diff(steps)])
+        rows, cols = np.asanyarray(self.bonds)
+        struct = self.reactants
+        structs = []
+        constraints = self.bonds
+        if self.constraints is not None:
+            constraints = list(constraints) + list(self.constraints)
+        for d in disps:
+            displacement_vector = nput.vec_normalize(
+                np.average(struct.coords[cols] - struct.coords[rows], axis=0)
+            )
+            struct = struct.modify(
+                coords=struct.coords + displacement_vector[np.newaxis, :] * d
+            ).optimize(
+                coordinate_constraints=constraints,
+                **opts
+            )
+            structs.append(struct)
+
+        return struct
