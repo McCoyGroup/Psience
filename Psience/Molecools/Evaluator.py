@@ -122,6 +122,7 @@ class MolecularEvaluator:
     def get_displaced_coordinates(self, displacements, which=None, sel=None, axes=None,
                                   use_internals:"bool|Literal['reembed', 'convert']"=False,
                                   coordinate_expansion=None,
+                                  expansion_active_positions=None,
                                   strip_embedding=False,
                                   shift=True,
                                   coords=None,
@@ -169,25 +170,35 @@ class MolecularEvaluator:
                     else:
                         disp = nput.vec_tensordot(displacements, disp, axes=[-1, shared], shared=shared)
                 new_disps = new_disps + disp
-            if strip_embedding:
+            if expansion_active_positions is not None:
+                new_disps = new_disps[..., expansion_active_positions]
+                if strip_embedding:
+                    ecs = self.embedding.embedding_coords
+                    ntot = np.prod(base_coords.shape[base_dim:], dtype=int)
+                    if len(ecs) > 0 and new_disps.shape[-1] < ntot:
+                        rem_coords = np.setdiff1d(np.arange(ntot), ecs)
+                        which = rem_coords[expansion_active_positions,]
+                    else:
+                        which = expansion_active_positions
+                else:
+                    which = expansion_active_positions
+            elif strip_embedding:
                 ecs = self.embedding.embedding_coords
                 ntot = np.prod(base_coords.shape[base_dim:], dtype=int)
                 if len(ecs) > 0 and new_disps.shape[-1] < ntot:
                     rem_coords = np.setdiff1d(np.arange(ntot), ecs)
-                    newzs = np.zeros(new_disps.shape[:-1] + (ntot,), dtype=new_disps.dtype)
-                    newzs[..., rem_coords] = new_disps
-                    if not shift:
-                        flat_base = base_coords.reshape((-1, ntot))[0][ecs,]
-                        newzs[..., ecs] = flat_base
-                    new_disps = newzs
-            displacements = new_disps.reshape(
-                new_disps.shape[:-1] + base_coords.shape[base_dim:]
-            )
-            # if use_internals:
-            #     displacements = new_disps.reshape(new_disps.shape[:-1] + (-1,))
-            # else:
-            #     displacements = new_disps.reshape(new_disps.shape[:-1] + (-1, 3))
-            which = None
+                    which = rem_coords
+                else:
+                    which = None
+            else:
+                which = None
+
+            if which is None:
+                displacements = new_disps.reshape(
+                    new_disps.shape[:-1] + base_coords.shape[base_dim:]
+                )
+            else:
+                displacements = new_disps
         elif strip_embedding:
             ecs = self.embedding.embedding_coords
             all_coords = np.arange(len(self.embedding.masses) * 3)
@@ -1752,8 +1763,10 @@ class EnergyEvaluator(PropertyEvaluator):
                      absolute_mesh=False,
                      orthogonal_projection_generator=None,
                      coordinate_expansion=None,
+                     expansion_active_positions=None,
                      include_displacement_constraints=True,
                      shift=True,
+                     adjust_displacements=True,
                      **optimization_settings
                      ):
         if isinstance(displacement_coords, dict):
@@ -1764,6 +1777,7 @@ class EnergyEvaluator(PropertyEvaluator):
             for i,v in zip(idx, displacement_values):
                 expansion_vector[i] = v
             coordinate_expansion = [expansion_vector[np.newaxis]]
+            expansion_active_positions = idx
         if callable(displacement_coords[0]):
             displacement_function, projected_coordinate_generator = displacement_coords
         else:
@@ -1789,7 +1803,8 @@ class EnergyEvaluator(PropertyEvaluator):
                         shift=shift,
                         coords=coords * d_conv,
                         strip_embedding=True,
-                        coordinate_expansion=coordinate_expansion
+                        coordinate_expansion=coordinate_expansion,
+                        expansion_active_positions=expansion_active_positions
                     )[0] / d_conv
             else:
                 raise NotImplementedError("TBD how I want to handle Cartesian space internal displacements")
@@ -1804,6 +1819,12 @@ class EnergyEvaluator(PropertyEvaluator):
                 np.linspace(*m)
                 for m in displacement_specs
             ]
+
+        if shift and adjust_displacements:
+            _ = []
+            for m in mesh:
+                _.append(np.concatenate([m[:1], np.diff(m)]))
+            mesh = _
 
         opt_res = self._optimize_along_displacements(
             coords,

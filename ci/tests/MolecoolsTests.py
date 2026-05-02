@@ -5307,11 +5307,12 @@ class MolecoolsTests(TestCase):
 
         int_mol = mol.modify(internals=zm)
         _, geoms, _ = int_mol.relaxed_scan(
-            [0, 2, 10],
+            [0, 4, 10],
             {
                 (0,2):1,
                 (1,3):1
-            }
+            },
+            max_iterations=50
         )
 
         int_mol.plot(geoms).show()
