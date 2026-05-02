@@ -118,16 +118,19 @@ class Molecule(AbstractMolecule):
         self._mass = np.array([a["Mass"] for a in self._ats]) if masses is None else np.asanyarray(masses)
         coords = CoordinateSet(coords, CartesianCoordinates3D)
 
+
+        # properties to be returned
+        self._bonds = bonds
+        self.guess_bonds = guess_bonds
+
+        # a little messy
+        self._embedding = MolecularEmbedding(self.atomic_masses, coords, None)
         internals = self.canonicalize_internals(internals, self.atoms, coords, bonds, masses=self._mass)
         self._embedding = MolecularEmbedding(self.atomic_masses, coords, internals)
         self._mode_embedding = None
 
         self._name = name
 
-        # properties to be returned
-
-        self._bonds = bonds
-        self.guess_bonds = guess_bonds
 
         self._src = None
         self.source_file = source_file
@@ -412,12 +415,14 @@ class Molecule(AbstractMolecule):
     def _stretch_spec(cls, atoms, coords, bonds, **opts):
         return cls._auto_auto_spec(cls._generate_stretch_spec, atoms, coords, bonds, **opts)
 
-    @classmethod
-    def canonicalize_internals(cls, spec, atoms, coords, bonds, relocalize=True, masses=None):
+    # @classmethod
+    def canonicalize_internals(self, spec, atoms, coords, bonds, relocalize=True, masses=None):
         if isinstance(spec, str) and spec.lower() == 'auto':
             spec = {
                 'primitives': 'auto'
             }
+        elif dev.str_is(spec, 'zmatrix'):
+            spec = self.get_bond_zmatrix()
 
         if isinstance(spec, str):
             # if spec.lower() == 'auto':
@@ -439,14 +444,14 @@ class Molecule(AbstractMolecule):
                     if 'relocalize' in opts:
                         relocalize = spec.get('relocalize', relocalize)
                         del opts['relocalize']
-                    spec = cls._auto_spec(atoms, coords, bonds, masses=masses, **opts)
+                    spec = self._auto_spec(atoms, coords, bonds, masses=masses, **opts)
                 elif subspec.lower() == 'natural':
                     opts = spec.copy()
                     del opts['specs']
                     if 'relocalize' in opts:
                         relocalize = spec.get('relocalize', relocalize)
                         del opts['relocalize']
-                    spec = cls._stretch_spec(atoms, coords, bonds, masses=masses, **opts)
+                    spec = self._stretch_spec(atoms, coords, bonds, masses=masses, **opts)
                 else:
                     raise ValueError(f"can't understand internal spec '{spec}'")
             else:
@@ -466,7 +471,7 @@ class Molecule(AbstractMolecule):
                 spec = {'zmatrix': spec}
             else:
                 spec = {'primitives':spec}
-            spec = cls.canonicalize_internals(spec, atoms, coords, bonds, relocalize=relocalize, masses=masses)
+            spec = self.canonicalize_internals(spec, atoms, coords, bonds, relocalize=relocalize, masses=masses)
         return spec
     def prep_internal_spec(self, spec, relocalize=True, masses=None):
         return self.canonicalize_internals(
@@ -1166,12 +1171,15 @@ class Molecule(AbstractMolecule):
     @bonds.setter
     def bonds(self, b):
         self._bonds = b
-    def break_bonds(self, bonds):
-        bond_sets = [{b[0], b[1]} for b in bonds]
-        return self.modify(
-            bonds=[b for b in self.bonds if
-                   all(b[0] not in bs or b[1] not in bs for bs in bond_sets)]
-        )
+    def break_bonds(self, bonds, use_rdkit=False):
+        if use_rdkit:
+            return self.from_rdmol(self.rdmol.break_bonds(bonds))
+        else:
+            bond_sets = [{b[0], b[1]} for b in bonds]
+            return self.modify(
+                bonds=[b for b in self.bonds if
+                       all(b[0] not in bs or b[1] not in bs for bs in bond_sets)]
+            )
     @property
     def formula(self):
         return self.prop('chemical_formula')
@@ -1292,13 +1300,24 @@ class Molecule(AbstractMolecule):
     def find_substructure(self, pattern):
         return self.rdmol.find_substructure(pattern)
 
+    def apply_smarts(self, pattern):
+        new_mols = self.rdmol.apply_smarts(pattern)
+        return [
+            self.from_rdmol(m)
+            for m in new_mols
+        ]
+
     def find_heavy_atom_backbone(self, root=None):
         return self.edge_graph.find_longest_chain(root=root)
 
     def find_backbone_segments(self, root=None):
         return self.edge_graph.segment_by_chains(root=root)
 
-    def get_backbone_zmatrix(self, root=None, segments=None, return_remainder=False, return_segments=False,
+    def get_backbone_zmatrix(self, root=None,
+                             segments=None,
+                             return_remainder=False,
+                             return_segments=False,
+                             required_coordinates=None,
                              validate=True
                              ):
         if segments is None:
@@ -1314,7 +1333,8 @@ class Molecule(AbstractMolecule):
         base_graph = coordops.bond_graph_zmatrix(
             bond_list,
             segments,
-            validate_additions=validate
+            validate_additions=validate,
+            required_coordinates=required_coordinates
         )
         zmat, new_bonds = coordops.add_missing_zmatrix_bonds(
             base_graph,
@@ -1338,7 +1358,11 @@ class Molecule(AbstractMolecule):
         frags = self.edge_graph.get_canonical_fragments(ordering)
         return coordops.canonical_fragment_zmatrix(frags, validate_additions=validate)
 
-    def get_bond_zmatrix(self, fragments=None, segments=None, root=None,
+    def get_bond_zmatrix(self,
+                         fragments=None,
+                         segments=None,
+                         root=None,
+                         required_coordinates=None,
                          attachment_points=None,
                          check_attachment_points=True,
                          validate=True,
@@ -1366,6 +1390,7 @@ class Molecule(AbstractMolecule):
                 attachment_points=attachment_points,
                 check_attachment_points=check_attachment_points,
                 fragment_ordering=fragment_ordering,
+                required_coordinates=required_coordinates,
                 validate=validate
             )
             return coordops.reindex_zmatrix(base_ints, for_fragment)
@@ -1378,9 +1403,10 @@ class Molecule(AbstractMolecule):
                 if segments is not None and len(segments) == 1:
                     segments = segments[0]
                 zm = self.get_backbone_zmatrix(
-                        root=root, segments=segments,
-                        validate=validate
-                        )
+                    root=root, segments=segments,
+                    required_coordinates=required_coordinates,
+                    validate=validate
+                )
                 if connect_fragments:
                     return zm
                 else:
@@ -1686,6 +1712,7 @@ class Molecule(AbstractMolecule):
             if logger is not None:
                 logger = Logger.lookup(logger)
                 logger.log_print('WARNING: failed to optimize molecule')
+        settings['optimized'] = opt
         no_traj = isinstance(opt_coords, np.ndarray)
         if no_traj: opt_coords = (opt_coords, [])
         opt_coords, traj = opt_coords
@@ -1705,6 +1732,53 @@ class Molecule(AbstractMolecule):
             return self.modify(coords=opt_coords, meta=settings)
         else:
             return self.modify(coords=opt_coords, meta=settings), traj
+
+    def relaxed_scan(self,
+                     scan_values,
+                     scan_coordinates,
+                     evaluator=None,
+                     *,
+                     method=None,
+                     tol=None,
+                     max_iterations=None,
+                     logger=None,
+                     reembed=False,
+                     **opts):
+        #TODO: minimized duplication
+        opts = dev.OptionsSet(opts)
+        base_opts = EnergyEvaluator.get_optimizer_options() + ('force_field_type',)
+        optimizer_opts = opts.filter(None, props=base_opts)
+        eval_opts = opts.exclude(None, props=base_opts)
+        evaluator = self.get_energy_evaluator(evaluator, **eval_opts)
+        conv = UnitsData.convert("BohrRadius", evaluator.distance_units)
+        opt_params = dict(
+            method=method,
+            tol=tol,
+            max_iterations=max_iterations,
+            logger=logger
+        )
+        if self.internals is None:
+            if nput.is_numeric(scan_values[0]):
+                s, e, n = scan_values
+                scan_values = (conv * s, conv * e, n)
+            else:
+                scan_values = [
+                    (conv * s, conv * e, n)
+                    for s,e,n in scan_values
+                ]
+        opts, traj, meta = evaluator.relaxed_scan(
+            self.coords * conv,
+            scan_values,
+            scan_coordinates,
+            **{k: v for k, v in opt_params.items() if v is not None},
+            **optimizer_opts
+        )
+        traj = traj / conv
+        if reembed:
+            traj = nput.eckart_embedding(
+                self.coords, traj, masses=self.masses
+            ).coordinates
+        return opts, traj, meta
 
     def get_dipole_evaluator(self, evaluator=None, **opts):
         if evaluator is None:
@@ -3380,7 +3454,7 @@ class Molecule(AbstractMolecule):
         return cls._atom_strs
     _smi_punct=(
         'c', 'n', 'o', '*', '[', ']', '(', ')', '+',
-        '.', '-', '=', '#', '$' ':', '/', '\\', '0','1','2','3','4','5','6','7','8','9')
+        '.', '-', '=', '#', '$', ':', '/', '\\', '0','1','2','3','4','5','6','7','8','9')
     @classmethod
     def _check_smi(cls, string, atom_types, other_syms=None):
         for s in atom_types:

@@ -691,7 +691,8 @@ class MolecularEmbedding:
         return embedding
 
     cartesian_by_internals_method = 'fast'
-    def get_cartesians_by_internals(self, order=None, strip_embedding=False, reembed=True, method=None, coords=None,
+    def get_cartesians_by_internals(self, order=None, strip_embedding=False,
+                                    reembed=True, method=None, coords=None,
                                     **fd_opts
                                     ):
         if method is None:
@@ -805,14 +806,15 @@ class MolecularEmbedding:
             base = self.strip_embedding_coordinates(base)
         return base
 
-    def embed_coords(self, coords, sel=None, in_paf=False, planar_ref_tolerance=None):
+    def embed_coords(self, coords, sel=None, in_paf=False, planar_ref_tolerance=None, proper_rotation=True):
         return StructuralProperties.get_eckart_embedded_coords(
             self.masses,
             self.coords,
             coords,
             sel=sel,
             in_paf=in_paf,
-            planar_ref_tolerance=planar_ref_tolerance
+            planar_ref_tolerance=planar_ref_tolerance,
+            proper_rotation=proper_rotation
         )
 
     def unembed_derivs(self, coords, derivs, sel=None, in_paf=False, planar_ref_tolerance=None):

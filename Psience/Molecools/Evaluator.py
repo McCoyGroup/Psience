@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import abc
 import enum
 import functools
@@ -13,6 +15,7 @@ from McUtils.Zachary import TensorDerivativeConverter, FiniteDifferenceDerivativ
 import McUtils.Numputils as nput
 import McUtils.Devutils as dev
 import McUtils.Coordinerds as coordops
+import McUtils.Iterators as itut
 from McUtils.Scaffolding import Logger
 
 from ..Data import PotentialSurface, DipoleSurface
@@ -117,28 +120,37 @@ class MolecularEvaluator:
         ).evaluate(func, use_internals=use_internals, order=order, strip_embedding=strip_embedding)
 
     def get_displaced_coordinates(self, displacements, which=None, sel=None, axes=None,
-                                  use_internals=False,
+                                  use_internals:"bool|Literal['reembed', 'convert']"=False,
                                   coordinate_expansion=None,
                                   strip_embedding=False,
-                                  shift=True
+                                  shift=True,
+                                  coords=None,
                                   ):
         displacements = np.asanyarray(displacements)
 
         if which is not None:
             which = tuple(
                 np.ravel_multi_index(idx, (len(self.embedding.masses), 3))
-                    if not isinstance(idx, (int, np.integer)) else
+                    if not nput.is_int(idx) else
                 idx
                 for idx in which
             )
 
         if use_internals and self.embedding.internals is None:
             raise ValueError("can't displace in internals without internal coordinate spec")
-        base_coords = self.embedding.coords if not use_internals else self.embedding.internal_coordinates
-        if strip_embedding:
-            ecs = self.embedding.embedding_coords
-            all_coords = np.arange(len(self.embedding.masses) * 3)
-            which = np.setdiff1d(all_coords, ecs)[which,]
+        if coords is None:
+            base_shape = self.embedding.coords.shape[:-2]
+            base_coords = self.embedding.coords if not use_internals else self.embedding.internal_coordinates
+        else:
+            coords = np.asanyarray(coords)
+            base_shape = coords.shape[:-2]
+            if not use_internals:
+                base_coords = coords
+            else:
+                base_coords = self.embedding.get_internals(coords=coords, strip_embedding=False)
+        base_dim = len(base_shape)
+
+
 
         if coordinate_expansion is not None:
             if which is not None:
@@ -157,11 +169,29 @@ class MolecularEvaluator:
                     else:
                         disp = nput.vec_tensordot(displacements, disp, axes=[-1, shared], shared=shared)
                 new_disps = new_disps + disp
-            if use_internals:
-                displacements = new_disps.reshape(new_disps.shape[:-1] + (-1,))
-            else:
-                displacements = new_disps.reshape(new_disps.shape[:-1] + (-1, 3))
+            if strip_embedding:
+                ecs = self.embedding.embedding_coords
+                ntot = np.prod(base_coords.shape[base_dim:], dtype=int)
+                if len(ecs) > 0 and new_disps.shape[-1] < ntot:
+                    rem_coords = np.setdiff1d(np.arange(ntot), ecs)
+                    newzs = np.zeros(new_disps.shape[:-1] + (ntot,), dtype=new_disps.dtype)
+                    newzs[..., rem_coords] = new_disps
+                    if not shift:
+                        flat_base = base_coords.reshape((-1, ntot))[0][ecs,]
+                        newzs[..., ecs] = flat_base
+                    new_disps = newzs
+            displacements = new_disps.reshape(
+                new_disps.shape[:-1] + base_coords.shape[base_dim:]
+            )
+            # if use_internals:
+            #     displacements = new_disps.reshape(new_disps.shape[:-1] + (-1,))
+            # else:
+            #     displacements = new_disps.reshape(new_disps.shape[:-1] + (-1, 3))
             which = None
+        elif strip_embedding:
+            ecs = self.embedding.embedding_coords
+            all_coords = np.arange(len(self.embedding.masses) * 3)
+            which = np.setdiff1d(all_coords, ecs)[which,]
 
         if which is not None:
             if displacements.shape[-1] != len(which):  # displacements provided in atom coordinates
@@ -169,6 +199,7 @@ class MolecularEvaluator:
                     displacements.shape[:-2] +
                     (np.prod(displacements.shape[-2:], dtype=int),)
                 )
+            # pad displacements so we can add them together
             if displacements.ndim > 1:
                 for _ in range(displacements.ndim - 1):
                     base_coords = np.expand_dims(base_coords, 0)
@@ -225,7 +256,10 @@ class MolecularEvaluator:
                 if use_internals == 'convert':
                     base_coords = base_coords.convert(self.embedding.coords.system)
                 elif use_internals == 'reembed':
-                    base_coords = self.embedding.embed_coords(base_coords.convert(self.embedding.coords.system))
+                    base_coords = self.embedding.embed_coords(
+                        base_coords.convert(self.embedding.coords.system),
+                        proper_rotation=True
+                    )
         else:
             base_coords = self.embedding.coords.system(base_coords)
         return base_coords
@@ -453,7 +487,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                     if base_coords.ndim == coords.ndim:
                         coords = coords.reshape(base_coords.shape[:-2] + (-1,))
             elif self.reembed_cartesians:
-                coords = self.embedding.embed_coords(coords)
+                coords = self.embedding.embed_coords(coords, proper_rotation=True)
         if self.permutation is not None:
             if self.use_internals and self.embedding.internals is not None:
                 if not self.strip_embedding and not self.flatten_internals:
@@ -1090,6 +1124,11 @@ class EnergyEvaluator(PropertyEvaluator):
     def get_default_function_evaluator_type(cls):
         return PotentialFunctionEnergyEvaluator
 
+    def to_ase(self):
+        from McUtils.ExternalPrograms import ASECalculator
+
+        return ASECalculator(self.evaluate_term)
+
     def minimizer_function_by_order(self, order, allow_fd=False, modifier=None, **opts):
         conv = UnitsData.convert(self.property_units, "Hartrees")
         if self.analytic_derivative_order >= order:
@@ -1128,7 +1167,12 @@ class EnergyEvaluator(PropertyEvaluator):
             def func(crd, _):
                 # res = self.evaluate_term(crd, order, **opts)
                 if reembed:
+                    # og = crd
                     crd = self.unembed_coords(crd)
+                    # print("="*100)
+                    # print(np.round(og[0], 3))
+                    # print(np.round(self.embed_coords(crd)[0], 3))
+
                     if not self.batched_orders:
                         res = [
                             self.evaluate_term(crd, o, **opts)
@@ -1138,6 +1182,8 @@ class EnergyEvaluator(PropertyEvaluator):
                         res = self.evaluate_term(crd, order, **opts)
                     dist_conv = UnitsData.convert("BohrRadius", self.distance_units)
                     res = [res[0]] + self.embed_derivs(crd, [r*dist_conv**(n+1) for n,r in enumerate(res[1:])])
+                    # if order > 0:
+                    #     print(np.round(res[1][0], 3))
                     if not self.batched_orders:
                         res = res[-1]
                 else:
@@ -1157,6 +1203,25 @@ class EnergyEvaluator(PropertyEvaluator):
             def func(crd, _, _caller=func):
                 return modifier(_caller(crd, _))
         return func
+
+    def get_internal_coordinate_indices(self, coord_spec):
+        base_internals = self.embedding.internals
+        if base_internals.get('specs') is not None:
+            specs = base_internals.get('specs')
+            ndim = len(specs)
+            inds = [coordops.find_internal(specs, c) for c in coord_spec]
+        elif base_internals.get('zmatrix') is not None:
+            zmat = base_internals.get('zmatrix')
+            ndim = coordops.num_zmatrix_coords(zmat)
+            inds = coordops.zmatrix_indices(
+                zmat,
+                coord_spec
+            )
+        else:
+            raise ValueError(f"can't get {coord_spec} for {base_internals}")
+
+        return ndim, inds
+
 
     def get_internal_coordinate_projector(self, coord_spec, mask=None):
 
@@ -1679,6 +1744,106 @@ class EnergyEvaluator(PropertyEvaluator):
                                            **opts
                                            )
 
+    def relaxed_scan(self,
+                     coords,
+                     displacement_specs,
+                     displacement_coords,
+                     coordinate_constraints=None,
+                     absolute_mesh=False,
+                     orthogonal_projection_generator=None,
+                     coordinate_expansion=None,
+                     include_displacement_constraints=True,
+                     shift=True,
+                     **optimization_settings
+                     ):
+        if isinstance(displacement_coords, dict):
+            displacement_values = list(displacement_coords.values())
+            displacement_coords = list(displacement_coords.keys())
+            ndim, idx = self.get_internal_coordinate_indices(displacement_coords)
+            expansion_vector = np.zeros(ndim)
+            for i,v in zip(idx, displacement_values):
+                expansion_vector[i] = v
+            coordinate_expansion = [expansion_vector[np.newaxis]]
+        if callable(displacement_coords[0]):
+            displacement_function, projected_coordinate_generator = displacement_coords
+        else:
+            if nput.is_int(displacement_coords[0]):
+                displacement_coords = [displacement_coords]
+            if coordinate_constraints is None:
+                coordinate_constraints = displacement_coords
+            elif include_displacement_constraints:
+                coordinate_constraints = list(coordinate_constraints) + list(displacement_coords)
+
+            if self.use_internal_coordinate_handlers():
+                d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+                evaluator = MolecularEvaluator(self.embedding, None)
+                if coordinate_expansion is not None:
+                    idx = [0]
+                else:
+                    ndim, idx = self.get_internal_coordinate_indices(displacement_coords)
+                def displacement_function(coords, disp, idx=idx):
+                    return evaluator.get_displaced_coordinates(
+                        [disp],
+                        which=idx,
+                        use_internals='reembed',
+                        shift=shift,
+                        coords=coords * d_conv,
+                        strip_embedding=True,
+                        coordinate_expansion=coordinate_expansion
+                    )[0] / d_conv
+            else:
+                raise NotImplementedError("TBD how I want to handle Cartesian space internal displacements")
+
+        if nput.is_numeric(displacement_specs[0]):
+            displacement_specs = [displacement_specs]
+
+        if absolute_mesh:
+            mesh = displacement_specs
+        else:
+            mesh = [
+                np.linspace(*m)
+                for m in displacement_specs
+            ]
+
+        opt_res = self._optimize_along_displacements(
+            coords,
+            mesh,
+            displacement_function,
+            coordinate_constraints=coordinate_constraints,
+            orthogonal_projection_generator=orthogonal_projection_generator,
+            **optimization_settings
+        )
+        did_opt = [is_opt for is_opt, geom, meta in opt_res]
+        meta = [meta for is_opt, geom, meta in opt_res]
+        geoms = [geom for is_opt, geom, meta in opt_res]
+        return did_opt, np.asanyarray(geoms), meta
+
+    def _optimize_along_displacements(self,
+                                      coords,
+                                      displacement_meshes,
+                                      displacement_function,
+                                      zigzag=True,
+                                      mesh_iterator=None,
+                                      **optimization_settings):
+        if mesh_iterator is None:
+            if not zigzag:
+                mesh_iterator = itertools.product(*displacement_meshes)
+            else:
+                mesh_iterator = itut.zigzag_product(*displacement_meshes)
+
+        results = []
+        for disp in mesh_iterator:
+            new_struct = displacement_function(coords, disp)
+            res = self.optimize(
+                new_struct,
+                **optimization_settings
+            )
+            results.append(res)
+            coords = res[1]
+
+        return results
+
+
 class RDKitEnergyEvaluator(EnergyEvaluator):
     def __init__(self, rdmol, force_field='mmff', charge=None, multiplicity=None, **defaults):
         super().__init__(**defaults)
@@ -1758,6 +1923,19 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
     @classmethod
     def from_mol(cls, mol, **opts):
         return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
+
+    def to_ase(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            try:
+                from aimnet import AIMNet2ASE
+            except ModuleNotFoundError:
+                from aimnet2calc import AIMNet2ASE
+
+            mult=self.multiplicity
+            if mult is None:
+                mult = 1
+            return AIMNet2ASE(base_calc=self.eval, charge=self.charge, mult=mult)
 
     @classmethod
     def setup_aimnet(cls, model):

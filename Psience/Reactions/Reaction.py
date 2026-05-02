@@ -75,6 +75,15 @@ class Reaction:
 
         self.profile_generator = profile_generator
 
+    @classmethod
+    def from_broken_bonds(cls,
+                          product_structure,
+                          broken_bonds,
+                          steps=...,
+
+                          ):
+        ...
+
     def get_modified_bonds(self):
         return self.reactant_complex.edge_graph.graph_difference(
             self.product_complex.edge_graph
