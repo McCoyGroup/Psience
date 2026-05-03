@@ -6248,9 +6248,6 @@ class Molecule(AbstractMolecule):
                 self.modify(coords=g, bonds=None).bonds
                 for g in geometries * conv
             ]
-            for b in draw_bonds:
-                import pprint
-                pprint.pprint(b)
         if draw_bonds is None:
             draw_bonds = [None] * len(geometries)
         elif nput.is_int(draw_bonds[0][0]):
