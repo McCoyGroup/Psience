@@ -5291,28 +5291,55 @@ class MolecoolsTests(TestCase):
 
     @debugTest
     def test_ComplexRelaxedScan(self):
+        import McUtils.Coordinerds as coordops
 
         import warnings
         warnings.filterwarnings("ignore", category=RuntimeWarning)  # new mac annoyance
 
         mol:Molecule = Molecule.from_string('[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1',
-                                   energy_evaluator='aimnet2',
+                                   energy_evaluator='rdkit',
                                    internals='zmatrix'
                                    )
 
         zm = mol.get_bond_zmatrix(required_coordinates=[
             (0, 2),
-            (1, 3)
+            (1, 3),
+            (2, 4, 5, 3)
         ])
 
         int_mol = mol.modify(internals=zm)
         _, geoms, _ = int_mol.relaxed_scan(
-            [0, 4, 10],
+            [0, 2, 15],
             {
                 (0,2):1,
                 (1,3):1
             },
-            max_iterations=50
+            max_iterations=0,
+            coordinate_constraints=[(2, 4, 5, 3)]
+            # region_constraints={
+            #     (0,1,23)
+            # }
         )
 
-        int_mol.plot(geoms).show()
+        wtf = int_mol.get_internals(geoms, strip_embedding=True)
+        idx = coordops.zmatrix_indices(zm,
+                                       [
+                                           (0, 2),
+                                           (1, 3),
+                                           (2, 4, 5, 3)
+                                       ], strip_embedding=True)
+        print(idx)
+        # print(
+        #     wtf
+        # )
+        print(
+            wtf[..., idx]
+        )
+
+
+        # int_mol.plot(highlight_atoms=[2, 4, 5, 3]).show()
+        int_mol.plot(geoms,
+                     highlight_atoms=[2, 4, 5, 3]
+                     , bonds="recompute"
+                     , include_save_buttons=True
+                     ).show()

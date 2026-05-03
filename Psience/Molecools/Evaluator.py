@@ -1351,20 +1351,33 @@ class EnergyEvaluator(PropertyEvaluator):
                 + FiniteDifferenceDerivative.__props__
         )
 
-    def get_coordinate_projector(self, coord_spec, mask=None):
-        # tf_fun = nput.internal_conversion_function(coord_spec, order=1)
+    def get_coordinate_projector(self, coord_spec, region_constraints=None, mask=None):
+        tf_fun = nput.internal_conversion_function(coord_spec, order=0)
+        if region_constraints is not None:
+            def region_mask(coords):
+                mask_success = np.full(coords.shape, True)
+                for i,(m,M) in enumerate(region_constraints):
+                    mask_success[..., i] = m <= coords[..., i] & coords[..., i] <= M
+                return mask_success
+            if mask is None:
+                mask = region_mask
+            else:
+                def mask2(coords, mask=mask, region_mask=region_mask):
+                    return mask(coords) & region_mask(coords)
+                mask = mask2
+
+        order = None if (mask is None and region_constraints is None) else 1
         def constraint(coords):
             coords = coords.reshape((-1, len(self.embedding.masses), 3))
-            bases, _, _ = nput.internal_basis(coords, coord_spec)
-            # base_tensors = tf_fun(coords)
-            # if mask is not None:
-            #     checks = mask(base_tensors[0])
-            #     #TODO: handle the mixed-shape case
-            #     base_tensors = base_tensors[1][..., :, checks]
-            base_tensors = np.concatenate(bases, axis=-1)
+            bases, _, _ = nput.internal_basis(coords, coord_spec, order=order)
+            basis_vectors = np.concatenate(bases, axis=-1)
+            if mask is not None:
+                base_tensors = tf_fun(coords)
+                checks = ~mask(base_tensors[0])
+                basis_vectors[..., checks] = 0 # no orthogonal projection when within the region
 
             # print(bases[0])
-            proj = nput.orthogonal_projection_matrix(base_tensors, orthonormal=False)
+            proj = nput.orthogonal_projection_matrix(basis_vectors, orthonormal=False)
             # print(proj)
             # raise Exception(...)
 
@@ -1372,7 +1385,7 @@ class EnergyEvaluator(PropertyEvaluator):
 
         return constraint
 
-    def get_coordinate_constraints(self, constraints):
+    def get_coordinate_constraints(self, constraints, region_constraints=None):
         if dev.is_dict_like(constraints):
             coord_list = list(constraints.keys())
             funs = list(constraints.values())
@@ -1381,7 +1394,7 @@ class EnergyEvaluator(PropertyEvaluator):
 
             return self.get_coordinate_projector(coord_list, mask=mask_func)
         elif coordops.is_coordinate_list_like(constraints):
-            return self.get_coordinate_projector(constraints)
+            return self.get_coordinate_projector(constraints, region_constraints=region_constraints)
         elif nput.is_numeric_array_like(constraints):
             return nput.orthogonal_projection_matrix(constraints)
         else:
@@ -1415,6 +1428,7 @@ class EnergyEvaluator(PropertyEvaluator):
             damping_parameter,
             damping_exponent,
             restart_interval,
+            region_constraints,
             max_displacement,
             line_search,
             optimizer_settings,
@@ -1438,6 +1452,7 @@ class EnergyEvaluator(PropertyEvaluator):
                 "damping_parameter",
                 "damping_exponent",
                 "restart_interval",
+                "region_constraints",
                 "max_displacement",
                 "line_search",
                 "optimizer_settings",
@@ -1466,7 +1481,10 @@ class EnergyEvaluator(PropertyEvaluator):
         logger = Logger.lookup(logger, construct=True)
 
         if orthogonal_projection_generator is None:
-            orthogonal_projection_generator = self.get_coordinate_constraints(coordinate_constraints)
+            orthogonal_projection_generator = self.get_coordinate_constraints(
+                coordinate_constraints,
+                region_constraints
+            )
 
         if initialization_function is not None:
             if convert_modification_distances:
@@ -1576,10 +1594,10 @@ class EnergyEvaluator(PropertyEvaluator):
 
                     elif base_internals.get('zmatrix') is not None:
                         zmat = base_internals.get('zmatrix')
-                        num_specs = coordops.num_zmatrix_coords(
-                            zmat,
-                            coordinate_constraints
-                        )
+                        # num_specs = coordops.num_zmatrix_coords(
+                        #     zmat,
+                        #     coordinate_constraints
+                        # )
                         inds = coordops.zmatrix_indices(
                             zmat,
                             coordinate_constraints
@@ -1593,6 +1611,46 @@ class EnergyEvaluator(PropertyEvaluator):
                             if i in inds else
                         (None, None)
                         for i,c in enumerate(coords.flatten())
+                    ]
+
+                if region_constraints is not None:
+                    base_internals = self.embedding.internals
+                    if base_internals.get('specs') is not None:
+                        specs = base_internals.get('specs')
+                        cons = {
+                            coordops.find_internal(specs, c):v
+                            for c,v in region_constraints.items()
+                        }
+
+                    elif base_internals.get('zmatrix') is not None:
+                        zmat = base_internals.get('zmatrix')
+                        # num_specs = coordops.num_zmatrix_coords(
+                        #     zmat,
+                        #     coordinate_constraints
+                        # )
+                        inds = coordops.zmatrix_indices(
+                            zmat,
+                            list(region_constraints.keys())
+                        )
+                        cons = {
+                            i: v
+                            for i, v in zip(inds, region_constraints.values())
+                        }
+                    else:
+                        raise ValueError(f"can't get {coordinate_constraints} for {base_internals}")
+
+                    #TODO: decide if I want to apply the region bounds as an offset or not...
+                    min_ops['bounds'] = [
+                        (
+                            (c + cons[i][0] if b1 is None else b1)
+                            (c + cons[i][1] if b1 is None else b2)
+                        )
+                            if i in cons else
+                        (b1, b2)
+                        for i,(c, (b1, b2)) in enumerate(zip(
+                            coords.flatten(),
+                            min_ops.get('bonds', [None] * len(coords))
+                        ))
                     ]
 
             scipy_meth = 'bfgs' if method=='quasi-newton' else method
@@ -1682,6 +1740,7 @@ class EnergyEvaluator(PropertyEvaluator):
                 logger=logger,
                 orthogonal_projection_generator=orthogonal_projection_generator,
                 return_trajectory=return_trajectory,
+                region_constraints=region_constraints,
                 **opt_opts
             )
             if return_trajectory:

@@ -5010,6 +5010,7 @@ class Molecule(AbstractMolecule):
                              render_multiple_bonds,
                              render_fractional_bonds,
                              fractional_bond_offset,
+                             max_bond_orders,
                              up_vector,
                              cylinder_class,
                              colors,
@@ -5083,7 +5084,18 @@ class Molecule(AbstractMolecule):
                 p2 = p2 - bond_center_radius_offset * radii[atom2] * nv
 
         disp_vector = p2 - p1
-        if not render_multiple_bonds or len(b) == 2 or b[2] <= 1 or b[2] > 3:
+        # if 'transparency' not in b_sty_1:
+        #     b_sty_1['transparency'] = 0
+        # if 'transparency' not in b_sty_2:
+        #     b_sty_2['transparency'] = 0
+        if b[2] == 0:
+            bond_radius = 0
+            bond_point_list = [
+                [p1, p1, p1]
+            ]
+            # b_sty_2['color'] = 'white'
+            # b_sty_1['color'] = 'white'
+        elif not render_multiple_bonds or len(b) == 2 or b[2] <= 1 or b[2] > 3:
             bond_point_list = [
                 [p1, p2, midpoint]
             ]
@@ -5185,6 +5197,17 @@ class Molecule(AbstractMolecule):
                     [p13, p23, mp3],
                 ]
 
+        if max_bond_orders is not None:
+            mbo = max_bond_orders.get((b[0], b[1]))
+            target_bond_number = (
+                1 if mbo > 3.01 else
+                3 if mbo > 2.01 else
+                2 if mbo > 1.01 else
+                1
+            )
+            if len(bond_point_list) < target_bond_number:
+                bond_point_list = bond_point_list + [bond_point_list[0]] * (target_bond_number - len(bond_point_list))
+
         bond_objs = []
         for pp1, pp2, mp in bond_point_list:
             sty1 = (plotos | cylinder_options | b_sty_1)
@@ -5220,6 +5243,7 @@ class Molecule(AbstractMolecule):
                                  render_multiple_bonds,
                                  render_fractional_bonds,
                                  fractional_bond_offset,
+                                 max_bond_orders,
                                  up_vector,
                                  cylinder_class,
                                  colors,
@@ -5243,6 +5267,7 @@ class Molecule(AbstractMolecule):
                     render_multiple_bonds=render_multiple_bonds,
                     render_fractional_bonds=render_fractional_bonds,
                     fractional_bond_offset=fractional_bond_offset,
+                    max_bond_orders=max_bond_orders,
                     up_vector=up_vector,
                     cylinder_class=cylinder_class,
                     colors=colors,
@@ -5810,6 +5835,7 @@ class Molecule(AbstractMolecule):
              display_atom_numbers=False,
              radius_type=None,
              bond_style=None,
+             reconcile_bonds=True,
              capped_bonds=None,
              reflectiveness=None,
              vector_style=None,
@@ -6213,10 +6239,43 @@ class Molecule(AbstractMolecule):
 
         if draw_bonds is None:
             draw_bonds = self.bonds
+        elif dev.str_is(draw_bonds, "recompute"):
+            if units is not None:
+                conv = UnitsData.convert(units, "BohrRadius")
+            else:
+                conv = 1
+            draw_bonds = [
+                self.modify(coords=g, bonds=None).bonds
+                for g in geometries * conv
+            ]
+            for b in draw_bonds:
+                import pprint
+                pprint.pprint(b)
         if draw_bonds is None:
             draw_bonds = [None] * len(geometries)
         elif nput.is_int(draw_bonds[0][0]):
             draw_bonds = [draw_bonds] * len(geometries)
+
+        max_bond_orders = {}
+        if reconcile_bonds:
+            for bond_set in draw_bonds:
+                for b in bond_set:
+                    if b is None: continue
+                    if len(b) == 2:
+                        b = (b[0], b[1], 1)
+                    key = tuple(sorted(b[:2]))
+                    max_bond_orders[key] = max(max_bond_orders.get(key, 0), b[2])
+            new_bonds = []
+            for bond_set in draw_bonds:
+                subset = {}
+                for b in bond_set:
+                    if b is None: continue
+                    if len(b) == 2:
+                        b = (b[0], b[1], 1)
+                    key = tuple(sorted(b[:2]))
+                    subset[key] = b[2]
+                new_bonds.append(subset)
+            draw_bonds = new_bonds
 
         default_label_style = label_style | self.draw_coords_label_style
         radii = np.asanyarray(radii)
@@ -6284,11 +6343,23 @@ class Molecule(AbstractMolecule):
 
             bond_list = draw_bonds[i]
             if bond_style is not False and bond_list is not None:
-                bond_list = sorted(bond_list, key = lambda b:(
-                        self._ats[b[0]]["ElementSymbol"] in {"H", "X", "D"}
-                            or
-                        self._ats[b[1]]["ElementSymbol"] in {"H", "X", "D"}
-                ))
+                if reconcile_bonds:
+                    # no reason to redo this so often but w/e
+                    sublist = [
+                        [i, j, bond_list.get((i,j), 0)]
+                        for (i,j), t in max_bond_orders.items()
+                    ]
+                    bond_list = sorted(sublist, key=lambda b: (
+                            self._ats[b[0]]["ElementSymbol"] in {"H", "X", "D"}
+                                or
+                            self._ats[b[1]]["ElementSymbol"] in {"H", "X", "D"}
+                    ))
+                else:
+                    bond_list = sorted(bond_list, key = lambda b:(
+                            self._ats[b[0]]["ElementSymbol"] in {"H", "X", "D"}
+                                or
+                            self._ats[b[1]]["ElementSymbol"] in {"H", "X", "D"}
+                    ))
                 bond_objs = self._get_bondlist_primitives(
                     geom,
                     bond_list,
@@ -6299,6 +6370,7 @@ class Molecule(AbstractMolecule):
                     render_multiple_bonds=render_multiple_bonds,
                     render_fractional_bonds=render_fractional_bonds,
                     fractional_bond_offset=fractional_bond_offset,
+                    max_bond_orders=max_bond_orders,
                     up_vector=up_vector,
                     cylinder_class=cylinder_class,
                     colors=colors,
