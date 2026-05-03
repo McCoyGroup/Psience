@@ -245,7 +245,7 @@ class NudgedElasticBand(InterpolatingProfileGenerator):
             ints.system.converter_options['gradient_scaling'] = self.interpolation_gradient_scaling
         return ints
 
-    def evaluate_profile_distances(self, profile:'list[Molecule]'):
+    def evaluate_profile_distances(self, profile:'list[Molecule]', normalize=True):
         step_finder = self.get_step_finder()
         dists = [
             step_finder.get_dist(
@@ -255,7 +255,9 @@ class NudgedElasticBand(InterpolatingProfileGenerator):
             for p1,p2 in zip(profile, profile[1:])
         ]
         d = np.cumsum([0] + dists)
-        return d / d[-1]
+        if normalize:
+            d = d / d[-1]
+        return d
 
     def evaluate_profile_energies(self, profile:'list[Molecule]', energy_evaluator=None):
         if energy_evaluator is None:
