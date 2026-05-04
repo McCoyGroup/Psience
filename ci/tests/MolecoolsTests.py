@@ -5239,20 +5239,6 @@ class MolecoolsTests(TestCase):
         # print(conf_id, conf.GetPositions())
         # return
 
-
-        # prod:Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
-        # react = prod.apply_smarts("[C:1]1[C:2][C:3]=[C:4][C:5][C:6]1 >> [C:1]=[C:6].[C:2]=[C:3]-[C:4]=[C:5]")
-        prod: Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
-        new = prod.break_bonds([(0, 2), (1, 3)], use_rdkit=True)
-        new.plot().show()
-        return
-        react = prod.apply_smarts("[C:1]1[C:3][C:5]=[C:6][C:4][C:2]1 >> [C:1]=[C:2].[C:3]=[C:5]-[C:6]=[C:4]")
-
-
-
-        # raise Exception(react[0].coords)
-        # react[0].plot().show()
-
     @validationTest
     def test_RequiredCoordinateZMatrix(self):
 
@@ -5271,7 +5257,7 @@ class MolecoolsTests(TestCase):
             # (3, 2, 4)
         ])
 
-    @inactiveTest
+    @validationTest
     def test_ProblemTransformedZMatrix(self):
         import McUtils.Coordinerds as coordops
 
@@ -5289,7 +5275,7 @@ class MolecoolsTests(TestCase):
                                      draw_coords=[(2, 1)]).show()
 
 
-    @debugTest
+    @validationTest
     def test_ComplexRelaxedScan(self):
         import McUtils.Coordinerds as coordops
 
@@ -5343,3 +5329,44 @@ class MolecoolsTests(TestCase):
                      , bonds="recompute"
                      , include_save_buttons=True
                      ).show()
+
+    @debugTest
+    def test_ASEProfileGenerator(self):
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning)  # new mac annoyance
+
+        import McUtils.Devutils as dev
+
+        # prod:Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        # react = prod.apply_smarts("[C:1]1[C:2][C:3]=[C:4][C:5][C:6]1 >> [C:1]=[C:6].[C:2]=[C:3]-[C:4]=[C:5]")
+        traj:list[Molecule] = Molecule.from_file(
+            TestManager.test_data('traj.xyz'),
+            max_blocks=-1,
+            units='Angstroms'
+        )
+
+        init_js = dev.read_json(TestManager.test_data('product.json'))
+        new_js = dev.read_json(TestManager.test_data('trajectory.json'))
+        traj = [
+            Molecule(init_js['atoms'], c)
+            for c in new_js['final_trajectory']
+        ]
+
+        from Psience.Reactions import Reaction
+        rxn = Reaction([traj[0]], [traj[-1]])
+        prof = rxn.get_profile_generator('ase-neb',
+                                         energy_evaluator='aimnet2')
+        new_images = prof.generate(base_images=traj)
+        traj[0].plot([i.coords for i in new_images]).show()
+
+        # traj[0].plot(
+        #     [t.coords for t in traj]
+        # ).show()
+        # prod: Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        # new = prod.break_bonds([(0, 2), (1, 3)], use_rdkit=True)
+        # new.plot().show()
+        # return
+        # react = prod.apply_smarts("[C:1]1[C:3][C:5]=[C:6][C:4][C:2]1 >> [C:1]=[C:2].[C:3]=[C:5]-[C:6]=[C:4]")
+        #
+        # # raise Exception(react[0].coords)
+        # # react[0].plot().show()
