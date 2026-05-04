@@ -2944,6 +2944,39 @@ class Molecule(AbstractMolecule):
                                       )
         return self.apply_rotation(frame, load_properties=load_properties, embed_properties=embed_properties)
 
+    def get_rmsd(self, other:'typing.Self | np.ndarray', sel=None,
+                 embed=True,
+                 embedding_sel=None,
+                 mass_weighted=False):
+        if embed:
+            self = self.get_embedded_molecule(embed_properties=False)
+            if embedding_sel is None: embedding_sel = sel
+            if isinstance(other, Molecule):
+                other = other.get_embedded_molecule(ref=self, sel=embedding_sel, embed_properties=False).coords
+            else:
+                other = self.embed_coords(other, sel=embedding_sel)
+        elif isinstance(other, Molecule):
+            other = other.coords
+
+        ref = self.coords
+        other = np.asanyarray(other)
+        base_shape = other.shape[:-2]
+        ref = np.expand_dims(ref, list(range(other.ndim-2)))
+        if mass_weighted:
+            mass_scaling = np.asanyarray(self.masses) / np.sum(self.masses)
+            mass_scaling = np.expand_dims(mass_scaling[:, np.newaxis], list(range(other.ndim-2)))
+            ref = ref * mass_scaling
+            other = other * mass_scaling
+
+        if sel is not None:
+            ref = ref[..., sel, :]
+            other = other[..., sel, :]
+
+        ref = ref.reshape((-1, np.prod(ref.shape[-2:], dtype=int)))
+        other = other.reshape((-1, np.prod(other.shape[-2:], dtype=int)))
+
+        return np.linalg.norm(ref - other, axis=-1).reshape(base_shape)
+
     def align_molecule(self, other:'typing.Self',
                        reindex_bonds=True,
                        permute_atoms=True,

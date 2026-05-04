@@ -5359,6 +5359,17 @@ class MolecoolsTests(TestCase):
         new_images = prof.generate(base_images=traj)
         traj[0].plot([i.coords for i in new_images]).show()
 
+        f1 = plt.Plot(
+            prof.evaluate_profile_distances(new_images, normalize=False),
+            prof.evaluate_profile_energies(new_images),
+        )
+        plt.Plot(
+            new_js['final_rmsds'],
+            new_js['final_energies'],
+            figure=f1
+        )
+        f1.show()
+
         # traj[0].plot(
         #     [t.coords for t in traj]
         # ).show()
