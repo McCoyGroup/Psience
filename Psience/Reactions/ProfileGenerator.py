@@ -371,6 +371,25 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
 
         return images
 
+    def evaluate_profile_distances(self, profile:'list[Molecule]', normalize=True):
+        dists = [
+            p1.get_rmsd(p2)
+            for p1, p2 in zip(profile[:-1], profile[1:])
+        ]
+        d = np.cumsum([0] + dists)
+        if normalize:
+            d = d / d[-1]
+        return d
+
+    def evaluate_profile_energies(self, profile:'list[Molecule]', energy_evaluator=None):
+        if energy_evaluator is None:
+            energy_evaluator = self._energy_evaluator
+
+        return [
+            p.modify(energy_evaluator=energy_evaluator).calculate_energy()
+            for p in profile
+        ]
+
 class ASENEBGenerator(ASEProfileGenerator):
     def generate(self,
                  num_images=None,
