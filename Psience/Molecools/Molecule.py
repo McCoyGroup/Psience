@@ -3047,6 +3047,19 @@ class Molecule(AbstractMolecule):
             self._rdmol.coords = self.coords * UnitsData.convert("BohrRadius", "Angstroms")
         return self._rdmol
 
+    def to_ase(self, **kwargs):
+        from McUtils.ExternalPrograms import ASEMolecule
+
+        return ASEMolecule.from_mol(self, coord_unit='BohrRadius', **kwargs)
+    @classmethod
+    def from_ase(cls, ase_mol, **kwargs):
+        return cls(
+            ase_mol.atoms,
+            ase_mol.coords * UnitsData.convert("Angstroms", "BohrRadius"),
+            **(ase_mol.meta | kwargs)
+        )
+
+
     @classmethod
     def from_zmat(cls, zmat, internals=None, axes=None, origin=None, **opts):
         if isinstance(zmat, str):
@@ -3790,6 +3803,8 @@ class Molecule(AbstractMolecule):
         opts = collections.ChainMap(opts, subopts)
         if fmt == 'rdmol':
             return cls.from_rdmol(spec, **opts)
+        elif fmt == 'ase':
+            return cls.from_ase(spec, **opts)
         elif fmt == 'file':
             return cls.from_file(spec, **opts)
         elif fmt == 'str':
