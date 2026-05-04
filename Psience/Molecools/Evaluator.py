@@ -2008,8 +2008,8 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             try:
-                from aimnet import AIMNet2ASE
-            except ModuleNotFoundError:
+                from aimnet.calculators import AIMNet2ASE
+            except ImportError:
                 from aimnet2calc import AIMNet2ASE
 
             mult=self.multiplicity
