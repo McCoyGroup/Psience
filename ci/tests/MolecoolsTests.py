@@ -5406,17 +5406,26 @@ class MolecoolsTests(TestCase):
 
         from Psience.Reactions import Reaction
         rxn = Reaction([traj[0]], [traj[-1]])
-        prof = rxn.get_profile_generator('pys-cos',
-                                         energy_evaluator='aimnet2')
+        prof = rxn.get_profile_generator('ase-neb',
+                                         energy_evaluator='aimnet2',
+                                         spring_constant=1,
+                                         climb=True)
         new_images = prof.generate(base_images=traj)
         traj[0].plot([i.coords for i in new_images]).show()
 
+        new_structs = np.array([
+            i.coords for i in new_images
+        ])
+
+        old_structs = np.array(new_js['final_trajectory'])
+
+
         f1 = plt.Plot(
-            prof.evaluate_profile_distances(new_images, normalize=False),
+            np.linalg.norm(new_structs[:, 2] - new_structs[:, 3], axis=-1),
             prof.evaluate_profile_energies(new_images),
         )
         plt.Plot(
-            new_js['final_rmsds'],
+            np.linalg.norm(old_structs[:, 2] - old_structs[:, 3], axis=-1),
             new_js['final_energies'],
             figure=f1
         )

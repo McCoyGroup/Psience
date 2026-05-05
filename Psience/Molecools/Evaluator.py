@@ -2015,38 +2015,41 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
     def to_ase(self):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
-            try:
-                from aimnet.calculators import AIMNet2ASE
-            except ImportError:
-                from aimnet2calc import AIMNet2ASE
+            with dev.OutputRedirect():
+                try:
+                    from aimnet.calculators import AIMNet2ASE
+                except ImportError:
+                    from aimnet2calc import AIMNet2ASE
 
-            mult=self.multiplicity
-            if mult is None:
-                mult = 1
-            return AIMNet2ASE(base_calc=self.eval, charge=self.charge, mult=mult)
+        mult=self.multiplicity
+        if mult is None:
+            mult = 1
+        return AIMNet2ASE(base_calc=self.eval, charge=self.charge, mult=mult)
 
     def to_pysis(self):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
-            try:
-                from aimnet.calculators import AIMNet2Pysis
-            except ImportError:
-                from aimnet2calc import AIMNet2Pysis
+            with dev.OutputRedirect():
+                try:
+                    from aimnet.calculators import AIMNet2Pysis
+                except ImportError:
+                    from aimnet2calc import AIMNet2Pysis
 
-            mult=self.multiplicity
-            if mult is None:
-                mult = 1
-            return AIMNet2Pysis(model=self.eval, charge=self.charge, mult=mult)
+        mult=self.multiplicity
+        if mult is None:
+            mult = 1
+        return AIMNet2Pysis(model=self.eval, charge=self.charge, mult=mult)
 
     @classmethod
     def setup_aimnet(cls, model):
         if isinstance(model, str):
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
-                try:
-                    from aimnet.calculators import AIMNet2Calculator
-                except ModuleNotFoundError:
-                    from aimnet2calc import AIMNet2Calculator
+                with dev.OutputRedirect():
+                    try:
+                        from aimnet.calculators import AIMNet2Calculator
+                    except ModuleNotFoundError:
+                        from aimnet2calc import AIMNet2Calculator
 
             with cls.quiet_mode():
                 calc = AIMNet2Calculator(model)
