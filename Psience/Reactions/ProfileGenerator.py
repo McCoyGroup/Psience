@@ -322,7 +322,8 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
                  internals=None,
                  max_displacement_step=None,
                  interpolation_gradient_scaling=None,
-                 intermediates=None
+                 intermediates=None,
+                 **opts
                  ):
         self.interpolation_gradient_scaling = interpolation_gradient_scaling
         self._energy_evaluator = energy_evaluator
@@ -338,9 +339,10 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
             coordinate_interpolator=coordinate_interpolator,
             num_images=num_images,
             initial_image_positions=initial_image_positions,
-            internals=internals,
-            max_displacement_step=max_displacement_step
+            internals=internals
         )
+        self.opts = opts
+        self.max_step = max_displacement_step
         self.num_images = num_images
         self.initial_image_positions = initial_image_positions
 
@@ -400,6 +402,7 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
                  method,
                  optimizer_method,
                  optimizer,
+                 max_step=None,
                  **opt_opts):
 
         images = self.prep_images(
@@ -407,6 +410,18 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
             energy_evaluator=energy_evaluator,
             base_images=base_images
         )
+
+        if isinstance(method, str):
+            method = {
+                "method":method,
+            }
+        method = self.opts | method
+
+        if max_step is None:
+            max_step = self.max_step
+
+        if max_step is not None:
+            opt_opts["max_step"] = max_step
 
         _, images, _ = images[0].optimize_trajectory(images,
                                                      method,
@@ -431,7 +446,8 @@ class ASENEBGenerator(ASEProfileGenerator):
                  internals=None,
                  max_displacement_step=None,
                  intermediates=None,
-                 spring_constant=.1
+                 spring_constant=.1,
+                 **opts
     ):
         super().__init__(
             reactant_complex,
@@ -442,7 +458,8 @@ class ASENEBGenerator(ASEProfileGenerator):
             initial_image_positions=initial_image_positions,
             internals=internals,
             max_displacement_step=max_displacement_step,
-            intermediates=intermediates
+            intermediates=intermediates,
+            **opts
         )
         self.spring_constant = spring_constant
 
