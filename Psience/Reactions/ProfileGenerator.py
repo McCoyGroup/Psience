@@ -35,7 +35,11 @@ class ProfileGenerator:
         return {
             'interpolate': InterpolatingProfileGenerator,
             'neb': NudgedElasticBand,
-            'ase-neb': ASENEBGenerator
+            'ase-neb': ASENEBGenerator,
+            'pys-neb': PysisNEBGenerator,
+            'pys-gsm': PysisGSMGenerator,
+            'pys-fsm': PysisFSMGenerator,
+            'pys-cos': PysisCOSGenerator,
         }
     _profile_dispatch = dev.uninitialized
     @classmethod
@@ -315,7 +319,6 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
                  coordinate_interpolator='ase',
                  num_images=10,
                  initial_image_positions=None,
-                 spring_constant=.1,
                  internals=None,
                  max_displacement_step=None,
                  interpolation_gradient_scaling=None,
@@ -340,7 +343,6 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
         )
         self.num_images = num_images
         self.initial_image_positions = initial_image_positions
-        self.spring_constant = spring_constant
 
     class ASECoordinateInterpolator:
         def __init__(self, initial_path):
@@ -390,15 +392,14 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
             for p in profile
         ]
 
-class ASENEBGenerator(ASEProfileGenerator):
     def generate(self,
                  num_images=None,
-                 spring_constant=None,
                  energy_evaluator=None,
-                 return_preopt=False,
                  base_images=None,
-                 method='improvedtangent',
-                 optimizer="FIRE",
+                 *,
+                 method,
+                 optimizer_method,
+                 optimizer,
                  **opt_opts):
 
         images = self.prep_images(
@@ -408,11 +409,333 @@ class ASENEBGenerator(ASEProfileGenerator):
         )
 
         _, images, _ = images[0].optimize_trajectory(images,
-                                                     'neb',
+                                                     method,
                                                      optimizer=optimizer,
-                                                     optimizer_method=method,
+                                                     optimizer_method=optimizer_method,
                                                      return_coords=False,
+                                                     **opt_opts
                                                      )
         images = [Molecule.from_ase(i) for i in images]
 
         return images
+
+class ASENEBGenerator(ASEProfileGenerator):
+    def __init__(self,
+                 reactant_complex: Molecule,
+                 product_complex: Molecule,
+                 *,
+                 energy_evaluator: EnergyEvaluator,
+                 coordinate_interpolator='ase',
+                 num_images=10,
+                 initial_image_positions=None,
+                 internals=None,
+                 max_displacement_step=None,
+                 intermediates=None,
+                 spring_constant=.1
+    ):
+        super().__init__(
+            reactant_complex,
+            product_complex,
+            energy_evaluator=energy_evaluator,
+            coordinate_interpolator=coordinate_interpolator,
+            num_images=num_images,
+            initial_image_positions=initial_image_positions,
+            internals=internals,
+            max_displacement_step=max_displacement_step,
+            intermediates=intermediates
+        )
+        self.spring_constant = spring_constant
+
+
+    def generate(self,
+                 num_images=None,
+                 k=None,
+                 spring_constant=None,
+                 energy_evaluator=None,
+                 return_preopt=False,
+                 base_images=None,
+                 method='neb',
+                 optimizer_method='improvedtangent',
+                 optimizer="FIRE",
+                 **opt_opts):
+        if spring_constant is None:
+            spring_constant = self.spring_constant
+        if k is None:
+            k = spring_constant
+        return super().generate(
+            num_images=num_images,
+            k=k,
+            energy_evaluator=energy_evaluator,
+            base_images=base_images,
+            method=method,
+            optimizer_method=optimizer_method,
+            optimizer=optimizer,
+            **opt_opts
+        )
+
+class ASEDimerGenerator(ASEProfileGenerator):
+    def generate(self,
+                 num_images=None,
+                 k=None,
+                 spring_constant=None,
+                 energy_evaluator=None,
+                 return_preopt=False,
+                 base_images=None,
+                 method='dimer',
+                 optimizer_method='improvedtangent',
+                 optimizer="FIRE",
+                 **opt_opts):
+        if spring_constant is None:
+            spring_constant = self.spring_constant
+        if k is None:
+            k = spring_constant
+        return super().generate(
+            num_images=num_images,
+            k=k,
+            energy_evaluator=energy_evaluator,
+            base_images=base_images,
+            method=method,
+            optimizer_method=optimizer_method,
+            optimizer=optimizer,
+            **opt_opts
+        )
+
+
+class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
+    default_coord_type = "cartesian"
+    def __init__(self,
+                 reactant_complex: Molecule,
+                 product_complex: Molecule,
+                 *,
+                 energy_evaluator: EnergyEvaluator,
+                 coordinate_interpolator='pysis',
+                 num_images=10,
+                 initial_image_positions=None,
+                 internals=None,
+                 max_displacement_step=None,
+                 interpolation_gradient_scaling=None,
+                 intermediates=None,
+                 coord_type=None,
+                 ):
+        self.interpolation_gradient_scaling = interpolation_gradient_scaling
+        self._energy_evaluator = energy_evaluator
+        if dev.str_is(coordinate_interpolator, 'pysis'):
+            if intermediates is not None:
+                pre_traj = [reactant_complex] + list(intermediates) + [product_complex]
+            else:
+                pre_traj = [reactant_complex, product_complex]
+            coordinate_interpolator = self.PysisCoordinateInterpolator(pre_traj)
+        super().__init__(
+            reactant_complex,
+            product_complex,
+            coordinate_interpolator=coordinate_interpolator,
+            num_images=num_images,
+            initial_image_positions=initial_image_positions,
+            internals=internals,
+            max_displacement_step=max_displacement_step
+        )
+        self.num_images = num_images
+        self.initial_image_positions = initial_image_positions
+        if coord_type is None:
+            coord_type = self.default_coord_type
+        self.coord_type = coord_type
+
+    class PysisCoordinateInterpolator:
+        def __init__(self, initial_path):
+            self.path = initial_path
+
+    def prep_images(self,
+                    num_images=None,
+                    energy_evaluator=None,
+                    base_images=None,
+                    coord_type=None
+                    ):
+        from McUtils.ExternalPrograms import patch_pysis_logging
+        patch_pysis_logging()
+
+        from pysisyphus.Geometry import Geometry
+
+        if base_images is None:
+            base_images = super().generate(num_images=num_images)
+
+        if coord_type is None:
+            coord_type = self.coord_type
+
+        if energy_evaluator is None:
+            energy_evaluator = self._energy_evaluator
+        if energy_evaluator is not None:
+            base_images = [
+                b.modify(energy_evaluator=energy_evaluator)
+                for b in base_images
+            ]
+
+        geoms = [
+            Geometry(
+                mol.atoms,
+                mol.coords,
+                coord_type=coord_type
+            )
+            for mol in base_images
+        ]
+        for g,m in zip(geoms, base_images):
+            g.set_calculator(m.get_energy_evaluator().to_pysis())
+
+        return base_images, geoms
+
+    def evaluate_profile_distances(self, profile: 'list[Molecule]', normalize=True):
+        dists = [
+            p1.get_rmsd(p2)
+            for p1, p2 in zip(profile[:-1], profile[1:])
+        ]
+        d = np.cumsum([0] + dists)
+        if normalize:
+            d = d / d[-1]
+        return d
+
+    def evaluate_profile_energies(self, profile: 'list[Molecule]', energy_evaluator=None):
+        if energy_evaluator is None:
+            energy_evaluator = self._energy_evaluator
+
+        return [
+            p.modify(energy_evaluator=energy_evaluator).calculate_energy()
+            for p in profile
+        ]
+
+    def generate(self,
+                 num_images=None,
+                 energy_evaluator=None,
+                 base_images=None,
+                 *,
+                 method,
+                 optimizer=None,
+                 **opt_opts):
+
+        from McUtils.ExternalPrograms import run_pysisyphus
+
+        base_images, images = self.prep_images(
+            num_images=num_images,
+            energy_evaluator=energy_evaluator,
+            base_images=base_images
+        )
+
+        opt_data = run_pysisyphus(
+            energy_evaluator,
+            method,
+            images=images,
+            optimizer=optimizer,
+            return_logs=False,
+            **opt_opts
+        )
+
+        return [
+            b.modify(coords=i.coords.reshape(-1, 3))
+            for b,i in zip(base_images, images)
+        ]
+
+class PysisNEBGenerator(PysisyphusProfileGenerator):
+    def __init__(self,
+                 reactant_complex: Molecule,
+                 product_complex: Molecule,
+                 *,
+                 energy_evaluator: EnergyEvaluator,
+                 coordinate_interpolator='pysis',
+                 num_images=10,
+                 initial_image_positions=None,
+                 internals=None,
+                 max_displacement_step=None,
+                 intermediates=None,
+                 coord_type=None,
+                 spring_constant=.1
+    ):
+        super().__init__(
+            reactant_complex,
+            product_complex,
+            energy_evaluator=energy_evaluator,
+            coordinate_interpolator=coordinate_interpolator,
+            num_images=num_images,
+            initial_image_positions=initial_image_positions,
+            internals=internals,
+            max_displacement_step=max_displacement_step,
+            intermediates=intermediates,
+            coord_type=coord_type
+        )
+        self.spring_constant = spring_constant
+
+    def generate(self,
+                 num_images=None,
+                 k_min=None,
+                 spring_constant=None,
+                 energy_evaluator=None,
+                 return_preopt=False,
+                 base_images=None,
+                 method='neb',
+                 optimizer=None,
+                 **opt_opts):
+        if spring_constant is None:
+            spring_constant = self.spring_constant
+        if k_min is None:
+            k_min = spring_constant
+        return super().generate(
+            num_images=num_images,
+            k_min=k_min,
+            energy_evaluator=energy_evaluator,
+            base_images=base_images,
+            method=method,
+            optimizer=optimizer,
+            **opt_opts
+        )
+
+
+class PysisGSMGenerator(PysisyphusProfileGenerator):
+    def generate(self,
+                 num_images=None,
+                 energy_evaluator=None,
+                 return_preopt=False,
+                 base_images=None,
+                 method='gsm',
+                 optimizer=None,
+                 **opt_opts):
+        return super().generate(
+            num_images=num_images,
+            energy_evaluator=energy_evaluator,
+            base_images=base_images,
+            method=method,
+            optimizer=optimizer,
+            **opt_opts
+        )
+
+class PysisFSMGenerator(PysisyphusProfileGenerator):
+    def generate(self,
+                 num_images=None,
+                 energy_evaluator=None,
+                 return_preopt=False,
+                 base_images=None,
+                 method='fsm',
+                 optimizer=None,
+                 **opt_opts):
+        return super().generate(
+            num_images=num_images,
+            energy_evaluator=energy_evaluator,
+            base_images=base_images,
+            method=method,
+            optimizer=optimizer,
+            **opt_opts
+        )
+
+class PysisCOSGenerator(PysisyphusProfileGenerator):
+    def generate(self,
+                 num_images=None,
+                 energy_evaluator=None,
+                 return_preopt=False,
+                 base_images=None,
+                 method='cos',
+                 optimizer=None,
+                 **opt_opts):
+        return super().generate(
+            num_images=num_images,
+            energy_evaluator=energy_evaluator,
+            base_images=base_images,
+            method=method,
+            optimizer=optimizer,
+            **opt_opts
+        )

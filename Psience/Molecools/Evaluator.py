@@ -1140,6 +1140,14 @@ class EnergyEvaluator(PropertyEvaluator):
 
         return ASECalculator(self.evaluate_term)
 
+    def to_pysis(self):
+        from McUtils.ExternalPrograms import PysisCalculator
+
+        return PysisCalculator(self.evaluate_term,
+                               distance_units=self.distance_units,
+                               energy_units=self.target_property_units
+                               )
+
     def minimizer_function_by_order(self, order, allow_fd=False, modifier=None, **opts):
         conv = UnitsData.convert(self.property_units, "Hartrees")
         if self.analytic_derivative_order >= order:
@@ -2016,6 +2024,19 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
             if mult is None:
                 mult = 1
             return AIMNet2ASE(base_calc=self.eval, charge=self.charge, mult=mult)
+
+    def to_pysis(self):
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            try:
+                from aimnet.calculators import AIMNet2Pysis
+            except ImportError:
+                from aimnet2calc import AIMNet2Pysis
+
+            mult=self.multiplicity
+            if mult is None:
+                mult = 1
+            return AIMNet2Pysis(model=self.eval, charge=self.charge, mult=mult)
 
     @classmethod
     def setup_aimnet(cls, model):
