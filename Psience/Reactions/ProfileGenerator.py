@@ -464,10 +464,9 @@ class ASENEBGenerator(ASEProfileGenerator):
             k = spring_constant
         return super().generate(
             num_images=num_images,
-            k=k,
             energy_evaluator=energy_evaluator,
             base_images=base_images,
-            method=method,
+            method={'method':method, 'k':k},
             optimizer_method=optimizer_method,
             optimizer=optimizer,
             **opt_opts
