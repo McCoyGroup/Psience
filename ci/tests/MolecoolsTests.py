@@ -5382,7 +5382,7 @@ class MolecoolsTests(TestCase):
         # # raise Exception(react[0].coords)
         # # react[0].plot().show()
 
-    @debugTest
+    @validationTest
     def test_PysisGSMProfileGenerator(self):
         import warnings
         warnings.filterwarnings("ignore", category=RuntimeWarning)  # new mac annoyance
@@ -5442,3 +5442,9 @@ class MolecoolsTests(TestCase):
         #
         # # raise Exception(react[0].coords)
         # # react[0].plot().show()
+
+    @debugTest
+    def test_ProblemCanonicalZMatrix(self):
+
+        mol = Molecule.from_file(TestManager.test_data('frame_0000.xyz'), units='Angstroms')
+        mol.get_canonical_zmatrix()
