@@ -311,6 +311,9 @@ class GrowingString(ProfileGenerator):
     ...
 
 class ASEProfileGenerator(InterpolatingProfileGenerator):
+    default_method: str
+    default_optimizer_method: str
+    default_optimizer: str
     def __init__(self,
                  reactant_complex: Molecule,
                  product_complex: Molecule,
@@ -323,6 +326,9 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
                  max_displacement_step=None,
                  interpolation_gradient_scaling=None,
                  intermediates=None,
+                 method=None,
+                 optimizer_method=None,
+                 optimizer=None,
                  **opts
                  ):
         self.interpolation_gradient_scaling = interpolation_gradient_scaling
@@ -345,6 +351,15 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
         self.max_step = max_displacement_step
         self.num_images = num_images
         self.initial_image_positions = initial_image_positions
+        if method is None:
+            method = self.default_method
+        self.method = method
+        if optimizer_method is None:
+            optimizer_method = self.default_optimizer_method
+        self.optimizer_method = optimizer_method
+        if optimizer is None:
+            optimizer = self.default_optimizer
+        self.optimizer = optimizer
 
     class ASECoordinateInterpolator:
         def __init__(self, initial_path):
@@ -399,22 +414,32 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
                  energy_evaluator=None,
                  base_images=None,
                  *,
-                 method,
-                 optimizer_method,
-                 optimizer,
+                 method=None,
+                 method_options=None,
+                 optimizer_method=None,
+                 optimizer=None,
                  max_step=None,
                  **opt_opts):
-
         images = self.prep_images(
             num_images=num_images,
             energy_evaluator=energy_evaluator,
             base_images=base_images
         )
 
+
+        if method is None:
+            method = self.method
+        if optimizer_method is None:
+            optimizer_method = self.optimizer_method
+        if optimizer is None:
+            optimizer = self.optimizer
+
         if isinstance(method, str):
             method = {
                 "method":method,
             }
+        if method_options is not None:
+            method = method | method_options
         method = self.opts | method
 
         if max_step is None:
@@ -435,17 +460,14 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
         return images
 
 class ASENEBGenerator(ASEProfileGenerator):
+    default_method = 'neb'
+    default_optimizer_method = 'improvedtangent'
+    default_optimizer = 'FIRE'
     def __init__(self,
                  reactant_complex: Molecule,
                  product_complex: Molecule,
                  *,
                  energy_evaluator: EnergyEvaluator,
-                 coordinate_interpolator='ase',
-                 num_images=10,
-                 initial_image_positions=None,
-                 internals=None,
-                 max_displacement_step=None,
-                 intermediates=None,
                  spring_constant=.1,
                  **opts
     ):
@@ -453,12 +475,6 @@ class ASENEBGenerator(ASEProfileGenerator):
             reactant_complex,
             product_complex,
             energy_evaluator=energy_evaluator,
-            coordinate_interpolator=coordinate_interpolator,
-            num_images=num_images,
-            initial_image_positions=initial_image_positions,
-            internals=internals,
-            max_displacement_step=max_displacement_step,
-            intermediates=intermediates,
             **opts
         )
         self.spring_constant = spring_constant
@@ -471,9 +487,9 @@ class ASENEBGenerator(ASEProfileGenerator):
                  energy_evaluator=None,
                  return_preopt=False,
                  base_images=None,
-                 method='neb',
-                 optimizer_method='improvedtangent',
-                 optimizer="FIRE",
+                 method=None,
+                 optimizer_method=None,
+                 optimizer=None,
                  **opt_opts):
         if spring_constant is None:
             spring_constant = self.spring_constant
@@ -483,13 +499,15 @@ class ASENEBGenerator(ASEProfileGenerator):
             num_images=num_images,
             energy_evaluator=energy_evaluator,
             base_images=base_images,
-            method={'method':method, 'k':k},
+            method=method,
+            method_options={'k':k},
             optimizer_method=optimizer_method,
             optimizer=optimizer,
             **opt_opts
         )
 
 class ASEDimerGenerator(ASEProfileGenerator):
+    default_method = 'dimer'
     def generate(self,
                  num_images=None,
                  k=None,
@@ -532,6 +550,7 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
                  interpolation_gradient_scaling=None,
                  intermediates=None,
                  coord_type=None,
+                 **opts
                  ):
         self.interpolation_gradient_scaling = interpolation_gradient_scaling
         self._energy_evaluator = energy_evaluator
@@ -555,6 +574,7 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
         if coord_type is None:
             coord_type = self.default_coord_type
         self.coord_type = coord_type
+        self.opts = opts
 
     class PysisCoordinateInterpolator:
         def __init__(self, initial_path):
@@ -640,7 +660,7 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
             images=images,
             optimizer=optimizer,
             return_logs=False,
-            **opt_opts
+            **(self.opts | opt_opts)
         )
 
         return [
