@@ -30,9 +30,19 @@ class ProfileGenerator:
     def evaluate_profile_distances(self, profile:'list[Molecule]', **opts):
         raise NotImplementedError(f"{type(self).__name__} doesn't support profile energy evaluation")
 
+    profile_registry = {}
+    @classmethod
+    def register(cls, name, profile=None):
+        if profile is not None:
+            cls.profile_registry[name] = profile
+            return profile
+        else:
+            def register(profile):
+                return cls.register(name, profile)
+            return register
     @classmethod
     def get_profile_generators(cls):
-        return {
+        return cls.profile_registry | {
             'interpolate': InterpolatingProfileGenerator,
             'neb': NudgedElasticBand,
             'ase-neb': ASENEBGenerator,
@@ -49,13 +59,15 @@ class ProfileGenerator:
             cls._profile_dispatch,
             dev.OptionsMethodDispatch,
             args=(cls.get_profile_generators,),
-            kwargs=dict(default_method='interpolate')
+            # kwargs=dict(default_method='interpolate')
         )
         return cls._profile_dispatch
 
     @classmethod
     def resolve(cls, reactants, *args, profile_generator=dev.default, **kwargs) -> 'ProfileGenerator':
         new_cls, opts = cls.profile_generator_dispatch().resolve(profile_generator)
+        if new_cls is None:
+            raise ValueError(f"couldn't resolve profile generator {profile_generator}")
         return new_cls(
             reactants,
             *args,
@@ -526,9 +538,9 @@ class ASEDimerGenerator(ASEProfileGenerator):
             **opts
         )
 
-
 class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
     default_coord_type = "cartesian"
+    default_method: str
     def __init__(self,
                  reactant_complex: Molecule,
                  product_complex: Molecule,
@@ -634,11 +646,13 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
                  energy_evaluator=None,
                  base_images=None,
                  *,
-                 method,
+                 method=None,
                  optimizer=None,
                  **opt_opts):
 
         from McUtils.ExternalPrograms import run_pysisyphus
+        if method is None:
+            method = self.default_method
 
         base_images, images = self.prep_images(
             num_images=num_images,
@@ -713,57 +727,22 @@ class PysisNEBGenerator(PysisyphusProfileGenerator):
             **opt_opts
         )
 
-
+@ProfileGenerator.register('pys-gsm')
 class PysisGSMGenerator(PysisyphusProfileGenerator):
-    def generate(self,
-                 num_images=None,
-                 energy_evaluator=None,
-                 return_preopt=False,
-                 base_images=None,
-                 method='gsm',
-                 optimizer=None,
-                 **opt_opts):
-        return super().generate(
-            num_images=num_images,
-            energy_evaluator=energy_evaluator,
-            base_images=base_images,
-            method=method,
-            optimizer=optimizer,
-            **opt_opts
-        )
+    default_method = 'gsm'
 
+@ProfileGenerator.register('pys-fsm')
 class PysisFSMGenerator(PysisyphusProfileGenerator):
-    def generate(self,
-                 num_images=None,
-                 energy_evaluator=None,
-                 return_preopt=False,
-                 base_images=None,
-                 method='fsm',
-                 optimizer=None,
-                 **opt_opts):
-        return super().generate(
-            num_images=num_images,
-            energy_evaluator=energy_evaluator,
-            base_images=base_images,
-            method=method,
-            optimizer=optimizer,
-            **opt_opts
-        )
+    default_method = 'fsm'
 
+@ProfileGenerator.register('pys-cos')
 class PysisCOSGenerator(PysisyphusProfileGenerator):
-    def generate(self,
-                 num_images=None,
-                 energy_evaluator=None,
-                 return_preopt=False,
-                 base_images=None,
-                 method='cos',
-                 optimizer=None,
-                 **opt_opts):
-        return super().generate(
-            num_images=num_images,
-            energy_evaluator=energy_evaluator,
-            base_images=base_images,
-            method=method,
-            optimizer=optimizer,
-            **opt_opts
-        )
+    default_method = 'cos'
+
+@ProfileGenerator.register('pys-string')
+class PysisZTSGenerator(PysisyphusProfileGenerator):
+    default_method = 'zts'
+
+@ProfileGenerator.register('pys-dimer')
+class PysisDimerGenerator(PysisyphusProfileGenerator):
+    default_method = 'dimer'
