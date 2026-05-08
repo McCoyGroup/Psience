@@ -3207,6 +3207,7 @@ class Molecule(AbstractMolecule):
             rdmol = RDMolecule(rdmol, **opts)
         elif hasattr(rdmol, 'GetAtoms'):
             rdmol = RDMolecule.from_base_mol(rdmol, **opts)
+
         return cls(
             rdmol.atoms,
             rdmol.coords * UnitsData.convert("Angstroms", "BohrRadius"),
@@ -3235,6 +3236,7 @@ class Molecule(AbstractMolecule):
                      replacements=None,
                      parser_options=None,
                      confgen_opts=None,
+                     coords=None,
                      **opts):
         from McUtils.ExternalPrograms import RDMolecule
 
@@ -3254,6 +3256,7 @@ class Molecule(AbstractMolecule):
                                        remove_hydrogens=remove_hydrogens,
                                        replacements=replacements,
                                        confgen_opts=confgen_opts,
+                                       coords=coords,
                                        **parser_options
                                        )
 
@@ -3500,7 +3503,7 @@ class Molecule(AbstractMolecule):
         return cls._atom_strs
     _smi_punct=(
         'c', 'n', 'o', '*', '[', ']', '(', ')', '+',
-        '.', '-', '=', '#', '$', ':', '/', '\\', '0','1','2','3','4','5','6','7','8','9')
+        '.', '-', '=', '#', '@', '$', ':', '/', '\\', '0','1','2','3','4','5','6','7','8','9')
     @classmethod
     def _check_smi(cls, string, atom_types, other_syms=None):
         for s in atom_types:
