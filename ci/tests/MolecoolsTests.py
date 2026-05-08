@@ -5559,7 +5559,7 @@ class MolecoolsTests(TestCase):
         )
         f1.show()
 
-    @debugTest
+    @validationTest
     def test_PysisyphusDimerProfile(self):
         import warnings
         warnings.filterwarnings("ignore", category=RuntimeWarning)  # new mac annoyance
@@ -5605,3 +5605,19 @@ class MolecoolsTests(TestCase):
 
         mol = Molecule.from_file(TestManager.test_data('frame_0000.xyz'), units='Angstroms')
         mol.get_canonical_zmatrix()
+
+    @debugTest
+    def test_QM9Loading(self):
+        from McUtils.ExternalPrograms import QM9
+
+        qm9_path = os.path.expanduser("~/Documents/Postdoc/datasets/qm9.npz")
+        supplier = QM9(qm9_path)
+
+        index = np.random.randint(130_000)
+        # print(index)
+
+        data = supplier.load_data(index, ['coords', 'atoms'])
+        # huh = Molecule.from_string(data['smiles'], coords=data['coords']) # an alternate loader, for strange SMILES strings this can break
+        huh = Molecule(data['atoms'], coords=data['coords'] * UnitsData.convert("Angstroms", "BohrRadius"))
+
+        huh.plot(include_save_buttons=True).show()
