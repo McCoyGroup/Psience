@@ -5443,7 +5443,84 @@ class MolecoolsTests(TestCase):
         # # raise Exception(react[0].coords)
         # # react[0].plot().show()
 
+    @validationTest
+    def test_RMSDChecks(self):
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning)  # new mac annoyance
+
+        import McUtils.Numputils as nput
+
+        # prod:Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        # react = prod.apply_smarts("[C:1]1[C:2][C:3]=[C:4][C:5][C:6]1 >> [C:1]=[C:6].[C:2]=[C:3]-[C:4]=[C:5]")
+        traj: list[Molecule] = Molecule.from_file(
+            TestManager.test_data('traj.xyz'),
+            max_blocks=-1,
+            units='Angstroms'
+        )
+
+        print(traj[0].get_rmsd(traj[1]))
+        print(
+            nput.eckart_rmsd(traj[0].coords, traj[1].coords,
+                             masses=traj[0].masses,
+                               mass_weighted=True)
+        )
+
     @debugTest
+    def test_ASEDimerProfile(self):
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning)  # new mac annoyance
+
+        import McUtils.Devutils as dev
+
+        # prod:Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        # react = prod.apply_smarts("[C:1]1[C:2][C:3]=[C:4][C:5][C:6]1 >> [C:1]=[C:6].[C:2]=[C:3]-[C:4]=[C:5]")
+        init_js = dev.read_json(TestManager.test_data('product.json'))
+        new_js = dev.read_json(TestManager.test_data('trajectory.json'))
+        traj = [
+            Molecule(init_js['atoms'], c)
+            for c in new_js['final_trajectory']
+        ]
+
+        from Psience.Reactions import Reaction
+        rxn = Reaction([traj[0]], [traj[-1]])
+        prof = rxn.get_profile_generator('pys-cos',
+                                         energy_evaluator='aimnet2',
+                                         climb=True)
+        new_images = prof.generate(base_images=traj)
+        traj[0].plot([i.coords for i in new_images]).show()
+
+        new_structs = np.array([
+            i.coords for i in new_images
+        ])
+
+        old_structs = np.array(new_js['final_trajectory'])
+
+        f1 = plt.Plot(
+            np.linalg.norm(new_structs[:, 2] - new_structs[:, 3], axis=-1),
+            prof.evaluate_profile_energies(new_images),
+        )
+        plt.Plot(
+            np.linalg.norm(old_structs[:, 2] - old_structs[:, 3], axis=-1),
+            new_js['final_energies'],
+            figure=f1
+        )
+        f1.show()
+
+        # traj[0].plot(
+        #     [t.coords for t in traj]
+        # ).show()
+        # prod: Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        # new = prod.break_bonds([(0, 2), (1, 3)], use_rdkit=True)
+        # new.plot().show()
+        # return
+        # react = prod.apply_smarts("[C:1]1[C:3][C:5]=[C:6][C:4][C:2]1 >> [C:1]=[C:2].[C:3]=[C:5]-[C:6]=[C:4]")
+        #
+        # # raise Exception(react[0].coords)
+        # # react[0].plot().show()
+
+
+
+    @validationTest
     def test_ProblemCanonicalZMatrix(self):
 
         mol = Molecule.from_file(TestManager.test_data('frame_0000.xyz'), units='Angstroms')

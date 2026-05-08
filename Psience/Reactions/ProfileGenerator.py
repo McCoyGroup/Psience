@@ -36,6 +36,7 @@ class ProfileGenerator:
             'interpolate': InterpolatingProfileGenerator,
             'neb': NudgedElasticBand,
             'ase-neb': ASENEBGenerator,
+            'ase-dimer': ASEDimerGenerator,
             'pys-neb': PysisNEBGenerator,
             'pys-gsm': PysisGSMGenerator,
             'pys-fsm': PysisFSMGenerator,
@@ -508,30 +509,21 @@ class ASENEBGenerator(ASEProfileGenerator):
 
 class ASEDimerGenerator(ASEProfileGenerator):
     default_method = 'dimer'
-    def generate(self,
-                 num_images=None,
-                 k=None,
-                 spring_constant=None,
-                 energy_evaluator=None,
-                 return_preopt=False,
-                 base_images=None,
-                 method='dimer',
-                 optimizer_method='improvedtangent',
-                 optimizer="FIRE",
-                 **opt_opts):
-        if spring_constant is None:
-            spring_constant = self.spring_constant
-        if k is None:
-            k = spring_constant
-        return super().generate(
-            num_images=num_images,
-            k=k,
-            energy_evaluator=energy_evaluator,
-            base_images=base_images,
-            method=method,
-            optimizer_method=optimizer_method,
-            optimizer=optimizer,
-            **opt_opts
+    default_optimizer_method = None
+    default_optimizer = 'minmode'
+    def __init__(self,
+                 reactant_complex: Molecule,
+                 product_complex: Molecule,
+                 *,
+                 climb=True, # ignored
+                 **opts
+                 ):
+        if not climb:
+            raise ValueError(f"{type(self).__name__} only supports `climb=True`")
+        super().__init__(
+            reactant_complex,
+            product_complex,
+            **opts
         )
 
 
