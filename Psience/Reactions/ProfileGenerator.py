@@ -650,7 +650,9 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
                  optimizer=None,
                  **opt_opts):
 
-        from McUtils.ExternalPrograms import run_pysisyphus
+        from McUtils.ExternalPrograms import patch_pysis_logging, run_pysisyphus
+        patch_pysis_logging()
+
         if method is None:
             method = self.default_method
 
