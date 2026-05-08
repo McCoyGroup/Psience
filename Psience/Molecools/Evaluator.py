@@ -2027,6 +2027,8 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
         return AIMNet2ASE(base_calc=self.eval, charge=self.charge, mult=mult)
 
     def to_pysis(self):
+        from pysisyphus.config import OUT_DIR_DEFAULT
+
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             with dev.OutputRedirect():
@@ -2038,7 +2040,7 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
         mult=self.multiplicity
         if mult is None:
             mult = 1
-        return AIMNet2Pysis(model=self.eval, charge=self.charge, mult=mult)
+        return AIMNet2Pysis(model=self.eval, charge=self.charge, mult=mult, out_dir=OUT_DIR_DEFAULT)
 
     @classmethod
     def setup_aimnet(cls, model):
