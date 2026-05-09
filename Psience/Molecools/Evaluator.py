@@ -2040,7 +2040,15 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
         mult=self.multiplicity
         if mult is None:
             mult = 1
-        return AIMNet2Pysis(model=self.eval, charge=self.charge, mult=mult, out_dir=OUT_DIR_DEFAULT)
+        base_calc = AIMNet2Pysis(model=self.eval, charge=self.charge, mult=mult, out_dir=OUT_DIR_DEFAULT)
+        base_calc.copy = functools.partial(self._copy_pysis, base_calc)
+        return base_calc
+
+    @classmethod
+    def _copy_pysis(cls, base_calc, **opts):
+        return type(base_calc)(
+            **( opts | dict(model=base_calc.model, charge=base_calc.charge, mult=base_calc.mult, out_dir=base_calc.out_dir))
+        )
 
     @classmethod
     def setup_aimnet(cls, model):
