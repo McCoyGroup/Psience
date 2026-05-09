@@ -440,6 +440,7 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
                  optimizer_method=None,
                  optimizer=None,
                  max_step=None,
+                 max_iterations=None,
                  **opt_opts):
         images = self.prep_images(
             num_images=num_images,
@@ -468,6 +469,9 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
 
         if max_step is not None:
             opt_opts["max_step"] = max_step
+
+        if max_iterations is not None:
+            opt_opts["steps"] = max_iterations
 
         _, images, _ = images[0].optimize_trajectory(images,
                                                      method,
@@ -547,8 +551,9 @@ class ASEDimerGenerator(ASEProfileGenerator):
         )
 
 class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
-    default_coord_type = "cartesian"
+    default_coord_type = "dlc"
     default_method: str
+
     def __init__(self,
                  reactant_complex: Molecule,
                  product_complex: Molecule,
@@ -600,10 +605,8 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
                     base_images=None,
                     coord_type=None
                     ):
-        from McUtils.ExternalPrograms import patch_pysis_logging
+        from McUtils.ExternalPrograms import patch_pysis_logging, prep_pysis_images
         patch_pysis_logging()
-
-        from pysisyphus.Geometry import Geometry
 
         if base_images is None:
             base_images = super().generate(num_images=num_images)
@@ -624,14 +627,11 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
                 for b in base_images
             ]
 
-        geoms = [
-            Geometry(
-                mol.atoms,
-                mol.coords,
-                coord_type=coord_type
-            )
-            for mol in base_images
-        ]
+        geoms = prep_pysis_images(
+            base_images[0].atoms,
+            [m.coords for m in base_images],
+            coord_type=coord_type
+        )
         for g,m in zip(geoms, base_images):
             g.set_calculator(m.get_energy_evaluator().to_pysis())
 
@@ -663,6 +663,8 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
                  *,
                  method=None,
                  optimizer=None,
+                 max_iterations=None,
+                 coord_type=None,
                  **opt_opts):
 
         from McUtils.ExternalPrograms import patch_pysis_logging, run_pysisyphus
@@ -674,8 +676,12 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
         base_images, images = self.prep_images(
             num_images=num_images,
             energy_evaluator=energy_evaluator,
-            base_images=base_images
+            base_images=base_images,
+            coord_type=coord_type
         )
+
+        if max_iterations is not None:
+            opt_opts['max_cycles'] = max_iterations
 
         opt_data = run_pysisyphus(
             energy_evaluator,
@@ -687,7 +693,7 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
         )
 
         return [
-            b.modify(coords=i.coords.reshape(-1, 3))
+            b.modify(coords=i.cart_coords.reshape(-1, 3))
             for b,i in zip(base_images, images)
         ]
 
@@ -758,6 +764,7 @@ class PysisCOSGenerator(PysisyphusProfileGenerator):
 
 @ProfileGenerator.register('pys-string')
 class PysisZTSGenerator(PysisyphusProfileGenerator):
+    default_coord_type = "cartesian" # pysis is buggy
     default_method = 'zts'
 
 @ProfileGenerator.register('pys-dimer')
