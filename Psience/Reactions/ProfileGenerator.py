@@ -152,7 +152,8 @@ class InterpolatingProfileGenerator(ProfileGenerator):
     def get_interpolator(self,
                          coordinate_interpolator,
                          coordinate_system=None,
-                         max_displacement_step=None
+                         max_displacement_step=None,
+                         trajectory=None
                          ):
         if coordinate_interpolator is None:
             if max_displacement_step is None:
@@ -171,11 +172,15 @@ class InterpolatingProfileGenerator(ProfileGenerator):
                         max_displacement_step = .5
                 else:
                     max_displacement_step = 1.0
-            return CoordinateInterpolator(
-                CoordinateSet(
+            if trajectory is None:
+                trajectory = (
                     [self.reactants.coords]
                     + [t.coords for t in (self.intermediates if self.intermediates is not None else [])]
-                    + [self.products.coords],
+                    + [self.products.coords]
+                )
+            return CoordinateInterpolator(
+                CoordinateSet(
+                    trajectory,
                     self.products.coords.system
                 ),
                 coordinate_system=coordinate_system,
@@ -386,6 +391,9 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
 
         if base_images is None:
             base_images = super().generate(num_images=num_images)
+        elif num_images is not None:
+            base_images = super().generate(num_images=num_images,
+                                           initial_image_positions=[b.coords for b in base_images])
 
         if energy_evaluator is None:
             energy_evaluator = self._energy_evaluator
@@ -546,7 +554,7 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
                  product_complex: Molecule,
                  *,
                  energy_evaluator: EnergyEvaluator,
-                 coordinate_interpolator='pysis',
+                 coordinate_interpolator=None,#'pysis',
                  num_images=10,
                  initial_image_positions=None,
                  internals=None,
@@ -583,6 +591,8 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
     class PysisCoordinateInterpolator:
         def __init__(self, initial_path):
             self.path = initial_path
+        def __call__(self, traj):
+            raise Exception(traj)
 
     def prep_images(self,
                     num_images=None,
@@ -596,6 +606,11 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
         from pysisyphus.Geometry import Geometry
 
         if base_images is None:
+            base_images = super().generate(num_images=num_images)
+        elif num_images is not None:
+            self.interpolator = self.get_interpolator(None,
+                                                      trajectory=[b.coords for b in base_images]
+                                                      )
             base_images = super().generate(num_images=num_images)
 
         if coord_type is None:

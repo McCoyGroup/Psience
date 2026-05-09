@@ -5606,7 +5606,7 @@ class MolecoolsTests(TestCase):
         mol = Molecule.from_file(TestManager.test_data('frame_0000.xyz'), units='Angstroms')
         mol.get_canonical_zmatrix()
 
-    @debugTest
+    @validationTest
     def test_QM9Loading(self):
         from McUtils.ExternalPrograms import QM9
 
@@ -5621,3 +5621,89 @@ class MolecoolsTests(TestCase):
         huh = Molecule(data['atoms'], coords=data['coords'] * UnitsData.convert("Angstroms", "BohrRadius"))
 
         huh.plot(include_save_buttons=True).show()
+
+    @validationTest
+    def test_QM9Queries(self):
+        from McUtils.ExternalPrograms import QM9, RDMolecule
+        import rdkit.Chem as Chem
+
+        qm9_path = os.path.expanduser("~/Documents/Postdoc/datasets/qm9.npz")
+        supplier = QM9(qm9_path)
+
+        hmm = supplier.smiles_query('CCC',
+                                    upto=500,
+                                    # track_failures=True,
+                                    # quiet=False,
+                                    sanitize=True
+                                    )
+
+        bond_lengths = {}
+        for idx in hmm:
+            data = supplier.load_data(idx, ['coords', 'atoms', 'smiles'])
+            rdmol = RDMolecule.parse_smiles(data['smiles'])
+            huh = Molecule(
+                data['atoms'],
+                coords=data['coords'] * UnitsData.convert("Angstroms", "BohrRadius"),
+                charge=Chem.GetFormalCharge(rdmol)
+            )
+            atoms = huh.atoms
+            try:
+                bonds = huh.bonds
+            except ValueError:
+                continue
+
+            i,j = np.array([b[:2] for b in bonds]).T
+            bls = np.linalg.norm(huh.coords[i, :] - huh.coords[j, :], axis=-1) * UnitsData.bohr_to_angstroms
+            for (b1,b2,t),r in zip(bonds, bls):
+                a1, a2 = sorted([atoms[b1], atoms[b2]])
+                bond_lengths.setdefault((a1, a2, t), []).append(r)
+
+        import pprint
+        pprint.pprint({
+            k:np.average(v)
+            for k,v in bond_lengths.items()
+        })
+
+    @validationTest
+    def test_QM9Iter(self):
+        from McUtils.ExternalPrograms import QM9, RDMolecule
+        import rdkit.Chem as Chem
+
+        qm9_path = os.path.expanduser("~/Documents/Postdoc/datasets/qm9.npz")
+        supplier = QM9(qm9_path)
+
+        bond_lengths = {}
+        update_interval = 500
+
+        for n,data in enumerate(supplier.data_iter(['coords', 'atoms', 'smiles'], start_at=65500)):
+            rdmol = RDMolecule.parse_smiles(data['smiles'], quiet=True, sanitize=True)
+            if rdmol is None: continue
+            if n % update_interval == 0:
+                import pprint
+                pprint.pprint({
+                    k: np.average(v).tolist()
+                    for k, v in bond_lengths.items()
+                })
+
+            huh = Molecule(
+                data['atoms'],
+                coords=data['coords'] * UnitsData.convert("Angstroms", "BohrRadius"),
+                charge=Chem.GetFormalCharge(rdmol)
+            )
+            atoms = huh.atoms
+            try:
+                bonds = huh.bonds
+            except ValueError:
+                continue
+
+            i, j = np.array([b[:2] for b in bonds]).T
+            bls = np.linalg.norm(huh.coords[i, :] - huh.coords[j, :], axis=-1) * UnitsData.bohr_to_angstroms
+            for (b1, b2, t), r in zip(bonds, bls):
+                a1, a2 = sorted([atoms[b1], atoms[b2]])
+                bond_lengths.setdefault((a1, a2, t), []).append(r)
+
+        import pprint
+        pprint.pprint({
+            k: np.average(v)
+            for k, v in bond_lengths.items()
+        })
