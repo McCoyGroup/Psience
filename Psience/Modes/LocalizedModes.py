@@ -210,7 +210,7 @@ class LocalizedModes(MixtureModes):
             tf, inv = self.localizing_transformation
             return inv @ np.diag(np.sign(self.base_modes.freqs) * (self.base_modes.freqs ** 2)) @ inv.T
         elif system == 'coords':
-            return self.base_modes.compute_hessian('coords')
+            return super().compute_hessian(system='coords')
         else:
             raise ValueError(f'unknown system for normal modes "{system}", valid are "modes", "coords"')
 
