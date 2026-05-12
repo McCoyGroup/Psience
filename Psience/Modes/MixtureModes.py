@@ -3,9 +3,10 @@ Provides support for handling modes that arise from
 """
 
 import enum
+import numpy as np, scipy.linalg as slag, collections
+from McUtils.Data import AtomData, UnitsData
 import numpy as np, scipy
 import McUtils.Numputils as nput
-from collections import namedtuple
 from McUtils.Coordinerds import CoordinateSystem, CartesianCoordinateSystem3D, InternalCoordinateSystem
 
 # from .MoleculeInterface import AbstractMolecule
@@ -359,11 +360,33 @@ class MixtureModes(CoordinateSystem):
                 return g
         else:
             raise ValueError(f'unknown system for normal modes "{system}", valid are "modes", "coords"')
+
+
+    zero_freq_cutoff = 1e-8
+    @classmethod
+    def _zero_projected_modes(cls, f, g):
+        try:
+            freqs2, modes = scipy.linalg.eigh(f, g, type=3)
+        except np.linalg.LinAlgError:
+            g_vals, q = np.linalg.eigh(g)
+            mask = np.where(np.abs(g_vals) > cls.zero_freq_cutoff)[0]
+            g_tf = q[:, mask]
+            f_tf = g_tf.T
+            g = g_tf @ g @ g_tf.T
+            f= f_tf.T @ f @ f_tf
+            freqs2, modes = scipy.linalg.eigh(f, g, type=3)
+            modes = modes @ f_tf
+
+        return np.sign(freqs2) * np.sqrt(np.abs(freqs2)), modes
+
     def compute_freqs(self):
         # self = self.remove_frequency_scaling().remove_mass_weighting()
         f = self.compute_hessian()
         g = self.compute_gmatrix()
-        freqs2, _ = scipy.linalg.eigh(f, g, type=3)
+
+        freqs2, modes = scipy.linalg.eigh(f, g, type=3)
+        return np.sign(freqs2) * np.sqrt(np.abs(freqs2))
+
         return np.sign(freqs2) * np.sqrt(np.abs(freqs2))
     @property
     def local_hessian(self):
@@ -436,8 +459,193 @@ class MixtureModes(CoordinateSystem):
                 inv = np.linalg.pinv(tf)
             return tf, inv
 
+    ModeData = collections.namedtuple("ModeData", ['freqs', 'modes', 'inverse'])
+    default_zero_freq_cutoff = 1.0e-4  # 20 wavenumbers...
+
+    @classmethod
+    def get_normal_modes(cls,
+                         f_matrix,
+                         mass_spec,
+                         # mass_units="AtomicMassUnits",
+                         remove_transrot=True,
+                         dimensionless=False,
+                         mass_weighted=None,
+                         zero_freq_cutoff=None,
+                         return_gmatrix=False,
+                         projector=None
+                         ):
+
+        f_matrix = np.asanyarray(f_matrix)
+        base_shape = f_matrix.shape[:-2]
+        f_matrix = f_matrix.reshape((-1,) + f_matrix.shape[-2:])
+        if isinstance(mass_spec[0], str):  # atoms were supplied
+            mass_spec = np.array([AtomData[a, "Mass"] for a in mass_spec]) * UnitsData.convert(
+                "AtomicMassUnits",
+                "AtomicUnitOfMass"
+            )
+        mass_spec = np.asanyarray(mass_spec)
+
+        if mass_spec.ndim == 1:
+            if mass_weighted is None: mass_weighted = dimensionless  # generally do the right thing for Cartesians
+            mass_spec = np.broadcast_to(mass_spec[:, np.newaxis], (len(mass_spec), 3)).flatten()
+            mass_spec = np.diag(1 / mass_spec)
+
+        mass_spec = np.reshape(mass_spec, (-1,) + mass_spec.shape[-2:])
+        if mass_spec.shape[0] < f_matrix.shape[0]:
+            mass_spec = np.broadcast_to(mass_spec, f_matrix.shape)
+
+        gi12 = nput.fractional_power(mass_spec, -1 / 2)
+        g12 = nput.fractional_power(mass_spec, 1 / 2)
+        if projector is None:
+            if f_matrix.shape[0] == 1:
+                freq2, modes = slag.eigh(f_matrix[0], mass_spec[0], type=3)
+                V = gi12[0] @ modes
+                V = V[np.newaxis]
+                freq2 = freq2[np.newaxis]
+                modes = modes[np.newaxis]
+            else:
+                mw_F = g12 @ f_matrix @ np.moveaxis(g12, -1, -2)
+                freq2, V = np.linalg.eigh(mw_F)
+                modes = g12 @ V
+        else:
+            pG12 = projector @ g12
+            mw_F = pG12 @ f_matrix @ np.moveaxis(pG12, -1, -2)
+            freq2, V = np.linalg.eigh(mw_F)
+            modes = g12 @ V
+
+        # modes = g12 @ V
+        # therefore, inv = V.T @ gi12
+        # and modes[:, nz] = g12 @ V[:, nz]; inv[nz, :] = (V.T)[nz, :] @ gi12 (this is only the _left_ inverse)
+
+        blocks = False
+        if remove_transrot:
+            if zero_freq_cutoff is None:
+                zero_freq_cutoff = cls.default_zero_freq_cutoff
+            if zero_freq_cutoff > 0:
+                nonzero = np.abs(freq2) >= zero_freq_cutoff ** 2
+            else:
+                nonzero = np.full(freq2.shape, True)
+
+            if gi12.shape[0] != modes.shape[0]:
+                gi12 = np.broadcast_to(gi12, f_matrix.shape)
+
+            # need to check if shape is good
+            nz_counts = np.sum(nonzero, axis=1)
+            blocks = len(freq2) == 1 or np.sum(np.abs(np.diff(nz_counts))) != 0
+            freq2_ = []
+            modes_ = []
+            inv_ = []
+            for nz2, f2, m2, v2, gi in zip(nonzero, freq2, modes, V, gi12):
+                freq2_.append(f2[nz2])
+                modes_.append(m2[:, nz2])
+                inv_.append(v2.T[nz2, :] @ gi)
+            freq2 = freq2_
+            modes = modes_
+            inv = inv_
+            del freq2_
+            del modes_
+            del inv_
+            if not blocks:
+                freq2 = np.array(freq2)
+                modes = np.array(modes)
+                inv = np.array(inv)
+
+            # else:
+            #     if nz_counts[0] == 0:
+            #         inv = np.moveaxis(V, -1, -2) @ gi12
+            #     else:
+            #         nz_spec = [np.where(nz)[0] for nz in nonzero]
+            #         freq2 = freq2[nonzero].reshape((modes.shape[0], nz_counts[0]))
+            #         print(nz_spec, modes.shape)
+            #         modes = np.moveaxis(
+            #             nput.vector_take(
+            #                 np.moveaxis(modes, -1, -2),
+            #                 nz_spec,
+            #                 shared=1
+            #             ),
+            #             -1, -2
+            #         )
+            #         inv = np.moveaxis(
+            #                 nput.vector_take(
+            #                     np.moveaxis(V, 1, 0),
+            #                     nz_spec,
+            #                     shared=1
+            #                 )
+            #         print(modes.shape, inv.shape)
+        else:
+            inv = np.moveaxis(V, -1, -2) @ gi12
+        # else:
+        #     if np.linalg.det(modes) == 1 and np.allclose(modes.T @ modes, np.eyelen(modes)):
+        #         inv = modes.T
+        #     else:
+        #         inv = np.linalg.inv(modes)
+
+        if blocks:
+            freqs = [np.sign(f2) * np.sqrt(np.abs(f2)) for f2 in freq2]
+        else:
+            freqs = np.sign(freq2) * np.sqrt(np.abs(freq2))
+
+        if mass_weighted:
+            if blocks:
+                modes_ = []
+                inv_ = []
+                for m, i, g, gi in zip(modes, inv, g12, gi12):
+                    modes_.append(gi @ m)
+                    inv_.append(i @ g)
+                modes = modes_
+                inv = inv_
+            else:
+                # gi12 = slag.fractional_matrix_power(mass_spec, -1 / 2)
+                # g12 = slag.fractional_matrix_power(mass_spec, 1 / 2)
+                inv = inv @ g12
+                modes = gi12 @ modes
+        if dimensionless:
+            if blocks:
+                modes_ = []
+                inv_ = []
+                for f, m, i in zip(freqs, modes, inv):
+                    weighting = np.sqrt(np.abs(f))
+                    modes_.append(m / weighting[np.newaxis, :])
+                    inv_.append(i * weighting[:, np.newaxis])
+                modes = modes_
+                inv = inv_
+            else:
+                weighting = np.sqrt(np.abs(freqs))
+                modes = modes / weighting[:, np.newaxis, :]
+                inv = inv * weighting[:, :, np.newaxis]
+        # if mode == 'reasonable':
+        # modes, inv = inv.T, modes.T
+
+        if blocks:
+            modes_ = []
+            inv_ = []
+            for f, m, i in zip(freqs, modes, inv):
+                sorting = np.argsort(f)
+                modes_.append(m[:, sorting])
+                inv_.append(i[sorting, :])
+            modes = modes_
+            inv = inv_
+            modes, inv = [np.moveaxis(i, -1, -2) for i in inv], [np.moveaxis(m, -1, -2) for m in modes]
+            # TODO: iterative reshaping
+            if len(base_shape) == 0:
+                freqs = freqs[0]
+                modes = modes[0]
+                inv = inv[0]
+        else:
+            modes, inv = np.moveaxis(inv, -1, -2), np.moveaxis(modes, -1, -2)
+            freqs = np.reshape(freqs, base_shape + freqs.shape[1:])
+            modes = np.reshape(modes, base_shape + modes.shape[1:])
+            inv = np.reshape(inv, base_shape + inv.shape[1:])
+
+        mode_data = cls.ModeData(freqs, modes, inv)
+        if return_gmatrix:
+            mass_spec = mass_spec.reshape(base_shape + mass_spec.shape[-2:])
+            return mode_data, mass_spec
+        else:
+            return mode_data
+
     localization_type = 'ned'
-    zero_freq_cutoff = 99 / 219474.56
+    localization_zero_freq_cutoff = 99 / 219474.56
     def get_projected_localized_mode_transformation(self,
                                                     projectors,
                                                     masses=None, origin=None,
@@ -447,10 +655,12 @@ class MixtureModes(CoordinateSystem):
                                                     unitarize=True,
                                                     zero_freq_cutoff=None,
                                                     orthogonal_projection=False,
+                                                    project_zero_gmatrix_modes=True,
+                                                    project_zero_gmatrix_cutoff=1e-8,
                                                     atoms=None #ignored but tedious to have around
                                                     ):
         if zero_freq_cutoff is None:
-            zero_freq_cutoff = self.zero_freq_cutoff
+            zero_freq_cutoff = self.localization_zero_freq_cutoff
         if localization_type is None:
             localization_type = self.localization_type
 
@@ -579,6 +789,29 @@ class MixtureModes(CoordinateSystem):
             unitarize=unitarize,
             allow_mode_mixing=allow_mode_mixing,
             zero_freq_cutoff=zero_freq_cutoff
+        )
+
+    def get_fragment_localized_mode_transformation(self,
+                                                   fragment,
+                                                   masses=None, origin=None,
+                                                   localization_type='ned',
+                                                   allow_mode_mixing=True,
+                                                   maximum_similarity=False,
+                                                   orthogonal_projection=False,
+                                                   unitarize=True,
+                                                   zero_freq_cutoff=None,
+                                                   **etc
+                                                   ):
+        return self.get_atom_localized_mode_transformation(
+            fragment,
+            masses=masses, origin=origin,
+            localization_type=localization_type,
+            allow_mode_mixing=allow_mode_mixing,
+            maximum_similarity=maximum_similarity,
+            orthogonal_projection=orthogonal_projection,
+            unitarize=unitarize,
+            zero_freq_cutoff=zero_freq_cutoff,
+            **etc
         )
 
     def get_coordinate_projected_localized_mode_transformation(self,
@@ -892,6 +1125,7 @@ class MixtureModes(CoordinateSystem):
     class LocalizationMethods(enum.Enum):
         MaximumSimilarity = 'target_modes'
         AtomLocalized = 'atoms'
+        FragmentLocalized = 'fragment'
         DisplacmentMinimized = 'displacements'
         Internals = 'coordinates'
         CoordinateConstraints = 'constraints'
@@ -903,6 +1137,7 @@ class MixtureModes(CoordinateSystem):
         return {
             self.LocalizationMethods.MaximumSimilarity.value:(self.get_nearest_mode_transform, 'target_modes'),
             self.LocalizationMethods.AtomLocalized.value:(self.get_atom_localized_mode_transformation, 'atoms'),
+            self.LocalizationMethods.FragmentLocalized.value:(self.get_fragment_localized_mode_transformation, 'fragment'),
             self.LocalizationMethods.DisplacmentMinimized.value:(self.get_displacement_localized_mode_transformation, 'mode_blocks'),
             self.LocalizationMethods.Internals.value:(self.get_internal_localized_mode_transformation, 'internals'),
             self.LocalizationMethods.CoordinateConstraints.value:(self.get_coordinate_projected_localized_mode_transformation, 'coordinate_constraints'),
@@ -913,6 +1148,7 @@ class MixtureModes(CoordinateSystem):
     localization_options = (
         "method",
         "atoms",
+        "fragment",
         "masses",
         "target_modes",
         "internals",
@@ -932,6 +1168,7 @@ class MixtureModes(CoordinateSystem):
                  method=None,
                  *,
                  atoms=None,
+                 fragment=None,
                  target_modes=None,
                  internals=None,
                  mode_blocks=None,
@@ -940,6 +1177,9 @@ class MixtureModes(CoordinateSystem):
                  reorthogonalize=None,
                  mass_scaling=None,
                  unitarize=True,
+                 allow_mode_mixing=False,
+                 project_zero_gmatrix_modes=None,
+                 project_zero_gmatrix_cutoff=1e-8,
                  **opts
                  ):
 
@@ -956,6 +1196,8 @@ class MixtureModes(CoordinateSystem):
                 method = 'mass_scaling'
             elif atoms is not None:
                 method = 'atoms'
+            elif fragment is not None:
+                method = 'fragment'
             elif coordinate_constraints is not None:
                 method = 'constraints'
             elif projections is not None:
@@ -992,9 +1234,37 @@ class MixtureModes(CoordinateSystem):
             if 'atoms' not in arg_names:
                 opts['atoms'] = atoms # taken by all of the localizers
 
-        tf, inv = method(*args, unitarize=unitarize, **opts)
+        tf, inv = method(*args,
+                         unitarize=unitarize,
+                         allow_mode_mixing=allow_mode_mixing,
+                         **opts)
         if tf is None: return None
         # inverse = tf.T @ self.inverse # assumes a unitary localization
+
+        if project_zero_gmatrix_modes is None:
+            project_zero_gmatrix_modes = allow_mode_mixing
+        if project_zero_gmatrix_modes:
+            g0 = self.compute_gmatrix()
+            g = tf.T @ g0 @ tf
+            g_vals, q = np.linalg.eigh(g)
+            mask = np.where(np.abs(g_vals) > project_zero_gmatrix_cutoff)[0]
+            g_tf = q[:, mask]
+            # g_tf = nput.maximum_similarity_transformation(g_tf, np.eye(q.shape[0]), apply_transformation=True)
+            # print(mat.shape, g_tf.shape, tf.shape, q_g.shape)
+            tf = tf @ g_tf
+            inv = g_tf.T @ inv
+
+            if allow_mode_mixing:
+                f = self.compute_hessian()
+                g = g0
+
+                g = tf.T @ g @ tf
+                f = inv @ f @ inv.T
+
+                _, modes = scipy.linalg.eigh(f, g, type=3)
+                tf = tf @ modes
+                inv = modes.T @ inv
+                # return np.sign(freqs2) * np.sqrt(np.abs(freqs2))
 
         if reorthogonalize is None:
             reorthogonalize = not unitarize
@@ -1004,7 +1274,8 @@ class MixtureModes(CoordinateSystem):
             tf = tf @ nput.fractional_power(g, -1 / 2)
             inv = nput.fractional_power(g, 1 / 2) @ inv
 
-        return LocalizedModes(self, tf, inverse=inv)
+        modes = LocalizedModes(self, tf, inverse=inv)
+        return modes
 
     def make_mass_weighted(self, masses=None):
         if self.mass_weighted: return self

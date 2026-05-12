@@ -386,7 +386,8 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
     def prep_images(self,
                     num_images=None,
                     energy_evaluator=None,
-                    base_images=None
+                    base_images=None,
+                    gradient_modification_function=None
                     ):
 
         if base_images is None:
@@ -405,7 +406,7 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
 
         base_images: list[Molecule]
         images = [
-            img.to_ase()
+            img.to_ase(calculator_options=dict(gradient_modification_function=gradient_modification_function))
             for img in base_images
         ]
 
@@ -440,10 +441,13 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
                  optimizer_method=None,
                  optimizer=None,
                  max_step=None,
+                 max_iterations=None,
+                 gradient_modification_function=None,
                  **opt_opts):
         images = self.prep_images(
             num_images=num_images,
             energy_evaluator=energy_evaluator,
+            gradient_modification_function=gradient_modification_function,
             base_images=base_images
         )
 
@@ -469,6 +473,9 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
         if max_step is not None:
             opt_opts["max_step"] = max_step
 
+        if max_iterations is not None:
+            opt_opts["steps"] = max_iterations
+
         _, images, _ = images[0].optimize_trajectory(images,
                                                      method,
                                                      optimizer=optimizer,
@@ -476,7 +483,9 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
                                                      return_coords=False,
                                                      **opt_opts
                                                      )
-        images = [Molecule.from_ase(i) for i in images]
+        if energy_evaluator is None:
+            energy_evaluator = self._energy_evaluator
+        images = [Molecule.from_ase(i, energy_evaluator=energy_evaluator) for i in images]
 
         return images
 
@@ -547,8 +556,9 @@ class ASEDimerGenerator(ASEProfileGenerator):
         )
 
 class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
-    default_coord_type = "cartesian"
+    default_coord_type = "dlc"
     default_method: str
+
     def __init__(self,
                  reactant_complex: Molecule,
                  product_complex: Molecule,
@@ -597,13 +607,12 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
     def prep_images(self,
                     num_images=None,
                     energy_evaluator=None,
+                    gradient_modification_function=None,
                     base_images=None,
                     coord_type=None
                     ):
-        from McUtils.ExternalPrograms import patch_pysis_logging
+        from McUtils.ExternalPrograms import patch_pysis_logging, prep_pysis_images
         patch_pysis_logging()
-
-        from pysisyphus.Geometry import Geometry
 
         if base_images is None:
             base_images = super().generate(num_images=num_images)
@@ -624,16 +633,17 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
                 for b in base_images
             ]
 
-        geoms = [
-            Geometry(
-                mol.atoms,
-                mol.coords,
-                coord_type=coord_type
-            )
-            for mol in base_images
-        ]
+        geoms = prep_pysis_images(
+            base_images[0].atoms,
+            [m.coords for m in base_images],
+            coord_type=coord_type
+        )
         for g,m in zip(geoms, base_images):
-            g.set_calculator(m.get_energy_evaluator().to_pysis())
+            eval = m.get_energy_evaluator().to_pysis(
+                gradient_modification_function=gradient_modification_function
+            )
+            g.set_calculator(eval)
+
 
         return base_images, geoms
 
@@ -661,8 +671,12 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
                  energy_evaluator=None,
                  base_images=None,
                  *,
+                 gradient_modification_function=None,
                  method=None,
                  optimizer=None,
+                 max_iterations=None,
+                 coord_type=None,
+                 optimizer_settings=None,
                  **opt_opts):
 
         from McUtils.ExternalPrograms import patch_pysis_logging, run_pysisyphus
@@ -674,20 +688,29 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
         base_images, images = self.prep_images(
             num_images=num_images,
             energy_evaluator=energy_evaluator,
-            base_images=base_images
+            gradient_modification_function=gradient_modification_function,
+            base_images=base_images,
+            coord_type=coord_type
         )
+
+        if optimizer_settings is None:
+            optimizer_settings = {}
+
+        if max_iterations is not None:
+            optimizer_settings['max_cycles'] = max_iterations
 
         opt_data = run_pysisyphus(
             energy_evaluator,
             method,
             images=images,
             optimizer=optimizer,
+            optimizer_settings=optimizer_settings,
             return_logs=False,
             **(self.opts | opt_opts)
         )
 
         return [
-            b.modify(coords=i.coords.reshape(-1, 3))
+            b.modify(coords=i.cart_coords.reshape(-1, 3))
             for b,i in zip(base_images, images)
         ]
 
@@ -758,6 +781,7 @@ class PysisCOSGenerator(PysisyphusProfileGenerator):
 
 @ProfileGenerator.register('pys-string')
 class PysisZTSGenerator(PysisyphusProfileGenerator):
+    default_coord_type = "cartesian" # pysis is buggy
     default_method = 'zts'
 
 @ProfileGenerator.register('pys-dimer')

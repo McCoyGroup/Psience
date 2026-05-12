@@ -125,8 +125,7 @@ class MolecularEvaluator:
                                   expansion_active_positions=None,
                                   strip_embedding=False,
                                   shift=True,
-                                  coords=None,
-                                  ):
+                                  coords=None):
         displacements = np.asanyarray(displacements)
 
         if which is not None:
@@ -1135,18 +1134,94 @@ class EnergyEvaluator(PropertyEvaluator):
     def get_default_function_evaluator_type(cls):
         return PotentialFunctionEnergyEvaluator
 
-    def to_ase(self):
+    def _modify_ase_calc(self, #TODO: add in orthogonal projections as well
+                         calc,
+                         gradient_modification_function=None,
+                         gradient_modification_mode='shift',
+                         **opts
+                         ):
+        if gradient_modification_function is not None:
+            calc._old_get_forces = calc.get_forces
+            def prep_coords(atoms=None):
+                if atoms is None: atoms = calc.atoms
+                return atoms.positions
+            calc.get_forces = self._modify_gradient(
+                calc.get_forces,
+                gradient_modification_function,
+                modification_mode=gradient_modification_mode,
+                coord_prep=prep_coords,
+                use_forces=True,
+                **opts
+            )
+        return calc
+    def to_ase(self,
+               gradient_modification_function=None,
+               gradient_modification_mode='shift',
+               convert_modification_distances=True,
+               convert_modification_energies=True,
+               **etc
+               ):
         from McUtils.ExternalPrograms import ASECalculator
 
-        return ASECalculator(self.evaluate_term)
+        cacl = ASECalculator(self.evaluate_term, **etc)
+        return self._modify_ase_calc(cacl,
+                                     gradient_modification_function=gradient_modification_function,
+                                     modification_mode=gradient_modification_mode,
+                                     convert_modification_distances=convert_modification_distances,
+                                     convert_modification_energies=convert_modification_energies)
 
-    def to_pysis(self):
+    def _modify_pysis_calc(self,  # TODO: add in orthogonal projections as well
+                           calc,
+                           gradient_modification_function=None,
+                           gradient_modification_mode='shift',
+                           convert_modification_distances=False,
+                           convert_modification_energies=False,
+                           **opts
+                           ):
+        if gradient_modification_function is not None:
+            calc._old_get_forces = calc.get_forces
+
+            def prep_coords(atoms, coords):
+                return coords
+            def prep_grad(res):
+                return res['forces'], res
+            def post_grad(grad, res):
+                res['forces'] = grad
+                return res
+
+            calc.get_forces = self._modify_gradient(
+                calc.get_forces,
+                gradient_modification_function,
+                coord_prep=prep_coords,
+                use_forces=True,
+                modification_mode=gradient_modification_mode,
+                convert_modification_distances=convert_modification_distances,
+                convert_modification_energies=convert_modification_energies,
+                grad_prep=prep_grad,
+                grad_post=post_grad,
+                **opts
+            )
+        return calc
+    def to_pysis(self,
+                 gradient_modification_function=None,
+                 gradient_modification_mode='shift',
+                 convert_modification_distances=False,
+                 convert_modification_energies=False,
+                 **etc):
         from McUtils.ExternalPrograms import PysisCalculator
 
-        return PysisCalculator(self.evaluate_term,
+        calc = PysisCalculator(self.evaluate_term,
                                distance_units=self.distance_units,
-                               energy_units=self.target_property_units
-                               )
+                               energy_units=self.target_property_units,
+                               **etc)
+        calc = self._modify_pysis_calc(calc,
+                                       use_forces=True,
+                                       gradient_modification_function=gradient_modification_function,
+                                       gradient_modification_mode=gradient_modification_mode,
+                                       convert_modification_distances=convert_modification_distances,
+                                       convert_modification_energies=convert_modification_energies)
+
+        return calc
 
     def minimizer_function_by_order(self, order, allow_fd=False, modifier=None, **opts):
         conv = UnitsData.convert(self.property_units, "Hartrees")
@@ -1408,13 +1483,75 @@ class EnergyEvaluator(PropertyEvaluator):
         else:
             return constraints
 
+    def _modify_gradient(self,
+                         gradient_function,
+                         modification_function,
+                         modification_mode='shift',
+                         convert_modification_distances=True,
+                         convert_modification_energies=True,
+                         use_forces=False,
+                         coord_prep=None,
+                         grad_prep=None,
+                         grad_post=None
+                         ):
+        if convert_modification_distances:
+            d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+        else:
+            d_conv = 1
+        if modification_mode == 'shift':
+            if convert_modification_energies:
+                e_conv = UnitsData.convert(self.property_units, "Hartrees")
+            else:
+                e_conv = 1
+            def grad(crds, *rem):
+                res = gradient_function(crds, *rem)
+                if coord_prep is not None:
+                    crds = coord_prep(crds, *rem)
+                if grad_prep is not None:
+                    res, state = grad_prep(res)
+                else:
+                    state = None
+                if use_forces:
+                    supp = -modification_function(crds * d_conv, -res * e_conv / d_conv)
+                else:
+                    supp = modification_function(crds * d_conv, res * e_conv / d_conv)
+                # print("!?",
+                #       np.linalg.norm(res.flatten() * e_conv / d_conv),
+                #       np.linalg.norm(supp.flatten()),
+                #       np.dot(nput.vec_normalize(res.flatten()), nput.vec_normalize(supp.flatten()))
+                #       )
+                res = res + supp * d_conv / e_conv
+                if grad_post is not None:
+                    res = grad_post(res, state)
+                return res
+        else:
+            def grad(crds, *rem):
+                res = gradient_function(crds, *rem)
+                if coord_prep is not None:
+                    crds = coord_prep(crds, *rem)
+                if grad_prep is not None:
+                    res, state = grad_prep(res)
+                else:
+                    state = None
+                if use_forces:
+                    res = modification_function(crds * d_conv, res)
+                else:
+                    res = -modification_function(crds * d_conv, -res)
+                res = res * d_conv
+                if grad_post is not None:
+                    res = grad_post(res, state)
+                return res
+        return grad
+
     scipy_no_hessian_methods = {'cg', 'bfgs'}
     scipy_no_grad_methods = {'nelder-mead'}
     def optimize_iterative(self,
                            coords,
                            coordinate_constraints=None,
                            gradient_modification_function=None,
+                           gradient_modification_mode='shift',
                            convert_modification_distances=True,
+                           convert_modification_energies=True,
                            return_trajectory=False,
                            initialization_function=None,
                            line_search_step=None,
@@ -1528,15 +1665,12 @@ class EnergyEvaluator(PropertyEvaluator):
                 return res
 
             if gradient_modification_function is not None:
-                if convert_modification_distances:
-                    d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
-                else:
-                    d_conv = 1
-                def sjacobian(crds, _caller=sjacobian):
-                    res = _caller(crds)
-                    res = gradient_modification_function(crds * d_conv, res)
-                    res = res * d_conv
-                    return res
+                sjacobian = self._modify_gradient(sjacobian,
+                                                  gradient_modification_function,
+                                                  modification_mode=gradient_modification_mode,
+                                                  convert_modification_distances=convert_modification_distances,
+                                                  convert_modification_energies=convert_modification_energies,
+                                                  )
 
             if self.analytic_derivative_order > 1:
                 def shessian(crd):
@@ -1713,14 +1847,12 @@ class EnergyEvaluator(PropertyEvaluator):
                 return min.success, min.x.reshape(coords.shape), min
         else:
             if gradient_modification_function is not None:
-                if convert_modification_distances:
-                    d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
-                else:
-                    d_conv = 1
-
-                def jacobian(crds, _, _caller=jacobian):
-                    res = _caller(crds, _)
-                    return gradient_modification_function(crds * d_conv, res) * d_conv
+                jacobian = self._modify_gradient(jacobian,
+                                                 gradient_modification_function,
+                                                 modification_mode=gradient_modification_mode,
+                                                 convert_modification_distances=convert_modification_distances,
+                                                 convert_modification_energies=convert_modification_energies,
+                                                 )
 
             if method is None or isinstance(method, str):
                 method = {
@@ -2012,7 +2144,12 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
     def from_mol(cls, mol, **opts):
         return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
 
-    def to_ase(self):
+    def to_ase(self,
+               gradient_modification_function=None,
+               gradient_modification_mode='shift',
+               convert_modification_distances=True,
+               convert_modification_energies=True,
+               ):
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             with dev.OutputRedirect():
@@ -2024,9 +2161,20 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
         mult=self.multiplicity
         if mult is None:
             mult = 1
-        return AIMNet2ASE(base_calc=self.eval, charge=self.charge, mult=mult)
+        calc = AIMNet2ASE(base_calc=self.eval, charge=self.charge, mult=mult)
+        calc = self._modify_ase_calc(calc,
+                                     gradient_modification_function=gradient_modification_function,
+                                     gradient_modification_mode=gradient_modification_mode,
+                                     convert_modification_distances=convert_modification_distances,
+                                     convert_modification_energies=convert_modification_energies)
+        return calc
 
-    def to_pysis(self):
+    def to_pysis(self,
+                 gradient_modification_function=None,
+                 gradient_modification_mode='shift',
+                 convert_modification_distances=False,
+                 convert_modification_energies=False,
+                 **etc):
         from pysisyphus.config import OUT_DIR_DEFAULT
 
         with warnings.catch_warnings():
@@ -2040,8 +2188,15 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
         mult=self.multiplicity
         if mult is None:
             mult = 1
-        base_calc = AIMNet2Pysis(model=self.eval, charge=self.charge, mult=mult, out_dir=OUT_DIR_DEFAULT)
+        base_calc = AIMNet2Pysis(model=self.eval, charge=self.charge, mult=mult,
+                                 out_dir=OUT_DIR_DEFAULT,
+                                 **etc)
         base_calc.copy = functools.partial(self._copy_pysis, base_calc)
+        base_calc = self._modify_pysis_calc(base_calc,
+                                            gradient_modification_function=gradient_modification_function,
+                                            gradient_modification_mode=gradient_modification_mode,
+                                            convert_modification_distances=convert_modification_distances,
+                                            convert_modification_energies=convert_modification_energies)
         return base_calc
 
     @classmethod
@@ -2352,6 +2507,9 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                  mode=None,
                  initialization_function=None,
                  gradient_modification_function=None,
+                 gradient_modification_mode='shift',
+                 convert_modification_distances=True,
+                 convert_modification_energies=True,
                  return_trajectory=False,
                  **opts
                  ):
@@ -2388,14 +2546,17 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
             )
             if gradient_modification_function is not None:
                 old_get_forces = calc.get_forces
-                d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
-                e_conv = UnitsData.convert(self.property_units, "Hartrees")
-                def jacobian(atoms=None):
-                    res = old_get_forces(atoms)
+                def prep_coords(atoms=None):
                     if atoms is None: atoms = mol.mol
-                    crds = atoms.positions
-                    return -gradient_modification_function(crds * d_conv, -res * e_conv) * d_conv / e_conv
-                calc.get_forces = jacobian
+                    return atoms.positions
+                calc.get_forces = self._modify_gradient(
+                    calc.get_forces,
+                    gradient_modification_function,
+                    modification_mode=gradient_modification_mode,
+                    convert_modification_distances=convert_modification_distances,
+                    convert_modification_energies=convert_modification_energies,
+                    coord_prep=prep_coords
+                )
 
             try:
                 new_opt = mol.optimize_structure(coords,
@@ -2431,6 +2592,9 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                 return_trajectory=return_trajectory,
                 initialization_function=initialization_function,
                 gradient_modification_function=gradient_modification_function,
+                gradient_modification_mode=gradient_modification_mode,
+                convert_modification_distances=convert_modification_distances,
+                convert_modification_energies=convert_modification_energies,
                 **opts
             )
 
