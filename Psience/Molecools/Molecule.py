@@ -151,6 +151,8 @@ class Molecule(AbstractMolecule):
         self._evaluator = None
         self._hamiltonian = None
 
+        self._fragment_indices = None
+
         if charge is not None:
             metadata['charge'] = charge
         if spin is not None:
@@ -1488,7 +1490,9 @@ class Molecule(AbstractMolecule):
 
     @property
     def fragment_indices(self):
-        return MolecularProperties.fragment_indices(self)
+        if self._fragment_indices is None:
+            self._fragment_indices = MolecularProperties.fragment_indices(self)
+        return self._fragment_indices
 
     @property
     def fragments(self):
