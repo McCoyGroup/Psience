@@ -1142,14 +1142,21 @@ class EnergyEvaluator(PropertyEvaluator):
                          ):
         if gradient_modification_function is not None:
             calc._old_get_forces = calc.get_forces
-            def prep_coords(atoms=None):
+            def prep_coords(atoms=None, *etc, **kwetc):
                 if atoms is None: atoms = calc.atoms
                 return atoms.positions
-            calc.get_forces = self._modify_gradient(
-                calc.get_forces,
+            def prep_grad(_):
+                return calc.results['forces'], calc.results
+            def post_grad(grad, res):
+                res['forces'] = grad
+                return res
+            calc.calculate = self._modify_gradient(
+                calc.calculate,
                 gradient_modification_function,
                 modification_mode=gradient_modification_mode,
                 coord_prep=prep_coords,
+                grad_prep=prep_grad,
+                grad_post=post_grad,
                 use_forces=True,
                 **opts
             )
@@ -1845,6 +1852,112 @@ class EnergyEvaluator(PropertyEvaluator):
                 ), min
             else:
                 return min.success, min.x.reshape(coords.shape), min
+        elif mode == 'ase':
+            from McUtils.ExternalPrograms import ASEMolecule
+            # calc = self.to_ase()
+
+            calc = self.to_ase(
+                gradient_modification_function=gradient_modification_function,
+                gradient_modification_mode=gradient_modification_mode,
+                convert_modification_distances = convert_modification_distances,
+                convert_modification_energies = convert_modification_energies,
+            )
+
+            if initialization_function is not None:
+                d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+                coords = initialization_function(d_conv * coords)
+                coords = coords / d_conv
+
+            if return_trajectory:
+                traj = tempfile.NamedTemporaryFile().name
+            else:
+                traj = None
+
+            mol = ASEMolecule.from_coords(
+                self.atoms,
+                coords.reshape((-1,) + coords.shape[-2:])[0],
+                calculator=calc
+            )
+            new_opt = mol.optimize_structure(coords,
+                                             fmax=tol, steps=max_iterations,
+                                             maxstep=max_displacement,
+                                             trajectory=traj,
+                                             method=method)
+            if return_trajectory:
+                from ase.io.trajectory import Trajectory
+                try:
+                    with Trajectory(traj, mode='r') as reader:
+                        traj_data = [
+                            a.positions for a in reader
+                        ]
+                except FileNotFoundError:
+                    ...
+                else:
+                    os.remove(traj)
+                cond, coords, d = new_opt
+                new_opt = (cond, (coords, traj_data), d)
+            return new_opt
+        elif mode == 'pysis':
+            from McUtils.ExternalPrograms import run_pysisyphus, prep_pysis_images, patch_pysis_logging
+            # calc = self.to_ase()
+            patch_pysis_logging()
+
+            calc = self.to_pysis(
+                gradient_modification_function=gradient_modification_function,
+                gradient_modification_mode=gradient_modification_mode,
+                convert_modification_distances=False,
+                convert_modification_energies=False
+            )
+
+            if initialization_function is not None:
+                d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+                coords = initialization_function(d_conv * coords)
+                coords = coords / d_conv
+
+            if return_trajectory:
+                traj = tempfile.NamedTemporaryFile().name
+            else:
+                traj = None
+
+            geom = prep_pysis_images(
+                self.atoms,
+                coords * UnitsData.convert(self.distance_units, "BohrRadius")
+            )
+            geom.set_calculator(calc)
+            geom, optimizer, logs = run_pysisyphus(
+                None,
+                'optimize',
+                geom=geom,
+                optimizer=method,
+                max_cycles=max_iterations,
+                max_step=max_displacement,
+                return_logs=return_trajectory,
+                **opts
+            )
+            # new_opt = mol.optimize_structure(coords,
+            #                                  fmax=tol, steps=max_iterations,
+            #                                  maxstep=max_displacement,
+            #                                  trajectory=traj,
+            #                                  method=method)
+            # if return_trajectory:
+            #     new_opt,
+            #     from ase.io.trajectory import Trajectory
+            #     try:
+            #         with Trajectory(traj, mode='r') as reader:
+            #             traj_data = [
+            #                 a.positions for a in reader
+            #             ]
+            #     except FileNotFoundError:
+            #         ...
+            #     else:
+            #         os.remove(traj)
+            #     cond, coords, d = new_opt
+            #     new_opt = (cond, (coords, traj_data), d)
+            coords = geom.cart_coords.reshape(coords.shape)
+            if return_trajectory:
+                raise NotImplementedError("kinda annoying")
+            else:
+                return optimizer.is_converged, coords * UnitsData.convert("BohrRadius", self.distance_units), {}
         else:
             if gradient_modification_function is not None:
                 jacobian = self._modify_gradient(jacobian,
@@ -2501,102 +2614,101 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                 for e in zip(*expansions)
             ]
 
-    def optimize(self,
-                 coords,
-                 method=None,
-                 mode=None,
-                 initialization_function=None,
-                 gradient_modification_function=None,
-                 gradient_modification_mode='shift',
-                 convert_modification_distances=True,
-                 convert_modification_energies=True,
-                 return_trajectory=False,
-                 **opts
-                 ):
-        tol, max_iterations, max_displacement = [
-            opts.pop(k, self.optimizer_defaults[k])
-            for k in ["tol", "max_iterations", "max_displacement"]
-        ]
-        if mode == 'ase':
-            from McUtils.ExternalPrograms import ASEMolecule
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
-                from aimnet2calc import AIMNet2ASE
-
-            with self.quiet_mode():
-                calc = AIMNet2ASE(self.model,
-                                  charge=self.charge,
-                                  mult=self.multiplicity
-                                  )
-
-            if initialization_function is not None:
-                d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
-                coords = initialization_function(d_conv * coords)
-                coords = coords / d_conv
-
-            if return_trajectory:
-                traj = tempfile.NamedTemporaryFile().name
-            else:
-                traj = None
-
-            mol = ASEMolecule.from_coords(
-                self.atoms,
-                coords.reshape((-1,) + coords.shape[-2:])[0],
-                calculator=calc
-            )
-            if gradient_modification_function is not None:
-                old_get_forces = calc.get_forces
-                def prep_coords(atoms=None):
-                    if atoms is None: atoms = mol.mol
-                    return atoms.positions
-                calc.get_forces = self._modify_gradient(
-                    calc.get_forces,
-                    gradient_modification_function,
-                    modification_mode=gradient_modification_mode,
-                    convert_modification_distances=convert_modification_distances,
-                    convert_modification_energies=convert_modification_energies,
-                    coord_prep=prep_coords
-                )
-
-            try:
-                new_opt = mol.optimize_structure(coords,
-                                                 fmax=tol, steps=max_iterations,
-                                                 maxstep=max_displacement,
-                                                 trajectory=traj,
-                                                 method=method)
-            finally:
-                if gradient_modification_function is not None:
-                    calc.get_forces = old_get_forces
-            if return_trajectory:
-                from ase.io.trajectory import Trajectory
-                try:
-                    with Trajectory(traj, mode='r') as reader:
-                        traj_data = [
-                            a.positions for a in reader
-                        ]
-                except FileNotFoundError:
-                    ...
-                else:
-                    os.remove(traj)
-                cond, coords, d = new_opt
-                new_opt = (cond, (coords, traj_data), d)
-            return new_opt
-        else:
-            return super().optimize(
-                coords,
-                method=method,
-                tol=tol,
-                mode=mode,
-                max_iterations=max_iterations,
-                max_displacement=max_displacement,
-                return_trajectory=return_trajectory,
-                initialization_function=initialization_function,
-                gradient_modification_function=gradient_modification_function,
-                gradient_modification_mode=gradient_modification_mode,
-                convert_modification_distances=convert_modification_distances,
-                convert_modification_energies=convert_modification_energies,
-                **opts
-            )
+    # def optimize(self,
+    #              coords,
+    #              method=None,
+    #              mode=None,
+    #              initialization_function=None,
+    #              gradient_modification_function=None,
+    #              gradient_modification_mode='shift',
+    #              convert_modification_distances=True,
+    #              convert_modification_energies=True,
+    #              return_trajectory=False,
+    #              **opts
+    #              ):
+    #     tol, max_iterations, max_displacement = [
+    #         opts.pop(k, self.optimizer_defaults[k])
+    #         for k in ["tol", "max_iterations", "max_displacement"]
+    #     ]
+    #     if mode == 'ase':
+    #         from McUtils.ExternalPrograms import ASEMolecule
+    #         # calc = self.to_ase()
+    #
+    #         calc = self.to_ase(
+    #             gradient_modification_function=gradient_modification_function,
+    #             gradient_modification_mode=gradient_modification_mode,
+    #             convert_modification_distances = convert_modification_distances,
+    #             convert_modification_energies = convert_modification_energies,
+    #         )
+    #
+    #         if initialization_function is not None:
+    #             d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+    #             coords = initialization_function(d_conv * coords)
+    #             coords = coords / d_conv
+    #
+    #         if return_trajectory:
+    #             traj = tempfile.NamedTemporaryFile().name
+    #         else:
+    #             traj = None
+    #
+    #         mol = ASEMolecule.from_coords(
+    #             self.atoms,
+    #             coords.reshape((-1,) + coords.shape[-2:])[0],
+    #             calculator=calc
+    #         )
+    #         # if gradient_modification_function is not None:
+    #         #     old_get_forces = calc.get_forces
+    #         #     def prep_coords(atoms=None):
+    #         #         if atoms is None: atoms = mol.mol
+    #         #         return atoms.positions
+    #         #     calc.get_forces = self._modify_gradient(
+    #         #         calc.get_forces,
+    #         #         gradient_modification_function,
+    #         #         modification_mode=gradient_modification_mode,
+    #         #         convert_modification_distances=convert_modification_distances,
+    #         #         convert_modification_energies=convert_modification_energies,
+    #         #         coord_prep=prep_coords
+    #         #     )
+    #         #
+    #         # try:
+    #         new_opt = mol.optimize_structure(coords,
+    #                                          fmax=tol, steps=max_iterations,
+    #                                          maxstep=max_displacement,
+    #                                          trajectory=traj,
+    #                                          method=method)
+    #         # finally:
+    #         #     if gradient_modification_function is not None:
+    #         #         calc.get_forces = old_get_forces
+    #         if return_trajectory:
+    #             from ase.io.trajectory import Trajectory
+    #             try:
+    #                 with Trajectory(traj, mode='r') as reader:
+    #                     traj_data = [
+    #                         a.positions for a in reader
+    #                     ]
+    #             except FileNotFoundError:
+    #                 ...
+    #             else:
+    #                 os.remove(traj)
+    #             cond, coords, d = new_opt
+    #             new_opt = (cond, (coords, traj_data), d)
+    #         return new_opt
+    #     else:
+    #         return super().optimize(
+    #             coords,
+    #             method=method,
+    #             tol=tol,
+    #             mode=mode,
+    #             max_iterations=max_iterations,
+    #             max_displacement=max_displacement,
+    #             return_trajectory=return_trajectory,
+    #             initialization_function=initialization_function,
+    #             gradient_modification_function=gradient_modification_function,
+    #             gradient_modification_mode=gradient_modification_mode,
+    #             convert_modification_distances=convert_modification_distances,
+    #             convert_modification_energies=convert_modification_energies,
+    #             **opts
+    #         )
 
 class ASECalcEnergyEvaluator(EnergyEvaluator):
     def __init__(self, atoms, charge=0, multiplicity=1, quiet=True, embedding=None, **defaults):
