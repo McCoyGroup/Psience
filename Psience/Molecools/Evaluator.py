@@ -1137,19 +1137,32 @@ class EnergyEvaluator(PropertyEvaluator):
     def _modify_ase_calc(self, #TODO: add in orthogonal projections as well
                          calc,
                          gradient_modification_function=None,
-                         gradient_modification_mode='shift',
+                         gradient_modification_mode=None,
                          orthogonal_projection_generator=None,
                          **opts
                          ):
         if gradient_modification_function is not None:
-            calc._old_get_forces = calc.get_forces
+            calc._old_calculate = calc.calculate
             def prep_coords(atoms=None, *etc, **kwetc):
                 if atoms is None: atoms = calc.atoms
                 return atoms.positions
             def prep_grad(_):
-                f = calc.results['forces']
-                return f.reshape(f.shape[:-2] + (-1,)), calc.results
+                if 'forces' not in calc.results or 'old_forces' in calc.results:
+                    return None, calc.results
+                else:
+                    f = calc.results['forces']
+                    return f.reshape(f.shape[:-2] + (-1,)), calc.results
             def post_grad(grad, res):
+                # from .Molecule import Molecule
+                # from McUtils.ExternalPrograms import ASEMolecule
+                #
+                # Molecule.from_ase(ASEMolecule.from_atoms(calc.atoms)).animate_coordinate(
+                #     0,
+                #     coordinate_expansion=[nput.vec_normalize(grad.reshape((1, -1)))],
+                #     backend='x3d'
+                # ).show()
+
+                res['old_forces'] = res['forces']
                 res['forces'] = grad.reshape(grad.shape[:-1] + (-1, 3))
                 return res
             calc.calculate = self._modify_gradient(
@@ -1166,9 +1179,9 @@ class EnergyEvaluator(PropertyEvaluator):
         return calc
     def to_ase(self,
                gradient_modification_function=None,
-               gradient_modification_mode='shift',
-               convert_modification_distances=True,
-               convert_modification_energies=True,
+               gradient_modification_mode=None,
+               convert_modification_distances=None,
+               convert_modification_energies=None,
                orthogonal_projection_generator=None,
                **etc
                ):
@@ -1182,12 +1195,12 @@ class EnergyEvaluator(PropertyEvaluator):
                                      convert_modification_energies=convert_modification_energies,
                                      orthogonal_projection_generator=orthogonal_projection_generator)
 
-    def _modify_pysis_calc(self,  # TODO: add in orthogonal projections as well
+    def _modify_pysis_calc(self,
                            calc,
                            gradient_modification_function=None,
-                           gradient_modification_mode='shift',
-                           convert_modification_distances=False,
-                           convert_modification_energies=False,
+                           gradient_modification_mode=None,
+                           convert_modification_distances=None,
+                           convert_modification_energies=None,
                            **opts
                            ):
         if gradient_modification_function is not None:
@@ -1216,9 +1229,9 @@ class EnergyEvaluator(PropertyEvaluator):
         return calc
     def to_pysis(self,
                  gradient_modification_function=None,
-                 gradient_modification_mode='shift',
-                 convert_modification_distances=False,
-                 convert_modification_energies=False,
+                 gradient_modification_mode=None,
+                 convert_modification_distances=None,
+                 convert_modification_energies=None,
                  orthogonal_projection_generator=None,
                  **etc):
         from McUtils.ExternalPrograms import PysisCalculator
@@ -1510,6 +1523,8 @@ class EnergyEvaluator(PropertyEvaluator):
                          grad_prep=None,
                          grad_post=None
                          ):
+        if modification_mode is None:
+            raise ValueError("no gradient modification mode supplied")
         if convert_modification_distances:
             d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
         else:
@@ -1527,6 +1542,7 @@ class EnergyEvaluator(PropertyEvaluator):
                     crds = coord_prep(crds, *rem)
                 if grad_prep is not None:
                     res, state = grad_prep(res)
+                    if res is None: return state
                 else:
                     state = None
                 re_res = res * e_conv / d_conv
@@ -1539,6 +1555,7 @@ class EnergyEvaluator(PropertyEvaluator):
                 #       np.linalg.norm(supp.flatten()),
                 #       np.dot(nput.vec_normalize(res.flatten()), nput.vec_normalize(supp.flatten()))
                 #       )
+                # print("?", np.linalg.norm(re_res), np.linalg.norm(supp))
                 res = re_res + supp
                 if orthogonal_projector is not None:
                     projector = orthogonal_projector[np.newaxis]
@@ -1565,6 +1582,7 @@ class EnergyEvaluator(PropertyEvaluator):
                     crds = coord_prep(crds, *rem)
                 if grad_prep is not None:
                     res, state = grad_prep(res)
+                    if res is None: return state
                 else:
                     state = None
                 if use_forces:
@@ -1589,6 +1607,7 @@ class EnergyEvaluator(PropertyEvaluator):
 
     scipy_no_hessian_methods = {'cg', 'bfgs'}
     scipy_no_grad_methods = {'nelder-mead'}
+    use_scipy_linesearch = False
     def optimize_iterative(self,
                            coords,
                            coordinate_constraints=None,
@@ -1686,7 +1705,7 @@ class EnergyEvaluator(PropertyEvaluator):
             from scipy.optimize import minimize, _optimize, _minimize
 
             if line_search is None:
-                line_search = True
+                line_search = self.use_scipy_linesearch
 
             if not line_search:
                 optimizer_settings = {'c1': 0.00001, 'c2': 0.999} | optimizer_settings
