@@ -1719,7 +1719,8 @@ class EnergyEvaluator(PropertyEvaluator):
             def sjacobian(crd):
                 huh = jacobian(crd, None)
                 if orthogonal_projection_generator is not None:
-                    huh = orthogonal_projection_generator(crd) @ huh
+                    gen = orthogonal_projection_generator(crd)
+                    huh = np.reshape(gen @ huh[..., np.newaxis], huh.shape)
                 # print(huh)
                 if huh.ndim == 2:
                     res = huh[0]
@@ -1731,8 +1732,8 @@ class EnergyEvaluator(PropertyEvaluator):
                 sjacobian = self._modify_gradient(sjacobian,
                                                   gradient_modification_function,
                                                   modification_mode=gradient_modification_mode,
-                                                  convert_modification_distances=convert_modification_distances,
-                                                  convert_modification_energies=convert_modification_energies,
+                                                  convert_modification_distances=False,#convert_modification_distances,
+                                                  convert_modification_energies=False,#convert_modification_energies,
                                                   )
 
             if self.analytic_derivative_order > 1:
@@ -2035,8 +2036,8 @@ class EnergyEvaluator(PropertyEvaluator):
                 jacobian = self._modify_gradient(jacobian,
                                                  gradient_modification_function,
                                                  modification_mode=gradient_modification_mode,
-                                                 convert_modification_distances=convert_modification_distances,
-                                                 convert_modification_energies=convert_modification_energies,
+                                                 convert_modification_distances=False,#convert_modification_distances,
+                                                 convert_modification_energies=False,#convert_modification_energies,
                                                  )
 
             if method is None or isinstance(method, str):

@@ -3506,7 +3506,7 @@ class Molecule(AbstractMolecule):
             cls._atom_strs = {d["Symbol"][:2] for d in AtomData.data.values()}
         return cls._atom_strs
     _smi_punct=(
-        'c', 'n', 'o', '*', '[', ']', '(', ')', '+',
+        'c', 'n', 'o', 's', '*', '[', ']', '(', ')', '+',
         '.', '-', '=', '#', '@', '$', ':', '/', '\\', '0','1','2','3','4','5','6','7','8','9')
     @classmethod
     def _check_smi(cls, string, atom_types, other_syms=None):
@@ -3518,15 +3518,15 @@ class Molecule(AbstractMolecule):
             string = string.replace(s, '')
         return len(string.strip()) == 0
     @classmethod
-    def _infer_str_format(cls, string:str, **opts):
+    def _infer_str_format(cls, string:str, allow_names=False, **opts):
         from McUtils.Parsers import Number, Word
 
         lines = string.strip().split('\n', 3)
         at_strs = cls.get_atom_strings()
         if len(lines) == 1:
-            if len(string.split()) == 1 and cls._check_smi(string, at_strs):
+            if len(string.strip().split()) == 1 and cls._check_smi(string, at_strs):
                 return 'smi'
-            else:
+            elif allow_names:
                 return 'name'
         elif 'V2000' in string or 'V3000' in string:
             return 'mol'
@@ -3574,9 +3574,9 @@ class Molecule(AbstractMolecule):
             "cdxml": cls._from_cdxml
         }
     @classmethod
-    def from_string(cls, string, fmt=None, format_options=None, **opts):
+    def from_string(cls, string, fmt=None, allow_names=False, format_options=None, **opts):
         if fmt is None:
-            fmt = cls._infer_str_format(string)
+            fmt = cls._infer_str_format(string, allow_names=allow_names)
         format_dispatcher = cls.get_string_format_dispatchers()
         if format_options is not None:
             opts = collections.ChainMap(opts, format_options.get(fmt, {}))
@@ -3613,7 +3613,7 @@ class Molecule(AbstractMolecule):
             "xyz": cls._from_xyz_file
         }
     @classmethod
-    def from_file(cls, file, mode=None, format_options=None, **opts) -> Molecule:
+    def from_file(cls, file, mode=None, format_options=None, use_ob_fallback=False, **opts) -> Molecule:
         """In general we'll delegate to pybel except for like Fchk and Log files
 
         :param file:
@@ -3638,8 +3638,10 @@ class Molecule(AbstractMolecule):
         if mode in format_dispatcher:
             loader = format_dispatcher[mode]
             return loader(file, **opts)
-        else:
+        elif use_ob_fallback:
             return cls._from_ob_import(file, fmt=mode, **opts)
+        else:
+            raise ValueError(f"couldn't parse file with format {mode}")
 
             # try:
             #     pybel = OpenBabelInterface().pybel

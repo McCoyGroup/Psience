@@ -440,10 +440,13 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
                  method_options=None,
                  optimizer_method=None,
                  optimizer=None,
-                 max_step=None,
+                 maxstep=None,
                  max_iterations=None,
+                 max_displacement=None,
                  gradient_modification_function=None,
                  **opt_opts):
+        if maxstep is None and max_displacement is not None:
+            maxstep = max_displacement
         images = self.prep_images(
             num_images=num_images,
             energy_evaluator=energy_evaluator,
@@ -467,11 +470,11 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
             method = method | method_options
         method = self.opts | method
 
-        if max_step is None:
-            max_step = self.max_step
+        if maxstep is None:
+            maxstep = self.max_step
 
-        if max_step is not None:
-            opt_opts["max_step"] = max_step
+        if maxstep is not None:
+            opt_opts["maxstep"] = maxstep
 
         if max_iterations is not None:
             opt_opts["steps"] = max_iterations
