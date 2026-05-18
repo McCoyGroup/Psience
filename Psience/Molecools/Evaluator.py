@@ -1996,6 +1996,7 @@ class EnergyEvaluator(PropertyEvaluator):
                 coords * UnitsData.convert(self.distance_units, "BohrRadius")
             )
             geom.set_calculator(calc)
+            use_max_for_error = opts.pop('use_max_for_error', None)
             geom, optimizer, logs = run_pysisyphus(
                 None,
                 'optimize',
@@ -2003,6 +2004,8 @@ class EnergyEvaluator(PropertyEvaluator):
                 optimizer=method,
                 max_cycles=max_iterations,
                 max_step=max_displacement,
+                tol=tol,
+                use_max_for_error=use_max_for_error,
                 return_logs=return_trajectory,
                 logger=logger,
                 **opts
