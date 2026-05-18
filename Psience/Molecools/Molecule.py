@@ -1312,18 +1312,19 @@ class Molecule(AbstractMolecule):
     def find_heavy_atom_backbone(self, root=None):
         return self.edge_graph.find_longest_chain(root=root)
 
-    def find_backbone_segments(self, root=None):
-        return self.edge_graph.segment_by_chains(root=root)
+    def find_backbone_segments(self, root=None, initial_backbone=None):
+        return self.edge_graph.segment_by_chains(root=root, backbone=initial_backbone)
 
     def get_backbone_zmatrix(self, root=None,
                              segments=None,
                              return_remainder=False,
                              return_segments=False,
                              required_coordinates=None,
+                             initial_backbone=None,
                              validate=True
                              ):
         if segments is None:
-            segments = self.find_backbone_segments(root=root)
+            segments = self.find_backbone_segments(root=root, initial_backbone=initial_backbone)
             if validate:
                 flat_frags = list(itut.flatten(segments))
                 frag_counts = itut.counts(flat_frags)
@@ -1370,7 +1371,8 @@ class Molecule(AbstractMolecule):
                          validate=True,
                          for_fragment=None,
                          fragment_ordering=None,
-                         connect_fragments=True
+                         connect_fragments=True,
+                         initial_backbone=None
                          ):
         if for_fragment is not None:
             if nput.is_int(for_fragment):
@@ -1387,12 +1389,16 @@ class Molecule(AbstractMolecule):
                         frag_map[i] for i in attachment_points
                     ]
 
+            if initial_backbone is not None:
+                ff = list(for_fragment)
+                initial_backbone = [ff.index(i) for i in initial_backbone]
             base_ints = self.take_submolecule(for_fragment).get_bond_zmatrix(
                 fragments=fragments, segments=segments, root=root,
                 attachment_points=attachment_points,
                 check_attachment_points=check_attachment_points,
                 fragment_ordering=fragment_ordering,
                 required_coordinates=required_coordinates,
+                initial_backbone=initial_backbone,
                 validate=validate
             )
             return coordops.reindex_zmatrix(base_ints, for_fragment)
@@ -1407,7 +1413,8 @@ class Molecule(AbstractMolecule):
                 zm = self.get_backbone_zmatrix(
                     root=root, segments=segments,
                     required_coordinates=required_coordinates,
-                    validate=validate
+                    validate=validate,
+                    initial_backbone=initial_backbone
                 )
                 if connect_fragments:
                     return zm
@@ -1443,10 +1450,53 @@ class Molecule(AbstractMolecule):
                 if root is None:
                     root = [root]
 
+
+                if initial_backbone is not None:
+                    initial_backbones = []
+                    for frag in inds:
+                        ff = list(frag)
+                        sub = []
+                        for i in initial_backbone:
+                            try:
+                                x = ff.index(i)
+                            except ValueError:
+                                continue
+                            else:
+                                sub.append(x)
+                        if len(sub) > 0:
+                            initial_backbones.append(sub)
+                        else:
+                            initial_backbones.append(None)
+                else:
+                    initial_backbones = [None] * len(inds)
+
                 root = list(root) + [None] * (len(inds) - len(root))
+                merge_coordinates = []
+                if required_coordinates is not None:
+                    fragment_requireds = [[] for _ in range(len(frags))]
+                    for c in required_coordinates:
+                        for i,f in enumerate(inds):
+                            ff = list(f)
+                            sub = []
+                            for j in c:
+                                try:
+                                    x = ff.index(j)
+                                except ValueError:
+                                    break
+                                else:
+                                    sub.append(x)
+                            if len(sub) == len(c):
+                                fragment_requireds[i].append(tuple(sub))
+                                break
+                        else:
+                            merge_coordinates.append(c)
+                else:
+                    fragment_requireds = [None] * len(inds)
+                if len(merge_coordinates) == 0:
+                    merge_coordinates = None
                 zmats = [
-                    f.get_backbone_zmatrix(root=r)
-                    for r,f in zip(root, frags)
+                    f.get_backbone_zmatrix(root=r, initial_backbone=bb, required_coordinates=rq)
+                    for r,f,bb,rq in zip(root, frags, initial_backbones, fragment_requireds)
                 ]
 
                 if connect_fragments:
@@ -1475,6 +1525,7 @@ class Molecule(AbstractMolecule):
                         distance_matrix=dm,
                         attachment_points=attachment_points,
                         check_attachment_points=check_attachment_points,
+                        required_coordinates=merge_coordinates,
                         validate_additions=validate
                     )
                 else:
