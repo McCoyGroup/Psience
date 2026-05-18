@@ -678,6 +678,7 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
                  method=None,
                  optimizer=None,
                  max_iterations=None,
+                 tol=None,
                  coord_type=None,
                  optimizer_settings=None,
                  **opt_opts):
@@ -699,8 +700,17 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
         if optimizer_settings is None:
             optimizer_settings = {}
 
+        t = optimizer_settings.pop('tol', None)
+        if tol is None:
+            tol = t
+        if tol is not None:
+            opt_opts['tol'] = tol
+
+        t = optimizer_settings.pop('max_iterations', None)
+        if max_iterations is None:
+            max_iterations = t
         if max_iterations is not None:
-            optimizer_settings['max_cycles'] = max_iterations
+            opt_opts['max_cycles'] = max_iterations
 
         opt_data = run_pysisyphus(
             energy_evaluator,
