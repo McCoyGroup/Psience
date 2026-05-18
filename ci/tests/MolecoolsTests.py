@@ -5257,6 +5257,22 @@ class MolecoolsTests(TestCase):
             # (3, 2, 4)
         ])
 
+    @debugTest
+    def test_RequiredZMat2(self):
+        import McUtils.Coordinerds as coordops
+
+        mol = Molecule.from_file(TestManager.test_data('problem_product2.xyz'))
+        # mol.plot(highlight_atoms=[0, 1, 2, 3, 4, 5]).show()
+        # zm = mol.get_bond_zmatrix()
+        # print(np.array(zm))
+        # mol = mol.break_bonds([[0, 2], [1, 3]])
+        zm = mol.get_bond_zmatrix(
+            initial_backbone=[0, 2, 3, 1, 4, 5],
+            required_coordinates=[(0, 2), (1, 3)]
+        )
+        print(np.array(zm))
+        coordops.zmatrix_indices(zm, [(0, 2), (1, 3)])
+
     @validationTest
     def test_ProblemTransformedZMatrix(self):
         import McUtils.Coordinerds as coordops
