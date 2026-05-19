@@ -3328,6 +3328,7 @@ class PySCFEnergyEvaluator(EnergyEvaluator):
                  quiet=True,
                  molecule_options=None,
                  level_of_theory_options=None,
+                 disp=None,
                  **defaults):
         super().__init__(**defaults)
 
@@ -3339,6 +3340,8 @@ class PySCFEnergyEvaluator(EnergyEvaluator):
         if level_of_theory_options is None:
             level_of_theory_options = {}
         self.level_of_theory_options = level_of_theory_options.copy()
+        if disp is not None:
+            self.level_of_theory_options['disp'] = disp
         self._pyscf_caller_dispatch = dev.uninitialized
         self.caller = self.resolve_caller(caller, level_of_theory)
         # self.charge = charge
@@ -3449,9 +3452,9 @@ class PySCFEnergyEvaluator(EnergyEvaluator):
     def get_gradient_from_calc(self, calc):
         return calc.nuc_grad_method().run()
 
-    def run_calculation(self, coords):
+    def run_calculation(self, coords, **opts):
         molecule = self.get_molecule(coords)
-        return self.caller(molecule, **self.level_of_theory_options)
+        return self.caller(molecule, **(self.level_of_theory_options | opts))
 
     distance_units = "BohrRadius"
     property_units = 'Hartrees'
@@ -3472,7 +3475,7 @@ class PySCFEnergyEvaluator(EnergyEvaluator):
         else:
             grads = None
         for i,coord in enumerate(coords):
-            res = self.run_calculation(coord)
+            res = self.run_calculation(coord, **opts)
             energies[i] = self.get_energy_from_calc(res)
             if order > 0:
                 grads[i] = self.get_gradient_from_calc(res)
