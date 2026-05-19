@@ -3404,13 +3404,18 @@ class PySCFEnergyEvaluator(EnergyEvaluator):
 
         return molecule
 
-    def _call_dft(self, molecule, restricted=True, **opts):
+    def _call_dft(self, molecule, restricted=True, functional_options=None,  disp=None, **opts):
         from pyscf import dft
 
+        if functional_options is None:
+            functional_options = {}
+        if disp is not None:
+            functional_options['disp'] = disp
+        functional_options['xc'] = self.level_of_theory
         if restricted:
-            calc = dft.RKS(molecule, xc=self.level_of_theory)
+            calc = dft.RKS(molecule, **functional_options)
         else:
-            calc = dft.UKS(molecule, xc=self.level_of_theory)
+            calc = dft.UKS(molecule, **functional_options)
         return calc.run(**opts)
         # calc = calc.newton()
         # calc.kernel()
