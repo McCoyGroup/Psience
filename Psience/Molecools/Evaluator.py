@@ -3412,13 +3412,17 @@ class PySCFEnergyEvaluator(EnergyEvaluator):
 
         if functional_options is None:
             functional_options = {}
-        if disp is not None:
-            functional_options['disp'] = disp
+        functional_options = functional_options.copy()
         functional_options['xc'] = self.level_of_theory
+        d = functional_options.pop('disp', None)
+        if disp is None:
+            disp = d
         if restricted:
             calc = dft.RKS(molecule, **functional_options)
         else:
             calc = dft.UKS(molecule, **functional_options)
+        if disp is not None:
+            calc.disp = disp
         return calc.run(**opts)
         # calc = calc.newton()
         # calc.kernel()
