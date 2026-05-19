@@ -7,6 +7,7 @@ __all__ = [
     "plot_energy_levels"
 ]
 
+
 def plot_energy_levels(energy_list, figure: plt.Graphics = None,
                        x_list=None,
                        bar_spacing=.025,
@@ -18,6 +19,7 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
                        bar_styles=None,
                        connect=False,
                        connection_style=None,
+                       scaled_x=False,
                        **styles):
 
     if isinstance(energy_list, dict): # replace with collections.Mapping...
@@ -41,17 +43,17 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
 
     if plot_range is None and figure is not None:
         plot_range = figure.plot_range
-    if plot_range is not None and not nput.is_numeric(plot_range[0]):
+
+    if x_list is not None and not scaled_x:
+        x_list = np.asanyarray(x_list)
+        x_min = np.min(x_list)
+        x_max = np.max(x_list)
+        diff = (x_max - x_min) / (1 - 2*bar_spacing)
+        x_range = [x_min - bar_spacing * diff, x_max + bar_spacing * diff]
+    elif plot_range is not None and not nput.is_numeric(plot_range[0]):
         x_range = plot_range[0]
     else:
-        if x_list is not None:
-            x_list = np.asanyarray(x_list)
-            x_min = np.min(x_list)
-            x_max = np.max(x_list)
-            diff = (x_max - x_min) / (1 - 2*bar_spacing)
-            x_range = [x_min - bar_spacing * diff, x_max + bar_spacing * diff]
-        else:
-            x_range = [0, 1]
+        x_range = [0, 1]
     if x_list is None:
         neng = len(energy_list)
         x_list = [[i / neng + bar_spacing, (i + 1) / neng - bar_spacing] for i in range(neng)]
@@ -75,8 +77,12 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
 
     if plot_range is None or nput.is_numeric(plot_range[0]):
         plot_range = [x_range, plot_range]
+    elif plot_range is False:
+        plot_range = None
 
-    if ticks is None or (len(ticks) > 0 and nput.is_numeric(ticks[0])):
+    if ticks is False:
+        ticks = None
+    elif ticks is None or ticks is True or (len(ticks) > 0 and nput.is_numeric(ticks[0])):
         if labels is None:
             x_ticks = []
         else:
@@ -88,6 +94,8 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
         if len(x_ticks) > 0 and nput.is_numeric(x_ticks[0]):
             x_ticks = (x_ticks, dict(labels=labels))
         ticks = [x_ticks, y_ticks]
+    elif ticks is False:
+        ticks = None
 
     if bar_styles is None:
         bar_styles = {}
