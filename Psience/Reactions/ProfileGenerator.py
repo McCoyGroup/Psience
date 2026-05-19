@@ -712,7 +712,7 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
         if max_iterations is not None:
             opt_opts['max_cycles'] = max_iterations
 
-        opt_data = run_pysisyphus(
+        generator, _, _ = run_pysisyphus(
             energy_evaluator,
             method,
             images=images,
@@ -721,10 +721,15 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
             return_logs=False,
             **(self.opts | opt_opts)
         )
+        if hasattr(generator, 'eliminated_nodes'):
+            eliminated_nodes = generator.eliminated_nodes
+        else:
+            eliminated_nodes = []
 
         return [
             b.modify(coords=i.cart_coords.reshape(-1, 3))
-            for b,i in zip(base_images, images)
+            for n,(b,i) in enumerate(zip(base_images, images))
+            if n not in eliminated_nodes
         ]
 
 class PysisNEBGenerator(PysisyphusProfileGenerator):
