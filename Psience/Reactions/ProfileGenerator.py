@@ -474,6 +474,8 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
         if maxstep is None:
             maxstep = self.max_step
 
+        if 'tol' is None:
+            tol = opt_opts.pop('tol', None)
         if tol is not None:
             opt_opts['fmax'] = tol
 
