@@ -445,6 +445,7 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
                  max_iterations=None,
                  max_displacement=None,
                  gradient_modification_function=None,
+                 optimizer_settings=None,
                  **opt_opts):
         if maxstep is None and max_displacement is not None:
             maxstep = max_displacement
@@ -474,6 +475,16 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
         if maxstep is None:
             maxstep = self.max_step
 
+        if optimizer_settings is not None:
+            optimizer_settings = optimizer_settings.copy()
+            f = optimizer_settings.pop('fmax', None)
+            if fmax is None:
+                fmax = f
+            t = optimizer_settings.pop('tol', None)
+            if tol is None:
+                tol = t
+
+
         if tol is not None:
             opt_opts['fmax'] = tol
 
@@ -488,6 +499,7 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
                                                      optimizer=optimizer,
                                                      optimizer_method=optimizer_method,
                                                      return_coords=False,
+                                                     optimizer_settings=optimizer_settings,
                                                      **opt_opts
                                                      )
         if energy_evaluator is None:
