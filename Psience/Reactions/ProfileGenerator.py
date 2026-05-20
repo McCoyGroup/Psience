@@ -478,8 +478,8 @@ class ASEProfileGenerator(InterpolatingProfileGenerator):
         if optimizer_settings is not None:
             optimizer_settings = optimizer_settings.copy()
             f = optimizer_settings.pop('fmax', None)
-            if fmax is None:
-                fmax = f
+            if f is not None and 'fmax' not in opt_opts:
+                opt_opts['fmax'] = f
             t = optimizer_settings.pop('tol', None)
             if tol is None:
                 tol = t
