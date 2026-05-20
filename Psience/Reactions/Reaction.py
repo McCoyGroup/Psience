@@ -23,7 +23,7 @@ class Reaction:
                  use_product_structure=True,
                  fragment_expansion_method=dev.default,
                  optimize=True,
-                 energy_evaluator='rdkit',
+                 energy_evaluator=None,
                  profile_generator=None,
                  **fragment_initialization_opts
                  ):
@@ -62,7 +62,7 @@ class Reaction:
 
             self.reactant_complex = self.reactant_complex.modify(coords=target_coords)
 
-        if optimize:
+        if optimize:# and energy_evaluator is not None:
             self.product_complex = self.product_complex.optimize(evaluator=energy_evaluator)
             self.reactant_complex = self.reactant_complex.optimize(evaluator=energy_evaluator)
             if align:
@@ -72,6 +72,13 @@ class Reaction:
                     align_structures=True,
                     permute_atoms=False if use_product_structure else 'all'
                 )
+        elif align:
+            self.reactant_complex = self.product_complex.align_molecule(
+                self.reactant_complex,
+                reindex_bonds=False,
+                align_structures=True,
+                permute_atoms=False if use_product_structure else 'all'
+            )
 
         self.profile_generator = profile_generator
 

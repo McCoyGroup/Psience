@@ -23,6 +23,8 @@ class ProfileGenerator:
 
     @abc.abstractmethod
     def generate(self, **opts):
+        #TODO: have systems automatically support saving their evaluated energies
+        #      so we don't have to recalculate them
         ...
 
     def evaluate_profile_energies(self, profile:'list[Molecule]', **opts):
@@ -47,10 +49,6 @@ class ProfileGenerator:
             'neb': NudgedElasticBand,
             'ase-neb': ASENEBGenerator,
             'ase-dimer': ASEDimerGenerator,
-            'pys-neb': PysisNEBGenerator,
-            'pys-gsm': PysisGSMGenerator,
-            'pys-fsm': PysisFSMGenerator,
-            'pys-cos': PysisCOSGenerator,
         }
     _profile_dispatch = dev.uninitialized
     @classmethod
@@ -217,7 +215,8 @@ class NudgedElasticBand(InterpolatingProfileGenerator):
                  spring_constant=.01,
                  internals=None,
                  max_displacement_step=None,
-                 interpolation_gradient_scaling=None
+                 interpolation_gradient_scaling=None,
+                 climb=False
                  ):
         self.interpolation_gradient_scaling = interpolation_gradient_scaling
         self._energy_evaluator = energy_evaluator
@@ -232,6 +231,7 @@ class NudgedElasticBand(InterpolatingProfileGenerator):
         )
         self.spring_constant = spring_constant
         self.internals = internals
+        self.climb = climb
     @property
     def energy_evaluator(self):
         return self.reactants.get_energy_evaluator(self._energy_evaluator)
@@ -291,31 +291,42 @@ class NudgedElasticBand(InterpolatingProfileGenerator):
             for i in profile
         ]
 
-    def get_step_finder(self, spring_constant=None, energy_evaluator=None):
+    def get_step_finder(self, spring_constant=None, energy_evaluator=None, climb=False):
         if spring_constant is None:
             spring_constant = self.spring_constant
         if energy_evaluator is None:
             energy_evaluator = self.energy_evaluator
         return nput.NudgedElasticBandStepFinder(
-                self._potential(energy_evaluator),
-                self._jacobian(energy_evaluator),
-                spring_constants=spring_constant
-            )
+            self._potential(energy_evaluator),
+            self._jacobian(energy_evaluator),
+            spring_constants=spring_constant
+        )
 
     def generate(self, num_images=None, spring_constant=None, energy_evaluator=None, return_preopt=False,
-                 embedding_options=None, base_images=None,
+                 embedding_options=None, base_images=None, climb=None,
+                 optimizer_settings=None, climbing_node_identifier=None,
                  **opt_opts):
         if base_images is None:
             base_images = super().generate(num_images=num_images)
+        if climb is None:
+            climb = self.climb
         step_finder = self.get_step_finder(spring_constant=spring_constant, energy_evaluator=energy_evaluator)
+
+        if optimizer_settings is not None:
+            opt_opts = optimizer_settings | opt_opts
 
         if embedding_options is None:
             embedding_options = {'masses':self.reactants.masses}
         image_coords = [b.coords.flatten() for b in base_images]
+        if climb and climbing_node_identifier is None:
+            climbing_node_identifier = 'first'
+            opt_opts['function'] = step_finder.image_potential
         (res, nimg), _, _ = nput.iterative_chain_minimize(
             image_coords,
             step_finder,
             embedding_options=embedding_options,
+            climb=climb,
+            climbing_node_identifier=climbing_node_identifier,
             **opt_opts
         )
 
@@ -517,7 +528,7 @@ class ASENEBGenerator(ASEProfileGenerator):
                  product_complex: Molecule,
                  *,
                  energy_evaluator: EnergyEvaluator,
-                 spring_constant=.1,
+                 spring_constant=.01,
                  **opts
     ):
         super().__init__(
@@ -543,7 +554,7 @@ class ASENEBGenerator(ASEProfileGenerator):
         if spring_constant is None:
             spring_constant = self.spring_constant
         if k is None:
-            k = spring_constant
+            k = spring_constant * UnitsData.convert("Hartrees", "ElectronVolts")
         return super().generate(
             num_images=num_images,
             energy_evaluator=energy_evaluator,
@@ -628,7 +639,8 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
                     energy_evaluator=None,
                     gradient_modification_function=None,
                     base_images=None,
-                    coord_type=None
+                    coord_type=None,
+                    out_dir=None
                     ):
         from McUtils.ExternalPrograms import patch_pysis_logging, prep_pysis_images
         patch_pysis_logging()
@@ -662,6 +674,9 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
                 gradient_modification_function=gradient_modification_function
             )
             g.set_calculator(eval)
+            if out_dir is not None:
+                g.out_dir = out_dir
+
 
 
         return base_images, geoms
@@ -697,22 +712,8 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
                  tol=None,
                  coord_type=None,
                  optimizer_settings=None,
+                 out_dir=None,
                  **opt_opts):
-
-        from McUtils.ExternalPrograms import patch_pysis_logging, run_pysisyphus
-        patch_pysis_logging()
-
-        if method is None:
-            method = self.default_method
-
-        base_images, images = self.prep_images(
-            num_images=num_images,
-            energy_evaluator=energy_evaluator,
-            gradient_modification_function=gradient_modification_function,
-            base_images=base_images,
-            coord_type=coord_type
-        )
-
         if optimizer_settings is None:
             optimizer_settings = {}
 
@@ -728,25 +729,47 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
         if max_iterations is not None:
             opt_opts['max_cycles'] = max_iterations
 
-        generator, _, _ = run_pysisyphus(
-            energy_evaluator,
-            method,
-            images=images,
-            optimizer=optimizer,
-            optimizer_settings=optimizer_settings,
-            return_logs=False,
-            **(self.opts | opt_opts)
-        )
-        if hasattr(generator, 'eliminated_nodes'):
-            eliminated_nodes = generator.eliminated_nodes
-        else:
-            eliminated_nodes = []
+        from McUtils.ExternalPrograms import patch_pysis_logging, run_pysisyphus
+        patch_pysis_logging()
+        with dev.DefaultDirectory(out_dir) as od:
+            import pysisyphus.config
+            cur_od = pysisyphus.config.OUT_DIR_DEFAULT
+            try:
+                pysisyphus.config.OUT_DIR_DEFAULT = od
 
-        return [
-            b.modify(coords=i.cart_coords.reshape(-1, 3))
-            for n,(b,i) in enumerate(zip(base_images, images))
-            if n not in eliminated_nodes
-        ]
+                if method is None:
+                    method = self.default_method
+
+                base_images, images = self.prep_images(
+                    num_images=num_images,
+                    energy_evaluator=energy_evaluator,
+                    gradient_modification_function=gradient_modification_function,
+                    base_images=base_images,
+                    coord_type=coord_type,
+                    out_dir=od
+                )
+
+                generator, _, _ = run_pysisyphus(
+                    energy_evaluator,
+                    method,
+                    images=images,
+                    optimizer=optimizer,
+                    optimizer_settings=optimizer_settings,
+                    return_logs=False,
+                    **(self.opts | opt_opts)
+                )
+                if hasattr(generator, 'eliminated_nodes'):
+                    eliminated_nodes = generator.eliminated_nodes
+                else:
+                    eliminated_nodes = []
+            finally:
+                pysisyphus.config.OUT_DIR_DEFAULT = cur_od
+
+            return [
+                b.modify(coords=i.cart_coords.reshape(-1, 3))
+                for n,(b,i) in enumerate(zip(base_images, images))
+                if n not in eliminated_nodes
+            ]
 
 class PysisNEBGenerator(PysisyphusProfileGenerator):
     def __init__(self,
@@ -761,7 +784,8 @@ class PysisNEBGenerator(PysisyphusProfileGenerator):
                  max_displacement_step=None,
                  intermediates=None,
                  coord_type=None,
-                 spring_constant=.1
+                 spring_constant=.1,
+                 **opts
     ):
         super().__init__(
             reactant_complex,
@@ -773,7 +797,8 @@ class PysisNEBGenerator(PysisyphusProfileGenerator):
             internals=internals,
             max_displacement_step=max_displacement_step,
             intermediates=intermediates,
-            coord_type=coord_type
+            coord_type=coord_type,
+            **opts
         )
         self.spring_constant = spring_constant
 
@@ -821,3 +846,7 @@ class PysisZTSGenerator(PysisyphusProfileGenerator):
 @ProfileGenerator.register('pys-dimer')
 class PysisDimerGenerator(PysisyphusProfileGenerator):
     default_method = 'dimer'
+
+@ProfileGenerator.register('pys-ts')
+class PysisTSGenerator(PysisyphusProfileGenerator):
+    default_method = 'ts'
