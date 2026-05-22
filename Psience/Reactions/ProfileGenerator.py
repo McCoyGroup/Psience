@@ -712,6 +712,7 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
                  tol=None,
                  coord_type=None,
                  optimizer_settings=None,
+                 fixed_images=None,
                  out_dir=None,
                  **opt_opts):
         if optimizer_settings is None:
@@ -756,6 +757,7 @@ class PysisyphusProfileGenerator(InterpolatingProfileGenerator):
                     optimizer=optimizer,
                     optimizer_settings=optimizer_settings,
                     return_logs=False,
+                    fixed_images=fixed_images,
                     **(self.opts | opt_opts)
                 )
                 if hasattr(generator, 'eliminated_nodes'):
