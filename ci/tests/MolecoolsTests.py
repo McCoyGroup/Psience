@@ -5257,7 +5257,7 @@ class MolecoolsTests(TestCase):
             # (3, 2, 4)
         ])
 
-    @debugTest
+    @validationTest
     def test_RequiredZMat2(self):
         import McUtils.Coordinerds as coordops
 
@@ -5872,3 +5872,14 @@ class MolecoolsTests(TestCase):
                                  'view_vector': [0, 0, 1]
                              })
             return uuuh.to_widget()
+
+    @debugTest
+    def test_SurfaceNormals(self):
+        mol = Molecule.from_file(
+            TestManager.test_data('tbhp_180.fchk')
+        )
+        fig = mol.plot(backend='x3d')
+        surf = mol.get_surface(samples=100)
+        hull = surf.get_triangulation()
+        hull.plot(figure=fig, solid=True, normals=True, normal_scaling=.1)
+        fig.show()
