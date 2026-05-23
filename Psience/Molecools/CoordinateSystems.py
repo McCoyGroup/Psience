@@ -63,6 +63,14 @@ class MolecularEmbedding:
             carts = RegularCartesianToMolecularCartesianConverter(self.coords.system)
             return carts
 
+    def __del__(self):
+        self.cleanup()
+
+    def cleanup(self):
+        if self.registered_converters is not None:
+            for d in self.registered_converters:
+                d.deregister()
+
     def register(self):
         if not self.registered_converters:
             self.registered_converters = (
@@ -84,8 +92,6 @@ class MolecularEmbedding:
             coords = CoordinateSet(coords, sys)
         if sys is not self._coords.system:
             self._regged = False
-            # MolecularCartesianToRegularCartesianConverter(sys).register()
-            # RegularCartesianToMolecularCartesianConverter(sys).register()
         self._jacobians = self._get_jacobian_storage()
         self._frame = None
         self._coords = coords
@@ -202,8 +208,8 @@ class MolecularEmbedding:
                 MolecularCartesianToGICConverter(coords.system, ints),
                 MolecularGICToCartesianConverter(ints, coords.system)
             )
-            for conv in ints.registered_converters:
-                conv.register()
+            # for conv in ints.registered_converters:
+            #     conv.register()
             coords = coords.convert(ints, reference_internals=spec.get('reference_internals'))
             cops = coords.converter_options
             for k in [
@@ -224,8 +230,8 @@ class MolecularEmbedding:
                     MolecularIZToRegularIZConverter(zms),
                     RegularIZToMolecularIZConverter(zms)
                 )
-                for conv in zms.registered_converters:
-                    conv.register()
+                # for conv in zms.registered_converters:
+                #     conv.register()
             else:
                 zms = MolecularZMatrixCoordinateSystem(masses, coords, ordering=zmatrix, **opts)
                 zms.registered_converters = (
@@ -234,8 +240,8 @@ class MolecularEmbedding:
                     MolecularZMatrixToRegularZMatrixConverter(zms),
                     RegularZMatrixToMolecularZMatrixConverter(zms)
                 )
-                for conv in zms.registered_converters:
-                    conv.register()
+                # for conv in zms.registered_converters:
+                #     conv.register()
             coords = coords.convert(zms)
         if conversion is not None:
             conv = CompositeCoordinateSystem.register(
@@ -1796,8 +1802,7 @@ class MolecularCartesianToRegularCartesianConverter(CoordinateSystemConverter):
         Converts from Cartesian to ZMatrix coords, preserving the embedding
         """
         return coords, kwargs
-# MolecularCartesianToRegularCartesianConverter = MolecularCartesianToRegularCartesianConverter()
-# MolecularCartesianToRegularCartesianConverter.register()
+
 class RegularCartesianToMolecularCartesianConverter(CoordinateSystemConverter):
     """
     ...
@@ -2030,8 +2035,6 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
         carts = carts[..., main_excludes, :]
 
         return carts, opts
-# MolecularZMatrixToCartesianConverter = MolecularZMatrixToCartesianConverter()
-# MolecularZMatrixToCartesianConverter.register()
 
 class MolecularZMatrixToRegularZMatrixConverter(CoordinateSystemConverter):
     """
@@ -2067,8 +2070,6 @@ class RegularZMatrixToMolecularZMatrixConverter(CoordinateSystemConverter):
 
     def convert_many(self, coords, **kwargs):
         return coords, kwargs
-# MolecularZMatrixToRegularZMatrixConverter = MolecularZMatrixToRegularZMatrixConverter()
-# MolecularZMatrixToRegularZMatrixConverter.register()
 
 class MolecularCartesianToGICConverter(CartesianToGICSystemConverter):
     """
@@ -2183,8 +2184,6 @@ class RegularGICToMolecularGICConverter(CoordinateSystemConverter):
 
     def convert_many(self, coords, **kwargs):
         return coords, kwargs
-# MolecularZMatrixToRegularZMatrixConverter = MolecularZMatrixToRegularZMatrixConverter()
-# MolecularZMatrixToRegularZMatrixConverter.register()
 
 class MolecularGICConverterToRegularGIC(CoordinateSystemConverter):
     """
@@ -2203,8 +2202,6 @@ class MolecularGICConverterToRegularGIC(CoordinateSystemConverter):
 
     def convert_many(self, coords, **kwargs):
         return coords, kwargs
-# MolecularZMatrixToRegularZMatrixConverter = MolecularZMatrixToRegularZMatrixConverter()
-# MolecularZMatrixToRegularZMatrixConverter.register()
 
 class MolecularIZCoordinateSystem(MolecularZMatrixCoordinateSystem):
     name = "MolecularIZMatrix"
@@ -2272,8 +2269,6 @@ class RegularIZToMolecularIZConverter(CoordinateSystemConverter):
 
     def convert_many(self, coords, **kwargs):
         return coords, kwargs
-# MolecularZMatrixToRegularZMatrixConverter = MolecularZMatrixToRegularZMatrixConverter()
-# MolecularZMatrixToRegularZMatrixConverter.register()
 
 class MolecularIZToRegularIZConverter(CoordinateSystemConverter):
     """
@@ -2294,5 +2289,3 @@ class MolecularIZToRegularIZConverter(CoordinateSystemConverter):
 
     def convert_many(self, coords, **kwargs):
         return coords, kwargs
-# MolecularZMatrixToRegularZMatrixConverter = MolecularZMatrixToRegularZMatrixConverter()
-# MolecularZMatrixToRegularZMatrixConverter.register()

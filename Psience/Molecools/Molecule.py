@@ -284,6 +284,9 @@ class Molecule(AbstractMolecule):
             source_file=self._src if dev.is_default(source_file) else source_file
         )
 
+    def __del__(self):
+        self.embedding.cleanup()
+
     def to_state(self, serializer=None):
         internals = self.internals
         if internals is not None:
