@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-34adac" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-34adac"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-f996b9" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-f996b9"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-34adac" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-f996b9" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -179,13 +179,42 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [FlexiblePlotting](#FlexiblePlotting)
 - [StableInternals](#StableInternals)
 - [Opts](#Opts)
+- [FragBaseDraw](#FragBaseDraw)
+- [FragInternalsSpec](#FragInternalsSpec)
+- [FragInternalsScan](#FragInternalsScan)
+- [MultiXYZParsing](#MultiXYZParsing)
+- [ZMatOpt](#ZMatOpt)
+- [RDKitNumberIssues](#RDKitNumberIssues)
 - [FragEmbedding](#FragEmbedding)
+- [PlotlyBackend](#PlotlyBackend)
+- [SVGBackend](#SVGBackend)
+- [BondGraphZMatrixIssues](#BondGraphZMatrixIssues)
+- [SimpleRelaxedScan](#SimpleRelaxedScan)
+- [RequiredCoordinateZMatrix](#RequiredCoordinateZMatrix)
+- [RequiredZMat2](#RequiredZMat2)
+- [ProblemTransformedZMatrix](#ProblemTransformedZMatrix)
+- [ComplexRelaxedScan](#ComplexRelaxedScan)
+- [ASEProfileGenerator](#ASEProfileGenerator)
+- [PysisGSMProfileGenerator](#PysisGSMProfileGenerator)
+- [RMSDChecks](#RMSDChecks)
+- [ASEDimerProfile](#ASEDimerProfile)
+- [PysisyphusZTSProfile](#PysisyphusZTSProfile)
+- [PysisyphusDimerProfile](#PysisyphusDimerProfile)
+- [ProblemCanonicalZMatrix](#ProblemCanonicalZMatrix)
+- [QM9Loading](#QM9Loading)
+- [QM9Queries](#QM9Queries)
+- [QM9Iter](#QM9Iter)
+- [RDKitPlotErrors](#RDKitPlotErrors)
+- [RDKitPlotPanel](#RDKitPlotPanel)
+- [Manipulator](#Manipulator)
+- [ManipulatorRDKit](#ManipulatorRDKit)
+- [SurfaceNormals](#SurfaceNormals)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-267902" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-267902"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-f915f5" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-f915f5"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-267902" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-f915f5" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -200,6 +229,8 @@ class MolecoolsTests(TestCase):
         self.test_HOD = TestManager.test_data("HOD_freq.fchk")
         self.test_fchk = TestManager.test_data("water_freq.fchk")
         self.test_log_h2 = TestManager.test_data("outer_H2_scan_new.log")
+    def tearDown(self):
+        ...
     def setup_OCHH(cls, optimize=True):
         from McUtils.Extensions import ModuleLoader
 
@@ -3955,16 +3986,9 @@ class MolecoolsTests(TestCase):
         )
 ```
 
-#### <a name="FragEmbedding">FragEmbedding</a>
+#### <a name="FragBaseDraw">FragBaseDraw</a>
 ```python
-    def test_FragEmbedding(self):
-        import McUtils.Coordinerds as coordops
-
-
-        """
-        
-Exception: (2.585752923032349e-06, 0.8880291089100423)"""
-
+    def test_FragBaseDraw(self):
         bits = Molecule.from_string(
             'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
             # 'c1ccccn1',
@@ -3973,9 +3997,6 @@ Exception: (2.585752923032349e-06, 0.8880291089100423)"""
         ).fragments[0].get_embedded_molecule(
             # sel=[5, 6, 7]
         )
-        """"""
-        """[-0.08710888  0.40615981 -0.90964073] CoordinateSet(Cartesian3D, [ 1.35562694 -0.07611535 -0.16380328]) CoordinateSet(Cartesian3D, [-0.70125809 -1.26699965 -0.49856885]) 2.713214674191846"""
-        """[0.14438272 0.06488451 0.98739234] CoordinateSet(Cartesian3D, [ 0.08571215  1.36110392 -0.10197559]) CoordinateSet(Cartesian3D, [-1.44122039 -0.45877749  0.24089196]) 0.1589606465055425"""
         bits.plot(
             mode=(
                 # 'matplotlib3D'
@@ -3983,7 +4004,7 @@ Exception: (2.585752923032349e-06, 0.8880291089100423)"""
             ),
             principle_axes=True,
             image_size=[500, 500],
-            # theme='simple',
+            theme='flat',
             draw_coords={
                 (0, 1, 2):{'label':r'$\theta$',
                            'label_style':{
@@ -3996,24 +4017,363 @@ Exception: (2.585752923032349e-06, 0.8880291089100423)"""
             view_settings={
                 # 'view_distance':200,
                 'view_vector': [0, 0, 1],
-            }).show()#.savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
-        return
+            }).show()
+```
 
+#### <a name="FragInternalsSpec">FragInternalsSpec</a>
+```python
+    def test_FragInternalsSpec(self):
+        import McUtils.Coordinerds as coordops
+
+        ints3 = [[2.59092749, 0., 0.],
+             [2.89495928, 1.93458804, 0.],
+             [2.89963503, 1.8239319, 3.37828743],
+             [2.83053209, 1.83815421, 5.06413309],
+             [2.79207623, 2.00065824, 3.29813193],
+             [2.52079324, 2.15594405, 4.10504516],
+             [2.82036909, 2.05789597, 0.9634783],
+             [2.82837755, 1.91974668, 1.11715569],
+             [2.8622616, 1.93798376, 5.26578887],
+             [2.09534423, 1.97234113, 4.22162045],
+             [2.0556097, 1.98211883, 5.54531358],
+             [2.12037191, 1.97468473, 4.16514767],
+             [2.10238981, 1.86667929, 0.80257191],
+             [2.07437367, 1.97295648, 4.17603043],
+             [2.12921129, 1.8901408, 5.36779409],
+             [2.04513453, 2.1175231, 3.14158509],
+             [2.05011789, 2.05580992, 3.1416388],
+             [2.06074897, 2.453391, 0.31696486],
+             [2.09040482, 1.89999553, 2.33908385],
+             [2.11914653, 1.84889244, 1.97498365],
+             [2.13523637, 1.74785729, 5.16708695],
+             [2.08252609, 1.9355175, 4.49096479],
+             [2.07995171, 1.95503155, 5.23240844],
+             [2.09065558, 1.93768086, 2.16018763]]
+        zm3 = [[0, -1, -2, -3],
+               [1, 0, -1, -2],
+               [2, 1, 0, -1],
+               [3, 2, 1, 0],
+               [4, 3, 2, 1],
+               [5, 4, 3, 2],
+               [6, 5, 4, 3],
+               [7, 5, 4, 3],
+               [8, 4, 3, 2],
+               [9, 8, 4, 3],
+               [10, 1, 0, 2],
+               [11, 2, 1, 0],
+               [12, 2, 11, 1],
+               [13, 3, 2, 1],
+               [14, 3, 13, 2],
+               [15, 4, 3, 2],
+               [16, 6, 5, 4],
+               [17, 6, 16, 5],
+               [18, 7, 6, 5],
+               [19, 7, 18, 6],
+               [20, 7, 18, 19],
+               [21, 8, 7, 6],
+               [22, 8, 21, 7],
+               [23, 9, 8, 7],
+               [24, 9, 23, 8]]
+
+        bits = Molecule.from_string(
+            'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
+            # 'c1ccccn1',
+            'smi',
+            confgen_opts=dict(verbose=True, random_seed=12321)
+        )#.fragments[0]
 
         # bits.coords[bits.fragment_indices[1], :] += 10
         # pprint.pprint(bits.get_canonical_zmatrix())
         # print(np.array(bits.get_canonical_zmatrix()[:6]))
         # print()
         # for f in bits.get_bond_zmatrix(validate=True, connect_fragments=False):
-        #     print(f)
+        #     print(np.array(f))
+        zm = bits.get_bond_zmatrix(validate=True, connect_fragments=False)
         spec = coordops.InternalSpec.from_zmatrix(
-            *bits.get_bond_zmatrix(validate=True, connect_fragments=False)
+            *(np.array(z).tolist() for z in zm)
         )
 
+        # carts3 = coordops.zmatrix_to_cartesian(
+        #     ints3,
+        #     zm3
+        # )
+        # print(coordops.cartesian_to_zmatrix(
+        #     carts3,
+        #     zm3
+        # ).coords)
+        # raise Exception(...)
+
         ints = spec.cartesians_to_internals(bits.coords)
-        print(spec.internals_to_cartesians(ints))
+        # zints = coordops.cartesian_to_zmatrix(bits.coords, zm[0])
+        # print(coordops.zmatrix_from_values(ints, partial_embedding=True))
+        # print(zints.coords)
+        # return
+
+        # print(np.array(zm[0])[:4])
+        # conv = coordops.find_internal_conversion(spec.rad_set, [(0, 1, 2, 3)],
+        #                                          triangles_and_dihedrons=spec.get_triangulation(),
+        #                                          allow_completion=False,
+        #                                          prep_conversions=False)
+        # print(conv(ints))
+        # print(ints[:6])
+        # return
+        # intzm = coordops.zmatrix_from_values(ints, partial_embedding=True)
+        # zmstuff3 = coordops.cartesian_to_zmatrix(bits.coords, zm[0])
+        # intzm3 = zmstuff3.coords
+        # c3 = coordops.zmatrix_to_cartesian(intzm3, zm[0])
+        # ints2 = spec.cartesians_to_internals(c3)
+        # print(ints[:9])
+        # print(ints2[:9])
+        # return
+        zm2, _ = spec.get_zmat_conv()
+        carts, exp = spec.internals_to_cartesians(ints, reference_cartesians=bits.coords, order=1)
+        # print(carts - bits.coords)
+        # print(exp[0][1].shape)
+        uuuh = spec.get_direct_inverses(carts, order=1)
+        # print(uuuh)
+        print(uuuh[1][0].shape, exp[0][1].shape)
+        print(np.round(uuuh[1] @ exp[0][1], 8)[:6, :6])
+
+        # ints2 = spec.cartesians_to_internals(carts)
+        # print(np.array(zm[0])[:4])
+        # print(np.array(zm2)[:4])
+        # print(ints[:9])
+        # print(ints2[:9])
+        #
+        # print(np.round(ints - ints2, 8))
+
 
         return
+```
+
+#### <a name="FragInternalsScan">FragInternalsScan</a>
+```python
+    def test_FragInternalsScan(self):
+        import McUtils.Coordinerds as coordops
+
+        mol = Molecule.from_string(
+            # 'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
+            # 'FC1CCC(C(=C)C)CC1',
+            'OC=O',
+            # "N",
+            'smi',
+            confgen_opts=dict(verbose=True, random_seed=12321)
+        )
+
+        # mol.plot(highlight_atoms=[0, 1, 3, 4]).show()
+
+        spec = coordops.InternalSpec.from_zmatrix(mol.get_bond_zmatrix())
+        pprint.pprint(spec.rad_set)
+        pprint.pprint(spec.get_triangulation())
+
+        # graph = coordops.InternalCoordinateGraph(spec.rad_set)
+        # conv = graph.find_conversions([(3, 4)])
+        # print(...)
+        # print(conv)
+        # return
+
+
+        mol = Molecule.from_string(
+            # 'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
+            'FC1CCC(C(=C)C)CC1',
+            # 'COC=O',
+            # "N",
+            'smi',
+            confgen_opts=dict(verbose=True, random_seed=12321)
+        )
+        # mol.plot(backend='2d',
+        #          include_save_buttons=True,
+        #          draw_coords=[
+        #              (0, 2),
+        #              (1, 2, 3)
+        #          ]).show()
+        # return
+        # dists, bends, diheds =  mol.get_bond_graph_internals(include_fragments=False, concatenate=False)
+        # import pprint
+        # pprint.pprint(diheds[:50])
+        print(len(mol.atoms) * 3 - 6)
+
+
+        # from McUtils.Graphs import analyze_internal_coords
+        # pprint.pprint(
+        #     analyze_internal_coords(dists, bends, diheds)
+        # )
+        # return
+        # mol.internals = {
+        #     'primitives':dists + bends + diheds#[:50],
+        #     # 'method':'iterative'
+        # }
+        # mol.internals = coordops.extract_zmatrix_internals(
+        #     mol.get_bond_zmatrix()
+        # )
+
+        with BlockProfiler():
+            specs = mol.get_bond_graph_internals(include_fragments=False, pruning='b_matrix')
+        print(len(specs))
+        # specs = mol.get_bond_graph_internals(include_fragments=False, pruning='b_matrix')
+        # specs = mol.get_bond_graph_internals(include_fragments=False)
+        # import pprint
+        # pprint.pprint([
+        #     s for s in specs
+        #     if all(k in [1, 2, 3, 4, 8, 9] for k in s)
+        # ])
+
+        # pprint.pprint(specs2)
+        # pprint.pprint([
+        #     x for x in specs if x not in specs2
+        # ])
+        # pprint.pprint([
+        #     x for x in specs2 if x not in specs
+        # ])
+        pprint.pprint(specs)
+        # return
+        # raise Exception(len(specs))
+        mol.internals = {
+            'specs':specs,
+            # 'method':'iterative'
+        }
+
+        # print(mol.internal_coordinates.tolist())
+        # return
+
+        # mol.animate_coordinate(-5).show()
+        # return
+        geoms = mol.get_scan_coordinates(
+            [[-.5, .5, 5]],
+            which=[-5],
+            internals='reembed'
+        )
+
+        mol.plot(geoms,
+                 backend='x3d',
+                 highlight_atoms=[0, 2, 3],
+                 image_size=800,
+                 include_save_buttons=True).show()
+```
+
+#### <a name="MultiXYZParsing">MultiXYZParsing</a>
+```python
+    def test_MultiXYZParsing(self):
+        mol = Molecule.from_file(
+            TestManager.test_data('traj.xyz'),
+            units='Angstroms'
+        )
+        self.assertEquals(mol.coords.shape, (27, 3))
+
+
+        traj = Molecule.from_file(
+            TestManager.test_data('traj.xyz'),
+            units='Angstroms',
+            max_blocks=-1
+        )
+        traj[0].plot([t.coords for t in traj], image_size=800, include_save_buttons=True).show()
+```
+
+#### <a name="ZMatOpt">ZMatOpt</a>
+```python
+    def test_ZMatOpt(self):
+        import McUtils.Coordinerds as coordops
+
+#         z1 = Molecule.from_string("""C
+# C  1   1.4008
+# C  2   1.3827  1 120.2081
+# C  3   1.3804  2 121.0304  1    1.0784
+# C  4   1.3971  3 119.2584  2   -2.3141
+# C  5   1.3898  4 118.4788  3   -3.0201
+# S  6   1.7465  5 118.8810  4  176.9933
+# C  7   1.7497  6 103.1779  5   74.6801
+# C  8   1.4215  7 128.2225  6   48.8667
+# C  9   1.5373  8 119.6962  7   -2.2336
+# O 10   1.1998  9 122.7413  8   81.1035
+# O  7   1.4245  6 106.4017  5  -38.8122
+# O 10   3.4864  9  72.5418  8   25.4569
+# N 10   1.3508  9 112.3805  8 -107.5567
+# H  8   1.0854  7 103.6846  6  -71.8987
+# H  9   1.0965  8 108.2016  7 -120.1102
+# H  5   1.0809  4 122.4201  3  176.9501
+# H  4   1.0751  3 121.5289  2  177.5960
+# H  3   1.0834  2 119.4871  1 -179.3770
+# H  2   1.0660  1 119.4576  3 -179.8877
+# H  1   1.0766  2 122.3884  3  177.4101
+# H 14   1.0057 13 109.6920 12  131.3817
+# H 14   1.0048 22 116.7792 13  113.3685
+# C  8   3.1451  7 118.3616  9  131.5411
+# C 24   1.5207  8  86.1233  7  -92.2703
+# C 25   1.5467 24  94.5056  8  -63.7068
+# C 26   1.4443 25 100.1371 24  -48.5602
+# C 27   1.3944 26 105.4206 25   43.0025
+# H 24   1.0929 25 119.7568 26  174.9601
+# H 26   1.0919 25 117.8925 24  179.0337
+# H 28   1.0990 27 127.8184 26  175.0305
+# H 27   1.0754 26 124.8731 25 -150.8246
+# H 25   1.0816 24 111.1788 26 -119.2753
+# H 25   1.1009 33 109.9263 24  128.2950""", 'zmat', energy_evaluator='rdkit')
+
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning) # new mac annoyance
+
+        z1 = Molecule.from_string(
+            'C(=O)O', 'smi',
+            energy_evaluator='aimnet2',
+            conf_get_options={'random_seed': 12321}
+        ).optimize(max_iterations=80)
+        z1.internals = z1.get_bond_zmatrix()
+
+        disp_coords = z1.get_displaced_coordinates(
+            [[np.pi/6]],
+            which=[-1],
+            use_internals='reembed',
+            strip_embedding=True
+        )[0]
+        z1 = z1.modify(coords=disp_coords)
+
+
+        # int_scan = z1.get_internals(
+        #     z1.get_scan_coordinates(
+        #         [[0, np.pi, 10]],
+        #         which=[-1],
+        #         internals='reembed'
+        #     )
+        # )[:, -1]
+        #
+        # raise Exception(int_scan)
+
+        # woof2 = scan_ahh.modify(internals={'specs': coordops.extract_zmatrix_internals(zm0)})
+        # scan_ahh.animate_coordinate(1, .05, coordinate_expansion=bbb)
+
+        opt = z1.optimize(max_iterations=25)#, mode='scipy', method='nelder-mead')
+
+        opt2 = z1.modify(internals=None).optimize(max_iterations=15)
+        print(opt.calculate_energy() - z1.calculate_energy())
+        print(opt.calculate_energy() - opt2.calculate_energy())
+
+        print(
+            coordops.set_zmatrix_embedding(
+                np.round(z1.internal_coordinates - z1.modify(coords=opt.coords).internal_coordinates, 2)
+            )
+        )
+        print(
+            coordops.set_zmatrix_embedding(
+                np.round(z1.internal_coordinates - z1.modify(coords=opt2.coords).internal_coordinates, 2)
+            )
+        )
+```
+
+#### <a name="RDKitNumberIssues">RDKitNumberIssues</a>
+```python
+    def test_RDKitNumberIssues(self):
+        Molecule.from_string("""CC(N1)=NC2=C1C(/C=C/C3=[N+](CCC[S-](=O)(=O)=O)C4=CC=CC=C4S3)=CC=C2""", 'smi')
+```
+
+#### <a name="FragEmbedding">FragEmbedding</a>
+```python
+    def test_FragEmbedding(self):
+        bits = Molecule.from_string(
+            'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
+            # 'c1ccccn1',
+            'smi',
+            confgen_opts=dict(verbose=True, random_seed=12321)
+        )
 
         s3 = bits.modify(internals={'specs': [
             {"transrot": bits.fragment_indices[1]}
@@ -4053,6 +4413,1499 @@ Exception: (2.585752923032349e-06, 0.8880291089100423)"""
 
         print(np.linalg.norm(bits.fragments[0].center_of_mass - bits.fragments[1].center_of_mass))
         print(np.linalg.norm(uuuh.fragments[0].center_of_mass - uuuh.fragments[1].center_of_mass))
+```
+
+#### <a name="PlotlyBackend">PlotlyBackend</a>
+```python
+    def test_PlotlyBackend(self):
+
+        from Psience.Molecools import Molecule
+        tests = [
+            [[2.38332071e+00, -4.96430360e-01, 5.55111512e-17],
+             [6.58769136e-03, 9.88766830e-01, 3.33066907e-16],
+             [-2.38990841e+00, -4.92336470e-01, -4.99600361e-16],
+             [-2.08988725e+00, -3.00745588e+00, 7.41033629e-01],
+             [-5.23349285e-01, -4.08233895e+00, -1.09291015e+00],
+             [2.14118284e+00, -3.26708995e+00, -4.17890874e-01],
+             [3.66973327e+00, 2.55947571e-01, -1.50495176e+00],
+             [3.43121803e+00, -1.92532829e-01, 1.82150928e+00],
+             [-6.08841279e-02, 2.25686365e+00, 1.71104297e+00],
+             [-1.14242408e-01, 2.33347006e+00, -1.62987350e+00],
+             [-3.20094923e+00, -6.04268579e-01, -1.95106407e+00],
+             [-3.84381689e+00, 3.36703601e-01, 1.30762207e+00],
+             [-8.78968145e-01, -3.32719027e+00, -3.00837486e+00],
+             [-6.11932834e-01, -6.15747003e+00, -1.09757998e+00],
+             [3.41377283e+00, -4.02279921e+00, -1.90838061e+00],
+             [2.60551826e+00, -4.35184035e+00, 1.33902027e+00]],
+            [[2.26805368e+00, 5.92936157e-01, 0.00000000e+00],
+             [2.57086576e-03, -1.18386057e+00, -2.22044605e-16],
+             [-2.27062454e+00, 5.90924417e-01, 1.11022302e-16],
+             [-2.30791921e+00, 1.88012754e+00, -2.29124159e+00],
+             [-2.54755984e-01, 3.46313899e+00, -2.50768436e+00],
+             [2.15182481e+00, 1.90602459e+00, -2.56714591e+00],
+             [4.06416242e+00, -3.86408559e-01, 3.13668950e-01],
+             [1.84673260e+00, 2.01434259e+00, 1.49524714e+00],
+             [-2.23771964e-02, -2.45799578e+00, 1.63765593e+00],
+             [-8.37319822e-02, -2.19336565e+00, -1.85026755e+00],
+             [-3.97754998e+00, -5.75479502e-01, 2.12293297e-01],
+             [-2.05680660e+00, 1.91328775e+00, 1.59105223e+00],
+             [-3.49214054e-01, 4.52908630e+00, -4.28173613e+00],
+             [-1.30106083e-01, 4.71540063e+00, -8.38457033e-01],
+             [1.91592871e+00, 3.49950245e-01, -3.95763078e+00],
+             [3.83541515e+00, 3.03601575e+00, -2.92206855e+00]],
+            [[-2.37496538e+00, -5.16913078e-01, -2.22044605e-16],
+             [-1.51564096e-03, 1.03283778e+00, 4.44089210e-16],
+             [2.37648102e+00, -5.15924698e-01, 0.00000000e+00],
+             [2.36112435e+00, -2.49907484e+00, 1.67326377e+00],
+             [2.67785361e-01, -4.03453305e+00, 1.54551068e+00],
+             [-2.20303996e+00, -2.64979149e+00, 1.86935105e+00],
+             [-3.92449341e+00, 7.52133206e-01, 6.81237472e-01],
+             [-2.88710909e+00, -1.17905511e+00, -1.90284281e+00],
+             [-2.53225012e-03, 2.11878872e+00, -1.81438423e+00],
+             [3.79870511e-02, 2.45152654e+00, 1.54550417e+00],
+             [3.91483037e+00, 7.97233384e-01, 6.25195636e-01],
+             [2.89487215e+00, -1.07093185e+00, -1.97610252e+00],
+             [1.33465406e-01, -5.19598512e+00, -1.68889241e-01],
+             [3.92752782e-01, -5.37624976e+00, 3.17017578e+00],
+             [-2.57208138e+00, -2.04623188e+00, 3.82601529e+00],
+             [-3.70060088e+00, -4.03037183e+00, 1.36342150e+00]],
+
+            ## 2.196092835668157 0.9490992792321991 [ 9.34821571e-17 -1.05211987e-15 -9.49099279e-01]
+            [[-2.25547156e+00, 6.00809059e-01, -8.88178420e-16],
+             [2.22534122e-04, -1.20179599e+00, 1.33226763e-15],
+             [2.25524902e+00, 6.00986929e-01, -4.44089210e-16],
+             [1.75066984e+00, 2.75425742e+00, -1.34530337e+00],
+             [1.83205907e-01, 2.48701259e+00, -3.38252635e+00],
+             [-2.40251269e+00, 1.42533820e+00, -2.75825525e+00],
+             [-3.98808226e+00, -3.09181461e-01, 6.73014560e-01],
+             [-1.82228951e+00, 2.31487316e+00, 1.16334253e+00],
+             [-4.07583757e-02, -2.46686804e+00, 1.63773950e+00],
+             [4.28858789e-02, -2.32777829e+00, -1.78495144e+00],
+             [4.01707996e+00, -3.90110707e-01, -5.51681364e-01],
+             [2.41274739e+00, 1.21229589e+00, 2.03414022e+00],
+             [-1.64379751e-01, 4.40744415e+00, -4.13914932e+00],
+             [1.14647365e+00, 1.44677024e+00, -4.91357472e+00],
+             [-3.96825875e+00, 2.74648401e+00, -3.11420515e+00],
+             [-2.73132791e+00, -3.93039213e-01, -3.79281507e+00]]
+        ]
+        uuh2 = Molecule(
+            ['C', 'C', 'C', 'O', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H'],
+            tests[3]
+        )
+        # uuh2 = Molecule(
+        #     ('C', 'C', 'C', 'O', 'C', 'C', 'H', 'H',
+        #      'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H'),
+        #     [[-2.37496538e+00, -5.16913078e-01, -2.22044605e-16],
+        #      [-1.51564096e-03, 1.03283778e+00, 4.44089210e-16],
+        #      [2.37648102e+00, -5.15924698e-01, 0.00000000e+00],
+        #      [2.36112435e+00, -2.49907484e+00, 1.67326377e+00],
+        #      [2.67785361e-01, -4.03453305e+00, 1.54551068e+00],
+        #      [-2.20303996e+00, -2.64979149e+00, 1.86935105e+00],
+        #      [-3.92449341e+00, 7.52133206e-01, 6.81237472e-01],
+        #      [-2.88710909e+00, -1.17905511e+00, -1.90284281e+00],
+        #      [-2.53225012e-03, 2.11878872e+00, -1.81438423e+00],
+        #      [3.79870511e-02, 2.45152654e+00, 1.54550417e+00],
+        #      [3.91483037e+00, 7.97233384e-01, 6.25195636e-01],
+        #      [2.89487215e+00, -1.07093185e+00, -1.97610252e+00],
+        #      [1.33465406e-01, -5.19598512e+00, -1.68889241e-01],
+        #      [3.92752782e-01, -5.37624976e+00, 3.17017578e+00],
+        #      [-2.57208138e+00, -2.04623188e+00, 3.82601529e+00],
+        #      [-3.70060088e+00, -4.03037183e+00, 1.36342150e+00]]
+        # ).get_embedded_molecule()
+        # uuh2 = Molecule.from_string("C1CCOCC1=O", "smi").get_embedded_molecule(sel=[0, 1, 2])
+        # print(uuh2.bonds)
+        # uuh2 = Molecule(
+        #     ('C', 'C', 'C', 'O', 'C', 'C', 'O', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H'),
+        #     [[2.40248768e+00, 4.87574030e-01, 1.11022302e-16],
+        #      [-3.73056809e-02, -9.98589102e-01, 2.22044605e-16],
+        #      [-2.36518200e+00, 5.11015071e-01, 3.33066907e-16],
+        #      [-2.33820339e+00, 2.97459390e+00, 6.19461561e-01],
+        #      [-2.97642862e-01, 4.08330967e+00, 1.67448987e+00],
+        #      [1.93759442e+00, 2.44053814e+00, 2.03326492e+00],
+        #      [3.36587018e+00, 2.59335666e+00, 3.83564101e+00],
+        #      [2.51685464e+00, 1.55960350e+00, -1.78585388e+00],
+        #      [3.99395479e+00, -7.47614214e-01, 4.05268307e-01],
+        #      [1.86910428e-02, -2.15188852e+00, 1.76521607e+00],
+        #      [9.52341488e-02, -2.39849452e+00, -1.57135667e+00],
+        #      [-3.20701964e+00, 3.66560107e-01, -1.95258316e+00],
+        #      [-3.84198611e+00, -4.27302551e-01, 1.19337845e+00],
+        #      [-7.10626249e-01, 4.97676320e+00, 3.52639815e+00],
+        #      [3.37684581e-01, 5.64952636e+00, 4.10428772e-01]]
+        #     ##
+        #     # [[-0.98978292, 2.13944996, -0.74785071],
+        #     #  [-2.37421443, -0.17229396, 0.13897264],
+        #     #  [-0.84146122, -2.57197311, 0.02119341],
+        #     #  [1.54231381, -2.41614628, 1.01377972],
+        #     #  [2.99186019, -0.39568311, 0.32402585],
+        #     #  [1.58760012, 2.05609658, 0.39871331],
+        #     #  [2.47689799, 3.92228997, 1.34505311],
+        #     #  [-1.99443943, 3.78284084, 0.00833893],
+        #     #  [-0.78881228, 2.09402206, -2.83188136],
+        #     #  [-4.00185885, -0.44419277, -1.201296],
+        #     #  [-3.20938307, 0.10260383, 2.02073282],
+        #     #  [-1.91966954, -3.9299204, 1.24531937],
+        #     #  [-0.92135447, -3.41409647, -1.89883835],
+        #     #  [4.56567818, -0.2361968, 1.7029855],
+        #     #  [3.87662593, -0.51680037, -1.53924822]]
+        #     ## -2.9405216419521696 [-0.3256606  -0.16229313 -0.93145376]
+        #     # [[-1.8048029, -1.6340269, 0.20826272],
+        #     # [-2.11990191, 1.18155187, -0.06155707],
+        #     # [0.25521018, 2.62375034, 0.5352225],
+        #     # [2.40426119, 1.73354464, -0.5846305],
+        #     # [2.89836166, -0.81862443, -0.28512281],
+        #     # [0.6907083, -2.43287548, -0.77753825],
+        #     # [0.95061245, -4.38814714, -1.98079781],
+        #     # [-3.40719786, -2.51631386, -0.76390484],
+        #     # [-1.87647756, -2.18293024, 2.22453257],
+        #     # [-3.61347563, 1.74187993, 1.2523594],
+        #     # [-2.83159418, 1.61058188, -2.0158157],
+        #     # [-0.04698966, 4.56279462, -0.30967277],
+        #     # [0.33894847, 2.93750686, 2.59499621],
+        #     # [3.74411763, -1.14405503, 1.62293356],
+        #     # [4.41821982, -1.27463704, -1.65926721]]
+        #     ## -1.171263910156821 [-0.27779964  0.06078523  0.95871399]
+        #     ,
+        #     bonds=[[0, 1, 1.0], [1, 2, 1.0], [2, 3, 1.0], [3, 4, 1.0], [4, 5, 1.0], [5, 6, 2.0], [5, 0, 1.0], [0, 7, 1.0], [0, 8, 1.0], [1, 9, 1.0], [1, 10, 1.0], [2, 11, 1.0], [2, 12, 1.0], [4, 13, 1.0], [4, 14, 1.0]]
+        # )#.get_embedded_molecule()
+
+
+        view_vector, right_vector, up_vector = nput.view_matrix(
+            [1, 0, 0],
+            [0, 1, 0],
+            output_order=['x', 'y', 'z']
+        ).T
+        fig = uuh2.plot(backend='x3d',
+                        image_size=[500, 500],
+                        highlight_atoms=[0, 1, 2],
+                        draw_coords={
+                            (0, 4): {
+                                'label': "r",
+                                'line_color':'pink',
+                                'label_style': {'font_size': 22, 'color': 'red'}
+                            },
+                            (0, 1, 2): {
+                                'label': "O",
+                                'line_color':'pink',
+                                'label_style': {'font_size': 40, 'color': 'blue'}
+                            }
+                        },
+                        view_settings={
+                            'up_vector': up_vector,
+                            'view_vector': view_vector,
+                            # 'right_vector': uuh2.coords[0] - uuh2.coords[1],
+                            'view_distance': 9,
+                            # 'view_center': 2.5 * right_vector
+                        },
+                        # plot_range=[[-1, 1], [-1, 1], [-1, 1]],
+                        # font_family='Helvetica',
+                        # postdraw=[
+                        #     {
+                        #         'pattern': 'labels_1',
+                        #         'classes': True,
+                        #         'replacement':{'text':"θ",  'mode':'svg',
+                        #                        # 'font_options':{
+                        #                        #     'family':"Times"
+                        #                        # }
+                        #                        }
+                        #     }
+                        # ]
+                        )
+        # uuh2 = Molecule.from_string("C1CCOCC1=O", "smi").get_embedded_molecule(sel=[0, 1, 2])
+        # uuh2.plot(backend='rdkit',
+        #           figure=fig,
+        #           image_size=[500, 500],
+        #           highlight_atoms=[0, 1, 2],
+        #           draw_coords={
+        #               (0, 4): {
+        #                   'label': "r",
+        #                   'label_style': {'font_size': 22, 'color': 'red'}
+        #               },
+        #               (0, 1, 2): {
+        #                   'label': "\u03B8",
+        #                   'label_style': {'font_size': 40, 'font_family': 'Symbol', 'color': 'blue'}
+        #               }
+        #           },
+        #           view_settings={
+        #               'up_vector': up_vector,
+        #               'view_vector': view_vector,
+        #               # 'right_vector': uuh2.coords[0] - uuh2.coords[1],
+        #               'view_distance': 14,
+        #               'view_center': 3*up_vector
+        #           },
+        #           font_family='Helvetica',
+        #           no_free_type=False,
+        #           postdraw='annotate'
+        #           )
+        # uuh2.plot(backend='rdkit',
+        #           figure=fig,
+        #           image_size=[500, 500],
+        #           highlight_atoms=[0, 1, 2],
+        #           draw_coords={
+        #               (0, 4): {
+        #                   'label': "r",
+        #                   'label_style': {'font_size': 22, 'color': 'red'}
+        #               },
+        #               (0, 1, 2): {
+        #                   'label': "\u03B8",
+        #                   'label_style': {'font_size': 40, 'font_family': 'Symbol', 'color': 'blue'}
+        #               }
+        #           },
+        #           view_settings={
+        #               'up_vector': nput.rotation_matrix(view_vector, np.deg2rad(45)) @ up_vector,
+        #               'view_vector': view_vector,
+        #               # 'right_vector': uuh2.coords[0] - uuh2.coords[1],
+        #               'view_distance': 14,
+        #               'view_center': -3 * up_vector
+        #           },
+        #           font_family='Helvetica',
+        #           no_free_type=False,
+        #           postdraw='annotate'
+        #           )
+        fig.show()
+        return
+
+        # uuh2 = Molecule.from_string("C1CCOCC1", "smi")
+        uuh3 = Molecule(
+            ['C', 'C', 'C', 'O', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H'],
+            # [[2.38332071e+00, -4.96430360e-01, 5.55111512e-17],
+            #  [6.58769136e-03, 9.88766830e-01, 3.33066907e-16],
+            #  [-2.38990841e+00, -4.92336470e-01, -4.99600361e-16],
+            #  [-2.08988725e+00, -3.00745588e+00, 7.41033629e-01],
+            #  [-5.23349285e-01, -4.08233895e+00, -1.09291015e+00],
+            #  [2.14118284e+00, -3.26708995e+00, -4.17890874e-01],
+            #  [3.66973327e+00, 2.55947571e-01, -1.50495176e+00],
+            #  [3.43121803e+00, -1.92532829e-01, 1.82150928e+00],
+            #  [-6.08841279e-02, 2.25686365e+00, 1.71104297e+00],
+            #  [-1.14242408e-01, 2.33347006e+00, -1.62987350e+00],
+            #  [-3.20094923e+00, -6.04268579e-01, -1.95106407e+00],
+            #  [-3.84381689e+00, 3.36703601e-01, 1.30762207e+00],
+            #  [-8.78968145e-01, -3.32719027e+00, -3.00837486e+00],
+            #  [-6.11932834e-01, -6.15747003e+00, -1.09757998e+00],
+            #  [3.41377283e+00, -4.02279921e+00, -1.90838061e+00],
+            #  [2.60551826e+00, -4.35184035e+00, 1.33902027e+00]]
+            ## u/noflip (array([ 0.,  0., -1.]), array([-0.848,  0.53 ,  0.   ]), array([0.851, 0.526, 0.   ]), -0.897)
+            # [[2.26805368e+00, 5.92936157e-01, 0.00000000e+00],
+            #   [2.57086576e-03, -1.18386057e+00, -2.22044605e-16],
+            #   [-2.27062454e+00, 5.90924417e-01, 1.11022302e-16],
+            #   [-2.30791921e+00, 1.88012754e+00, -2.29124159e+00],
+            #   [-2.54755984e-01, 3.46313899e+00, -2.50768436e+00],
+            #   [2.15182481e+00, 1.90602459e+00, -2.56714591e+00],
+            #   [4.06416242e+00, -3.86408559e-01, 3.13668950e-01],
+            #   [1.84673260e+00, 2.01434259e+00, 1.49524714e+00],
+            #   [-2.23771964e-02, -2.45799578e+00, 1.63765593e+00],
+            #   [-8.37319822e-02, -2.19336565e+00, -1.85026755e+00],
+            #   [-3.97754998e+00, -5.75479502e-01, 2.12293297e-01],
+            #   [-2.05680660e+00, 1.91328775e+00, 1.59105223e+00],
+            #   [-3.49214054e-01, 4.52908630e+00, -4.28173613e+00],
+            #   [-1.30106083e-01, 4.71540063e+00, -8.38457033e-01],
+            #   [1.91592871e+00, 3.49950245e-01, -3.95763078e+00],
+            #   [3.83541515e+00, 3.03601575e+00, -2.92206855e+00]]
+            ## v/no flip: (array([ 0., -0.,  1.]), array([0.787, 0.617, 0.   ]), array([-0.788,  0.615,  0.   ]), 0.971)
+            # [[-2.37496538e+00, -5.16913078e-01, -2.22044605e-16],
+            # [-1.51564096e-03, 1.03283778e+00, 4.44089210e-16],
+            # [2.37648102e+00, -5.15924698e-01, 0.00000000e+00],
+            # [2.36112435e+00, -2.49907484e+00, 1.67326377e+00],
+            # [2.67785361e-01, -4.03453305e+00, 1.54551068e+00],
+            # [-2.20303996e+00, -2.64979149e+00, 1.86935105e+00],
+            # [-3.92449341e+00, 7.52133206e-01, 6.81237472e-01],
+            # [-2.88710909e+00, -1.17905511e+00, -1.90284281e+00],
+            # [-2.53225012e-03, 2.11878872e+00, -1.81438423e+00],
+            # [3.79870511e-02, 2.45152654e+00, 1.54550417e+00],
+            # [3.91483037e+00, 7.97233384e-01, 6.25195636e-01],
+            # [2.89487215e+00, -1.07093185e+00, -1.97610252e+00],
+            # [1.33465406e-01, -5.19598512e+00, -1.68889241e-01],
+            # [3.92752782e-01, -5.37624976e+00, 3.17017578e+00],
+            # [-2.57208138e+00, -2.04623188e+00, 3.82601529e+00],
+            # [-3.70060088e+00, -4.03037183e+00, 1.36342150e+00]]
+            ## v/flip: (array([-0., -0.,  1.]), array([-0.837, -0.547, -0.   ]), array([ 0.838, -0.546, -0.   ]), 0.915)
+            [[-2.25547156e+00, 6.00809059e-01, -8.88178420e-16],
+             [2.22534122e-04, -1.20179599e+00, 1.33226763e-15],
+             [2.25524902e+00, 6.00986929e-01, -4.44089210e-16],
+             [1.75066984e+00, 2.75425742e+00, -1.34530337e+00],
+             [1.83205907e-01, 2.48701259e+00, -3.38252635e+00],
+             [-2.40251269e+00, 1.42533820e+00, -2.75825525e+00],
+             [-3.98808226e+00, -3.09181461e-01, 6.73014560e-01],
+             [-1.82228951e+00, 2.31487316e+00, 1.16334253e+00],
+             [-4.07583757e-02, -2.46686804e+00, 1.63773950e+00],
+             [4.28858789e-02, -2.32777829e+00, -1.78495144e+00],
+             [4.01707996e+00, -3.90110707e-01, -5.51681364e-01],
+             [2.41274739e+00, 1.21229589e+00, 2.03414022e+00],
+             [-1.64379751e-01, 4.40744415e+00, -4.13914932e+00],
+             [1.14647365e+00, 1.44677024e+00, -4.91357472e+00],
+             [-3.96825875e+00, 2.74648401e+00, -3.11420515e+00],
+             [-2.73132791e+00, -3.93039213e-01, -3.79281507e+00]]
+            ## u/flip: (array([ 0., -0., -1.]), array([ 0.781, -0.624,  0.   ]), array([-0.781, -0.624,  0.   ]), -0.975)
+        )
+        ploot = uuh3.plot(backend='matplotlib3D',
+                          # include_save_buttons=True,
+                          # include_script_interface=True,
+                          highlight_atoms=[0, 1, 2],
+                          draw_coords={
+                              (0, 4): {
+                                  'label': 'r',
+                                  'label_style': {'color': 'blue', 'font_size': 20}
+                              },
+                              (0, 1, 2): {
+                                  'label': "q",
+                                  'label_style': {'color': 'red', 'font_size':32, 'font_family':'serif'}
+                              }
+                          },
+                          view_settings={
+                              'view_vector': [0, 0, 1],
+                              # 'view_distance': 5
+                          })
+        # print(ploot.tostring())
+        ploot.write("/Users/Mark/Desktop/why.html")
+```
+
+#### <a name="SVGBackend">SVGBackend</a>
+```python
+    def test_SVGBackend(self):
+        from Psience.Molecools import Molecule
+        tests = [
+            [[2.38332071e+00, -4.96430360e-01, 5.55111512e-17],
+             [6.58769136e-03, 9.88766830e-01, 3.33066907e-16],
+             [-2.38990841e+00, -4.92336470e-01, -4.99600361e-16],
+             [-2.08988725e+00, -3.00745588e+00, 7.41033629e-01],
+             [-5.23349285e-01, -4.08233895e+00, -1.09291015e+00],
+             [2.14118284e+00, -3.26708995e+00, -4.17890874e-01],
+             [3.66973327e+00, 2.55947571e-01, -1.50495176e+00],
+             [3.43121803e+00, -1.92532829e-01, 1.82150928e+00],
+             [-6.08841279e-02, 2.25686365e+00, 1.71104297e+00],
+             [-1.14242408e-01, 2.33347006e+00, -1.62987350e+00],
+             [-3.20094923e+00, -6.04268579e-01, -1.95106407e+00],
+             [-3.84381689e+00, 3.36703601e-01, 1.30762207e+00],
+             [-8.78968145e-01, -3.32719027e+00, -3.00837486e+00],
+             [-6.11932834e-01, -6.15747003e+00, -1.09757998e+00],
+             [3.41377283e+00, -4.02279921e+00, -1.90838061e+00],
+             [2.60551826e+00, -4.35184035e+00, 1.33902027e+00]],
+            [[2.26805368e+00, 5.92936157e-01, 0.00000000e+00],
+             [2.57086576e-03, -1.18386057e+00, -2.22044605e-16],
+             [-2.27062454e+00, 5.90924417e-01, 1.11022302e-16],
+             [-2.30791921e+00, 1.88012754e+00, -2.29124159e+00],
+             [-2.54755984e-01, 3.46313899e+00, -2.50768436e+00],
+             [2.15182481e+00, 1.90602459e+00, -2.56714591e+00],
+             [4.06416242e+00, -3.86408559e-01, 3.13668950e-01],
+             [1.84673260e+00, 2.01434259e+00, 1.49524714e+00],
+             [-2.23771964e-02, -2.45799578e+00, 1.63765593e+00],
+             [-8.37319822e-02, -2.19336565e+00, -1.85026755e+00],
+             [-3.97754998e+00, -5.75479502e-01, 2.12293297e-01],
+             [-2.05680660e+00, 1.91328775e+00, 1.59105223e+00],
+             [-3.49214054e-01, 4.52908630e+00, -4.28173613e+00],
+             [-1.30106083e-01, 4.71540063e+00, -8.38457033e-01],
+             [1.91592871e+00, 3.49950245e-01, -3.95763078e+00],
+             [3.83541515e+00, 3.03601575e+00, -2.92206855e+00]],
+            [[-2.37496538e+00, -5.16913078e-01, -2.22044605e-16],
+             [-1.51564096e-03, 1.03283778e+00, 4.44089210e-16],
+             [2.37648102e+00, -5.15924698e-01, 0.00000000e+00],
+             [2.36112435e+00, -2.49907484e+00, 1.67326377e+00],
+             [2.67785361e-01, -4.03453305e+00, 1.54551068e+00],
+             [-2.20303996e+00, -2.64979149e+00, 1.86935105e+00],
+             [-3.92449341e+00, 7.52133206e-01, 6.81237472e-01],
+             [-2.88710909e+00, -1.17905511e+00, -1.90284281e+00],
+             [-2.53225012e-03, 2.11878872e+00, -1.81438423e+00],
+             [3.79870511e-02, 2.45152654e+00, 1.54550417e+00],
+             [3.91483037e+00, 7.97233384e-01, 6.25195636e-01],
+             [2.89487215e+00, -1.07093185e+00, -1.97610252e+00],
+             [1.33465406e-01, -5.19598512e+00, -1.68889241e-01],
+             [3.92752782e-01, -5.37624976e+00, 3.17017578e+00],
+             [-2.57208138e+00, -2.04623188e+00, 3.82601529e+00],
+             [-3.70060088e+00, -4.03037183e+00, 1.36342150e+00]],
+
+            ## 2.196092835668157 0.9490992792321991 [ 9.34821571e-17 -1.05211987e-15 -9.49099279e-01]
+            [[-2.25547156e+00, 6.00809059e-01, -8.88178420e-16],
+             [2.22534122e-04, -1.20179599e+00, 1.33226763e-15],
+             [2.25524902e+00, 6.00986929e-01, -4.44089210e-16],
+             [1.75066984e+00, 2.75425742e+00, -1.34530337e+00],
+             [1.83205907e-01, 2.48701259e+00, -3.38252635e+00],
+             [-2.40251269e+00, 1.42533820e+00, -2.75825525e+00],
+             [-3.98808226e+00, -3.09181461e-01, 6.73014560e-01],
+             [-1.82228951e+00, 2.31487316e+00, 1.16334253e+00],
+             [-4.07583757e-02, -2.46686804e+00, 1.63773950e+00],
+             [4.28858789e-02, -2.32777829e+00, -1.78495144e+00],
+             [4.01707996e+00, -3.90110707e-01, -5.51681364e-01],
+             [2.41274739e+00, 1.21229589e+00, 2.03414022e+00],
+             [-1.64379751e-01, 4.40744415e+00, -4.13914932e+00],
+             [1.14647365e+00, 1.44677024e+00, -4.91357472e+00],
+             [-3.96825875e+00, 2.74648401e+00, -3.11420515e+00],
+             [-2.73132791e+00, -3.93039213e-01, -3.79281507e+00]]
+        ]
+        uuh2 = Molecule(
+            ['C', 'C', 'C', 'O', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H'],
+            tests[3]
+        )
+        # uuh2 = Molecule(
+        #     ('C', 'C', 'C', 'O', 'C', 'C', 'H', 'H',
+        #      'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H'),
+        #     [[-2.37496538e+00, -5.16913078e-01, -2.22044605e-16],
+        #      [-1.51564096e-03, 1.03283778e+00, 4.44089210e-16],
+        #      [2.37648102e+00, -5.15924698e-01, 0.00000000e+00],
+        #      [2.36112435e+00, -2.49907484e+00, 1.67326377e+00],
+        #      [2.67785361e-01, -4.03453305e+00, 1.54551068e+00],
+        #      [-2.20303996e+00, -2.64979149e+00, 1.86935105e+00],
+        #      [-3.92449341e+00, 7.52133206e-01, 6.81237472e-01],
+        #      [-2.88710909e+00, -1.17905511e+00, -1.90284281e+00],
+        #      [-2.53225012e-03, 2.11878872e+00, -1.81438423e+00],
+        #      [3.79870511e-02, 2.45152654e+00, 1.54550417e+00],
+        #      [3.91483037e+00, 7.97233384e-01, 6.25195636e-01],
+        #      [2.89487215e+00, -1.07093185e+00, -1.97610252e+00],
+        #      [1.33465406e-01, -5.19598512e+00, -1.68889241e-01],
+        #      [3.92752782e-01, -5.37624976e+00, 3.17017578e+00],
+        #      [-2.57208138e+00, -2.04623188e+00, 3.82601529e+00],
+        #      [-3.70060088e+00, -4.03037183e+00, 1.36342150e+00]]
+        # ).get_embedded_molecule()
+        # uuh2 = Molecule.from_string("C1CCOCC1=O", "smi").get_embedded_molecule(sel=[0, 1, 2])
+        # print(uuh2.bonds)
+        # uuh2 = Molecule(
+        #     ('C', 'C', 'C', 'O', 'C', 'C', 'O', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H'),
+        #     [[2.40248768e+00, 4.87574030e-01, 1.11022302e-16],
+        #      [-3.73056809e-02, -9.98589102e-01, 2.22044605e-16],
+        #      [-2.36518200e+00, 5.11015071e-01, 3.33066907e-16],
+        #      [-2.33820339e+00, 2.97459390e+00, 6.19461561e-01],
+        #      [-2.97642862e-01, 4.08330967e+00, 1.67448987e+00],
+        #      [1.93759442e+00, 2.44053814e+00, 2.03326492e+00],
+        #      [3.36587018e+00, 2.59335666e+00, 3.83564101e+00],
+        #      [2.51685464e+00, 1.55960350e+00, -1.78585388e+00],
+        #      [3.99395479e+00, -7.47614214e-01, 4.05268307e-01],
+        #      [1.86910428e-02, -2.15188852e+00, 1.76521607e+00],
+        #      [9.52341488e-02, -2.39849452e+00, -1.57135667e+00],
+        #      [-3.20701964e+00, 3.66560107e-01, -1.95258316e+00],
+        #      [-3.84198611e+00, -4.27302551e-01, 1.19337845e+00],
+        #      [-7.10626249e-01, 4.97676320e+00, 3.52639815e+00],
+        #      [3.37684581e-01, 5.64952636e+00, 4.10428772e-01]]
+        #     ##
+        #     # [[-0.98978292, 2.13944996, -0.74785071],
+        #     #  [-2.37421443, -0.17229396, 0.13897264],
+        #     #  [-0.84146122, -2.57197311, 0.02119341],
+        #     #  [1.54231381, -2.41614628, 1.01377972],
+        #     #  [2.99186019, -0.39568311, 0.32402585],
+        #     #  [1.58760012, 2.05609658, 0.39871331],
+        #     #  [2.47689799, 3.92228997, 1.34505311],
+        #     #  [-1.99443943, 3.78284084, 0.00833893],
+        #     #  [-0.78881228, 2.09402206, -2.83188136],
+        #     #  [-4.00185885, -0.44419277, -1.201296],
+        #     #  [-3.20938307, 0.10260383, 2.02073282],
+        #     #  [-1.91966954, -3.9299204, 1.24531937],
+        #     #  [-0.92135447, -3.41409647, -1.89883835],
+        #     #  [4.56567818, -0.2361968, 1.7029855],
+        #     #  [3.87662593, -0.51680037, -1.53924822]]
+        #     ## -2.9405216419521696 [-0.3256606  -0.16229313 -0.93145376]
+        #     # [[-1.8048029, -1.6340269, 0.20826272],
+        #     # [-2.11990191, 1.18155187, -0.06155707],
+        #     # [0.25521018, 2.62375034, 0.5352225],
+        #     # [2.40426119, 1.73354464, -0.5846305],
+        #     # [2.89836166, -0.81862443, -0.28512281],
+        #     # [0.6907083, -2.43287548, -0.77753825],
+        #     # [0.95061245, -4.38814714, -1.98079781],
+        #     # [-3.40719786, -2.51631386, -0.76390484],
+        #     # [-1.87647756, -2.18293024, 2.22453257],
+        #     # [-3.61347563, 1.74187993, 1.2523594],
+        #     # [-2.83159418, 1.61058188, -2.0158157],
+        #     # [-0.04698966, 4.56279462, -0.30967277],
+        #     # [0.33894847, 2.93750686, 2.59499621],
+        #     # [3.74411763, -1.14405503, 1.62293356],
+        #     # [4.41821982, -1.27463704, -1.65926721]]
+        #     ## -1.171263910156821 [-0.27779964  0.06078523  0.95871399]
+        #     ,
+        #     bonds=[[0, 1, 1.0], [1, 2, 1.0], [2, 3, 1.0], [3, 4, 1.0], [4, 5, 1.0], [5, 6, 2.0], [5, 0, 1.0], [0, 7, 1.0], [0, 8, 1.0], [1, 9, 1.0], [1, 10, 1.0], [2, 11, 1.0], [2, 12, 1.0], [4, 13, 1.0], [4, 14, 1.0]]
+        # )#.get_embedded_molecule()
+
+        # uuh2 = Molecule.from_file(
+        #     TestManager.test_data("water_freq.fchk")
+        # )
+
+        right_vector, up_vector, view_vector = nput.view_matrix(
+            [0, 1, 0],
+            [0, 0, 1],
+            output_order=['x', 'y', 'z']
+        ).T #@ nput.rotation_matrix([1, 1, 0], np.pi/1.5)
+        uuh2.coords = uuh2.coords - uuh2.center_of_mass[np.newaxis]
+        fig = uuh2.plot(backend='x3d',
+                        image_size=[500, 500],
+                        highlight_atoms=[0, 1, 2],
+                        draw_coords={
+                            (0, 4): {
+                                'label': "r",
+                                'line_color': 'pink',
+                                'label_style': {'color': 'red'}
+                            },
+                            (0, 1, 2): {
+                                'label': "O",
+                                'line_color': 'pink',
+                                'label_style': {'color': 'blue'}
+                            }
+                        },
+                        view_settings={
+                            'up_vector': up_vector,
+                            'view_vector': view_vector,
+                            # 'viewAll':True,
+                            # 'right_vector': uuh2.coords[0] - uuh2.coords[1],
+                            'view_distance': 15,
+                            # 'view_center': 2.5 * right_vector
+                        },
+                        # plot_range=np.array([[-1, 1], [-1, 1], [-1, 1]]),
+                        # font_family='Helvetica',
+                        # postdraw=[
+                        #     {
+                        #         'pattern': 'labels_1',
+                        #         'classes': True,
+                        #         'replacement':{'text':"θ",  'mode':'svg',
+                        #                        # 'font_options':{
+                        #                        #     'family':"Times"
+                        #                        # }
+                        #                        }
+                        #     }
+                        # ]
+                        )
+        # uuh2 = Molecule.from_string("C1CCOCC1=O", "smi").get_embedded_molecule(sel=[0, 1, 2])
+        # uuh2.plot(backend='rdkit',
+        #           figure=fig,
+        #           image_size=[500, 500],
+        #           highlight_atoms=[0, 1, 2],
+        #           draw_coords={
+        #               (0, 4): {
+        #                   'label': "r",
+        #                   'label_style': {'font_size': 22, 'color': 'red'}
+        #               },
+        #               (0, 1, 2): {
+        #                   'label': "\u03B8",
+        #                   'label_style': {'font_size': 40, 'font_family': 'Symbol', 'color': 'blue'}
+        #               }
+        #           },
+        #           view_settings={
+        #               'up_vector': up_vector,
+        #               'view_vector': view_vector,
+        #               # 'right_vector': uuh2.coords[0] - uuh2.coords[1],
+        #               'view_distance': 14,
+        #               'view_center': 3*up_vector
+        #           },
+        #           font_family='Helvetica',
+        #           no_free_type=False,
+        #           postdraw='annotate'
+        #           )
+        # uuh2.plot(backend='rdkit',
+        #           figure=fig,
+        #           image_size=[500, 500],
+        #           highlight_atoms=[0, 1, 2],
+        #           draw_coords={
+        #               (0, 4): {
+        #                   'label': "r",
+        #                   'label_style': {'font_size': 22, 'color': 'red'}
+        #               },
+        #               (0, 1, 2): {
+        #                   'label': "\u03B8",
+        #                   'label_style': {'font_size': 40, 'font_family': 'Symbol', 'color': 'blue'}
+        #               }
+        #           },
+        #           view_settings={
+        #               'up_vector': nput.rotation_matrix(view_vector, np.deg2rad(45)) @ up_vector,
+        #               'view_vector': view_vector,
+        #               # 'right_vector': uuh2.coords[0] - uuh2.coords[1],
+        #               'view_distance': 14,
+        #               'view_center': -3 * up_vector
+        #           },
+        #           font_family='Helvetica',
+        #           no_free_type=False,
+        #           postdraw='annotate'
+        #           )
+
+        # print(
+        #     fig.to_widget().tostring(prettify=True)
+        # )
+        # fig.to_widget().write(os.path.expanduser("~/Desktop/mol_as_svg.html"))
+        fig.show()
+        return
+
+        # uuh2 = Molecule.from_string("C1CCOCC1", "smi")
+        uuh3 = Molecule(
+            ['C', 'C', 'C', 'O', 'C', 'C', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H', 'H'],
+            # [[2.38332071e+00, -4.96430360e-01, 5.55111512e-17],
+            #  [6.58769136e-03, 9.88766830e-01, 3.33066907e-16],
+            #  [-2.38990841e+00, -4.92336470e-01, -4.99600361e-16],
+            #  [-2.08988725e+00, -3.00745588e+00, 7.41033629e-01],
+            #  [-5.23349285e-01, -4.08233895e+00, -1.09291015e+00],
+            #  [2.14118284e+00, -3.26708995e+00, -4.17890874e-01],
+            #  [3.66973327e+00, 2.55947571e-01, -1.50495176e+00],
+            #  [3.43121803e+00, -1.92532829e-01, 1.82150928e+00],
+            #  [-6.08841279e-02, 2.25686365e+00, 1.71104297e+00],
+            #  [-1.14242408e-01, 2.33347006e+00, -1.62987350e+00],
+            #  [-3.20094923e+00, -6.04268579e-01, -1.95106407e+00],
+            #  [-3.84381689e+00, 3.36703601e-01, 1.30762207e+00],
+            #  [-8.78968145e-01, -3.32719027e+00, -3.00837486e+00],
+            #  [-6.11932834e-01, -6.15747003e+00, -1.09757998e+00],
+            #  [3.41377283e+00, -4.02279921e+00, -1.90838061e+00],
+            #  [2.60551826e+00, -4.35184035e+00, 1.33902027e+00]]
+            ## u/noflip (array([ 0.,  0., -1.]), array([-0.848,  0.53 ,  0.   ]), array([0.851, 0.526, 0.   ]), -0.897)
+            # [[2.26805368e+00, 5.92936157e-01, 0.00000000e+00],
+            #   [2.57086576e-03, -1.18386057e+00, -2.22044605e-16],
+            #   [-2.27062454e+00, 5.90924417e-01, 1.11022302e-16],
+            #   [-2.30791921e+00, 1.88012754e+00, -2.29124159e+00],
+            #   [-2.54755984e-01, 3.46313899e+00, -2.50768436e+00],
+            #   [2.15182481e+00, 1.90602459e+00, -2.56714591e+00],
+            #   [4.06416242e+00, -3.86408559e-01, 3.13668950e-01],
+            #   [1.84673260e+00, 2.01434259e+00, 1.49524714e+00],
+            #   [-2.23771964e-02, -2.45799578e+00, 1.63765593e+00],
+            #   [-8.37319822e-02, -2.19336565e+00, -1.85026755e+00],
+            #   [-3.97754998e+00, -5.75479502e-01, 2.12293297e-01],
+            #   [-2.05680660e+00, 1.91328775e+00, 1.59105223e+00],
+            #   [-3.49214054e-01, 4.52908630e+00, -4.28173613e+00],
+            #   [-1.30106083e-01, 4.71540063e+00, -8.38457033e-01],
+            #   [1.91592871e+00, 3.49950245e-01, -3.95763078e+00],
+            #   [3.83541515e+00, 3.03601575e+00, -2.92206855e+00]]
+            ## v/no flip: (array([ 0., -0.,  1.]), array([0.787, 0.617, 0.   ]), array([-0.788,  0.615,  0.   ]), 0.971)
+            # [[-2.37496538e+00, -5.16913078e-01, -2.22044605e-16],
+            # [-1.51564096e-03, 1.03283778e+00, 4.44089210e-16],
+            # [2.37648102e+00, -5.15924698e-01, 0.00000000e+00],
+            # [2.36112435e+00, -2.49907484e+00, 1.67326377e+00],
+            # [2.67785361e-01, -4.03453305e+00, 1.54551068e+00],
+            # [-2.20303996e+00, -2.64979149e+00, 1.86935105e+00],
+            # [-3.92449341e+00, 7.52133206e-01, 6.81237472e-01],
+            # [-2.88710909e+00, -1.17905511e+00, -1.90284281e+00],
+            # [-2.53225012e-03, 2.11878872e+00, -1.81438423e+00],
+            # [3.79870511e-02, 2.45152654e+00, 1.54550417e+00],
+            # [3.91483037e+00, 7.97233384e-01, 6.25195636e-01],
+            # [2.89487215e+00, -1.07093185e+00, -1.97610252e+00],
+            # [1.33465406e-01, -5.19598512e+00, -1.68889241e-01],
+            # [3.92752782e-01, -5.37624976e+00, 3.17017578e+00],
+            # [-2.57208138e+00, -2.04623188e+00, 3.82601529e+00],
+            # [-3.70060088e+00, -4.03037183e+00, 1.36342150e+00]]
+            ## v/flip: (array([-0., -0.,  1.]), array([-0.837, -0.547, -0.   ]), array([ 0.838, -0.546, -0.   ]), 0.915)
+            [[-2.25547156e+00, 6.00809059e-01, -8.88178420e-16],
+             [2.22534122e-04, -1.20179599e+00, 1.33226763e-15],
+             [2.25524902e+00, 6.00986929e-01, -4.44089210e-16],
+             [1.75066984e+00, 2.75425742e+00, -1.34530337e+00],
+             [1.83205907e-01, 2.48701259e+00, -3.38252635e+00],
+             [-2.40251269e+00, 1.42533820e+00, -2.75825525e+00],
+             [-3.98808226e+00, -3.09181461e-01, 6.73014560e-01],
+             [-1.82228951e+00, 2.31487316e+00, 1.16334253e+00],
+             [-4.07583757e-02, -2.46686804e+00, 1.63773950e+00],
+             [4.28858789e-02, -2.32777829e+00, -1.78495144e+00],
+             [4.01707996e+00, -3.90110707e-01, -5.51681364e-01],
+             [2.41274739e+00, 1.21229589e+00, 2.03414022e+00],
+             [-1.64379751e-01, 4.40744415e+00, -4.13914932e+00],
+             [1.14647365e+00, 1.44677024e+00, -4.91357472e+00],
+             [-3.96825875e+00, 2.74648401e+00, -3.11420515e+00],
+             [-2.73132791e+00, -3.93039213e-01, -3.79281507e+00]]
+            ## u/flip: (array([ 0., -0., -1.]), array([ 0.781, -0.624,  0.   ]), array([-0.781, -0.624,  0.   ]), -0.975)
+        )
+        ploot = uuh3.plot(backend='matplotlib3D',
+                          # include_save_buttons=True,
+                          # include_script_interface=True,
+                          highlight_atoms=[0, 1, 2],
+                          draw_coords={
+                              (0, 4): {
+                                  'label': 'r',
+                                  'label_style': {'color': 'blue', 'font_size': 20}
+                              },
+                              (0, 1, 2): {
+                                  'label': "q",
+                                  'label_style': {'color': 'red', 'font_size': 32, 'font_family': 'serif'}
+                              }
+                          },
+                          view_settings={
+                              'view_vector': [0, 0, 1],
+                              # 'view_distance': 5
+                          })
+        # print(ploot.tostring())
+        ploot.write("/Users/Mark/Desktop/why.html")
+```
+
+#### <a name="BondGraphZMatrixIssues">BondGraphZMatrixIssues</a>
+```python
+    def test_BondGraphZMatrixIssues(self):
+        horizontal_structure = '''
+  C   -0.0531542   -0.2705697   -0.4038580
+  C   -1.2672917   -0.9889447   -0.5655902
+  C   -2.5115504   -0.3220336   -0.4206904
+  C   -3.7326727   -1.0553190   -0.5317414
+  C   -3.7004761   -2.4495575   -0.8014742
+  C   -2.4508476   -3.1180666   -0.9547299
+  C   -2.4145647   -4.5238734   -1.2198701
+  C   -3.6621332   -5.2283272   -1.3328590
+  C   -4.8569665   -4.5892997   -1.1846209
+  H   -5.7886526   -5.1430158   -1.2712961
+  C   -4.9257958   -3.1802597   -0.9094725
+  C   -6.1422696   -2.5061569   -0.7417504
+  H   -7.0716942   -3.0658565   -0.8238723
+  C   -6.1964402   -1.1330449   -0.4675717
+  C   -7.4373714   -0.4323877   -0.2841295
+  H   -8.3634594   -0.9960396   -0.3668735
+  C   -7.4675572    0.9027752   -0.0104014
+  H   -8.4176460    1.4127807    0.1290235
+  C   -6.2596814    1.6721378    0.1065559
+  C   -6.2671014    3.0419631    0.4027137
+  H   -7.2201538    3.5465627    0.5477102
+  C   -5.0827029    3.7776905    0.5303886
+  C   -5.0759603    5.1765715    0.8640348
+  H   -6.0312166    5.6798428    0.9938500
+  C   -3.9096314    5.8651178    1.0239392
+  H   -3.9280356    6.9205177    1.2854065
+  C   -2.6313319    5.2261265    0.8675107
+  C   -2.6065567    3.8427713    0.5018790
+  C   -3.8255173    3.1208176    0.3413015
+  C   -3.7956779    1.7351059    0.0306407
+  C   -5.0084680    1.0043192   -0.0784111
+  C   -4.9769052   -0.3925329   -0.3620967
+  C   -2.5425203    1.0693727   -0.1391634
+  C   -1.3290713    1.7891599    0.0179298
+  C   -0.0839449    1.1156505   -0.0953746
+  C    1.1355172    1.8214190    0.1444458
+  C    1.1010171    3.1946003    0.5049308
+  C   -0.1474428    3.8757259    0.6003097
+  C   -1.3601817    3.1780730    0.3542430
+  C   -0.1858234    5.2499558    0.9952833
+  C   -1.4242191    5.8941573    1.1061277
+  H   -1.4495383    6.9350662    1.4194308
+  C    1.0532032    5.9119919    1.2917556
+  C    2.2465413    5.2622367    1.1941631
+  C    2.3197271    3.8832904    0.7977264
+  C    3.5352228    3.1943918    0.6970674
+  C    3.5930945    1.8423682    0.3340199
+  C    2.3778386    1.1384405    0.0625407
+  C    2.4102323   -0.2468567   -0.2728220
+  C    1.1993952   -0.9519230   -0.5029697
+  C    1.2283278   -2.3432451   -0.7890186
+  C    0.0098448   -3.0637208   -0.9542032
+  C   -1.2361383   -2.3926339   -0.8313463
+  C    0.0349492   -4.4697870   -1.2200387
+  C   -1.1751012   -5.1636932   -1.3514989
+  H   -1.1509809   -6.2327171   -1.5521573
+  C    1.3123634   -5.1187284   -1.3301511
+  H    1.3318089   -6.1850993   -1.5412707
+  C    2.4774035   -4.4302726   -1.1665430
+  C    2.4838369   -3.0225639   -0.8768600
+  C    3.6676819   -2.3042610   -0.6642272
+  C    3.6602742   -0.9382196   -0.3533601
+  C    4.8654746   -0.1983466   -0.0980494
+  H    5.8151245   -0.7232786   -0.1667677
+  C    4.8334523    1.1238831    0.2322146
+  H    5.7571926    1.6620172    0.4300728
+  H    4.6199581   -2.8265000   -0.7288371
+  H    3.4322477   -4.9442495   -1.2457993
+  H    4.4607529    3.7230634    0.9146432
+  H    3.1731065    5.7801519    1.4281981
+  H    1.0166878    6.9498086    1.6110402
+  H   -3.6334126   -6.2956952   -1.5377463
+  N   -0.9768306   -0.8645727    2.6960567
+  C   -1.1153261    0.4844050    3.0234710
+  C   -0.0778126    1.3920491    3.2650545
+  C   -0.3249244    2.7228872    3.5872077
+  C   -1.6325156    3.2294720    3.7094695
+  C   -2.6582688    2.3098377    3.4306428
+  C   -2.4217818    0.9854865    3.0975439
+  F   -3.4554562    0.1841828    2.8127935
+  F   -3.9567056    2.6815385    3.4512927
+  C   -1.8441701    4.6700822    4.1229961
+  O   -0.9060656    5.3915137    4.4314908
+  N   -3.1391561    5.1091075    4.1948416
+  H   -3.8828970    4.6489540    3.6932711
+  H   -3.2290700    6.1045076    4.3462867
+  F    0.7511767    3.4882777    3.7556598
+  F    1.1959563    0.9736924    3.1611571
+  N    0.1556565   -1.3754611    2.6214998
+  N    1.0867607   -2.0159052    2.5061938'''
+        horp = Molecule.from_string(horizontal_structure, units='Angstroms')
+        f1:Molecule = horp.fragments[1]
+        zmat = f1.get_bond_zmatrix()
+        hmm = [z[0] for z in zmat[:8]]
+        segs = f1.find_backbone_segments()
+        f1.plot(highlight_atoms=segs[0]).show()
+```
+
+#### <a name="SimpleRelaxedScan">SimpleRelaxedScan</a>
+```python
+    def test_SimpleRelaxedScan(self):
+        # import McUtils.Iterators as itut
+        #
+        # for x in itut.zigzag_product(['a', 'b', 'c'], [0, 1, 2], [-2, 1, 0]):
+        #     print(x)
+        # return
+
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning) # new mac annoyance
+
+        mol = Molecule.from_string('[CH3:1][O:2][H:3]',
+                                   energy_evaluator='aimnet2',
+                                   internals='zmatrix'
+                                   )
+        # mol.plot(highlight_atoms=[1, 2]).show()
+
+
+        _, scan_geoms, _ = mol.relaxed_scan(
+            [0, np.pi/6, 10],
+            (2, 1, 0, 3),
+            max_iterations=50
+        )
+
+        _, rigid_geoms, _ = mol.relaxed_scan(
+            [0, np.pi / 6, 10],
+            (2, 1, 0, 3),
+            max_iterations=0
+        )
+
+        import McUtils.Plots as plt
+
+        fig = plt.Plot(
+            np.linspace(0, np.pi/6, 10),
+            mol.calculate_energy(coords=scan_geoms, use_internals=False)
+        )
+        plt.Plot(
+            np.linspace(0, np.pi / 6, 10),
+            mol.calculate_energy(coords=rigid_geoms, use_internals=False),
+            figure=fig
+        )
+        fig.show()
+
+        # mol.plot(scan_geoms, include_save_buttons=True).show()
+
+        return
+```
+
+#### <a name="RequiredCoordinateZMatrix">RequiredCoordinateZMatrix</a>
+```python
+    def test_RequiredCoordinateZMatrix(self):
+
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning)  # new mac annoyance
+
+        mol: Molecule = Molecule.from_string('[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1',
+                                             energy_evaluator='aimnet2',
+                                             internals='zmatrix'
+                                             )
+
+        zm = mol.get_bond_zmatrix(required_coordinates=[
+            # (0, 2),
+            (1, 3),
+            (0, 1),
+            # (3, 2, 4)
+        ])
+```
+
+#### <a name="RequiredZMat2">RequiredZMat2</a>
+```python
+    def test_RequiredZMat2(self):
+        import McUtils.Coordinerds as coordops
+
+        mol = Molecule.from_file(TestManager.test_data('problem_product2.xyz'))
+        # mol.plot(highlight_atoms=[0, 1, 2, 3, 4, 5]).show()
+        # zm = mol.get_bond_zmatrix()
+        # print(np.array(zm))
+        # mol = mol.break_bonds([[0, 2], [1, 3]])
+        zm = mol.get_bond_zmatrix(
+            initial_backbone=[0, 2, 3, 1, 4, 5],
+            required_coordinates=[(0, 2), (1, 3)]
+        )
+        print(np.array(zm))
+        coordops.zmatrix_indices(zm, [(0, 2), (1, 3)])
+```
+
+#### <a name="ProblemTransformedZMatrix">ProblemTransformedZMatrix</a>
+```python
+    def test_ProblemTransformedZMatrix(self):
+        import McUtils.Coordinerds as coordops
+
+        prod: Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        react = prod.apply_smarts("[C:1]1[C:3][C:5]=[C:6][C:4][C:2]1 >> [C:1]=[C:2].[C:3]=[C:5]-[C:6]=[C:4]")
+
+        # print(react[0].fragment_indices)
+        zzz = react[0].get_bond_zmatrix()
+        print(np.array(zzz))
+        int_react = react[0].modify(internals=zzz)
+        pos = coordops.zmatrix_indices(zzz, [(2, 0)], strip_embedding=True)
+        # react[0].plot(highlight_atoms=[3, 5, 4, 2]).show()
+        int_react.animate_coordinate(pos,
+                                     strip_embedding=True,
+                                     draw_coords=[(2, 1)]).show()
+```
+
+#### <a name="ComplexRelaxedScan">ComplexRelaxedScan</a>
+```python
+    def test_ComplexRelaxedScan(self):
+        import McUtils.Coordinerds as coordops
+
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning)  # new mac annoyance
+
+        mol:Molecule = Molecule.from_string('[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1',
+                                   energy_evaluator='rdkit',
+                                   internals='zmatrix'
+                                   )
+
+        zm = mol.get_bond_zmatrix(required_coordinates=[
+            (0, 2),
+            (1, 3),
+            (2, 4, 5, 3)
+        ])
+
+        int_mol = mol.modify(internals=zm)
+        _, geoms, _ = int_mol.relaxed_scan(
+            [0, 2, 15],
+            {
+                (0,2):1,
+                (1,3):1
+            },
+            max_iterations=0,
+            coordinate_constraints=[(2, 4, 5, 3)]
+            # region_constraints={
+            #     (0,1,23)
+            # }
+        )
+
+        wtf = int_mol.get_internals(geoms, strip_embedding=True)
+        idx = coordops.zmatrix_indices(zm,
+                                       [
+                                           (0, 2),
+                                           (1, 3),
+                                           (2, 4, 5, 3)
+                                       ], strip_embedding=True)
+        print(idx)
+        # print(
+        #     wtf
+        # )
+        print(
+            wtf[..., idx]
+        )
+
+
+        # int_mol.plot(highlight_atoms=[2, 4, 5, 3]).show()
+        int_mol.plot(geoms,
+                     highlight_atoms=[2, 4, 5, 3]
+                     , bonds="recompute"
+                     , include_save_buttons=True
+                     ).show()
+```
+
+#### <a name="ASEProfileGenerator">ASEProfileGenerator</a>
+```python
+    def test_ASEProfileGenerator(self):
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning)  # new mac annoyance
+
+        import McUtils.Devutils as dev
+
+        # prod:Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        # react = prod.apply_smarts("[C:1]1[C:2][C:3]=[C:4][C:5][C:6]1 >> [C:1]=[C:6].[C:2]=[C:3]-[C:4]=[C:5]")
+        traj:list[Molecule] = Molecule.from_file(
+            TestManager.test_data('traj.xyz'),
+            max_blocks=-1,
+            units='Angstroms'
+        )
+
+        init_js = dev.read_json(TestManager.test_data('product.json'))
+        new_js = dev.read_json(TestManager.test_data('trajectory.json'))
+        traj = [
+            Molecule(init_js['atoms'], c)
+            for c in new_js['final_trajectory']
+        ]
+
+        from Psience.Reactions import Reaction
+        rxn = Reaction([traj[0]], [traj[-1]])
+        prof = rxn.get_profile_generator('pys-neb',
+                                         energy_evaluator='aimnet2')
+        new_images = prof.generate(base_images=traj)
+        traj[0].plot([i.coords for i in new_images]).show()
+
+        f1 = plt.Plot(
+            prof.evaluate_profile_distances(new_images, normalize=False),
+            prof.evaluate_profile_energies(new_images),
+        )
+        plt.Plot(
+            new_js['final_rmsds'],
+            new_js['final_energies'],
+            figure=f1
+        )
+        f1.show()
+```
+
+#### <a name="PysisGSMProfileGenerator">PysisGSMProfileGenerator</a>
+```python
+    def test_PysisGSMProfileGenerator(self):
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning)  # new mac annoyance
+
+        import McUtils.Devutils as dev
+
+        # prod:Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        # react = prod.apply_smarts("[C:1]1[C:2][C:3]=[C:4][C:5][C:6]1 >> [C:1]=[C:6].[C:2]=[C:3]-[C:4]=[C:5]")
+        traj: list[Molecule] = Molecule.from_file(
+            TestManager.test_data('traj.xyz'),
+            max_blocks=-1,
+            units='Angstroms'
+        )
+
+        init_js = dev.read_json(TestManager.test_data('product.json'))
+        new_js = dev.read_json(TestManager.test_data('trajectory.json'))
+        traj = [
+            Molecule(init_js['atoms'], c)
+            for c in new_js['final_trajectory']
+        ]
+
+        from Psience.Reactions import Reaction
+        rxn = Reaction([traj[0]], [traj[-1]])
+        prof = rxn.get_profile_generator('ase-neb',
+                                         energy_evaluator='aimnet2',
+                                         spring_constant=1,
+                                         climb=True)
+        new_images = prof.generate(base_images=traj)
+        traj[0].plot([i.coords for i in new_images]).show()
+
+        new_structs = np.array([
+            i.coords for i in new_images
+        ])
+
+        old_structs = np.array(new_js['final_trajectory'])
+
+
+        f1 = plt.Plot(
+            np.linalg.norm(new_structs[:, 2] - new_structs[:, 3], axis=-1),
+            prof.evaluate_profile_energies(new_images),
+        )
+        plt.Plot(
+            np.linalg.norm(old_structs[:, 2] - old_structs[:, 3], axis=-1),
+            new_js['final_energies'],
+            figure=f1
+        )
+        f1.show()
+```
+
+#### <a name="RMSDChecks">RMSDChecks</a>
+```python
+    def test_RMSDChecks(self):
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning)  # new mac annoyance
+
+        import McUtils.Numputils as nput
+
+        # prod:Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        # react = prod.apply_smarts("[C:1]1[C:2][C:3]=[C:4][C:5][C:6]1 >> [C:1]=[C:6].[C:2]=[C:3]-[C:4]=[C:5]")
+        traj: list[Molecule] = Molecule.from_file(
+            TestManager.test_data('traj.xyz'),
+            max_blocks=-1,
+            units='Angstroms'
+        )
+
+        print(traj[0].get_rmsd(traj[1]))
+        print(
+            nput.eckart_rmsd(traj[0].coords, traj[1].coords,
+                             masses=traj[0].masses,
+                               mass_weighted=True)
+        )
+```
+
+#### <a name="ASEDimerProfile">ASEDimerProfile</a>
+```python
+    def test_ASEDimerProfile(self):
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning)  # new mac annoyance
+
+        import McUtils.Devutils as dev
+
+        # prod:Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        # react = prod.apply_smarts("[C:1]1[C:2][C:3]=[C:4][C:5][C:6]1 >> [C:1]=[C:6].[C:2]=[C:3]-[C:4]=[C:5]")
+        init_js = dev.read_json(TestManager.test_data('product.json'))
+        new_js = dev.read_json(TestManager.test_data('trajectory.json'))
+        traj = [
+            Molecule(init_js['atoms'], c)
+            for c in new_js['final_trajectory']
+        ]
+
+        from Psience.Reactions import Reaction
+        rxn = Reaction([traj[0]], [traj[-1]])
+        prof = rxn.get_profile_generator('ase-dimer',
+                                         energy_evaluator='aimnet2',
+                                         climb=True)
+        new_images = prof.generate(base_images=traj)
+        traj[0].plot([i.coords for i in new_images]).show()
+
+        new_structs = np.array([
+            i.coords for i in new_images
+        ])
+
+        old_structs = np.array(new_js['final_trajectory'])
+
+        f1 = plt.Plot(
+            np.linalg.norm(new_structs[:, 2] - new_structs[:, 3], axis=-1),
+            prof.evaluate_profile_energies(new_images),
+        )
+        plt.Plot(
+            np.linalg.norm(old_structs[:, 2] - old_structs[:, 3], axis=-1),
+            new_js['final_energies'],
+            figure=f1
+        )
+        f1.show()
+```
+
+#### <a name="PysisyphusZTSProfile">PysisyphusZTSProfile</a>
+```python
+    def test_PysisyphusZTSProfile(self):
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning)  # new mac annoyance
+
+        import McUtils.Devutils as dev
+
+        # prod:Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        # react = prod.apply_smarts("[C:1]1[C:2][C:3]=[C:4][C:5][C:6]1 >> [C:1]=[C:6].[C:2]=[C:3]-[C:4]=[C:5]")
+        init_js = dev.read_json(TestManager.test_data('product.json'))
+        new_js = dev.read_json(TestManager.test_data('trajectory.json'))
+        traj = [
+            Molecule(init_js['atoms'], c)
+            for c in new_js['final_trajectory']
+        ]
+
+        from Psience.Reactions import Reaction
+        rxn = Reaction([traj[0]], [traj[-1]])
+        prof = rxn.get_profile_generator('pys-string',
+                                         energy_evaluator='aimnet2',
+                                         climb=True)
+        new_images = prof.generate(base_images=traj)
+        traj[0].plot([i.coords for i in new_images]).show()
+
+        new_structs = np.array([
+            i.coords for i in new_images
+        ])
+
+        old_structs = np.array(new_js['final_trajectory'])
+
+        f1 = plt.Plot(
+            np.linalg.norm(new_structs[:, 2] - new_structs[:, 3], axis=-1),
+            prof.evaluate_profile_energies(new_images),
+        )
+        plt.Plot(
+            np.linalg.norm(old_structs[:, 2] - old_structs[:, 3], axis=-1),
+            new_js['final_energies'],
+            figure=f1
+        )
+        f1.show()
+```
+
+#### <a name="PysisyphusDimerProfile">PysisyphusDimerProfile</a>
+```python
+    def test_PysisyphusDimerProfile(self):
+        import warnings
+        warnings.filterwarnings("ignore", category=RuntimeWarning)  # new mac annoyance
+
+        import McUtils.Devutils as dev
+
+        # prod:Molecule = Molecule.from_string("[CH2:1]1[CH2:3]C=C[CH2:4][CH2:2]1")
+        # react = prod.apply_smarts("[C:1]1[C:2][C:3]=[C:4][C:5][C:6]1 >> [C:1]=[C:6].[C:2]=[C:3]-[C:4]=[C:5]")
+        init_js = dev.read_json(TestManager.test_data('product.json'))
+        new_js = dev.read_json(TestManager.test_data('trajectory.json'))
+        traj = [
+            Molecule(init_js['atoms'], c)
+            for c in new_js['final_trajectory']
+        ]
+
+        from Psience.Reactions import Reaction
+        rxn = Reaction([traj[0]], [traj[-1]])
+        prof = rxn.get_profile_generator('pys-dimer',
+                                         energy_evaluator='aimnet2',
+                                         climb=True)
+        new_images = prof.generate(base_images=traj)
+        traj[0].plot([i.coords for i in new_images]).show()
+
+        new_structs = np.array([
+            i.coords for i in new_images
+        ])
+
+        old_structs = np.array(new_js['final_trajectory'])
+
+        f1 = plt.Plot(
+            np.linalg.norm(new_structs[:, 2] - new_structs[:, 3], axis=-1),
+            prof.evaluate_profile_energies(new_images),
+        )
+        plt.Plot(
+            np.linalg.norm(old_structs[:, 2] - old_structs[:, 3], axis=-1),
+            new_js['final_energies'],
+            figure=f1
+        )
+        f1.show()
+```
+
+#### <a name="ProblemCanonicalZMatrix">ProblemCanonicalZMatrix</a>
+```python
+    def test_ProblemCanonicalZMatrix(self):
+
+        mol = Molecule.from_file(TestManager.test_data('frame_0000.xyz'), units='Angstroms')
+        mol.get_canonical_zmatrix()
+```
+
+#### <a name="QM9Loading">QM9Loading</a>
+```python
+    def test_QM9Loading(self):
+        from McUtils.ExternalPrograms import QM9
+
+        qm9_path = os.path.expanduser("~/Documents/Postdoc/datasets/qm9.npz")
+        supplier = QM9(qm9_path)
+
+        index = np.random.randint(130_000)
+        # print(index)
+
+        data = supplier.load_data(index, ['coords', 'atoms'])
+        # huh = Molecule.from_string(data['smiles'], coords=data['coords']) # an alternate loader, for strange SMILES strings this can break
+        huh = Molecule(data['atoms'], coords=data['coords'] * UnitsData.convert("Angstroms", "BohrRadius"))
+
+        huh.plot(include_save_buttons=True).show()
+```
+
+#### <a name="QM9Queries">QM9Queries</a>
+```python
+    def test_QM9Queries(self):
+        from McUtils.ExternalPrograms import QM9, RDMolecule
+        import rdkit.Chem as Chem
+
+        qm9_path = os.path.expanduser("~/Documents/Postdoc/datasets/qm9.npz")
+        supplier = QM9(qm9_path)
+
+        hmm = supplier.smiles_query('CCC',
+                                    upto=500,
+                                    # track_failures=True,
+                                    # quiet=False,
+                                    sanitize=True
+                                    )
+
+        bond_lengths = {}
+        for idx in hmm:
+            data = supplier.load_data(idx, ['coords', 'atoms', 'smiles'])
+            rdmol = RDMolecule.parse_smiles(data['smiles'])
+            huh = Molecule(
+                data['atoms'],
+                coords=data['coords'] * UnitsData.convert("Angstroms", "BohrRadius"),
+                charge=Chem.GetFormalCharge(rdmol)
+            )
+            atoms = huh.atoms
+            try:
+                bonds = huh.bonds
+            except ValueError:
+                continue
+
+            i,j = np.array([b[:2] for b in bonds]).T
+            bls = np.linalg.norm(huh.coords[i, :] - huh.coords[j, :], axis=-1) * UnitsData.bohr_to_angstroms
+            for (b1,b2,t),r in zip(bonds, bls):
+                a1, a2 = sorted([atoms[b1], atoms[b2]])
+                bond_lengths.setdefault((a1, a2, t), []).append(r)
+
+        import pprint
+        pprint.pprint({
+            k:np.average(v)
+            for k,v in bond_lengths.items()
+        })
+```
+
+#### <a name="QM9Iter">QM9Iter</a>
+```python
+    def test_QM9Iter(self):
+        from McUtils.ExternalPrograms import QM9, RDMolecule
+        import rdkit.Chem as Chem
+
+        qm9_path = os.path.expanduser("~/Documents/Postdoc/datasets/qm9.npz")
+        supplier = QM9(qm9_path)
+
+        bond_lengths = {}
+        update_interval = 500
+
+        for n,data in enumerate(supplier.data_iter(['coords', 'atoms', 'smiles'], start_at=65500)):
+            rdmol = RDMolecule.parse_smiles(data['smiles'], quiet=True, sanitize=True)
+            if rdmol is None: continue
+            if n % update_interval == 0:
+                import pprint
+                pprint.pprint({
+                    k: np.average(v).tolist()
+                    for k, v in bond_lengths.items()
+                })
+
+            huh = Molecule(
+                data['atoms'],
+                coords=data['coords'] * UnitsData.convert("Angstroms", "BohrRadius"),
+                charge=Chem.GetFormalCharge(rdmol)
+            )
+            atoms = huh.atoms
+            try:
+                bonds = huh.bonds
+            except ValueError:
+                continue
+
+            i, j = np.array([b[:2] for b in bonds]).T
+            bls = np.linalg.norm(huh.coords[i, :] - huh.coords[j, :], axis=-1) * UnitsData.bohr_to_angstroms
+            for (b1, b2, t), r in zip(bonds, bls):
+                a1, a2 = sorted([atoms[b1], atoms[b2]])
+                bond_lengths.setdefault((a1, a2, t), []).append(r)
+
+        import pprint
+        pprint.pprint({
+            k: np.average(v)
+            for k, v in bond_lengths.items()
+        })
+```
+
+#### <a name="RDKitPlotErrors">RDKitPlotErrors</a>
+```python
+    def test_RDKitPlotErrors(self):
+        Molecule.from_string(
+            r'''CO/N=C(\\C(O)=N[C@@H]1C(=O)N2C(C(=O)O)=C(C[N+:7]3=[C:6]=[C:5]4CC=C/[C:3]([S:2](=O)(=O)[OH:1])=[C:4]\\4C=C3)CS[C@H]12)c1csc(=N)[nH]1'''
+        ).plot(backend='rdkit').show()
+```
+
+#### <a name="RDKitPlotPanel">RDKitPlotPanel</a>
+```python
+    def test_RDKitPlotPanel(self):
+        systems = [
+            'CON=[C:3]([C:2](=O)[NH:1]C)/[C:4]1=[CH:5]/[C:6]2=[N+:7](C(C)C(C)=NN(c3ccccc3)c3ccccc3)OC1=C(C)C2',
+            'CO/N=C(\\C(O)=N[C@@H]1C(=O)N2C(C(=O)O)=C(C[N+:7]3=[C:6]=[C:5]4CC=C/[C:3]([S:2](=O)(=O)[OH:1])=[C:4]\\4C=C3)CS[C@H]12)c1csc(=N)[nH]1',
+            'C=C/C(=C\\N)C/C=C(\\C=N)c1ccc2c(ccc3c4ccc(C5=C[CH:2]([C:3]6=[N+:7]=[CH:6]/[CH:5]=[CH:4]/6)[NH:1]C(/C(C=C)=C/N)=C5)cc4n(-c4ccccc4)c23)c1',
+            'C=C/C(=C\\N)C/C=C(\\C=N)c1ccc2c(ccc3c4ccc(C5=C[CH:2]([C:3]6=[N+:7]=[CH:6]/[CH:5]=[CH:4]/6)[NH:1]C(/C(C=C)=C/N)=C5)cc4n(-c4ccccc4)c23)c1',
+            'CCCCCOc1cc(C2C(=O)C(=[C:3]3[C:2]([NH:1]S(C)(=O)=O)=C[C:6](=[N+:7](C)Cc4ccccc4)/[C:5](C)=[CH:4]/3)C2[O-])c(NS(C)(=O)=O)cc1N(C)Cc1ccccc1',
+            'C=C/C(CNC(=O)c1ccnc(NC[C:6]2=[N+:7](C)[C:3]([C:2]3=CCN=C[NH:1]3)/[N:4]=[N:5]/2)c1)=C(\\N=C)C(F)(F)F',
+            'C=C/C(CNC(=O)c1ccnc(NC[C:6]2=[N+:7](C)[C:3]([C:2]3=CCN=C[NH:1]3)/[N:4]=[N:5]/2)c1)=C(\\N=C)C(F)(F)F',
+            'CCCCCCCCCCCCC/C=C/C(O)C(CO)NC(=O)Cn1nnc2c1CC[C@@H]1[C@H](CC2)[C@@H]1COC(=O)CC[NH:1][C:2]1=[C:3]2/[CH:4]=[CH:5]/[CH:6]=[N+:7]2[B-](F)(F)n2cccc21',
+            'COc1c(Nc2ccc(C)cc2)nc(N2CCOCC2)nc1C(=N)/C=[C:3]([CH:2]=[NH:1])/[C:4]1=[CH:5]/[CH:6]=[N+:7]1C',
+            'CCCCCCCC[N:3]1[CH2:2][NH:1]C[C:5](/[CH:6]=[N+:7](/C)[O-])=[CH:4]\\1',
+            'CCCC(CNC)OC1C=CC(C(C)[NH:1][CH2:2][C:3]2=[N+:7]=[C:6]3C=C(C(=C(C)NC4CCCC4)C(C)N)C(=O)CCC(CC)/[C:5]3=[N:4]\\2)CC1',
+            'CC1(CCCCCC(=O)O)c2cc(S(=O)(=O)O)ccc2[N+:7](CCCCS(=O)(=O)O)=[C:6]1/[CH:5]=[CH:4]/[CH:3]=[CH:2][NH:1]c1ccccc1',
+            'C=[N+:7]=[C:6]1C[N:3]([C:2](=Nc2cccc(OC(F)F)c2)[NH:1]C#N)/[N:4]=[C:5]/1c1ccc(Cl)c(C)c1',
+            'C#CC(=NC1C(C)=C(OCCN2CCCOCC2)C=CC1Cl)[NH:1][C:2]1=[N+:7]=[C:6]=[CH:5]/[C:4](C(F)(F)F)=[CH:3]/1',
+            'O/C=C/C=C/CC/C=C/CCCC[N+:7]1=[CH:6]/[CH:5]=[CH:4]/[C@:3]2(CC/C=C/CCCCCC[NH:1][CH2:2]2)C1'
+        ]
+        mols = [Molecule.from_string(b, 'smi').get_embedded_molecule() for b in systems]
+        vd = 100
+        offset = 25
+        lineskip = 30
+        nrows = len(mols) // 2
+        baseline = nrows // 2 * (-lineskip)
+        fs = 8
+        fig = mols[0].plot(
+            backend='rdkit',
+            plot_range=10.1 * np.array([[-1, 1], [-1, 1], [-1, 1]]),
+            image_size=[1500, 1500],
+            # background='pink',
+            view_settings={
+                'view_distance': vd,
+                'view_center': [-offset, baseline, 0]
+            },
+            font_size=fs
+        )
+        for i, m in enumerate(mols[1:]):
+            i = i + 1
+            i, j = i // 2, i % 2
+            m.plot(figure=fig,
+                   backend='rdkit',
+                   view_settings={
+                       'view_distance': vd,
+                       'view_center': [-offset if j == 0 else offset, baseline + lineskip * i, 0]
+                   },
+                   font_size=fs
+                   )
+        fig.show()
+```
+
+#### <a name="Manipulator">Manipulator</a>
+```python
+    def test_Manipulator(self):
+        from Psience.Molecools import Molecule
+        import McUtils.Numputils as nput
+        import numpy as np
+        bits = Molecule.from_string("C1CCOCC1=O", "smi", confgen_opts=dict(random_seed=21232)).get_embedded_molecule()
+
+        vv = [0, 0, 1]
+        uv = [1, 0, 0]
+
+        def prep_up_vector(view_angle):
+            if view_angle is None or isinstance(view_angle, str):
+                view_angle = 0
+            return nput.rotation_matrix(vv, view_angle) @ np.array(uv)
+
+        def plot_mol(view_angle, view_dist, view_x=0, view_z=0, **etc):
+            uuuh = bits.plot(backend='matplotlib',
+                             image_size=[500, 500],
+                             highlight_atoms=[0, 1, 2],
+                             draw_coords={
+                                 (0, 4): {
+                                     'label': "r",
+                                     'line_color': 'pink',
+                                     'label_style': {'font_size': 20, 'color': 'red'}
+                                 },
+                                 (0, 1, 2): {
+                                     'label': "a",
+                                     'line_color': 'pink',
+                                     'label_style': {'font_size': 20, 'color': 'blue'}
+                                 }
+                             },
+                             plot_range=[[-3, 3], [-3, 3], [-3, 3]],
+                             view_settings={
+                                 'view_distance': (
+                                     5
+                                     if view_dist is None or isinstance(view_dist, str) else
+                                     view_dist
+                                 ),
+                                 'up_vector': prep_up_vector(view_angle),
+                                 'view_vector': vv
+                             },
+                             principle_axes=True,
+                             include_save_buttons=True)
+            return uuuh.to_widget()
+
+        import McUtils.Jupyter as interactive
+        woof = interactive.Manipulator(
+            plot_mol,
+            ['view_angle', {'range': [-np.pi, np.pi], 'value': 0, 'continuous_update': True}],
+            ['view_dist', {'range': [1, 20], 'value': 10}],
+        )
+        woof
+```
+
+#### <a name="ManipulatorRDKit">ManipulatorRDKit</a>
+```python
+    def test_ManipulatorRDKit(self):
+        from Psience.Molecools import Molecule
+        import McUtils.Numputils as nput
+        import numpy as np
+        bits = Molecule.from_string("C1CCOCC1=O", "smi").get_embedded_molecule()
+
+        def prep_up_vector(view_angle):
+            if view_angle is None or isinstance(view_angle, str):
+                view_angle = 0
+            return nput.rotation_matrix([0, 0, 1], view_angle) @ np.array([0, 1, 0])
+
+        def plot_mol(view_angle, view_dist, view_x=0, view_z=0, **etc):
+            uuuh = bits.plot(backend='rdkit',
+                             image_size=[500, 500],
+                             highlight_atoms=[0, 1, 2],
+                             draw_coords={
+                                 (0, 4): "r",
+                                 (0, 1, 2): {
+                                     'label': "t",
+                                     'label_style': {'font_size': 22, 'font_family': 'Arial', 'color': 'red'}
+                                 }
+                             },
+                             postdraw=[
+                                 {
+                                     'pattern': 'labels_1',
+                                     'classes': True,
+                                     'replacement': {'text': "θ", 'mode': 'svg'}
+                                 }
+                             ],
+                             view_settings={
+                                 'view_distance': (
+                                     5
+                                     if view_dist is None or isinstance(view_dist, str) else
+                                     view_dist
+                                 ),
+                                 'up_vector': prep_up_vector(view_angle),
+                                 'view_vector': [0, 0, 1]
+                             })
+            return uuuh.to_widget()
+```
+
+#### <a name="SurfaceNormals">SurfaceNormals</a>
+```python
+    def test_SurfaceNormals(self):
+        mol = Molecule.from_file(
+            TestManager.test_data('tbhp_180.fchk')
+        )
+        fig = mol.plot(backend='x3d')
+        surf = mol.get_surface(samples=100)
+        hull = surf.get_triangulation()
+        hull.plot(figure=fig, solid=True, normals=True, normal_scaling=.1)
+        fig.show()
 ```
 
  </div>

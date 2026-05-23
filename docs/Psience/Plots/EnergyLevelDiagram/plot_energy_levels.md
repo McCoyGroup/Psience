@@ -1,11 +1,11 @@
 # <a id="Psience.Plots.EnergyLevelDiagram.plot_energy_levels">plot_energy_levels</a>
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Plots/EnergyLevelDiagram.py#L10)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Plots/EnergyLevelDiagram.py#L10?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Plots/EnergyLevelDiagram.py#L11)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Plots/EnergyLevelDiagram.py#L11?message=Update%20Docs)]
 </div>
 
 ```python
-plot_energy_levels(energy_list, figure: McUtils.Plots.Graphics.Graphics = None, x_list=None, bar_spacing=0.025, bar_width=None, plot_range=None, color='black', ticks=None, labels=None, bar_styles=None, **styles): 
+plot_energy_levels(energy_list, figure: McUtils.Plots.Graphics.Graphics = None, x_list=None, bar_spacing=0.025, bar_width=None, plot_range=None, color='black', ticks=None, labels=None, bar_styles=None, connect=False, connection_style=None, scaled_x=False, **styles): 
 ```
 
 
@@ -59,7 +59,7 @@ plot_energy_levels(energy_list, figure: McUtils.Plots.Graphics.Graphics = None, 
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Plots/EnergyLevelDiagram/plot_energy_levels.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Plots/EnergyLevelDiagram/plot_energy_levels.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Plots/EnergyLevelDiagram.py#L10?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Plots/EnergyLevelDiagram.py#L11?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

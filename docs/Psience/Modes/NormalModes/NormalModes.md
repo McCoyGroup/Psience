@@ -20,8 +20,6 @@
  <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
  ```python
 name: str
-ModeData: ModeData
-default_zero_freq_cutoff: float
 default_projected_zero_freq_cutoff: NoneType
 ```
 <a id="Psience.Modes.NormalModes.NormalModes.__init__" class="docs-object-method">&nbsp;</a> 
@@ -34,25 +32,14 @@ __init__(self, basis, coeffs, freqs=None, origin=None, masses=None, inverse=None
 </div>
 
 
-<a id="Psience.Modes.NormalModes.NormalModes.get_normal_modes" class="docs-object-method">&nbsp;</a> 
-```python
-@classmethod
-get_normal_modes(cls, f_matrix, mass_spec, remove_transrot=True, dimensionless=False, mass_weighted=None, zero_freq_cutoff=None, return_gmatrix=False, projector=None): 
-```
-<div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L46)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L46?message=Update%20Docs)]
-</div>
-
-
 <a id="Psience.Modes.NormalModes.NormalModes.from_fg" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
 from_fg(cls, basis, f_matrix, mass_spec, remove_transrot=True, dimensionless=False, zero_freq_cutoff=None, mass_weighted=None, origin=None, projector=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L228)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L228?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L44)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L44?message=Update%20Docs)]
 </div>
 Generates normal modes from the specified F and G matrices
   - `basis`: `Any`
@@ -77,8 +64,8 @@ Generates normal modes from the specified F and G matrices
 from_molecule(cls, mol, dimensionless=False, use_internals=None, potential_derivatives=None, project_transrot=True, zero_freq_cutoff=None, masses=None, energy_evaluator=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L277)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L277?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L93)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L93?message=Update%20Docs)]
 </div>
 
 
@@ -87,8 +74,8 @@ from_molecule(cls, mol, dimensionless=False, use_internals=None, potential_deriv
 get_reaction_path_modes(self, grad: numpy.ndarray, zero_gradient_cutoff=None, return_status=False, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L379)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L379?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Modes/NormalModes/NormalModes.py#L195)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Modes/NormalModes/NormalModes.py#L195?message=Update%20Docs)]
 </div>
  </div>
 </div>
