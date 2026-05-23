@@ -40,7 +40,7 @@ class MolecularEmbedding:
                  ):
 
         self._coords = CoordinateSet(coords, MolecularCartesianCoordinateSystem(masses, coords))
-        self._regged = False
+        self.registered_converters = None
         if isinstance(internals, CoordinateSet):
             self._int_spec = None
             self._ints = internals
@@ -64,10 +64,13 @@ class MolecularEmbedding:
             return carts
 
     def register(self):
-        if not self._regged:
-            self._regged = True
-            MolecularCartesianToRegularCartesianConverter(self._coords.system).register()
-            RegularCartesianToMolecularCartesianConverter(self._coords.system).register()
+        if not self.registered_converters:
+            self.registered_converters = (
+                MolecularCartesianToRegularCartesianConverter(self._coords.system),
+                RegularCartesianToMolecularCartesianConverter(self._coords.system)
+            )
+            for r in self.registered_converters:
+                r.register()
     @property
     def coords(self):
         self.register()
@@ -195,8 +198,12 @@ class MolecularEmbedding:
         inverse_jacobian = opts.pop('inverse_jacobian', None)
         if specs is not None:
             ints = MolecularGenericInternalCoordinateSystem(masses, coords, specs=specs, **opts)
-            MolecularCartesianToGICConverter(coords.system, ints).register()
-            MolecularGICToCartesianConverter(ints, coords.system).register()
+            ints.registered_converters = (
+                MolecularCartesianToGICConverter(coords.system, ints),
+                MolecularGICToCartesianConverter(ints, coords.system)
+            )
+            for conv in ints.registered_converters:
+                conv.register()
             coords = coords.convert(ints, reference_internals=spec.get('reference_internals'))
             cops = coords.converter_options
             for k in [
@@ -211,16 +218,24 @@ class MolecularEmbedding:
             iterative = opts.pop('iterative', False)
             if iterative:
                 zms = MolecularIZCoordinateSystem(masses, coords, ordering=zmatrix, **opts)
-                MolecularCartesianToIZConverter(coords.system, zms).register()
-                MolecularIZToCartesianConverter(zms, coords.system).register()
-                MolecularIZToRegularIZConverter(zms).register()
-                RegularIZToMolecularIZConverter(zms).register()
+                zms.registered_converters = (
+                    MolecularCartesianToIZConverter(coords.system, zms),
+                    MolecularIZToCartesianConverter(zms, coords.system),
+                    MolecularIZToRegularIZConverter(zms),
+                    RegularIZToMolecularIZConverter(zms)
+                )
+                for conv in zms.registered_converters:
+                    conv.register()
             else:
                 zms = MolecularZMatrixCoordinateSystem(masses, coords, ordering=zmatrix, **opts)
-                MolecularCartesianToZMatrixConverter(coords.system, zms).register()
-                MolecularZMatrixToCartesianConverter(zms, coords.system).register()
-                MolecularZMatrixToRegularZMatrixConverter(zms).register()
-                RegularZMatrixToMolecularZMatrixConverter(zms).register()
+                zms.registered_converters = (
+                    MolecularCartesianToZMatrixConverter(coords.system, zms),
+                    MolecularZMatrixToCartesianConverter(zms, coords.system),
+                    MolecularZMatrixToRegularZMatrixConverter(zms),
+                    RegularZMatrixToMolecularZMatrixConverter(zms)
+                )
+                for conv in zms.registered_converters:
+                    conv.register()
             coords = coords.convert(zms)
         if conversion is not None:
             conv = CompositeCoordinateSystem.register(
