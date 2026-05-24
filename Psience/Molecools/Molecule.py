@@ -123,6 +123,16 @@ class Molecule(AbstractMolecule):
         self._bonds = bonds
         self.guess_bonds = guess_bonds
 
+        if charge is not None:
+            metadata['charge'] = charge
+        if spin is not None:
+            metadata['spin'] = spin
+        if formal_charges is not None:
+            metadata['formal_charges'] = formal_charges
+        self._meta = metadata
+        self._fragment_indices = None
+
+        self._rdmol = rdmol
         # a little messy
         self._embedding = MolecularEmbedding(self.atomic_masses, coords, None)
         internals = self.canonicalize_internals(internals, self.atoms, coords, bonds, masses=self._mass)
@@ -150,16 +160,6 @@ class Molecule(AbstractMolecule):
 
         self._evaluator = None
         self._hamiltonian = None
-
-        self._fragment_indices = None
-
-        if charge is not None:
-            metadata['charge'] = charge
-        if spin is not None:
-            metadata['spin'] = spin
-        if formal_charges is not None:
-            metadata['formal_charges'] = formal_charges
-        self._meta = metadata
 
         if display_mode is None:
             display_mode = self.default_display_mode
@@ -864,8 +864,8 @@ class Molecule(AbstractMolecule):
     def get_cartesians_by_internals(self, order=None, coords=None, *, strip_embedding=False, **kw):
         return self.embedding.get_cartesians_by_internals(coords=coords, order=order, strip_embedding=strip_embedding, **kw)
 
-    def get_internals_by_cartesians(self, order=None, *, strip_embedding=False, **kw):
-        return self.embedding.get_internals_by_cartesians(order=order, coords=None, strip_embedding=strip_embedding, **kw)
+    def get_internals_by_cartesians(self, order=None, *, coords=None, strip_embedding=False, **kw):
+        return self.embedding.get_internals_by_cartesians(order=order, coords=coords, strip_embedding=strip_embedding, **kw)
 
     def get_cartesians_by_modes(self, order=None, **kw):
         return self.mode_embedding.get_cartesians_by_internals(order=order, **kw)

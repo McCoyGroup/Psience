@@ -1641,6 +1641,13 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
         :rtype:
         """
 
+        if origins is not None:
+            if np.linalg.norm(coords[0] - origins) < nput.Options.norm_zero_threshold:
+                origins = (
+                        origins
+                        + nput.vec_normalize(np.random.uniform(size=origins.shape)) * 2 * nput.Options.norm_zero_threshold
+                )
+
         zmcs, opts = self.convert_many(np.array([coords]),
                                        masses=masses,
                                        dummy_positions=dummy_positions,
