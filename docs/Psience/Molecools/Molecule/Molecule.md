@@ -376,7 +376,7 @@ get_cartesians_by_internals(self, order=None, coords=None, *, strip_embedding=Fa
 
 <a id="Psience.Molecools.Molecule.Molecule.get_internals_by_cartesians" class="docs-object-method">&nbsp;</a> 
 ```python
-get_internals_by_cartesians(self, order=None, *, strip_embedding=False, **kw): 
+get_internals_by_cartesians(self, order=None, *, coords=None, strip_embedding=False, **kw): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L867)/
