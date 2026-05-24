@@ -5873,7 +5873,7 @@ class MolecoolsTests(TestCase):
                              })
             return uuuh.to_widget()
 
-    @debugTest
+    @validationTest
     def test_SurfaceNormals(self):
         mol = Molecule.from_file(
             TestManager.test_data('tbhp_180.fchk')
@@ -5883,3 +5883,59 @@ class MolecoolsTests(TestCase):
         hull = surf.get_triangulation()
         hull.plot(figure=fig, solid=True, normals=True, normal_scaling=.1)
         fig.show()
+
+    @debugTest
+    def test_CartesiansOtherCoords(self):
+        # from McUtils.Formatters import format_elapsed_time
+        #
+        # print(format_elapsed_time(13774))
+        # return
+
+        import McUtils.Coordinerds as coordops
+
+        crds = [
+                [0, 0, 0],
+                [2, 0, 0],
+                nput.rotation_matrix([0, 0, 1], np.pi/2) @ [2, 0, 0],
+                nput.rotation_matrix([0, 0, 1], np.pi) @ [2, 0, 0]
+            ]
+        mol = Molecule(
+            ["N", "H", "H", "H"],
+            crds,
+            internals=[[0, -1, -2, -3],
+                       [1,  0, -1, -2],
+                       [2,  0,  1, -1],
+                       [3,  0,  1,  2]]
+        )
+        # mol.plot().show()
+        mol.animate_coordinate(
+            coordops.zmatrix_indices(mol.internals['zmatrix'], (3, 0, 1)),
+            extent=.1
+            # highlight_atoms=[3, 0, 2]
+        ).show()
+        # _, v = nput.internal_coordinate_tensors(
+        #     mol.coords,
+        #     [(0, 1, 2)],
+        #     order=1,
+        #     up_vector=[0, 0, 1],
+        #     return_inverse=True,
+        #     masses=mol.masses
+        # )
+        # mol.animate_coordinate(0, extent=.1, coordinate_expansion=v).show()
+
+        return
+
+        mol = Molecule.from_file(
+            TestManager.test_data('tbhp_180.fchk'),
+            internals='zmatrix'
+        )
+        new_coords = mol.get_scan_coordinates(
+            [[-1, 1, 3]],
+            which=[5],
+            strip_embedding=True
+        )
+
+        uuuh1 = mol.modify(coords=new_coords[0]).get_cartesians_by_internals(order=1, strip_embedding=True)
+        uuuh2 = mol.get_cartesians_by_internals(order=1, coords=new_coords[0], strip_embedding=True)
+
+        print(np.round(uuuh1[0] - uuuh2[0], 8))
