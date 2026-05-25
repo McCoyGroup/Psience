@@ -977,12 +977,28 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         return expansion
 
 
+    evaluator_registry: dict
+    @classmethod
+    def register(cls, name, method=None):
+        if method is None and hasattr(name, 'name'):
+            method = name
+            name = method.name
+        if method is not None:
+            cls.evaluator_registry[name] = method
+            return method
+        else:
+            def register(method, name=name):
+                return cls.register(name, method)
+            return register
 
     # evaluator_types = {}
     @classmethod
-    @abc.abstractmethod
     def get_evaluators(cls):
-        ...
+        return {}
+
+    @classmethod
+    def get_evaluator_map(cls):
+        return cls.evaluator_registry | cls.get_evaluators()
 
     @classmethod
     def get_evaluators_by_attributes(cls):
@@ -995,7 +1011,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         cls._profile_dispatch = dev.handle_uninitialized(
             cls._profile_dispatch,
             dev.OptionsMethodDispatch,
-            args=(cls.get_evaluators,),
+            args=(cls.get_evaluator_map,),
             kwargs=dict(
                 # default_method=cls.default_evaluator_type,
                 attributes_map=cls.get_evaluators_by_attributes(),
@@ -1007,6 +1023,22 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_default_function_evaluator_type(cls):
         ...
+
+    @classmethod
+    def _resolve_torch_device(cls, device=None):
+        if device is None:
+            import torch
+            device = (
+                # 'mps'
+                #     if torch.backends.mps.is_available() else
+                'cuda'
+                    if torch.cuda.is_available() else
+                'cpu'
+            )
+        return device
+    @classmethod
+    def handle_specialization(cls, tag):
+        raise NotImplementedError(f"{cls.__name__} does not handle specializations (got {tag})")
 
     @classmethod
     def resolve_evaluator(cls, name):
@@ -1022,7 +1054,14 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                 return eval, {}
             else:
                 raise ValueError(f"can't get construct evalautor of type {cls} from {name}")
-        return cls.profile_generator_dispatch().resolve(name)
+        elif isinstance(name, str) and ':' in name:
+            name, tag = name.split(':', 1)
+        else:
+            tag = None
+        base, opts = cls.profile_generator_dispatch().resolve(name)
+        if tag is not None:
+            opts = opts | base.handle_specialization(tag)
+        return base, opts
 
     class quiet_mode:
         def __init__(self, quiet=True):
@@ -1112,19 +1151,21 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
 class EnergyEvaluator(PropertyEvaluator):
 
     target_property_units = 'Hartrees'
-    @classmethod
-    def get_evaluators(cls):
-        return {
-            'rdkit': RDKitEnergyEvaluator,
-            'aimnet2': AIMNet2EnergyEvaluator,
-            'mace': MACEEnergyEvaluator,
-            'uma': UMAEnergyEvaluator,
-            'hipnn':HIPNNEnergyEvaluator,
-            'ase': ASECalcEnergyEvaluator,
-            'xtb': XTBEnergyEvaluator,
-            'pyscf': PySCFEnergyEvaluator,
-            'expansion': PotentialExpansionEnergyEvaluator
-        }
+    evaluator_registry = {}
+
+    # @classmethod
+    # def get_evaluators(cls):
+    #     return {
+    #         'rdkit': RDKitEnergyEvaluator,
+    #         'aimnet2': AIMNet2EnergyEvaluator,
+    #         'mace': MACEEnergyEvaluator,
+    #         'uma': UMAEnergyEvaluator,
+    #         'hipnn':HIPNNEnergyEvaluator,
+    #         'ase': ASECalcEnergyEvaluator,
+    #         'xtb': XTBEnergyEvaluator,
+    #         'pyscf': PySCFEnergyEvaluator,
+    #         'expansion': PotentialExpansionEnergyEvaluator
+    #     }
     @classmethod
     def get_evaluators_by_attributes(cls):
         return {
@@ -2259,7 +2300,7 @@ class EnergyEvaluator(PropertyEvaluator):
 
         return results
 
-
+@EnergyEvaluator.register('rdkit')
 class RDKitEnergyEvaluator(EnergyEvaluator):
     def __init__(self, rdmol, force_field='mmff', charge=None, multiplicity=None, **defaults):
         super().__init__(**defaults)
@@ -2322,19 +2363,24 @@ class RDKitEnergyEvaluator(EnergyEvaluator):
                 **opts
             )
 
+@EnergyEvaluator.register('aimnet2')
 class AIMNet2EnergyEvaluator(EnergyEvaluator):
     """
     Borrows structure from AIMNet2ASE to call appropriately
     """
-    def __init__(self, atoms, model='aimnet2', charge=0, multiplicity=None, quiet=True, **defaults):
+    def __init__(self, atoms, model='aimnet2', charge=0, device=None, multiplicity=None, quiet=True, **defaults):
         super().__init__(**defaults)
-        self.eval = self.setup_aimnet(model)
+        self.eval = self.setup_aimnet(model, device=device)
         self.model = model
         self.atoms = atoms
         self.numbers = [AtomData[atom, "Number"] for atom in atoms]
         self.charge = charge
         self.multiplicity = multiplicity
         self.quiet = quiet
+
+    @classmethod
+    def handle_specialization(cls, tag):
+        return {'model':tag}
 
     @classmethod
     def from_mol(cls, mol, **opts):
@@ -2407,7 +2453,7 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
         )
 
     @classmethod
-    def setup_aimnet(cls, model):
+    def setup_aimnet(cls, model, device=None):
         if isinstance(model, str):
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
@@ -2418,7 +2464,8 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                         from aimnet2calc import AIMNet2Calculator
 
             with cls.quiet_mode():
-                calc = AIMNet2Calculator(model)
+                device = cls._resolve_torch_device(device)
+                calc = AIMNet2Calculator(model, device=device)
         else:
             calc = model
 
@@ -2798,9 +2845,12 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
     #             **opts
     #         )
 
+@EnergyEvaluator.register('ase')
 class ASECalcEnergyEvaluator(EnergyEvaluator):
     def __init__(self, atoms, charge=0, multiplicity=1, quiet=True, embedding=None, **defaults):
-        super().__init__(**defaults)
+        d = defaults.copy()
+        d.pop('calc', None)
+        super().__init__(**d)
         self.eval = self.setup_calc(**defaults)
         self.atoms = atoms
         self.numbers = [AtomData[atom, "Number"] for atom in atoms]
@@ -2917,40 +2967,88 @@ class ASECalcEnergyEvaluator(EnergyEvaluator):
     #             **opts
     #         )
 
+@EnergyEvaluator.register('mace')
 class MACEEnergyEvaluator(ASECalcEnergyEvaluator):
     analytic_derivative_order = 2
     @classmethod
-    def setup_calc(cls, model='extra_large', device=None, **settings):
-        model = model.lower()
-        with cls.quiet_mode():
-            if model == 'extra_large':
-                from mace.calculators import mace_omol as model_type
-            else:
-                from mace.calculators import mace_off as model_type
+    def handle_specialization(cls, tag):
+        return {'model':tag}
 
-            import torch
-            if device is None:
-                device = 'cuda' if torch.cuda.is_available() else 'cpu'
-            calc = model_type(model=model, device=device, **settings)
+    model_types = {
+        'extra_large':'omol/extra_large',
+        "small":'off/small',
+        "medium":'off/medium',
+        "large":'off/large',
+        'anicc':'anicc/none',
+        'off':'off/large',
+        'mp':'mp/medium-mpa-0',
+        'polar':'polar/polar-1-l'
+    }
+    @classmethod
+    def setup_calc(cls, model='extra_large', model_type=None, device=None, **settings):
+        model = model.lower()
+        model = cls.model_types.get(model, model)
+        if model_type is None:
+            model_type, model = model.split('/', 1)
+        if isinstance(model_type, str):
+            with cls.quiet_mode():
+                if model == 'omol':
+                    from mace.calculators import mace_omol as model_type
+                elif model_type == 'mp':
+                    from mace.calculators import mace_mp as model_type
+                elif model_type == 'anicc':
+                    from mace.calculators import mace_anicc as model_type
+                elif model_type == 'polar':
+                    from mace.calculators import mace_anicc as model_type
+                elif model_type == 'off':
+                    from mace.calculators import mace_off as model_type
+                else:
+                    import mace.calculators
+                    model_type = getattr(mace.calculators, model_type)
+
+        with cls.quiet_mode():
+            device = cls._resolve_torch_device(device)
+            if model == 'none':
+                calc = model_type(model=model, device=device, **settings)
+            else:
+                calc = model_type(model=model, device=device, **settings)
 
         return calc
 
+@EnergyEvaluator.register('mace')
 class UMAEnergyEvaluator(ASECalcEnergyEvaluator):
     @classmethod
-    def setup_calc(cls, model="uma-s-1p1", device=None, task_name='omol', **settings):
+    def handle_specialization(cls, tag):
+        return {'model':tag}
+
+    model_types = {
+        'medium':'uma-m-1p1/omol',
+        'small':'uma-s-1p2/omol',
+        'crystals':'uma-s-1p2/omc',
+        'crystals/small':'uma-s-1p2/omc',
+        'crystals/medium':'uma-m-1p1/omc',
+        'inorganics/small':'uma-s-1p2/omat',
+        'inorganics/medium':'uma-m-1p1/omat',
+    }
+    @classmethod
+    def setup_calc(cls, model="uma-s-1p2", device=None, task_name=None, **settings):
         from fairchem.core import pretrained_mlip, FAIRChemCalculator
-        import ase.calculators.calculator
+
+        if task_name is None:
+            if '/' in model:
+                model, task_name = model.split('/', 1)
+            else:
+                task_name = 'omol'
 
         model = model.lower()
         with cls.quiet_mode():
-            import torch
-            if device is None:
-                device = 'cuda' if torch.cuda.is_available() else 'cpu'
+            device = cls._resolve_torch_device(device)
             predictor = pretrained_mlip.get_predict_unit(model, device=device)
             calc = FAIRChemCalculator(predictor, task_name=task_name, **settings)
 
         return calc
 
+@EnergyEvaluator.register('hipnn')
 class HIPNNEnergyEvaluator(EnergyEvaluator):
     property_key = 'energies'
     gradient_key = 'Grad'
@@ -2971,6 +3069,10 @@ class HIPNNEnergyEvaluator(EnergyEvaluator):
         if dev.is_default(gradient_key, allow_None=False):
             gradient_key = self.gradient_key
         self.gradient_key = gradient_key
+
+    @classmethod
+    def handle_specialization(cls, tag):
+        return {'model_dir':tag}
 
     @classmethod
     def from_mol(cls, mol, *, model_dir, **opts):
@@ -3046,11 +3148,7 @@ class HIPNNEnergyEvaluator(EnergyEvaluator):
         import hippynn.experiment.serialization
         cur_dir = os.getcwd()
 
-        if device is None:
-            if torch.cuda.is_available():
-                device = "cuda"
-            else:
-                device = "cpu"
+        device = cls._resolve_torch_device(device)
         try:
             os.chdir(model_dir)
             with torch.no_grad():
@@ -3209,6 +3307,7 @@ class HIPNNEnergyEvaluator(EnergyEvaluator):
             ]
 
 
+@EnergyEvaluator.register('xtb')
 class XTBEnergyEvaluator(EnergyEvaluator):
     """
     Uses XTB to calculate
@@ -3225,6 +3324,10 @@ class XTBEnergyEvaluator(EnergyEvaluator):
         self.quiet = quiet
         self.method = method
         self.charge = charge
+
+    @classmethod
+    def handle_specialization(cls, tag):
+        return {'method':tag}
 
     @classmethod
     def from_mol(cls, mol, **opts):
@@ -3315,6 +3418,7 @@ class XTBEnergyEvaluator(EnergyEvaluator):
     #             **opts
     #         )
 
+@EnergyEvaluator.register('pyscf')
 class PySCFEnergyEvaluator(EnergyEvaluator):
     """
     """
@@ -3355,6 +3459,11 @@ class PySCFEnergyEvaluator(EnergyEvaluator):
         if quiet:
             molecule_options['verbose'] = molecule_options.get('verbose', 0)
         self.molecule_options = molecule_options
+
+    @classmethod
+    def handle_specialization(cls, tag):
+        lot, basis = tag.split("/", 1)
+        return {'level_of_theory':lot, 'basis':basis}
 
     _default_caller = 'dft'
     @property
@@ -3609,7 +3718,7 @@ class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
     def bind_default(cls, potential):
         cls.default_property_function = potential
 
-
+@EnergyEvaluator.register("expansion")
 class PotentialExpansionEnergyEvaluator(PotentialFunctionEnergyEvaluator):
 
     def __init__(self,
