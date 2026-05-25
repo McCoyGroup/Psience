@@ -5884,7 +5884,7 @@ class MolecoolsTests(TestCase):
         hull.plot(figure=fig, solid=True, normals=True, normal_scaling=.1)
         fig.show()
 
-    @debugTest
+    @validationTest
     def test_CartesiansOtherCoords(self):
         # from McUtils.Formatters import format_elapsed_time
         #
@@ -5939,3 +5939,15 @@ class MolecoolsTests(TestCase):
         uuuh2 = mol.get_cartesians_by_internals(order=1, coords=new_coords[0], strip_embedding=True)
 
         print(np.round(uuuh1[0] - uuuh2[0], 8))
+
+    @debugTest
+    def test_EvaluatorModels(self):
+        import os
+        os.environ["TORCH_COMPILE_DISABLE"] = "1"
+
+        Molecule.from_string(
+            'CC[N:1]',
+            add_implicit_hydrogens='full',
+            energy_evaluator='aimnet2:aimnet2nse',
+            spin=1
+        ).optimize(max_iterations=100).animate_mode(0).show()
