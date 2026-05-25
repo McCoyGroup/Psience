@@ -5,7 +5,7 @@
 </div>
 
 ```python
-plot_energy_levels(energy_list, figure: McUtils.Plots.Graphics.Graphics = None, x_list=None, bar_spacing=0.025, bar_width=None, plot_range=None, color='black', ticks=None, labels=None, bar_styles=None, connect=False, connection_style=None, scaled_x=False, **styles): 
+plot_energy_levels(energy_list, figure: McUtils.Plots.Graphics.Graphics = None, x_list=None, bar_spacing=0.2, bar_width=None, plot_range=None, color='black', ticks=None, labels=None, bar_styles=None, connect=False, connection_style=None, scaled_x=False, **styles): 
 ```
 
 
