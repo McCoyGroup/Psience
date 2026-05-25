@@ -10,7 +10,7 @@ __all__ = [
 
 def plot_energy_levels(energy_list, figure: plt.Graphics = None,
                        x_list=None,
-                       bar_spacing=.025,
+                       bar_spacing=.2,
                        bar_width=None,
                        plot_range=None,
                        color='black',
@@ -44,36 +44,40 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
     if plot_range is None and figure is not None:
         plot_range = figure.plot_range
 
+    if x_list is None:
+        neng = len(energy_list)
+        x_list = np.linspace(0, 1, neng)
     if x_list is not None and not scaled_x:
         x_list = np.asanyarray(x_list)
         x_min = np.min(x_list)
         x_max = np.max(x_list)
-        diff = (x_max - x_min) / (1 - 2*bar_spacing)
-        x_range = [x_min - bar_spacing * diff, x_max + bar_spacing * diff]
+        if bar_width is None:
+            bar_width = np.min(np.diff(np.sort(np.array(x_list).flatten())))
+        x_range = [x_min - bar_width / 2, x_max + bar_width / 2]
     elif plot_range is not None and not nput.is_numeric(plot_range[0]):
+        scaled_x = True
         x_range = plot_range[0]
     else:
         x_range = [0, 1]
-    if x_list is None:
-        neng = len(energy_list)
-        x_list = [[i / neng + bar_spacing, (i + 1) / neng - bar_spacing] for i in range(neng)]
-    elif nput.is_numeric(x_list[0]):
+    if nput.is_numeric(x_list[0]):
         x_list = np.asanyarray(x_list)
-        x_min = np.min(x_list)
-        x_max = np.max(x_list)
+        # x_min = np.min(x_list)
+        # x_max = np.max(x_list)
         if bar_width is None:
             bar_width = np.min(np.diff(np.sort(x_list)))
         pad = bar_width / 2
-        x_range = [x_min - pad, x_max + pad]
-        s = bar_spacing * (x_range[-1] - x_range[0])
+        s = bar_spacing * bar_width
         x_list = [[x - pad + s, x + pad - s] for x in x_list]
 
     x_list = np.asanyarray(x_list)
     x_min = np.min(x_list)
     x_max = np.max(x_list)
-    diff = (x_max - x_min) / (1 - 2 * bar_spacing)
-    cur_range = [x_min - bar_spacing * diff, x_max + bar_spacing * diff]
-    x_list = np.reshape(nput.vec_rescale(x_list.flatten(), x_range, cur_range=cur_range), x_list.shape)
+    if bar_width is None:
+        bar_width = np.min(np.diff(np.sort(np.array(x_list).flatten())))
+    if scaled_x:
+        cur_range = [x_min - bar_width/2, x_max + bar_spacing/2]
+        x_list = np.reshape(nput.vec_rescale(x_list.flatten(), x_range, cur_range=cur_range), x_list.shape)
+
 
     if plot_range is None or nput.is_numeric(plot_range[0]):
         plot_range = [x_range, plot_range]
