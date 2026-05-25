@@ -47,7 +47,7 @@ class PlotTests(TestCase):
             'prod': [-25.01321145379916]
         }, connect=True).show()
 
-    @debugTest
+    @validationTest
     def test_PlotOnOtherPlot(self):
 
         fun = lambda x: -(np.cos((1 - np.array(x)) * 2*np.pi) - (1 - np.array(x)))
@@ -63,4 +63,22 @@ class PlotTests(TestCase):
             'r': {'x': pts[0], 'y':[vals[0]]},
             'ts': {'x': pts[1], 'y':[vals[1]]},
             'prod': {'x': pts[2], 'y':[vals[2]]},
+        }, connect=True, figure=f, bar_spacing=.4).show()
+
+
+    def test_DisorederedXRange(self):
+        fun = lambda x: -(np.cos((1 - np.array(x)) * 2*np.pi) - (1 - np.array(x)))
+
+        pts = [1, 0, .475, 1]
+        vals = fun(pts)
+
+        f = plt.Plot(
+            np.linspace(0, 1, 20),
+            fun(np.linspace(0, 1, 20)),
+        )
+        plot_energy_levels({
+            'r': {'x': pts[0], 'y':[vals[0]]},
+            'ts': {'x': pts[1], 'y':[vals[1]]},
+            'prod': {'x': pts[2], 'y':[vals[2]]},
+            'prod2': {'x': pts[3], 'y':[vals[3]]},
         }, connect=True, figure=f, bar_spacing=.4).show()

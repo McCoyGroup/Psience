@@ -52,7 +52,9 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
         x_min = np.min(x_list)
         x_max = np.max(x_list)
         if bar_width is None:
-            bar_width = np.min(np.diff(np.sort(np.array(x_list).flatten())))
+            d = np.abs(np.diff(np.sort(np.array(x_list).flatten())))
+            d[d < 1e-8] = np.max(2) * 2
+            bar_width = np.min(d)
         x_range = [x_min - bar_width / 2, x_max + bar_width / 2]
     elif plot_range is not None and not nput.is_numeric(plot_range[0]):
         scaled_x = True
@@ -64,7 +66,9 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
         # x_min = np.min(x_list)
         # x_max = np.max(x_list)
         if bar_width is None:
-            bar_width = np.min(np.diff(np.sort(x_list)))
+            d = np.abs(np.diff(np.sort(np.array(x_list).flatten())))
+            d[d < 1e-8] = np.max(2) * 2
+            bar_width = np.min(d)
         pad = bar_width / 2
         s = bar_spacing * bar_width
         x_list = [[x - pad + s, x + pad - s] for x in x_list]
@@ -73,7 +77,9 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
     x_min = np.min(x_list)
     x_max = np.max(x_list)
     if bar_width is None:
-        bar_width = np.min(np.diff(np.sort(np.array(x_list).flatten())))
+        d = np.abs(np.diff(np.sort(np.array(x_list).flatten())))
+        d[d < 1e-8] = np.max(2) * 2
+        bar_width = np.min(d)
     if scaled_x:
         cur_range = [x_min - bar_width/2, x_max + bar_spacing/2]
         x_list = np.reshape(nput.vec_rescale(x_list.flatten(), x_range, cur_range=cur_range), x_list.shape)
@@ -108,6 +114,22 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
     if color is None or isinstance(color, str):
         color = [color] * len(energy_list)
 
+    if connect:
+        _ = []
+        for (a,b), (c,d) in zip(x_list[:-1], x_list[1:]):
+            if b > c and a < b:
+                b, a = a, b
+            _.append([a, b])
+        if len(x_list) > 1:
+            (a, b), (c, d) = x_list[-1], x_list[-2]
+            if b < c and a < b:
+                b, a = a, b
+            _.append([a, b])
+        else:
+            _.append(x_list[-1])
+        x_list = _
+
+
     for i, (f, x, c, s) in enumerate(zip(energy_list, x_list, color, bar_styles)):
         style_dict = dict(styles, **s)
         c = style_dict.pop('color', c)
@@ -129,7 +151,7 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
             c = style_dict.pop('color', c)
             for fp in zip(f, f2):
                 plt.Plot(
-                    [x[-1], x2[0]],
+                    [x[-1], x2[0] if abs(x2[0] - x[-1]) < abs(x2[1] - x[-1]) else x2[1]],
                     fp,
                     figure=figure,
                     color=c,
