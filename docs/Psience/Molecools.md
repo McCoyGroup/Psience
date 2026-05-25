@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-53ec4c" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-53ec4c"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-e9ad33" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e9ad33"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-53ec4c" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e9ad33" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -210,12 +210,13 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [ManipulatorRDKit](#ManipulatorRDKit)
 - [SurfaceNormals](#SurfaceNormals)
 - [CartesiansOtherCoords](#CartesiansOtherCoords)
+- [EvaluatorModels](#EvaluatorModels)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-187397" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-187397"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-6b8926" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-6b8926"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-187397" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-6b8926" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -5965,6 +5966,20 @@ class MolecoolsTests(TestCase):
         uuuh2 = mol.get_cartesians_by_internals(order=1, coords=new_coords[0], strip_embedding=True)
 
         print(np.round(uuuh1[0] - uuuh2[0], 8))
+```
+
+#### <a name="EvaluatorModels">EvaluatorModels</a>
+```python
+    def test_EvaluatorModels(self):
+        import os
+        os.environ["TORCH_COMPILE_DISABLE"] = "1"
+
+        Molecule.from_string(
+            'CC[N:1]',
+            add_implicit_hydrogens='full',
+            energy_evaluator='aimnet2:aimnet2nse',
+            spin=1
+        ).optimize(max_iterations=100).animate_mode(0).show()
 ```
 
  </div>
