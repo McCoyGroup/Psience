@@ -2465,7 +2465,12 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
 
             with cls.quiet_mode():
                 device = cls._resolve_torch_device(device)
-                calc = AIMNet2Calculator(model, device=device)
+
+                try:
+                    calc = AIMNet2Calculator(model, device=device)
+                except TypeError:
+                    calc = AIMNet2Calculator(model) # can't set device in older aimnet
+
         else:
             calc = model
 
