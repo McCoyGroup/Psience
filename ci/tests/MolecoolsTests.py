@@ -5942,6 +5942,16 @@ class MolecoolsTests(TestCase):
 
     @debugTest
     def test_EvaluatorModels(self):
+        import McUtils.Devutils as dev
+
+        print(
+            dev.str_startswith(None, 'a'),
+            dev.str_startswith(['a'], 'a'),
+            dev.str_startswith('a', 'a')
+        )
+
+        return
+
         import os
         os.environ["TORCH_COMPILE_DISABLE"] = "1"
 
