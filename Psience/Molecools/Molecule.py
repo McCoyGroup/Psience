@@ -1804,7 +1804,7 @@ class Molecule(AbstractMolecule):
                      **opts):
         #TODO: minimized duplication
         opts = dev.OptionsSet(opts)
-        base_opts = EnergyEvaluator.get_optimizer_options() + ('force_field_type',)
+        base_opts = EnergyEvaluator.get_relaxed_scan_options() + ('force_field_type',)
         optimizer_opts = opts.filter(None, props=base_opts)
         eval_opts = opts.exclude(None, props=base_opts)
         evaluator = self.get_energy_evaluator(evaluator, **eval_opts)
@@ -1815,15 +1815,15 @@ class Molecule(AbstractMolecule):
             max_iterations=max_iterations,
             logger=logger
         )
-        if self.internals is None:
-            if nput.is_numeric(scan_values[0]):
-                s, e, n = scan_values
-                scan_values = (conv * s, conv * e, n)
-            else:
-                scan_values = [
-                    (conv * s, conv * e, n)
-                    for s,e,n in scan_values
-                ]
+        # if self.internals is None:
+        #     if nput.is_numeric(scan_values[0]):
+        #         s, e, n = scan_values
+        #         scan_values = (conv * s, conv * e, n)
+        #     else:
+        #         scan_values = [
+        #             (conv * s, conv * e, n)
+        #             for s,e,n in scan_values
+        #         ]
         opts, traj, meta = evaluator.relaxed_scan(
             self.coords * conv,
             scan_values,
@@ -3007,8 +3007,8 @@ class Molecule(AbstractMolecule):
                  embedding_sel=None,
                  mass_weighted=False):
         if embed:
-            self = self.get_embedded_molecule(embed_properties=False)
             if embedding_sel is None: embedding_sel = sel
+            self = self.get_embedded_molecule(embed_properties=False, sel=embedding_sel)
             if isinstance(other, Molecule):
                 other = other.get_embedded_molecule(ref=self, sel=embedding_sel, embed_properties=False).coords
             else:

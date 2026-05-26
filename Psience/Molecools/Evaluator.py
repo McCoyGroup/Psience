@@ -169,6 +169,7 @@ class MolecularEvaluator:
                     else:
                         disp = nput.vec_tensordot(displacements, disp, axes=[-1, shared], shared=shared)
                 new_disps = new_disps + disp
+
             if expansion_active_positions is not None:
                 new_disps = new_disps[..., expansion_active_positions]
                 if strip_embedding:
@@ -2191,6 +2192,18 @@ class EnergyEvaluator(PropertyEvaluator):
                                            **opts
                                            )
 
+    @classmethod
+    def get_relaxed_scan_options(cls):
+        # import scipy.optimize._optimize
+        return cls.get_optimizer_options() + (
+            'absolute_mesh',
+            'coordinate_expansion',
+            'expansion_active_positions',
+            'include_displacement_constraints',
+            'shift',
+            'adjust_displacements',
+            'split_scan_mesh'
+        )
     def relaxed_scan(self,
                      coords,
                      displacement_specs,
@@ -2203,6 +2216,7 @@ class EnergyEvaluator(PropertyEvaluator):
                      include_displacement_constraints=True,
                      shift=True,
                      adjust_displacements=True,
+                     split_scan_mesh=True,
                      **optimization_settings
                      ):
         if isinstance(displacement_coords, dict):
@@ -2214,36 +2228,89 @@ class EnergyEvaluator(PropertyEvaluator):
                 expansion_vector[i] = v
             coordinate_expansion = [expansion_vector[np.newaxis]]
             expansion_active_positions = idx
-        if callable(displacement_coords[0]):
+        if not callable(displacement_coords) and callable(displacement_coords[0]):
             displacement_function, projected_coordinate_generator = displacement_coords
         else:
-            if nput.is_int(displacement_coords[0]):
-                displacement_coords = [displacement_coords]
-            if coordinate_constraints is None:
-                coordinate_constraints = displacement_coords
-            elif include_displacement_constraints:
-                coordinate_constraints = list(coordinate_constraints) + list(displacement_coords)
+            if not callable(displacement_coords):
+                if nput.is_int(displacement_coords[0]):
+                    displacement_coords = [displacement_coords]
+                if coordinate_constraints is None:
+                    coordinate_constraints = displacement_coords
+                elif include_displacement_constraints:
+                    coordinate_constraints = list(coordinate_constraints) + list(displacement_coords)
 
-            if self.use_internal_coordinate_handlers():
+                if self.use_internal_coordinate_handlers():
+                    d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
+                    evaluator = MolecularEvaluator(self.embedding, None)
+                    if coordinate_expansion is not None:
+                        idx = [0]
+                    else:
+                        ndim, idx = self.get_internal_coordinate_indices(displacement_coords)
+                    def displacement_function(coords, disp, idx=idx):
+                        return evaluator.get_displaced_coordinates(
+                            [disp],
+                            which=idx,
+                            use_internals='reembed',
+                            shift=shift,
+                            coords=coords * d_conv,
+                            strip_embedding=True,
+                            coordinate_expansion=coordinate_expansion,
+                            expansion_active_positions=expansion_active_positions
+                        )[0] / d_conv
+                else:
+                    raise NotImplementedError("`displacement_coords` must be a displacement generator in Cartesians")
+            else: # displacement generator
+                if coordinate_expansion is not None:
+                    raise NotImplementedError("using `displaced_coords` as a displacement generator with a `coordinate_expansion` not supported")
+
                 d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
                 evaluator = MolecularEvaluator(self.embedding, None)
-                if coordinate_expansion is not None:
-                    idx = [0]
+
+                cur_disp = [None]
+
+                def subprojector(coords, _):
+                    cd: np.ndarray = cur_disp[0]
+                    return nput.orthogonal_projection_matrix(cd)
+
+                if orthogonal_projection_generator is None:
+                    orthogonal_projection_generator = subprojector
                 else:
-                    ndim, idx = self.get_internal_coordinate_indices(displacement_coords)
-                def displacement_function(coords, disp, idx=idx):
-                    return evaluator.get_displaced_coordinates(
-                        [disp],
-                        which=idx,
-                        use_internals='reembed',
-                        shift=shift,
-                        coords=coords * d_conv,
-                        strip_embedding=True,
-                        coordinate_expansion=coordinate_expansion,
-                        expansion_active_positions=expansion_active_positions
-                    )[0] / d_conv
-            else:
-                raise NotImplementedError("TBD how I want to handle Cartesian space internal displacements")
+                    def projector(coords, mask, base=orthogonal_projection_generator):
+                        m = orthogonal_projection_generator(coords, mask)
+                        m = m @ subprojector(coords, mask)
+                        return m
+                    orthogonal_projection_generator = projector
+                if self.use_internal_coordinate_handlers():
+                    def displacement_function(coords, disp):
+                        old_coords = coords * d_conv
+                        expansion, which, active_sites = displacement_coords(old_coords, disp)
+                        new_coords = evaluator.get_displaced_coordinates(
+                            [disp],
+                            which=which,
+                            use_internals='reembed',
+                            shift=shift,
+                            coords=coords * d_conv,
+                            strip_embedding=True,
+                            coordinate_expansion=expansion[np.newaxis],
+                            expansion_active_positions=expansion_active_positions
+                        )[0] / d_conv
+                        cur_disp[0] = expansion
+                        return new_coords
+                else:
+                    def displacement_function(coords, disp):
+                        old_coords = coords * d_conv
+                        expansion, which = displacement_coords(old_coords, disp)
+                        new_coords = evaluator.get_displaced_coordinates(
+                            [disp],
+                            which=which,
+                            use_internals=False,
+                            shift=shift,
+                            coords=old_coords,
+                            coordinate_expansion=expansion,
+                            expansion_active_positions=expansion_active_positions
+                        )[0] / d_conv
+                        cur_disp[0] = (new_coords - old_coords).reshape((-1, new_coords.shape[-2] * 3, 1))
+                        return new_coords
 
         if nput.is_numeric(displacement_specs[0]):
             displacement_specs = [displacement_specs]
@@ -2256,24 +2323,49 @@ class EnergyEvaluator(PropertyEvaluator):
                 for m in displacement_specs
             ]
 
-        if shift and adjust_displacements:
-            _ = []
-            for m in mesh:
-                _.append(np.concatenate([m[:1], np.diff(m)]))
-            mesh = _
+        if split_scan_mesh:
+            # we find the nearest mesh point to (0,...) along the first axis and if need be scan both directions from there
+            z_idx = np.argmin(np.abs(mesh[0]))
+            if z_idx > 0:
+                submeshes = [
+                    ([np.flip(mesh[0][:z_idx])] + mesh[1:], True),
+                    ([mesh[0][z_idx:]] + mesh[1:], False)
+                ]
+            else:
+                submeshes = [(mesh, False)]
+        else:
+            submeshes = [(mesh, False)]
 
-        opt_res = self._optimize_along_displacements(
-            coords,
-            mesh,
-            displacement_function,
-            coordinate_constraints=coordinate_constraints,
-            orthogonal_projection_generator=orthogonal_projection_generator,
-            **optimization_settings
-        )
-        did_opt = [is_opt for is_opt, geom, meta in opt_res]
-        meta = [meta for is_opt, geom, meta in opt_res]
-        geoms = [geom for is_opt, geom, meta in opt_res]
-        return did_opt, np.asanyarray(geoms), meta
+        full_did_opt = []
+        full_geoms = []
+        full_meta = []
+        for mesh, flip in submeshes:
+            if shift and adjust_displacements:
+                _ = []
+                for m in mesh:
+                    _.append(np.concatenate([m[:1], np.diff(m)]))
+                mesh = _
+
+            opt_res = self._optimize_along_displacements(
+                coords,
+                mesh,
+                displacement_function,
+                coordinate_constraints=coordinate_constraints,
+                orthogonal_projection_generator=orthogonal_projection_generator,
+                **optimization_settings
+            )
+            did_opt = [is_opt for is_opt, geom, meta in opt_res]
+            meta = [meta for is_opt, geom, meta in opt_res]
+            geoms = [geom for is_opt, geom, meta in opt_res]
+            if flip:
+                full_did_opt.extend(reversed(did_opt))
+                full_geoms.extend(reversed(geoms))
+                full_meta.extend(reversed(meta))
+            else:
+                full_did_opt.extend(did_opt)
+                full_geoms.extend(geoms)
+                full_meta.extend(meta)
+        return full_did_opt, np.asanyarray(full_geoms), full_meta
 
     def _optimize_along_displacements(self,
                                       coords,
