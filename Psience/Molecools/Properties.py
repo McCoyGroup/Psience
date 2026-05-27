@@ -646,7 +646,7 @@ class StructuralProperties:
     @classmethod
     def get_eckart_embedded_coords(cls, masses,
                                    ref, coords,
-                                   reset_com=False,
+                                   reset_com=True,
                                    in_paf=False,
                                    sel=None,
                                    planar_ref_tolerance=None,
@@ -670,7 +670,8 @@ class StructuralProperties:
                                          sel=sel,
                                          in_paf=in_paf,
                                          planar_ref_tolerance=planar_ref_tolerance,
-                                         proper_rotation=proper_rotation
+                                         proper_rotation=proper_rotation,
+                                         reset_com=reset_com
                                          )
         return eck_data.coordinates
         ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords,

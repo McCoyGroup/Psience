@@ -5971,15 +5971,25 @@ class MolecoolsTests(TestCase):
             confgen_opts={'random_seed':12321}
         )
 
-        mm = m1.get_embedded_molecule(ref=m2, sel=[0, 1, 2, 3], reset_com=False)
-        print(
-            np.linalg.norm((mm.coords[:4] - m2.coords[:4]).flatten())
-        )
-
-        m2 = m2.get_embedded_molecule()
         mm = m1.get_embedded_molecule(ref=m2, sel=[0, 1, 2, 3])
-        print(
-            np.linalg.norm((mm.coords[:4] - m2.coords[:4]).flatten())
+        # print(np.average(mm.coords[:4], axis=0))
+        # print(np.average(m2.coords[:4], axis=0))
+        # print((mm.coords[:4] - m2.coords[:4]))
+        # print(
+        #     np.linalg.norm((mm.coords[:4] - m2.coords[:4]).flatten())
+        # )
+
+        # m2 = m2.get_embedded_molecule()
+        # mm = m1.get_embedded_molecule(ref=m2, sel=[0, 1, 2, 3])
+        # print(
+        #     np.linalg.norm((mm.coords[:4] - m2.coords[:4]).flatten())
+        # )
+
+        m1, m2 = Molecule.from_string(
+            "NC([C:1]1([C:3]2(C3=CC=CC=C3)O[C:4](C4=CC=CC=C4)([C:2]1)C5=C2C=CC=C5)C)=O",
+            num_confs=2,
+            add_implicit_hydrogens='full',
+            confgen_opts={'random_seed': 12321}
         )
 
         mm.plot([mm.coords, m2.coords],
