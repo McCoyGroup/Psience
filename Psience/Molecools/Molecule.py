@@ -4957,6 +4957,22 @@ class Molecule(AbstractMolecule):
 
         return atom_style, highlight_atoms, colors, glows
 
+    def _prep_display_atom_text(self, atom_text, display_atom_numbers, label_style):
+        if display_atom_numbers:
+            if display_atom_numbers is True:
+                display_atom_numbers = list(range(len(self._ats)))
+            if not isinstance(display_atom_numbers, dict):
+                display_atom_numbers = {i:{} for i in display_atom_numbers}
+            atom_text = [
+                {"text":i} | label_style | display_atom_numbers.get(i, {})
+                    if i in display_atom_numbers else
+                None
+                for i in range(len(self._ats))
+            ]
+        if atom_text is None:
+            atom_text = [None] * len(self._ats)
+        return atom_text
+
     def _prep_display_bond_style(self,
                                  bond_style,
                                  highlight_bonds,
@@ -6309,19 +6325,7 @@ class Molecule(AbstractMolecule):
         if label_style is None:
             label_style = {}
 
-        if display_atom_numbers:
-            if display_atom_numbers is True:
-                display_atom_numbers = list(range(len(self._ats)))
-            if not isinstance(display_atom_numbers, dict):
-                display_atom_numbers = {i:{} for i in display_atom_numbers}
-            atom_text = [
-                {"text":i} | label_style | display_atom_numbers.get(i, {})
-                    if i in display_atom_numbers else
-                None
-                for i in range(len(self._ats))
-            ]
-        if atom_text is None:
-            atom_text = [None] * len(self._ats)
+        atom_text = self._prep_display_atom_text(atom_text, display_atom_numbers, label_style)
 
         if highlight_styles is None:
             highlight_styles = self.highlight_styles
@@ -6437,42 +6441,89 @@ class Molecule(AbstractMolecule):
         if len(comparison_styles) < len(geometries):
             comparison_styles = (list(comparison_styles) * len(geometries))[:len(geometries)]
 
-        global_bond_style = bond_style
-        global_atom_style = atom_style
-        global_highlight_atoms = highlight_atoms
-        global_highlight_bonds = highlight_bonds
-        global_colors = colors
-        global_glows = glows
+
+        global_state = (
+            atom_style,
+            radii,
+            atom_radius_scaling,
+            atom_radii,
+            radius_type,
+            bond_style,
+            bond_center_radius_offset,
+            multiple_bond_spacing,
+            render_multiple_bonds,
+            render_fractional_bonds,
+            fractional_bond_offset,
+            up_vector,
+            cylinder_class,
+            colors,
+            glows,
+            display_atom_numbers,
+            atom_text,
+            label_style,
+            theme_function,
+            cylinder_options,
+            sphere_class,
+            sphere_options,
+            draw_coords
+        )
+
         for i, geom in enumerate(geometries):
             plotos = plot_ops.copy()
 
-            bond_style = global_bond_style
-            atom_style = global_atom_style
-            highlight_atoms = global_highlight_atoms
-            highlight_bonds = global_highlight_bonds
-            colors = global_colors
-            glows = global_glows
+            (
+                atom_style,
+                radii,
+                atom_radius_scaling,
+                atom_radii,
+                radius_type,
+                bond_style,
+                bond_center_radius_offset,
+                multiple_bond_spacing,
+                render_multiple_bonds,
+                render_fractional_bonds,
+                fractional_bond_offset,
+                up_vector,
+                cylinder_class,
+                colors,
+                glows,
+                display_atom_numbers,
+                atom_text,
+                label_style,
+                theme_function,
+                cylinder_options,
+                sphere_class,
+                sphere_options,
+                draw_coords
+            ) = global_state
 
             substyle = comparison_styles[i]
             if substyle is not None:
-                a_sty = substyle.pop('atom_style', None)
-                ha2 = substyle.pop('highlight_atoms', None)
-                if a_sty is not None:
-                    a_style, updata_ha, colors, glows = self._prep_display_atom_style(
-                        a_sty,
-                        ha2,
-                        backend=backend,
-                        reflectiveness=reflectiveness,
-                        highlight_styles=highlight_styles
-                    )
-                    if a_style is None:
-                        atom_style = None
-                    elif atom_style is None:
-                        atom_style = a_style
-                    else:
-                        atom_style = atom_style | a_style
-                    if updata_ha is not None:
-                        highlight_atoms = updata_ha
+                a_sty = substyle.pop('atom_style', atom_style)
+                ha2 = substyle.pop('highlight_atoms', highlight_atoms)
+                atom_style, updata_ha, colors, glows = self._prep_display_atom_style(
+                    a_sty,
+                    ha2,
+                    backend=backend,
+                    reflectiveness=reflectiveness,
+                    highlight_styles=highlight_styles,
+                )
+
+                atom_radius_scaling = substyle.pop('atom_radius_scaling', atom_radius_scaling)
+                atom_radii = substyle.pop('atom_radii', atom_radii)
+                radius_type = substyle.pop('radius_type', radius_type)
+                radii = self._get_atom_radii(atom_radii, atom_radius_scaling, radius_type)
+
+                atom_text = substyle.pop('atom_text', atom_text)
+                display_atom_numbers = substyle.pop('display_atom_numbers', display_atom_numbers)
+                label_style = substyle.pop('label_style', label_style)
+                atom_text = self._prep_display_atom_text(atom_text, display_atom_numbers, label_style)
+
+                bond_center_radius_offset = substyle.pop('bond_center_radius_offset', bond_center_radius_offset)
+                multiple_bond_spacing = substyle.pop('multiple_bond_spacing', multiple_bond_spacing)
+                render_multiple_bonds = substyle.pop('render_multiple_bonds', render_multiple_bonds)
+                render_fractional_bonds = substyle.pop('render_fractional_bonds', render_fractional_bonds)
+                fractional_bond_offset = substyle.pop('fractional_bond_offset', fractional_bond_offset)
 
                 b_sty = substyle.pop('bond_style', None)
                 hb2 = substyle.pop('highlight_bonds', None)
@@ -6495,7 +6546,14 @@ class Molecule(AbstractMolecule):
                     else:
                         bond_style = bond_style | b_style
                     if update_hb is not None:
-                        highlight_bonds = updata_hb
+                        highlight_bonds = update_hb
+
+                draw_coords = substyle.pop('draw_coords', draw_coords)
+                theme_function = substyle.pop('theme_function', theme_function)
+                sphere_class = substyle.pop('sphere_class', sphere_class)
+                sphere_options = substyle.pop('sphere_options', sphere_options)
+                cylinder_class = substyle.pop('cylinder_class', cylinder_class)
+                cylinder_options = substyle.pop('cylinder_options', cylinder_options)
 
                 plotos = plotos | substyle
 

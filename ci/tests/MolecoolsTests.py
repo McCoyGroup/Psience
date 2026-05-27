@@ -5985,16 +5985,11 @@ class MolecoolsTests(TestCase):
         #     np.linalg.norm((mm.coords[:4] - m2.coords[:4]).flatten())
         # )
 
-        m1, m2 = Molecule.from_string(
-            "NC([C:1]1([C:3]2(C3=CC=CC=C3)O[C:4](C4=CC=CC=C4)([C:2]1)C5=C2C=CC=C5)C)=O",
-            num_confs=2,
-            add_implicit_hydrogens='full',
-            confgen_opts={'random_seed': 12321}
-        )
-
-        mm.plot([mm.coords, m2.coords],
+        fig=mm.plot([mm.coords, m2.coords],
                 comparison_styles={
-                    'atom_style':{'glow':'red'},
-                    'bond_style':{'glow':'red'},
-                },
-                animate=False).show()
+                    'atom_style':{'glow':'red', 'transparency':.5},
+                    'bond_style':False,#{'glow':'red', 'transparency':.5},
+                    'atom_radius_scaling':1
+                })#.show()
+
+        m2.get_surface().plot(figure=fig, transparency=.5).show()
