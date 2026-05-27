@@ -1192,7 +1192,8 @@ class EnergyEvaluator(PropertyEvaluator):
                 if 'forces' not in calc.results or 'old_forces' in calc.results:
                     return None, calc.results
                 else:
-                    f = calc.results['forces']
+                    f = calc.results.pop('forces')
+                    calc.results['_cached_force'] = f
                     return f.reshape(f.shape[:-2] + (-1,)), calc.results
             def post_grad(grad, res):
                 # from .Molecule import Molecule
@@ -1204,7 +1205,9 @@ class EnergyEvaluator(PropertyEvaluator):
                 #     backend='x3d'
                 # ).show()
 
-                res['old_forces'] = res['forces']
+                f0 = res.get('_cached_force')
+                if f0 is not None:
+                    res['old_forces'] = f0
                 res['forces'] = grad.reshape(grad.shape[:-1] + (-1, 3))
                 return res
             calc.calculate = self._modify_gradient(
@@ -1247,11 +1250,15 @@ class EnergyEvaluator(PropertyEvaluator):
                            ):
         if gradient_modification_function is not None:
             calc._old_get_forces = calc.get_forces
+            if hasattr(calc, 'get_hessian'):
+                calc._old_get_hessian = calc.get_hessian
 
+            f_cache = [None]
             def prep_coords(atoms, coords):
                 return coords
             def prep_grad(res):
-                return res['forces'], res
+                f = res.pop('forces')
+                return f, res
             def post_grad(grad, res):
                 res['forces'] = grad
                 return res
@@ -1268,6 +1275,19 @@ class EnergyEvaluator(PropertyEvaluator):
                 grad_post=post_grad,
                 **opts
             )
+            if hasattr(calc, 'get_hessian'):
+                calc.get_hessian = self._modify_gradient(
+                    calc.get_hessian,
+                    gradient_modification_function,
+                    coord_prep=prep_coords,
+                    use_forces=True,
+                    modification_mode=gradient_modification_mode,
+                    convert_modification_distances=convert_modification_distances,
+                    convert_modification_energies=convert_modification_energies,
+                    grad_prep=prep_grad,
+                    grad_post=post_grad,
+                    **opts
+                )
         return calc
     def to_pysis(self,
                  gradient_modification_function=None,
@@ -1592,12 +1612,6 @@ class EnergyEvaluator(PropertyEvaluator):
                     supp = -modification_function(crds * d_conv, -re_res)
                 else:
                     supp = modification_function(crds * d_conv, re_res)
-                # print("!?",
-                #       np.linalg.norm(res.flatten() * e_conv / d_conv),
-                #       np.linalg.norm(supp.flatten()),
-                #       np.dot(nput.vec_normalize(res.flatten()), nput.vec_normalize(supp.flatten()))
-                #       )
-                # print("?", np.linalg.norm(re_res), np.linalg.norm(supp))
                 res = re_res + supp
                 if orthogonal_projector is not None:
                     projector = orthogonal_projector[np.newaxis]
@@ -1628,9 +1642,9 @@ class EnergyEvaluator(PropertyEvaluator):
                 else:
                     state = None
                 if use_forces:
-                    res = modification_function(crds * d_conv, res)
-                else:
                     res = -modification_function(crds * d_conv, -res)
+                else:
+                    res = modification_function(crds * d_conv, res)
                 if orthogonal_projector is not None:
                     projector = orthogonal_projector[np.newaxis]
                     if orthogonal_projection_generator is not None:
@@ -1774,8 +1788,8 @@ class EnergyEvaluator(PropertyEvaluator):
                 sjacobian = self._modify_gradient(sjacobian,
                                                   gradient_modification_function,
                                                   modification_mode=gradient_modification_mode,
-                                                  convert_modification_distances=False,#convert_modification_distances,
-                                                  convert_modification_energies=False,#convert_modification_energies,
+                                                  convert_modification_distances=convert_modification_distances,
+                                                  convert_modification_energies=convert_modification_energies,
                                                   )
 
             if self.analytic_derivative_order > 1:
@@ -2039,11 +2053,19 @@ class EnergyEvaluator(PropertyEvaluator):
             )
             geom.set_calculator(calc)
             use_max_for_error = opts.pop('use_max_for_error', None)
+            if method == 'ts':
+                method, optimizer = method, None
+                opts['images'] = [geom]
+            elif method.startswith('ts-'):
+                method, optimizer = method.split("-", 1)
+                opts['images'] = [geom]
+            else:
+                method, optimizer = 'optimize', method
+                opts['geom'] = geom
             geom, optimizer, logs = run_pysisyphus(
                 None,
-                'optimize',
-                geom=geom,
-                optimizer=method,
+                method,
+                optimizer=optimizer,
                 max_cycles=max_iterations,
                 max_step=max_displacement,
                 tol=tol,
