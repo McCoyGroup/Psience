@@ -578,6 +578,7 @@ class StructuralProperties:
                                        sel=None,
                                        inverse=False,
                                        reset_com=False,
+                                       in_paf=False,
                                        planar_ref_tolerance=None,
                                        proper_rotation=False
                                        ):
@@ -601,12 +602,27 @@ class StructuralProperties:
         # else:
         #     coords = [coords]
 
-        ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, sel=sel, in_paf=False,
-                                                                  planar_ref_tolerance=planar_ref_tolerance,
-                                                                  proper_rotation=proper_rotation
-                                                                  )
-        ref, ref_com, ref_rot = ref_stuff
-        crd, crd_com, crd_rot = coord_stuff
+        if planar_ref_tolerance is None:
+            planar_ref_tolerance = cls.planar_ref_tolerance
+        eck_data = nput.eckart_embedding(ref, coords, masses=masses,
+                                         sel=sel,
+                                         in_paf=in_paf,
+                                         planar_ref_tolerance=planar_ref_tolerance,
+                                         proper_rotation=proper_rotation
+                                         )
+        ek_rot = eck_data.rotations
+        ref, ref_com, ref_rot = eck_data.reference_data
+        crd, crd_com, crd_rot = eck_data.coord_data
+
+        # ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords, sel=sel, in_paf=False,
+        #                                                           planar_ref_tolerance=planar_ref_tolerance,
+        #                                                           proper_rotation=proper_rotation
+        #                                                           )
+        # ref, ref_com, ref_rot = ref_stuff
+        # crd, crd_com, crd_rot = coord_stuff
+
+        if crd.ndim == 2:
+            ek_rot, crd_com, crd_rot = [ek_rot], [crd_com], [crd_rot]
 
         transforms = [None] * len(coords)
         for i, (rot, com, crd_rot) in enumerate(zip(ek_rot, crd_com, crd_rot)):
@@ -630,7 +646,7 @@ class StructuralProperties:
     @classmethod
     def get_eckart_embedded_coords(cls, masses,
                                    ref, coords,
-                                   reset_com=False,
+                                   reset_com=True,
                                    in_paf=False,
                                    sel=None,
                                    planar_ref_tolerance=None,
@@ -654,7 +670,8 @@ class StructuralProperties:
                                          sel=sel,
                                          in_paf=in_paf,
                                          planar_ref_tolerance=planar_ref_tolerance,
-                                         proper_rotation=proper_rotation
+                                         proper_rotation=proper_rotation,
+                                         reset_com=reset_com
                                          )
         return eck_data.coordinates
         ek_rot, ref_stuff, coord_stuff = cls.get_eckart_rotations(masses, ref, coords,
@@ -1089,6 +1106,7 @@ class MolecularProperties:
     @classmethod
     def eckart_transformation(cls, mol, ref_mol, sel=None, inverse=False,
                               planar_ref_tolerance=None,
+                              reset_com=True,
                               proper_rotation=False):
         """
 
@@ -1116,7 +1134,8 @@ class MolecularProperties:
             ))
         return StructuralProperties.get_prop_eckart_transformation(m1, ref_mol.coords, mol.coords, sel=sel, inverse=inverse,
                                                                    planar_ref_tolerance=planar_ref_tolerance,
-                                                                   proper_rotation=proper_rotation
+                                                                   proper_rotation=proper_rotation,
+                                                                   reset_com=reset_com
                                                                    )
 
     @classmethod

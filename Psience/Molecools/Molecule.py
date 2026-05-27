@@ -2932,7 +2932,12 @@ class Molecule(AbstractMolecule):
                                                 load_properties=load_properties,
                                                 embed_properties=embed_properties)
 
-    def eckart_frame(self, mol, sel=None, inverse=False, planar_ref_tolerance=None, proper_rotation=False):
+    def eckart_frame(self,
+                     mol,
+                     sel=None, inverse=False, planar_ref_tolerance=None,
+                     proper_rotation=False,
+                     reset_com=True
+                     ):
         """
         Gets the Eckart frame(s) for the molecule
 
@@ -2950,7 +2955,8 @@ class Molecule(AbstractMolecule):
             mol,
             sel=sel, inverse=inverse,
             planar_ref_tolerance=planar_ref_tolerance,
-            proper_rotation=proper_rotation
+            proper_rotation=proper_rotation,
+            reset_com=reset_com
         )
 
     def embed_coords(self, crds, sel=None, in_paf=False, planar_ref_tolerance=None, proper_rotation=False):
@@ -2985,7 +2991,8 @@ class Molecule(AbstractMolecule):
                               planar_ref_tolerance=None,
                               proper_rotation=False,
                               embed_properties=True,
-                              load_properties=None
+                              load_properties=None,
+                              reset_com=True
                               ):
         """
         Returns a Molecule embedded in an Eckart frame if ref is not None, otherwise returns
@@ -2998,7 +3005,7 @@ class Molecule(AbstractMolecule):
             frame = self.principle_axis_frame(sel=sel, inverse=False)
         else:
             frame = self.eckart_frame(ref, sel=sel, planar_ref_tolerance=planar_ref_tolerance, inverse=False,
-                                      proper_rotation=proper_rotation
+                                      proper_rotation=proper_rotation, reset_com=reset_com
                                       )
         return self.apply_rotation(frame, load_properties=load_properties, embed_properties=embed_properties)
 
@@ -5954,6 +5961,7 @@ class Molecule(AbstractMolecule):
              highlight_bonds=None,
              highlight_rings=None,
              highlight_styles=None,
+             comparison_styles=None,
              mode_vectors=None,
              mode_vector_origins=None,
              mode_vector_origin_mode='set',
@@ -6022,6 +6030,7 @@ class Molecule(AbstractMolecule):
             highlight_bonds=highlight_bonds,
             highlight_rings=highlight_rings,
             highlight_styles=highlight_styles,
+            comparison_styles=comparison_styles,
             mode_vectors=mode_vectors,
             mode_vector_origins=mode_vector_origins,
             mode_vector_origin_mode=mode_vector_origin_mode,
@@ -6130,6 +6139,7 @@ class Molecule(AbstractMolecule):
             highlight_bonds,
             highlight_rings,
             highlight_styles,
+            comparison_styles,
             mode_vectors,
             mode_vector_origins,
             mode_vector_origin_mode,
@@ -6190,6 +6200,7 @@ class Molecule(AbstractMolecule):
                 "highlight_bonds",
                 "highlight_rings",
                 "highlight_styles",
+                "comparison_styles",
                 "mode_vectors",
                 "mode_vector_origins",
                 "mode_vector_origin_mode",
@@ -6267,7 +6278,7 @@ class Molecule(AbstractMolecule):
         if geometries.ndim == 2:
             geometries = geometries[np.newaxis]
         if animate is None:
-            animate = geometries.shape[0] > 1
+            animate = geometries.shape[0] > 1 and comparison_styles is None
 
         dipole, dipole_origin = self._prep_display_dipole(geometries, dipole, dipole_origin, units)
         principle_axes, principle_axes_origin, principle_axes_style = self._prep_principle_axes(
@@ -6419,8 +6430,75 @@ class Molecule(AbstractMolecule):
 
         self._set_backend_figure_options(figure, mode, backend, **full_opts_base)
 
+        if comparison_styles is None:
+            comparison_styles = [None] * len(geometries)
+        elif isinstance(comparison_styles, dict):
+            comparison_styles = [None, comparison_styles]
+        if len(comparison_styles) < len(geometries):
+            comparison_styles = (list(comparison_styles) * len(geometries))[:len(geometries)]
+
+        global_bond_style = bond_style
+        global_atom_style = atom_style
+        global_highlight_atoms = highlight_atoms
+        global_highlight_bonds = highlight_bonds
+        global_colors = colors
+        global_glows = glows
         for i, geom in enumerate(geometries):
             plotos = plot_ops.copy()
+
+            bond_style = global_bond_style
+            atom_style = global_atom_style
+            highlight_atoms = global_highlight_atoms
+            highlight_bonds = global_highlight_bonds
+            colors = global_colors
+            glows = global_glows
+
+            substyle = comparison_styles[i]
+            if substyle is not None:
+                a_sty = substyle.pop('atom_style', None)
+                ha2 = substyle.pop('highlight_atoms', None)
+                if a_sty is not None:
+                    a_style, updata_ha, colors, glows = self._prep_display_atom_style(
+                        a_sty,
+                        ha2,
+                        backend=backend,
+                        reflectiveness=reflectiveness,
+                        highlight_styles=highlight_styles
+                    )
+                    if a_style is None:
+                        atom_style = None
+                    elif atom_style is None:
+                        atom_style = a_style
+                    else:
+                        atom_style = atom_style | a_style
+                    if updata_ha is not None:
+                        highlight_atoms = updata_ha
+
+                b_sty = substyle.pop('bond_style', None)
+                hb2 = substyle.pop('highlight_bonds', None)
+                if b_sty is not None:
+                    b_style, update_hb = self._prep_display_bond_style(
+                        b_sty,
+                        hb2,
+                        backend=backend,
+                        reflectiveness=reflectiveness,
+                        highlight_atoms=highlight_atoms,
+                        highlight_styles=highlight_styles,
+                        capped_bonds=capped_bonds
+                    )
+                    if b_style is None:
+                        bond_style = None
+                    elif b_style is False:
+                        bond_style = False
+                    elif bond_style is None:
+                        bond_style = b_style
+                    else:
+                        bond_style = bond_style | b_style
+                    if update_hb is not None:
+                        highlight_bonds = updata_hb
+
+                plotos = plotos | substyle
+
             if backend in {'matplotlib3D', 'plotly3D'}:
                 box_scalings = plotos.get('box_scalings')
                 pr = graphics_opts.get('plot_range')
