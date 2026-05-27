@@ -224,7 +224,7 @@ Embeds a set of coordinates in the reference frame
 <a id="Psience.Molecools.Properties.StructuralProperties.get_prop_eckart_transformation" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-get_prop_eckart_transformation(cls, masses, ref, coords, sel=None, inverse=False, reset_com=False, planar_ref_tolerance=None, proper_rotation=False): 
+get_prop_eckart_transformation(cls, masses, ref, coords, sel=None, inverse=False, reset_com=False, in_paf=False, planar_ref_tolerance=None, proper_rotation=False): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L576)/
@@ -244,11 +244,11 @@ Computes Eckart transformations for a set of coordinates
 <a id="Psience.Molecools.Properties.StructuralProperties.get_eckart_embedded_coords" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-get_eckart_embedded_coords(cls, masses, ref, coords, reset_com=False, in_paf=False, sel=None, planar_ref_tolerance=None, proper_rotation=False): 
+get_eckart_embedded_coords(cls, masses, ref, coords, reset_com=True, in_paf=False, sel=None, planar_ref_tolerance=None, proper_rotation=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L630)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L630?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L646)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L646?message=Update%20Docs)]
 </div>
 Embeds a set of coordinates in the reference frame
   - `masses`: `np.ndarray`
@@ -267,8 +267,8 @@ Embeds a set of coordinates in the reference frame
 get_prop_g_matrix(cls, masses, coords, internal_coords): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L705)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L705?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L722)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L722?message=Update%20Docs)]
 </div>
 Gets the molecular g-matrix
   - `masses`: `np.ndarray`
@@ -287,8 +287,8 @@ Gets the molecular g-matrix
 get_prop_coriolis_constants(cls, carts, modes, masses): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L745)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L745?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L762)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L762?message=Update%20Docs)]
 </div>
  </div>
 </div>

@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-696ff7" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-696ff7"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-d6c0f0" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-d6c0f0"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-696ff7" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-d6c0f0" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -211,12 +211,13 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [SurfaceNormals](#SurfaceNormals)
 - [CartesiansOtherCoords](#CartesiansOtherCoords)
 - [EvaluatorModels](#EvaluatorModels)
+- [RMSDEmbeddings](#RMSDEmbeddings)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-a65b68" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-a65b68"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-017952" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-017952"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-a65b68" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-017952" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -5990,6 +5991,45 @@ class MolecoolsTests(TestCase):
             energy_evaluator='aimnet2:aimnet2nse',
             spin=1
         ).optimize(max_iterations=100).animate_mode(0).show()
+```
+
+#### <a name="RMSDEmbeddings">RMSDEmbeddings</a>
+```python
+    def test_RMSDEmbeddings(self):
+        m1, m2 = Molecule.from_string(
+            "NC([C:1]1([C:3]2(C3=CC=CC=C3)O[C:4](C4=CC=CC=C4)([C:2]1)C5=C2C=CC=C5)C)=O",
+            num_confs=2,
+            add_implicit_hydrogens='full',
+            confgen_opts={'random_seed':12321}
+        )
+
+        mm = m1.get_embedded_molecule(ref=m2, sel=[0, 1, 2, 3])
+        # print(np.average(mm.coords[:4], axis=0))
+        # print(np.average(m2.coords[:4], axis=0))
+        # print((mm.coords[:4] - m2.coords[:4]))
+        # print(
+        #     np.linalg.norm((mm.coords[:4] - m2.coords[:4]).flatten())
+        # )
+
+        # m2 = m2.get_embedded_molecule()
+        # mm = m1.get_embedded_molecule(ref=m2, sel=[0, 1, 2, 3])
+        # print(
+        #     np.linalg.norm((mm.coords[:4] - m2.coords[:4]).flatten())
+        # )
+
+        m1, m2 = Molecule.from_string(
+            "NC([C:1]1([C:3]2(C3=CC=CC=C3)O[C:4](C4=CC=CC=C4)([C:2]1)C5=C2C=CC=C5)C)=O",
+            num_confs=2,
+            add_implicit_hydrogens='full',
+            confgen_opts={'random_seed': 12321}
+        )
+
+        mm.plot([mm.coords, m2.coords],
+                comparison_styles={
+                    'atom_style':{'glow':'red'},
+                    'bond_style':{'glow':'red'},
+                },
+                animate=False).show()
 ```
 
  </div>
