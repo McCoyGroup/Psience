@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-d6c0f0" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-d6c0f0"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-43f4f0" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-43f4f0"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-d6c0f0" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-43f4f0" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -215,9 +215,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-017952" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-017952"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-450f44" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-450f44"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-017952" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-450f44" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -6017,19 +6017,14 @@ class MolecoolsTests(TestCase):
         #     np.linalg.norm((mm.coords[:4] - m2.coords[:4]).flatten())
         # )
 
-        m1, m2 = Molecule.from_string(
-            "NC([C:1]1([C:3]2(C3=CC=CC=C3)O[C:4](C4=CC=CC=C4)([C:2]1)C5=C2C=CC=C5)C)=O",
-            num_confs=2,
-            add_implicit_hydrogens='full',
-            confgen_opts={'random_seed': 12321}
-        )
-
-        mm.plot([mm.coords, m2.coords],
+        fig=mm.plot([mm.coords, m2.coords],
                 comparison_styles={
-                    'atom_style':{'glow':'red'},
-                    'bond_style':{'glow':'red'},
-                },
-                animate=False).show()
+                    'atom_style':{'glow':'red', 'transparency':.5},
+                    'bond_style':False,#{'glow':'red', 'transparency':.5},
+                    'atom_radius_scaling':1
+                })#.show()
+
+        m2.get_surface().plot(figure=fig, transparency=.5).show()
 ```
 
  </div>
