@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-446806" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-446806"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-a011a9" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-a011a9"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-446806" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-a011a9" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -215,9 +215,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-fcf670" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-fcf670"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-bd2ad0" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-bd2ad0"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-fcf670" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-bd2ad0" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -5904,11 +5904,15 @@ class MolecoolsTests(TestCase):
         mol = Molecule.from_file(
             TestManager.test_data('tbhp_180.fchk')
         )
-        fig = mol.plot(backend='x3d')
-        surf = mol.get_surface(samples=100)
-        hull = surf.get_triangulation()
-        hull.plot(figure=fig, solid=True, normals=True, normal_scaling=.1)
-        fig.show()
+        # mol = Molecule.from_string('CCCl', 'smi')
+        # fig = mol.plot(backend='x3d')
+        surf = mol.get_surface(samples=1000)
+        print(surf.volume(method='sampling'))
+        v_mesh = surf.volume(method='mesh')
+        v_monte = surf.volume(method='monte-carlo')
+        print(v_mesh)
+        print(v_monte)
+        print(v_mesh / v_monte)
 ```
 
 #### <a name="CartesiansOtherCoords">CartesiansOtherCoords</a>
