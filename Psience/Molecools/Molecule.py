@@ -2212,7 +2212,7 @@ class Molecule(AbstractMolecule):
         if isinstance(potential_specs, dict):
             potential_contribs = []
             for idx, spec in potential_specs.items():
-                if isinstance(idx, int):
+                if nput.is_int(idx):
                     idx = [idx]
                     spec = [spec]
                 coord_indices.update(idx)
@@ -2237,7 +2237,7 @@ class Molecule(AbstractMolecule):
 
                 contribs = []
                 for idx, spec in d.items():
-                    if isinstance(idx, int):
+                    if nput.is_int(idx):
                         idx = [idx]
                         spec = [spec]
                     coord_indices.update(idx)
@@ -6825,7 +6825,7 @@ class Molecule(AbstractMolecule):
 
     def get_animation_geoms(self, which, extent=.35, steps=8, strip_embedding=True, units=None,
                             coordinate_expansion=None):
-        if isinstance(which, int):
+        if nput.is_int(which):
             if coordinate_expansion is None:
                 coordinate_expansion = self.get_cartesians_by_internals(2, strip_embedding=strip_embedding)
         else:

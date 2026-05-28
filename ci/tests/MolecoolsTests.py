@@ -5881,6 +5881,8 @@ class MolecoolsTests(TestCase):
         # mol = Molecule.from_string('CCCl', 'smi')
         # fig = mol.plot(backend='x3d')
         surf = mol.get_surface(samples=1000)
+        print(surf.volume())
+
         print(surf.volume(method='sampling'))
         v_mesh = surf.volume(method='mesh')
         v_monte = surf.volume(method='monte-carlo')
