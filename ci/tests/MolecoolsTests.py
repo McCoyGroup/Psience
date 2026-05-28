@@ -5873,16 +5873,29 @@ class MolecoolsTests(TestCase):
                              })
             return uuuh.to_widget()
 
-    @validationTest
+    @debugTest
     def test_SurfaceNormals(self):
         mol = Molecule.from_file(
             TestManager.test_data('tbhp_180.fchk')
         )
-        fig = mol.plot(backend='x3d')
-        surf = mol.get_surface(samples=100)
-        hull = surf.get_triangulation()
-        hull.plot(figure=fig, solid=True, normals=True, normal_scaling=.1)
-        fig.show()
+        # mol = Molecule.from_string('CCCl', 'smi')
+        # fig = mol.plot(backend='x3d')
+        surf = mol.get_surface(samples=1000)
+        print(surf.volume(method='sampling'))
+        v_mesh = surf.volume(method='mesh')
+        v_monte = surf.volume(method='monte-carlo')
+        print(v_mesh)
+        print(v_monte)
+        print(v_mesh / v_monte)
+        # print(surf.volume(method='voxel'))
+        # print(surf.surface_area(method='sampling'))
+        # print(surf.surface_area(method='mesh'))
+        # hull = surf.get_triangulation()
+        # hull.plot(figure=fig, solid=True, normals=True, normal_scaling=.1)
+        # print(hull.volume())
+        # fig.show()
+
+        # print(mol.to_string('xyz', units='Angstroms'))
 
     @validationTest
     def test_CartesiansOtherCoords(self):
@@ -5962,7 +5975,7 @@ class MolecoolsTests(TestCase):
             spin=1
         ).optimize(max_iterations=100).animate_mode(0).show()
 
-    @debugTest
+    @validationTest
     def test_RMSDEmbeddings(self):
         m1, m2 = Molecule.from_string(
             "NC([C:1]1([C:3]2(C3=CC=CC=C3)O[C:4](C4=CC=CC=C4)([C:2]1)C5=C2C=CC=C5)C)=O",
