@@ -2553,7 +2553,7 @@ class Molecule(AbstractMolecule):
                     *,
                     surface_type=None,
                     radius_units="Angstroms",
-                    samples=50,
+                    samples=100,
                     radius_scaling=1,
                     **etc):
         if surface_type is None:
