@@ -1343,7 +1343,11 @@ class Molecule(AbstractMolecule):
         base_graph = coordops.bond_graph_zmatrix(
             bond_list,
             segments,
-            validate_additions=validate
+            validate_additions=validate,
+            required_coordinates=required_coordinates,
+            isolated_coordinates=isolated_coordinates,
+            root_coordinates=root_coordinates,
+            enforce_requirements=False
         )
         zmat, new_bonds = coordops.add_missing_zmatrix_bonds(
             base_graph,
