@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-1ea40e" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-1ea40e"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-f88a7b" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-f88a7b"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-1ea40e" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-f88a7b" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -215,9 +215,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-475c17" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-475c17"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-98540d" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-98540d"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-475c17" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-98540d" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -4175,6 +4175,32 @@ class MolecoolsTests(TestCase):
         # print(conv)
         # return
 
+        # mol = Molecule.from_string(
+        #     'c1ccccc1',
+        #     'smi',
+        #     confgen_opts=dict(verbose=True, random_seed=12321)
+        # )
+        # specs = [
+        #     (0, 1),
+        #     (1, 2),
+        #     (2, 3),
+        #     (3, 4),
+        #     (4, 5),
+        #     (0, 1, 2),
+        #     (1, 2, 3),
+        #     (2, 3, 4),
+        #     # (3, 4, 5),
+        #     (0, 1, 2, 3),
+        #     (1, 2, 3, 4),
+        #     # (2, 3, 4, 5),
+        #     (0, 1, 4, 5),
+        #     (0, 1, 5),
+        #     (0, 5),
+        # ]
+        # mol.modify(internals=specs).animate_coordinate(-1).show()
+        # # print(zm)
+        # return
+
 
         mol = Molecule.from_string(
             # 'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
@@ -4185,9 +4211,13 @@ class MolecoolsTests(TestCase):
             confgen_opts=dict(verbose=True, random_seed=12321)
         ).get_embedded_molecule(sel=[0, 1, 2, 3])
 
-        zm = mol.get_bond_zmatrix(root_coordinates=[(0, 1, 2, 3)])
-        mol.modify(internals=zm).animate_coordinate(-1, highlight_atoms=[0, 1, 2, 3]).show()
-        print(zm)
+        coord = [(0, 4), (1, 0, 4), (2, 1, 0, 4)]
+        x = 2
+        zm = mol.get_bond_zmatrix(root_coordinates=coord)
+        # zm = mol.get_bond_zmatrix(isolated_coordinates=coord)
+        # print(zm)
+        which = coordops.zmatrix_indices(zm, coord)[x]
+        mol.modify(internals=zm).animate_coordinate(which, .2, highlight_atoms=coord[x]).show()
         return
 
         # mol.plot(backend='2d',
