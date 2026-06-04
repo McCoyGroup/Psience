@@ -67,7 +67,7 @@ class MolecularEmbedding:
         self.cleanup()
 
     def cleanup(self):
-        if self.registered_converters is not None:
+        if hasattr(self, 'registered_converters') and self.registered_converters is not None:
             for d in self.registered_converters:
                 d.deregister()
 
