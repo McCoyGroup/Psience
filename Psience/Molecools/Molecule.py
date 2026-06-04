@@ -285,7 +285,8 @@ class Molecule(AbstractMolecule):
         )
 
     def __del__(self):
-        self.embedding.cleanup()
+        if hasattr(self, '_embedding'):
+            self._embedding.cleanup()
 
     def to_state(self, serializer=None):
         internals = self.internals
@@ -703,7 +704,7 @@ class Molecule(AbstractMolecule):
                 internals = bits
 
             return internals
-    def prune_internals(self, coords, method='b_matrix'):
+    def prune_internals(self, coords, method='b_matrix', check_rigidity=True):
         if isinstance(method, str):
             method = {'method':method}
         if hasattr(method, 'items'):
@@ -725,7 +726,8 @@ class Molecule(AbstractMolecule):
                     method['max_coords'] =  min([3 * len(self.atoms) - 6, len(coords)])
         return coordops.prune_internal_coordinates(
             coords,
-            method=method
+            method=method,
+            check_rigidity=check_rigidity,
         )
     def get_labeled_internals(self,
                               coordinate_filter=None,
@@ -1323,6 +1325,8 @@ class Molecule(AbstractMolecule):
                              return_remainder=False,
                              return_segments=False,
                              required_coordinates=None,
+                             isolated_coordinates=None,
+                             root_coordinates=None,
                              initial_backbone=None,
                              validate=True
                              ):
@@ -1339,14 +1343,23 @@ class Molecule(AbstractMolecule):
         base_graph = coordops.bond_graph_zmatrix(
             bond_list,
             segments,
-            validate_additions=validate,
-            required_coordinates=required_coordinates
+            validate_additions=validate
         )
         zmat, new_bonds = coordops.add_missing_zmatrix_bonds(
             base_graph,
             bond_list,
             validate_additions=validate
         )
+        if (
+                required_coordinates is not None
+                or isolated_coordinates is not None
+                or root_coordinates is not None
+        ):
+            zmat = coordops.enforce_required_zmatrix_coordinates(zmat,
+                                                                 required_coordinates,
+                                                                 isolated_coordinates=isolated_coordinates,
+                                                                 root_coordinates=root_coordinates,
+                                                                 validate=validate)
 
         if return_segments or return_remainder:
             res = (zmat,)
@@ -1364,11 +1377,37 @@ class Molecule(AbstractMolecule):
         frags = self.edge_graph.get_canonical_fragments(ordering)
         return coordops.canonical_fragment_zmatrix(frags, validate_additions=validate)
 
+    @classmethod
+    def _filter_coordinates_by_fragments(cls, inds, frags, required_coordinates):
+        merge_coordinates = []
+        if required_coordinates is not None:
+            fragment_requireds = [[] for _ in range(len(frags))]
+            for c in required_coordinates:
+                for i, f in enumerate(inds):
+                    ff = list(f)
+                    sub = []
+                    for j in c:
+                        try:
+                            x = ff.index(j)
+                        except ValueError:
+                            break
+                        else:
+                            sub.append(x)
+                    if len(sub) == len(c):
+                        fragment_requireds[i].append(tuple(sub))
+                        break
+                else:
+                    merge_coordinates.append(c)
+        else:
+            fragment_requireds = [None] * len(inds)
+        return merge_coordinates, fragment_requireds
     def get_bond_zmatrix(self,
                          fragments=None,
                          segments=None,
                          root=None,
                          required_coordinates=None,
+                         isolated_coordinates=None,
+                         root_coordinates=None,
                          attachment_points=None,
                          check_attachment_points=True,
                          validate=True,
@@ -1401,10 +1440,13 @@ class Molecule(AbstractMolecule):
                 check_attachment_points=check_attachment_points,
                 fragment_ordering=fragment_ordering,
                 required_coordinates=required_coordinates,
+                isolated_coordinates=isolated_coordinates,
+                root_coordinates=root_coordinates,
                 initial_backbone=initial_backbone,
                 validate=validate
             )
-            return coordops.reindex_zmatrix(base_ints, for_fragment)
+            zm = coordops.reindex_zmatrix(base_ints, for_fragment)
+            return np.asarray(zm)
         else:
             no_frag = fragments is None
             if no_frag:
@@ -1416,9 +1458,12 @@ class Molecule(AbstractMolecule):
                 zm = self.get_backbone_zmatrix(
                     root=root, segments=segments,
                     required_coordinates=required_coordinates,
+                    isolated_coordinates=isolated_coordinates,
+                    root_coordinates=root_coordinates,
                     validate=validate,
                     initial_backbone=initial_backbone
                 )
+                zm = np.asarray(zm)
                 if connect_fragments:
                     return zm
                 else:
@@ -1474,32 +1519,23 @@ class Molecule(AbstractMolecule):
                     initial_backbones = [None] * len(inds)
 
                 root = list(root) + [None] * (len(inds) - len(root))
-                merge_coordinates = []
-                if required_coordinates is not None:
-                    fragment_requireds = [[] for _ in range(len(frags))]
-                    for c in required_coordinates:
-                        for i,f in enumerate(inds):
-                            ff = list(f)
-                            sub = []
-                            for j in c:
-                                try:
-                                    x = ff.index(j)
-                                except ValueError:
-                                    break
-                                else:
-                                    sub.append(x)
-                            if len(sub) == len(c):
-                                fragment_requireds[i].append(tuple(sub))
-                                break
-                        else:
-                            merge_coordinates.append(c)
-                else:
-                    fragment_requireds = [None] * len(inds)
+                merge_coordinates, fragment_requireds = self._filter_coordinates_by_fragments(inds, frags, required_coordinates)
+                merge_isolated, fragment_isolated = self._filter_coordinates_by_fragments(inds, frags, isolated_coordinates)
+                merge_root, fragment_root = self._filter_coordinates_by_fragments(inds, frags, root_coordinates)
                 if len(merge_coordinates) == 0:
                     merge_coordinates = None
+                if len(merge_isolated) == 0:
+                    merge_isolated = None
+                if len(merge_root) == 0:
+                    merge_root = None
                 zmats = [
-                    f.get_backbone_zmatrix(root=r, initial_backbone=bb, required_coordinates=rq)
-                    for r,f,bb,rq in zip(root, frags, initial_backbones, fragment_requireds)
+                    f.get_backbone_zmatrix(root=r, initial_backbone=bb,
+                                           required_coordinates=rq,
+                                           isolated_coordinates=iso,
+                                           root_coordinates=rot
+                                           )
+                    for r,f,bb,rq,iso,rot in zip(root, frags, initial_backbones,
+                                                 fragment_requireds, fragment_isolated, fragment_root)
                 ]
 
                 if connect_fragments:
@@ -1521,7 +1557,7 @@ class Molecule(AbstractMolecule):
                     # print(self.fragment_indices[1])
                     # print(mfmt.format_zmatrix(zmats[1]))
                     # print(inds)
-                    return coordops.complex_zmatrix(
+                    zm = coordops.complex_zmatrix(
                         [b[:2] for b in self.bonds],
                         inds,
                         zmats,
@@ -1529,8 +1565,11 @@ class Molecule(AbstractMolecule):
                         attachment_points=attachment_points,
                         check_attachment_points=check_attachment_points,
                         required_coordinates=merge_coordinates,
+                        isolated_coordinates=merge_isolated,
+                        root_coordinates=merge_root,
                         validate_additions=validate
                     )
+                    return np.asarray(zm)
                 else:
                     shift_mats = []
                     offsets = 0
@@ -1540,7 +1579,7 @@ class Molecule(AbstractMolecule):
                             for zm in zmat
                         ])
                         offsets += len(zmat)
-                    return shift_mats
+                    return [np.asarray(zm) for zm in shift_mats]
 
     @property
     def fragment_indices(self):
@@ -6353,6 +6392,7 @@ class Molecule(AbstractMolecule):
             highlight_styles=highlight_styles
         )
 
+        og_highlight_bonds = list(highlight_bonds) if highlight_bonds is not None else None
         bond_style, highlight_bonds = self._prep_display_bond_style(
             bond_style,
             highlight_bonds,
@@ -6500,13 +6540,25 @@ class Molecule(AbstractMolecule):
             substyle = comparison_styles[i]
             if substyle is not None:
                 a_sty = substyle.pop('atom_style', atom_style)
+
                 ha2 = substyle.pop('highlight_atoms', highlight_atoms)
+                hs = substyle.pop('highlight_styles', highlight_styles)
+                if ha2 is None: ha2 = []
+                highlight_diffs = np.setdiff1d(highlight_atoms, ha2)
+                a_sty = a_sty.copy()
+                for d in highlight_diffs:
+                    if d in a_sty:
+                        subd = a_sty[d]
+                        for k,v in highlight_styles.items():
+                            if subd.get(k) == v:
+                                subd.pop(k)
+
                 atom_style, updata_ha, colors, glows = self._prep_display_atom_style(
                     a_sty,
                     ha2,
                     backend=backend,
                     reflectiveness=reflectiveness,
-                    highlight_styles=highlight_styles,
+                    highlight_styles=hs,
                 )
 
                 atom_radius_scaling = substyle.pop('atom_radius_scaling', atom_radius_scaling)
@@ -6525,10 +6577,20 @@ class Molecule(AbstractMolecule):
                 render_fractional_bonds = substyle.pop('render_fractional_bonds', render_fractional_bonds)
                 fractional_bond_offset = substyle.pop('fractional_bond_offset', fractional_bond_offset)
 
-                b_sty = substyle.pop('bond_style', None)
-                hb2 = substyle.pop('highlight_bonds', None)
+                b_sty = substyle.pop('bond_style', bond_style)
+                hb2 = substyle.pop('highlight_bonds', og_highlight_bonds)
                 if b_sty is not None:
-                    b_style, update_hb = self._prep_display_bond_style(
+                    if hb2 is None: hb2 = []
+                    highlight_diffs = [h for h in highlight_bonds if h not in hb2]
+
+                    b_sty = b_sty.copy()
+                    for d in highlight_diffs:
+                        if d in b_sty:
+                            subd = b_sty[d]
+                            for k, v in highlight_styles.items():
+                                if subd.get(k) == v:
+                                    subd.pop(k)
+                    bond_style, highlight_bonds = self._prep_display_bond_style(
                         b_sty,
                         hb2,
                         backend=backend,
@@ -6537,16 +6599,6 @@ class Molecule(AbstractMolecule):
                         highlight_styles=highlight_styles,
                         capped_bonds=capped_bonds
                     )
-                    if b_style is None:
-                        bond_style = None
-                    elif b_style is False:
-                        bond_style = False
-                    elif bond_style is None:
-                        bond_style = b_style
-                    else:
-                        bond_style = bond_style | b_style
-                    if update_hb is not None:
-                        highlight_bonds = update_hb
 
                 draw_coords = substyle.pop('draw_coords', draw_coords)
                 theme_function = substyle.pop('theme_function', theme_function)
