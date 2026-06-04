@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-f5c97c" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-f5c97c"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-1ea40e" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-1ea40e"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-f5c97c" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-1ea40e" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -215,9 +215,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-2aa40d" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-2aa40d"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-475c17" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-475c17"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-2aa40d" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-475c17" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -4165,9 +4165,9 @@ class MolecoolsTests(TestCase):
 
         # mol.plot(highlight_atoms=[0, 1, 3, 4]).show()
 
-        spec = coordops.InternalSpec.from_zmatrix(mol.get_bond_zmatrix())
-        pprint.pprint(spec.rad_set)
-        pprint.pprint(spec.get_triangulation())
+        # spec = coordops.InternalSpec.from_zmatrix(mol.get_bond_zmatrix())
+        # pprint.pprint(spec.rad_set)
+        # pprint.pprint(spec.get_triangulation())
 
         # graph = coordops.InternalCoordinateGraph(spec.rad_set)
         # conv = graph.find_conversions([(3, 4)])
@@ -4178,12 +4178,18 @@ class MolecoolsTests(TestCase):
 
         mol = Molecule.from_string(
             # 'FC1CCC(C(=C)C)CC1.C1OCC(C(OC)O)C1C(OC)O',
-            'FC1CCC(C(=C)C)CC1',
-            # 'COC=O',
+            # 'FC1CCC(C(=C)C)CC1',
+            'COC=O',
             # "N",
             'smi',
             confgen_opts=dict(verbose=True, random_seed=12321)
-        )
+        ).get_embedded_molecule(sel=[0, 1, 2, 3])
+
+        zm = mol.get_bond_zmatrix(root_coordinates=[(0, 1, 2, 3)])
+        mol.modify(internals=zm).animate_coordinate(-1, highlight_atoms=[0, 1, 2, 3]).show()
+        print(zm)
+        return
+
         # mol.plot(backend='2d',
         #          include_save_buttons=True,
         #          draw_coords=[
@@ -4210,9 +4216,149 @@ class MolecoolsTests(TestCase):
         #     mol.get_bond_zmatrix()
         # )
 
-        with BlockProfiler():
-            specs = mol.get_bond_graph_internals(include_fragments=False, pruning='b_matrix')
-        print(len(specs))
+        # with BlockProfiler():
+        # specs = mol.get_bond_graph_internals(include_fragments=False, pruning=False)#pruning='basic')
+        # print(np.array(mol.get_bond_zmatrix()))
+        # pprint.pprint(specs)
+        # specs = [(0, 1),
+        #          (1, 2),
+        #          (2, 3),
+        #          (3, 4),
+        #          (4, 5),
+        #          (5, 6),
+        #          (5, 7),
+        #          (4, 8),
+        #          (8, 9),
+        #          (9, 1),
+        #          (1, 10),
+        #          (2, 11),
+        #          (2, 12),
+        #          (3, 13),
+        #          (3, 14),
+        #          (4, 15),
+        #          (6, 16),
+        #          (6, 17),
+        #          (7, 18),
+        #          (7, 19),
+        #          (7, 20),
+        #          (8, 21),
+        #          (8, 22),
+        #          (9, 23),
+        #          (9, 24),
+        #          (0, 1, 2),
+        #          (0, 1, 9),
+        #          (0, 1, 10),
+        #          (1, 2, 3),
+        #          (2, 1, 9),
+        #          (2, 1, 10),
+        #          (1, 2, 11),
+        #          (1, 2, 12),
+        #          (2, 3, 4),
+        #          (3, 2, 11),
+        #          (3, 2, 12),
+        #          (2, 3, 13),
+        #          (2, 3, 14),
+        #          (3, 4, 5),
+        #          (3, 4, 8),
+        #          (4, 3, 13),
+        #          (4, 3, 14),
+        #          (3, 4, 15),
+        #          (4, 5, 6),
+        #          (4, 5, 7),
+        #          (5, 4, 8),
+        #          (5, 4, 15),
+        #          (6, 5, 7),
+        #          (5, 6, 16),
+        #          (5, 6, 17),
+        #          (5, 7, 18),
+        #          (5, 7, 19),
+        #          (5, 7, 20),
+        #          (4, 8, 9),
+        #          (8, 4, 15),
+        #          (4, 8, 21),
+        #          (4, 8, 22),
+        #          (8, 9, 1),
+        #          (9, 8, 21),
+        #          (9, 8, 22),
+        #          (8, 9, 23),
+        #          (8, 9, 24),
+        #          (9, 1, 10),
+        #          (1, 9, 23),
+        #          (1, 9, 24),
+        #          (11, 2, 12),
+        #          (13, 3, 14),
+        #          (16, 6, 17),
+        #          (18, 7, 19),
+        #          (18, 7, 20),
+        #          (19, 7, 20),
+        #          (21, 8, 22),
+        #          (23, 9, 24),
+        #          (3, 4, 5, 6),
+        #          (4, 5, 6, 16),
+        #          (4, 5, 7, 18),
+        #          (4, 5, 7, 19),
+        #          (5, 4, 8, 9),
+        #          (5, 4, 8, 21),
+        #          (4, 8, 9, 23),
+        #          (8, 9, 1, 10)]
+
+        # specs = [(0, 1),
+        #          (1, 2),
+        #          (2, 3),
+        #          (0, 4),
+        #          (0, 5),
+        #          (0, 6),
+        #          (2, 7),
+        #          (0, 1, 2),
+        #          (1, 0, 4),
+        #          (1, 0, 5),
+        #          (1, 0, 6),
+        #          (1, 2, 3),
+        #          (1, 2, 7),
+        #          (3, 2, 7),
+        #          (4, 0, 5),
+        #          (4, 0, 6),
+        #          (5, 0, 6),
+        #          (4, 0, 1, 2),
+        #          (0, 1, 2, 3),
+        #          (0, 1, 2, 7),
+        #          (5, 0, 1, 4),
+        #          (5, 0, 1, 6)
+        #          ]
+
+        specs = [(0, 1),
+                 (1, 2),
+                 (2, 3),
+                 (0, 4),
+                 # (0, 5),
+                 # (0, 6),
+                 # (2, 7),
+                 (0, 1, 2),
+                 (1, 0, 4),
+                 # (1, 0, 5),
+                 # (1, 0, 6),
+                 (1, 2, 3),
+                 # (1, 2, 7),
+                 # (3, 2, 7),
+                 # (4, 0, 5),
+                 # (4, 0, 6),
+                 # (5, 0, 6),
+                 (4, 0, 1, 2),
+                 (0, 1, 2, 3),
+                 # (0, 1, 2, 7),
+                 # (5, 0, 1, 4),
+                 # (5, 0, 1, 6)
+                 ]
+
+        # specs = coordops.extract_zmatrix_internals([
+        #     [3, -1, -2, -3],
+        #     [2, 3, -1, -2],
+        #     [1, 2, 3, -1],
+        #     [0, 1, 2, 3],
+        #     [4, 0, 1, 2]
+        # ])
+
+        # print(len(specs), len(mol.atoms) *3 - 6)
         # specs = mol.get_bond_graph_internals(include_fragments=False, pruning='b_matrix')
         # specs = mol.get_bond_graph_internals(include_fragments=False)
         # import pprint
@@ -4228,7 +4374,8 @@ class MolecoolsTests(TestCase):
         # pprint.pprint([
         #     x for x in specs2 if x not in specs
         # ])
-        pprint.pprint(specs)
+        # pprint.pprint(specs)
+        # print(len(specs))
         # return
         # raise Exception(len(specs))
         mol.internals = {
@@ -4236,20 +4383,59 @@ class MolecoolsTests(TestCase):
             # 'method':'iterative'
         }
 
+        internal_spec = coordops.InternalSpec(specs)
+        ints = internal_spec.cartesians_to_internals(mol.coords)
+        # print(nput.distance_matrix(mol.coords, return_triu=True))
+        # # with BlockProfiler():
+        # c = [(0, 1), (1, 2), (0, 1, 2), (2, 7), (1, 2, 7), (0, 1, 2, 7), (0, 4), (1, 0, 4), (2, 1, 0, 4), (2, 3),
+        #      (1, 2, 3), (0, 1, 2, 3), (1, 6), (0, 1, 6), (4, 0, 1, 6), (0, 5), (1, 0, 5), (5, 0, 1, 6)]
+        # pprint.pprint(dict(
+        #     zip(c, nput.internal_coordinate_tensors(mol.coords, c, order=0)[0])
+        # ))
+        # print("="*50)
+        carts = internal_spec.internals_to_cartesians(ints, reference_cartesians=mol.coords)
+        # print(nput.distance_matrix(carts, return_triu=True))
+
+        # uuh = mol.plot(
+        #     [
+        #         carts,
+        #         mol.coords
+        #
+        #     ],
+        #     backend='x3d',
+        #     highlight_atoms=(0, 1, 2, 3, 4),
+        #     comparison_styles={
+        #         'atom_style':{
+        #             # 'color': 'white',
+        #             'transparency': .2,
+        #         },
+        #         'bond_style': {
+        #             # 'color': 'white',
+        #             'transparency': .2,
+        #         },
+        #         'highlight_atoms':[]
+        #     }
+        # ).show()
+        # return
+
+
         # print(mol.internal_coordinates.tolist())
         # return
 
         # mol.animate_coordinate(-5).show()
         # return
+        # with BlockProfiler():
+        mode = -2
         geoms = mol.get_scan_coordinates(
-            [[-.5, .5, 5]],
-            which=[-5],
+            [[-.5, .5, 7]],
+            which=[mode],
             internals='reembed'
         )
 
+        # mol.plot().show(highlight_atoms=[0, 2, 3])
         mol.plot(geoms,
                  backend='x3d',
-                 highlight_atoms=[0, 2, 3],
+                 highlight_atoms=specs[mode],
                  image_size=800,
                  include_save_buttons=True).show()
 ```
