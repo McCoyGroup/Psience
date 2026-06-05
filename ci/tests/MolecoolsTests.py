@@ -4057,7 +4057,7 @@ class MolecoolsTests(TestCase):
 
         return
 
-    @debugTest
+    @validationTest
     def test_FragInternalsScan(self):
         import McUtils.Coordinerds as coordops
 
@@ -4483,6 +4483,12 @@ class MolecoolsTests(TestCase):
     @validationTest
     def test_RDKitNumberIssues(self):
         Molecule.from_string("""CC(N1)=NC2=C1C(/C=C/C3=[N+](CCC[S-](=O)(=O)=O)C4=CC=CC=C4S3)=CC=C2""", 'smi')
+
+
+    @debugTest
+    def test_PubChemNames(self):
+        mol = Molecule.from_string('melatonin', 'name')
+        mol.plot().show()
 
     @validationTest
     def test_FragEmbedding(self):

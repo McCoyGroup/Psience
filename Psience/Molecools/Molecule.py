@@ -3373,10 +3373,13 @@ class Molecule(AbstractMolecule):
         else:
             return cls.from_rdmol(confs, **opts)
     @classmethod
-    def _from_name(cls, name, api_key=None, add_implicit_hydrogens=True, **opts):
-        from McUtils.ExternalPrograms import ChemSpiderAPI
+    def _from_name(cls, name, api_key=None, add_implicit_hydrogens=True, method='pubchem', **opts):
+        from McUtils.ExternalPrograms import ChemSpiderAPI, PubChemAPI
 
-        smiles = ChemSpiderAPI(api_key).get_compounds_by_name(name, fields="SMILES")
+        if dev.str_is(method, 'chemspider', ignore_case=True):
+            smiles = ChemSpiderAPI(api_key).get_compounds_by_name(name, fields="SMILES")
+        else:
+            smiles = PubChemAPI().get_compounds_by_name(name, fields="SMILES")
         if len(smiles) == 1:
             return cls._from_smiles(smiles[0]['smiles'], add_implicit_hydrogens=add_implicit_hydrogens, **opts)
         elif len(smiles) > 0:
@@ -3385,7 +3388,7 @@ class Molecule(AbstractMolecule):
                 for s in smiles
             ]
         else:
-            raise ValueError(f"{name} didn't resolve to any known compounds with ChemSpider")
+            raise ValueError(f"{name} didn't resolve to any known compounds with {method}")
     @classmethod
     def _from_sdf(cls, sdf, **opts):
         from McUtils.ExternalPrograms import RDMolecule
