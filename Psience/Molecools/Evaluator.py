@@ -3818,7 +3818,8 @@ class EvaluationServerEnergyEvaluator(EnergyEvaluator):
 @EnergyEvaluator.register('mlipserver')
 class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
     def __init__(self, atoms, *, container_path, energy_evaluator,
-                 session:subprocess.Popen=None, port=None,
+                 session:subprocess.Popen=None,
+                 port=None,
                  temp_dir=None,
                  launcher_options=None,
                  bind_sources=True,
@@ -3852,7 +3853,10 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
 
     @classmethod
     def pick_port(cls):
-        ...
+        import socket
+        with socket.socket() as s:
+            s.bind(("", 0))
+            return s.getsockname()[1]
 
     def get_container_env_command(self):
         if self.container_env is None:
