@@ -3206,8 +3206,21 @@ class UMAEnergyEvaluator(ASECalcEnergyEvaluator):
         'inorganics/medium':'uma-m-1p1/omat',
     }
     @classmethod
-    def setup_calc(cls, model="uma-s-1p2", device=None, task_name=None, model_dir=None, predict_unit_options=None, **settings):
+    def setup_calc(cls, model="uma-s-1p2",
+                   device=None, task_name=None, model_dir=None,
+                   login=None,
+                   hf_token=None,
+                   predict_unit_options=None, **settings):
         from fairchem.core import pretrained_mlip, FAIRChemCalculator
+        if login is None:
+            if hf_token is None:
+                hf_token = os.environ.get("HF_TOKEN")
+            login = hf_token is not None
+        if login:
+            if hf_token is None:
+                hf_token = os.environ.get("HF_TOKEN")
+            from huggingface_hub import login
+            login(token=hf_token)
 
         if task_name is None:
             if '/' in model:
@@ -3892,6 +3905,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
                  charge=None,
                  multiplicity=None,
                  model_dir=dev.default,
+                 pass_tokens=True,
                  **defaults):
         self.atoms = atoms
         self.charge = charge
@@ -3914,6 +3928,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
         if dev.is_default(model_dir, allow_None=False):
             model_dir = os.path.join(os.path.expanduser("~"), ".cache")
         self.model_dir = model_dir
+        self.pass_tokens = pass_tokens
         super().__init__(request_handler=self._run_mlip_request, **defaults)
 
     @classmethod
@@ -3937,6 +3952,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
 
     #bind sources to make a container runnable
     dynamic_sources = ['McUtils', 'Psience', 'mlipenv']
+    token_list = ['HF_TOKEN']
     def get_launcher(self):
         lopts = self.launcher_options
         if lopts is None:
@@ -3953,6 +3969,17 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
                 cur_sources = []
             new_sources = (self.dynamic_sources if self.bind_sources is True else self.bind_sources)
             lopts['bind_sources'] = list(cur_sources) + list(new_sources)
+        if self.pass_tokens:
+            tokens = self.pass_tokens
+            if tokens is True:
+                tokens = self.token_list
+            tokens = {
+                k:os.environ.get(k)
+                for k in tokens
+            }
+            tokens = {k:v for k,v in tokens.items() if v is not None}
+            if len(tokens) > 0:
+                lopts['env'] = tokens | lopts.get('env', {})
         return SingularityLauncher(
             self.container_path,
             *self.get_container_env_command(),
