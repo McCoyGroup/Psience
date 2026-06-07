@@ -3824,8 +3824,12 @@ class MLIPServerEnergyEvaluator(EnergyEvaluator):
                  bind_sources=True,
                  container_env=None,
                  container_mode=None,
+                 charge=None,
+                 multiplicity=None,
                  **defaults):
         self.atoms = atoms
+        self.charge = charge
+        self.multiplicity = multiplicity
         self.port = port
         self.container_path = container_path
         self._managed_session = False
@@ -3842,6 +3846,10 @@ class MLIPServerEnergyEvaluator(EnergyEvaluator):
         self.container_mode = container_mode
         super().__init__(**defaults)
         self.request_handler = self._run_mlip_request
+
+    @classmethod
+    def from_mol(cls, mol, **opts):
+        return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
 
     @classmethod
     def pick_port(cls):
@@ -3917,8 +3925,9 @@ class MLIPServerEnergyEvaluator(EnergyEvaluator):
         structures, config = self.get_io_files()
         np.savez(structures,
                  atoms=self.atoms,
-                 coordinates=coords * UnitsData.convert("BohrRadius", "Angstroms")
-                 )
+                 coordinates=coords * UnitsData.convert("BohrRadius", "Angstroms"),
+                 charge=self.charge if self.charge is not None else 0,
+                 spin=self.multiplicity if self.multiplicity is not None else 1)
         state = {
             'method':'psience',
             'structures':structures,
