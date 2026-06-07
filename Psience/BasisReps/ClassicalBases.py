@@ -59,7 +59,7 @@ class ChebyshevBasis(RepresentationBasis):
         raise NotImplementedError("...")
 
     def p2(self, n):
-        """
+        r"""
         0  -> (Which[# \[Equal] 1, 3, # \[Equal] 2, 1/2,
      True, (-1 - 8 (# - 1) - 4 (# - 1)^2)]*1/8 &),
     2  -> (If[# \[Equal] 1,
