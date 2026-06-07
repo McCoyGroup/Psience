@@ -3116,7 +3116,7 @@ class MACEEnergyEvaluator(ASECalcEnergyEvaluator):
             model_type, model = model.split('/', 1)
         if isinstance(model_type, str):
             with cls.quiet_mode():
-                if model == 'omol':
+                if model_type == 'omol':
                     from mace.calculators import mace_omol as model_type
                 elif model_type == 'mp':
                     from mace.calculators import mace_mp as model_type
