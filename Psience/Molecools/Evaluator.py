@@ -3952,7 +3952,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
         } | opts
 
         dev.write_json(config, state)
-        return ['evaluate', config], {'connection':address}, [config, structures]
+        return ['evaluate', [config]], {'connection':address}, [config, structures]
 
     def process_response(self, response, state):
         # response from MLIP env is either an error or
@@ -3967,6 +3967,8 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
                 ...
 
     def _run_mlip_request(self, *args, **kwargs):
+        from mlipenv.client import MLIPHandler
+
         rc = self.session.poll()
         if rc is not None:
             output = (
@@ -3975,7 +3977,6 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
             )
             raise ValueError(f"container process terminated with status code {rc} and output {output}")
 
-        from mlipenv.client import MLIPHandler
         return MLIPHandler.client_request(*args, **kwargs)
 
 
