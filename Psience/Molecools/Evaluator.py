@@ -3816,7 +3816,7 @@ class EvaluationServerEnergyEvaluator(EnergyEvaluator):
             )
 
 @EnergyEvaluator.register('mlipserver')
-class MLIPServerEnergyEvaluator(EnergyEvaluator):
+class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
     def __init__(self, atoms, *, container_path, energy_evaluator,
                  session:subprocess.Popen=None, port=None,
                  temp_dir=None,
