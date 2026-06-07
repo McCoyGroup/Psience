@@ -3949,7 +3949,8 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
             'structures':structures,
             'tasks':tasks,
             'order':order,
-            'energy_evaluator':self.evaluator
+            'energy_evaluator':self.evaluator,
+            'output_dir':"/tmp/io"
         } | opts
 
         dev.write_json(config, state)
