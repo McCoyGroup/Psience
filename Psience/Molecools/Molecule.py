@@ -114,7 +114,13 @@ class Molecule(AbstractMolecule):
         :type kw:
         """
         # convert "atoms" into list of atom data
-        self._ats = [AtomData[atom] if isinstance(atom, (int, np.integer, str)) else atom for atom in atoms]
+        if isinstance(atoms, np.ndarray):
+            atoms = atoms.tolist()
+        self._ats = [
+            AtomData[atom]
+                if isinstance(atom, (int, np.integer, str, np.str_)) else atom
+            for atom in atoms
+        ]
         self._mass = np.array([a["Mass"] for a in self._ats]) if masses is None else np.asanyarray(masses)
         coords = CoordinateSet(coords, CartesianCoordinates3D)
 
