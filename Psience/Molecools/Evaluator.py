@@ -3948,7 +3948,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
         } | opts
 
         dev.write_json(config, state)
-        return ['evaluate', config], {}, [config, structures]
+        return ['evaluate', config], {'connection':address}, [config, structures]
 
     def process_response(self, response, state):
         # response from MLIP env is either an error or
