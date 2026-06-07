@@ -1935,6 +1935,21 @@ class Molecule(AbstractMolecule):
             return eval_type.from_mol(self, **dict(opts, **new_opts))
         else:
             return eval_type
+    def get_dipole_polarizability_function(self, evaluator=None, *, order=None, **opts):
+        evaluator = self.get_polarizability_evaluator(evaluator, **opts)
+        def evaluate_polarizability(coords, order=order):
+            smol = order is None
+            if smol: order = 0
+            if coords is None:
+                coords = self.coords
+            expansion = evaluator.evaluate(
+                np.asanyarray(coords)
+                    * UnitsData.convert("BohrRadius", evaluator.distance_units),
+                order=order
+            )
+            if smol: expansion = expansion[0]
+            return expansion
+        return evaluate_polarizability
     def calculate_dipole_polarizability(self, evaluator=None, order=None, **opts):
         evaluator = self.get_polarizability_evaluator(evaluator, **opts)
         smol = order is None
