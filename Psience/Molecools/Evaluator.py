@@ -3985,7 +3985,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
             )
             raise ValueError(f"container process terminated with status code {rc} and output {output}")
 
-        return MLIPHandler.client_request(*args, **kwargs)
+        return MLIPHandler.client_request(*args, **kwargs, print_response=False)
 
 
 class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
