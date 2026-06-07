@@ -3821,6 +3821,9 @@ class MLIPServerEnergyEvaluator(EnergyEvaluator):
                  session:subprocess.Popen=None, port=None,
                  temp_dir=None,
                  launcher_options=None,
+                 bind_sources=True,
+                 container_env=None,
+                 container_mode=None,
                  **defaults):
         self.atoms = atoms
         self.port = port
@@ -3832,6 +3835,11 @@ class MLIPServerEnergyEvaluator(EnergyEvaluator):
         self.temp_dir = None
         self._tmp = temp_dir
         self.launcher_options = launcher_options
+        self.bind_sources = bind_sources
+        self.container_env = container_env
+        if container_mode is None:
+            container_mode = 'exec' if self.container_env is not None else 'run'
+        self.container_mode = container_mode
         super().__init__(**defaults)
         self.request_handler = self._run_mlip_request
 
@@ -3839,6 +3847,16 @@ class MLIPServerEnergyEvaluator(EnergyEvaluator):
     def pick_port(cls):
         ...
 
+    def get_container_env_command(self):
+        if self.container_env is None:
+            return []
+        env = self.container_env
+        if isinstance(self.container_env, str):
+            env = ['conda', 'run', '-n', self.container_env, 'python', '-m', 'mlipenv']
+        return env
+
+    #bind sources to make a container runnable
+    dynamic_sources = ['McUtils', 'Psience', 'mlipenv']
     def get_launcher(self):
         lopts = self.launcher_options
         if lopts is None:
@@ -3849,8 +3867,16 @@ class MLIPServerEnergyEvaluator(EnergyEvaluator):
             bind_paths[self.temp_dir] = '/tmp/io'
         else:
             bind_paths = list(bind_paths) + [self.temp_dir + ':' + "/tmp/io"]
+        if self.bind_sources:
+            cur_sources = lopts.pop('bind_sources', None)
+            if cur_sources is None:
+                cur_sources = []
+            new_sources = (self.dynamic_sources if self.bind_sources is True else self.bind_sources)
+            lopts['bind_sources'] = list(cur_sources) + list(new_sources)
         return SingularityLauncher(
             self.container_path,
+            *self.get_container_env_command(),
+            mode=self.container_mode,
             port=self.port,
             bind=bind_paths,
             **lopts
