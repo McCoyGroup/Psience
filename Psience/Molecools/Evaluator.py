@@ -3915,7 +3915,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
             rc = self.session.poll()
             if rc is not None:
                 output = self.session.stdout.read() + self.session.stderr.read()
-                raise ValueError(f"container process terminated with status code {rc} and output {}")
+                raise ValueError(f"container process terminated with status code {rc} and output {output}")
 
         return self.resolve_address()
 
