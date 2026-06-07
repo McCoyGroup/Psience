@@ -3844,8 +3844,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
         if container_mode is None:
             container_mode = 'exec' if self.container_env is not None else 'run'
         self.container_mode = container_mode
-        super().__init__(**defaults)
-        self.request_handler = self._run_mlip_request
+        super().__init__(request_handler=self._run_mlip_request, **defaults)
 
     @classmethod
     def from_mol(cls, mol, **opts):
