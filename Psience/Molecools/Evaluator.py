@@ -3863,7 +3863,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
             return []
         env = self.container_env
         if isinstance(self.container_env, str):
-            env = ['conda', 'run', '--no-capture-output', '-n', self.container_env, 'python', '-m', 'mlipenv']
+            env = ['conda', 'run', '--no-capture-output', '-n', self.container_env, 'python', '-u', '-m', 'mlipenv']
         return env
 
     #bind sources to make a container runnable
@@ -3912,6 +3912,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
                 self.port = self.pick_port()
             self._launcher = self.get_launcher()
             self.session = self._launcher.launch()
+            is_serving = self.session.stdout.readline()
 
         return self.resolve_address()
 
