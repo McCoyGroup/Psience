@@ -7,8 +7,11 @@ import tempfile
 import itertools
 import math
 import sys, os
+import uuid
+
 import numpy as np
 import warnings
+import subprocess
 
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Zachary import TensorDerivativeConverter, FiniteDifferenceDerivative, CoordinateFunction
@@ -16,7 +19,8 @@ import McUtils.Numputils as nput
 import McUtils.Devutils as dev
 import McUtils.Coordinerds as coordops
 import McUtils.Iterators as itut
-from McUtils.Scaffolding import Logger
+from McUtils.Scaffolding import Logger, read_flat_tree
+from McUtils.ExternalPrograms import SingularityLauncher
 
 from ..Data import PotentialSurface, DipoleSurface
 from .CoordinateSystems import MolecularEmbedding
@@ -2446,13 +2450,13 @@ class RDKitEnergyEvaluator(EnergyEvaluator):
                  unitary=False,
                  # generate_rotation=False,
                  # dtype='float64',
-                 orthogonal_directions=None,
-                 convergence_metric=None,
+                 # orthogonal_directions=None,
+                 # convergence_metric=None,
                  tol=1e-8,
                  max_iterations=100,
-                 damping_parameter=None,
-                 damping_exponent=None,
-                 reset_interval=None,
+                 # damping_parameter=None,
+                 # damping_exponent=None,
+                 # reset_interval=None,
                  **opts
                  ):
         if force_field_type is None:
@@ -3762,6 +3766,160 @@ class PySCFEnergyEvaluator(EnergyEvaluator):
     #             restart_interval=restart_interval,
     #             **opts
     #         )
+
+# @EnergyEvaluator.register('job')
+class EvaluationServerEnergyEvaluator(EnergyEvaluator):
+    def __init__(self, *, request_handler, **defaults):
+        super().__init__(**defaults)
+        self.request_handler = request_handler
+
+    @abc.abstractmethod
+    def setup_request(self, coords, order=None, tasks='energy', **opts) -> (list[Any], dict[Any, Any], Any):
+        ...
+
+    @abc.abstractmethod
+    def process_response(self, response, state):
+        ...
+
+    @abc.abstractmethod
+    def cleanup_state(self, response, state):
+        ...
+
+    def evaluate_term(self, coords, order, tasks='energy', **opts):
+        args, kwargs, state = self.setup_request(coords, tasks=tasks, order=order, **opts)
+        response = None
+        try:
+            response = self.request_handler(*args, **kwargs)
+            return self.process_response(response, state)
+        finally:
+            self.cleanup_state(response, state)
+
+    def optimize(self,
+                 coords,
+                 method='server',
+                 **opts
+                 ):
+
+        if method == 'server':
+            args, kwargs, state = self.setup_request(coords, tasks='optimize', **opts)
+            response = None
+            try:
+                response = self.request_handler(*args, **kwargs)
+                return self.process_response(response, state)
+            finally:
+                self.cleanup_state(response, state)
+        else:
+            return super().optimize(
+                coords,
+                method=method,
+                **opts
+            )
+
+@EnergyEvaluator.register('mlipserver')
+class MLIPServerEnergyEvaluator(EnergyEvaluator):
+    def __init__(self, atoms, *, container_path, energy_evaluator,
+                 session:subprocess.Popen=None, port=None,
+                 temp_dir=None,
+                 launcher_options=None,
+                 **defaults):
+        self.atoms = atoms
+        self.port = port
+        self.container_path = container_path
+        self._managed_session = False
+        self._launcher:SingularityLauncher = None
+        self.session = session
+        self.evaluator = energy_evaluator
+        self.temp_dir = None
+        self._tmp = temp_dir
+        self.launcher_options = launcher_options
+        super().__init__(**defaults)
+        self.request_handler = self._run_mlip_request
+
+    @classmethod
+    def pick_port(cls):
+        ...
+
+    def get_launcher(self):
+        lopts = self.launcher_options
+        if lopts is None:
+            lopts = {}
+
+        bind_paths = lopts.pop('bind', {})
+        if isinstance(bind_paths, dict):
+            bind_paths[self.temp_dir] = '/tmp/io'
+        else:
+            bind_paths = list(bind_paths) + [self.temp_dir + ':' + "/tmp/io"]
+        return SingularityLauncher(
+            self.container_path,
+            port=self.port,
+            bind=bind_paths,
+            **lopts
+            # forward bind paths and other conveniences
+        )
+
+    def launch_session(self):
+        if self.temp_dir is None:
+            if self._tmp is None:
+                self._tmp = tempfile.TemporaryDirectory()
+                self._tmp.__enter__()
+                self.temp_dir = self._tmp.name
+            else:
+                self.temp_dir = self._tmp
+
+        if self.session is None:
+            self._managed_session = True
+            if self.port is None:
+                self.port = self.pick_port()
+            self._launcher = self.get_launcher()
+            self.session = self._launcher.launch()
+
+    def cleanup_session(self):
+        if self._managed_session:
+            if self._launcher is not None:
+                self._launcher.terminate()
+            else:
+                self.session.kill()
+            self._managed_session = False
+
+    def get_io_files(self):
+        id = str(uuid.uuid4())
+        return (
+            os.path.join(self.temp_dir, 'structures-' + id + '.npz'),
+            os.path.join(self.temp_dir, 'config-' + id + '.json')
+        )
+    def setup_request(self, coords, order=None, tasks='energy', **opts) -> (list[Any], dict[Any, Any], Any):
+        structures, config = self.get_io_files()
+        np.savez(structures,
+                 atoms=self.atoms,
+                 coordinates=coords * UnitsData.convert("BohrRadius", "Angstroms")
+                 )
+        state = {
+            'method':'psience',
+            'structures':structures,
+            'tasks':tasks,
+            'order':order,
+            'energy_evaluator':self.evaluator
+        } | opts
+
+        dev.write_json(config, state)
+        return [config], {}, [config, structures]
+
+    def process_response(self, response, state):
+        # response from MLIP env is either an error or
+        # outputs as specified in the config
+        return read_flat_tree(response)
+
+    def cleanup_state(self, response, state:list[str]):
+        for file in state:
+            try:
+                os.remove(file)
+            except IOError:
+                ...
+
+    def _run_mlip_request(self, *args):
+        from mlipenv.client import MLIPHandler
+        return MLIPHandler.client_request(*args)
+
 
 class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
     # slightly weird, want single inheritance, but using `PropertyFunctionEvaluator` to define the
