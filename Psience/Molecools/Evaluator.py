@@ -8,6 +8,7 @@ import itertools
 import math
 import sys, os
 import uuid
+import time
 
 import numpy as np
 import warnings
@@ -3138,7 +3139,7 @@ class MACEEnergyEvaluator(ASECalcEnergyEvaluator):
 
         return calc
 
-@EnergyEvaluator.register('mace')
+@EnergyEvaluator.register('uma')
 class UMAEnergyEvaluator(ASECalcEnergyEvaluator):
     @classmethod
     def handle_specialization(cls, tag):
@@ -3825,6 +3826,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
                  bind_sources=True,
                  container_env=None,
                  container_mode=None,
+                 initialization_delay_time=1,
                  charge=None,
                  multiplicity=None,
                  **defaults):
@@ -3842,6 +3844,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
         self.launcher_options = launcher_options
         self.bind_sources = bind_sources
         self.container_env = container_env
+        self.initialization_delay_time = initialization_delay_time
         if container_mode is None:
             container_mode = 'exec' if self.container_env is not None else 'run'
         self.container_mode = container_mode
@@ -3913,6 +3916,8 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
             self._launcher = self.get_launcher()
             self.session = self._launcher.launch()
             is_serving = self.session.stdout.readline()
+            if self.initialization_delay_time is not None:
+                time.sleep(self.initialization_delay_time)
 
         return self.resolve_address()
 
