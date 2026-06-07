@@ -3912,6 +3912,10 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
                 self.port = self.pick_port()
             self._launcher = self.get_launcher()
             self.session = self._launcher.launch()
+            rc = self.session.poll()
+            if rc is not None:
+                output = self.session.stdout.read() + self.session.stderr.read()
+                raise ValueError(f"container process terminated with status code {rc} and output {}")
 
         return self.resolve_address()
 
