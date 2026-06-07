@@ -3962,9 +3962,9 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
             except IOError:
                 ...
 
-    def _run_mlip_request(self, *args):
+    def _run_mlip_request(self, *args, **kwargs):
         from mlipenv.client import MLIPHandler
-        return MLIPHandler.client_request(*args)
+        return MLIPHandler.client_request(*args, **kwargs)
 
 
 class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
