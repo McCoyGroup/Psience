@@ -3863,7 +3863,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
             return []
         env = self.container_env
         if isinstance(self.container_env, str):
-            env = ['conda', 'run', '-n', self.container_env, 'python', '-m', 'mlipenv']
+            env = ['conda', 'run', '--no-capture-output', '-n', self.container_env, 'python', '-m', 'mlipenv']
         return env
 
     #bind sources to make a container runnable
@@ -3912,10 +3912,6 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
                 self.port = self.pick_port()
             self._launcher = self.get_launcher()
             self.session = self._launcher.launch()
-            rc = self.session.poll()
-            if rc is not None:
-                output = self.session.stdout.read() + self.session.stderr.read()
-                raise ValueError(f"container process terminated with status code {rc} and output {output}")
 
         return self.resolve_address()
 
@@ -3971,6 +3967,14 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
                 ...
 
     def _run_mlip_request(self, *args, **kwargs):
+        rc = self.session.poll()
+        if rc is not None:
+            output = (
+                    self.session.stdout.read()
+                    + self.session.stderr.read()
+            )
+            raise ValueError(f"container process terminated with status code {rc} and output {output}")
+
         from mlipenv.client import MLIPHandler
         return MLIPHandler.client_request(*args, **kwargs)
 
