@@ -3963,6 +3963,15 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
         # response from MLIP env is either an error or
         # outputs as specified in the config
         target_dir = os.path.dirname(state[0])
+        if 'output_file' not in response:
+            msg = response.get('stdout', '')
+            err = response.get('stderr', '')
+            if len(err) > 0:
+                if len(msg) == 0:
+                    msg = err
+                else:
+                    msg = msg + "\n" + err
+            raise ValueError(f"no output from server, got message: {msg}")
         output_file = os.path.basename(response['output_file'])
         res = read_flat_tree(os.path.join(target_dir, output_file))
         return res['results'][0]
@@ -3985,7 +3994,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
             )
             raise ValueError(f"container process terminated with status code {rc} and output {output}")
 
-        return MLIPHandler.client_request(*args, **kwargs, print_response=False)
+        return MLIPHandler.client_request(*args, **kwargs, print_response=None)
 
 
 class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
