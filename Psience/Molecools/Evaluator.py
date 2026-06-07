@@ -3890,6 +3890,9 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
             # forward bind paths and other conveniences
         )
 
+    def resolve_address(self):
+        return ('localhost', self.port) #TODO make this handle UDP or other communication modes too
+
     def launch_session(self):
         if self.temp_dir is None:
             if self._tmp is None:
@@ -3905,6 +3908,8 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
                 self.port = self.pick_port()
             self._launcher = self.get_launcher()
             self.session = self._launcher.launch()
+
+        return self.resolve_address()
 
     def cleanup_session(self):
         if self._managed_session:
@@ -3927,7 +3932,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
             os.path.join(self.temp_dir, 'config-' + id + '.json')
         )
     def setup_request(self, coords, order=None, tasks='energy', **opts) -> (list[Any], dict[Any, Any], Any):
-        self.launch_session()
+        address = self.launch_session()
         structures, config = self.get_io_files()
         np.savez(structures,
                  atoms=self.atoms,
@@ -3943,7 +3948,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
         } | opts
 
         dev.write_json(config, state)
-        return [config], {}, [config, structures]
+        return ['evaluate', config], {}, [config, structures]
 
     def process_response(self, response, state):
         # response from MLIP env is either an error or
