@@ -3818,6 +3818,7 @@ class EvaluationServerEnergyEvaluator(EnergyEvaluator):
 
 @EnergyEvaluator.register('mlipserver')
 class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
+    distance_units = 'BohrRadius'
     def __init__(self, atoms, *, container_path, energy_evaluator,
                  session:subprocess.Popen=None,
                  port=None,
