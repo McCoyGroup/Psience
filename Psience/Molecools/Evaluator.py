@@ -3944,13 +3944,16 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
                  coordinates=coords * UnitsData.convert("BohrRadius", "Angstroms"),
                  charge=self.charge if self.charge is not None else 0,
                  spin=self.multiplicity if self.multiplicity is not None else 1)
+        output_dir, config_name = os.path.split(config)
+        output_file = config_name.replace('config-', 'results-').replace('.json', '.npz')
         state = {
             'method':'psience',
             'structures':structures,
             'tasks':tasks,
             'order':order,
             'energy_evaluator':self.evaluator,
-            'output_dir':"/tmp/io"
+            'output_dir':output_dir,
+            'output_file':os.path.join(output_dir, output_file)
         } | opts
 
         dev.write_json(config, state)
@@ -3959,7 +3962,10 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
     def process_response(self, response, state):
         # response from MLIP env is either an error or
         # outputs as specified in the config
-        return read_flat_tree(response)
+        target_dir = os.path.dirname(state[0])
+        output_file = os.path.basename(response['output_file'])
+        res = read_flat_tree(os.path.join(target_dir, output_file))
+        return res['results'][0]
 
     def cleanup_state(self, response, state:list[str]):
         for file in state:
