@@ -9,7 +9,7 @@ import math
 import sys, os
 import uuid
 import time
-
+import contextlib
 import numpy as np
 import warnings
 import subprocess
@@ -2487,9 +2487,9 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
     """
     Borrows structure from AIMNet2ASE to call appropriately
     """
-    def __init__(self, atoms, model='aimnet2', charge=0, device=None, multiplicity=None, quiet=True, **defaults):
+    def __init__(self, atoms, model='aimnet2', charge=0, device=None, model_dir=None, multiplicity=None, quiet=True, **defaults):
         super().__init__(**defaults)
-        self.eval = self.setup_aimnet(model, device=device)
+        self.eval = self.setup_aimnet(model, device=device, model_dir=model_dir)
         self.model = model
         self.atoms = atoms
         self.numbers = [AtomData[atom, "Number"] for atom in atoms]
@@ -2571,14 +2571,46 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
             **( opts | dict(model=base_calc.model, charge=base_calc.charge, mult=base_calc.mult, out_dir=base_calc.out_dir))
         )
 
+    def _maybe_download_asset(self, file:str, url:str):
+        ...
+
+
     @classmethod
-    def setup_aimnet(cls, model, device=None):
+    @contextlib.contextmanager
+    def _overload_aimnet_modeldir(cls, root_dir):
+        if root_dir is None:
+            root_dir = os.environ.get("MODEL_CACHE_DIR")
+
+        if root_dir is not None:
+            import aimnet.calculators.model_registry as reg
+            cur = reg._maybe_download_asset
+            try:
+                def _maybe_download_asset(file: str, url: str) -> str:
+                    import requests
+                    filename = os.path.join(root_dir, 'aimnet', file)
+                    if not os.path.exists(filename):
+                        print(f"Downloading {url} -> {filename}")
+                        with open(filename, "wb") as f:
+                            response = requests.get(url, timeout=60)
+                            f.write(response.content)
+                    return filename
+                reg._maybe_download_asset = _maybe_download_asset
+                yield _maybe_download_asset
+            finally:
+                reg._maybe_download_asset = cur
+        else:
+            yield None
+
+
+    @classmethod
+    def setup_aimnet(cls, model, device=None, model_dir=None):
         if isinstance(model, str):
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 with dev.OutputRedirect():
                     try:
-                        from aimnet.calculators import AIMNet2Calculator
+                        with cls._overload_aimnet_modeldir(model_dir):
+                            from aimnet.calculators import AIMNet2Calculator
                     except ModuleNotFoundError:
                         from aimnet2calc import AIMNet2Calculator
 
@@ -3098,6 +3130,25 @@ class MACEEnergyEvaluator(ASECalcEnergyEvaluator):
     def handle_specialization(cls, tag):
         return {'model':tag}
 
+    @classmethod
+    @contextlib.contextmanager
+    def _overload_mace_modeldir(cls, root_dir):
+        cur_xdg = os.environ.get("XDG_CACHE_HOME")
+        if root_dir is None:
+            root_dir = os.environ.get("MODEL_CACHE_DIR")
+
+        if root_dir is not None:
+            try:
+                os.environ["XDG_CACHE_HOME"] = root_dir
+                yield root_dir
+            finally:
+                if cur_xdg is not None:
+                    os.environ["XDG_CACHE_HOME"] = cur_xdg
+                else:
+                    os.environ.pop("XDG_CACHE_HOME")
+        else:
+            yield None
+
     model_types = {
         'extra_large':'omol/extra_large',
         "small":'off/small',
@@ -3109,7 +3160,7 @@ class MACEEnergyEvaluator(ASECalcEnergyEvaluator):
         'polar':'polar/polar-1-l'
     }
     @classmethod
-    def setup_calc(cls, model='extra_large', model_type=None, device=None, **settings):
+    def setup_calc(cls, model='extra_large', model_type=None, device=None, model_dir=None, **settings):
         model = model.lower()
         model = cls.model_types.get(model, model)
         if model_type is None:
@@ -3130,7 +3181,7 @@ class MACEEnergyEvaluator(ASECalcEnergyEvaluator):
                     import mace.calculators
                     model_type = getattr(mace.calculators, model_type)
 
-        with cls.quiet_mode():
+        with cls.quiet_mode(), cls._overload_mace_modeldir(model_dir):
             device = cls._resolve_torch_device(device)
             if model == 'none':
                 calc = model_type(model=model, device=device, **settings)
@@ -3155,7 +3206,7 @@ class UMAEnergyEvaluator(ASECalcEnergyEvaluator):
         'inorganics/medium':'uma-m-1p1/omat',
     }
     @classmethod
-    def setup_calc(cls, model="uma-s-1p2", device=None, task_name=None, **settings):
+    def setup_calc(cls, model="uma-s-1p2", device=None, task_name=None, model_dir=None, predict_unit_options=None, **settings):
         from fairchem.core import pretrained_mlip, FAIRChemCalculator
 
         if task_name is None:
@@ -3164,10 +3215,20 @@ class UMAEnergyEvaluator(ASECalcEnergyEvaluator):
             else:
                 task_name = 'omol'
 
+        if predict_unit_options is None:
+            predict_unit_options = {}
+        predict_unit_options = predict_unit_options.copy()
+        if model_dir is None:
+            model_dir = os.environ.get("MODEL_CACHE_DIR")
+        if model_dir is not None and 'cache_dir' not in predict_unit_options:
+            predict_unit_options['cache_dir'] = os.path.join(model_dir, 'fairchem')
+
         model = model.lower()
         with cls.quiet_mode():
-            device = cls._resolve_torch_device(device)
-            predictor = pretrained_mlip.get_predict_unit(model, device=device)
+            if 'device' not in predict_unit_options:
+                device = cls._resolve_torch_device(device)
+                predict_unit_options['device'] = device
+            predictor = pretrained_mlip.get_predict_unit(model, **predict_unit_options)
             calc = FAIRChemCalculator(predictor, task_name=task_name, **settings)
 
         return calc
@@ -3830,6 +3891,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
                  initialization_delay_time=1,
                  charge=None,
                  multiplicity=None,
+                 model_dir=dev.default,
                  **defaults):
         self.atoms = atoms
         self.charge = charge
@@ -3849,6 +3911,9 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
         if container_mode is None:
             container_mode = 'exec' if self.container_env is not None else 'run'
         self.container_mode = container_mode
+        if dev.is_default(model_dir, allow_None=False):
+            model_dir = os.path.join(os.path.expanduser("~"), ".cache")
+        self.model_dir = model_dir
         super().__init__(request_handler=self._run_mlip_request, **defaults)
 
     @classmethod
@@ -3959,7 +4024,8 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
             'order':order,
             'energy_evaluator':self.evaluator,
             'output_dir':output_dir,
-            'output_file':os.path.join(output_dir, output_file)
+            'output_file':os.path.join(output_dir, output_file),
+            'model_dir': self.model_dir
         } | opts
 
         dev.write_json(config, state)
