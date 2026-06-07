@@ -3914,6 +3914,12 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
                 self.session.kill()
             self._managed_session = False
 
+    def __del__(self):
+        try:
+            self.cleanup_session()
+        except:
+            ...
+
     def get_io_files(self):
         id = str(uuid.uuid4())
         return (
@@ -3921,6 +3927,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
             os.path.join(self.temp_dir, 'config-' + id + '.json')
         )
     def setup_request(self, coords, order=None, tasks='energy', **opts) -> (list[Any], dict[Any, Any], Any):
+        self.launch_session()
         structures, config = self.get_io_files()
         np.savez(structures,
                  atoms=self.atoms,
