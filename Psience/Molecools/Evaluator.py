@@ -4091,6 +4091,8 @@ class PotentialExpansionEnergyEvaluator(PotentialFunctionEnergyEvaluator):
         return expansion, ignored
 
 class DipoleEvaluator(PropertyEvaluator):
+    evaluator_registry = {}
+
     target_property_units = ("ElementaryCharge", "BohrRadius")
     @classmethod
     def get_evaluators(cls):
@@ -4325,6 +4327,8 @@ class HIPNNDipoleEvaluator(DipoleEvaluator):
         return expansions
 
 class ChargeEvaluator(PropertyEvaluator):
+    evaluator_registry = {}
+
     target_property_units = "ElementaryCharge"
     default_evaluator_type = 'rdkit'
     @classmethod
