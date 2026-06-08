@@ -3211,7 +3211,7 @@ class UMAEnergyEvaluator(ASECalcEnergyEvaluator):
                    login=None,
                    hf_token=None,
                    predict_unit_options=None, **settings):
-        from fairchem.core.calculate.ase_calculator import FAIRChemCalculator
+        from fairchem.core import pretrained_mlip, FAIRChemCalculator
 
         if login is None:
             if hf_token is None:
