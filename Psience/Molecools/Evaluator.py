@@ -3015,6 +3015,22 @@ class ASECalcEnergyEvaluator(EnergyEvaluator):
         self.quiet = quiet
         self.embedding = embedding
 
+    def to_ase(self,
+               gradient_modification_function=None,
+               gradient_modification_mode='shift',
+               convert_modification_distances=True,
+               convert_modification_energies=True,
+               orthogonal_projection_generator=None,
+               **etc
+               ):
+        calc = self._modify_ase_calc(self.eval,
+                                     gradient_modification_function=gradient_modification_function,
+                                     gradient_modification_mode=gradient_modification_mode,
+                                     convert_modification_distances=convert_modification_distances,
+                                     convert_modification_energies=convert_modification_energies,
+                                     orthogonal_projection_generator=orthogonal_projection_generator)
+        return calc
+
     @classmethod
     def from_mol(cls, mol, **opts):
         return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
@@ -3223,6 +3239,7 @@ class UMAEnergyEvaluator(ASECalcEnergyEvaluator):
             from huggingface_hub import login
             login(token=hf_token)
 
+        model = cls.model_types.get(model, model)
         if task_name is None:
             if '/' in model:
                 model, task_name = model.split('/', 1)
@@ -3245,6 +3262,128 @@ class UMAEnergyEvaluator(ASECalcEnergyEvaluator):
             predictor = pretrained_mlip.get_predict_unit(model, **predict_unit_options)
             calc = FAIRChemCalculator(predictor, task_name=task_name, **settings)
 
+        return calc
+
+@EnergyEvaluator.register('upet')
+class UPETEnergyEvaluator(ASECalcEnergyEvaluator):
+    @classmethod
+    def handle_specialization(cls, tag):
+        return {'model': tag}
+
+    model_types = {
+        # --- Current / recommended ---
+        "mad": "pet-mad-s",
+        "mad-xs": "pet-mad-xs",
+
+        "oam": "pet-oam-xl",
+        "oam-l": "pet-oam-l",
+
+        "omat-xs": "pet-omat-xs",
+        "omat-s": "pet-omat-s",
+        "omat-m": "pet-omat-m",
+        "omat-l": "pet-omat-l",
+        "omat-xl": "pet-omat-xl",
+
+        "omatpes": "pet-omatpes-l",
+
+        "spice": "pet-spice-s",
+        "spice-l": "pet-spice-l",
+
+        # --- Legacy ---
+        "omad-xs": "pet-omad-xs",
+        "omad-s": "pet-omad-s",
+        "omad-l": "pet-omad-l",
+    }
+
+    @classmethod
+    def setup_calc(cls, model="pet-mad-s", device=None, version=None, login=None,
+                   hf_token=None,
+                   model_dir=None,
+                   **settings):
+        from upet.calculator import UPETCalculator
+
+        if model_dir is None:
+            model_dir = os.environ.get("MODEL_CACHE_DIR")
+
+        model = cls.model_types.get(model, model)
+        if version is None:
+            if '/' in model:
+                model, version = model.split('/', 1)
+            else:
+                version = 'lastest'
+
+        if model_dir is not None:
+            cur_cache = os.environ.get('HF_HUB_CACHE')
+            os.environ['HF_HUB_CACHE'] = model_dir
+        else:
+            cur_cache = False
+
+        try:
+            if login is None:
+                if hf_token is None:
+                    hf_token = os.environ.get("HF_TOKEN")
+                login = hf_token is not None
+            if login:
+                if hf_token is None:
+                    hf_token = os.environ.get("HF_TOKEN")
+                from huggingface_hub import login
+                login(token=hf_token)
+
+            model = model.lower()
+            with cls.quiet_mode():
+                if device is None:
+                    device = cls._resolve_torch_device(device)
+                calc = UPETCalculator(model=model, version=version, device=device, **settings)
+        finally:
+            if cur_cache is not False:
+                if cur_cache is None:
+                    del os.environ['HF_HUB_CACHE']
+                else:
+                    os.environ['HF_HUB_CACHE'] = cur_cache
+
+        return calc
+
+@EnergyEvaluator.register('orb')
+class OrbModelEnergyEvaluator(ASECalcEnergyEvaluator):
+    @classmethod
+    def handle_specialization(cls, tag):
+        return {'model': tag}
+
+    model_types = {
+        'v1':"orbmol-v1-conservative",
+        'v2':"orbmol-v2",
+        'omol':"orbmol-v3-conservative-omol",
+        'v3':"orbmol-v3-conservative-omol",
+        'v3-direct':"orbmol-v3-direct-omol",
+        'v1-direct':"orbmol-v1-direct",
+        'omat':"orb-v3-conservative-inf-omat",
+        'v3-omat':"orb-v3-conservative-inf-omat",
+        'v3-omat-direct':"orb-v3-direct-inf-omat",
+        'v3-omat20':"orb-v3-conservative-20-omat",
+        'v3-omat20-direct':"orb-v3-direct-20-omat",
+        'd3':"separate-d3-5layer",
+        'd3-3layer':"separate-d3-3layer",
+        'd4':"separate-d3-5layer",
+        'd4-3layer':"separate-d4-3layer"
+    }
+
+    @classmethod
+    def setup_calc(cls, model='omol', device=None, version=None, login=None,
+                   **model_opts
+                   ):
+        from orb_models.forcefield import pretrained, ORB_PRETRAINED_MODELS
+        from orb_models.forcefield.inference.calculator import ORBCalculator
+
+        model = cls.model_types.get(model, model)
+        model = ORB_PRETRAINED_MODELS.get(cls.model_types.get(model, model), model)
+
+        device = "cpu"  # or device="cuda"
+        orbff, atoms_adapter = ORB_PRETRAINED_MODELS[model](
+            device=device,
+            **model_opts,
+        )
+
+        calc = ORBCalculator(orbff, atoms_adapter=atoms_adapter, device=device)
         return calc
 
 @EnergyEvaluator.register('hipnn')
