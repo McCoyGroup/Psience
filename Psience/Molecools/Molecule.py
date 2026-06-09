@@ -6442,7 +6442,8 @@ class Molecule(AbstractMolecule):
                 self.modify(coords=g, bonds=None).bonds
                 for g in geometries * conv
             ]
-        if draw_bonds is None:
+
+        if draw_bonds is None or draw_bonds is False:
             draw_bonds = [None] * len(geometries)
         elif nput.is_int(draw_bonds[0][0]):
             draw_bonds = [draw_bonds] * len(geometries)
