@@ -3366,11 +3366,8 @@ class OrbModelEnergyEvaluator(ASECalcEnergyEvaluator):
         'd4':"separate-d3-5layer",
         'd4-3layer':"separate-d4-3layer"
     }
-
     @classmethod
-    def setup_calc(cls, model='omol', device=None, version=None, login=None,
-                   **model_opts
-                   ):
+    def setup_calc(cls, model='omol', device=None, version=None, login=None, **model_opts):
         from orb_models.forcefield import pretrained, ORB_PRETRAINED_MODELS
         from orb_models.forcefield.inference.calculator import ORBCalculator
 
