@@ -3050,15 +3050,23 @@ class ASECalcEnergyEvaluator(EnergyEvaluator):
     analytic_derivative_order = 2
     def prep_ase(self, coords):
         from McUtils.ExternalPrograms import ASEMolecule
-
-        atoms = ASEMolecule.from_coords(
-            self.atoms,
-            coords.reshape((-1,) + coords.shape[-2:])[0],
-            calculator=self.eval,
-            charge=self.charge,
-            spin=self.multiplicity
-        )
-        return atoms
+        n = len(self.atoms)
+        coords = np.asanyarray(coords)
+        if coords.ndim[-1] == (n * 3):
+            base_shape = coords.shape[:-1]
+        else:
+            base_shape = coords.shape[:-2]
+        coords = coords.reshape((-1, n, 3))
+        atoms_array = np.full(None, coords.shape[0], dtype=object)
+        for i, c in enumerate(coords):
+            atoms_array[i] = ASEMolecule.from_coords(
+                self.atoms,
+                c,
+                calculator=self.eval,
+                charge=self.charge,
+                spin=self.multiplicity
+            )
+        return atoms_array.reshape(base_shape).tolist()
 
     def evaluate_term(self, coords, order, **opts):
         coords = np.asanyarray(coords)
