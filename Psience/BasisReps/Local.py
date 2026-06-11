@@ -13,7 +13,6 @@ from . import Util as util
 __all__ = [
     "LocalHarmonicModel",
     "CustomLocalHarmonicModel",
-    "TaborCHModel"
 ]
 
 class LocalHarmonicModel:
@@ -745,55 +744,3 @@ class CustomLocalHarmonicModel(LocalHarmonicModel):
             **opts
         )
 
-
-class TaborCHModel(CustomLocalHarmonicModel):
-    default_localization_settings = {"oblique":False}
-    default_molecule_settings = dict(
-        allowed_coordinate_types={'CH', 'HCH', 'NH', 'OH'},
-        excluded_ring_types={'benzene'}
-    )
-    default_scalings = {
-        LocalHarmonicModel.state("NH", "stretch"): 0.961,
-        LocalHarmonicModel.state("methyl", "CH", "stretch"): 0.961,
-        LocalHarmonicModel.state("ethyl", "CH", "stretch"): 0.961,
-        LocalHarmonicModel.state("HCH", "bend"): 0.975,  # fundamentals and overtones
-        LocalHarmonicModel.state(("HCH", "bend"), ("HCH", "bend")): 0.975,  # combination band
-    }
-    default_couplings = {
-        # CH to adjacent bend overtone
-        LocalHarmonicModel.state_pair(
-            2,  # shared atoms
-            ("CH", "stretch"),  # stretch fundamental
-            (2, ("HCH", "bend"))  # bend overtone
-        ): 22 / UnitsData.hartrees_to_wavenumbers,
-
-        # CH3 to opposite bend combination
-        LocalHarmonicModel.state_pair(
-            ((2, 1),),  # shared atoms
-            ("CH", "stretch"),  # stretch fundamental
-            (("HCH", "bend"), ("HCH", "bend"))  # bend overtone
-        ): 5.6 / UnitsData.hartrees_to_wavenumbers,
-        LocalHarmonicModel.state_pair(
-            ((1, 2),),  # shared atoms
-            ("CH", "stretch"),  # stretch fundamental
-            (("HCH", "bend"), ("HCH", "bend"))  # bend overtone
-        ): 5.6 / UnitsData.hartrees_to_wavenumbers,
-
-        # CH3 to adjacent bend combination
-        LocalHarmonicModel.state_pair(
-            ((2, 2),),  # shared atoms
-            ("CH", "stretch"),  # stretch fundamental
-            (("HCH", "bend"), ("HCH", "bend"))  # bend overtone
-        ): 1.5 / UnitsData.hartrees_to_wavenumbers,
-        LocalHarmonicModel.state_pair(
-            ((2, 2),),  # shared atoms
-            ("CH", "stretch"),  # stretch fundamental
-            (("HCH", "bend"), ("HCH", "bend"))  # bend overtone
-        ): 1.5 / UnitsData.hartrees_to_wavenumbers
-    }
-    default_shifts = {
-        # internal-matching localization overshoots mildly
-        ("ethyl", "CH", "stretch"): -4 / UnitsData.hartrees_to_wavenumbers,
-        # internal-matching localization requires less bend overtone shifting
-        ("HCH", "bend"): -2 * 9.6 / UnitsData.hartrees_to_wavenumbers
-    }
