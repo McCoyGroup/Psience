@@ -1066,6 +1066,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
             tag = None
         if dev.is_dict_like(name) and hasattr(name, 'method'):
             if ':' in name['method']:
+                name = name.copy()
                 n, tag = name['method'].split(':', 1)
                 name['method'] = n
 
