@@ -3052,7 +3052,7 @@ class ASECalcEnergyEvaluator(EnergyEvaluator):
         from McUtils.ExternalPrograms import ASEMolecule
         n = len(self.atoms)
         coords = np.asanyarray(coords)
-        if coords.ndim[-1] == (n * 3):
+        if coords.shape[-1] == (n * 3):
             base_shape = coords.shape[:-1]
         else:
             base_shape = coords.shape[:-2]
