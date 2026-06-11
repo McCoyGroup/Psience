@@ -1312,6 +1312,7 @@ class EnergyEvaluator(PropertyEvaluator):
         calc = PysisCalculator(self.evaluate_term,
                                distance_units=self.distance_units,
                                energy_units=self.target_property_units,
+                               batched_orders=self.batched_orders,
                                **etc)
         calc = self._modify_pysis_calc(calc,
                                        use_forces=True,
