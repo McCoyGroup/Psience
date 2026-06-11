@@ -1064,6 +1064,11 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
             name, tag = name.split(':', 1)
         else:
             tag = None
+        if dev.is_dict_like(name) and hasattr(name, 'method'):
+            if ':' in name['method']:
+                n, tag = name['method'].split(':', 1)
+                name['method'] = n
+
         base, opts = cls.profile_generator_dispatch().resolve(name)
         if tag is not None:
             opts = opts | base.handle_specialization(tag)
