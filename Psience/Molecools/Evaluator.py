@@ -3057,7 +3057,7 @@ class ASECalcEnergyEvaluator(EnergyEvaluator):
         else:
             base_shape = coords.shape[:-2]
         coords = coords.reshape((-1, n, 3))
-        atoms_array = np.full(None, coords.shape[0], dtype=object)
+        atoms_array = np.full(coords.shape[0], None, dtype=object)
         for i, c in enumerate(coords):
             atoms_array[i] = ASEMolecule.from_coords(
                 self.atoms,
