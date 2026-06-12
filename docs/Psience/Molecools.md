@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-9c2865" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-9c2865"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-7cdb8b" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-7cdb8b"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-9c2865" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-7cdb8b" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -219,9 +219,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-1f7b3a" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-1f7b3a"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-3ab3a4" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-3ab3a4"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-1f7b3a" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-3ab3a4" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -4618,9 +4618,11 @@ class MolecoolsTests(TestCase):
 
         mol = Molecule.from_string('''N.CCl''', 'smi', energy_evaluator='aimnet2')
         locs = mol.get_normal_modes().localize(internals=[
-            (0, 1)
+            (0, 1),
+            (0, 1, 2),
+            (5, 4)
         ], mass_weighted=True)
-        mol.animate_mode(0, modes=locs).show()
+        mol.animate_mode(-2, modes=locs).show()
 ```
 
 #### <a name="FragEmbedding">FragEmbedding</a>
