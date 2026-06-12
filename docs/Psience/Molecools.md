@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-e6c4cd" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e6c4cd"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-9c2865" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-9c2865"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e6c4cd" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-9c2865" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -186,6 +186,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [ZMatOpt](#ZMatOpt)
 - [RDKitNumberIssues](#RDKitNumberIssues)
 - [PubChemNames](#PubChemNames)
+- [MACEPysis](#MACEPysis)
+- [OddBGZmats](#OddBGZmats)
+- [NewLocalModes](#NewLocalModes)
 - [FragEmbedding](#FragEmbedding)
 - [PlotlyBackend](#PlotlyBackend)
 - [SVGBackend](#SVGBackend)
@@ -216,9 +219,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-b64e78" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-b64e78"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-1f7b3a" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-1f7b3a"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-b64e78" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-1f7b3a" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -4590,6 +4593,34 @@ class MolecoolsTests(TestCase):
     def test_PubChemNames(self):
         mol = Molecule.from_string('melatonin', 'name')
         mol.plot().show()
+```
+
+#### <a name="MACEPysis">MACEPysis</a>
+```python
+    def test_MACEPysis(self):
+        mol = Molecule.from_string('CCO', 'smi', energy_evaluator='mace')
+        mol.optimize(mode='pysis', method='rfo')
+```
+
+#### <a name="OddBGZmats">OddBGZmats</a>
+```python
+    def test_OddBGZmats(self):
+        mol = Molecule.from_string('''N.CCl''', 'smi')
+        zm = mol.get_bond_zmatrix()
+        mol.modify(internals=zm).animate_coordinate(1).show()
+```
+
+#### <a name="NewLocalModes">NewLocalModes</a>
+```python
+    def test_NewLocalModes(self):
+        import os
+        os.environ["TORCH_COMPILE_DISABLE"] = "1"
+
+        mol = Molecule.from_string('''N.CCl''', 'smi', energy_evaluator='aimnet2')
+        locs = mol.get_normal_modes().localize(internals=[
+            (0, 1)
+        ], mass_weighted=True)
+        mol.animate_mode(0, modes=locs).show()
 ```
 
 #### <a name="FragEmbedding">FragEmbedding</a>
