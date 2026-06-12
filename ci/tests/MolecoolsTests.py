@@ -4507,9 +4507,11 @@ class MolecoolsTests(TestCase):
 
         mol = Molecule.from_string('''N.CCl''', 'smi', energy_evaluator='aimnet2')
         locs = mol.get_normal_modes().localize(internals=[
-            (0, 1)
+            (0, 1),
+            (0, 1, 2),
+            (5, 4)
         ], mass_weighted=True)
-        mol.animate_mode(0, modes=locs).show()
+        mol.animate_mode(-2, modes=locs).show()
 
     @validationTest
     def test_FragEmbedding(self):
