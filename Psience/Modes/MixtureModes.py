@@ -946,9 +946,9 @@ class MixtureModes(CoordinateSystem):
             projector = nput.translation_rotation_projector(
                 origin.reshape(-1, 3),
                 m,
-                mass_weighted=True
+                mass_weighted=mass_weighted
             )
-            base_derivs = projector @ base_derivs
+            base_derivs = np.moveaxis(projector, -1, -2) @ base_derivs
 
             # g12 = np.diag(np.repeat(np.sqrt(m), 3))
             gi12 = np.diag(np.repeat(1 / np.sqrt(m), 3))
@@ -1012,7 +1012,7 @@ class MixtureModes(CoordinateSystem):
                         m,
                         mass_weighted=mass_weighted
                     )
-                base_derivs = projector @ base_derivs
+                base_derivs = np.moveaxis(projector, -1, -2) @ base_derivs
 
             return self.get_nearest_mode_transform(
                 base_derivs,

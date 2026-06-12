@@ -4484,10 +4484,32 @@ class MolecoolsTests(TestCase):
     def test_RDKitNumberIssues(self):
         Molecule.from_string("""CC(N1)=NC2=C1C(/C=C/C3=[N+](CCC[S-](=O)(=O)=O)C4=CC=CC=C4S3)=CC=C2""", 'smi')
 
-    @debugTest
+    @validationTest
     def test_PubChemNames(self):
         mol = Molecule.from_string('melatonin', 'name')
         mol.plot().show()
+
+    @validationTest
+    def test_MACEPysis(self):
+        mol = Molecule.from_string('CCO', 'smi', energy_evaluator='mace')
+        mol.optimize(mode='pysis', method='rfo')
+
+    @validationTest
+    def test_OddBGZmats(self):
+        mol = Molecule.from_string('''N.CCl''', 'smi')
+        zm = mol.get_bond_zmatrix()
+        mol.modify(internals=zm).animate_coordinate(1).show()
+
+    @debugTest
+    def test_NewLocalModes(self):
+        import os
+        os.environ["TORCH_COMPILE_DISABLE"] = "1"
+
+        mol = Molecule.from_string('''N.CCl''', 'smi', energy_evaluator='aimnet2')
+        locs = mol.get_normal_modes().localize(internals=[
+            (0, 1)
+        ], mass_weighted=True)
+        mol.animate_mode(0, modes=locs).show()
 
     @validationTest
     def test_FragEmbedding(self):
