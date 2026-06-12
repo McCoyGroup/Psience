@@ -6449,8 +6449,9 @@ class Molecule(AbstractMolecule):
             draw_bonds = [draw_bonds] * len(geometries)
 
         max_bond_orders = {}
-        if reconcile_bonds:
+        if reconcile_bonds and any(b is not None for b in draw_bonds):
             for bond_set in draw_bonds:
+                if bond_set is None: continue
                 for b in bond_set:
                     if b is None: continue
                     if len(b) == 2:
@@ -6460,12 +6461,13 @@ class Molecule(AbstractMolecule):
             new_bonds = []
             for bond_set in draw_bonds:
                 subset = {}
-                for b in bond_set:
-                    if b is None: continue
-                    if len(b) == 2:
-                        b = (b[0], b[1], 1)
-                    key = tuple(sorted(b[:2]))
-                    subset[key] = b[2]
+                if bond_set is not None:
+                    for b in bond_set:
+                        if b is None: continue
+                        if len(b) == 2:
+                            b = (b[0], b[1], 1)
+                        key = tuple(sorted(b[:2]))
+                        subset[key] = b[2]
                 new_bonds.append(subset)
             draw_bonds = new_bonds
 
