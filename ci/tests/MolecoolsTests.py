@@ -4500,7 +4500,7 @@ class MolecoolsTests(TestCase):
         zm = mol.get_bond_zmatrix()
         mol.modify(internals=zm).animate_coordinate(1).show()
 
-    @debugTest
+    @validationTest
     def test_NewLocalModes(self):
         import os
         os.environ["TORCH_COMPILE_DISABLE"] = "1"
@@ -4936,6 +4936,39 @@ class MolecoolsTests(TestCase):
         #     include_save_buttons=True
         # ).show()  # .savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
         # # return
+
+    @debugTest
+    def test_RestrictedZM2(self):
+        import McUtils.Coordinerds as coordops
+
+        mol = Molecule.from_string('C[O:7][CH:3]1[CH2:1][CH:5]=[CH:6][CH2:2][CH2:4]1')
+        zm = mol.break_bonds(
+            [(0, 2), (1, 3)]).get_bond_zmatrix(
+            required_coordinates=[(0, 2), (1, 3), (0, 4, 5, 1)],
+            validate=True
+        )
+        # print(
+        #     coordops.zmatrix_indices(zm, (0, 4, 5, 1))
+        # )
+        _, geoms, _ = mol.modify(internals=zm).relaxed_scan(
+            [0, 4, 10],
+            {
+                (0, 2): 1,
+                (1, 3): 1
+            }, max_iterations=0)
+        mol.plot(geoms).show()
+
+        # mol = Molecule.from_string('CC(C)(C)[CH2:7][CH:3]1[CH2:1][CH:5]=[CH:6][CH2:2][NH:4]1')
+        # zm = mol.break_bonds([(0, 2), (1, 3)]).get_bond_zmatrix(
+        #     required_coordinates=[(0, 2), (1, 3)]
+        # )
+        # _, geoms, _ = mol.modify(internals=zm).relaxed_scan(
+        #     [0, 4, 10],
+        #     {
+        #         (0, 2): 1,
+        #         (1, 3): 1
+        #     }, max_iterations=0)
+        # mol.plot(geoms).show()
 
     @validationTest
     def test_SVGBackend(self):

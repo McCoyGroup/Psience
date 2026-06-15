@@ -1574,9 +1574,9 @@ class Molecule(AbstractMolecule):
                         distance_matrix=dm,
                         attachment_points=attachment_points,
                         check_attachment_points=check_attachment_points,
-                        required_coordinates=merge_coordinates,
-                        isolated_coordinates=merge_isolated,
-                        root_coordinates=merge_root,
+                        required_coordinates=required_coordinates,
+                        isolated_coordinates=isolated_coordinates,
+                        root_coordinates=root_coordinates,
                         validate_additions=validate
                     )
                     return np.asarray(zm)
