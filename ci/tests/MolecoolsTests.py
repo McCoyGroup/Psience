@@ -4941,7 +4941,19 @@ class MolecoolsTests(TestCase):
     def test_RestrictedZM2(self):
         import McUtils.Coordinerds as coordops
 
+        mol = Molecule.from_string('CCO')
+        fig = mol.plot(backend='x3d')
+        surf = mol.get_surface(samples=200)
+        tri = surf.get_triangulation()
+        tri.plot(solid=False, figure=fig,
+                 vertex_values=tri.verts[:, 2],
+                 transparency=.5
+                 ).show()
+        return
+
+
         mol = Molecule.from_string('C[O:7][CH:3]1[CH2:1][CH:5]=[CH:6][CH2:2][CH2:4]1')
+
         zm = mol.break_bonds(
             [(0, 2), (1, 3)]).get_bond_zmatrix(
             required_coordinates=[(0, 2), (1, 3), (0, 4, 5, 1)],
