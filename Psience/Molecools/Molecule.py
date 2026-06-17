@@ -6612,6 +6612,7 @@ class Molecule(AbstractMolecule):
                 hb2 = substyle.pop('highlight_bonds', og_highlight_bonds)
                 if b_sty is not None:
                     if hb2 is None: hb2 = []
+                    if highlight_bonds is None: highlight_bonds = []
                     highlight_diffs = [h for h in highlight_bonds if h not in hb2]
 
                     b_sty = b_sty.copy()
