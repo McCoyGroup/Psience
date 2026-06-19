@@ -4942,13 +4942,37 @@ class MolecoolsTests(TestCase):
         import McUtils.Coordinerds as coordops
 
         mol = Molecule.from_string('CCO')
-        fig = mol.plot(backend='x3d')
-        surf = mol.get_surface(samples=200)
-        tri = surf.get_triangulation()
-        tri.plot(solid=False, figure=fig,
-                 vertex_values=tri.verts[:, 2],
-                 transparency=.5
+        fig = mol.plot(backend='x3d',
+                       image_size=800,
+                 include_save_buttons=True)
+        surf = mol.get_surface(samples=500)
+        tri = surf.get_triangulation(
+            # point_gen_options={'circle_samples':50},
+            # occlusion_tolerance=5e-2,
+            add_intersection_circles=True,
+            extend_intersection_points=True,
+            occlusion_type='complete'
+        )#occlusion_type='partial')
+        tri.plot(figure=fig,
+                 solid=True,
+                 # vertex_values=tri.verts[:, 2],
+                 transparency=0.0,
+                 # color='white',
+                 line_color=None,
+                 # normals=True,
+                 # normal_scaling=-.1
+                 color='black',
+                 glow='red',
+                 invert_mesh=True
                  ).show()
+        # pts = surf.generate_points(add_intersection_circles=True,
+        #                            prune=True,
+        #                            circle_samples=25,
+        #                            extend_intersection_points=False,
+        #                            # intersection_boundary_clipping_threshold=.1
+        #                            )
+        # plt.Sphere(pts, .1, color='black').plot(fig)
+        # fig.show()
         return
 
 
