@@ -3909,7 +3909,7 @@ class Molecule(AbstractMolecule):
     def get_file_export_dispatchers(cls):
         return {
         }
-    def to_file(self, file, mode=None, **opts):
+    def to_file(self, file, mode=None, use_ob_fallback=False, **opts):
         """
         :param file:
         :type file:
@@ -3933,9 +3933,11 @@ class Molecule(AbstractMolecule):
             exporter = string_format_dispatcher[mode]
             data = exporter(self, **opts)
             return dev.write_file(file, data)
-        else:
+        elif use_ob_fallback:
             obmol = self.get_obmol()
             return obmol.to_file(file, mode)
+        else:
+            raise ValueError(f"couldn't convert to file with format {mode}")
 
     @classmethod
     def _infer_spec_format(cls, spec, **opts):
