@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-cc7a56" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-cc7a56"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-34280f" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-34280f"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-cc7a56" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-34280f" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -191,6 +191,8 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [NewLocalModes](#NewLocalModes)
 - [FragEmbedding](#FragEmbedding)
 - [PlotlyBackend](#PlotlyBackend)
+- [Surface2](#Surface2)
+- [AnimateColors](#AnimateColors)
 - [RestrictedZM2](#RestrictedZM2)
 - [SVGBackend](#SVGBackend)
 - [BondGraphZMatrixIssues](#BondGraphZMatrixIssues)
@@ -220,9 +222,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-1abc54" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-1abc54"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-7b4b2c" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-7b4b2c"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-1abc54" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-7b4b2c" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -5019,20 +5021,98 @@ class MolecoolsTests(TestCase):
         ploot.write("/Users/Mark/Desktop/why.html")
 ```
 
+#### <a name="Surface2">Surface2</a>
+```python
+    def test_Surface2(self):
+
+        mol = Molecule.from_string('CCO')
+        fig = mol.plot(backend='x3d',
+                       image_size=800,
+                 include_save_buttons=True)
+        surf = mol.get_surface(density=10,
+                               add_intersection_circles=True, extend_intersection_points=False,
+                               neighborhood_tolerance={'distance_scaling':.5}
+                               )
+        surf.plot().show()
+        return
+
+        mol = Molecule.from_string('CCO')
+        fig = mol.plot(backend='x3d',
+                       image_size=800,
+                 include_save_buttons=True)
+        surf = mol.get_surface(samples=500)
+        tri = surf.get_triangulation(
+            # point_gen_options={'circle_samples':50},
+            # occlusion_tolerance=5e-2,
+            add_intersection_circles=True,
+            extend_intersection_points=True,
+            occlusion_type='complete'
+        )#occlusion_type='partial')
+        tri.plot(figure=fig,
+                 solid=True,
+                 # vertex_values=tri.verts[:, 2],
+                 transparency=0.0,
+                 # color='white',
+                 line_color=None,
+                 # normals=True,
+                 # normal_scaling=-.1
+                 color='black',
+                 glow='red',
+                 invert_mesh=True
+                 ).show()
+        # pts = surf.generate_points(add_intersection_circles=True,
+        #                            prune=True,
+        #                            circle_samples=25,
+        #                            extend_intersection_points=False,
+        #                            # intersection_boundary_clipping_threshold=.1
+        #                            )
+        # plt.Sphere(pts, .1, color='black').plot(fig)
+        # fig.show()
+        return
+```
+
+#### <a name="AnimateColors">AnimateColors</a>
+```python
+    def test_AnimateColors(self):
+        import McUtils.Plots as mplt
+        import McUtils.Numputils as nput
+        from Psience.Molecools import Molecule
+
+        # water = Molecule.from_file(TestManager.test_data('water_freq.fchk'))
+        # water.plot([
+        #     water.coords,
+        #     water.coords,
+        #     water.coords
+        # ],
+        #     animation_frame_styles={'glow': 'red'}
+        # ).show()
+
+        import McUtils.Plots as mplt
+
+        water = Molecule.from_file(TestManager.test_data('water_freq.fchk'))
+        surf_points = water.get_surface(density=2).sampling_points
+        water.plot([
+            water.coords,
+            water.coords + .5 * UnitsData.convert("Angstroms", "BohrRadius"),
+            water.coords + 1 * UnitsData.convert("Angstroms", "BohrRadius")
+        ],
+            animation_frame_styles=[{'glow': 'blue'}, {'glow': 'black'}, {'glow': 'red'}],
+            annotation_function=lambda _, i, __:[
+                mplt.Point(surf_points + i *.5,
+                           vertex_colors=plt.prep_color(
+                                palette='coolwarm',
+                                blending=np.linspace(0, 1, len(surf_points)) + i*.5,
+                            ),
+                           point_size=10
+                           )
+            ]
+        ).show()
+```
+
 #### <a name="RestrictedZM2">RestrictedZM2</a>
 ```python
     def test_RestrictedZM2(self):
         import McUtils.Coordinerds as coordops
-
-        mol = Molecule.from_string('CCO')
-        fig = mol.plot(backend='x3d')
-        surf = mol.get_surface(samples=200)
-        tri = surf.get_triangulation()
-        tri.plot(solid=False, figure=fig,
-                 vertex_values=tri.verts[:, 2],
-                 transparency=.5
-                 ).show()
-        return
 
 
         mol = Molecule.from_string('C[O:7][CH:3]1[CH2:1][CH:5]=[CH:6][CH2:2][CH2:4]1')
