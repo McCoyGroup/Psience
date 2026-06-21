@@ -4985,7 +4985,7 @@ class MolecoolsTests(TestCase):
         # fig.show()
         return
 
-    @debugTest
+    @validationTest
     def test_AnimateColors(self):
         import McUtils.Plots as mplt
         import McUtils.Numputils as nput
@@ -5020,6 +5020,32 @@ class MolecoolsTests(TestCase):
                            )
             ]
         ).show()#.to_widget().write("/Users/Mark/Desktop/glow_anim4.html")
+
+    @debugTest
+    def test_Functionalization(self):
+        mol = Molecule.from_string('c1ccccc1')
+        fg = Molecule.from_string('C(=O)O')
+        # mol2 = fg.remove_hydrogens(0)
+        # mol3 = Molecule.from_string('CCC').remove_hydrogens(0, 1)
+        fg2 = Molecule.from_string('CCC')
+        mol.attach_functional_group(
+           [6],
+            fg.atoms,
+            fg.coords,
+            fg.bonds,
+            group_site=3,
+            dihedral=-np.pi/2
+        ).attach_functional_group(
+           [8],
+            ['F'],
+            [[0, 0, 0]]
+        ).attach_functional_group(
+            [11-2+4],
+            fg2.atoms,
+            fg2.coords,
+            fg2.bonds,
+            group_site=3
+        ).plot(backend='x3d').show()
 
     @validationTest
     def test_RestrictedZM2(self):

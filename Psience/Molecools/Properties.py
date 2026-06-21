@@ -1253,7 +1253,7 @@ class MolecularProperties:
         bonds = mol.bonds
         ats = mol.atoms
 
-        return MoleculeEdgeGraph(ats, [b[:2] for b in bonds])
+        return MoleculeEdgeGraph(list(zip(ats, np.arange(len(ats)))), [b[:2] for b in bonds])
 
     @classmethod
     def guessed_bonds(cls, mol, tol=1.05, guess_type=True):

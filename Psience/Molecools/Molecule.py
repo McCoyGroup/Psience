@@ -12,7 +12,7 @@ import tempfile
 import typing
 import collections
 
-from McUtils.Data import AtomData, UnitsData
+from McUtils.Data import AtomData, UnitsData, BondData
 from McUtils.Coordinerds import (
     CoordinateSet, ZMatrixCoordinates, CartesianCoordinates3D,
     PrimitiveCoordinatePicker, RedundantCoordinateGenerator
@@ -23,6 +23,7 @@ import McUtils.Devutils as dev
 import McUtils.Coordinerds as coordops
 import McUtils.Zachary as zach
 from McUtils.Zachary import Mesh
+from McUtils.Graphs import EdgeGraph
 import McUtils.Plots as plt
 from McUtils.ExternalPrograms import RDMolecule
 from McUtils.Scaffolding import Logger
@@ -127,6 +128,7 @@ class Molecule(AbstractMolecule):
 
         # properties to be returned
         self._bonds = bonds
+        self._edge_graph = None
         self.guess_bonds = guess_bonds
 
         if charge is not None:
@@ -1307,8 +1309,10 @@ class Molecule(AbstractMolecule):
         # self._bonds = self.prop("guessed_bonds", tol=1.05, guess_type=True)
 
     @property
-    def edge_graph(self):
-        return MolecularProperties.edge_graph(self)
+    def edge_graph(self) -> EdgeGraph:
+        if self._edge_graph is None:
+            self._edge_graph = MolecularProperties.edge_graph(self)
+        return self._edge_graph
 
     def find_substructure(self, pattern):
         return self.rdmol.find_substructure(pattern)
@@ -1319,6 +1323,213 @@ class Molecule(AbstractMolecule):
             self.from_rdmol(m)
             for m in new_mols
         ]
+
+    def neighborhood(self, loc, size=1):
+        return tuple(l for l in self.edge_graph.neighbor_iterator(loc, num=size))
+
+    def remove_hydrogens(self, positions=None, max=None, *, hydrogen_types=None):
+        if hydrogen_types is None: hydrogen_types = {'H', 'D', 'T'}
+        if positions is None:
+            dropped = [i for i,a in enumerate(self.atoms) if a in hydrogen_types]
+        else:
+            dropped = set()
+            if nput.is_int(positions): positions = [positions]
+            for p in positions:
+                subhs = [
+                    i for i in self.neighborhood(p) if self.atoms[i] in hydrogen_types
+                ]
+                if max is not None:
+                    subhs = subhs[:max]
+                dropped.update(subhs)
+            dropped = list(dropped)
+        return self.take_submolecule(np.setdiff1d(np.arange(len(self.atoms)), dropped))
+
+    def fragment_embedding(self, fragment_indices, ref=None):
+        if nput.is_int(fragment_indices):
+            fragment_indices = [fragment_indices]
+        if ref is None:
+            ref = self.neighborhood(fragment_indices[0], size=2)
+        if len(fragment_indices) < 3:
+            if len(fragment_indices) + len(ref) < 3:
+                extra = self.neighborhood(fragment_indices[0], size=2)
+                ref = np.concatenate([ref, [r for r in extra if r not in ref]])
+            ref = [r for r in ref if r not in fragment_indices]
+
+            fragment_indices = np.concatenate([fragment_indices, ref])
+            if len(fragment_indices) < 3: # these refer to COM and principle axis positions
+                fragment_indices = np.concatenate([fragment_indices, [-1, -2, -3]])
+
+        # need origin, displacement vector, and up-vector
+        fragment_indices = np.asanyarray(fragment_indices)[:3]
+        ref = np.asanyarray(ref)[0]
+        r_coords = self.coords[ref,]
+        if ref == -1: r_coords = self.center_of_mass
+        if ref == -2: r_coords = self.center_of_mass + self.inertial_axes[:, 2]
+        if ref == -3: r_coords = self.center_of_mass + self.inertial_axes[:, 0]
+        f_coords = self.coords[fragment_indices,]
+        com_f = ref == -1
+        if np.any(com_f):
+            f_coords[com_f] = self.center_of_mass
+        paxc_f = ref == -2
+        if np.any(paxc_f):
+            f_coords[paxc_f] = self.center_of_mass + self.inertial_axes[:, 2]
+        paxa_f = ref == -3
+        if np.any(paxa_f):
+            f_coords[paxa_f] = self.center_of_mass + self.inertial_axes[:, 0]
+
+        origin = r_coords
+        offset = f_coords[0] - r_coords
+        up = nput.pts_normals(*f_coords, normalize=True)
+
+        return origin, offset, up
+
+    def attach_functional_group(self,
+                                target_fragment,
+                                atoms,
+                                new_coords,
+                                bonds='recompute',
+                                ref=None,
+                                masses=None,
+                                distance='auto',
+                                angle=0,
+                                dihedral=0,
+                                embedding='auto',
+                                bond_order=None,
+                                use_absolue_posititions=False,
+                                group_site=None
+                                ):
+        if group_site is not None:
+            if dev.str_is(embedding, 'auto'):
+                if dev.str_is(bonds, 'recompute') or bonds is not None:
+                    mol = Molecule(atoms, new_coords)
+                    if bond_order is None:
+                        bond_order = next(
+                            (b[2] for b in mol.bonds if b[1] in (0, group_site) and b[0] in (0, group_site)),
+                            None
+                        )
+                    embedding = mol.fragment_embedding(
+                        0,
+                        ref=[group_site]
+                    )
+                    embedding = nput.view_matrix(up_vector=embedding[-1])
+                elif bonds == None:
+                    _, embedding = nput.moments_of_inertia(new_coords, masses=masses)
+                # new_coords = (new_coords - new_coords[(0,)]) @ embedding
+                # origin, offset, up = self.fragment_embedding(target_fragment, ref=ref)
+                # embedding = nput.view_matrix(up_vector=up)
+                # new_coords = new_coords @ embedding
+                # u = new_coords[0] - new_coords[group_site]
+                # new_coords = new_coords @ nput.rotation_matrix(u, offset)
+                embedding = new_coords[group_site], embedding
+            rem = np.setdiff1d(np.arange(len(atoms)), [group_site])
+            if bonds is not None and not dev.str_is(bonds, 'recompute'):
+                remapping = {i: n for n, i in enumerate(rem)}
+                bonds = [
+                    [remapping[b[0]], remapping[b[1]], 1 if len(b) == 2 else b[2]]
+                    for b in bonds
+                    if b[0] in remapping and b[1] in remapping
+                ]
+            if masses is not None:
+                masses = np.asanyarray(masses)[rem,]
+            return self.attach_functional_group(
+                target_fragment,
+                [atoms[i] for i in rem],
+                new_coords[rem,],
+                bonds=bonds,
+                ref=ref,
+                masses=masses,
+                distance=distance,
+                angle=angle,
+                dihedral=dihedral,
+                embedding=embedding,
+                bond_order=bond_order,
+                use_absolue_posititions=use_absolue_posititions,
+                group_site=None
+            )
+
+        if bond_order is None:
+            bond_order = 1
+        if dev.str_is(distance, 'auto'):
+            if ref is None:
+                ref = self.neighborhood(target_fragment[0], size=2)
+            if ref[0] > -1:
+                ref_type = self.atoms[ref[0]]
+                distance = BondData[(ref_type, atoms[0], bond_order)] * UnitsData.convert("Angstroms", "BohrRadius")
+            else:
+                distance = None
+
+        if masses is None:
+            masses = np.array([AtomData[a, "Mass"] for a in atoms])
+
+        if not use_absolue_posititions:
+            origin, offset, up = self.fragment_embedding(target_fragment, ref=ref)
+            if distance is not None:
+                offset = nput.vec_normalize(offset) * distance
+            if len(new_coords) == 1:
+                new_coords = (origin + offset)[np.newaxis]
+            elif len(new_coords) == 2:
+                new_coords = np.asanyarray(new_coords)
+                new_coords = new_coords - new_coords[(0,)]
+                if dev.str_is(embedding, 'auto'):
+                    u = new_coords[1] - new_coords[0]
+                    new_coords = new_coords @ nput.rotation_matrix(u, offset)
+                if angle != 0:
+                    new_coords = new_coords @ nput.rotation_matrix(up, angle)
+                if dihedral != 0:
+                    # rotate about offset axis, assumed to be perp to up
+                    new_coords = new_coords @ nput.rotation_matrix(offset, dihedral)
+                new_coords = (origin + offset)[np.newaxis] + new_coords
+            else:
+                if dev.str_is(embedding, 'auto'):
+                    _, embedding = nput.moments_of_inertia(new_coords, masses=masses)
+                new_coords = new_coords - new_coords[(0,)]
+                if embedding is not None:
+                    if len(embedding) == 2:
+                        cent, embedding = embedding
+                    else:
+                        cent = nput.center_of_mass(new_coords, masses=masses)
+                    new_coords = new_coords @ nput.rotation_matrix(embedding[:, 2], up)
+                    u = new_coords[0] - cent
+                    new_coords = new_coords @ nput.rotation_matrix(u, offset)
+                    if angle != 0:
+                        new_coords = new_coords @ nput.rotation_matrix(up, angle)
+                    if dihedral != 0:
+                        # rotate about offset axis, assumed to be perp to up
+                        new_coords = new_coords @ nput.rotation_matrix(offset, dihedral)
+                new_coords = (origin + offset)[np.newaxis] + new_coords
+
+        rem = np.setdiff1d(np.arange(len(self.atoms)), target_fragment)
+        remapping = {i:n for n,i in enumerate(rem)}
+        if dev.str_is(bonds, 'recompute'):
+            total_bonds = None
+        elif bonds is None:
+            total_bonds = [
+                [remapping[b[0]], remapping[b[1]], 1 if len(b) == 2 else b[2]]
+                for b in self.bonds
+                if b[0] in remapping and b[1] in remapping
+            ]
+        else:
+            n = len(rem)
+            total_bonds = [
+                [remapping[b[0]], remapping[b[1]], 1 if len(b) == 2 else b[2]]
+                for b in self.bonds
+                if b[0] in remapping and b[1] in remapping
+            ] + [
+                [remapping[ref[0]], n, bond_order]
+            ] + [
+                [b[0]+n, b[1]+n, 1 if len(b) == 2 else b[2]]
+                for b in bonds
+            ]
+
+        return self.modify(
+            atoms=tuple(self.atoms[i] for i in rem) + tuple(atoms),
+            coords=np.concatenate([
+                self.coords[rem],
+                new_coords
+            ]),
+            bonds=total_bonds,
+            masses=np.concatenate([[self.masses[i] for i in rem], masses])
+        )
 
     def find_heavy_atom_backbone(self, root=None):
         return self.edge_graph.find_longest_chain(root=root)
@@ -1558,15 +1769,6 @@ class Molecule(AbstractMolecule):
                     dm[:, h_pos] = 1e8
                     dm[h_pos, :] = 1e8
 
-                    # inds = [
-                    #     [ib[z[0]] for z in zm]
-                    #     for ib,zm in zip(inds, zmats)
-                    # ]
-                    # import McUtils.Formatters as mfmt
-                    # print()
-                    # print(self.fragment_indices[1])
-                    # print(mfmt.format_zmatrix(zmats[1]))
-                    # print(inds)
                     zm = coordops.complex_zmatrix(
                         [b[:2] for b in self.bonds],
                         inds,
@@ -2352,7 +2554,6 @@ class Molecule(AbstractMolecule):
         _, pg = pg_id.identify_point_group()
         if return_identifier:
             return pg_id, pg
-        # print(pg)
         return pg
 
     @property
@@ -3173,8 +3374,6 @@ class Molecule(AbstractMolecule):
                                                       load_properties=load_properties)
 
         if permute_atoms:
-            # print(self.atoms)
-            # print(other.atoms)
             perm_2 = nput.eckart_permutation(
                 self.coords,
                 other.coords,
@@ -3280,7 +3479,6 @@ class Molecule(AbstractMolecule):
         wts = parse['Integer atomic weights']
         masses = parse["Real atomic weights"]
 
-        # print(nums, wts)
         mol = cls(
             [AtomData[a]["Symbol"] + str(b) for a, b in zip(nums, wts)],
             parse["Coordinates"],
@@ -5346,7 +5544,6 @@ class Molecule(AbstractMolecule):
                     else:
                         rzd = rz2
                     p2 = p2 + rzd * nv
-                    # print(" _", rzd, rz2, (bond_radius + pad + multiple_bond_spacing), radii[atom2])
 
             if render_fractional_bonds:
                 dr = (b[2] - int(b[2]))
