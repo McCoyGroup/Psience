@@ -5014,7 +5014,7 @@ class Molecule(AbstractMolecule):
                 else:
                     _atom_style[k] = v
             for k, v in _atom_style.items():
-                _atom_style[k] = dict(base_atom_style, **v)
+                _atom_style[k] = base_atom_style | v
                 colors[k] = v.get('color', colors[k])
                 glows[k] = v.get('glow', glows[k])
             atom_style = _atom_style
@@ -6047,6 +6047,7 @@ class Molecule(AbstractMolecule):
              highlight_rings=None,
              highlight_styles=None,
              comparison_styles=None,
+             animation_frame_styles=None,
              mode_vectors=None,
              mode_vector_origins=None,
              mode_vector_origin_mode='set',
@@ -6092,6 +6093,7 @@ class Molecule(AbstractMolecule):
              theme='default',
              theme_function=None,
              plot_range_padding='auto',
+             annotation_function=None,
              **plot_ops
              ):
 
@@ -6116,6 +6118,7 @@ class Molecule(AbstractMolecule):
             highlight_rings=highlight_rings,
             highlight_styles=highlight_styles,
             comparison_styles=comparison_styles,
+            animation_frame_styles=animation_frame_styles,
             mode_vectors=mode_vectors,
             mode_vector_origins=mode_vector_origins,
             mode_vector_origin_mode=mode_vector_origin_mode,
@@ -6157,6 +6160,7 @@ class Molecule(AbstractMolecule):
             label_style=label_style,
             theme_function=theme_function,
             plot_range_padding=plot_range_padding,
+            annotation_function=annotation_function,
             extra_opts=plot_ops
         )
         mode, backend = self._resolve_plot_mode(
@@ -6225,6 +6229,7 @@ class Molecule(AbstractMolecule):
             highlight_rings,
             highlight_styles,
             comparison_styles,
+            animation_frame_styles,
             mode_vectors,
             mode_vector_origins,
             mode_vector_origin_mode,
@@ -6265,7 +6270,8 @@ class Molecule(AbstractMolecule):
             dynamic_loading,
             label_style,
             plot_range_padding,
-            theme_function
+            theme_function,
+            annotation_function
         ) = [
             full_opts.pop(f) for f in ( # allows for theme flexibility
                 "return_objects",
@@ -6286,6 +6292,7 @@ class Molecule(AbstractMolecule):
                 "highlight_rings",
                 "highlight_styles",
                 "comparison_styles",
+                "animation_frame_styles",
                 "mode_vectors",
                 "mode_vector_origins",
                 "mode_vector_origin_mode",
@@ -6326,7 +6333,8 @@ class Molecule(AbstractMolecule):
                 "dynamic_loading",
                 "label_style",
                 'plot_range_padding',
-                "theme_function"
+                "theme_function",
+                "annotation_function"
             )
             ]
         if len(full_opts) > 0:
@@ -6507,6 +6515,8 @@ class Molecule(AbstractMolecule):
 
         self._set_backend_figure_options(figure, mode, backend, **full_opts_base)
 
+        if animation_frame_styles is not None:
+            comparison_styles = animation_frame_styles
         if comparison_styles is None:
             comparison_styles = [None] * len(geometries)
         elif isinstance(comparison_styles, dict):
@@ -6892,6 +6902,20 @@ class Molecule(AbstractMolecule):
                         _.append(cyl)
                     prims = _
                 arrows[i].extend(prims)
+
+            if annotation_function is not None:
+                if arrows[i] is None: arrows[i] = []
+                annotations = annotation_function(self, i, geom)
+                if not objects:
+                    _ = []
+                    for c in annotations:
+                        cyl = c.plot(figure)
+                        if isinstance(cyl, (list, tuple)):
+                            cyl = cyl[0]
+                        _.append(cyl)
+                    annotations = _
+                arrows[i].extend(annotations)
+
         if animate:
             if animation_options is None: animation_options = {}
             figure = figure.animate_frames(
