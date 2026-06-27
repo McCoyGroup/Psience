@@ -1,4 +1,5 @@
 import itertools
+import tempfile
 
 # import McUtils.Numputils
 
@@ -578,10 +579,11 @@ class VPT2Tests(TestCase):
 
     @debugTest
     def test_AnalyticWFC(self):
+        import pickle
 
         file_name = "OCHH_freq.fchk"
 
-        AnalyticVPTRunner.run_simple(
+        corr = AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
             [
                 [
@@ -607,6 +609,15 @@ class VPT2Tests(TestCase):
             # degeneracy_specs='auto',
             # handle_degeneracies=True
         )
+
+        with tempfile.NamedTemporaryFile() as tf:
+            with open(tf.name, 'wb') as f:
+                pickle.dump(corr, f)
+            with open(tf.name, 'rb') as f:
+                corr2 = pickle.load(f)
+                print(corr2)
+
+
 
     @inactiveTest
     def test_PartialRebuild(self):

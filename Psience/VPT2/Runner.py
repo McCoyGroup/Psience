@@ -2,7 +2,7 @@
 A little package of utilities for setting up/running VPT jobs
 """
 
-import numpy as np, sys, os, itertools, scipy, dataclasses, math
+import numpy as np, sys, os, itertools, scipy, traceback as tb, math
 
 from McUtils.Data import UnitsData, AtomData
 from McUtils.Scaffolding import ParameterManager, Logger
@@ -472,7 +472,7 @@ class VPTStateSpace:
     def from_system_and_spec(cls, system, spec, **opts):
         if isinstance(spec, VPTStateSpace): return spec
 
-        if isinstance(spec, (int, np.integer)):
+        if nput.is_int(spec):
             return cls.from_system_and_quanta(system, spec, **opts)
         else:
             return cls(spec, system=system, **opts)
@@ -522,7 +522,7 @@ class VPTStateSpace:
         :return:
         :rtype:
         """
-        if isinstance(n_quanta, int):
+        if nput.is_int(n_quanta):
             n_quanta = range(n_quanta+1)
         whee = [np.flip(x) for x in BasisStateSpace.from_quanta(
             HarmonicOscillatorProductBasis(n_modes),
@@ -1558,7 +1558,7 @@ class VPTRunner:
             par.ops['local_mode_couplings'] = par.ops.get('local_mode_couplings', True)
 
         if not isinstance(states, VPTStateSpace):
-            if isinstance(states, int) or isinstance(states[0], int):
+            if nput.is_int(states) or nput.is_int(states[0]):
                 states = VPTStateSpace.from_system_and_quanta(
                     sys,
                     states,
@@ -1572,7 +1572,7 @@ class VPTRunner:
                 )
 
         if initial_states is not None:
-            if isinstance(initial_states, int) or isinstance(initial_states[0], int):
+            if nput.is_int(initial_states) or nput.is_int(initial_states[0]):
                 initial_states = VPTStateSpace.from_system_and_quanta(
                     sys,
                     initial_states,
@@ -2155,7 +2155,7 @@ class AnneInputHelpers:
                 file = file_template.format_tex(index_function(i))
             with file if file_template is None else open(file, 'w+') as out:
                 out.writelines(
-                    " ".join((int_fmt if isinstance(x, int) else float_fmt).format(x) for x in row)+"\n"
+                    " ".join((int_fmt if nput.is_int(x) else float_fmt).format(x) for x in row)+"\n"
                     for row in t
                 )
             res.append(file)
@@ -2344,7 +2344,7 @@ class AnneInputHelpers:
                 if dipole_terms is not None and 'dipole' not in expansion_order:
                     expansion_order['dipole'] = len(dipole_terms[0]) - 2
             if order is None:
-                if isinstance(expansion_order, int):
+                if nput.is_int(expansion_order):
                     if expansion_order > 2:
                         order = expansion_order
                     else:
@@ -3556,9 +3556,12 @@ class AnalyticVPTRunner:
 
         return keys, operator_terms
 
+    matrix_formatting_options = dict(
+        linewidth=1e8, threshold=1e8, suppress=True, precision=3
+    )
     def format_matrix(self, ham):
         ham = np.asanyarray(ham)
-        with np.printoptions(linewidth=1e8, suppress=True, precision=3):
+        with np.printoptions(**self.matrix_formatting_options):
             return str(ham).replace("[", " ").replace("]", " ")
 
     def modify_hamiltonian(self, hamiltonian_corrections):
@@ -3611,7 +3614,8 @@ class AnalyticVPTRunner:
                 hamiltonian_corrections=None,
                 clear_caches=True,
                 hamiltonian_correction_type=None,
-                only_degenerate_terms=True
+                only_degenerate_terms=True,
+                force_return_on_crash=True
                 ):
         if hamiltonian_correction_type is None:
             hamiltonian_correction_type = self.hamiltonian_correction_modification_type
@@ -3657,173 +3661,180 @@ class AnalyticVPTRunner:
                 zpe_pos = zpe_pos[0]
 
             corrs = AnalyticPerturbationTheoryCorrections(basis, states.state_list_pairs, logger=self.logger)
-            with self.logger.block(tag="Calculating frequency corrections"):
-                energy_corrections = self.get_energy_corrections(
-                    states,
-                    order=order,
-                    verbose=verbose,
-                    zero_cutoff=zero_cutoff
-                )
-                corrs.energy_corrections = energy_corrections
-
-                if order is None:
-                    order = len(energy_corrections)
-
-                # def format_num(e):
-                #     return "{.3f}".format(e) if e != 0 else "-"
-
-                if states.flat_space.degenerate_pairs is not None:
-                    tag = ["Deperturbed"]
-                else:
-                    tag = []
-                self.logger.log_print(
-                    tag + ["{energy_table}"],
-                    preformatter=lambda **kw: dict(
-                        kw,
-                        energy_table=self.format_energies_table(
-                            states.flat_space,
-                            corrs.deperturbed_energies,
-                            energy_corrections,
-                            zpe_pos
-                        )
+            try:
+                with self.logger.block(tag="Calculating frequency corrections"):
+                    energy_corrections = self.get_energy_corrections(
+                        states,
+                        order=order,
+                        verbose=verbose,
+                        zero_cutoff=zero_cutoff
                     )
-                )
+                    corrs.energy_corrections = energy_corrections
 
+                    if order is None:
+                        order = len(energy_corrections)
 
-            h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-            if handle_degeneracies and states.flat_space.degenerate_states is not None:
-                corrs.degenerate_states = states.flat_space.degenerate_states
-                with self.logger.block(tag="Handling degeneracies"):
-                    with self.logger.block(tag="Calculating effective Hamiltonians..."):
-                        _, degenerate_corrs = self.get_reexpressed_hamiltonian(
-                            states,
-                            order=order,
-                            verbose=verbose,
-                            only_degenerate_terms=only_degenerate_terms,
-                            hamiltonian_corrections=hamiltonian_corrections,
-                            zero_cutoff=zero_cutoff
-                        )
-                    corrs.only_degenerate_terms = only_degenerate_terms
-                    corrs.degenerate_hamiltonian_corrections = degenerate_corrs
+                    # def format_num(e):
+                    #     return "{.3f}".format(e) if e != 0 else "-"
 
-                    zpe = corrs.deperturbed_energies[zpe_pos]
-                    for block_num, (group, ham, tf) in enumerate(zip(
-                            corrs.degenerate_states,
-                            corrs.degenerate_hamiltonians,
-                            corrs.degenerate_coefficients
-                    )):
-                        with self.logger.block(tag="Degenerate Block {n}", n=block_num+1):
-                            self.logger.log_print("{s}",
-                                                  s=group,
-                                                  preformatter=lambda **kw: dict(
-                                                      kw,
-                                                      s="\n".join(
-                                                          VPTStateMaker.parse_state(k)
-                                                          for k in kw['s']
-                                                      )
-                                                  ))
-                            with self.logger.block(tag="Effective Hamiltonian"):
-                                self.logger.log_print(
-                                    "{ham}",
-                                    ham=ham,
-                                    preformatter=lambda **kw: dict(
-                                        kw,
-                                        ham=self.format_matrix((kw['ham'] - zpe * np.eye(len(ham))) * h2w)
-                                    ))
-                            with self.logger.block(tag='contributions'):
-                                self.logger.log_print(
-                                    "{contribs}",
-                                    contribs=tf,
-                                    preformatter=lambda **kw: dict(
-                                        kw,
-                                        contribs=self.format_matrix(np.round(100 * (kw['contribs'] ** 2)))
-                                    )
-                                )
-
+                    if states.flat_space.degenerate_pairs is not None:
+                        tag = ["Deperturbed"]
+                    else:
+                        tag = []
                     self.logger.log_print(
-                        ["Degenerate", "{energy_table}"],
+                        tag + ["{energy_table}"],
                         preformatter=lambda **kw: dict(
                             kw,
-                            energy_table=self.format_degenerate_energies_table(
-                                states.flat_space, corrs.energies, corrs.deperturbed_energies, zpe_pos
+                            energy_table=self.format_energies_table(
+                                states.flat_space,
+                                corrs.deperturbed_energies,
+                                energy_corrections,
+                                zpe_pos
                             )
                         )
                     )
 
-            if calculate_intensities:
-                transition_moments_corrs = self.get_transition_moment_corrections(
-                    states,
-                    order=order,
-                    verbose=verbose,
-                    zero_cutoff=zero_cutoff,
-                    terms=transition_moment_terms
-                )
-                corrs.transition_moment_corrections = transition_moments_corrs
 
-                with self.logger.block(tag="Transition Moments:"):
-                    self.logger.log_print(
-                        ["{tmom_table}"],
-                        preformatter=lambda **kw: dict(
-                            kw,
-                            tmom_table=self.format_transition_moment_table(
-                                states, corrs.transition_moments, corrs.transition_moment_corrections
-                            )
-                        )
-                    )
-
+                h2w = UnitsData.convert("Hartrees", "Wavenumbers")
                 if handle_degeneracies and states.flat_space.degenerate_states is not None:
-                    self.logger.log_print(
-                        ["{spec_table}"],
-                        preformatter=lambda **kw: dict(
-                            kw,
-                            spec_table=self.format_spectrum_table(
-                                states, corrs.harmonic_spectra, corrs.spectra,
-                                deperturbed_spectra=corrs.deperturbed_spectra
-                            )
-                        )
-                    )
-                else:
-                    self.logger.log_print(
-                        ["{spec_table}"],
-                        preformatter=lambda **kw: dict(
-                            kw,
-                            spec_table=self.format_spectrum_table(
-                                states, corrs.harmonic_spectra, corrs.spectra
-                            )
-                        )
-                    )
-
-            keys, operators = self.prep_operators(operator_expansions, operator_terms, order)
-            if operators is not None:
-                # keys, operators = self.prep_operators(operators)
-                operator_corrections = self.get_operator_corrections(
-                    operators,
-                    states,
-                    order=order,
-                    verbose=verbose,
-                    zero_cutoff=zero_cutoff,
-                    check_single=False,
-                    operator_type=operator_type
-                )
-                corrs.operator_corrections = operator_corrections
-                corrs.operator_keys = keys
-
-                with self.logger.block(tag="Operator Corrections:"):
-                    self.logger.log_print(
-                        ["{op_table}"],
-                        preformatter=lambda **kw: dict(
-                            kw,
-                            op_table=self.format_operators_table(
+                    corrs.degenerate_states = states.flat_space.degenerate_states
+                    with self.logger.block(tag="Handling degeneracies"):
+                        with self.logger.block(tag="Calculating effective Hamiltonians..."):
+                            _, degenerate_corrs = self.get_reexpressed_hamiltonian(
                                 states,
-                                corrs.operator_keys,
-                                corrs.operator_values,
-                                corrs.operator_corrections
+                                order=order,
+                                verbose=verbose,
+                                only_degenerate_terms=only_degenerate_terms,
+                                hamiltonian_corrections=hamiltonian_corrections,
+                                zero_cutoff=zero_cutoff
+                            )
+                        corrs.only_degenerate_terms = only_degenerate_terms
+                        corrs.degenerate_hamiltonian_corrections = degenerate_corrs
+
+                        zpe = corrs.deperturbed_energies[zpe_pos]
+                        for block_num, (group, ham, tf) in enumerate(zip(
+                                corrs.degenerate_states,
+                                corrs.degenerate_hamiltonians,
+                                corrs.degenerate_coefficients
+                        )):
+                            with self.logger.block(tag="Degenerate Block {n}", n=block_num+1):
+                                self.logger.log_print("{s}",
+                                                      s=group,
+                                                      preformatter=lambda **kw: dict(
+                                                          kw,
+                                                          s="\n".join(
+                                                              VPTStateMaker.parse_state(k)
+                                                              for k in kw['s']
+                                                          )
+                                                      ))
+                                with self.logger.block(tag="Effective Hamiltonian"):
+                                    self.logger.log_print(
+                                        "{ham}",
+                                        ham=ham,
+                                        preformatter=lambda **kw: dict(
+                                            kw,
+                                            ham=self.format_matrix((kw['ham'] - zpe * np.eye(len(ham))) * h2w)
+                                        ))
+                                with self.logger.block(tag='contributions'):
+                                    self.logger.log_print(
+                                        "{contribs}",
+                                        contribs=tf,
+                                        preformatter=lambda **kw: dict(
+                                            kw,
+                                            contribs=self.format_matrix(np.round(100 * (kw['contribs'] ** 2)))
+                                        )
+                                    )
+
+                        self.logger.log_print(
+                            ["Degenerate", "{energy_table}"],
+                            preformatter=lambda **kw: dict(
+                                kw,
+                                energy_table=self.format_degenerate_energies_table(
+                                    states.flat_space, corrs.energies, corrs.deperturbed_energies, zpe_pos
+                                )
                             )
                         )
-                    )
 
-            if clear_caches:
-                self.clear_caches()
+                if calculate_intensities:
+                    transition_moments_corrs = self.get_transition_moment_corrections(
+                        states,
+                        order=order,
+                        verbose=verbose,
+                        zero_cutoff=zero_cutoff,
+                        terms=transition_moment_terms
+                    )
+                    corrs.transition_moment_corrections = transition_moments_corrs
+
+                    with self.logger.block(tag="Transition Moments:"):
+                        self.logger.log_print(
+                            ["{tmom_table}"],
+                            preformatter=lambda **kw: dict(
+                                kw,
+                                tmom_table=self.format_transition_moment_table(
+                                    states, corrs.transition_moments, corrs.transition_moment_corrections
+                                )
+                            )
+                        )
+
+                    if handle_degeneracies and states.flat_space.degenerate_states is not None:
+                        self.logger.log_print(
+                            ["{spec_table}"],
+                            preformatter=lambda **kw: dict(
+                                kw,
+                                spec_table=self.format_spectrum_table(
+                                    states, corrs.harmonic_spectra, corrs.spectra,
+                                    deperturbed_spectra=corrs.deperturbed_spectra
+                                )
+                            )
+                        )
+                    else:
+                        self.logger.log_print(
+                            ["{spec_table}"],
+                            preformatter=lambda **kw: dict(
+                                kw,
+                                spec_table=self.format_spectrum_table(
+                                    states, corrs.harmonic_spectra, corrs.spectra
+                                )
+                            )
+                        )
+
+                keys, operators = self.prep_operators(operator_expansions, operator_terms, order)
+                if operators is not None:
+                    # keys, operators = self.prep_operators(operators)
+                    operator_corrections = self.get_operator_corrections(
+                        operators,
+                        states,
+                        order=order,
+                        verbose=verbose,
+                        zero_cutoff=zero_cutoff,
+                        check_single=False,
+                        operator_type=operator_type
+                    )
+                    corrs.operator_corrections = operator_corrections
+                    corrs.operator_keys = keys
+
+                    with self.logger.block(tag="Operator Corrections:"):
+                        self.logger.log_print(
+                            ["{op_table}"],
+                            preformatter=lambda **kw: dict(
+                                kw,
+                                op_table=self.format_operators_table(
+                                    states,
+                                    corrs.operator_keys,
+                                    corrs.operator_values,
+                                    corrs.operator_corrections
+                                )
+                            )
+                        )
+
+                if clear_caches:
+                    self.clear_caches()
+            except:
+                if not force_return_on_crash:
+                    raise
+                else:
+                    with self.logger.block(tag="Fatal error ocurred:"):
+                        tb.print_exc()
 
             return corrs
 
@@ -3847,6 +3858,7 @@ class AnalyticVPTRunner:
                    hamiltonian_correction_type=None,
                    hamiltonian_corrections=None,
                    only_degenerate_terms=True,
+                   force_return_on_crash=True,
                    **opts
                    ):
         if degeneracy_states is not None: ValueError("expect `degeneracy_specs`, not `degeneracy_states`")
@@ -3864,7 +3876,8 @@ class AnalyticVPTRunner:
                              clear_caches=clear_caches,
                              hamiltonian_correction_type=hamiltonian_correction_type,
                              hamiltonian_corrections=hamiltonian_corrections,
-                             only_degenerate_terms=only_degenerate_terms
+                             only_degenerate_terms=only_degenerate_terms,
+                             force_return_on_crash=force_return_on_crash
                              )
 
         if return_runner:
