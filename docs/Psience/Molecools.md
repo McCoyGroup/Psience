@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-edcb9e" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-edcb9e"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-518dfc" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-518dfc"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-edcb9e" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-518dfc" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -194,6 +194,7 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [Surface2](#Surface2)
 - [AnimateColors](#AnimateColors)
 - [Functionalization](#Functionalization)
+- [Attachment3](#Attachment3)
 - [RestrictedZM2](#RestrictedZM2)
 - [SVGBackend](#SVGBackend)
 - [BondGraphZMatrixIssues](#BondGraphZMatrixIssues)
@@ -223,9 +224,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-692028" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-692028"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-cff47f" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-cff47f"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-692028" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-cff47f" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -5136,6 +5137,33 @@ class MolecoolsTests(TestCase):
             fg2.bonds,
             group_site=3
         ).plot(backend='x3d').show()
+```
+
+#### <a name="Attachment3">Attachment3</a>
+```python
+    def test_Attachment3(self):
+        from Psience.Molecools import Molecule
+        import McUtils.Coordinerds as coordops
+        from McUtils.Profilers import Timer
+
+        # mol = Molecule.from_string('C12[C@@H](CN)C(c3ccc(F)cc3)[C@H](C=C1)C2')
+        # int_mol = mol.modify(internals=mol.get_bond_zmatrix())
+        # derivs = int_mol.get_cartesians_by_internals(3)
+
+        # print(derivs)
+
+        from Psience.Molecools import Molecule
+        import McUtils.Coordinerds as coordops
+
+        mol = Molecule.from_string('C(Cc1ccc(F)cc1)CN')
+        int_mol = mol.modify(internals=mol.get_bond_zmatrix())
+
+        # print(int_mol.internals['zmatrix'])
+
+        int_mol.animate_coordinate(
+            coordops.zmatrix_indices(int_mol.internals['zmatrix'], (9, 0, 1, 2)), .5, backend='x3d',
+            highlight_atoms=int_mol.internals['zmatrix'][-4]
+        ).show()
 ```
 
 #### <a name="RestrictedZM2">RestrictedZM2</a>

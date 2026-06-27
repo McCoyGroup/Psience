@@ -280,9 +280,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-f30098" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-f30098"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-fb4699" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-fb4699"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-f30098" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-fb4699" markdown="1">
  - [MultdiDegHOH](#MultdiDegHOH)
 - [HOHAnalytic](#HOHAnalytic)
 - [HOHLocal](#HOHLocal)
@@ -348,9 +348,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-8f4ffe" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-8f4ffe"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-3b066e" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-3b066e"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-8f4ffe" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-3b066e" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -872,10 +872,11 @@ class VPT2Tests(TestCase):
 #### <a name="AnalyticWFC">AnalyticWFC</a>
 ```python
     def test_AnalyticWFC(self):
+        import pickle
 
         file_name = "OCHH_freq.fchk"
 
-        AnalyticVPTRunner.run_simple(
+        corr = AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
             [
                 [
@@ -901,6 +902,13 @@ class VPT2Tests(TestCase):
             # degeneracy_specs='auto',
             # handle_degeneracies=True
         )
+
+        with tempfile.NamedTemporaryFile() as tf:
+            with open(tf.name, 'wb') as f:
+                pickle.dump(corr, f)
+            with open(tf.name, 'rb') as f:
+                corr2 = pickle.load(f)
+                print(corr2)
 ```
 
 #### <a name="PartialRebuild">PartialRebuild</a>
