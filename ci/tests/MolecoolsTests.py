@@ -5021,7 +5021,7 @@ class MolecoolsTests(TestCase):
             ]
         ).show()#.to_widget().write("/Users/Mark/Desktop/glow_anim4.html")
 
-    @debugTest
+    @validationTest
     def test_Functionalization(self):
         mol = Molecule.from_string('c1ccccc1')
         fg = Molecule.from_string('C(=O)O')
@@ -5046,6 +5046,32 @@ class MolecoolsTests(TestCase):
             fg2.bonds,
             group_site=3
         ).plot(backend='x3d').show()
+
+    @debugTest
+    def test_Attachment3(self):
+        from Psience.Molecools import Molecule
+        import McUtils.Coordinerds as coordops
+        from McUtils.Profilers import Timer
+
+        # mol = Molecule.from_string('C12[C@@H](CN)C(c3ccc(F)cc3)[C@H](C=C1)C2')
+        # int_mol = mol.modify(internals=mol.get_bond_zmatrix())
+        # derivs = int_mol.get_cartesians_by_internals(3)
+
+        # print(derivs)
+
+        from Psience.Molecools import Molecule
+        import McUtils.Coordinerds as coordops
+
+        mol = Molecule.from_string('C(Cc1ccc(F)cc1)CN')
+        int_mol = mol.modify(internals=mol.get_bond_zmatrix())
+
+        # print(int_mol.internals['zmatrix'])
+
+        int_mol.animate_coordinate(
+            coordops.zmatrix_indices(int_mol.internals['zmatrix'], (9, 0, 1, 2)), .5, backend='x3d',
+            highlight_atoms=int_mol.internals['zmatrix'][-4]
+        ).show()
+        # derivs = int_mol.get_cartesians_by_internals(3)
 
     @validationTest
     def test_RestrictedZM2(self):
