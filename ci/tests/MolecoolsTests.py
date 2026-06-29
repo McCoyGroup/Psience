@@ -5047,7 +5047,7 @@ class MolecoolsTests(TestCase):
             group_site=3
         ).plot(backend='x3d').show()
 
-    @debugTest
+    @validationTest
     def test_Attachment3(self):
         from Psience.Molecools import Molecule
         import McUtils.Coordinerds as coordops
@@ -5107,6 +5107,20 @@ class MolecoolsTests(TestCase):
         #         (1, 3): 1
         #     }, max_iterations=0)
         # mol.plot(geoms).show()
+
+    @debugTest
+    def test_RestrictedZM3(self):
+        import McUtils.Coordinerds as coordops
+
+        mol = Molecule.from_string('C[O:8][C@@:1]12[CH2:3][CH2:4][C@@:2]([CH2:9]N)([CH:6]=[CH:5]1)[CH2:7]2', 'smi')
+        fragged = mol.break_bonds([(0, 2), (1, 3)])
+        zm = fragged.get_bond_zmatrix(
+            required_coordinates=[(0, 2), (1, 3)],
+            initial_backbone=fragged.find_path(0, 1)
+        )
+
+        mol.modify(internals=zm).animate_coordinate(10).show()
+
 
     @validationTest
     def test_SVGBackend(self):

@@ -1605,12 +1605,14 @@ class PropertyManager(metaclass=abc.ABCMeta):
         n_coords = None
         for d in derivs:
             if not nput.is_numeric(d):
+                d = np.asanyarray(d)
                 n_coords = d.shape[-1]
                 break
-        if isinstance(transf, np.ndarray) or transf.is_affine: # most relevant subcase
+        is_numeric = nput.is_numeric_array_like(transf)
+        if is_numeric or transf.is_affine: # most relevant subcase
             # take inverse?
-            if isinstance(transf, np.ndarray):
-                tf = transf
+            if is_numeric:
+                tf = np.asanyarray(transf)
             else:
                 tf = transf.transformation_function.transform #type: np.ndarray
             new_derivs = []
@@ -1620,6 +1622,7 @@ class PropertyManager(metaclass=abc.ABCMeta):
                 elif isinstance(d, (int, float, np.integer, np.floating)):
                     new_derivs.append(d)
                 else:
+                    d = np.asanyarray(d)
                     shift_dim = tf.ndim - 2
                     shp = d.shape
 
