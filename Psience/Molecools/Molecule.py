@@ -1314,6 +1314,9 @@ class Molecule(AbstractMolecule):
             self._edge_graph = MolecularProperties.edge_graph(self)
         return self._edge_graph
 
+    def find_path(self, atom1, atom2):
+        return self.edge_graph.get_path(atom1, atom2)
+
     def find_substructure(self, pattern):
         return self.rdmol.find_substructure(pattern)
 
