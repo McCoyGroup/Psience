@@ -1186,9 +1186,9 @@ class Molecule(AbstractMolecule):
     @bonds.setter
     def bonds(self, b):
         self._bonds = b
-    def break_bonds(self, bonds, use_rdkit=False):
+    def break_bonds(self, bonds, use_rdkit=False, **rdopts):
         if use_rdkit:
-            return self.from_rdmol(self.rdmol.break_bonds(bonds))
+            return self.from_rdmol(self.rdmol.break_bonds(bonds, **rdopts))
         else:
             bond_sets = [{b[0], b[1]} for b in bonds]
             return self.modify(
@@ -1404,7 +1404,8 @@ class Molecule(AbstractMolecule):
         if group_site is not None:
             if dev.str_is(embedding, 'auto'):
                 if dev.str_is(bonds, 'recompute') or bonds is not None:
-                    mol = Molecule(atoms, new_coords)
+                    if dev.str_is(bonds, 'recompute'): bonds = None
+                    mol = Molecule(atoms, new_coords, bonds=bonds)
                     if bond_order is None:
                         bond_order = next(
                             (b[2] for b in mol.bonds if b[1] in (0, group_site) and b[0] in (0, group_site)),
@@ -1470,30 +1471,27 @@ class Molecule(AbstractMolecule):
                 offset = nput.vec_normalize(offset) * distance
             if len(new_coords) == 1:
                 new_coords = (origin + offset)[np.newaxis]
-            elif len(new_coords) == 2:
-                new_coords = np.asanyarray(new_coords)
-                new_coords = new_coords - new_coords[(0,)]
-                if dev.str_is(embedding, 'auto'):
-                    u = new_coords[1] - new_coords[0]
-                    new_coords = new_coords @ nput.rotation_matrix(u, offset)
-                if angle != 0:
-                    new_coords = new_coords @ nput.rotation_matrix(up, angle)
-                if dihedral != 0:
-                    # rotate about offset axis, assumed to be perp to up
-                    new_coords = new_coords @ nput.rotation_matrix(offset, dihedral)
-                new_coords = (origin + offset)[np.newaxis] + new_coords
             else:
                 if dev.str_is(embedding, 'auto'):
                     _, embedding = nput.moments_of_inertia(new_coords, masses=masses)
-                new_coords = new_coords - new_coords[(0,)]
+                shift = new_coords[0]
+                new_coords = new_coords - shift[np.newaxis]
                 if embedding is not None:
                     if len(embedding) == 2:
                         cent, embedding = embedding
+                        cent = cent - shift
                     else:
                         cent = nput.center_of_mass(new_coords, masses=masses)
-                    new_coords = new_coords @ nput.rotation_matrix(embedding[:, 2], up)
                     u = new_coords[0] - cent
-                    new_coords = new_coords @ nput.rotation_matrix(u, offset)
+                    inv = nput.view_matrix(
+                        up_vector=embedding[:, 2],
+                        view_vector=u
+                    )
+                    rot = nput.view_matrix(
+                        up_vector=up,
+                        view_vector=offset
+                    )
+                    new_coords = new_coords @ (inv @ rot.T)
                     if angle != 0:
                         new_coords = new_coords @ nput.rotation_matrix(up, angle)
                     if dihedral != 0:

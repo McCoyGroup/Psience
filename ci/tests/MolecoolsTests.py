@@ -5021,34 +5021,51 @@ class MolecoolsTests(TestCase):
             ]
         ).show()#.to_widget().write("/Users/Mark/Desktop/glow_anim4.html")
 
-    @validationTest
+    @debugTest
     def test_Functionalization(self):
         mol = Molecule.from_string('c1ccccc1')
         fg = Molecule.from_string('C(=O)O')
         # mol2 = fg.remove_hydrogens(0)
         # mol3 = Molecule.from_string('CCC').remove_hydrogens(0, 1)
         fg2 = Molecule.from_string('CCC')
-        mol.attach_functional_group(
+        mol = mol.attach_functional_group(
            [6],
             fg.atoms,
             fg.coords,
             fg.bonds,
             group_site=3,
             dihedral=-np.pi/2
-        ).attach_functional_group(
+        )
+        mol = mol.attach_functional_group(
            [8],
             ['F'],
             [[0, 0, 0]]
-        ).attach_functional_group(
+        )
+        mol = mol.attach_functional_group(
             [11-2+4],
+            # [6],
             fg2.atoms,
             fg2.coords,
             fg2.bonds,
             group_site=3
-        ).plot(backend='x3d').show()
+        )
+        # fg2 = fg2.get_embedded_molecule(sel=[0, 1, 3])
+        # emb = fg2.fragment_embedding(0, ref=[3])[-1]
+        # print(emb)
+        # fg2.plot(highlight_atoms=[3],
+        #          dipole=emb * 3,
+        #          dipole_origin=np.average(fg2.coords[(0, 1, 3),], axis=0),
+        #          backend='x3d'
+        #          ).show()
+        # emb = mol.fragment_embedding(6, ref=None)[-1]
+        mol.plot(
+            # highlight_atoms=[6],
+            # dipole=emb * 3,
+            # dipole_origin=mol.coords[6],
+            backend='x3d').show()
 
     @validationTest
-    def test_Attachment3(self):
+    def test_SomeZMat3(self):
         from Psience.Molecools import Molecule
         import McUtils.Coordinerds as coordops
         from McUtils.Profilers import Timer
@@ -5108,7 +5125,7 @@ class MolecoolsTests(TestCase):
         #     }, max_iterations=0)
         # mol.plot(geoms).show()
 
-    @debugTest
+    @validationTest
     def test_RestrictedZM3(self):
         import McUtils.Coordinerds as coordops
 
@@ -5120,6 +5137,20 @@ class MolecoolsTests(TestCase):
         )
 
         mol.modify(internals=zm).animate_coordinate(10).show()
+
+    @validationTest
+    def test_SubstructMatching(self):
+        from McUtils.ExternalPrograms import smarts_matcher
+        match_tests = [
+            '[N,n,O,o;H1:1]~[*:2]-[*;R0:3]=[*;R0:4]-[*:5]~[*:6]',
+            '[N,n,O,o;H1:1]~[*:2]~[*:3]-[*;R0:4]=[*;R0:5]-[*:6]',
+            '[N,n,O,o;H1:1]-[*;R0:2]=[*;R0:3]-[*:4]~[*:5]~[*:6]'
+        ]
+
+        targ = 'OC1=C(/C=C/C2=[N+](C3=CC=CC=C3C2(C)C)CCCS(=O)([O-])=O)C=CC=C1'
+        # targ = 'Oc1cccc1'
+        for pat in match_tests:
+            print(smarts_matcher(pat)(targ))
 
 
     @validationTest
