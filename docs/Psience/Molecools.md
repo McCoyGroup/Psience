@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-914d49" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-914d49"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-348e1d" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-348e1d"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-914d49" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-348e1d" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -192,11 +192,13 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [FragEmbedding](#FragEmbedding)
 - [PlotlyBackend](#PlotlyBackend)
 - [Surface2](#Surface2)
+- [Surface3](#Surface3)
 - [AnimateColors](#AnimateColors)
 - [Functionalization](#Functionalization)
-- [Attachment3](#Attachment3)
+- [SomeZMat3](#SomeZMat3)
 - [RestrictedZM2](#RestrictedZM2)
 - [RestrictedZM3](#RestrictedZM3)
+- [SubstructMatching](#SubstructMatching)
 - [SVGBackend](#SVGBackend)
 - [BondGraphZMatrixIssues](#BondGraphZMatrixIssues)
 - [SimpleRelaxedScan](#SimpleRelaxedScan)
@@ -225,9 +227,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-3ce8b6" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-3ce8b6"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-4071ca" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-4071ca"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-3ce8b6" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-4071ca" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -5074,6 +5076,23 @@ class MolecoolsTests(TestCase):
         return
 ```
 
+#### <a name="Surface3">Surface3</a>
+```python
+    def test_Surface3(self):
+
+        mol = Molecule.from_string('CCO')
+        fig = mol.plot(backend='x3d',
+                       image_size=800,
+                       include_save_buttons=True)
+        surf = mol.get_surface(density=10).get_triangulation(
+            grid_samples=50,
+            method='isosurface',
+            probe_radius=1,
+        )
+        surf.plot(figure=fig).show()
+        return
+```
+
 #### <a name="AnimateColors">AnimateColors</a>
 ```python
     def test_AnimateColors(self):
@@ -5120,29 +5139,46 @@ class MolecoolsTests(TestCase):
         # mol2 = fg.remove_hydrogens(0)
         # mol3 = Molecule.from_string('CCC').remove_hydrogens(0, 1)
         fg2 = Molecule.from_string('CCC')
-        mol.attach_functional_group(
+        mol = mol.attach_functional_group(
            [6],
             fg.atoms,
             fg.coords,
             fg.bonds,
             group_site=3,
             dihedral=-np.pi/2
-        ).attach_functional_group(
+        )
+        mol = mol.attach_functional_group(
            [8],
             ['F'],
             [[0, 0, 0]]
-        ).attach_functional_group(
+        )
+        mol = mol.attach_functional_group(
             [11-2+4],
+            # [6],
             fg2.atoms,
             fg2.coords,
             fg2.bonds,
             group_site=3
-        ).plot(backend='x3d').show()
+        )
+        # fg2 = fg2.get_embedded_molecule(sel=[0, 1, 3])
+        # emb = fg2.fragment_embedding(0, ref=[3])[-1]
+        # print(emb)
+        # fg2.plot(highlight_atoms=[3],
+        #          dipole=emb * 3,
+        #          dipole_origin=np.average(fg2.coords[(0, 1, 3),], axis=0),
+        #          backend='x3d'
+        #          ).show()
+        # emb = mol.fragment_embedding(6, ref=None)[-1]
+        mol.plot(
+            # highlight_atoms=[6],
+            # dipole=emb * 3,
+            # dipole_origin=mol.coords[6],
+            backend='x3d').show()
 ```
 
-#### <a name="Attachment3">Attachment3</a>
+#### <a name="SomeZMat3">SomeZMat3</a>
 ```python
-    def test_Attachment3(self):
+    def test_SomeZMat3(self):
         from Psience.Molecools import Molecule
         import McUtils.Coordinerds as coordops
         from McUtils.Profilers import Timer
@@ -5205,6 +5241,22 @@ class MolecoolsTests(TestCase):
         )
 
         mol.modify(internals=zm).animate_coordinate(10).show()
+```
+
+#### <a name="SubstructMatching">SubstructMatching</a>
+```python
+    def test_SubstructMatching(self):
+        from McUtils.ExternalPrograms import smarts_matcher
+        match_tests = [
+            '[N,n,O,o;H1:1]~[*:2]-[*;R0:3]=[*;R0:4]-[*:5]~[*:6]',
+            '[N,n,O,o;H1:1]~[*:2]~[*:3]-[*;R0:4]=[*;R0:5]-[*:6]',
+            '[N,n,O,o;H1:1]-[*;R0:2]=[*;R0:3]-[*:4]~[*:5]~[*:6]'
+        ]
+
+        targ = 'OC1=C(/C=C/C2=[N+](C3=CC=CC=C3C2(C)C)CCCS(=O)([O-])=O)C=CC=C1'
+        # targ = 'Oc1cccc1'
+        for pat in match_tests:
+            print(smarts_matcher(pat)(targ))
 ```
 
 #### <a name="SVGBackend">SVGBackend</a>
