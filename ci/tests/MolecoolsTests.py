@@ -4985,6 +4985,21 @@ class MolecoolsTests(TestCase):
         # fig.show()
         return
 
+    @debugTest
+    def test_Surface3(self):
+
+        mol = Molecule.from_string('CCO')
+        fig = mol.plot(backend='x3d',
+                       image_size=800,
+                       include_save_buttons=True)
+        surf = mol.get_surface(density=10).get_triangulation(
+            grid_samples=50,
+            method='isosurface',
+            probe_radius=1,
+        )
+        surf.plot(figure=fig).show()
+        return
+
     @validationTest
     def test_AnimateColors(self):
         import McUtils.Plots as mplt
@@ -5021,7 +5036,7 @@ class MolecoolsTests(TestCase):
             ]
         ).show()#.to_widget().write("/Users/Mark/Desktop/glow_anim4.html")
 
-    @debugTest
+    @validationTest
     def test_Functionalization(self):
         mol = Molecule.from_string('c1ccccc1')
         fg = Molecule.from_string('C(=O)O')

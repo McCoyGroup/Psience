@@ -437,6 +437,10 @@ class LocalHarmonicModel:
                    dipole_derivatives=None,
                    localize=True,
                    use_nonnegative_modes=True,
+                   anharmonic_scalings=None,
+                   anharmonic_couplings=None,
+                   anharmonic_shifts=None,
+                   coupling_generator=None,
                    **opts):
         from ..Modes import NormalModes
         nms:NormalModes
@@ -491,12 +495,42 @@ class LocalHarmonicModel:
         f = loc_modes.local_hessian
         g = loc_modes.local_gmatrix
 
+        if coupling_generator is not None:
+            terms = coupling_generator(loc_modes,
+                                       f=f, g=g,
+                                       anharmonic_scalings=anharmonic_scalings,
+                                       anharmonic_couplings=anharmonic_couplings,
+                                       anharmonic_shifts=anharmonic_shifts,
+                                       **opts)
+            new_scalings = terms.pop('anharmonic_scalings', None)
+            if new_scalings is not None:
+                if anharmonic_scalings is None:
+                    anharmonic_scalings = new_scalings
+                else:
+                    anharmonic_scalings = anharmonic_scalings | new_scalings
+            new_couplings = terms.pop('anharmonic_couplings', None)
+            if new_couplings is not None:
+                if anharmonic_couplings is None:
+                    anharmonic_couplings = new_couplings
+                else:
+                    anharmonic_couplings = anharmonic_couplings | new_couplings
+            new_shifts = terms.pop('anharmonic_shifts', None)
+            if new_shifts is not None:
+                if anharmonic_shifts is None:
+                    anharmonic_shifts = new_shifts
+                else:
+                    anharmonic_shifts = anharmonic_shifts | new_shifts
+            opts = terms | opts
+
 
         return cls(
             f, g,
             internals=internals,
             dipole_derivatives=dipole_derivatives,
             modes=loc_modes,
+            anharmonic_scalings=anharmonic_scalings,
+            anharmonic_couplings=anharmonic_couplings,
+            anharmonic_shifts=anharmonic_shifts,
             **opts
         )
 
