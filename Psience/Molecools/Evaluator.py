@@ -2805,12 +2805,26 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                                                        retain_graph=retain_graph if retain_graph is not None else (o < order)
                                                        )
         return keys
-
+    def _replace_nans(self, e, replacement):
+        if replacement is True: replacement = 1e8
+        if replacement is False or not nput.is_numeric(replacement):
+            return e
+        else:
+            e = np.asanyarray(e)
+            if e.ndim == 0:
+                if np.isnan(e):
+                    return replacement
+                else:
+                    return e
+            else:
+                e[np.isnan(e)] = replacement
+            return e
     def process_aimnet_derivs(self, base_shape, coords, data, root_key, order,
                               extra_deriv_coord=None,
                               deriv_key=None,
                               property_shape=(),
                               pad_coord=1,
+                              replace_nans=True,
                               output_shape=None):
         if extra_deriv_coord is not None:
             deriv_keys = []
@@ -2867,8 +2881,11 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
 
         if extra_deriv_coord is None:
             expansion = [
-                expansion[k].detach().cpu().numpy().reshape(
-                    base_shape + (ndim,) * o + output_shape
+                self._replace_nans(
+                    expansion[k].detach().cpu().numpy().reshape(
+                        base_shape + (ndim,) * o + output_shape
+                    ),
+                    replace_nans
                 )
                 for o,k in enumerate(root_keys + deriv_keys)
             ]
@@ -2885,6 +2902,7 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                     e_new = esub.reshape(
                         base_shape + (ndim,) * i + (vdim,) * n + output_shape
                     )
+                    e_new = self._replace_nans(e_new, replace_nans)
                     subexpansion.append(e_new)
                 _.append(subexpansion)
             expansion = _
