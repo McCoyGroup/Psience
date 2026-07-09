@@ -2618,7 +2618,7 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                     try:
                         with cls._overload_aimnet_modeldir(model_dir):
                             from aimnet.calculators import AIMNet2Calculator
-                    except ModuleNotFoundError:
+                    except ImportError:
                         from aimnet2calc import AIMNet2Calculator
 
             with cls.quiet_mode():
