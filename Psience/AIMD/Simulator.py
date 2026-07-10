@@ -261,6 +261,121 @@ class BeemanStepPredictor(MDStepPredictor):
         self._f_prev = forces
         return new_positions, new_velocities, new_forces
 
+class InternalCoordinateStepPredictor(MDStepPredictor):
+    """
+    As before, but with `include_curvature=True` this adds the
+    -1/2 qdot^T (dG/dq) qdot term arising from the curvilinear metric,
+    using order-2 Jacobians (d^2q/dx^2) already available via the same
+    `.jacobian(...)` call used for the B-matrix.
+
+    NOTE ON SHAPES: this assumes the same square-ish (n_cartesian ==
+    n_internal) convention your existing get_forces() reshape uses. If your
+    `self._internals` setup uses a genuinely redundant or reduced internal
+    set, the reshapes below will need adjusting to match however
+    `ccs(coords).jacobian(ics, order=2, ...)` actually shapes its output --
+    I haven't been able to verify that against a live run, so treat the
+    tensor-shape bookkeeping here as a first draft to validate, not gospel.
+    A good validation step: finite-difference G(q) numerically and compare
+    to `_dG_dq` before trusting this in production.
+    """
+    name = 'internal-verlet'
+
+    def __init__(self,
+                 include_curvature=False, **opts):
+        super().__init__(**opts)
+        self.include_curvature = include_curvature
+
+    def _get_internals(self, sim, coords):
+        ccs, ics = sim._internals
+        icoords = ccs.convert_coords(coords, ics)
+        if not isinstance(icoords, np.ndarray):
+            icoords = icoords[0]
+        return icoords
+
+    def _get_B(self, sim, coords):
+        ccs, ics = sim._internals
+        B = ccs(coords).jacobian(ics, order=1, all_numerical=True)[0]
+        ncs = np.prod(coords.shape[-2:], dtype=int)
+        return np.reshape(np.moveaxis(B, 1, 0), (len(coords), -1, ncs))
+
+    def _get_dBdx(self, sim, coords):
+        # second Cartesian derivative of the internals: d^2 q_m / dx_j dx_l
+        # shape -> (n_traj, n_internal, n_cartesian, n_cartesian)
+        ccs, ics = sim._internals
+        d2q = ccs(coords).jacobian(ics, order=2, all_numerical=True)[0]
+        ncs = np.prod(coords.shape[-2:], dtype=int)
+        n_traj = len(coords)
+        # mirror the order=1 moveaxis/reshape convention, extended one axis --
+        # VERIFY this against your actual jacobian() output shape before trusting it
+        d2q = np.moveaxis(d2q, 2, 0)  # bring n_traj to front, if it sits at axis 2 like order=1's axis 1
+        return np.reshape(d2q, (n_traj, -1, ncs, ncs))
+
+    def _mass_weighted_pinv(self, sim, B):
+        m_inv = 1 / sim._mass.reshape(len(B), -1)
+        Minv_Bt = B.transpose(0, 2, 1) * m_inv[:, :, np.newaxis]
+        G = B @ Minv_Bt
+        G_inv = np.linalg.pinv(G)
+        return Minv_Bt @ G_inv, G, G_inv
+
+    def _dG_dq(self, sim, coords, B, A):
+        # dB_mj/dq_k = sum_l  d2q[m,j,l] * A[l,k]
+        C = self._get_dBdx(sim, coords)             # (n_traj, n_int_m, n_cart_j, n_cart_l)
+        dB_dq = np.einsum('tmjl,tlk->tmjk', C, A)    # (n_traj, n_int_m, n_cart_j, n_int_k)
+
+        m_inv = 1 / sim._mass.reshape(len(B), -1)    # (n_traj, n_cart_j)
+        # dG_mn/dq_k = sum_j [ dB_mj/dq_k * m_inv_j * B_nj  +  B_mj * m_inv_j * dB_nj/dq_k ]
+        term1 = np.einsum('tmjk,tj,tnj->tmnk', dB_dq, m_inv, B)
+        term2 = np.einsum('tmj,tj,tnjk->tmnk', B, m_inv, dB_dq)
+        return term1 + term2                          # (n_traj, n_int_m, n_int_n, n_int_k)
+
+    def _curvature(self, dG_dq, qdot):
+        # curvature_m = -1/2 * sum_{n,k} qdot_n * dG_mn/dq_k * qdot_k
+        return -0.5 * np.einsum('tmnk,tn,tk->tm', dG_dq, qdot, qdot)
+
+    def _back_transform(self, sim, x0, q_target):
+        x = x0
+        for _ in range(self.max_iters):
+            residual = q_target - self._get_internals(sim, x)
+            if np.max(np.abs(residual)) < self.back_transform_tol:
+                break
+            B = self._get_B(sim, x)
+            A, _, _ = self._mass_weighted_pinv(sim, B)
+            x = sim._recenter(x + (A @ residual.reshape(len(x), -1, 1)).reshape(x.shape))
+        return x
+
+    def _internal_accel(self, sim, coords, velocities, forces):
+        B = self._get_B(sim, coords)
+        A, G, G_inv = self._mass_weighted_pinv(sim, B)
+        q = self._get_internals(sim, coords)
+        qdot = (B @ velocities.reshape(len(coords), -1, 1)).reshape(q.shape)
+        f_int = (B @ (forces / sim._mass).reshape(len(coords), -1, 1)).reshape(q.shape)
+
+        accel = f_int
+        if self.include_curvature:
+            dG_dq = self._dG_dq(sim, coords, B, A)
+            accel = accel + self._curvature(dG_dq, qdot)
+
+        return q, qdot, f_int, accel, B, A
+
+    def predict_step(self, positions, velocities, forces, sim=None):
+        if forces is None:
+            forces = sim.get_forces(positions)
+
+        q, qdot, f_int, accel, B, A = self._internal_accel(sim, positions, velocities, forces)
+
+        dt = sim.dt
+        q_new = q + qdot * dt + accel / 2 * dt ** 2
+        new_positions = self._back_transform(sim, positions, q_new)
+
+        new_forces = sim.get_forces(new_positions)
+        _, qdot_new_placeholder, f_int_new, accel_new, B_new, A_new = self._internal_accel(
+            sim, new_positions, velocities, new_forces  # velocities here is a placeholder for qdot estimate below
+        )
+        qdot_new = qdot + (accel + accel_new) / 2 * dt
+
+        new_velocities = (A_new @ qdot_new.reshape(len(positions), -1, 1)).reshape(positions.shape)
+
+        return new_positions, new_velocities, new_forces
 
 class AIMDSimulator:
     __props__ = (
@@ -323,7 +438,6 @@ class AIMDSimulator:
         velocities = np.asanyarray(velocities)
         self.velocities = velocities
         if internals is not None:
-            raise NotImplementedError("haven't fully managed getting embedding right yet...")
             if not isinstance(internals, MolecularZMatrixCoordinateSystem):
                 base_mol = Molecule(
                     ['H']*len(self.masses),

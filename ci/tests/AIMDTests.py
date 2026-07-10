@@ -13,6 +13,7 @@ from unittest import TestCase
 
 from McUtils.Extensions import ModuleLoader
 from McUtils.Zachary import FiniteDifferenceDerivative
+from McUtils.Data import UnitsData
 
 from Psience.AIMD import *
 from Psience.Molecools import Molecule
@@ -70,7 +71,7 @@ class AIMDTests(TestCase):
         # raise Exception(hessians.shape)
         # raise Exception(traj.shape, engs)
 
-    @debugTest
+    @validationTest
     def test_AIMDInterp(self):
 
         loader = ModuleLoader(TestManager.current_manager().test_data_dir)
@@ -99,5 +100,41 @@ class AIMDTests(TestCase):
 
         # raise Exception(interp)
 
+    @debugTest
+    def test_Internals(self):
+        # sym = Symbols('r')
+        # fn = sym.morse(sym.r, de=10, a=1)
+        #
+        # pot = PairwisePotential(fn)
 
+        loader = ModuleLoader(TestManager.current_manager().test_data_dir)
+        mbpol_pot = loader.load("LegacyMBPol").potential
 
+        def potential(coords, order=0, chunk_size=int(5e5)):
+            return mbpol_pot(coords, deriv_order=order,
+                             nwaters=2,
+                             chunk_size=chunk_size,
+                             # debug='excessive'
+                             )
+
+        mol = Molecule.from_file(TestManager.test_data('water_dimer_freq.fchk'))
+        momo = mol.modify(
+            atoms=np.array(mol.atoms)[(1, 0, 2, 3, 4, 5),],
+            coords=mol.coords[(1, 0, 2, 3, 4, 5),],
+            energy_evaluator={
+                'potential_function':potential,
+                'batched_orders':True
+            }
+        )
+        # # raise Exception(momo.get_energy_evaluator().analytic_derivative_order)
+        # momo = momo.optimize(max_iterations=500)
+        # momo.plot().show()
+        # return
+        sim = momo.setup_AIMD(potential,
+                             timestep=1,
+                             thermostat='langevin',
+                             target_temperature=1000
+                             )
+        traj = np.array(sim.propagate(1000))
+        momo.plot(traj[::10, 0]).show()
+        print(traj.shape)

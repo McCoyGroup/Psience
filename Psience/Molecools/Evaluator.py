@@ -1099,7 +1099,7 @@ class PropertyFunctionEvaluator(PropertyEvaluator):
                  property_units=None,
                  distance_units='Angstroms',
                  batched_orders=False,
-                 analytic_derivative_order=0,
+                 analytic_derivative_order=np.inf,
                  **defaults
                  ):
         super(type(self).__bases__[0], self).__init__(**defaults)
@@ -4260,7 +4260,7 @@ class MLIPServerEnergyEvaluator(EvaluationServerEnergyEvaluator):
 
         return MLIPHandler.client_request(*args, **kwargs, print_response=None)
 
-
+@EnergyEvaluator.register('function')
 class PotentialFunctionEnergyEvaluator(EnergyEvaluator):
     # slightly weird, want single inheritance, but using `PropertyFunctionEvaluator` to define the
     # interface--I'm sure there's a better way to do this, but multiple inheritance always feels
