@@ -1,4 +1,5 @@
 import os, numpy as np
+import glob
 from McUtils.Extensions import DynamicFFILibrary, CLoader # we'll load this at runtime
 
 __all__ = [
@@ -8,7 +9,14 @@ __all__ = [
 
 cur_dir = os.path.dirname(os.path.abspath(__file__))
 lib_file = os.path.join(cur_dir, "libs", "libmbpol.so")
+# try:
+#     os.remove(lib_file)
+# except OSError:
+#     ...
 if not os.path.isfile(lib_file):
+    # filter_pattern = 'libmbpol.o'
+    # for f in glob.glob(os.path.join(cur_dir, "libs", "mbpol", "**", filter_pattern), recursive=True):
+    #     os.remove(f)
     CLoader(cur_dir).custom_make(
         True, os.path.join(cur_dir, "libs", 'mbpol')
     )
@@ -46,11 +54,13 @@ MBPol = DynamicFFILibrary(
         }
     ),
     compiler_options=dict(
+        # debug_level='excessive',
+        # recompile=True,
         threaded=True
     )
 )
 
-def potential(coords, deriv_order=0, nwaters=1, chunk_size=int(5e5)):
+def potential(coords, deriv_order=0, nwaters=1, chunk_size=int(5e5), debug=False):
     from McUtils.Data import UnitsData
     from McUtils.Zachary import FiniteDifferenceDerivative
 
@@ -67,15 +77,17 @@ def potential(coords, deriv_order=0, nwaters=1, chunk_size=int(5e5)):
 
     for coords in np.array_split(coords, num_chunks):
         # interp.logger.log_print("evaluating energies")
-        energies = MBPol.get_pot(coords=coords.reshape(-1, 3*nwaters, 3) * b2a, nwaters=nwaters,
-                                 threading_vars=['energy', 'coords'], threading_mode='omp')
+        c = coords.reshape(-1, 3*nwaters, 3) * b2a
+        energies = MBPol.get_pot(coords=c, nwaters=nwaters,
+                                 threading_vars=['energy', 'coords'], threading_mode='omp', debug=debug)
         if deriv_order > 0:
             derivs = []
             grads = lambda c: MBPol.get_pot_grad(
                 coords=c.reshape(-1, 3*nwaters, 3) * b2a,
                 nwaters=nwaters,
                 threading_vars=['energy', 'grad', 'coords'],
-                threading_mode='omp'
+                threading_mode='omp',
+                debug=debug
             )['grad'].reshape(c.shape) * b2a
             # interp.logger.log_print("evaluating forces")
             derivs.append(grads(coords))

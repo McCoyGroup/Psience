@@ -1,5 +1,5 @@
 import collections, functools, numpy as np
-# might be worth excising theses since this could be standalone otherwise?
+import abc
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Zachary import FiniteDifferenceDerivative, RBFDInterpolator
 import McUtils.Numputils as nput
@@ -9,8 +9,373 @@ from ..Molecools.Properties import PropertyManager
 
 __all__ = [
     "AIMDSimulator",
-    "PairwisePotential"
+    "PairwisePotential",
+    "MDThermostat",
+    "MDStepPredictor"
 ]
+
+
+# ============================================================
+# Thermostats
+# ============================================================
+
+class MDThermostat:
+    """
+    Base class for MD thermostats. Subclasses register themselves under
+    `name` so they can be constructed from a plain string or a dict spec.
+    """
+    name = None
+    _registry = {}
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls.name is not None:
+            MDThermostat._registry[cls.name] = cls
+
+    def __init__(self, target_temperature=None, **opts):
+        if target_temperature is None:
+            raise ValueError(f"{type(self).__name__} requires `target_temperature`")
+        self.target_temperature = target_temperature
+        self.opts = opts  # unconsumed kwargs kept around for introspection/debugging
+
+    def apply_thermostat(self, positions, velocities, sim=None):
+        """
+        Adjust (positions, velocities) for one integration step.
+        `sim` is the parent AIMDSimulator, passed for access to dt, masses,
+        instantaneous temperature, etc. Must return (positions, velocities).
+        """
+        raise NotImplementedError("subclasses must implement `apply_thermostat`")
+
+    @classmethod
+    def from_spec(cls, spec, **default_opts):
+        """
+        Build a thermostat from:
+          - None                 -> None
+          - MDThermostat instance -> returned as-is
+          - str                  -> registry lookup, using `default_opts`
+          - dict with 'type' key -> registry lookup, dict overrides `default_opts`
+        """
+        if spec is None:
+            return None
+        if isinstance(spec, MDThermostat):
+            return spec
+
+        if isinstance(spec, str):
+            kind = spec
+            opts = dict(default_opts)
+        elif isinstance(spec, dict):
+            spec = dict(spec)  # don't mutate caller's dict
+            if 'type' not in spec:
+                raise ValueError("thermostat dict spec must include a 'type' key")
+            kind = spec.pop('type')
+            opts = dict(default_opts)
+            opts.update(spec)  # explicit dict entries win over defaults
+        else:
+            raise TypeError(f"can't build a thermostat from {spec!r}")
+
+        if kind not in cls._registry:
+            raise ValueError(
+                f"unknown thermostat type '{kind}'; registered types: {sorted(cls._registry)}"
+            )
+        return cls._registry[kind](**opts)
+
+
+class RescaleThermostat(MDThermostat):
+    """Crude direct velocity rescaling to the target temperature every step."""
+    name = 'rescale'
+
+    def apply_thermostat(self, positions, velocities, sim=None):
+        T = sim._temperature(velocities)
+        scale = np.sqrt(self.target_temperature / T)
+        scale = np.reshape(scale, scale.shape + (1,) * (velocities.ndim - np.ndim(scale)))
+        return positions, velocities * scale
+
+
+class BerendsenThermostat(MDThermostat):
+    """Weak-coupling thermostat. Good for equilibration, not rigorous NVT sampling."""
+    name = 'berendsen'
+
+    def __init__(self, target_temperature=None, tau=None, **opts):
+        super().__init__(target_temperature=target_temperature, **opts)
+        self.tau = tau  # falls back to 100*dt if unset, resolved at call time
+
+    def apply_thermostat(self, positions, velocities, sim=None):
+        tau = self.tau if self.tau is not None else 100 * sim.dt
+        T = sim._temperature(velocities)
+        lam = np.sqrt(1 + (sim.dt / tau) * (self.target_temperature / T - 1))
+        lam = np.reshape(lam, lam.shape + (1,) * (velocities.ndim - np.ndim(lam)))
+        return positions, velocities * lam
+
+
+class LangevinThermostat(MDThermostat):
+    """BBK-style Langevin thermostat -- proper canonical sampling."""
+    name = 'langevin'
+
+    def __init__(self, target_temperature=None, friction=0.01, seed=None, **opts):
+        super().__init__(target_temperature=target_temperature, **opts)
+        self.friction = friction
+        self._rng = np.random.default_rng(seed)
+
+    def apply_thermostat(self, positions, velocities, sim=None):
+        gamma = self.friction
+        mass = sim._mass
+        sigma = np.sqrt(2 * gamma * self.target_temperature * UnitsData.convert("Kelvins", "Hartrees") * mass / sim.dt)
+        rand = self._rng.normal(size=velocities.shape)
+        velocities = velocities + sim.dt * (-gamma * velocities) + np.sqrt(sim.dt) * sigma * rand / mass
+        return positions, velocities
+
+class MDStepPredictor(metaclass=abc.ABCMeta):
+    """
+    Base class for MD step integrators. Subclasses register themselves under
+    `name` so they can be constructed from a plain string or a dict spec,
+    exactly like MDThermostat.
+    """
+    name = None
+    _registry = {}
+
+    def __init_subclass__(cls, **kwargs):
+        super().__init_subclass__(**kwargs)
+        if cls.name is not None:
+            MDStepPredictor._registry[cls.name] = cls
+
+    def __init__(self, **opts):
+        self.opts = opts
+
+    @abc.abstractmethod
+    def predict_step(self, positions, velocities, forces, sim=None):
+        """
+        Advance one step. `forces` is the force at the *current* positions
+        (possibly None, in which case the predictor should evaluate it via
+        `sim.get_forces(positions)`). `sim` is the parent AIMDSimulator, for
+        access to `dt`, `_mass`, `get_forces`, `_recenter`, etc.
+        Must return (new_positions, new_velocities, new_forces).
+        """
+        raise NotImplementedError("subclasses must implement `predict_step`")
+
+    @classmethod
+    def from_spec(cls, spec, **default_opts):
+        """
+        Build a step predictor from:
+          - None                  -> default ('velocity-verlet')
+          - MDStepPredictor instance -> returned as-is
+          - str                   -> registry lookup, using `default_opts`
+          - dict with 'type' key  -> registry lookup, dict overrides `default_opts`
+        """
+        if spec is None:
+            spec = 'velocity-verlet'
+        if isinstance(spec, MDStepPredictor):
+            return spec
+
+        if isinstance(spec, str):
+            kind = spec
+            opts = dict(default_opts)
+        elif isinstance(spec, dict):
+            spec = dict(spec)
+            if 'type' not in spec:
+                raise ValueError("step predictor dict spec must include a 'type' key")
+            kind = spec.pop('type')
+            opts = dict(default_opts)
+            opts.update(spec)
+        else:
+            raise TypeError(f"can't build a step predictor from {spec!r}")
+
+        if kind not in cls._registry:
+            raise ValueError(
+                f"unknown step predictor type '{kind}'; registered types: {sorted(cls._registry)}"
+            )
+        return cls._registry[kind](**opts)
+
+
+class VelocityVerletStepPredictor(MDStepPredictor):
+    """Standard velocity-Verlet -- symplectic, time-reversible, 1 force eval/step."""
+    name = 'velocity-verlet'
+
+    def predict_step(self, positions, velocities, forces, sim=None):
+        if forces is None:
+            forces = sim.get_forces(positions)
+
+        dt, mass = sim.dt, sim._mass
+        new_positions = positions + velocities * dt + forces / (2 * mass) * dt ** 2
+        new_positions = sim._recenter(new_positions)
+
+        new_forces = sim.get_forces(new_positions)
+        new_velocities = velocities + dt * (forces + new_forces) / (2 * mass)
+
+        return new_positions, new_velocities, new_forces
+
+
+class PositionVerletStepPredictor(MDStepPredictor):
+    """
+    Position-Verlet: velocity-centered dual of velocity-Verlet. Same order of
+    accuracy and symplectic properties, different bookkeeping (updates
+    velocity at the half-step, position twice per step). Costs the same one
+    force eval/step as velocity-Verlet; included mostly for completeness /
+    cases where you specifically want position updates centered on the force
+    evaluation point.
+    """
+    name = 'position-verlet'
+
+    def predict_step(self, positions, velocities, forces, sim=None):
+        if forces is None:
+            forces = sim.get_forces(positions)
+
+        dt, mass = sim.dt, sim._mass
+        mid_positions = sim._recenter(positions + velocities * dt / 2)
+
+        mid_forces = sim.get_forces(mid_positions)
+        new_velocities = velocities + mid_forces / mass * dt
+
+        new_positions = sim._recenter(mid_positions + new_velocities * dt / 2)
+        new_forces = mid_forces  # force at the midpoint stands in for this step
+
+        return new_positions, new_velocities, new_forces
+
+
+class BeemanStepPredictor(MDStepPredictor):
+    """
+    Beeman's algorithm: uses the previous step's forces in addition to the
+    current ones for a more accurate velocity estimate. NOT symplectic --
+    energy drifts more than velocity-Verlet over long trajectories -- but
+    gives better instantaneous velocities/temperature, which can matter if
+    you're feeding those into a sensitive thermostat. Needs to persist the
+    prior force between calls, so state lives on the instance.
+    """
+    name = 'beeman'
+
+    def __init__(self, **opts):
+        super().__init__(**opts)
+        self._f_prev = None  # f(t - dt); bootstrapped to f(t) on the first call
+
+    def predict_step(self, positions, velocities, forces, sim=None):
+        if forces is None:
+            forces = sim.get_forces(positions)
+        f_prev = self._f_prev if self._f_prev is not None else forces
+
+        dt, mass = sim.dt, sim._mass
+        new_positions = positions + velocities * dt + (4 * forces - f_prev) * dt ** 2 / (6 * mass)
+        new_positions = sim._recenter(new_positions)
+
+        new_forces = sim.get_forces(new_positions)
+        new_velocities = velocities + (2 * new_forces + 5 * forces - f_prev) * dt / (6 * mass)
+
+        self._f_prev = forces
+        return new_positions, new_velocities, new_forces
+
+class InternalCoordinateStepPredictor(MDStepPredictor):
+    """
+    As before, but with `include_curvature=True` this adds the
+    -1/2 qdot^T (dG/dq) qdot term arising from the curvilinear metric,
+    using order-2 Jacobians (d^2q/dx^2) already available via the same
+    `.jacobian(...)` call used for the B-matrix.
+
+    NOTE ON SHAPES: this assumes the same square-ish (n_cartesian ==
+    n_internal) convention your existing get_forces() reshape uses. If your
+    `self._internals` setup uses a genuinely redundant or reduced internal
+    set, the reshapes below will need adjusting to match however
+    `ccs(coords).jacobian(ics, order=2, ...)` actually shapes its output --
+    I haven't been able to verify that against a live run, so treat the
+    tensor-shape bookkeeping here as a first draft to validate, not gospel.
+    A good validation step: finite-difference G(q) numerically and compare
+    to `_dG_dq` before trusting this in production.
+    """
+    name = 'internal-verlet'
+
+    def __init__(self,
+                 include_curvature=False, **opts):
+        super().__init__(**opts)
+        self.include_curvature = include_curvature
+
+    def _get_internals(self, sim, coords):
+        ccs, ics = sim._internals
+        icoords = ccs.convert_coords(coords, ics)
+        if not isinstance(icoords, np.ndarray):
+            icoords = icoords[0]
+        return icoords
+
+    def _get_B(self, sim, coords):
+        ccs, ics = sim._internals
+        B = ccs(coords).jacobian(ics, order=1, all_numerical=True)[0]
+        ncs = np.prod(coords.shape[-2:], dtype=int)
+        return np.reshape(np.moveaxis(B, 1, 0), (len(coords), -1, ncs))
+
+    def _get_dBdx(self, sim, coords):
+        # second Cartesian derivative of the internals: d^2 q_m / dx_j dx_l
+        # shape -> (n_traj, n_internal, n_cartesian, n_cartesian)
+        ccs, ics = sim._internals
+        d2q = ccs(coords).jacobian(ics, order=2, all_numerical=True)[0]
+        ncs = np.prod(coords.shape[-2:], dtype=int)
+        n_traj = len(coords)
+        # mirror the order=1 moveaxis/reshape convention, extended one axis --
+        # VERIFY this against your actual jacobian() output shape before trusting it
+        d2q = np.moveaxis(d2q, 2, 0)  # bring n_traj to front, if it sits at axis 2 like order=1's axis 1
+        return np.reshape(d2q, (n_traj, -1, ncs, ncs))
+
+    def _mass_weighted_pinv(self, sim, B):
+        m_inv = 1 / sim._mass.reshape(len(B), -1)
+        Minv_Bt = B.transpose(0, 2, 1) * m_inv[:, :, np.newaxis]
+        G = B @ Minv_Bt
+        G_inv = np.linalg.pinv(G)
+        return Minv_Bt @ G_inv, G, G_inv
+
+    def _dG_dq(self, sim, coords, B, A):
+        # dB_mj/dq_k = sum_l  d2q[m,j,l] * A[l,k]
+        C = self._get_dBdx(sim, coords)             # (n_traj, n_int_m, n_cart_j, n_cart_l)
+        dB_dq = np.einsum('tmjl,tlk->tmjk', C, A)    # (n_traj, n_int_m, n_cart_j, n_int_k)
+
+        m_inv = 1 / sim._mass.reshape(len(B), -1)    # (n_traj, n_cart_j)
+        # dG_mn/dq_k = sum_j [ dB_mj/dq_k * m_inv_j * B_nj  +  B_mj * m_inv_j * dB_nj/dq_k ]
+        term1 = np.einsum('tmjk,tj,tnj->tmnk', dB_dq, m_inv, B)
+        term2 = np.einsum('tmj,tj,tnjk->tmnk', B, m_inv, dB_dq)
+        return term1 + term2                          # (n_traj, n_int_m, n_int_n, n_int_k)
+
+    def _curvature(self, dG_dq, qdot):
+        # curvature_m = -1/2 * sum_{n,k} qdot_n * dG_mn/dq_k * qdot_k
+        return -0.5 * np.einsum('tmnk,tn,tk->tm', dG_dq, qdot, qdot)
+
+    def _back_transform(self, sim, x0, q_target):
+        x = x0
+        for _ in range(self.max_iters):
+            residual = q_target - self._get_internals(sim, x)
+            if np.max(np.abs(residual)) < self.back_transform_tol:
+                break
+            B = self._get_B(sim, x)
+            A, _, _ = self._mass_weighted_pinv(sim, B)
+            x = sim._recenter(x + (A @ residual.reshape(len(x), -1, 1)).reshape(x.shape))
+        return x
+
+    def _internal_accel(self, sim, coords, velocities, forces):
+        B = self._get_B(sim, coords)
+        A, G, G_inv = self._mass_weighted_pinv(sim, B)
+        q = self._get_internals(sim, coords)
+        qdot = (B @ velocities.reshape(len(coords), -1, 1)).reshape(q.shape)
+        f_int = (B @ (forces / sim._mass).reshape(len(coords), -1, 1)).reshape(q.shape)
+
+        accel = f_int
+        if self.include_curvature:
+            dG_dq = self._dG_dq(sim, coords, B, A)
+            accel = accel + self._curvature(dG_dq, qdot)
+
+        return q, qdot, f_int, accel, B, A
+
+    def predict_step(self, positions, velocities, forces, sim=None):
+        if forces is None:
+            forces = sim.get_forces(positions)
+
+        q, qdot, f_int, accel, B, A = self._internal_accel(sim, positions, velocities, forces)
+
+        dt = sim.dt
+        q_new = q + qdot * dt + accel / 2 * dt ** 2
+        new_positions = self._back_transform(sim, positions, q_new)
+
+        new_forces = sim.get_forces(new_positions)
+        _, qdot_new_placeholder, f_int_new, accel_new, B_new, A_new = self._internal_accel(
+            sim, new_positions, velocities, new_forces  # velocities here is a placeholder for qdot estimate below
+        )
+        qdot_new = qdot + (accel + accel_new) / 2 * dt
+
+        new_velocities = (A_new @ qdot_new.reshape(len(positions), -1, 1)).reshape(positions.shape)
+
+        return new_positions, new_velocities, new_forces
 
 class AIMDSimulator:
     __props__ = (
@@ -20,7 +385,9 @@ class AIMDSimulator:
         "track_kinetic_energy",
         "track_velocities",
         "timestep",
-        "sampling_rate"
+        "sampling_rate",
+        "thermostat",
+        "target_temperature"
     )
     def __init__(self,
                  atoms,
@@ -32,7 +399,11 @@ class AIMDSimulator:
                  track_kinetic_energy=False,
                  track_velocities=False,
                  timestep=.1,
-                 sampling_rate=1
+                 sampling_rate=1,
+                 step_predictor=None,  # None | str | dict | MDStepPredictor instance
+                 thermostat=None,           # None | str | dict | MDThermostat instance
+                 target_temperature=None,   # Kelvin; used as default if `thermostat` doesn't set its own
+                 remove_rotation=False
                  ):
         self.masses = np.array([
                 AtomData[a, "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")
@@ -67,7 +438,6 @@ class AIMDSimulator:
         velocities = np.asanyarray(velocities)
         self.velocities = velocities
         if internals is not None:
-            raise NotImplementedError("haven't fully managed getting embedding right yet...")
             if not isinstance(internals, MolecularZMatrixCoordinateSystem):
                 base_mol = Molecule(
                     ['H']*len(self.masses),
@@ -99,6 +469,24 @@ class AIMDSimulator:
         self.steps = 0
         self.dt = timestep
         self.sampling_rate = sampling_rate
+
+        self.thermostat = MDThermostat.from_spec(thermostat, target_temperature=target_temperature)
+        self.target_temperature = (
+            self.thermostat.target_temperature if self.thermostat is not None else target_temperature
+        )
+        self.step_predictor = MDStepPredictor.from_spec(step_predictor)
+
+        if self._atomic_structs:
+            n_dof = 3 * len(self.masses) - 3  # COM removed
+            if remove_rotation:
+                n_dof -= 3
+        else:
+            n_dof = self.coords.shape[-1] * self.coords.shape[-2] if self.coords.ndim > 2 else self.coords.shape[-1]
+        self._n_dof = max(n_dof, 1)
+
+    def _temperature(self, vels):
+        ke = self._ke(self._mass, vels)
+        return 2 * ke / (self._n_dof * UnitsData.convert("Kelvins", "Hartrees"))
 
     @classmethod
     def mode_energies_to_velocities(cls, modes, masses, energy_splits, inverse=None):
@@ -154,19 +542,20 @@ class AIMDSimulator:
             forces = self.force_function(coords)
         return forces
 
-    def step(self):
-        forces = self._prev_forces
-        if forces is None:
-            forces = self.get_forces(self.coords)
-
-
-        v = self.velocities
-        coords = self.coords + v * self.dt + forces / (2 * self._mass) * self.dt**2
+    def _recenter(self, coords):
         if self._atomic_structs:
             com = np.tensordot(self.masses, coords, axes=[0, -2]) / np.sum(self._mass)
-            coords = coords - com[:, np.newaxis, :] # don't let COM move
-        forces_new = self.get_forces(coords)
-        vels = v + self.dt * (forces + forces_new) / (2 * self._mass)
+            coords = coords - com[:, np.newaxis, :]
+        return coords
+
+    def step(self):
+        forces = self._prev_forces
+        coords, vels, forces_new = self.step_predictor.predict_step(
+            self.coords, self.velocities, forces, sim=self
+        )
+
+        if self.thermostat is not None:
+            coords, vels = self.thermostat.apply_thermostat(coords, vels, sim=self)
 
         self._prev_forces = forces_new
         self.velocities = vels

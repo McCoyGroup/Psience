@@ -23,6 +23,8 @@ __pycache__/
 *$py.class
 
 # C extensions
+*.o
+*.mod
 *.so
 
 # Distribution / packaging
@@ -133,3 +135,4 @@ dmypy.json
 .pyre/
 ci/tests/TestData/h2o_aimd.log
 ci/tests/TestData/h2o_aimd.log
+*.o

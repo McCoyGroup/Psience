@@ -2875,7 +2875,9 @@ class Molecule(AbstractMolecule):
                    initial_mode_directions=None,
                    displaced_coords=None,
                    track_kinetic_energy=False,
-                   track_velocities=False
+                   track_velocities=False,
+                   modes=None,
+                   **etc
                    ):
         from ..AIMD import AIMDSimulator
 
@@ -2918,7 +2920,9 @@ class Molecule(AbstractMolecule):
                     initial_energies = total_energy * energies / np.sum(np.abs(energies), axis=1)[:, np.newaxis]
 
             if initial_energies is None:
-                freqs = new.normal_modes.modes.freqs
+                if modes is None:
+                    modes = new.get_normal_modes()
+                freqs = np.abs(modes.freqs)
 
                 if total_energy is None:
                     if total_energy_scaling is None:
@@ -2952,7 +2956,8 @@ class Molecule(AbstractMolecule):
                 ),
                 timestep=timestep,
                 track_kinetic_energy=track_kinetic_energy,
-                track_velocities=track_velocities
+                track_velocities=track_velocities,
+                **etc
             )
 
         return sim
