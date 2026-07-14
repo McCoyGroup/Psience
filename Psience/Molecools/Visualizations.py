@@ -3009,17 +3009,18 @@ class SVG2DMoleculePlotter(MoleculePlotter):
 
         arr = np.asanyarray(pose, dtype=float)
         n = len(coords)
-        if arr.ndim == 2 and arr.shape == (n, 2):
-            return arr
-        if arr.ndim == 2 and arr.shape == (2, 3):
-            com = nput.center_of_mass(coords, masses)
-            return (coords - com[np.newaxis, :]) @ arr.T
-        if arr.ndim == 2 and arr.shape == (3, 3):
-            com = nput.center_of_mass(coords, masses)
-            proj = (coords - com[np.newaxis, :]) @ arr
-            return np.stack([proj[:, i], proj[:, j]], axis=-1)
-        if arr.ndim == 2 and arr.shape == (n, 3):
-            return _pa_project(arr)
+        if arr.ndim == 2:
+            if arr.shape == (n, 2):
+                return arr
+            elif arr.shape == (2, 3):
+                com = nput.center_of_mass(coords, masses)
+                return (coords - com[np.newaxis, :]) @ arr.T
+            elif arr.shape == (3, 3):
+                com = nput.center_of_mass(coords, masses)
+                proj = (coords - com[np.newaxis, :]) @ arr
+                return np.stack([proj[:, i], proj[:, j]], axis=-1)
+            elif arr.shape == (n, 3):
+                return _pa_project(arr)
         raise ValueError(
             f"can't interpret pose of shape {arr.shape} for {n} atoms; "
             "expected (N,2), (N,3), (2,3), (3,3), or a callable"
