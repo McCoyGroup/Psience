@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-413078" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-413078"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-afd458" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-afd458"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-413078" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-afd458" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -195,6 +195,7 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [Surface3](#Surface3)
 - [AnimateColors](#AnimateColors)
 - [Functionalization](#Functionalization)
+- [TrickyFunctionalization](#TrickyFunctionalization)
 - [SomeZMat3](#SomeZMat3)
 - [RestrictedZM2](#RestrictedZM2)
 - [RestrictedZM3](#RestrictedZM3)
@@ -227,9 +228,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-c4e9e5" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-c4e9e5"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-ad5db6" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-ad5db6"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-c4e9e5" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-ad5db6" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -5174,6 +5175,33 @@ class MolecoolsTests(TestCase):
             # dipole=emb * 3,
             # dipole_origin=mol.coords[6],
             backend='x3d').show()
+```
+
+#### <a name="TrickyFunctionalization">TrickyFunctionalization</a>
+```python
+    def test_TrickyFunctionalization(self):
+        base = Molecule.from_string(
+            'CO[C@]12C[C@H:1](C=C1)CC2'
+        )
+        frag = Molecule.from_string(
+            '[cH:1]1ccc(F)cc1'
+        )
+        targ = next((b[1] for b in base.bonds if b[0] == 0 and base.atoms[b[1]] == 'H'), None)
+        root = next((b[1] for b in frag.bonds if b[0] == 0 and frag.atoms[b[1]] == 'H'), None)
+        new = base.attach_functional_group(
+            [targ],
+            frag.atoms,
+            frag.coords,
+            frag.bonds,
+            group_site=root
+        )
+
+        # framework = new.edge_graph.get_heavy_atom_framework_graph()[0]
+        # framework.plot().show()
+        #
+        # return
+
+        new.plot(backend='svg2d').show()
 ```
 
 #### <a name="SomeZMat3">SomeZMat3</a>
