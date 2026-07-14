@@ -311,6 +311,10 @@ class MoleculePlotter:
         #     }
         return styles
 
+    atom_color_updates = {}
+    @classmethod
+    def _resolve_atom_color(cls, atom_data):
+        return cls.atom_color_updates.get(atom_data["ElementSymbol"], atom_data["IconColor"])
     def _prep_display_atom_style(self,
                                  atom_style,
                                  highlight_atoms,
@@ -319,7 +323,7 @@ class MoleculePlotter:
                                  reflectiveness,
                                  highlight_styles
                                  ):
-        colors = [ at["IconColor"] for at in self._ats ]
+        colors = [ self._resolve_atom_color(at) for at in self._ats ]
         glows = [ None for at in self._ats ]
         if atom_style is None or atom_style is True:
             atom_style = {}
@@ -343,14 +347,16 @@ class MoleculePlotter:
                     _atom_style[k] = v
             for k, v in _atom_style.items():
                 _atom_style[k] = base_atom_style | v
-                colors[k] = v.get('color', colors[k])
-                glows[k] = v.get('glow', glows[k])
             atom_style = _atom_style
 
         if highlight_atoms is not None:
             for k in highlight_atoms:
                 if k not in atom_style: atom_style[k] = {}
                 atom_style[k].update(highlight_styles)
+
+        for k, v in atom_style.items():
+            colors[k] = v.get('color', colors[k])
+            glows[k] = v.get('glow', glows[k])
 
         return atom_style, highlight_atoms, colors, glows
 
@@ -2980,14 +2986,17 @@ class SVG2DMoleculePlotter(MoleculePlotter):
     modes = ('svg2d',)
     subthemes = {
             'default': {
+                'bond_radius': .05,
+                'glow_radius': .2,
                 'multiple_bond_spacing': .12,
                 # 'bond_lengths': 1,
                 # 'layout_function':'default',
-                'disk_options': {'stroke-width': '.01px', 'stroke': 'black'},
-                'line_options': {'stroke-width': '.06px', 'stroke': 'black'},
+                'disk_options': {'line_width': .1},
+                # 'line_options': {},
                 'label_style': {'font_size': 6}
             }
         }
+    atom_color_updates = {"C":"black"}
 
     # ------------------------------------------------------------------ #
     #  Embedding / poses
@@ -3104,18 +3113,6 @@ class SVG2DMoleculePlotter(MoleculePlotter):
 
         return xy
 
-    # ------------------------------------------------------------------ #
-    #  2D primitive builders (mirror the 3D style handling)
-    # ------------------------------------------------------------------ #
-    @staticmethod
-    def _svg2d_clean_style(sty):
-        # 2D Disk/Line don't take `glow`; fold it into a stroke outline instead
-        sty = dict(sty)
-        glow = sty.pop('glow', None)
-        if glow is not None and 'stroke' not in sty:
-            sty['stroke'] = glow
-        return sty
-
     def _plot_range_2d(self, xy, radii, plot_range_padding):
         lo = np.min(xy, axis=0)
         hi = np.max(xy, axis=0)
@@ -3138,9 +3135,18 @@ class SVG2DMoleculePlotter(MoleculePlotter):
         return flags
 
     def _get_atom_label_primitives_2d(self, xy, colors, atom_style, atom_text, labeled, *,
-                                      text_class, label_style, plot_range, plotos):
+                                      text_class, label_style, plot_range,
+                                      disk_class, radii, glows, theme_function,
+                                      glow_radius,
+                                      plotos):
         prims = []
         for j, (coord, color, lab) in enumerate(zip(xy, colors, labeled)):
+            a_sty = dict(atom_style.get(j, {}))
+            glow = a_sty.pop('glow', glows[j])
+            if glow is not None and glow_radius > 0:
+                prims.append(
+                    disk_class(coord, max([glow_radius, radii[j]]), color=glow)
+                )
             if not lab:
                 continue
             # per-atom user text overrides the element symbol
@@ -3157,13 +3163,12 @@ class SVG2DMoleculePlotter(MoleculePlotter):
             if nput.is_numeric(text):
                 text = str(text)
 
-            a_sty = dict(atom_style.get(j, {}))
             modifier = a_sty.pop('modifier', None)
             col = a_sty.pop('color', None) or color
             if modifier is not None:
                 a_sty = modifier(j, self.atoms[j], dict(a_sty, color=col))
                 col = a_sty.pop('color', col)
-            a_sty = self._svg2d_clean_style(a_sty)
+            # a_sty = self._svg2d_clean_style(a_sty)
 
             # atom color wins over the base label color so labels read as CPK-ish;
             # a per-atom atom_style color still overrides via `col`
@@ -3173,15 +3178,18 @@ class SVG2DMoleculePlotter(MoleculePlotter):
                 'invert':True,
                 'anchor':(-.5, 1.25),
                 'plot_range': plot_range
-            } | a_sty | extra)
+            } | plotos | a_sty | extra)
+            print("?", sty)
             pos = coord + np.asanyarray(sty.pop('offset', [0.0, 0.0]), dtype=float)
+            if theme_function is not None:
+                sty = theme_function(j, text_class, sty)
             prims.append(text_class(text, pos, **sty))
         return prims
 
     def _get_bond_primitives_2d(self, xy, bond_list, radii, colors, glows, labeled, *,
                                 line_class, bond_style, bond_radius, line_options,
                                 trim_bonds, render_multiple_bonds, multiple_bond_spacing,
-                                half_colored_bonds, theme_function, plotos):
+                                half_colored_bonds, theme_function, glow_radius, plotos):
         prims = []
         base = dict(line_options)
         if bond_radius is not None and 'line_width' not in base and 'stroke-width' not in base:
@@ -3205,16 +3213,19 @@ class SVG2DMoleculePlotter(MoleculePlotter):
             mod = b1.pop('modifier', None)
             if mod is not None:
                 b1 = mod((i, j), (self.atoms[i], self.atoms[j]), b1)
-            b1 = self._svg2d_clean_style(b1)
+            # b1 = self._svg2d_clean_style(b1)
             b2 = dict(bond_style.get(j, {}), **base_bstyle)
             mod = b2.pop('modifier', None)
             if mod is not None:
                 b2 = mod((j, i), (self.atoms[j], self.atoms[i]), b2)
-            b2 = self._svg2d_clean_style(b2)
+            # b2 = self._svg2d_clean_style(b2)
 
             n_lines = order if (render_multiple_bonds and order and order >= 1) else 1
-            fraction = order - int(order)
-            offsets = (np.arange(n_lines) - (n_lines - 1) / 2) * multiple_bond_spacing
+            fraction = max([order - int(order), .1])
+            if n_lines %2 == 1:
+                offsets = (np.arange(n_lines) - (n_lines - 1) / 2) * multiple_bond_spacing
+            else:
+                offsets = np.arange(n_lines) * multiple_bond_spacing
 
             for fi,off in enumerate(offsets):
                 s = start + perp * off
@@ -3223,12 +3234,17 @@ class SVG2DMoleculePlotter(MoleculePlotter):
                     v = (e - s) * fraction/2
                     e = e - v
                     s = s + v
-                if half_colored_bonds and b1.get('color') is None and b2.get('color') is None:
+                if half_colored_bonds and (
+                        colors[i] != colors[j]
+                        or glows[i] != glows[j]
+                ):
                     mid = (s + e) / 2
-                    for pts, c, over in (([s, mid], colors[i], b1), ([mid, e], colors[j], b2)):
+                    for pts, c, g, over in (([s, mid], colors[i], glows[i], b1), ([mid, e], colors[j], glows[j], b2)):
                         sty = (plotos | base | {'color': c} | over)
                         if theme_function is not None:
                             sty = theme_function((i, j), line_class, sty)
+                        if g is not None:
+                            prims.append(line_class(np.array(pts), **(sty | dict(line_width=2*glow_radius, color=g))))
                         prims.append(line_class(np.array(pts), **sty))
                 else:
                     sty = (plotos | base | b1)
@@ -3257,6 +3273,10 @@ class SVG2DMoleculePlotter(MoleculePlotter):
                 return True
         return filter
 
+    highlight_styles = {
+        'glow':'green',
+        # 'line_color':'black'
+    }
 
     # ------------------------------------------------------------------ #
     #  Entry point
@@ -3289,12 +3309,17 @@ class SVG2DMoleculePlotter(MoleculePlotter):
         draw_carbons = _pop('draw_carbons', False)
         draw_hydrogens = _pop('draw_hydrogens', False)
         atom_filter = _pop('atom_filter', None)
-        text_class = _pop('text_class', None) or Text
+        text_class = _pop('text_class', None)
+        if text_class is None: text_class = Text
+        disk_class = _pop('disk_class', None)
+        if disk_class is None: disk_class = Disk
         layout_function = _pop('layout_function')
         image_size = graphics_opts.pop('image_size', _pop('image_size', (400, 400)))
         offset_radius = _pop('offset_radius', .2)
         max_adjustment = _pop('max_adjustment', 1)
         max_adjustment_iterations = _pop('max_adjustment_iterations', 10)
+        glow_radius = _pop('glow_radius', .2)
+        glow_atom_circles = _pop('glow_atom_circles', False)
 
         v = full_opts
         return_objects = v.pop('return_objects')
@@ -3314,11 +3339,11 @@ class SVG2DMoleculePlotter(MoleculePlotter):
         highlight_bonds = v.pop('highlight_bonds')
         highlight_rings = v.pop('highlight_rings')
         highlight_styles = v.pop('highlight_styles')
+        if highlight_styles is None:
+            highlight_styles = self.highlight_styles
         bonds = v.pop('bonds')
         render_multiple_bonds = v.pop('render_multiple_bonds')
-        multiple_bond_spacing = v.pop('multiple_bond_spacing') or .12
-        disk_class = v.pop('disk_class') or Disk
-        disk_options = v.pop('disk_options') or {}
+        multiple_bond_spacing = v.pop('multiple_bond_spacing', .12)
         line_class = v.pop('line_class') or Line
         line_options = v.pop('line_options') or {}
         theme_function = v.pop('theme_function')
@@ -3327,6 +3352,7 @@ class SVG2DMoleculePlotter(MoleculePlotter):
         graphics_class = v.pop('graphics_class') or Graphics
         background = graphics_opts.pop('background', 'transparent')
         # (any remaining full_opts keys are 3D-only and ignored on this path)
+
 
         if atom_filter is None:
             atom_filter = self._default_atom_filter(draw_carbons=draw_carbons, draw_hydrogens=draw_hydrogens)
@@ -3437,20 +3463,23 @@ class SVG2DMoleculePlotter(MoleculePlotter):
                 render_multiple_bonds=render_multiple_bonds,
                 multiple_bond_spacing=multiple_bond_spacing,
                 half_colored_bonds=half_colored_bonds,
-                theme_function=theme_function, plotos=plotos)
+                theme_function=theme_function, glow_radius=glow_radius,
+                plotos=plotos)
             # atoms are drawn as element-symbol text (skeletal style); carbons and
             # hydrogens are only labeled when draw_carbons / draw_hydrogens is set
             atom_prims = self._get_atom_label_primitives_2d(
                 xy, colors, atom_style, atom_text, labeled,
                 text_class=text_class, label_style=label_style,
                 plot_range=plot_range,
+                disk_class=disk_class, radii=radii, glows=glows,
+                theme_function=theme_function, glow_radius=glow_radius if glow_atom_circles else 0,
                 plotos=plotos)
             extra_prims = []
             if annotation_function is not None:
                 extra_prims = list(annotation_function(self.mol, i, xy))
 
-            bonds_out[i] = _render(bond_prims)
             atoms_out[i] = _render(atom_prims)
+            bonds_out[i] = _render(bond_prims)
             labels_out[i] = _render(extra_prims)
 
         if objects:

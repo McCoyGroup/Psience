@@ -5102,7 +5102,10 @@ class MolecoolsTests(TestCase):
         #
         # return
 
-        new.plot(backend='svg2d').show()
+        new.plot(backend='svg2d',
+                 # atom_style={0:{'color':'green'}}
+                 highlight_atoms=[0, 1, 2]
+                 ).show()
 
     @validationTest
     def test_SomeZMat3(self):
