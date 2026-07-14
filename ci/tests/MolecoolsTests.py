@@ -5089,13 +5089,20 @@ class MolecoolsTests(TestCase):
         )
         targ = next((b[1] for b in base.bonds if b[0] == 0 and base.atoms[b[1]] == 'H'), None)
         root = next((b[1] for b in frag.bonds if b[0] == 0 and frag.atoms[b[1]] == 'H'), None)
-        base.attach_functional_group(
+        new = base.attach_functional_group(
             [targ],
             frag.atoms,
             frag.coords,
             frag.bonds,
             group_site=root
         )
+
+        # framework = new.edge_graph.get_heavy_atom_framework_graph()[0]
+        # framework.plot().show()
+        #
+        # return
+
+        new.plot(backend='svg2d').show()
 
     @validationTest
     def test_SomeZMat3(self):
