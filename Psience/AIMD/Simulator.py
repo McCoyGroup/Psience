@@ -377,6 +377,141 @@ class InternalCoordinateStepPredictor(MDStepPredictor):
 
         return new_positions, new_velocities, new_forces
 
+class RMSDBiasPotential:
+    """
+    Wraps a force function with a CREST-style metadynamics bias: a
+    history-dependent Gaussian potential in RMSD-space (after optimal Kabsch
+    alignment) built from structures visited earlier in the trajectory. This
+    discourages revisiting already-sampled conformations and drives
+    exploration -- the same mechanism CREST uses for metadynamics-based
+    conformer search.
+
+        V_bias(x) = sum_k height * exp(-alpha * RMSD(x, x_k)^2)
+        alpha = 1 / (2 * width**2)
+
+    The RMSD gradient doesn't need to differentiate through the alignment
+    rotation itself: because that rotation is chosen to minimize the RMSD,
+    its derivative vanishes at the optimum (envelope theorem), so the
+    gradient reduces to a simple aligned-displacement term -- no extra
+    rotation-derivative bookkeeping required.
+
+    ASSUMES `coords` passed in is Cartesian, shaped (n_traj, n_atoms, 3),
+    matching the convention `force_function` is called with elsewhere in
+    AIMDSimulator when `internals=None`. If you're using internal-coordinate
+    force evaluation, wrap this around the Cartesian-facing pipeline (e.g.
+    subclass/adapt AIMDSimulator.get_forces), not the raw internal-coordinate
+    `force_function` -- RMSD is only physically meaningful on Cartesian
+    geometries.
+    """
+
+    def __init__(self,
+                 force_function,
+                 k=20,
+                 height=0.001,
+                 width=0.5,
+                 stride=1,
+                 masses=None,
+                 mass_weighted=True,
+                 shared_history=False):
+        """
+        :param force_function: unbiased force function, force_function(coords) -> forces,
+            coords shaped (n_traj, n_atoms, 3)
+        :param k: max number of most recently deposited structures to retain (rolling window)
+        :param height: Gaussian height, energy units matching force_function's output (e.g. Hartree).
+            CREST-typical scale is a few kcal/mol; start small and tune upward if the
+            trajectory isn't escaping local minima fast enough.
+        :param width: Gaussian width in RMSD units (e.g. Bohr, if coords are atomic units)
+        :param stride: deposit a snapshot every `stride` calls. Default 1 deposits every
+            step, literally giving you "the past k steps." CREST itself typically deposits
+            periodically (stride > 1) to keep Gaussians well-separated and history compact
+            over long runs -- bump this up if you want that behavior instead.
+        :param masses: (n_atoms,) array for mass-weighted alignment/RMSD (recommended --
+            keeps heavy/light atom contributions comparable, consistent with CREST's convention)
+        :param mass_weighted: toggle mass weighting even if masses were supplied
+        :param shared_history: if True, pool history across all trajectories in a batch
+            (multiple-walkers metadynamics, biases shared across walkers); if False
+            (default) each trajectory in the batch keeps its own independent history
+        """
+        self.force_function = force_function
+        self.k = k
+        self.height = height
+        self.alpha = 1 / (2 * width ** 2)
+        self.stride = stride
+        self.masses = None if masses is None else np.asanyarray(masses)
+        self.mass_weighted = mass_weighted and (self.masses is not None)
+        self._weights = None
+        self.shared_history = shared_history
+
+        self._full_history = False # whether we've looped back on our ring buffer
+        self._history_pointer = None # which entry to replace
+        self._histories = None
+        self._call_count = 0
+
+    def _init_histories(self, init_coords):
+        self._full_history = False
+        self._history_pointer = 0
+        base_shape = init_coords.shape
+        if self.shared_history:
+            base_shape = base_shape[1:]
+        self._histories = np.zeros((self.k,) + base_shape)
+
+    def get_weights(self, coords):
+        if self._weights is None:
+            self._weights = self.masses if self.mass_weighted else np.ones(coords.shape[-2])
+        return self._weights
+
+    def _bias_force(self, x, history, w):
+        if len(history) == 0:
+            return np.zeros_like(x)
+
+        bias_force = np.zeros_like(x)
+        for h in history: # loop over k (small)
+            rmsd, diff = nput.eckart_rmsd(x, h,
+                                          masses=self.masses,
+                                          mass_weighted=self.mass_weighted,
+                                          in_paf=True,
+                                          planar_ref_tolerance=-1,
+                                          return_diffs=True)
+            gaussian = self.height * np.exp(-self.alpha * rmsd ** 2)
+            # F = -dV/dx; the RMSD itself cancels (see class docstring derivation)
+            bias_force += 2 * self.alpha * gaussian * w[:, np.newaxis] * diff
+        return bias_force
+
+    def __call__(self, coords):
+        coords = np.asanyarray(coords)
+        n_traj, n_atoms, _ = coords.shape
+        w = self.get_weights(coords)
+
+        if self._histories is None:
+            self._init_histories(coords)
+
+        forces = np.asanyarray(self.force_function(coords)).copy()
+
+        self._histories: np.ndarray # assertion for type hints
+        for i in range(n_traj):
+            history = self._histories if self.shared_history else self._histories[i]
+            if not self._full_history:
+                history = history[:self._history_pointer]
+            forces[i] = forces[i] + self._bias_force(coords[i], history, w)
+
+        self._call_count += 1
+        if self._call_count % self.stride == 0:
+            if self.shared_history:
+                self._histories[self._history_pointer] = coords[0]
+            else:
+                self._histories[:, self._history_pointer] = coords[0]
+            self._history_pointer += 1
+            if self._history_pointer >= self.k:
+                self._full_history = True
+                self._history_pointer = 0
+
+        return forces
+
+    def reset(self):
+        """Clear deposited history and call counter (e.g. reusing one instance across runs)."""
+        self._histories = None
+        self._call_count = 0
+
 class AIMDSimulator:
     __props__ = (
         "atomic_structures",
