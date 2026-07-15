@@ -5079,7 +5079,7 @@ class MolecoolsTests(TestCase):
             # dipole_origin=mol.coords[6],
             backend='x3d').show()
 
-    @debugTest
+    @validationTest
     def test_TrickyFunctionalization(self):
         base = Molecule.from_string(
             'CO[C@]12C[C@H:1](C=C1)CC2'
@@ -5106,6 +5106,90 @@ class MolecoolsTests(TestCase):
                  # atom_style={0:{'color':'green'}}
                  highlight_atoms=[0, 1, 2]
                  ).show()
+
+    @debugTest
+    def test_ScanIterator(self):
+        # import McUtils.Numputils as nput
+        #
+        # for degree in [
+        #     3  ,
+        #     5  ,
+        #     7  ,
+        #     9  ,
+        #     11 ,
+        #     13 ,
+        #     15 ,
+        #     17 ,
+        #     19 ,
+        #     21 ,
+        #     23 ,
+        #     25 ,
+        #     27 ,
+        #     29 ,
+        #     31 ,
+        #     35 ,
+        #     41 ,
+        #     47 ,
+        #     53 ,
+        #     59 ,
+        #     65 ,
+        #     71 ,
+        #     77 ,
+        #     83 ,
+        #     89 ,
+        #     95 ,
+        #     101,
+        #     107,
+        #     113,
+        #     119,
+        #     125,
+        # ]:
+        #     print(degree, nput.lebedev_grid(degree, use_degree=True).shape)
+        #
+        # return
+
+        base = Molecule.from_string(
+            'CO[C@]12C[C@H:1](C=C1)CC2'
+        )
+        frag = Molecule.from_string(
+            '[cH:1]1ccc(F)cc1'
+        )
+        targ = next((b[1] for b in base.bonds if b[0] == 0 and base.atoms[b[1]] == 'H'), None)
+        root = next((b[1] for b in frag.bonds if b[0] == 0 and frag.atoms[b[1]] == 'H'), None)
+        new:Molecule = base.attach_functional_group(
+            [targ],
+            frag.atoms,
+            frag.coords,
+            frag.bonds,
+            group_site=root
+        )
+
+        # new = Molecule(['O'], [[0, 0, 0]])
+        surf = new.get_surface(density=2, point_generator='lebedev')
+        fig = new.plot(backend='x3d')
+        fig = surf.plot(sphere_color=None, figure=fig)
+        mesh = surf.get_triangulation(extend_intersection_points=True)
+        mesh = mesh.stitch()
+        mesh.plot(figure=fig).show()
+        return
+
+        idx = 6
+        origin, offset, axes = new.fragment_embedding(idx, return_axes=True)
+        expansion = np.zeros((3, 3 * len(new.atoms)))
+        expansion[:, 3*idx:3*(idx+1)] = axes.T
+
+        coords = new.get_scan_coordinates(
+            [[-1, 1, 5]],
+            coordinate_expansion=[expansion],
+            which=[0]
+        )
+
+        new.plot(coords).show()
+
+        print(axes)
+        return
+
+        new.get_scan_coordinates()
 
     @validationTest
     def test_SomeZMat3(self):
