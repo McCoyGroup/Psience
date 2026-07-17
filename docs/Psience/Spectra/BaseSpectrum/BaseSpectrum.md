@@ -75,17 +75,7 @@ Filters by frequencies >= `freq_min` and <= `freq_max`
   - `freq_max`: `float`
     > max frequency
   - `:returns`: `BaseSpectrum`
-    > s
-u
-b
-s
-p
-e
-c
-t
-r
-u
-m
+    > subspectrum
 
 
 <a id="Psience.Spectra.BaseSpectrum.BaseSpectrum.intensity_filter" class="docs-object-method">&nbsp;</a> 
@@ -102,17 +92,7 @@ Filters by intensities >= `int_min` and <= `int_max`
   - `int_max`: `float`
     > max intensity
   - `:returns`: `BaseSpectrum`
-    > s
-u
-b
-s
-p
-e
-c
-t
-r
-u
-m
+    > subspectrum
 
 
 <a id="Psience.Spectra.BaseSpectrum.BaseSpectrum.save" class="docs-object-method">&nbsp;</a> 

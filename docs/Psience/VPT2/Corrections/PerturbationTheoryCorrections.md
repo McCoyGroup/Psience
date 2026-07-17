@@ -282,58 +282,7 @@ Generates the representation of the operator in the basis of stored states
   - `subspace`: `None | BasisStateSpace`
     > the subspace of terms in which the operator expansion is defined
   - `:returns`: `Iterable[np.ndarray]`
-    > t
-h
-e
- 
-s
-e
-t
- 
-o
-f
- 
-r
-e
-p
-r
-e
-s
-e
-n
-t
-a
-t
-i
-o
-n
- 
-m
-a
-t
-r
-i
-c
-e
-s
- 
-f
-o
-r
- 
-t
-h
-i
-s
- 
-o
-p
-e
-r
-a
-t
-o
-r
+    > the set of representation matrices for this operator
 
 
 <a id="Psience.VPT2.Corrections.PerturbationTheoryCorrections.get_overlap_matrices" class="docs-object-method">&nbsp;</a> 

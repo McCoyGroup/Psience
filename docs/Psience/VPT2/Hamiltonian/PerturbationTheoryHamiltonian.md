@@ -188,30 +188,7 @@ Gets a set of `PerturbationTheoryWavefunctions` from the perturbations defined b
   - `degeneracies`: `(Iterable[int], Iterable[int])  | (Iterable[Iterable[int]], Iterable[Iterable[int]])`
     > the pairs of states to be treated via degenerate perturbation theory
   - `:returns`: `PerturbationTheoryWavefunctions`
-    > g
-e
-n
-e
-r
-a
-t
-e
-d
- 
-w
-a
-v
-e
- 
-f
-u
-n
-c
-t
-i
-o
-n
-s
+    > generated wave functions
 
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.get_action_expansion" class="docs-object-method">&nbsp;</a> 

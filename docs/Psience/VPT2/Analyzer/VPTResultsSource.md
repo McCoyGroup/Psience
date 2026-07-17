@@ -23,7 +23,14 @@ Wavefunctions: VPTResultsSource
 Checkpoint: VPTResultsSource
 LogFile: VPTResultsSource
 ```
-
+<a id="enum.Enum.__new__" class="docs-object-method">&nbsp;</a> 
+```python
+__new__(cls, value): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/enum/Enum.py#L670)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/enum/Enum.py#L670?message=Update%20Docs)]
+</div>
  </div>
 </div>
 

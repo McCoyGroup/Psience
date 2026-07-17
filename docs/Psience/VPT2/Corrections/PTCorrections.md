@@ -35,10 +35,26 @@ __new__(_cls, initial_states, final_states, corrections):
 Create new instance of PTCorrections(initial_states, final_states, corrections)
 
 
+<a id="collections.PTCorrections.__repr__" class="docs-object-method">&nbsp;</a> 
+```python
+__repr__(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/collections/PTCorrections.py#L456)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/collections/PTCorrections.py#L456?message=Update%20Docs)]
+</div>
+Return a nicely formatted representation string
 
 
-
-
+<a id="collections.PTCorrections.__getnewargs__" class="docs-object-method">&nbsp;</a> 
+```python
+__getnewargs__(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/collections/PTCorrections.py#L464)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/collections/PTCorrections.py#L464?message=Update%20Docs)]
+</div>
+Return self as a plain tuple.  Used by copy and pickle.
  </div>
 </div>
 
