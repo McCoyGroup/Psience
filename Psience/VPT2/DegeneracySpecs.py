@@ -86,13 +86,17 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
             elif evaluator is not None and corrs is not None:
                 states = corrs.full_basis.excitations
                 zero_order_energies = np.tensordot(states + 1/2, evaluator.freqs, axes=[-1, 0])
-        if frequencies is None and evaluator is not None:
-            frequencies = evaluator.freqs
+        if frequencies is None:
+            if hasattr(self, 'frequencies'):
+                frequencies = self.frequencies
+            if evaluator is not None:
+                frequencies = evaluator.freqs
+
         if high_frequency_modes is None:
             if solver is not None:
                 high_frequency_modes = solver.high_frequency_modes
-            elif evaluator is not None:
-                high_frequency_modes = np.where(evaluator.freqs > low_frequency_mode_cutoff)[0]
+            elif frequencies is not None:
+                high_frequency_modes = np.where(frequencies > low_frequency_mode_cutoff)[0]
 
         if group_filter is None:
             zero_order_energy_cutoff = self.energy_cutoff
@@ -634,6 +638,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
                                     evaluator=None,
                                     threshold=None,
                                     logger=None,
+                                    frequencies=None,
                                     **kwargs
                                     ):
         if threshold is None:
@@ -945,6 +950,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                              threshold_step_size=.1,
                              extra_groups=None,
                              uncoupled_states=None,
+                             state_diff_filters=1,
                              logger=None
                              ):
         """
@@ -961,7 +967,6 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
 
         if len(group) < 2:
             return group
-
 
         if uncoupled_states is not None:
             if corrections is not None:
@@ -1263,7 +1268,21 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
             for n in np.arange(len(exc)):
                 diff_vec = diff_sums[n]
                 if energy_cutoff is None or energies is None:
-                    bad_pos = np.where(diff_vec == 1)
+                    if state_diff_filters is None:
+                        bad_pos = ((),)
+                    elif nput.is_int(state_diff_filters):
+                        bad_pos = np.where(diff_vec == state_diff_filters)
+                    else:
+                        if nput.is_int(state_diff_filters[0]):
+                            state_diff_filters = [state_diff_filters]
+                        mask = np.full(len(diffs), False)
+                        state_diff_filters = np.asarray(state_diff_filters)
+                        for filter in state_diff_filters:
+                            mask = mask | (
+                                    np.all(diffs == filter[np.newaxis], axis=-1)
+                                    | np.all(diffs == -filter[np.newaxis], axis=-1)
+                            )
+                        bad_pos = np.where(mask)
                 else:
                     e_vec = energies[group_inds]
                     bad_pos = np.where(np.abs(np.subtract.outer(e_vec, e_vec)) > energy_cutoff)
