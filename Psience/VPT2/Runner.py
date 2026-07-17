@@ -547,15 +547,15 @@ class VPTStateSpace:
         """
 
         spec = DegeneracySpec.from_spec(degeneracy_specs)
+        if spec is None:
+            return None, None
         if hasattr(spec, 'evaluator') and spec.evaluator is None:
             spec.evaluator = evaluator
-        if hasattr(spec, 'frequencies') and spec.frequencies is None:
+        if not hasattr(spec, 'frequencies') or spec.frequencies is None:
             if freqs is None:
                 freqs = system.mol.normal_modes.modes.freqs
             spec.frequencies = freqs
-        if spec is None:
-            return None, None
-        elif spec.application_order == "pre":
+        if spec.application_order == "pre":
             group_filter = spec.get_degenerate_group_filter(
                 evaluator=evaluator.eval if evaluator is not None else None
             )

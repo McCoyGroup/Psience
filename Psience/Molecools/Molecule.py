@@ -1345,7 +1345,11 @@ class Molecule(AbstractMolecule):
             dropped = list(dropped)
         return self.take_submolecule(np.setdiff1d(np.arange(len(self.atoms)), dropped))
 
-    def fragment_embedding(self, fragment_indices, ref=None):
+    def fragment_embedding(self, fragment_indices,
+                           ref=None,
+                           return_axes=False,
+                           view_inds=(1, 2),
+                           use_moments=False):
         if nput.is_int(fragment_indices):
             fragment_indices = [fragment_indices]
         if ref is None:
@@ -1360,29 +1364,46 @@ class Molecule(AbstractMolecule):
             if len(fragment_indices) < 3: # these refer to COM and principle axis positions
                 fragment_indices = np.concatenate([fragment_indices, [-1, -2, -3]])
 
-        # need origin, displacement vector, and up-vector
-        fragment_indices = np.asanyarray(fragment_indices)[:3]
         ref = np.asanyarray(ref)[0]
         r_coords = self.coords[ref,]
         if ref == -1: r_coords = self.center_of_mass
         if ref == -2: r_coords = self.center_of_mass + self.inertial_axes[:, 2]
         if ref == -3: r_coords = self.center_of_mass + self.inertial_axes[:, 0]
-        f_coords = self.coords[fragment_indices,]
-        com_f = ref == -1
-        if np.any(com_f):
-            f_coords[com_f] = self.center_of_mass
-        paxc_f = ref == -2
-        if np.any(paxc_f):
-            f_coords[paxc_f] = self.center_of_mass + self.inertial_axes[:, 2]
-        paxa_f = ref == -3
-        if np.any(paxa_f):
-            f_coords[paxa_f] = self.center_of_mass + self.inertial_axes[:, 0]
+        if use_moments:
+            f_coords = self.coords[fragment_indices,]
+            _, axes = nput.moments_of_inertia(f_coords, np.asanyarray(self.masses)[fragment_indices,])
+            up = axes[:, 2]
+        else:
+            # need origin, displacement vector, and up-vector
+            fragment_indices = np.asanyarray(fragment_indices)[:3]
+            f_coords = self.coords[fragment_indices,]
+            com_f = ref == -1
+            if np.any(com_f):
+                f_coords[com_f] = self.center_of_mass
+            paxc_f = ref == -2
+            if np.any(paxc_f):
+                f_coords[paxc_f] = self.center_of_mass + self.inertial_axes[:, 2]
+            paxa_f = ref == -3
+            if np.any(paxa_f):
+                f_coords[paxa_f] = self.center_of_mass + self.inertial_axes[:, 0]
+
+            up = nput.pts_normals(*f_coords, normalize=True)
+            if return_axes:
+                axes = nput.view_matrix(
+                    up_vector=up,
+                    view_vector=f_coords[view_inds[0]] - f_coords[view_inds[1]]
+                )
+            else:
+                axes = np.eye(3)
+
 
         origin = r_coords
         offset = f_coords[0] - r_coords
-        up = nput.pts_normals(*f_coords, normalize=True)
 
-        return origin, offset, up
+        if return_axes:
+            return origin, offset, axes
+        else:
+            return origin, offset, up
 
     def attach_functional_group(self,
                                 target_fragment,
@@ -1398,7 +1419,7 @@ class Molecule(AbstractMolecule):
                                 bond_order=None,
                                 use_absolue_posititions=False,
                                 group_site=None
-                                ):
+                                ) -> 'typing.Self':
         if group_site is not None:
             if dev.str_is(embedding, 'auto'):
                 if dev.str_is(bonds, 'recompute') or bonds is not None:

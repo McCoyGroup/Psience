@@ -153,7 +153,7 @@ class MoleculePlotter:
         super().__init_subclass__(**kwargs)
         for m in getattr(cls, 'modes', ()):
             MoleculePlotter._mode_registry[m] = cls
-            MoleculePlotter.plot_themes[m] = cls.subthemes
+            MoleculePlotter.plot_themes[m] = MoleculePlotter.plot_themes.get(m, {}) | cls.subthemes
 
     def __init__(self, mol, geometries, *, mode, backend,
                  atoms=None,
@@ -1620,7 +1620,7 @@ class JSMolMoleculePlotter(MoleculePlotter):
             atoms = "atomno=[{}]".format(
                 ",".join(
                     str(atom_offset + h + 1)
-                    if nput.is_int(h) else
+                        if nput.is_int(h) else
                     h
                     for h in atoms
                 ))

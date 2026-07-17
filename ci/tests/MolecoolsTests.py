@@ -5079,7 +5079,7 @@ class MolecoolsTests(TestCase):
             # dipole_origin=mol.coords[6],
             backend='x3d').show()
 
-    @debugTest
+    @validationTest
     def test_TrickyFunctionalization(self):
         base = Molecule.from_string(
             'CO[C@]12C[C@H:1](C=C1)CC2'
@@ -5106,6 +5106,109 @@ class MolecoolsTests(TestCase):
                  # atom_style={0:{'color':'green'}}
                  highlight_atoms=[0, 1, 2]
                  ).show()
+
+    @validationTest
+    def test_MolecularSES(self):
+        base = Molecule.from_string(
+            'CO[C@]12C[C@H:1](C=C1)CC2'
+        )
+        frag = Molecule.from_string(
+            '[cH:1]1ccc(F)cc1'
+        )
+        targ = next((b[1] for b in base.bonds if b[0] == 0 and base.atoms[b[1]] == 'H'), None)
+        root = next((b[1] for b in frag.bonds if b[0] == 0 and frag.atoms[b[1]] == 'H'), None)
+        new: Molecule = base.attach_functional_group(
+            [targ],
+            frag.atoms,
+            frag.coords,
+            frag.bonds,
+            group_site=root
+        )
+
+        # new = Molecule(['O'], [[0, 0, 0]])
+        surf = new.get_surface(density=2, point_generator='lebedev')
+        fig = new.plot(backend='x3d', atom_radius_scaling=.9)
+        # fig = surf.plot(sphere_color=None, figure=fig)
+        mesh = surf.get_triangulation(method='isosurface',
+                                      probe_radius=2,
+                                      bbox_scaling=1.5,
+                                      probe_type='ses',
+                                      grid_samples=80)
+        # mesh = mesh.stitch()
+        mesh.plot(figure=fig)
+        fig.show()
+        return
+
+
+    @debugTest
+    def test_ScanIterator(self):
+        import os
+        os.environ["TORCH_COMPILE_DISABLE"] = "1"
+
+        import McUtils.Coordinerds as coordops
+
+        # base = Molecule.from_string(
+        #     'CO[C@]12C[C@H:1](C=C1)CC2'
+        # )
+        # frag = Molecule.from_string(
+        #     '[cH:1]1ccc(F)cc1'
+        # )
+        # targ = next((b[1] for b in base.bonds if b[0] == 0 and base.atoms[b[1]] == 'H'), None)
+        # root = next((b[1] for b in frag.bonds if b[0] == 0 and frag.atoms[b[1]] == 'H'), None)
+        # new:Molecule = base.attach_functional_group(
+        #     [targ],
+        #     frag.atoms,
+        #     frag.coords,
+        #     frag.bonds,
+        #     group_site=root
+        # )
+
+        # new = Molecule.from_name('acetylacetone')
+        # new = Molecule.from_string(r'CC(=O)/C=C(O)/C',
+        #                            energy_evaluator='aimnet2',
+        #                            confgen_opts={'random_seed':123321}
+        #                            )
+        # o, h = next(
+        #     (b[:2] for b in new.bonds if new.atoms[b[0]] in "OH" and new.atoms[b[1]] in "OH"),
+        #     None
+        # )
+        # zm = new.get_bond_zmatrix()
+        # new_int = new.modify(internals=zm)
+        # which = [z for z in zm if z[0] == h]
+        # new_new = new_int.get_displaced_coordinates(
+        #     [[0]],
+        #     which=coordops.zmatrix_indices(zm, which),
+        #     use_internals='reembed',
+        #     shift=False,
+        #     strip_embedding=True
+        # )[0]
+        # new = new.modify(coords=new_new)
+        # # new.plot(highlight_atoms=which[0]).show()
+        # # new = new.optimize()
+        # print(new.to_string('smi', include_tag=True))
+        new = Molecule.from_string(
+            'C(C(=O)C(=C(O[H])C([H])([H])[H])[H])([H])([H])[H]_qT8ZMGmthj2Aqc40gKmYOACowCH/pC8/f6ntJmiZeSa+l80nFZ7uJQCqmSZonNYnvZUqJxWc',
+            'smi'
+        ).get_embedded_molecule()
+
+        idx = [6, 2, 5]
+        origin, offset, axes = new.fragment_embedding(idx, return_axes=True)
+        expansion = np.zeros((3, 3 * len(new.atoms)))
+        for i in idx[:1]:
+            expansion[:, 3*i:3*(i+1)] = axes.T
+
+        coords = new.get_scan_coordinates(
+            [[-1, 1, 5]],
+            coordinate_expansion=[expansion],
+            which=[0]
+        )
+
+        new.plot(coords).show()
+
+        print(axes)
+        return
+
+        new.get_scan_coordinates()
 
     @validationTest
     def test_SomeZMat3(self):
