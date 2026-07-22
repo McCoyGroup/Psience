@@ -83,7 +83,7 @@ class LocalHarmonicModel:
         ).asarray()
 
         if remove_zpe:
-            zpe = np.sum(np.abs(self.freqs)) * 1/2
+            zpe = np.sum(np.abs(self.local_freqs)) * 1/2
             ham = ham - np.eye(len(ham)) * zpe
 
         if (
@@ -170,6 +170,7 @@ class LocalHarmonicModel:
             expansion_opts = {}
 
         states = self.prep_states(states)
+        print(states.excitations)
 
         ham = self.get_hamiltonian(states, coupled_space=coupled_space, remove_zpe=remove_zpe, **expansion_opts)
         engs, coeffs = np.linalg.eigh(ham)
@@ -179,7 +180,7 @@ class LocalHarmonicModel:
             if remove_zpe:
                 zpe = 0
             else:
-                zpe = np.sum(np.abs(self.freqs)) * 1/2
+                zpe = np.sum(np.abs(self.local_freqs)) * 1/2
             engs = np.concatenate([[zpe], engs])
             coeffs = np.pad(coeffs, [[1, 0], [1, 0]])
             coeffs[0, 0] = 1
@@ -466,7 +467,7 @@ class LocalHarmonicModel:
                 loc_modes = loc_modes.get_complement(concatenate=True)
                 if internals is not None:
                     k = len(internals)
-                    M = len(loc_modes.freqs)
+                    M = len(loc_modes.local_freqs)
                     if k < M:
                         if isinstance(internals, dict):
                             internals = internals.copy()
