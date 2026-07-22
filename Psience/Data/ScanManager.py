@@ -35,40 +35,40 @@ N-dimensional grid of coordinate values with a `structure_generator` into the
 
 import os
 import json
-import itertools
+import shutil
 import warnings
-import abc
-from collections.abc import Callable # I hate this
 
 import numpy as np
+import itertools
 
-from McUtils.Data import UnitsData
-from McUtils.ExternalPrograms import OrcaJob
+import McUtils.Devutils as dev
+import McUtils.Numputils as nput
+import McUtils.Iterators as itut
+from McUtils.ExternalPrograms import ExternalProgramJob
+
 from ..Molecools import Molecule
 
 __all__ = [
     "ScanManager",
-    "iter_scan_grid",
-    "structure_scan_iterator",
-    "cartesian_position_scan_structures",
-    "internal_coordinate_index",
-    "internal_coordinate_scan_structures",
+    "shape_scan_iterator",
+    "scan_iterator",
+    "molecule_scan_geometries_iterator",
+    "molecule_displaced_geometries_iterator",
+    "molecule_atom_position_scan_iterator",
 ]
 
 
 # region scan-grid / structure-generator helpers
 
+def shape_scan_iterator(base_shape, zigzag=False):
+    if not zigzag:
+        index_iterator = np.ndindex(*base_shape)
+    else:
+        shape_iterator = [range(s) for s in base_shape]
+        index_iterator = itut.zigzag_product(*shape_iterator)
+    yield from index_iterator
 
-def iter_scan_grid(domains, expand_domains=True):
-    """
-    Walks every grid point of an N-dimensional scan.
-
-    :param domains: list of `(min, max, npoints)` specs, one per scanned
-        coordinate
-    :return: yields `(index, values)` pairs, where `index` is the integer
-        multi-index of the grid point (e.g. `(2, 5)`) and `values` is the
-        corresponding tuple of coordinate values
-    """
+def scan_iterator(domains, expand_domains=True, index_iterator=None, zigzag=False):
     if expand_domains:
         axis_values = [np.linspace(*d) for d in domains]
     else:
@@ -76,7 +76,9 @@ def iter_scan_grid(domains, expand_domains=True):
     shape = tuple(len(v) for v in axis_values)
     dtype = np.dtype(type(axis_values[0]))
     n = len(domains)
-    for index in itertools.product(*(range(n) for n in shape)):
+    if index_iterator is None:
+        index_iterator = shape_scan_iterator(shape, zigzag=zigzag)
+    for index in index_iterator:
         values = np.fromiter(
             (axis_values[k][i] for k, i in enumerate(index)),
             dtype=dtype,
@@ -84,221 +86,193 @@ def iter_scan_grid(domains, expand_domains=True):
         )
         yield index, values
 
-def structure_scan_iterator(domains, structure_generator: Callable[[np.ndarray], Molecule],):
-    """
-    Bridges the grid/structure-generator world into the `scan_iterator`
-    interface `ScanManager.generate` expects, by zipping `iter_scan_grid`
-    with a `values -> (atoms, coords)` callable.
-
-    :param domains: list of `(min, max, npoints)` specs, one per scanned
-        coordinate
-    :param structure_generator: `values -> (atoms, coords)` callable, e.g.
-        from `cartesian_position_scan_structures` or
-        `internal_coordinate_scan_structures`
-    :return: yields `(index, values, atoms, coords)` for every grid point
-    """
-    for index, values in iter_scan_grid(domains):
-        yield index, structure_generator(values)
-
-def molecule_scan_iterator(mol:Molecule, geometries):
+def molecule_scan_iterator(mol:Molecule, geometries, index_iterator=None, zigzag=False, return_molecules=True):
     geometries = np.asarray(geometries)
     base_shape = geometries.shape[:-2]
-    for index in np.ndindex(*base_shape):
-        yield index, mol.modify(coords=geometries[index])
+    if index_iterator is None:
+        index_iterator = shape_scan_iterator(base_shape, zigzag=zigzag)
+    if return_molecules:
+        for index in index_iterator:
+            yield index, mol.modify(coords=geometries[index])
+    else:
+        for index in index_iterator:
+            yield index, geometries[index]
 
-def molecule_displaced_geometries_iterator(
+def molecule_scan_geometries_iterator(
         mol:Molecule,
         domains,
         which,
+        return_values=False,
+        return_molecules=True,
+        index_iterator=None,
+        zigzag=False,
+        coordinate_generator=None,
         **etc
 ):
-    mol.get_scan_coordinates(
+    if coordinate_generator is None:
+        coordinate_generator = mol.get_scan_coordinates
+    geoms = coordinate_generator(
         domains,
         which=which,
+        **etc
+    )
+    iterator = molecule_scan_iterator(mol, geoms,
+                                               index_iterator=index_iterator,
+                                               zigzag=zigzag,
+                                               return_molecules=return_molecules)
+    if return_values:
+        if index_iterator is not None:
+            index_iterator = itertools.tee(index_iterator)
+        value_iterator = scan_iterator(
+            domains,
+            zigzag=zigzag,
+            index_iterator=index_iterator
+        )
+        base_iterator = iterator
+        iterator = (
+            (idx, v, m)
+            for (_, v), (idx, m) in zip(value_iterator, base_iterator)
+        )
+    return geoms.shape, iterator
+
+def molecule_displaced_geometries_iterator(
+        mol: Molecule,
+        displacement_positions,
+        which,
+        return_molecules=True,
+        return_values=False,
+        index_iterator=None,
+        zigzag=False,
+        coordinate_generator=None,
+        **etc
+):
+    if coordinate_generator is None:
+        coordinate_generator = mol.get_displaced_coordinates
+    return molecule_scan_geometries_iterator(
+        mol,
+        displacement_positions,
+        which,
+        return_molecules=return_molecules,
+        return_values=return_values,
+        index_iterator=index_iterator,
+        zigzag=zigzag,
+        coordinate_generator=coordinate_generator,
+        **etc
+    )
+
+def molecule_atom_position_scan_iterator(mol, atom_indices, domains, which=None, embedding=None,
+                                       return_molecules=True,
+                                       **iterator_options
+                                       ):
+    if nput.is_int(atom_indices):
+        atom_indices = [atom_indices]
+    if embedding is None:
+        _, _, embedding = mol.fragment_embedding(atom_indices, return_axes=True)
+    elif nput.is_int(embedding[0]):
+        _, _, embedding = mol.fragment_embedding(embedding, return_axes=True)
+    else:
+        embedding = np.asanyarray(embedding)
+
+    expansion = np.zeros((3, 3 * len(mol.atoms)))
+    for i in atom_indices:
+        expansion[:, 3 * i:3 * (i + 1)] = embedding.T
+
+    if nput.is_numeric(domains[0]):
+        domains = [domains]
+
+    if which is None:
+        which = list(range(len(domains)))
+
+    return molecule_scan_geometries_iterator(
+        mol,
+        domains,
+        which,
+        coordinate_expansion=[expansion],
+        return_molecules=return_molecules,
+        **iterator_options
     )
 
 
-def axis_embedding_iterator(embedding_axes):
-    ...
-
-def cartesian_position_scan_structures(mol, atom_index, embedding_axes, origin, normalize_axes=True):
-    """
-    Builds a `structure_generator` that displaces a single atom of `mol` over
-    a local Cartesian embedding, holding every other atom fixed at its
-    reference position.
-
-    :param mol: reference molecule
-    :type mol: Psience.Molecools.Molecule
-    :param atom_index: 0-based index of the atom to scan
-    :param embedding_axes: `(k, 3)` array of local axis directions (`k=2` for
-        the usual 2D scan)
-    :param origin: `(3,)` Cartesian point (same units as `mol.coords`) that
-        anchors the all-zero grid point
-    :param normalize_axes: whether to orthonormalize `embedding_axes` first
-    :return: `structure_generator(values) -> (atoms, coords)` callable
-    """
-    origin = np.asarray(origin, dtype=float)
-    axes = normalize_embedding_axes(embedding_axes) if normalize_axes else np.asarray(embedding_axes, dtype=float)
-    base_coords = np.asarray(mol.coords)
-    atoms = mol.atoms
-
-    def structure_generator(values):
-        offset = np.tensordot(np.asarray(values, dtype=float), axes, axes=[[0], [0]])
-        coords = base_coords.copy()
-        coords[atom_index] = origin + offset
-        return atoms, coords
-
-    return structure_generator
-
-
-def internal_coordinate_index(atom_row, component, natoms):
-    """
-    Builds the flat index (into the `(natoms, 3)` internal-coordinate array,
-    mirroring the Cartesian `(natoms, 3)` layout) for a given Z-matrix row and
-    coordinate component.
-
-    :param atom_row: 0-based row of the Z-matrix (i.e. atom index in scan order)
-    :param component: `0` for the bond length, `1` for the bond angle, `2`
-        for the dihedral. Rows 0-2 involve embedding placeholders (see
-        `MolecularZMatrixCoordinateSystem.embedding_coords`) rather than
-        physical internal coordinates.
-    :param natoms: number of atoms in the molecule
-    :return: flat index suitable for the `which` argument below
-    :rtype: int
-    """
-    return int(np.ravel_multi_index((atom_row, component), (natoms, 3)))
-
-
-def internal_coordinate_scan_structures(mol, which, internals=None):
-    """
-    Builds a `structure_generator` that sets a set of `mol`'s internal
-    coordinates to given absolute values and returns the corresponding
-    Cartesian structure. Bond lengths are expected in Bohr and angles/
-    dihedrals in radians (`mol.internal_coordinates`' native units).
-
-    :param mol: reference molecule
-    :type mol: Psience.Molecools.Molecule
-    :param which: flat indices (into the `(natoms, 3)` internal-coordinate
-        array) of the coordinates to scan; see `internal_coordinate_index`
-    :param internals: a Z-matrix spec (`(natoms, 4)` int array) or other spec
-        understood by `Molecule.internals`; only used if `mol.internals`
-        isn't already set
-    :return: `structure_generator(values) -> (atoms, coords)` callable
-    """
-    if mol.internals is None:
-        if internals is None:
-            raise ValueError("mol has no internal coordinates set; pass `internals=...`")
-        mol.internals = internals
-
-    atoms = mol.atoms
-
-    def structure_generator(values):
-        coords = mol.get_displaced_coordinates(
-            np.asarray(values, dtype=float),
-            which=which,
-            use_internals='convert',
-            shift=False
-        )
-        return atoms, np.asarray(coords)
-
-    return structure_generator
-
-# endregion
-
-
-class ScanManager(metaclass=abc.ABCMeta):
-    """
-    Generates and parses a Cartesian- or internal-coordinate scan's job files.
-
-    Targets ORCA by default; subclass and override `default_job_builder` /
-    `default_output_file_generator` (and `job_file_ext`/`output_file_ext`) to
-    support another electronic-structure package.
-    """
-
+class ScanManager:
     job_file_ext: str
     output_file_ext: str
 
     def __init__(self, output_directory, scan_id=None, job_prefix="scan", index_format="03d"):
-        """
-        :param output_directory: parent directory in which the scan's storage
-            directory lives (or is created)
-        :param scan_id: label used to build the storage directory
-            `scan_data_{scan_id}`; if `None`, `output_directory` itself is
-            used as the storage directory
-        :param job_prefix: filename prefix for generated job files
-        :param index_format: format spec applied to each integer in a step's
-            multi-index when building filenames
-        """
         self.output_directory = output_directory
         self.scan_id = scan_id
         self.job_prefix = job_prefix
         self.index_format = index_format
 
+    scan_data_template = "scan_data_{scan_id}"
     @property
     def scan_dir(self):
         """Directory jobs are written to / read from."""
         if self.scan_id is None:
             return self.output_directory
-        return os.path.join(self.output_directory, f"scan_data_{self.scan_id}")
+        return os.path.join(self.output_directory, self.scan_data_template.format(scan_id=self.scan_id))
 
+    info_filename = "scan_info.json"
     @property
     def scan_info_file(self):
-        return os.path.join(self.scan_dir, "scan_info.json")
+        return os.path.join(self.scan_dir, self.info_filename)
 
     # region generation
 
-    @abc.abstractmethod
-    def default_job_builder(self, mol, level_of_theory='r2scan-3c', MaxCore=3500, **etc):
-        ...
+    def default_job_builder(self, mol, *, job_type, commands=None, **etc):
+        if commands is None:
+            commands = []
+        elif isinstance(commands, str):
+            commands = [commands]
+        return mol.setup_job(
+            job_type,
+            *commands,
+            **etc
+        )
 
+    job_file_template = "{prefix}_{index}.{ext}"
     def generate(
             self,
             scan_iterator,
-            charge=0,
             job_builder=None,
             coord_labels=None,
             extra_info=None,
-            job_kwargs=None
+            overwrite=False,
+            append=False,
+            job_prefix=None,
+            job_file_ext=None,
+            job_type=None,
+            **job_kwargs
     ):
-        """
-        Drains `scan_iterator`, writes one job file per step into
-        `self.scan_dir`, and records a `scan_info.json` manifest mapping each
-        step's multi-index and coordinate values to its job file.
-
-        :param scan_iterator: iterable/generator yielding
-            `(index, values, atoms, coords)` for every scan step (see
-            `structure_scan_iterator`)
-        :param charge: total molecular charge, forwarded to
-            `default_job_builder` (ignored if `job_builder` is supplied)
-        :param job_builder: `(atoms, coords) -> job` callable; defaults to
-            `self.default_job_builder` bound with `charge`/`job_kwargs`
-        :param coord_labels: optional human-readable names for the scanned
-            coordinates, stored in the manifest
-        :param extra_info: extra data folded into `scan_info.json` (e.g.
-            `origin`/`embedding_axes`, or the `which`/`zmatrix` used)
-        :param job_kwargs: extra keywords forwarded to `default_job_builder`
-            (ignored if `job_builder` is supplied)
-        :return: path to `self.scan_dir`
-        :rtype: str
-        """
         if job_builder is None:
-            kwargs = job_kwargs or {}
-            job_builder = lambda atoms, coords: self.default_job_builder(atoms, coords, charge, **kwargs)
+            job_builder = lambda mol, **kwargs: self.default_job_builder(mol, **kwargs)
 
-        os.makedirs(self.scan_dir, exist_ok=True)
+        if overwrite and os.path.exists(self.scan_dir):
+            shutil.rmtree(self.scan_dir)
+        os.makedirs(self.scan_dir, exist_ok=append)
 
+        if job_file_ext is None:
+            job_file_ext = getattr(self, 'job_file_ext', None)
+            if job_type is not None:
+                job_cls, _ = ExternalProgramJob.resolve(job_type)
+                job_file_ext = job_cls.extension
+
+        if job_prefix is None:
+            job_prefix = self.job_prefix
+
+        if job_type is not None:
+            job_kwargs["job_type"] = job_type
         steps = []
-        for index, values, atoms, coords in scan_iterator:
-            job = job_builder(atoms, coords)
-            fname = (
-                    self.job_prefix + "_"
-                    + "_".join(f"{i:{self.index_format}}" for i in index)
-                    + self.job_file_ext
+        for index, values, mol in scan_iterator:
+            job = job_builder(mol, **job_kwargs)
+            fname = self.job_file_template.format(
+                prefix=job_prefix,
+                index="_".join(f"{i:{self.index_format}}" for i in index),
+                ext=job_file_ext.strip(".")
             )
             job.write(os.path.join(self.scan_dir, fname))
             steps.append({
-                "index": list(index),
-                "values": [float(v) for v in values],
+                "index": index.tolist() if hasattr(index, "tolist") else index,
+                "values": values.tolist() if hasattr(values, "tolist") else index,
                 "file": fname
             })
 
@@ -311,10 +285,16 @@ class ScanManager(metaclass=abc.ABCMeta):
         if extra_info:
             info.update(extra_info)
 
-        with open(self.scan_info_file, "w") as info_file:
-            json.dump(info, info_file, indent=2)
+        dev.write_json(
+            self.scan_info_file,
+            info,
+            indent=2
+        )
 
-        return self.scan_dir
+        return self.scan_dir, {
+            'info': info,
+            'file': self.scan_info_file
+        }, steps
 
     @staticmethod
     def _infer_shape(steps):
@@ -422,7 +402,6 @@ class ScanManager(metaclass=abc.ABCMeta):
             `scan_info["shape"] + property_shape`
         :rtype: dict
         """
-        from Psience.Molecools import Molecule
 
         if output_file_generator is None:
             output_file_generator = self.default_output_file_generator
@@ -470,31 +449,31 @@ class ScanManager(metaclass=abc.ABCMeta):
 
     # endregion
 
-class ORCAScanManager(ScanManager):
-    job_file_ext = ".inp"
-    output_file_ext = ".out"
-
-    def default_job_builder(self, mol, level_of_theory='r2scan-3c', MaxCore=3500, **etc):
-        """
-        Wraps a single Cartesian structure as an `OrcaJob`. `coords` is
-        assumed to be in Bohr and is converted to Angstroms for ORCA.
-        Override in a subclass to target a different package.
-
-        :param atoms: atom symbols
-        :param coords: `(natoms, 3)` Cartesian coordinates, in Bohr
-        :param charge: total molecular charge
-        :param level_of_theory: ORCA level-of-theory keyword
-        :param MaxCore: per-core memory in MB
-        :param etc: additional `OrcaJob` options
-        :return: an un-written job object supporting `.write(path)`
-        """
-        return OrcaJob(
-            "TIGHTSCF",
-            level_of_theory=level_of_theory,
-            MaxCore=MaxCore,
-            atoms=mol.atom,
-            cartesians=np.asarray(mol.coords) * UnitsData.convert("BohrRadius", "Angstroms"),
-            charge=mol.charge,
-            spin=mol.spin,
-            **etc
-        )
+# class ORCAScanManager(ScanManager):
+#     job_file_ext = ".inp"
+#     output_file_ext = ".out"
+#
+#     def default_job_builder(self, mol, level_of_theory='r2scan-3c', MaxCore=3500, **etc):
+#         """
+#         Wraps a single Cartesian structure as an `OrcaJob`. `coords` is
+#         assumed to be in Bohr and is converted to Angstroms for ORCA.
+#         Override in a subclass to target a different package.
+#
+#         :param atoms: atom symbols
+#         :param coords: `(natoms, 3)` Cartesian coordinates, in Bohr
+#         :param charge: total molecular charge
+#         :param level_of_theory: ORCA level-of-theory keyword
+#         :param MaxCore: per-core memory in MB
+#         :param etc: additional `OrcaJob` options
+#         :return: an un-written job object supporting `.write(path)`
+#         """
+#         return OrcaJob(
+#             "TIGHTSCF",
+#             level_of_theory=level_of_theory,
+#             MaxCore=MaxCore,
+#             atoms=mol.atom,
+#             cartesians=np.asarray(mol.coords) * UnitsData.convert("BohrRadius", "Angstroms"),
+#             charge=mol.charge,
+#             spin=mol.spin,
+#             **etc
+#         )
