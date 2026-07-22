@@ -23,7 +23,7 @@ import McUtils.Zachary as zach
 from McUtils.Zachary import Mesh
 from McUtils.Graphs import EdgeGraph
 import McUtils.Plots as plt
-from McUtils.ExternalPrograms import RDMolecule
+from McUtils.ExternalPrograms import RDMolecule, ExternalProgramJob
 from McUtils.Scaffolding import Logger
 import McUtils.Symmetry as symm
 
@@ -3075,6 +3075,14 @@ class Molecule(AbstractMolecule):
                 dipole_terms=dipole_terms,
                 **opts
             )
+
+    def setup_job(self, job_type, *args, **kwargs):
+        job_type, opts = ExternalProgramJob.resolve(job_type)
+        return job_type.from_mol(
+            self,
+            *args,
+            **(opts | kwargs)
+        )
 
     def get_gmatrix(self,
                     masses=None, coords=None, use_internals=None, power=None,

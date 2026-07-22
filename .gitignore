@@ -1,5 +1,7 @@
 # Docs
 
+ci/tests/test_results
+ci/stubs/
 *.gem
 .bundle
 .sass-cache

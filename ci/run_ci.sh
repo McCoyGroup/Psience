@@ -20,6 +20,7 @@ git push -u $repo gh-pages
 ## run the test script
 cd /home
 
+for i in {1..3}; do
 if [[ "$1" == "tests" ]]; then
   shift;
   run_tests=true
@@ -27,11 +28,12 @@ fi
 if [[ "$1" == "docs" ]]; then
   shift;
   build_docs=true
-  if [[ "$1" == "tests" ]]; then
-    shift;
-    run_tests=true
-  fi
 fi
+if [[ "$1" == "stubs" ]]; then
+  shift;
+  build_stubs=true
+fi
+done
 
 if [[ "$run_test" == "true" ]]; then
   if [[ "$branch" == "master" ]]; then
@@ -52,5 +54,19 @@ if [[ "$build_docs" == "true" ]]; then
     git add -A
     git diff-index --quiet HEAD || git commit -m "Built out docs"
     git push -u $repo gh-pages
+  fi
+fi
+
+if [[ "$build_stubs" == "true" ]]; then
+  if [[ "$branch" == "master" ]]; then
+    # build stubs and push
+    PYTHONPATH=/home python3 Psience/ci/build_stubs.py
+    cp -r Psience/ci/stubs Psience/
+    rm -rf Psience/ci/stubs
+#    rm McUtils/ci/docs/_config.yml
+#    cd McUtils
+#    git add -A
+#    git diff-index --quiet HEAD || git commit -m "Built out docs"
+#    git push -u $repo gh-pages
   fi
 fi
