@@ -170,7 +170,6 @@ class LocalHarmonicModel:
             expansion_opts = {}
 
         states = self.prep_states(states)
-        print(states.excitations)
 
         ham = self.get_hamiltonian(states, coupled_space=coupled_space, remove_zpe=remove_zpe, **expansion_opts)
         engs, coeffs = np.linalg.eigh(ham)

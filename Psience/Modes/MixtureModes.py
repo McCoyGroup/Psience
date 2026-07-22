@@ -992,6 +992,7 @@ class MixtureModes(CoordinateSystem):
             )
 
         else:
+            # if project_transrot: mass_weighted = True
 
             if mass_weighted:
                 if masses is None:
@@ -1008,11 +1009,12 @@ class MixtureModes(CoordinateSystem):
                 else:
                     m = masses
                 projector = nput.translation_rotation_projector(
-                        origin.reshape(-1, 3),
-                        m,
-                        mass_weighted=mass_weighted
-                    )
-                base_derivs = np.moveaxis(projector, -1, -2) @ base_derivs
+                    origin.reshape(-1, 3),
+                    m,
+                    mass_weighted=mass_weighted,
+                    direction='reverse'
+                )
+                base_derivs = projector @ base_derivs
 
             return self.get_nearest_mode_transform(
                 base_derivs,
@@ -1233,7 +1235,6 @@ class MixtureModes(CoordinateSystem):
             args = tuple(all_kw.get(k) for k in arg_names)
             if 'atoms' not in arg_names:
                 opts['atoms'] = atoms # taken by all of the localizers
-
         tf, inv = method(*args,
                          unitarize=unitarize,
                          allow_mode_mixing=allow_mode_mixing,
