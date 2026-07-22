@@ -7,8 +7,8 @@
 
 An object whose sole purpose in life is to get molecular properties
 A property should be implemented in two parts:
-1) a classmethod called get_prop_<prop name> that takes raw inputs and uses them to compute a property
-2) a classmethod called <prop name> that extracts the property from a passed molecule
+    1) a classmethod called get_prop_<prop name> that takes raw inputs and uses them to compute a property
+    2) a classmethod called <prop name> that extracts the property from a passed molecule
 
 All properties should be appropriately vectorized to work on a single configuration or a set of configurations
 

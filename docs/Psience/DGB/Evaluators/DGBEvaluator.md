@@ -31,7 +31,7 @@ get_inverse_covariances(cls, alphas, transformations):
 </div>
 Transforms the alphas into proper inverse covariance matrices.
 Chosen so that in the case that the transformations, Q, diagonalize S we can write
-QT S Q = A
+    QT S Q = A
   - `:returns`: `_`
     >
 
@@ -47,7 +47,7 @@ get_covariances(cls, alphas, transformations):
 </div>
 Transforms the alphas into proper inverse covariance matrices.
 Chosen so that in the case that the transformations, Q, diagonalize S we can write
-QT S Q = A
+    QT S Q = A
   - `:returns`: `_`
     >
 

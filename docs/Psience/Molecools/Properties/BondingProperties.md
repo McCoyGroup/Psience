@@ -82,24 +82,24 @@ Gets a guessed Z-matrix ordering for the molecule with connectivity defined by b
 2. The atom with the highest degree of connectivity in each fragment is chosen as the fragment "label"
 3. Fragments are ordered by connectivity of the label from high to low
 4. Fragment labels reference each other with:
-a) the second label on the x-axis
-b) the 3rd in the xy-plane
-c) all others relative to the first three
+    a) the second label on the x-axis
+    b) the 3rd in the xy-plane
+    c) all others relative to the first three
 5. All other atoms are sorted first by fragment label, then by connection to the fragment label, and then by connectivity
 6. Atoms reference each other based on the following:
-a) if the atom has one bond:
-i)   the atom it is bound to
-ii)  the lowest-connectivity atom that one is bound to
-iii) the second-lowest-connectivity atom OR the next fragment label
-b) if the atom has two bonds:
-i)   the highest-connectivity atom it is bound to
-ii)  the lowest-connectivity atom it is bound to
-iii) the lowest-connectivity atom (i) is bound to
-c) if the atom has three bonds:
-i)   the highest-connectivity atom it is bound to
-ii)  the lowest-connectivity atom it is bound to
-iii) the second-highest connectivity atom it is bound to
-if any of these atoms do not exist, the fragment labels will be used in their place
+    a) if the atom has one bond:
+        i)   the atom it is bound to
+        ii)  the lowest-connectivity atom that one is bound to
+        iii) the second-lowest-connectivity atom OR the next fragment label
+    b) if the atom has two bonds:
+        i)   the highest-connectivity atom it is bound to
+        ii)  the lowest-connectivity atom it is bound to
+        iii) the lowest-connectivity atom (i) is bound to
+    c) if the atom has three bonds:
+        i)   the highest-connectivity atom it is bound to
+        ii)  the lowest-connectivity atom it is bound to
+        iii) the second-highest connectivity atom it is bound to
+  if any of these atoms do not exist, the fragment labels will be used in their place
   - `bonds`: `Any`
     > 
   - `:returns`: `_`

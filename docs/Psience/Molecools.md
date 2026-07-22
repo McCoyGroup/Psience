@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-7b1719" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-7b1719"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-0ed47a" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-0ed47a"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-7b1719" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-0ed47a" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -230,9 +230,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-b2ca3a" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-b2ca3a"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-575ab2" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-575ab2"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-b2ca3a" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-575ab2" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -5246,6 +5246,11 @@ class MolecoolsTests(TestCase):
 #### <a name="ScanIterator">ScanIterator</a>
 ```python
     def test_ScanIterator(self):
+        # from McUtils.Iterators import chunked
+        # for c in chunked((x**2 for x in range(1000)), 5):
+        #     print(c)
+        # return
+
         import os
         os.environ["TORCH_COMPILE_DISABLE"] = "1"
 
@@ -5295,21 +5300,58 @@ class MolecoolsTests(TestCase):
             'smi'
         ).get_embedded_molecule()
 
-        idx = [6, 2, 5]
-        origin, offset, axes = new.fragment_embedding(idx, return_axes=True)
-        expansion = np.zeros((3, 3 * len(new.atoms)))
-        for i in idx[:1]:
-            expansion[:, 3*i:3*(i+1)] = axes.T
+        from Psience.Data import molecule_atom_position_scan_iterator, ScanManager
 
-        coords = new.get_scan_coordinates(
-            [[-1, 1, 5]],
-            coordinate_expansion=[expansion],
-            which=[0]
+        # shape, coord_iterator = molecule_atom_position_scan_iterator(
+        #     new,
+        #     [6],
+        #     [
+        #         [-1, 1, 5],
+        #         [-1, 1, 5]
+        #     ],
+        #     zigzag=True,
+        #     return_molecules=False
+        # )
+        # coords = [c for _, c in coord_iterator]
+        #
+        # # idx = [6, 2, 5]
+        # # origin, offset, axes = new.fragment_embedding(idx, return_axes=True)
+        # # expansion = np.zeros((3, 3 * len(new.atoms)))
+        # # for i in idx[:1]:
+        # #     expansion[:, 3*i:3*(i+1)] = axes.T
+        # #
+        # # coords = new.get_scan_coordinates(
+        # #     [[-1, 1, 5]],
+        # #     coordinate_expansion=[expansion],
+        # #     which=[0]
+        # # )
+        #
+        # fig = new.plot(coords, bonds='recompute', animation_options={'animation_duration':6})
+        # fig.show()
+
+        manager = ScanManager("/Users/Mark/Desktop/sample_scan")
+        _, scan_iterator = molecule_atom_position_scan_iterator(
+            new,
+            [6],
+            [
+                [-1, 1, 5],
+                [-1, 1, 5]
+            ],
+            return_values=True,
+            zigzag=True
+        )
+        manager.generate(
+            scan_iterator,
+            job_type='orca',
+            commands=['opt'],
+            level_of_theory='B97-3c',
+            overwrite=True
         )
 
-        new.plot(coords).show()
+        manager.parse()
+        return
 
-        print(axes)
+        # print(axes)
         return
 
         new.get_scan_coordinates()
