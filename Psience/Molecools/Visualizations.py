@@ -1633,59 +1633,16 @@ class JSMolMoleculePlotter(MoleculePlotter):
             self,
             up_vector=None, right_vector=None, view_vector=None, view_distance=None,
             view_matrix=None, view_center=None):
-        if view_matrix is None and (
-                view_vector is not None
-                or right_vector is not None
-                or up_vector is not None
-        ):
-            if view_vector is None:
-                if (
-                        up_vector is not None and right_vector is not None
-                ):
-                    view_vector = nput.vec_crosses(up_vector, right_vector, normalize=True)
-                elif right_vector is not None:
-                    view_vector = nput.vec_crosses([0, 0, 1], right_vector, normalize=True)
-                elif up_vector is not None:
-                    view_vector = nput.vec_crosses(up_vector, [0, 1, 0], normalize=True)
-
-            if view_vector is not None:
-                m = nput.rotation_matrix(
-                    view_vector,
-                    [1, 0, 0]
-                )
-            else:
-                m = np.eye(3)
-
-            if up_vector is None and right_vector is not None:
-                if view_vector is None:
-                    view_vector = [1, 0, 0]
-                up_vector = nput.vec_normalize(
-                    nput.vec_crosses(right_vector, view_vector)
-                )
-            elif up_vector is not None and view_vector is not None:
-                up_vector = nput.vec_crosses(
-                    view_vector,
-                    nput.vec_crosses(view_vector, up_vector),
-                    normalize=True
-                )
-            if up_vector is not None:
-                m = m @ nput.rotation_matrix(
-                    m.T @ up_vector,
-                    [1, 0, 0]
-                )
-            view_matrix = m
-
-        ang, cross = nput.extract_rotation_angle_axis(view_matrix)
-        ang = np.rad2deg(ang)
-        if view_vector is None:
-            view_vector = view_matrix[:, -1]
-        return {
-            'view_angle': ang,
-            'rotation_axis': cross,
-            'view': view_vector,
-            'center': view_center,
-            'dist': view_distance
-        }
+        from McUtils.Plots import X3DScene
+        vs = X3DScene.get_view_settings(up_vector=up_vector,
+                                          right_vector=right_vector,
+                                          view_vector=view_vector,
+                                          view_distance=view_distance,
+                                          view_matrix=view_matrix,
+                                          view_center=view_center,
+                                          return_settings=True)
+        vs['view_angle'] = np.rad2deg(vs['view_angle'])
+        return vs
     def _prep_jsmol_load_script(self,
                                 geom=None,
                                 background=None,
@@ -2019,7 +1976,7 @@ class JSMolMoleculePlotter(MoleculePlotter):
             bits.append(f"rotate {{{x:.3f} {y:.3f} {z:.3f}}} {{{x2:.3f} {y2:.3f} {z2:.3f}}} {ang:.3f}")
             dist = vps.pop('dist')
             if dist is not None:
-                view_geom = (geom - center[np.newaxis]) @ nput.rotation_matrix(ax, ang)
+                view_geom = (geom - center[np.newaxis]) @ nput.rotation_matrix(ax, -ang)
                 x = view_geom[:, 0]
                 x_range = np.max(x) - np.min(x)
                 y = view_geom[:, 0]
