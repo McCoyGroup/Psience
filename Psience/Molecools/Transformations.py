@@ -31,4 +31,16 @@ class MolecularTransformation(GeometricTransformation):
             new = super().apply(mol, shift=shift)
         return new
     def __call__(self, mol, shift=True):
+        """
+        **LLM Docstring**
+
+        Alias for `apply`. Lets a `MolecularTransformation` instance be used directly as a callable to transform `mol`.
+
+        :param mol: the object to transform, either an `AbstractMolecule`, a raw coordinate array, or another `GeometricTransformation`
+        :type mol: AbstractMolecule | np.ndarray | CoordinateTransform
+        :param shift: whether to apply the translation part of the transformation (passed through to `apply`)
+        :type shift: bool
+        :return: the transformed object, same handling as `apply`
+        :rtype: AbstractMolecule | np.ndarray | GeometricTransformation
+        """
         return self.apply(mol, shift=shift)
