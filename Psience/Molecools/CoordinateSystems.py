@@ -38,6 +38,24 @@ class MolecularEmbedding:
                  internal_fd_opts=None,
                  cartesian_fd_opts=None
                  ):
+        """
+        **LLM Docstring**
+
+        Set up a molecule's coordinate embedding: wraps the Cartesian coordinates in a `MolecularCartesianCoordinateSystem`, canonicalizes the internal-coordinate specification (or stores it directly if already a `CoordinateSet`), and initializes the Jacobian cache and finite-difference option overrides.
+
+        :param masses: the atomic masses
+        :type masses: np.ndarray
+        :param coords: the Cartesian coordinates
+        :type coords: np.ndarray
+        :param internals: the internal-coordinate specification (Z-matrix, generic-internal specs, a callable conversion, or an already-built `CoordinateSet`)
+        :type internals: object
+        :param internal_fd_opts: overrides for the internal-coordinate finite-difference defaults
+        :type internal_fd_opts: dict | None
+        :param cartesian_fd_opts: overrides for the Cartesian finite-difference defaults
+        :type cartesian_fd_opts: dict | None
+        :return: None
+        :rtype: None
+        """
 
         self._coords = CoordinateSet(coords, MolecularCartesianCoordinateSystem(masses, coords))
         self.registered_converters = None
@@ -55,23 +73,67 @@ class MolecularEmbedding:
         self._cart_fd_opts={} if cartesian_fd_opts is None else cartesian_fd_opts
 
     def get_direct_converter(self, target):
+        """
+        **LLM Docstring**
+
+        Provide a converter from this embedding's coordinate system directly to plain (non-molecular) 3D Cartesian coordinates, if `target` is Cartesian-compatible.
+
+        :param target: the coordinate system being converted to
+        :type target: object
+        :return: a `MolecularCartesianToRegularCartesianConverter`, or `None` if `target` isn't Cartesian-compatible
+        :rtype: MolecularCartesianToRegularCartesianConverter | None
+        """
         if target.is_compatible(CartesianCoordinates3D):
             carts = MolecularCartesianToRegularCartesianConverter(self.coords.system)
             return carts
     def get_inverse_converter(self, target):
+        """
+        **LLM Docstring**
+
+        Provide a converter from plain (non-molecular) 3D Cartesian coordinates into this embedding's coordinate system, if `target` is Cartesian-compatible.
+
+        :param target: the coordinate system being converted from
+        :type target: object
+        :return: a `RegularCartesianToMolecularCartesianConverter`, or `None` if `target` isn't Cartesian-compatible
+        :rtype: RegularCartesianToMolecularCartesianConverter | None
+        """
         if target.is_compatible(CartesianCoordinates3D):
             carts = RegularCartesianToMolecularCartesianConverter(self.coords.system)
             return carts
 
     def __del__(self):
+        """
+        **LLM Docstring**
+
+        Deregister any coordinate converters this embedding registered, via `cleanup`, when the object is garbage collected.
+
+        :return: None
+        :rtype: None
+        """
         self.cleanup()
 
     def cleanup(self):
+        """
+        **LLM Docstring**
+
+        Deregister every converter previously registered via `register`, if any.
+
+        :return: None
+        :rtype: None
+        """
         if hasattr(self, 'registered_converters') and self.registered_converters is not None:
             for d in self.registered_converters:
                 d.deregister()
 
     def register(self):
+        """
+        **LLM Docstring**
+
+        Register the Cartesian coordinate converters for this embedding's coordinate system with the global converter registry, if not already registered.
+
+        :return: None
+        :rtype: None
+        """
         if not self.registered_converters:
             self.registered_converters = (
                 MolecularCartesianToRegularCartesianConverter(self._coords.system),
@@ -81,10 +143,30 @@ class MolecularEmbedding:
                 r.register()
     @property
     def coords(self):
+        """
+        **LLM Docstring**
+
+        Property getter/setter for the Cartesian coordinates. The getter registers the coordinate converters (via `register`) before returning them. The setter accepts a raw array or an already-systemed `CoordinateSet`, invalidates the Jacobian cache and inertial-frame cache, and marks the converters as needing re-registration if the coordinate system changed.
+
+        :param coords: (setter only) the new Cartesian coordinates
+        :type coords: np.ndarray | CoordinateSet
+        :return: (getter) the Cartesian coordinates
+        :rtype: CoordinateSet
+        """
         self.register()
         return self._coords
     @coords.setter
     def coords(self, coords):
+        """
+        **LLM Docstring**
+
+        Property getter/setter for the Cartesian coordinates. The getter registers the coordinate converters (via `register`) before returning them. The setter accepts a raw array or an already-systemed `CoordinateSet`, invalidates the Jacobian cache and inertial-frame cache, and marks the converters as needing re-registration if the coordinate system changed.
+
+        :param coords: (setter only) the new Cartesian coordinates
+        :type coords: np.ndarray | CoordinateSet
+        :return: (getter) the Cartesian coordinates
+        :rtype: CoordinateSet
+        """
         if hasattr(coords, "system"):
             sys = coords.system
         else:
@@ -97,14 +179,44 @@ class MolecularEmbedding:
         self._coords = coords
     @property
     def masses(self):
+        """
+        **LLM Docstring**
+
+        The atomic masses, taken from the Cartesian coordinate system.
+
+        :return: the atomic masses
+        :rtype: np.ndarray
+        """
         return self._coords.system.masses
 
     @staticmethod
     def _wrap_conv(f):
+        """
+        **LLM Docstring**
+
+        Wrap a user-supplied coordinate-conversion function so it always returns a uniform `(values, opts)` pair: if the function returns a bare array, an empty options dict is paired with it; if it returns `(values, opts)`, the caller's original keyword arguments are merged underneath the returned `opts`.
+
+        :param f: the conversion function to wrap, or `None`
+        :type f: callable | None
+        :return: the wrapped conversion function, or `None` if `f` is `None`
+        :rtype: callable | None
+        """
         if f is None:
             return f
 
         def wrapped(*args, **kwargs):
+            """
+            **LLM Docstring**
+
+            Call the wrapped conversion function and normalize its result to a `(values, opts)` pair, merging the caller's keyword arguments underneath any options the function itself returned.
+
+            :param args: positional arguments forwarded to the wrapped function
+            :type args: tuple
+            :param kwargs: keyword arguments forwarded to the wrapped function, and merged into the returned options
+            :type kwargs: dict
+            :return: `(values, opts)`
+            :rtype: tuple
+            """
             vals = f(*args, **kwargs)
             if not isinstance(vals, np.ndarray):
                 vals, opts = vals
@@ -117,6 +229,17 @@ class MolecularEmbedding:
 
     @classmethod
     def canonicalize_internal_coordinate_spec(cls, spec):
+        """
+        **LLM Docstring**
+
+        Normalize the many accepted forms of an internal-coordinate specification (an options dict with `'zmatrix'`/`'specs'`/`'conversion'` keys, a bare callable conversion function, a raw Z-matrix-like array, or a list of generic-internal-coordinate specs) into the single canonical dict form (`'specs'`, `'zmatrix'`, `'conversion'`, `'inverse'`, `'converter_options'`) used internally, wrapping any conversion callables via `_wrap_conv` and filling in default embedding/jacobian-prep converter options for Z-matrices.
+
+        :param spec: the internal-coordinate specification to canonicalize
+        :type spec: dict | callable | Iterable | None
+        :return: the canonicalized specification dict, or `None`/the original value if `spec` is `None`
+        :rtype: dict | None
+        :raises ValueError: if a Z-matrix-like spec doesn't have exactly 4 columns
+        """
         if spec is not None:
             if hasattr(spec, 'items'):
                 specs = spec.get('specs')
@@ -167,21 +290,63 @@ class MolecularEmbedding:
 
     @property
     def internals(self):
+        """
+        **LLM Docstring**
+
+        Property getter/setter for the raw (canonicalized) internal-coordinate specification. The setter re-canonicalizes the given specification and invalidates any already-computed internal coordinates.
+
+        :param internals: (setter only) the new internal-coordinate specification, in any form accepted by `canonicalize_internal_coordinate_spec`
+        :type internals: object
+        :return: (getter) the canonicalized specification dict, or `None` if none is set
+        :rtype: dict | None
+        """
         if self._int_spec is not None:
             return self._int_spec
 
     @internals.setter
     def internals(self, internals):
+        """
+        **LLM Docstring**
+
+        Property getter/setter for the raw (canonicalized) internal-coordinate specification. The setter re-canonicalizes the given specification and invalidates any already-computed internal coordinates.
+
+        :param internals: (setter only) the new internal-coordinate specification, in any form accepted by `canonicalize_internal_coordinate_spec`
+        :type internals: object
+        :return: (getter) the canonicalized specification dict, or `None` if none is set
+        :rtype: dict | None
+        """
         self._int_spec = self.canonicalize_internal_coordinate_spec(internals)
         self._ints = None
 
     @property
     def zmatrix(self):
+        """
+        **LLM Docstring**
+
+        Property getter/setter for just the Z-matrix ordering array out of the internal-coordinate specification. The setter validates the Z-matrix shape, builds a fresh specification if none exists yet, and invalidates any already-computed internal coordinates.
+
+        :param zmat: (setter only) the new Z-matrix ordering array
+        :type zmat: np.ndarray | None
+        :return: (getter) the stored Z-matrix array, or `None`
+        :rtype: np.ndarray | None
+        :raises ValueError: if `zmat` doesn't have exactly 4 columns
+        """
         if self._int_spec is not None:
             return self._int_spec['zmatrix']
 
     @zmatrix.setter
     def zmatrix(self, zmat):
+        """
+        **LLM Docstring**
+
+        Property getter/setter for just the Z-matrix ordering array out of the internal-coordinate specification. The setter validates the Z-matrix shape, builds a fresh specification if none exists yet, and invalidates any already-computed internal coordinates.
+
+        :param zmat: (setter only) the new Z-matrix ordering array
+        :type zmat: np.ndarray | None
+        :return: (getter) the stored Z-matrix array, or `None`
+        :rtype: np.ndarray | None
+        :raises ValueError: if `zmat` doesn't have exactly 4 columns
+        """
         if zmat is not None:
             zmat = np.asanyarray(zmat).astype(int)
             if zmat.shape[1] != 4:
@@ -194,6 +359,20 @@ class MolecularEmbedding:
 
     @classmethod
     def convert_to_internals(cls, coords, masses, spec):
+        """
+        **LLM Docstring**
+
+        Build the internal-coordinate `CoordinateSet` described by `spec`: constructs (and registers converters for) a generic-internal, Z-matrix, or iterative-Z-matrix coordinate system as appropriate, converts `coords` into it, layers on any extra custom `conversion`/`inverse` via a `CompositeCoordinateSystem`, and returns the resulting coordinates together with the (possibly updated, e.g. with redundant-transformation info) spec.
+
+        :param coords: the Cartesian coordinates to convert
+        :type coords: CoordinateSet
+        :param masses: the atomic masses
+        :type masses: np.ndarray
+        :param spec: the canonicalized internal-coordinate specification (as produced by `canonicalize_internal_coordinate_spec`)
+        :type spec: dict
+        :return: `(coords, spec)` -- the internal coordinates and the (possibly updated) specification
+        :rtype: tuple[CoordinateSet, dict]
+        """
         spec = spec.copy()  # don't mutate user data
         opts = spec.copy()
         specs = opts.pop('specs', None)
@@ -256,6 +435,16 @@ class MolecularEmbedding:
         return coords, spec
 
     def internal_coordinates_from_spec(self, spec:dict):
+        """
+        **LLM Docstring**
+
+        Build the internal coordinates for this embedding's current Cartesian coordinates and masses from a given specification, via `convert_to_internals`.
+
+        :param spec: the canonicalized internal-coordinate specification
+        :type spec: dict
+        :return: `(coords, spec)`, as returned by `convert_to_internals`
+        :rtype: tuple[CoordinateSet, dict]
+        """
         return self.convert_to_internals(
             self._coords,
             self.masses,
@@ -264,6 +453,17 @@ class MolecularEmbedding:
 
     @property
     def internal_coordinates(self):
+        """
+        **LLM Docstring**
+
+        Property getter/setter for the internal coordinates. The getter lazily computes them from the stored specification (via `internal_coordinates_from_spec`) the first time they're needed. The setter requires an already-built `CoordinateSet`.
+
+        :param ics: (setter only) the new internal coordinates
+        :type ics: CoordinateSet
+        :return: (getter) the internal coordinates, or `None` if no internal-coordinate specification is set
+        :rtype: CoordinateSet | None
+        :raises ValueError: if the setter is given something that isn't a `CoordinateSet`
+        """
         if self._ints is None and (
                 self._int_spec is not None
                 and any(self._int_spec.get(k) is not None for k in {'zmatrix', 'conversion', 'specs'})
@@ -273,6 +473,17 @@ class MolecularEmbedding:
 
     @internal_coordinates.setter
     def internal_coordinates(self, ics):
+        """
+        **LLM Docstring**
+
+        Property getter/setter for the internal coordinates. The getter lazily computes them from the stored specification (via `internal_coordinates_from_spec`) the first time they're needed. The setter requires an already-built `CoordinateSet`.
+
+        :param ics: (setter only) the new internal coordinates
+        :type ics: CoordinateSet
+        :return: (getter) the internal coordinates, or `None` if no internal-coordinate specification is set
+        :rtype: CoordinateSet | None
+        :raises ValueError: if the setter is given something that isn't a `CoordinateSet`
+        """
         if not isinstance(ics, CoordinateSet):
             raise ValueError("{} must be a {} to be valid internal coordinates".format(
                 ics, CoordinateSet.__name__
@@ -280,6 +491,16 @@ class MolecularEmbedding:
         self._ints = ics
 
     def strip_embedding_coordinates(self, coords):
+        """
+        **LLM Docstring**
+
+        Drop the fixed embedding coordinates (e.g. the 6 translation/rotation degrees of freedom implied by the Z-matrix embedding) from a coordinate array or list of derivative tensors, if the underlying internal-coordinate system defines any.
+
+        :param coords: the coordinates (or list of derivative tensors) to strip
+        :type coords: np.ndarray | list[np.ndarray]
+        :return: the coordinates with embedding coordinates removed, or unchanged if there are none to strip or they're already stripped
+        :rtype: np.ndarray | list[np.ndarray]
+        """
         embedding_coords = self._get_embedding_coords()
         if embedding_coords is not None:
             nc = 3 * len(self.masses)
@@ -298,6 +519,16 @@ class MolecularEmbedding:
         return coords
 
     def strip_derivative_embedding(self, derivs):
+        """
+        **LLM Docstring**
+
+        Drop the fixed embedding coordinates from every axis of each tensor in a list of Cartesian-derivative tensors, if the underlying internal-coordinate system defines any.
+
+        :param derivs: the list of Cartesian-derivative tensors (order-`n` tensor at index `n-1`) to strip
+        :type derivs: list[np.ndarray]
+        :return: the derivative tensors with embedding coordinates removed from every relevant axis, or unchanged if there are none to strip or they're already stripped
+        :rtype: list[np.ndarray]
+        """
         embedding_coords = self._get_embedding_coords()
         if embedding_coords is not None:
             nc = 3 * len(self.masses)
@@ -311,6 +542,16 @@ class MolecularEmbedding:
         return derivs
 
     def restore_embedding_coordinates(self, coords):
+        """
+        **LLM Docstring**
+
+        Reinsert the fixed embedding coordinates (filled in from the reference internal coordinates) back into a stripped coordinate array or list, undoing `strip_embedding_coordinates`.
+
+        :param coords: the stripped coordinates (or list) to restore
+        :type coords: np.ndarray | list[np.ndarray]
+        :return: the coordinates with embedding coordinates reinserted, or unchanged if there are none to restore or they're already present
+        :rtype: np.ndarray | list[np.ndarray]
+        """
         embedding_coords = self._get_embedding_coords()
         if embedding_coords is not None:
             nc = 3 * len(self.masses)
@@ -342,6 +583,16 @@ class MolecularEmbedding:
         return coords
 
     def restore_derivative_embedding(self, derivs):
+        """
+        **LLM Docstring**
+
+        Reinsert zeroed-out placeholder entries for the fixed embedding coordinates back into every axis of each tensor in a list of stripped Cartesian-derivative tensors, undoing `strip_derivative_embedding`.
+
+        :param derivs: the stripped list of Cartesian-derivative tensors to restore
+        :type derivs: list[np.ndarray]
+        :return: the derivative tensors with embedding-coordinate axes reinserted (as zeros), or unchanged if there are none to restore or they're already present
+        :rtype: list[np.ndarray]
+        """
         embedding_coords = self._get_embedding_coords()
         if embedding_coords is not None:
             nc = 3 * len(self.masses)
@@ -361,6 +612,18 @@ class MolecularEmbedding:
         return derivs
 
     def get_internals(self, *, coords=None, strip_embedding=True):
+        """
+        **LLM Docstring**
+
+        Fetch the internal coordinates, either the cached ones for this embedding's own geometry or freshly computed ones for an alternate set of Cartesian `coords`, optionally stripping the fixed embedding coordinates.
+
+        :param coords: alternate Cartesian coordinates to convert instead of using the cached internal coordinates
+        :type coords: np.ndarray | None
+        :param strip_embedding: whether to strip the fixed embedding coordinates from the result
+        :type strip_embedding: bool
+        :return: the internal coordinates, or `None` if none are defined
+        :rtype: CoordinateSet | None
+        """
         if coords is None:
             ics = self.internal_coordinates
         else:
@@ -372,6 +635,18 @@ class MolecularEmbedding:
             ics = self.strip_embedding_coordinates(ics)
         return ics
     def get_cartesians(self, *, coords=None, strip_embedding=True):
+        """
+        **LLM Docstring**
+
+        Fetch Cartesian coordinates, either this embedding's own cached ones or the Cartesian coordinates corresponding to a given set of internal `coords`, optionally restoring any stripped embedding coordinates first.
+
+        :param coords: internal-coordinate values to convert to Cartesians instead of returning the cached Cartesian coordinates
+        :type coords: np.ndarray | None
+        :param strip_embedding: whether `coords` has had its embedding coordinates stripped and needs them restored before conversion
+        :type strip_embedding: bool
+        :return: the Cartesian coordinates
+        :rtype: CoordinateSet
+        """
         if coords is None:
             return self.coords
         else:
@@ -387,10 +662,26 @@ class MolecularEmbedding:
 
     @property
     def redundant_internal_transformation(self):
+        """
+        **LLM Docstring**
+
+        The redundant-to-non-redundant transformation matrix associated with the current internal coordinates, if the internal-coordinate system used a redundant coordinate generator.
+
+        :return: the redundant transformation, or `None` if not applicable
+        :rtype: np.ndarray | None
+        """
         return self.internal_coordinates.converter_options.get('redundant_transformation')
 
     @classmethod
     def _get_jacobian_storage(cls):
+        """
+        **LLM Docstring**
+
+        Build a fresh, empty nested dict used to cache computed Jacobian tensors by coordinate-system pair and (for internals) by re-embedding mode.
+
+        :return: the empty Jacobian cache structure
+        :rtype: dict
+        """
         return {
             'internals': {"default":[], "reembed":[]},
             'fast-internals': {"default":[], "reembed":[], "reembed-strip":[]},
@@ -406,6 +697,16 @@ class MolecularEmbedding:
         parallelizer=None
     )
     def _get_internal_fd_opts(self, **opts):
+        """
+        **LLM Docstring**
+
+        Merge the class-level `internal_fd_defaults`, this instance's `_internal_fd_opts` overrides, and any explicitly passed `opts`, with later sources taking precedence, to resolve the finite-difference options used for internal-coordinate Jacobians.
+
+        :param opts: explicit per-call overrides, taking highest precedence
+        :type opts: dict
+        :return: the merged finite-difference options
+        :rtype: dict
+        """
         return dict(
             dict(
                 self.internal_fd_defaults,
@@ -570,6 +871,16 @@ class MolecularEmbedding:
         analytic_deriv_order=-1
     )
     def _get_cart_fd_opts(self, **opts):
+        """
+        **LLM Docstring**
+
+        Merge the class-level `cart_fd_defaults`, this instance's `_cart_fd_opts` overrides, and any explicitly passed `opts`, with later sources taking precedence, to resolve the finite-difference options used for Cartesian-coordinate Jacobians.
+
+        :param opts: explicit per-call overrides, taking highest precedence
+        :type opts: dict
+        :return: the merged finite-difference options
+        :rtype: dict
+        """
         return dict(
             dict(
                 self.cart_fd_defaults,
@@ -700,8 +1011,24 @@ class MolecularEmbedding:
 
     @property
     def embedding_coords(self):
+        """
+        **LLM Docstring**
+
+        The indices of the internal-coordinate system's fixed embedding coordinates (translation/rotation degrees of freedom), if any are defined.
+
+        :return: the embedding-coordinate indices, or `None`
+        :rtype: np.ndarray | None
+        """
         return self._get_embedding_coords()
     def _get_embedding_coords(self):
+        """
+        **LLM Docstring**
+
+        Look up the embedding-coordinate indices from the internal-coordinate system, trying its `embedding_coords` attribute first and falling back to its `converter_options['embedding_coords']`.
+
+        :return: the embedding-coordinate indices, or `None` if neither source defines them
+        :rtype: np.ndarray | None
+        """
         try:
             embedding = self.internal_coordinates.system.embedding_coords
         except AttributeError:
@@ -716,6 +1043,27 @@ class MolecularEmbedding:
                                     reembed=True, method=None, coords=None,
                                     **fd_opts
                                     ):
+        """
+        **LLM Docstring**
+
+        Compute the Cartesians-by-internals Jacobian expansion up to the requested `order`, either via the fast route (inverting the internals-by-Cartesians Jacobian through a translation/rotation-invariant reduction, with caching) or the classic finite-difference/analytic route, depending on `method` (auto-selected based on the internal-coordinate system type) and whether `reembed`/`strip_embedding`/explicit `coords` are requested.
+
+        :param order: the highest derivative order to compute; if `None`, returns whatever is already cached
+        :type order: int | None
+        :param strip_embedding: whether to strip the fixed embedding coordinates from the result
+        :type strip_embedding: bool
+        :param reembed: whether to use the Eckart-reembedded (translation/rotation-invariant) formulation, for the `'fast'` method
+        :type reembed: bool
+        :param method: which computation strategy to use (`'fast'` or `'classic'`); auto-selected if `None`
+        :type method: str | None
+        :param coords: alternate Cartesian coordinates to compute the Jacobian at, instead of this embedding's own geometry
+        :type coords: np.ndarray | None
+        :param fd_opts: extra finite-difference options forwarded to the underlying Jacobian computation
+        :type fd_opts: dict
+        :return: the Cartesians-by-internals Jacobian tensors, one per order
+        :rtype: list[np.ndarray]
+        :raises ValueError: if fewer cached/computed orders are available than requested (classic route)
+        """
         if method is None:
             int_sys = self.internal_coordinates.system
             if "GenericInternals" in int_sys.name:
@@ -795,6 +1143,23 @@ class MolecularEmbedding:
         return base
 
     def get_internals_by_cartesians(self, order=None, strip_embedding=False, coords=None, **opts):
+        """
+        **LLM Docstring**
+
+        Compute the internals-by-Cartesians Jacobian expansion up to the requested `order`, via finite difference/analytic derivatives (through `_get_cart_jacobs`), reshaping the results to `(..., ncart, ncart, ..., nint)`-style tensors and optionally stripping the fixed embedding coordinates.
+
+        :param order: the highest derivative order to compute; if `None`, returns whatever is already cached
+        :type order: int | None
+        :param strip_embedding: whether to strip the fixed embedding coordinates from the result
+        :type strip_embedding: bool
+        :param coords: alternate Cartesian coordinates to compute the Jacobian at
+        :type coords: np.ndarray | None
+        :param opts: extra finite-difference options forwarded to `_get_cart_jacobs`
+        :type opts: dict
+        :return: the internals-by-Cartesians Jacobian tensors, one per order
+        :rtype: list[np.ndarray]
+        :raises ValueError: if fewer cached/computed orders are available than requested
+        """
         if coords is not None:
             coords = np.asanyarray(coords)
             if order is None: order = 1
@@ -828,6 +1193,24 @@ class MolecularEmbedding:
         return base
 
     def embed_coords(self, coords, sel=None, in_paf=False, planar_ref_tolerance=None, proper_rotation=True):
+        """
+        **LLM Docstring**
+
+        Eckart-embed a set of Cartesian coordinates onto this embedding's reference geometry.
+
+        :param coords: the coordinates to embed
+        :type coords: np.ndarray
+        :param sel: subset of atoms to use for the embedding fit
+        :type sel: Iterable[int] | None
+        :param in_paf: whether to embed into the principal-axis frame
+        :type in_paf: bool
+        :param planar_ref_tolerance: tolerance for detecting a (near-)planar reference structure
+        :type planar_ref_tolerance: float | None
+        :param proper_rotation: whether to restrict the embedding to proper (determinant +1) rotations
+        :type proper_rotation: bool
+        :return: the Eckart-embedded coordinates
+        :rtype: np.ndarray
+        """
         return StructuralProperties.get_eckart_embedded_coords(
             self.masses,
             self.coords,
@@ -839,6 +1222,24 @@ class MolecularEmbedding:
         )
 
     def unembed_derivs(self, coords, derivs, sel=None, in_paf=False, planar_ref_tolerance=None):
+        """
+        **LLM Docstring**
+
+        Undo an Eckart embedding's rotation on a set of Cartesian derivative tensors, transforming them back by the combination of the embedding's axis frame and rotation.
+
+        :param coords: the (embedded) coordinates the derivatives were computed at
+        :type coords: np.ndarray
+        :param derivs: the Cartesian derivative tensors to un-rotate
+        :type derivs: list[np.ndarray]
+        :param sel: subset of atoms used for the embedding fit
+        :type sel: Iterable[int] | None
+        :param in_paf: whether the embedding used the principal-axis frame
+        :type in_paf: bool
+        :param planar_ref_tolerance: tolerance for detecting a (near-)planar reference structure
+        :type planar_ref_tolerance: float | None
+        :return: the un-rotated derivative tensors
+        :rtype: list[np.ndarray]
+        """
         emb = nput.eckart_embedding(
             self.coords,
             coords,
@@ -858,6 +1259,14 @@ class MolecularEmbedding:
 
     @property
     def inertia_tensor(self):
+        """
+        **LLM Docstring**
+
+        The molecule's inertia tensor at its current Cartesian coordinates.
+
+        :return: the inertia tensor
+        :rtype: np.ndarray
+        """
         return StructuralProperties.get_prop_inertia_tensors(
             self.coords,
             self.masses
@@ -886,6 +1295,14 @@ class MolecularEmbedding:
         return self._inert_frame
 
     def inertial_frame_derivatives(self):
+        """
+        **LLM Docstring**
+
+        The first and second derivatives of the inertia tensor with respect to mass-weighted Cartesian displacements.
+
+        :return: `[I0Y, I0YY]`, as returned by `StructuralProperties.get_prop_inertial_frame_derivatives`
+        :rtype: list[np.ndarray]
+        """
 
         return StructuralProperties.get_prop_inertial_frame_derivatives(
                 self.coords,
@@ -894,6 +1311,14 @@ class MolecularEmbedding:
 
     @property
     def translation_rotation_modes(self):
+        """
+        **LLM Docstring**
+
+        The (cached) translation and rotation eigenvectors of the molecule at its current geometry.
+
+        :return: the translation/rotation eigenvectors
+        :rtype: tuple
+        """
         if self._tr_modes is None:
             self._tr_modes = StructuralProperties.get_prop_translation_rotation_eigenvectors(
                 self.coords,
@@ -908,6 +1333,22 @@ class MolecularEmbedding:
                                                           mass_weighted=True,
                                                           strip_embedding=True,
                                                           coords=None):
+        """
+        **LLM Docstring**
+
+        Build the transformation (and its inverse) that projects out the translational and rotational degrees of freedom from a set of Cartesian coordinates.
+
+        :param order: the derivative order of the transformation to build
+        :type order: int
+        :param mass_weighted: whether the transformation should act on mass-weighted coordinates
+        :type mass_weighted: bool
+        :param strip_embedding: whether to strip the fixed embedding coordinates from the result
+        :type strip_embedding: bool
+        :param coords: alternate Cartesian coordinates to build the transformation at, instead of this embedding's own geometry
+        :type coords: np.ndarray | None
+        :return: the translation/rotation-invariant transformation and its inverse
+        :rtype: tuple
+        """
         return nput.translation_rotation_invariant_transformation(
                 self.coords if coords is None else coords,
                 masses=self.masses,
@@ -928,6 +1369,24 @@ class ModeEmbedding:
                  dimensionless=None,
                  masses=None
                  ):
+        """
+        **LLM Docstring**
+
+        Set up a mode-aware specialization of a `MolecularEmbedding`: resolves whatever form `modes` was given in (a manager, a `MolecularVibrations`, or a raw normal-modes object) down to a plain normal-modes object, optionally converting it to a dimensionless or mass-weighted basis, and records whether the resulting modes are mass-weighted.
+
+        :param embedding: the underlying molecular embedding to specialize
+        :type embedding: MolecularEmbedding
+        :param modes: the normal modes (or a manager/vibrations object wrapping them) to express properties in terms of
+        :type modes: object
+        :param mass_weight: whether to convert the modes to a mass-weighted basis
+        :type mass_weight: bool | None
+        :param dimensionless: whether to convert the modes to a dimensionless basis
+        :type dimensionless: bool | None
+        :param masses: masses to use for the mass-weighting/dimensionless conversions; defaults to the embedding's own masses
+        :type masses: np.ndarray | None
+        :return: None
+        :rtype: None
+        """
 
         self.embedding = embedding
         self.masses = masses
@@ -950,6 +1409,16 @@ class ModeEmbedding:
         self.modes = modes
 
     def mw_conversion(self, strip_dummies=None):
+        """
+        **LLM Docstring**
+
+        Build the diagonal mass-weighting matrix (`sqrt(mass)` per Cartesian coordinate) used to convert plain Cartesian derivatives into mass-weighted ones.
+
+        :param strip_dummies: whether to exclude dummy (non-positive-mass) atoms from the mass vector
+        :type strip_dummies: bool | None
+        :return: the diagonal mass-weighting matrix
+        :rtype: np.ndarray
+        """
         masses = self.masses
         if masses is None:
             masses = self.embedding.masses
@@ -961,6 +1430,16 @@ class ModeEmbedding:
             ).flatten()
         return np.diag(np.sign(mvec) * np.sqrt(np.abs(mvec)))
     def mw_inverse(self, strip_dummies=None):
+        """
+        **LLM Docstring**
+
+        Build the diagonal inverse-mass-weighting matrix (`1/sqrt(mass)` per Cartesian coordinate) used to convert mass-weighted Cartesian derivatives back into plain ones.
+
+        :param strip_dummies: whether to exclude dummy (non-positive-mass) atoms from the mass vector
+        :type strip_dummies: bool | None
+        :return: the diagonal inverse-mass-weighting matrix
+        :rtype: np.ndarray
+        """
         masses = self.masses
         if masses is None:
             masses = self.embedding.masses
@@ -973,6 +1452,22 @@ class ModeEmbedding:
         return np.diag(np.sign(mvec) / np.sqrt(np.abs(mvec)))
 
     def get_mw_cartesians_by_internals(self, order=None, mass_weighted=None, coords=None, strip_embedding=True):
+        """
+        **LLM Docstring**
+
+        Fetch the Cartesians-by-internals Jacobian expansion, converted to mass-weighted Cartesians if `mass_weighted` (or `self.mass_weighted` by default) is set.
+
+        :param order: the highest derivative order to compute
+        :type order: int | None
+        :param mass_weighted: whether to mass-weight the result; defaults to `self.mass_weighted`
+        :type mass_weighted: bool | None
+        :param coords: alternate coordinates to compute the Jacobian at
+        :type coords: np.ndarray | None
+        :param strip_embedding: whether to strip the fixed embedding coordinates
+        :type strip_embedding: bool
+        :return: the (optionally mass-weighted) Cartesians-by-internals Jacobian tensors
+        :rtype: list[np.ndarray]
+        """
         RX = self.embedding.get_cartesians_by_internals(
             order=order,
             coords=coords,
@@ -988,6 +1483,22 @@ class ModeEmbedding:
             ]
         return RX
     def get_internals_by_mw_cartesians(self, order=None, mass_weighted=None, coords=None, strip_embedding=True):
+        """
+        **LLM Docstring**
+
+        Fetch the internals-by-Cartesians Jacobian expansion, converted to be with respect to mass-weighted Cartesians if `mass_weighted` (or `self.mass_weighted` by default) is set.
+
+        :param order: the highest derivative order to compute
+        :type order: int | None
+        :param mass_weighted: whether to mass-weight the result; defaults to `self.mass_weighted`
+        :type mass_weighted: bool | None
+        :param coords: alternate coordinates to compute the Jacobian at
+        :type coords: np.ndarray | None
+        :param strip_embedding: whether to strip the fixed embedding coordinates
+        :type strip_embedding: bool
+        :return: the (optionally mass-weighted) internals-by-Cartesians Jacobian tensors
+        :rtype: list[np.ndarray]
+        """
         XR = self.embedding.get_internals_by_cartesians(
                 order=order,
                 coords=coords,
@@ -1120,14 +1631,46 @@ class ModeEmbedding:
                 )
 
     def get_inertia_tensor_expansion(self, order=None, strip_embedding=True):
+        """
+        **LLM Docstring**
+
+        Compute the Taylor expansion of the inertia tensor in terms of this embedding's coordinates (internal coordinates or normal modes), by re-expanding the inertial-frame derivatives through the Cartesians-by-internals Jacobian.
+
+        :param order: the highest derivative order to compute
+        :type order: int | None
+        :param strip_embedding: whether to strip the fixed embedding coordinates from the underlying Jacobian
+        :type strip_embedding: bool
+        :return: `[I0] + [derivative terms...]`, the inertia tensor and its derivatives
+        :rtype: list[np.ndarray]
+        """
         YI0 = self.embedding.inertial_frame_derivatives()
         QY = self.get_cartesians_by_internals(order=order, strip_embedding=strip_embedding)
         return [self.embedding.inertia_tensor] + nput.tensor_reexpand(QY, YI0, order=order)
 
     def get_inertial_frame(self):
+        """
+        **LLM Docstring**
+
+        The molecule's inertial (principal-axis) frame, delegated to the underlying embedding.
+
+        :return: the inertial frame, as returned by `MolecularEmbedding.inertial_frame`
+        :rtype: tuple
+        """
         return self.embedding.inertial_frame
 
     def get_modes_by_coords(self, mass_weighted=None, frequency_scaled=None):
+        """
+        **LLM Docstring**
+
+        The modes-by-coordinates transformation matrix, optionally adjusting the mass-weighting/frequency-scaling convention of the modes first, and (if the modes are Cartesian but expressed relative to an internal-coordinate embedding) re-expressing them in terms of internal coordinates.
+
+        :param mass_weighted: `True`/`False` to force mass-weighting on/off before extracting the matrix; `None` to leave the modes' current convention
+        :type mass_weighted: bool | None
+        :param frequency_scaled: `True`/`False` to adjust frequency scaling before extracting the matrix (both branches currently call `remove_frequency_scaling`); `None` to leave it unchanged
+        :type frequency_scaled: bool | None
+        :return: the modes-by-coordinates matrix, or `None` if no modes are set
+        :rtype: np.ndarray | None
+        """
         if self.modes is None:
             return None
         else:
@@ -1146,6 +1689,18 @@ class ModeEmbedding:
             else:
                 return clean_modes.modes_by_coords
     def get_coords_by_modes(self, mass_weighted=None, frequency_scaled=None):
+        """
+        **LLM Docstring**
+
+        The coordinates-by-modes transformation matrix, optionally adjusting the mass-weighting/frequency-scaling convention of the modes first, and (if the modes are Cartesian but expressed relative to an internal-coordinate embedding) re-expressing them in terms of internal coordinates.
+
+        :param mass_weighted: `True`/`False` to force mass-weighting on/off before extracting the matrix; `None` to leave the modes' current convention
+        :type mass_weighted: bool | None
+        :param frequency_scaled: `True`/`False` to adjust frequency scaling before extracting the matrix (both branches currently call `remove_frequency_scaling`); `None` to leave it unchanged
+        :type frequency_scaled: bool | None
+        :return: the coordinates-by-modes matrix, or `None` if no modes are set
+        :rtype: np.ndarray | None
+        """
         if self.modes is None:
             return None
         else:
@@ -1231,6 +1786,26 @@ class MolecularGenericInternalCoordinateSystem(GenericInternalCoordinateSystem):
                      relocalize=False,
                      **opts
                      ):
+            """
+            **LLM Docstring**
+
+            Store an already-known redundant-coordinate transformation so it can be handed back unchanged (rather than computed) when `get_redundant_transformation` is called.
+
+            :param redundant_transformation: the redundant-to-non-redundant transformation matrix to pass through
+            :type redundant_transformation: np.ndarray
+            :param redundant_inverse: the corresponding inverse transformation, if available
+            :type redundant_inverse: np.ndarray | None
+            :param masses: the atomic masses (stored as a 1-tuple due to a trailing comma in the assignment)
+            :type masses: np.ndarray | None
+            :param untransformed_coordinates: coordinates to leave untransformed
+            :type untransformed_coordinates: object | None
+            :param relocalize: whether the redundant coordinates should be relocalized
+            :type relocalize: bool
+            :param opts: extra options, stored but not otherwise used
+            :type opts: dict
+            :return: None
+            :rtype: None
+            """
             self.tf = redundant_transformation
             self.inv = redundant_inverse
             self.masses = masses,
@@ -1238,6 +1813,18 @@ class MolecularGenericInternalCoordinateSystem(GenericInternalCoordinateSystem):
             self.relocalize = relocalize
             self.opts = opts
         def get_redundant_transformation(self, base_expansions, **ignored):
+            """
+            **LLM Docstring**
+
+            Return the stored redundant transformation unchanged, along with the base derivative expansions re-expanded through it.
+
+            :param base_expansions: the derivative expansions to re-express through the redundant transformation
+            :type base_expansions: list[np.ndarray]
+            :param ignored: any other arguments, accepted but not used
+            :type ignored: dict
+            :return: `(self.tf, reexpanded_expansions)`
+            :rtype: tuple[np.ndarray, list[np.ndarray]]
+            """
             return self.tf, nput.tensor_reexpand(base_expansions,
                                                  [self.tf],
                                                  order=len(base_expansions)
@@ -1315,21 +1902,69 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
         self.set_embedding()
     @property
     def origins(self):
+        """
+        **LLM Docstring**
+
+        The Z-matrix embedding's origin points (typically the reference center of mass), from `converter_options['origins']`.
+
+        :return: the origin points
+        :rtype: np.ndarray
+        """
         return self.converter_options['origins']
     @property
     def axes(self):
+        """
+        **LLM Docstring**
+
+        The Z-matrix embedding's reference axes (typically two principal axes), from `converter_options['axes']`.
+
+        :return: the reference axes
+        :rtype: np.ndarray
+        """
         return self.converter_options['axes']
 
     def get_direct_converter(self, target):
+        """
+        **LLM Docstring**
+
+        Provide a converter from this molecular Z-matrix system directly to the plain (non-molecular) `ZMatrix` coordinate system, if `target` is one.
+
+        :param target: the coordinate system being converted to
+        :type target: object
+        :return: a `MolecularZMatrixToRegularZMatrixConverter`, or `None` if `target` isn't a `ZMatrix` system
+        :rtype: MolecularZMatrixToRegularZMatrixConverter | None
+        """
         if target.name == 'ZMatrix':
             zmat = MolecularZMatrixToRegularZMatrixConverter(self.coords.system)
             return zmat
     def get_inverse_converter(self, target):
+        """
+        **LLM Docstring**
+
+        Provide a converter from the plain `ZMatrix` coordinate system into this molecular Z-matrix system, if `target` is one.
+
+        :param target: the coordinate system being converted from
+        :type target: object
+        :return: a `RegularZMatrixToMolecularZMatrixConverter`, or `None` if `target` isn't a `ZMatrix` system
+        :rtype: RegularZMatrixToMolecularZMatrixConverter | None
+        """
         if target.name == 'ZMatrix':
             zmat = RegularZMatrixToMolecularZMatrixConverter(self.coords.system)
             return zmat
 
     def pre_convert_to(self, system, opts=None):
+        """
+        **LLM Docstring**
+
+        Re-establish the embedding options (via `set_embedding`) before delegating to the base class's `pre_convert_to`, preserving the existing atom `ordering` if the caller supplied its own options dict.
+
+        :param system: the coordinate system being converted to
+        :type system: object
+        :param opts: explicit conversion options to use instead of `self.converter_options`
+        :type opts: dict | None
+        :return: the resolved conversion options
+        :rtype: dict
+        """
         self.set_embedding()
         if opts is None:
             opts = self.converter_options
@@ -1339,6 +1974,14 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
         return opts
 
     def set_embedding(self):
+        """
+        **LLM Docstring**
+
+        (Re)compute and store this Z-matrix system's embedding options -- the reference origin, reference axes (chosen via `_get_best_axes` to avoid ill-conditioned choices), axis labels, masses, dummy-atom positions, and reference coordinates -- based on the current center of mass and inertial axes, fixing up the Z-matrix `ordering`'s first three rows to reference the embedding's dummy origin/axis points if an ordering is present.
+
+        :return: None
+        :rtype: None
+        """
         com = self.com
         axes = self.inertial_axes
         converter_options = self.converter_options
@@ -1374,6 +2017,26 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
                  converter_options=None,
                  **kwargs
                  ):
+        """
+        **LLM Docstring**
+
+        Compute the Jacobian of this Z-matrix system with respect to Cartesian coordinates, handling batched/multi-frame inputs, optional dummy-atom stripping, and temporarily overriding the `reembed` converter option for the duration of the call.
+
+        :param coords: the Cartesian coordinates to compute the Jacobian at
+        :type coords: np.ndarray
+        :param args: extra positional arguments forwarded to the base class's `jacobian`
+        :type args: tuple
+        :param reembed: whether to re-embed (Eckart-align) during the Jacobian calculation; falls back to the converter options, then defaults to `True`
+        :type reembed: bool | None
+        :param strip_dummies: whether to exclude dummy-atom coordinates from the Jacobian; falls back to the converter options, then defaults to `False`
+        :type strip_dummies: bool | None
+        :param converter_options: extra converter options merged with `self.converter_options`
+        :type converter_options: dict | None
+        :param kwargs: extra keyword arguments forwarded to the base class's `jacobian`
+        :type kwargs: dict
+        :return: the computed Jacobian tensor(s)
+        :rtype: list[np.ndarray]
+        """
 
         if converter_options is None:
             converter_options = {}
@@ -1468,6 +2131,16 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
             opts = {}
         super().__init__(converter_options=converter_options, dimension=(nats, 3), coordinate_shape=(nats, 3), **opts)
     def to_state(self, serializer=None):
+        """
+        **LLM Docstring**
+
+        Serialize this coordinate system's state, adding the masses, coordinates, and dummy-atom positions on top of whatever the base class's `to_state` produces.
+
+        :param serializer: the serializer to use, forwarded to the base class
+        :type serializer: object | None
+        :return: the serialized state dict
+        :rtype: dict
+        """
         base_data = super().to_state(serializer=serializer)
         base_data['masses'] = self.masses
         base_data['coords'] = self.coords
@@ -1475,6 +2148,18 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         return base_data
     @classmethod
     def from_state(cls, data, serializer=None):
+        """
+        **LLM Docstring**
+
+        Reconstruct a `MolecularCartesianCoordinateSystem` from a previously serialized state dict.
+
+        :param data: the serialized state, as produced by `to_state`
+        :type data: dict
+        :param serializer: the serializer to use, accepted for interface consistency but not used in this method's body
+        :type serializer: object | None
+        :return: the reconstructed coordinate system
+        :rtype: MolecularCartesianCoordinateSystem
+        """
         # dim = data.pop('dimension', None)
         # coordinate_shape = data.pop('coordinate_shape', None)
         return cls(
@@ -1484,6 +2169,18 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
             converter_options=data['converter_options']
         )
     def pre_convert_to(self, system, opts=None):
+        """
+        **LLM Docstring**
+
+        Ensure the masses are up to date in `converter_options`, and, if converting to a Z-matrix-family system, re-establish the embedding options (via `set_embedding`) before delegating to the base class's `pre_convert_to`.
+
+        :param system: the coordinate system being converted to
+        :type system: object
+        :param opts: explicit conversion options to use instead of `self.converter_options`
+        :type opts: dict | None
+        :return: the resolved conversion options
+        :rtype: dict
+        """
         self.converter_options['masses'] = self.masses
         if 'ZMatrix' in system.name:
             self.set_embedding()
@@ -1534,6 +2231,28 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
                  analytic_deriv_order=None,
                  **kwargs
                  ):
+        """
+        **LLM Docstring**
+
+        Compute the Jacobian of these Cartesian coordinates with respect to `system`, resolving the analytic-derivative order (defaulting to purely numerical for Z-matrix targets) and optionally excluding dummy-atom coordinates.
+
+        :param coords: the coordinates to compute the Jacobian at
+        :type coords: np.ndarray
+        :param system: the target coordinate system
+        :type system: object
+        :param order: the derivative order(s) to compute
+        :type order: int | list[int] | None
+        :param strip_dummies: whether to exclude dummy-atom coordinates; falls back to the converter options, then defaults to `False`
+        :type strip_dummies: bool | None
+        :param converter_options: extra converter options merged with `self.converter_options`
+        :type converter_options: dict | None
+        :param analytic_deriv_order: the order up to which to compute the Jacobian analytically rather than numerically; falls back to the converter options, then defaults based on whether `system` is a Z-matrix
+        :type analytic_deriv_order: int | None
+        :param kwargs: extra keyword arguments forwarded to the base class's `jacobian`
+        :type kwargs: dict
+        :return: the computed Jacobian tensor(s)
+        :rtype: list[np.ndarray]
+        """
 
         zmat_conv = 'ZMatrix' in system.name
 
@@ -1615,10 +2334,32 @@ class MolecularCartesianToZMatrixConverter(CoordinateSystemConverter):
     ...
     """
     def __init__(self, cart_system, zmat_system, **opts):
+        """
+        **LLM Docstring**
+
+        Store the `(cart_system, zmat_system)` type pair this converter handles.
+
+        :param cart_system: the source Cartesian coordinate system
+        :type cart_system: object
+        :param zmat_system: the target Z-matrix coordinate system
+        :type zmat_system: object
+        :param opts: extra options forwarded to the base `CoordinateSystemConverter`
+        :type opts: dict
+        :return: None
+        :rtype: None
+        """
         self._types = (cart_system, zmat_system)
         super().__init__(**opts)
     @property
     def types(self):
+        """
+        **LLM Docstring**
+
+        The `(source, target)` coordinate-system type pair this converter handles.
+
+        :return: `(cart_system, zmat_system)`
+        :rtype: tuple
+        """
         return self._types
     def convert(self, coords, *,
                      masses,
@@ -1796,12 +2537,44 @@ class MolecularCartesianToRegularCartesianConverter(CoordinateSystemConverter):
     """
 
     def __init__(self, cart_system, **opts):
+        """
+        **LLM Docstring**
+
+        Store the `(CartesianCoordinates3D, cart_system)` type pair this converter handles.
+
+        :param cart_system: the molecular Cartesian coordinate system being converted from
+        :type cart_system: object
+        :param opts: extra options forwarded to the base `CoordinateSystemConverter`
+        :type opts: dict
+        :return: None
+        :rtype: None
+        """
         self._types = (CartesianCoordinates3D, cart_system)
         super().__init__(**opts)
     @property
     def types(self):
+        """
+        **LLM Docstring**
+
+        The `(source, target)` coordinate-system type pair this converter handles.
+
+        :return: `(CartesianCoordinates3D, cart_system)`
+        :rtype: tuple
+        """
         return self._types
     def convert(self, coords, **kw):
+        """
+        **LLM Docstring**
+
+        Pass the coordinates through unchanged, since a molecular Cartesian system and a plain Cartesian system share the same underlying representation.
+
+        :param coords: the coordinates to convert
+        :type coords: np.ndarray
+        :param kw: extra keyword arguments, returned unchanged as the options dict
+        :type kw: dict
+        :return: `(coords, kw)`
+        :rtype: tuple
+        """
         return coords, kw
 
     def convert_many(self, coords, **kwargs):
@@ -1816,13 +2589,45 @@ class RegularCartesianToMolecularCartesianConverter(CoordinateSystemConverter):
     """
 
     def __init__(self, cart_system, **opts):
+        """
+        **LLM Docstring**
+
+        Store the `(cart_system, CartesianCoordinates3D)` type pair this converter handles.
+
+        :param cart_system: the molecular Cartesian coordinate system being converted to
+        :type cart_system: object
+        :param opts: extra options forwarded to the base `CoordinateSystemConverter`
+        :type opts: dict
+        :return: None
+        :rtype: None
+        """
         self._types = (cart_system, CartesianCoordinates3D)
         super().__init__(**opts)
     @property
     def types(self):
+        """
+        **LLM Docstring**
+
+        The `(source, target)` coordinate-system type pair this converter handles.
+
+        :return: `(cart_system, CartesianCoordinates3D)`
+        :rtype: tuple
+        """
         return self._types
 
     def convert(self, coords, **kw):
+        """
+        **LLM Docstring**
+
+        Pass the coordinates through unchanged, since a plain Cartesian system and a molecular Cartesian system share the same underlying representation.
+
+        :param coords: the coordinates to convert
+        :type coords: np.ndarray
+        :param kw: extra keyword arguments, returned unchanged as the options dict
+        :type kw: dict
+        :return: `(coords, kw)`
+        :rtype: tuple
+        """
         return coords, kw
 
     def convert_many(self, coords, **kwargs):
@@ -1836,13 +2641,47 @@ class MolecularZMatrixToCartesianConverter(CoordinateSystemConverter):
     ...
     """
     def __init__(self, zmat_system, cart_system, **opts):
+        """
+        **LLM Docstring**
+
+        Store the `(zmat_system, cart_system)` type pair this converter handles.
+
+        :param zmat_system: the source Z-matrix coordinate system
+        :type zmat_system: object
+        :param cart_system: the target Cartesian coordinate system
+        :type cart_system: object
+        :param opts: extra options forwarded to the base `CoordinateSystemConverter`
+        :type opts: dict
+        :return: None
+        :rtype: None
+        """
         self._types = (zmat_system, cart_system)
         super().__init__(**opts)
     @property
     def types(self):
+        """
+        **LLM Docstring**
+
+        The `(source, target)` coordinate-system type pair this converter handles.
+
+        :return: `(zmat_system, cart_system)`
+        :rtype: tuple
+        """
         return self._types
 
     def convert(self, coords, **kw):
+        """
+        **LLM Docstring**
+
+        Convert a single frame of Z-matrix coordinates to Cartesians by delegating to `convert_many` on a length-1 batch and unwrapping the result (including the per-frame `'derivs'` entries, if present).
+
+        :param coords: the single-frame Z-matrix coordinates to convert
+        :type coords: np.ndarray
+        :param kw: extra keyword arguments forwarded to `convert_many`
+        :type kw: dict
+        :return: `(cartesian_coords, opts)` for the single frame
+        :rtype: tuple
+        """
         total_points, opts = self.convert_many(coords[np.newaxis], **kw)
         if 'derivs' in opts:
             opts['derivs'] = [o[0] for o in opts['derivs']]
@@ -2048,16 +2887,60 @@ class MolecularZMatrixToRegularZMatrixConverter(CoordinateSystemConverter):
     ...
     """
     def __init__(self, zmat_system, **opts):
+        """
+        **LLM Docstring**
+
+        Store the `(zmat_system, ZMatrixCoordinateSystem)` type pair this converter handles.
+
+        :param zmat_system: the molecular Z-matrix coordinate system being converted from
+        :type zmat_system: object
+        :param opts: extra options forwarded to the base `CoordinateSystemConverter`
+        :type opts: dict
+        :return: None
+        :rtype: None
+        """
         self._types = (zmat_system, ZMatrixCoordinateSystem)
         super().__init__(**opts)
     @property
     def types(self):
+        """
+        **LLM Docstring**
+
+        The `(source, target)` coordinate-system type pair this converter handles.
+
+        :return: `(zmat_system, ZMatrixCoordinateSystem)`
+        :rtype: tuple
+        """
         return self._types
 
     def convert(self, coords, **kw):
+        """
+        **LLM Docstring**
+
+        Pass the coordinates through unchanged, since a molecular Z-matrix system and a plain Z-matrix system share the same underlying representation.
+
+        :param coords: the coordinates to convert
+        :type coords: np.ndarray
+        :param kw: extra keyword arguments, returned unchanged as the options dict
+        :type kw: dict
+        :return: `(coords, kw)`
+        :rtype: tuple
+        """
         return coords, kw
 
     def convert_many(self, coords, **kwargs):
+        """
+        **LLM Docstring**
+
+        Pass a batch of coordinates through unchanged, since a molecular Z-matrix system and a plain Z-matrix system share the same underlying representation.
+
+        :param coords: the batch of coordinates to convert
+        :type coords: np.ndarray
+        :param kwargs: extra keyword arguments, returned unchanged as the options dict
+        :type kwargs: dict
+        :return: `(coords, kwargs)`
+        :rtype: tuple
+        """
         return coords, kwargs
 
 class RegularZMatrixToMolecularZMatrixConverter(CoordinateSystemConverter):
@@ -2066,16 +2949,60 @@ class RegularZMatrixToMolecularZMatrixConverter(CoordinateSystemConverter):
     """
 
     def __init__(self, zmat_system, **opts):
+        """
+        **LLM Docstring**
+
+        Store the `(ZMatrixCoordinateSystem, zmat_system)` type pair this converter handles.
+
+        :param zmat_system: the molecular Z-matrix coordinate system being converted to
+        :type zmat_system: object
+        :param opts: extra options forwarded to the base `CoordinateSystemConverter`
+        :type opts: dict
+        :return: None
+        :rtype: None
+        """
         self._types = (ZMatrixCoordinateSystem, zmat_system)
         super().__init__(**opts)
     @property
     def types(self):
+        """
+        **LLM Docstring**
+
+        The `(source, target)` coordinate-system type pair this converter handles.
+
+        :return: `(ZMatrixCoordinateSystem, zmat_system)`
+        :rtype: tuple
+        """
         return self._types
 
     def convert(self, coords, **kw):
+        """
+        **LLM Docstring**
+
+        Pass the coordinates through unchanged, since a plain Z-matrix system and a molecular Z-matrix system share the same underlying representation.
+
+        :param coords: the coordinates to convert
+        :type coords: np.ndarray
+        :param kw: extra keyword arguments, returned unchanged as the options dict
+        :type kw: dict
+        :return: `(coords, kw)`
+        :rtype: tuple
+        """
         return coords, kw
 
     def convert_many(self, coords, **kwargs):
+        """
+        **LLM Docstring**
+
+        Pass a batch of coordinates through unchanged, since a plain Z-matrix system and a molecular Z-matrix system share the same underlying representation.
+
+        :param coords: the batch of coordinates to convert
+        :type coords: np.ndarray
+        :param kwargs: extra keyword arguments, returned unchanged as the options dict
+        :type kwargs: dict
+        :return: `(coords, kwargs)`
+        :rtype: tuple
+        """
         return coords, kwargs
 
 class MolecularCartesianToGICConverter(CartesianToGICSystemConverter):
@@ -2083,12 +3010,34 @@ class MolecularCartesianToGICConverter(CartesianToGICSystemConverter):
     ...
     """
     def __init__(self, cart_system, zmat_system, **opts):
+        """
+        **LLM Docstring**
+
+        Store the `(cart_system, zmat_system)` type pair this converter handles, and precompute which internal-coordinate specs are periodic (angle-like specs with more than 2 atoms) for later use in handling periodic wraparound.
+
+        :param cart_system: the source Cartesian coordinate system
+        :type cart_system: object
+        :param zmat_system: the target generic-internal coordinate system
+        :type zmat_system: object
+        :param opts: extra options forwarded to the base converter
+        :type opts: dict
+        :return: None
+        :rtype: None
+        """
         self._types = (cart_system, zmat_system)
         self._periodics = np.where([len(x) > 2 for x in zmat_system.converter_options['specs']])[0]
         super().__init__(**opts)
 
     @property
     def types(self):
+        """
+        **LLM Docstring**
+
+        The `(source, target)` coordinate-system type pair this converter handles.
+
+        :return: `(cart_system, zmat_system)`
+        :rtype: tuple
+        """
         return self._types
 
     def convert_many(self, coords, *,
@@ -2147,10 +3096,32 @@ class MolecularGICToCartesianConverter(GICSystemToCartesianConverter):
     ...
     """
     def __init__(self, cart_system, zmat_system, **opts):
+        """
+        **LLM Docstring**
+
+        Store the `(cart_system, zmat_system)` type pair this converter handles.
+
+        :param cart_system: the target Cartesian coordinate system
+        :type cart_system: object
+        :param zmat_system: the source generic-internal coordinate system
+        :type zmat_system: object
+        :param opts: extra options forwarded to the base converter
+        :type opts: dict
+        :return: None
+        :rtype: None
+        """
         self._types = (cart_system, zmat_system)
         super().__init__(**opts)
     @property
     def types(self):
+        """
+        **LLM Docstring**
+
+        The `(source, target)` coordinate-system type pair this converter handles.
+
+        :return: `(cart_system, zmat_system)`
+        :rtype: tuple
+        """
         return self._types
     def convert_many(self,
                      coords, *,
@@ -2159,6 +3130,26 @@ class MolecularGICToCartesianConverter(GICSystemToCartesianConverter):
                      redundant_generator=None,
                      reference_internals=None,
                      **kw):
+        """
+        **LLM Docstring**
+
+        Convert a batch of generic-internal coordinates to Cartesians, forwarding any redundant transformation (and its transpose as the corresponding inverse) as the `transformations` argument to the base converter.
+
+        :param coords: the batch of internal coordinates to convert
+        :type coords: np.ndarray
+        :param redundant_transformation: the redundant-to-non-redundant transformation used to build the internal coordinates, if any
+        :type redundant_transformation: np.ndarray | None
+        :param redundant_inverse: accepted but not directly used (recomputed from `redundant_transformation` if needed)
+        :type redundant_inverse: np.ndarray | None
+        :param redundant_generator: accepted for interface consistency but not used in this method's body
+        :type redundant_generator: object | None
+        :param reference_internals: the reference internal coordinates the redundant transformation is defined relative to
+        :type reference_internals: np.ndarray | None
+        :param kw: extra keyword arguments forwarded to the base converter's `convert_many`
+        :type kw: dict
+        :return: `(carts, opts)`
+        :rtype: tuple
+        """
         # if redundant_inverse is None and redundant_transformation is not None:
         #     redundant_inverse = np.moveaxis(redundant_transformation, -1, -2)
         carts, opts = super().convert_many(coords,
@@ -2180,16 +3171,58 @@ class RegularGICToMolecularGICConverter(CoordinateSystemConverter):
     """
 
     def __init__(self, **opts):
+        """
+        **LLM Docstring**
+
+        Store the `(GenericInternalCoordinates, MolecularGenericInternalCoordinateSystem)` type pair this converter handles.
+
+        :param opts: extra options forwarded to the base `CoordinateSystemConverter`
+        :type opts: dict
+        :return: None
+        :rtype: None
+        """
         self._types = (GenericInternalCoordinates, MolecularGenericInternalCoordinateSystem)
         super().__init__(**opts)
     @property
     def types(self):
+        """
+        **LLM Docstring**
+
+        The `(source, target)` coordinate-system type pair this converter handles.
+
+        :return: `(GenericInternalCoordinates, MolecularGenericInternalCoordinateSystem)`
+        :rtype: tuple
+        """
         return self._types
 
     def convert(self, coords, **kw):
+        """
+        **LLM Docstring**
+
+        Pass the coordinates through unchanged, since a plain generic-internal system and a molecular generic-internal system share the same underlying representation.
+
+        :param coords: the coordinates to convert
+        :type coords: np.ndarray
+        :param kw: extra keyword arguments, returned unchanged as the options dict
+        :type kw: dict
+        :return: `(coords, kw)`
+        :rtype: tuple
+        """
         return coords, kw
 
     def convert_many(self, coords, **kwargs):
+        """
+        **LLM Docstring**
+
+        Pass a batch of coordinates through unchanged, since a plain generic-internal system and a molecular generic-internal system share the same underlying representation.
+
+        :param coords: the batch of coordinates to convert
+        :type coords: np.ndarray
+        :param kwargs: extra keyword arguments, returned unchanged as the options dict
+        :type kwargs: dict
+        :return: `(coords, kwargs)`
+        :rtype: tuple
+        """
         return coords, kwargs
 
 class MolecularGICConverterToRegularGIC(CoordinateSystemConverter):
@@ -2198,16 +3231,58 @@ class MolecularGICConverterToRegularGIC(CoordinateSystemConverter):
     """
 
     def __init__(self, **opts):
+        """
+        **LLM Docstring**
+
+        Store the `(MolecularGenericInternalCoordinateSystem, GenericInternalCoordinates)` type pair this converter handles.
+
+        :param opts: extra options forwarded to the base `CoordinateSystemConverter`
+        :type opts: dict
+        :return: None
+        :rtype: None
+        """
         self._types = (MolecularGenericInternalCoordinateSystem, GenericInternalCoordinates)
         super().__init__(**opts)
     @property
     def types(self):
+        """
+        **LLM Docstring**
+
+        The `(source, target)` coordinate-system type pair this converter handles.
+
+        :return: `(MolecularGenericInternalCoordinateSystem, GenericInternalCoordinates)`
+        :rtype: tuple
+        """
         return self._types
 
     def convert(self, coords, **kw):
+        """
+        **LLM Docstring**
+
+        Pass the coordinates through unchanged, since a molecular generic-internal system and a plain generic-internal system share the same underlying representation.
+
+        :param coords: the coordinates to convert
+        :type coords: np.ndarray
+        :param kw: extra keyword arguments, returned unchanged as the options dict
+        :type kw: dict
+        :return: `(coords, kw)`
+        :rtype: tuple
+        """
         return coords, kw
 
     def convert_many(self, coords, **kwargs):
+        """
+        **LLM Docstring**
+
+        Pass a batch of coordinates through unchanged, since a molecular generic-internal system and a plain generic-internal system share the same underlying representation.
+
+        :param coords: the batch of coordinates to convert
+        :type coords: np.ndarray
+        :param kwargs: extra keyword arguments, returned unchanged as the options dict
+        :type kwargs: dict
+        :return: `(coords, kwargs)`
+        :rtype: tuple
+        """
         return coords, kwargs
 
 class MolecularIZCoordinateSystem(MolecularZMatrixCoordinateSystem):
@@ -2235,6 +3310,48 @@ class MolecularIZToCartesianConverter(MolecularZMatrixToCartesianConverter):
                      fixed_atoms=None,
                      fixed_coords=None,
                      **kwargs):
+        """
+        **LLM Docstring**
+
+        Convert a batch of iterative-Z-matrix coordinates to Cartesians, filling in sensible defaults for the extra dummy embedding masses/fixed atoms/fixed coordinates used by the iterative scheme before delegating to the base `MolecularZMatrixToCartesianConverter.convert_many`.
+
+        :param coords: the batch of iterative-Z-matrix coordinates to convert
+        :type coords: np.ndarray
+        :param masses: the atomic masses
+        :type masses: np.ndarray
+        :param dummy_positions: indices of dummy atoms
+        :type dummy_positions: list[int]
+        :param ref_coords: the reference Cartesian coordinates for the embedding
+        :type ref_coords: np.ndarray
+        :param origins: the embedding origin points
+        :type origins: np.ndarray | None
+        :param axes: the embedding reference axes
+        :type axes: np.ndarray | None
+        :param ordering: the Z-matrix atom ordering
+        :type ordering: np.ndarray | None
+        :param reembed: whether to re-embed (Eckart-align) during conversion
+        :type reembed: bool
+        :param axes_choice: which axis pair was chosen for the embedding
+        :type axes_choice: tuple | None
+        :param return_derivs: which derivative orders to return
+        :type return_derivs: object | None
+        :param strip_dummies: whether to exclude dummy-atom coordinates
+        :type strip_dummies: bool
+        :param strip_embedding: whether to strip the fixed embedding coordinates
+        :type strip_embedding: bool
+        :param planar_ref_tolerance: tolerance for detecting a (near-)planar reference structure
+        :type planar_ref_tolerance: float | None
+        :param embedding_masses: masses to use for the 3 extra dummy embedding atoms, plus the real atoms; defaults to very heavy dummy masses
+        :type embedding_masses: np.ndarray | None
+        :param fixed_atoms: indices treated as fixed for the iterative embedding; defaults to the first 3 (dummy) atoms
+        :type fixed_atoms: list[int] | None
+        :param fixed_coords: coordinate indices treated as fixed; defaults to the standard embedding coordinates offset by the 3 dummy atoms
+        :type fixed_coords: list[int] | None
+        :param kwargs: extra keyword arguments forwarded to the base converter
+        :type kwargs: dict
+        :return: `(carts, opts)`, with `opts['masses']` set to the original (non-dummy-augmented) masses
+        :rtype: tuple
+        """
         if embedding_masses is None:
             embedding_masses = np.concatenate([[1e8] * 3, masses])
         if fixed_atoms is None:
@@ -2265,16 +3382,60 @@ class RegularIZToMolecularIZConverter(CoordinateSystemConverter):
     """
 
     def __init__(self, zmat_system, **opts):
+        """
+        **LLM Docstring**
+
+        Store the `(IterativeZMatrixCoordinates, zmat_system)` type pair this converter handles.
+
+        :param zmat_system: the molecular iterative-Z-matrix coordinate system being converted to
+        :type zmat_system: object
+        :param opts: extra options forwarded to the base `CoordinateSystemConverter`
+        :type opts: dict
+        :return: None
+        :rtype: None
+        """
         self._types = (McUtils.Coordinerds.IterativeZMatrixCoordinates, zmat_system)
         super().__init__(**opts)
     @property
     def types(self):
+        """
+        **LLM Docstring**
+
+        The `(source, target)` coordinate-system type pair this converter handles.
+
+        :return: `(IterativeZMatrixCoordinates, zmat_system)`
+        :rtype: tuple
+        """
         return self._types
 
     def convert(self, coords, **kw):
+        """
+        **LLM Docstring**
+
+        Pass the coordinates through unchanged, since a plain iterative-Z-matrix system and a molecular one share the same underlying representation.
+
+        :param coords: the coordinates to convert
+        :type coords: np.ndarray
+        :param kw: extra keyword arguments, returned unchanged as the options dict
+        :type kw: dict
+        :return: `(coords, kw)`
+        :rtype: tuple
+        """
         return coords, kw
 
     def convert_many(self, coords, **kwargs):
+        """
+        **LLM Docstring**
+
+        Pass a batch of coordinates through unchanged, since a plain iterative-Z-matrix system and a molecular one share the same underlying representation.
+
+        :param coords: the batch of coordinates to convert
+        :type coords: np.ndarray
+        :param kwargs: extra keyword arguments, returned unchanged as the options dict
+        :type kwargs: dict
+        :return: `(coords, kwargs)`
+        :rtype: tuple
+        """
         return coords, kwargs
 
 class MolecularIZToRegularIZConverter(CoordinateSystemConverter):
@@ -2284,15 +3445,59 @@ class MolecularIZToRegularIZConverter(CoordinateSystemConverter):
 
 
     def __init__(self, zmat_system, **opts):
+        """
+        **LLM Docstring**
+
+        Store the `(zmat_system, IterativeZMatrixCoordinates)` type pair this converter handles.
+
+        :param zmat_system: the molecular iterative-Z-matrix coordinate system being converted from
+        :type zmat_system: object
+        :param opts: extra options forwarded to the base `CoordinateSystemConverter`
+        :type opts: dict
+        :return: None
+        :rtype: None
+        """
         self._types = (zmat_system, McUtils.Coordinerds.IterativeZMatrixCoordinates)
         super().__init__(**opts)
 
     @property
     def types(self):
+        """
+        **LLM Docstring**
+
+        The `(source, target)` coordinate-system type pair this converter handles.
+
+        :return: `(zmat_system, IterativeZMatrixCoordinates)`
+        :rtype: tuple
+        """
         return self._types
 
     def convert(self, coords, **kw):
+        """
+        **LLM Docstring**
+
+        Pass the coordinates through unchanged, since a molecular iterative-Z-matrix system and a plain one share the same underlying representation.
+
+        :param coords: the coordinates to convert
+        :type coords: np.ndarray
+        :param kw: extra keyword arguments, returned unchanged as the options dict
+        :type kw: dict
+        :return: `(coords, kw)`
+        :rtype: tuple
+        """
         return coords, kw
 
     def convert_many(self, coords, **kwargs):
+        """
+        **LLM Docstring**
+
+        Pass a batch of coordinates through unchanged, since a molecular iterative-Z-matrix system and a plain one share the same underlying representation.
+
+        :param coords: the batch of coordinates to convert
+        :type coords: np.ndarray
+        :param kwargs: extra keyword arguments, returned unchanged as the options dict
+        :type kwargs: dict
+        :return: `(coords, kwargs)`
+        :rtype: tuple
+        """
         return coords, kwargs

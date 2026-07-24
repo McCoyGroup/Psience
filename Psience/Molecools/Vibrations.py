@@ -42,6 +42,16 @@ class MolecularVibrations:
         self._widg = None
 
     def change_mol(self, mol):
+        """
+        **LLM Docstring**
+
+        Rebind this set of vibrations to a different molecule, re-expressing the basis for the new molecule while keeping the same frequencies and reference coordinates.
+
+        :param mol: the new molecule to associate with the vibrations
+        :type mol: AbstractMolecule
+        :return: a new `MolecularVibrations` built from `mol`, with `basis` changed via `basis.change_mol(mol)` and the same `freqs`/`init` as `self`
+        :rtype: MolecularVibrations
+        """
         return type(self)(
             mol,
             self._basis.change_mol(mol),
@@ -51,20 +61,68 @@ class MolecularVibrations:
 
     @property
     def basis(self):
+        """
+        **LLM Docstring**
+
+        Property getter/setter for the underlying vibrational basis (a `MolecularNormalModes` object) used to describe the vibrations.
+
+        :param basis: (setter only) the new basis to store
+        :type basis: MolecularNormalModes
+        :return: (getter) the stored basis
+        :rtype: MolecularNormalModes
+        """
         return self._basis
     @basis.setter
     def basis(self, basis):
+        """
+        **LLM Docstring**
+
+        Property getter/setter for the underlying vibrational basis (a `MolecularNormalModes` object) used to describe the vibrations.
+
+        :param basis: (setter only) the new basis to store
+        :type basis: MolecularNormalModes
+        :return: (getter) the stored basis
+        :rtype: MolecularNormalModes
+        """
         self._basis = basis
     @property
     def molecule(self):
+        """
+        **LLM Docstring**
+
+        Property getter/setter for the molecule associated with these vibrations. Setting it also propagates the new molecule to `self.basis.molecule`.
+
+        :param mol: (setter only) the new molecule to associate
+        :type mol: AbstractMolecule
+        :return: (getter) the stored molecule
+        :rtype: AbstractMolecule
+        """
         return self._mol
     @molecule.setter
     def molecule(self, mol):
+        """
+        **LLM Docstring**
+
+        Property getter/setter for the molecule associated with these vibrations. Setting it also propagates the new molecule to `self.basis.molecule`.
+
+        :param mol: (setter only) the new molecule to associate
+        :type mol: AbstractMolecule
+        :return: (getter) the stored molecule
+        :rtype: AbstractMolecule
+        """
         self._mol = mol
         self._basis.molecule = mol
 
     @property
     def freqs(self):
+        """
+        **LLM Docstring**
+
+        Frequencies associated with the vibrations. Returns the explicitly stored frequencies if present; otherwise falls back to `self.basis.freqs` when the basis defines that attribute.
+
+        :return: the vibrational frequencies, or `None` if neither `self` nor `self.basis` has them
+        :rtype: np.ndarray | None
+        """
         freqs = self._freqs
         if freqs is None and hasattr(self.basis, "freqs"):
             freqs = self.basis.freqs
@@ -85,6 +143,14 @@ class MolecularVibrations:
             return self._coords
 
     def __len__(self):
+        """
+        **LLM Docstring**
+
+        Number of vibrational modes, taken from the number of columns of the basis's mode matrix.
+
+        :return: the number of vibrational modes
+        :rtype: int
+        """
         return self._basis.matrix.shape[1]
 
     def displace(self, displacements=None, amt=.1, n=1, which=0):
@@ -204,12 +270,38 @@ class MolecularVibrations:
             return Animator(figure, None, plot_method=animate, **anim_opts)
 
     def _ipython_display_(self):
+        """
+        **LLM Docstring**
+
+        IPython/Jupyter display hook: builds the interactive widget via `to_widget` and displays it.
+
+        :return: the result of displaying the widget
+        :rtype: object
+        """
         return self.to_widget().display()
 
     def to_widget(self):
+        """
+        **LLM Docstring**
+
+        Build (and cache) an interactive Jupyter widget for browsing through the vibrational modes: a menu to select which mode (`which`), paired with a live display that calls `self.visualize` for the selected mode.
+
+        :return: the constructed `JHTML.Div` widget, or `None` if a widget was already built and cached in `self._widg`
+        :rtype: JHTML.Div | None
+        """
         from McUtils.Jupyter import JHTML, MenuSelect, ButtonGroup, FunctionDisplay, VariableNamespace
 
         def get_which(which):
+            """
+            **LLM Docstring**
+
+            Parse the mode-selector menu's string value into a zero-based mode index, defaulting to `0` if the value can't be parsed as an integer.
+
+            :param which: the raw string value from the menu widget (expected to be a 1-based mode number as text)
+            :type which: str
+            :return: the zero-based mode index
+            :rtype: int
+            """
             try:
                 which = int(which.strip())
             except:
@@ -309,6 +401,14 @@ class MolecularVibrations:
                           )
 
     def __repr__(self):
+        """
+        **LLM Docstring**
+
+        Debug string representation showing the class name, basis, and molecule.
+
+        :return: string of the form `ClassName(basis, molecule)`
+        :rtype: str
+        """
         return "{}({}, {})".format(type(self).__name__, self.basis, self.molecule)
 class MolecularNormalModes(CoordinateSystem):
     """
@@ -373,14 +473,44 @@ class MolecularNormalModes(CoordinateSystem):
         self.freqs = freqs
     @property
     def molecule(self):
+        """
+        **LLM Docstring**
+
+        Property getter/setter for the molecule these normal modes belong to. Setting it also propagates the new molecule to `self.basis.molecule` before updating `self._molecule`.
+
+        :param mol: (setter only) the new molecule to associate
+        :type mol: AbstractMolecule
+        :return: (getter) the stored molecule
+        :rtype: AbstractMolecule
+        """
         return self._molecule
     @molecule.setter
     def molecule(self, mol):
+        """
+        **LLM Docstring**
+
+        Property getter/setter for the molecule these normal modes belong to. Setting it also propagates the new molecule to `self.basis.molecule` before updating `self._molecule`.
+
+        :param mol: (setter only) the new molecule to associate
+        :type mol: AbstractMolecule
+        :return: (getter) the stored molecule
+        :rtype: AbstractMolecule
+        """
         # thought I wanted this to reset the origin and things..
         self.basis.molecule = mol
         self._molecule = mol
 
     def change_mol(self, mol):
+        """
+        **LLM Docstring**
+
+        Rebind these normal modes to a different molecule, keeping the mode matrix, name, frequencies, internal-coordinate flag, origin, basis, and inverse the same.
+
+        :param mol: the new molecule to associate with the normal modes
+        :type mol: AbstractMolecule
+        :return: a new `MolecularNormalModes` for `mol` built from this object's `matrix`, `name`, `freqs`, `in_internals`, `_origin`, `basis`, and `inverse`
+        :rtype: MolecularNormalModes
+        """
         return type(self)(
             mol,
             self.matrix,
@@ -394,13 +524,44 @@ class MolecularNormalModes(CoordinateSystem):
 
     @property
     def coords_by_modes(self):
+        """
+        **LLM Docstring**
+
+        Matrix mapping mode displacements back to coordinate displacements (i.e. the inverse transformation).
+
+        :return: the stored inverse matrix, `self.inverse`
+        :rtype: np.ndarray
+        """
         return self.inverse
     @property
     def modes_by_coords(self):
+        """
+        **LLM Docstring**
+
+        Matrix mapping coordinate displacements onto normal-mode displacements.
+
+        :return: the stored mode matrix, `self.matrix`
+        :rtype: np.ndarray
+        """
         return self.matrix
 
     # also need a Cartesian equivalent of this
     def to_internals(self, intcrds=None, dYdR=None, dRdY=None):
+        """
+        **LLM Docstring**
+
+        Intended to convert Cartesian-basis normal modes into an internal-coordinate representation using the supplied Jacobians. The method immediately raises `NotImplementedError` directing callers to use the newer `NormalModes` object instead, so the remaining body (computing `dQdR`/`dRdQ` and constructing a new internal-coordinate `MolecularNormalModes`) is dead code that never executes.
+
+        :param intcrds: internal-coordinate system to convert into; if `None`, taken from `self.molecule.internal_coordinates`
+        :type intcrds: CoordinateSet | None
+        :param dYdR: Jacobian of mass-weighted Cartesians with respect to internal coordinates; computed from `intcrds`/`molecule` if not given (unreachable)
+        :type dYdR: np.ndarray | None
+        :param dRdY: Jacobian of internal coordinates with respect to mass-weighted Cartesians; computed if not given (unreachable)
+        :type dRdY: np.ndarray | None
+        :return: never returns; always raises
+        :rtype: None
+        :raises NotImplementedError: always, instructing the caller to use the new `NormalModes` object
+        """
         raise NotImplementedError("use new `NormalModes` object")
         if self.in_internals:
             return self
@@ -435,6 +596,14 @@ class MolecularNormalModes(CoordinateSystem):
                               )
     @property
     def origin(self):
+        """
+        **LLM Docstring**
+
+        Reference geometry the normal modes are expanded about. If no explicit origin was stored, falls back to the molecule's internal coordinates (if `in_internals`) or Cartesian coordinates otherwise.
+
+        :return: the origin coordinates
+        :rtype: CoordinateSet
+        """
         if self._origin is None:
             if self.in_internals:
                 return self.molecule.internal_coordinates
