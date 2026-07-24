@@ -77,9 +77,9 @@ We also have expressions for G-matrix elements from Frederick and Woywood to use
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-664de2" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-664de2"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-ee2b68" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-ee2b68"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-664de2" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-ee2b68" markdown="1">
  - [FChkFileDipoleSurface](#FChkFileDipoleSurface)
 - [LogFileDipoleSurface](#LogFileDipoleSurface)
 - [LogFilePotentialSurface](#LogFilePotentialSurface)
@@ -87,9 +87,9 @@ We also have expressions for G-matrix elements from Frederick and Woywood to use
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-6cb104" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-6cb104"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-7b91a9" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-7b91a9"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-6cb104" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-7b91a9" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces

@@ -1,8 +1,8 @@
 ## <a id="Psience.Molecools.Properties.BondingProperties">BondingProperties</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L812)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L812?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L840)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L840?message=Update%20Docs)]
 </div>
 
 The set of properties that depend only on bonding
@@ -26,8 +26,8 @@ and that kind of format
 get_prop_adjacency_matrix(cls, atoms, bonds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L818)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L818?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L846)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L846?message=Update%20Docs)]
 </div>
 Returns the adjacency matrix for the molecule
   - `bonds`: `Iterable[int]`
@@ -42,8 +42,8 @@ Returns the adjacency matrix for the molecule
 get_prop_connectivity(cls, atoms, bonds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L836)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L836?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L864)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L864?message=Update%20Docs)]
 </div>
 Returns the adjacency matrix for the molecule
   - `bonds`: `Iterable[int]`
@@ -58,8 +58,8 @@ Returns the adjacency matrix for the molecule
 get_prop_fragments(cls, atoms, bonds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L854)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L854?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L882)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L882?message=Update%20Docs)]
 </div>
 Returns the fragments for the molecule
   - `bonds`: `Iterable[int]`
@@ -74,8 +74,8 @@ Returns the fragments for the molecule
 get_prop_zmat_ordering(cls, atoms, bonds): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L875)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L875?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L903)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L903?message=Update%20Docs)]
 </div>
 Gets a guessed Z-matrix ordering for the molecule with connectivity defined by bonds based on the following:
 1. Fragments are separated out
@@ -112,8 +112,8 @@ Gets a guessed Z-matrix ordering for the molecule with connectivity defined by b
 get_prop_guessed_bonds(cls, mol, tol=1.05, guess_type=True, covalent_radius_scaling=1.1): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L914)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L914?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L942)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L942?message=Update%20Docs)]
 </div>
 Guesses the bonds for the molecule by finding the ones that are less than some percentage of a single bond for that
 pair of elements
@@ -172,7 +172,7 @@ pair of elements
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/Properties/BondingProperties.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/Properties/BondingProperties.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L812?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L840?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

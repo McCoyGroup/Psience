@@ -1,8 +1,8 @@
 ## <a id="Psience.Molecools.Properties.OpenBabelMolManager">OpenBabelMolManager</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L1664)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L1664?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L1849)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L1849?message=Update%20Docs)]
 </div>
 
 
@@ -26,9 +26,18 @@ name: str
 __init__(self, mol, obmol=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L1666)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L1666?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties.py#L1851)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L1851?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Wrap an OpenBabel molecule object for a given molecule, optionally supplying an already-constructed OpenBabel molecule.
+  - `mol`: `AbstractMolecule`
+    > the molecule this manager wraps an OpenBabel representation for
+  - `obmol`: `object | None`
+    > an existing OpenBabel `OBMol` object to use, if already available
+  - `:returns`: `None`
+    > None
 
 
 <a id="Psience.Molecools.Properties.OpenBabelMolManager.load" class="docs-object-method">&nbsp;</a> 
@@ -36,9 +45,14 @@ __init__(self, mol, obmol=None):
 load(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1670)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1670?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1867)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1867?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Lazily build (and cache) the underlying OpenBabel `OBMol` object by converting the molecule to an SDF string via `SDFFormatHandler` and reading it in with `pybel`.
+  - `:returns`: `object`
+    > the OpenBabel `OBMol` object
 
 
 <a id="Psience.Molecools.Properties.OpenBabelMolManager.update" class="docs-object-method">&nbsp;</a> 
@@ -46,9 +60,16 @@ load(self):
 update(self, val): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1677)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1677?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1882)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1882?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Replace the cached OpenBabel molecule object.
+  - `val`: `object`
+    > the new OpenBabel molecule object
+  - `:returns`: `None`
+    > None
 
 
 <a id="Psience.Molecools.Properties.OpenBabelMolManager.apply_transformation" class="docs-object-method">&nbsp;</a> 
@@ -56,8 +77,8 @@ update(self, val):
 apply_transformation(self, transf): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1680)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1680?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1895)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1895?message=Update%20Docs)]
 </div>
 Applies a transformation to the held values
   - `transf`: `MolecularTransformation`
@@ -71,8 +92,8 @@ Applies a transformation to the held values
 insert_atoms(self, atoms, coords, where): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1690)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1690?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1905)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1905?message=Update%20Docs)]
 </div>
 Handles the insertion of new atoms into the structure
   - `atoms`: `tuple[str]`
@@ -90,8 +111,8 @@ Handles the insertion of new atoms into the structure
 delete_atoms(self, where): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1704)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1704?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1919)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/OpenBabelMolManager.py#L1919?message=Update%20Docs)]
 </div>
 Handles the deletion from the structure
   - `atoms`: `tuple[str]`
@@ -155,7 +176,7 @@ Handles the deletion from the structure
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Molecools/Properties/OpenBabelMolManager.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Molecools/Properties/OpenBabelMolManager.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L1664?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties.py#L1849?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
