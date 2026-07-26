@@ -292,7 +292,7 @@ class MoleculePlotter:
         """
         if mode is None:
             if backend is not None:
-                mode, backend = cls.backend_aliases.get(backend, (None, backend))
+                mode, backend = cls.backend_aliases.get(backend, (backend, backend))
             else:
                 if len(geometries) > 0:
                     backend = 'x3d'
@@ -1114,6 +1114,7 @@ class MoleculePlotter:
                 pp1,
                 mp,
                 bond_radius,
+                closed=(True, False),
                 **sty1
             )
             sty2 = (plotos | cylinder_options | b_sty_2)
@@ -1123,6 +1124,7 @@ class MoleculePlotter:
                 mp,
                 pp2,
                 bond_radius,
+                closed=(False, True),
                 **sty2
             )
             bond_objs.extend([cc1, cc2])
@@ -1876,6 +1878,11 @@ class MoleculePlotter:
         :rtype: list
         """
         prims = []
+        if dev.is_dict_like(atom_text):
+            _ = [None] * len(geom)
+            for i,s in atom_text.items():
+                _[i] = s
+            atom_text = _
         for a, r, t in zip(geom, radii, atom_text):
             if t is None: continue
 
