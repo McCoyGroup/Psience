@@ -292,7 +292,7 @@ class MoleculePlotter:
         """
         if mode is None:
             if backend is not None:
-                mode, backend = cls.backend_aliases.get(backend, (None, backend))
+                mode, backend = cls.backend_aliases.get(backend, (backend, backend))
             else:
                 if len(geometries) > 0:
                     backend = 'x3d'
