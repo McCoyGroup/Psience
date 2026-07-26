@@ -4946,7 +4946,7 @@ class Molecule(AbstractMolecule):
         :param etc: extra options forwarded to the surface constructor
         :type etc: dict
         :return: the constructed surface
-        :rtype: object
+        :rtype: zach.SphereUnionSurface
         """
         if surface_type is None:
             surface_type = zach.SphereUnionSurface

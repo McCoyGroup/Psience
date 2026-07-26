@@ -22,7 +22,7 @@ class Reaction:
                  atom_mapping=None,
                  use_product_structure=True,
                  fragment_expansion_method=dev.default,
-                 optimize=True,
+                 optimize=False,
                  energy_evaluator=None,
                  profile_generator=None,
                  **fragment_initialization_opts

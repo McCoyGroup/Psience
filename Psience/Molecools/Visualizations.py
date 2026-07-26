@@ -477,6 +477,7 @@ class MoleculePlotter:
         :rtype: str
         """
         return cls.atom_color_updates.get(atom_data["ElementSymbol"], atom_data["IconColor"])
+    material_backends = {'mesh3D', 'x3d'}
     def _prep_display_atom_style(self,
                                  atom_style,
                                  highlight_atoms,
@@ -514,7 +515,7 @@ class MoleculePlotter:
 
         if atom_style is not False:
             base_atom_style = {}
-            if reflectiveness is not None and backend == 'x3d':
+            if reflectiveness is not None and backend in self.material_backends:
                 base_atom_style.update({
                     'specularity': 'white',
                     'shininess': 100 * np.clip(1.1 - reflectiveness, 0, 1)
@@ -612,7 +613,7 @@ class MoleculePlotter:
             base_bond_style = {}
             if capped_bonds:
                 base_bond_style['capped'] = True
-            if reflectiveness is not None and backend == 'x3d':
+            if reflectiveness is not None and backend in self.material_backends:
                 base_bond_style.update({
                     'specularity': 'white',
                     'shininess': 100 * np.clip(1.1 - reflectiveness, 0, 1)
