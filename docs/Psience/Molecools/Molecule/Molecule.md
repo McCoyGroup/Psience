@@ -2661,7 +2661,7 @@ Build a surface representation of the molecule (by default, a union of per-atom 
     > uniform scale factor applied to all radii
   - `etc`: `dict`
     > extra options forwarded to the surface constructor
-  - `:returns`: `object`
+  - `:returns`: `zach.SphereUnionSurface`
     > the constructed surface
 
 
