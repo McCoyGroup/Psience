@@ -46,6 +46,16 @@ class BaseSpectrum:
         return type(self)(self.frequencies[pos], self.intensities[pos], **self.meta)
 
     def __getitem__(self, item):
+        """
+        **LLM Docstring**
+
+        Index into the spectrum: a scalar index returns the corresponding `(frequency, intensity)` pair, while any other index (slice, array, etc.) returns a subspectrum via `take_subspectrum`.
+
+        :param item: the index or slice to apply
+        :type item: int | slice | np.ndarray
+        :return: a `(frequency, intensity)` pair for a scalar index, or a subspectrum otherwise
+        :rtype: tuple[float, float] | BaseSpectrum
+        """
 
         f = self.frequencies[item]
         if isinstance(f, (int, float, np.integer, np.floating)):
@@ -169,6 +179,22 @@ class DiscreteSpectrum(BaseSpectrum):
 
     @classmethod
     def from_raman_moments(cls, frequencies, transition_polarizabilities, pump_frequency=0, **meta):
+        """
+        **LLM Docstring**
+
+        Build a discrete Raman spectrum from transition frequencies and polarizability transition moments (in atomic units), converting frequencies to wavenumbers and computing intensities from the transition-polarizability magnitudes scaled by the (pump-shifted) frequency to the fourth power.
+
+        :param frequencies: the transition frequencies, in Hartrees
+        :type frequencies: np.ndarray
+        :param transition_polarizabilities: the polarizability transition-moment tensors
+        :type transition_polarizabilities: np.ndarray
+        :param pump_frequency: the pump laser frequency to add before the frequency^4 scaling
+        :type pump_frequency: float
+        :param meta: extra metadata stored on the spectrum
+        :type meta: dict
+        :return: the constructed Raman spectrum
+        :rtype: DiscreteSpectrum
+        """
         #TODO: handle units
         diff_freqs = (frequencies + pump_frequency)**4
         transition_strengths = np.sum(np.sum(transition_polarizabilities**2, axis=-1), axis=-1)
@@ -181,6 +207,16 @@ class DiscreteSpectrum(BaseSpectrum):
         )
 
     def normalize(self, which=None):
+        """
+        **LLM Docstring**
+
+        Build a copy of the spectrum with intensities normalized by either the overall maximum intensity or a specific reference intensity.
+
+        :param which: the index of a specific transition to normalize against; if `None`, normalizes by the maximum intensity
+        :type which: int | None
+        :return: the normalized spectrum
+        :rtype: DiscreteSpectrum
+        """
         return type(self)(
             self.frequencies,
             self.intensities / (np.max(self.intensities) if which is None else self.intensities[which]),
@@ -468,6 +504,16 @@ class MultiSpectrum:
         self.meta = meta
 
     def __getitem__(self, item):
+        """
+        **LLM Docstring**
+
+        Index into the collection of spectra: a scalar index returns the corresponding `BaseSpectrum` directly, while any other index (slice, array, etc.) returns a new `MultiSpectrum` wrapping the selected subset.
+
+        :param item: the index or slice to apply
+        :type item: int | slice | np.ndarray
+        :return: the selected spectrum, or a `MultiSpectrum` wrapping the selected subset
+        :rtype: BaseSpectrum | MultiSpectrum
+        """
 
         specs = self.specs[item]
         if isinstance(specs, BaseSpectrum):

@@ -45,6 +45,14 @@ class BaseDVR(metaclass=abc.ABCMeta):
             self.logger = Logger(logger)
 
     def __repr__(self):
+        """
+        **LLM Docstring**
+
+        Debug string representation showing the class name, domain, number of grid points, and potential function.
+
+        :return: string of the form `ClassName(domain, pts=divs, pot=potential_function)`
+        :rtype: str
+        """
         if self.potential_function is not None:
             return "{}({}, pts={}, pot={})".format(
                 type(self).__name__,
@@ -61,12 +69,52 @@ class BaseDVR(metaclass=abc.ABCMeta):
             )
 
     def _logger(self, logger):
+        """
+        **LLM Docstring**
+
+        Resolve which logger to use for an operation: the given `logger` if not `None`, otherwise this DVR's own stored logger.
+
+        :param logger: an explicit logger to use, or `None` to fall back to `self.logger`
+        :type logger: Logger | None
+        :return: the resolved logger
+        :rtype: Logger
+        """
         return self.logger if logger is None else logger
 
     @abc.abstractmethod
     def get_grid(self, domain=None, divs=None, **kwargs):
+        """
+        **LLM Docstring**
+
+        Abstract hook for building this DVR's 1D grid over the given domain/division count. Concrete DVR subclasses must implement this.
+
+        :param domain: the coordinate domain to build the grid over
+        :type domain: tuple | None
+        :param divs: the number of grid points
+        :type divs: int | None
+        :param kwargs: extra representation-specific options
+        :type kwargs: dict
+        :return: never returns on the base class
+        :rtype: np.ndarray
+        :raises NotImplementedError: always, on the base class
+        """
         raise NotImplementedError("abstract interface")
     def grid(self, domain=None, divs=None, **kwargs):
+        """
+        **LLM Docstring**
+
+        Build (or retrieve) this DVR's grid, falling back to the stored `domain`/`divs` if not given explicitly, via `get_grid`.
+
+        :param domain: the coordinate domain to build the grid over; defaults to `self.domain`
+        :type domain: tuple | None
+        :param divs: the number of grid points; defaults to `self.divs`
+        :type divs: int | None
+        :param kwargs: extra options forwarded to `get_grid`
+        :type kwargs: dict
+        :return: the DVR grid
+        :rtype: np.ndarray
+        :raises ValueError: if neither `domain` nor `self.domain`, or neither `divs` nor `self.divs`, is available
+        """
         if domain is None:
             domain = self.domain
         if divs is None:
@@ -81,8 +129,48 @@ class BaseDVR(metaclass=abc.ABCMeta):
 
     @abc.abstractmethod
     def get_kinetic_energy(self, grid=None, mass=None, hb=1, **kwargs):
+        """
+        **LLM Docstring**
+
+        Abstract hook for building this DVR's 1D kinetic-energy operator matrix on the given grid. Concrete DVR subclasses must implement this.
+
+        :param grid: the DVR grid to build the operator on
+        :type grid: np.ndarray | None
+        :param mass: the particle mass
+        :type mass: float | None
+        :param hb: the value of hbar to use
+        :type hb: float
+        :param kwargs: extra representation-specific options
+        :type kwargs: dict
+        :return: never returns on the base class
+        :rtype: np.ndarray
+        :raises NotImplementedError: always, on the base class
+        """
         raise NotImplementedError("abstract interface")
     def handle_kinetic_coupling(self, grid, ke_1D, g, g_deriv, hb=1, logger=None, **kwargs):
+        """
+        **LLM Docstring**
+
+        Apply a (possibly coordinate-dependent) kinetic-coupling correction to a 1D kinetic-energy matrix: multiplies each off-diagonal element by the averaged `g`-value of its two grid points and adds a diagonal correction from `g_deriv`, following the standard variable-mass DVR kinetic-energy formula.
+
+        :param grid: the DVR grid the kinetic-energy matrix is defined on
+        :type grid: np.ndarray
+        :param ke_1D: the base (unit-`g`) 1D kinetic-energy matrix to correct
+        :type ke_1D: np.ndarray
+        :param g: the kinetic-coupling function/value; if `None`, `ke_1D` is returned unchanged
+        :type g: callable | float | np.ndarray | None
+        :param g_deriv: the second-derivative correction term for `g`; required if `g` is given
+        :type g_deriv: callable | float | np.ndarray | None
+        :param hb: the value of hbar to use
+        :type hb: float
+        :param logger: logger for diagnostics
+        :type logger: Logger | None
+        :param kwargs: extra options, unused
+        :type kwargs: dict
+        :return: the (possibly `g`-corrected) kinetic-energy matrix
+        :rtype: np.ndarray
+        :raises ValueError: if `g` is given without a corresponding `g_deriv`
+        """
         logger = self._logger(logger)
         if g is not None:
             with logger.block(tag="handling kinetic coupling"):
@@ -116,6 +204,27 @@ class BaseDVR(metaclass=abc.ABCMeta):
                 ke_1D = ke_1D * g_vals + g_deriv_vals
         return ke_1D
     def kinetic_energy(self, grid=None, mass=None, hb=1, g=None, g_deriv=None, **kwargs):
+        """
+        **LLM Docstring**
+
+        Build the full kinetic-energy operator, computing the base 1D operator (via `get_kinetic_energy`) and then applying any kinetic-coupling correction (via `handle_kinetic_coupling`); when a kinetic-coupling function `g` is supplied, the mass is fixed to `1` since `g` already encodes the effective mass.
+
+        :param grid: the DVR grid to build the operator on; defaults to `self.grid()`
+        :type grid: np.ndarray | None
+        :param mass: the particle mass; required unless `g` is given
+        :type mass: float | None
+        :param hb: the value of hbar to use
+        :type hb: float
+        :param g: the kinetic-coupling function/value
+        :type g: callable | float | np.ndarray | None
+        :param g_deriv: the second-derivative correction term for `g`
+        :type g_deriv: callable | float | np.ndarray | None
+        :param kwargs: extra options forwarded to `get_kinetic_energy`/`handle_kinetic_coupling`
+        :type kwargs: dict
+        :return: the kinetic-energy operator matrix
+        :rtype: np.ndarray
+        :raises ValueError: if no mass is available and `g` isn't given
+        """
 
         if grid is None:
             grid = self.grid()
@@ -132,6 +241,23 @@ class BaseDVR(metaclass=abc.ABCMeta):
         return ke_1D
 
     def real_momentum(self, grid=None, mass=None, hb=1, **kwargs):
+        """
+        **LLM Docstring**
+
+        Abstract hook for the real part of the momentum-operator matrix on the given grid. Not implemented on the base class; concrete DVR subclasses that support it must override this.
+
+        :param grid: the DVR grid to build the operator on
+        :type grid: np.ndarray | None
+        :param mass: the particle mass
+        :type mass: float | None
+        :param hb: the value of hbar to use
+        :type hb: float
+        :param kwargs: extra representation-specific options
+        :type kwargs: dict
+        :return: never returns on the base class
+        :rtype: np.ndarray
+        :raises NotImplementedError: always, on the base class
+        """
         raise NotImplementedError("real momentum needs to be implemented")
 
     def potential_energy(self,
@@ -206,6 +332,18 @@ class BaseDVR(metaclass=abc.ABCMeta):
             else:
                 # use griddata to do a general purpose interpolation
                 def interpolator(g, g2):
+                    """
+                    **LLM Docstring**
+
+                    General-purpose multi-dimensional interpolation helper used when building the potential matrix from an unstructured `(points, values)` grid: dispatches to `scipy.interpolate.griddata` for scattered point data, or to `scipy.interpolate.interpn` for a regular structured grid.
+
+                    :param g: the potential grid/value data, either a `(npoints, ndim+1)` array of scattered points-and-values, or a structured `(ndim+1, ...)` mesh array
+                    :type g: np.ndarray
+                    :param g2: the target grid points to interpolate the potential onto
+                    :type g2: np.ndarray
+                    :return: the interpolated potential values at `g2`
+                    :rtype: np.ndarray
+                    """
                     # g is an np.ndarray of potential points and values
                     # g2 is the set of grid points to interpolate them over
 
@@ -390,6 +528,28 @@ class DVRResults:
                  parent=None,
                  **opts
                  ):
+        """
+        **LLM Docstring**
+
+        Store the full set of intermediate and final results from a DVR run (grid, kinetic/potential-energy operators, Hamiltonian, wavefunctions) alongside the DVR object that produced them and any extra run options.
+
+        :param grid: the DVR grid used
+        :type grid: np.ndarray | None
+        :param kinetic_energy: the kinetic-energy operator matrix
+        :type kinetic_energy: np.ndarray | None
+        :param potential_energy: the potential-energy operator matrix
+        :type potential_energy: np.ndarray | None
+        :param hamiltonian: the full Hamiltonian matrix
+        :type hamiltonian: np.ndarray | None
+        :param wavefunctions: the resulting wavefunctions
+        :type wavefunctions: DVRWavefunctions | None
+        :param parent: the `BaseDVR` object that produced these results
+        :type parent: BaseDVR | None
+        :param opts: extra run options/metadata to store
+        :type opts: dict
+        :return: None
+        :rtype: None
+        """
 
         # self.parent = None
         self.grid = grid
@@ -402,6 +562,14 @@ class DVRResults:
 
     @property
     def dimension(self):
+        """
+        **LLM Docstring**
+
+        The number of spatial dimensions of the underlying DVR grid.
+
+        :return: the dimensionality
+        :rtype: int
+        """
         dim = len(self.grid.shape)
         if dim > 1:
             dim -= 1
