@@ -144,6 +144,15 @@ class MoleculePlotter:
                 'disk_options': {'stroke-width': ".05px", 'stroke': 'black'},
                 'label_style': {'font_size': '.5px'}
             },
+            'simple': {
+                'bond_radius': .05,
+                'bond_style': {'color': 'black'},
+                'multiple_bond_spacing': .1,
+                'label_style': {'font_size': '.5px'},
+                'sphere_options': {'stroke-width': ".01px", 'stroke': 'black'},
+                'line_options': {'stroke-width': ".05px", 'stroke': 'black'},
+                'disk_options': {'stroke-width': ".05px", 'stroke': 'black'},
+            }
         },
         "rdkit": {
             "default": {
