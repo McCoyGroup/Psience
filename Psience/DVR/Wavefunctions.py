@@ -200,4 +200,4 @@ class DVRWavefunctions(Wavefunctions):
         # print(self.results.kinetic_energy)
         return self.transform_operator(self.results.kinetic_energy)
     def potential_energy(self):
-        return self.transform_operator(self.results.kinetic_energy)
+        return self.transform_operator(self.results.potential_energy)

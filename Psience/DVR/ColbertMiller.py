@@ -240,7 +240,7 @@ class PolarDVR(BaseDVR):
         ke = np.empty((divs, divs))
 
         # we'll loop to fill to start
-        ke[np.diag_indices_from(ke)] = (2*(n**2) + 1)/3 - 1/(np.sin(grid)^2)
+        ke[np.diag_indices_from(ke)] = (2*(n**2) + 1)/3 - 1/(np.sin(grid)**2)
 
         # then we start with constant diagonal bands like
         # in the previous cases but we also add on terms that

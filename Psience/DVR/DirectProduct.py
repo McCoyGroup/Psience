@@ -305,7 +305,7 @@ class SphericalDVR(DirectProductDVR):
         sub_dvrs = [
             RadialDVR(domain=(0, r_max), divs=divs[0]),
             RingDVR(domain=(0, 2*np.pi), divs=divs[1]),
-            PolarDVR(domain=(0, 2*np.pi), divs=divs[1]),
+            PolarDVR(domain=(0, np.pi), divs=divs[2]),
 
 
         ]
