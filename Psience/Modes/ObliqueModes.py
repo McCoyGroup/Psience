@@ -11,6 +11,24 @@ __all__ = [
 class ObliqueModeGenerator:
 
     def __init__(self, f, g, dimensionless=False, sel=None, frequency_scaled=True):
+        """
+        **LLM Docstring**
+
+        Build an "oblique" mode transformation from a force-constant matrix `f` and a G-matrix (or mass vector) `g`: computes ordinary normal modes (removing translation/rotation), then finds the rotation `R` (via the SVD of the mode matrix) that makes the transformation as close as possible to an orthogonal one while still diagonalizing `f`/`g`, optionally after first putting `f`/`g` into a dimensionless form.
+
+        :param f: the force-constant (potential Hessian) matrix
+        :type f: np.ndarray
+        :param g: the G-matrix, or a vector of atomic masses (broadcast into a diagonal inverse-mass G-matrix)
+        :type g: np.ndarray
+        :param dimensionless: whether to first rescale `f`/`g` into a dimensionless form before computing modes
+        :type dimensionless: bool
+        :param sel: a subset of coordinate indices to restrict `f`/`g` to
+        :type sel: Iterable[int] | None
+        :param frequency_scaled: whether the underlying normal modes should be frequency-scaled (dimensionless)
+        :type frequency_scaled: bool
+        :return: None
+        :rtype: None
+        """
         f = np.asanyarray(f)
         g = np.asanyarray(g)
         if g.ndim == 1: # vector of masses
@@ -49,6 +67,24 @@ class ObliqueModeGenerator:
 
     @classmethod
     def from_molecule(cls, mol, dimensionless=True, sel=None, use_internals=None, frequency_scaled=True):
+        """
+        **LLM Docstring**
+
+        Build an `ObliqueModeGenerator` for a molecule, using its internal-coordinate potential derivatives and G-matrix if internal coordinates are available (or requested), otherwise its Cartesian potential derivatives and atomic masses.
+
+        :param mol: the molecule to build the oblique modes for
+        :type mol: Molecule
+        :param dimensionless: whether to rescale into a dimensionless form before computing modes
+        :type dimensionless: bool
+        :param sel: a subset of coordinate indices to restrict to
+        :type sel: Iterable[int] | None
+        :param use_internals: whether to build the modes in internal coordinates; defaults to whether the molecule has internal coordinates defined
+        :type use_internals: bool | None
+        :param frequency_scaled: whether the underlying normal modes should be frequency-scaled
+        :type frequency_scaled: bool
+        :return: the constructed generator
+        :rtype: ObliqueModeGenerator
+        """
         from ..Molecools import Molecule
         mol = mol # type:Molecule
         if use_internals is None:
@@ -71,6 +107,18 @@ class ObliqueModeGenerator:
             )
 
     def run(self, scaling_type='normal', remove_frequency_scaling=True):
+        """
+        **LLM Docstring**
+
+        Apply the oblique-mode rotation (or its inverse, if `scaling_type='inverse'`) to transform `f` and `g` into the oblique basis, optionally undoing the initial dimensionless rescaling from the constructor.
+
+        :param scaling_type: `'normal'` to use the forward scaling, or `'inverse'` to swap the scaling/inverse-scaling roles
+        :type scaling_type: str
+        :param remove_frequency_scaling: whether to undo the dimensionless rescaling applied in the constructor (if any) before returning
+        :type remove_frequency_scaling: bool
+        :return: `(f, g, u, ui)` -- the transformed force-constant and G-matrices, and the (possibly rescaled) forward/inverse transformation matrices
+        :rtype: tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+        """
         u = self.scaling
         ui = self.inverse_scaling
         if scaling_type == 'inverse':
