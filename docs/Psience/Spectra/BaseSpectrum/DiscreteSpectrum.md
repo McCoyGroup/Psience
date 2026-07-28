@@ -1,8 +1,8 @@
 ## <a id="Psience.Spectra.BaseSpectrum.DiscreteSpectrum">DiscreteSpectrum</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L142)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L142?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum.py#L152)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L152?message=Update%20Docs)]
 </div>
 
 Concrete implementation of `BaseSpectrum` that exists
@@ -26,8 +26,8 @@ solely to allow for plotting and broadening.
 from_transition_moments(cls, frequencies, transition_moments, **meta): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L148)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L148?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L158)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L158?message=Update%20Docs)]
 </div>
 Assumes frequencies and transition moments in a.u.
   - `frequencies`: `Any`
@@ -44,9 +44,22 @@ Assumes frequencies and transition moments in a.u.
 from_raman_moments(cls, frequencies, transition_polarizabilities, pump_frequency=0, **meta): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L170)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L170?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L180)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L180?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Build a discrete Raman spectrum from transition frequencies and polarizability transition moments (in atomic units), converting frequencies to wavenumbers and computing intensities from the transition-polarizability magnitudes scaled by the (pump-shifted) frequency to the fourth power.
+  - `frequencies`: `np.ndarray`
+    > the transition frequencies, in Hartrees
+  - `transition_polarizabilities`: `np.ndarray`
+    > the polarizability transition-moment tensors
+  - `pump_frequency`: `float`
+    > the pump laser frequency to add before the frequency^4 scaling
+  - `meta`: `dict`
+    > extra metadata stored on the spectrum
+  - `:returns`: `DiscreteSpectrum`
+    > the constructed Raman spectrum
 
 
 <a id="Psience.Spectra.BaseSpectrum.DiscreteSpectrum.normalize" class="docs-object-method">&nbsp;</a> 
@@ -54,9 +67,16 @@ from_raman_moments(cls, frequencies, transition_polarizabilities, pump_frequency
 normalize(self, which=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L183)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L183?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L209)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L209?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Build a copy of the spectrum with intensities normalized by either the overall maximum intensity or a specific reference intensity.
+  - `which`: `int | None`
+    > the index of a specific transition to normalize against; if `None`, normalizes by the maximum intensity
+  - `:returns`: `DiscreteSpectrum`
+    > the normalized spectrum
 
 
 <a id="Psience.Spectra.BaseSpectrum.DiscreteSpectrum.plot" class="docs-object-method">&nbsp;</a> 
@@ -64,8 +84,8 @@ normalize(self, which=None):
 plot(self, figure=None, plot_style=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L190)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L190?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L226)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L226?message=Update%20Docs)]
 </div>
 Plots a spectrum using `McUtils.Plots.StickSpectrum`
   - `figure`: `None | McUtils.Plots.Graphics`
@@ -81,8 +101,8 @@ Plots a spectrum using `McUtils.Plots.StickSpectrum`
 broaden(self, breadth=10, *, broadening_type='gaussian', noising_function=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L213)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L213?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L249)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.py#L249?message=Update%20Docs)]
 </div>
 Applies a broadening to the spectrum
   - `broadening_type`: `Any`
@@ -144,7 +164,7 @@ Applies a broadening to the spectrum
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Spectra/BaseSpectrum/DiscreteSpectrum.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L142?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum.py#L152?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -59,6 +59,13 @@ __getitem__(self, item):
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L48)/
 [edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L48?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Index into the spectrum: a scalar index returns the corresponding `(frequency, intensity)` pair, while any other index (slice, array, etc.) returns a subspectrum via `take_subspectrum`.
+  - `item`: `int | slice | np.ndarray`
+    > the index or slice to apply
+  - `:returns`: `tuple[float, float] | BaseSpectrum`
+    > a `(frequency, intensity)` pair for a scalar index, or a subspectrum otherwise
 
 
 <a id="Psience.Spectra.BaseSpectrum.BaseSpectrum.frequency_filter" class="docs-object-method">&nbsp;</a> 
@@ -66,8 +73,8 @@ __getitem__(self, item):
 frequency_filter(self, freq_min, freq_max): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L56)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L56?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L66)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L66?message=Update%20Docs)]
 </div>
 Filters by frequencies >= `freq_min` and <= `freq_max`
   - `freq_min`: `float`
@@ -83,8 +90,8 @@ Filters by frequencies >= `freq_min` and <= `freq_max`
 intensity_filter(self, int_min, int_max): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L71)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L71?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L81)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L81?message=Update%20Docs)]
 </div>
 Filters by intensities >= `int_min` and <= `int_max`
   - `int_min`: `float`
@@ -100,8 +107,8 @@ Filters by intensities >= `int_min` and <= `int_max`
 save(self, file): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L87)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L87?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L97)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L97?message=Update%20Docs)]
 </div>
 Saves the spectrum in JSON format
   - `file`: `Any`
@@ -116,8 +123,8 @@ Saves the spectrum in JSON format
 load(cls, file): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L108)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L108?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L118)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L118?message=Update%20Docs)]
 </div>
 Saves a spectrum from a JSON file
   - `file`: `Any`
@@ -131,8 +138,8 @@ Saves a spectrum from a JSON file
 plot(self, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L127)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L127?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L137)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Spectra/BaseSpectrum/BaseSpectrum.py#L137?message=Update%20Docs)]
 </div>
 A stub so that subclasses can implement their own `plot` methods
   - `opts`: `Any`

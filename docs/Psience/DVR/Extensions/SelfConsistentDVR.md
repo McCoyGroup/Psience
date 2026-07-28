@@ -1,8 +1,8 @@
 ## <a id="Psience.DVR.Extensions.SelfConsistentDVR">SelfConsistentDVR</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions.py#L32)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L32?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions.py#L54)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L54?message=Update%20Docs)]
 </div>
 
 
@@ -24,9 +24,18 @@
 __init__(self, base_dvr: 'DirectProductDVR', **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions.py#L33)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L33?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions.py#L55)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L55?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Set up a self-consistent-field (SCF) treatment of a multi-dimensional `DirectProductDVR`, precomputing the grid and potential-energy values and building the per-dimension SCF wavefunction generators before delegating to `GridSCF.__init__`.
+  - `base_dvr`: `DirectProductDVR`
+    > the multi-dimensional direct-product DVR to run the SCF procedure on
+  - `opts`: `dict`
+    > extra options, filtered and forwarded to the base `GridSCF.__init__`
+  - `:returns`: `None`
+    > None
 
 
 <a id="Psience.DVR.Extensions.SelfConsistentDVR.create_grid_vals" class="docs-object-method">&nbsp;</a> 
@@ -34,9 +43,14 @@ __init__(self, base_dvr: 'DirectProductDVR', **opts):
 create_grid_vals(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L46)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L46?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L80)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L80?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Compute the full grid and potential-energy values for the underlying multi-dimensional DVR, used to initialize the SCF procedure.
+  - `:returns`: `tuple[np.ndarray, np.ndarray]`
+    > `(grid, pe)` -- the DVR grid and the potential-energy values reshaped to match the grid's spatial shape
 
 
 <a id="Psience.DVR.Extensions.SelfConsistentDVR.create_solvers" class="docs-object-method">&nbsp;</a> 
@@ -44,9 +58,18 @@ create_grid_vals(self):
 create_solvers(self, grid, pe): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L56)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L56?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L98)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L98?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Build the per-dimension SCF wavefunction generators, first rebinding each 1D DVR's `g`/`g_deriv` kinetic-coupling functions (if callable) so they can be evaluated at the fixed "other-dimension" grid point (from the initial guess) while varying only their own coordinate.
+  - `grid`: `np.ndarray`
+    > the full multi-dimensional grid
+  - `pe`: `np.ndarray`
+    > the potential-energy values on the grid
+  - `:returns`: `list[SCFWavefunctionGenerator]`
+    > the list of per-dimension `SCFWavefunctionGenerator` objects
 
 
 <a id="Psience.DVR.Extensions.SelfConsistentDVR.__repr__" class="docs-object-method">&nbsp;</a> 
@@ -54,9 +77,14 @@ create_solvers(self, grid, pe):
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L105)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L105?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L185)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L185?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Debug string representation showing the class name and the wrapped base DVR.
+  - `:returns`: `str`
+    > string of the form `ClassName(base_dvr)`
  </div>
 </div>
 
@@ -110,7 +138,7 @@ __repr__(self):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/Extensions/SelfConsistentDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/Extensions/SelfConsistentDVR.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L32?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L54?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -48,6 +48,19 @@ get_kinetic_energy(self, grid=None, mass=None, hb=1, **kwargs):
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller/CartesianDVR.py#L39)/
 [edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller/CartesianDVR.py#L39?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Build the Colbert-Miller kinetic-energy matrix for the free-particle (Cartesian, `[-inf, inf]`) DVR grid, with diagonal elements `coeff * pi^2/3` and off-diagonal band elements `coeff * (-1)^(j-i) * 2/(j-i)^2`.
+  - `grid`: `np.ndarray`
+    > the DVR grid points
+  - `mass`: `float`
+    > the particle mass
+  - `hb`: `float`
+    > the value of hbar to use
+  - `kwargs`: `dict`
+    > extra options, unused
+  - `:returns`: `np.ndarray`
+    > the kinetic-energy matrix
 
 
 <a id="Psience.DVR.ColbertMiller.CartesianDVR.real_momentum" class="docs-object-method">&nbsp;</a> 
@@ -55,8 +68,8 @@ get_kinetic_energy(self, grid=None, mass=None, hb=1, **kwargs):
 real_momentum(self, grid=None, mass=None, hb=1, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller/CartesianDVR.py#L63)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller/CartesianDVR.py#L63?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/ColbertMiller/CartesianDVR.py#L79)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/ColbertMiller/CartesianDVR.py#L79?message=Update%20Docs)]
 </div>
 Provides the real part of the momentum for the [-inf, inf] range
   - `grid`: `Any`

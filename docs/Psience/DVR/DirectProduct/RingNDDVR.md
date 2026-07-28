@@ -1,8 +1,8 @@
 ## <a id="Psience.DVR.DirectProduct.RingNDDVR">RingNDDVR</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L284)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L284?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L357)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L357?message=Update%20Docs)]
 </div>
 
 Provides an ND-DVR for products of periodic (0, 2Pi) ranges
@@ -24,9 +24,18 @@ Provides an ND-DVR for products of periodic (0, 2Pi) ranges
 __init__(self, divs, **base_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L289)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L289?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DirectProduct.py#L362)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L362?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Set up an N-dimensional DVR over a product of periodic `(0, 2*pi)` ring domains by building an independent `RingDVR` for each requested division count and combining them via `DirectProductDVR`.
+  - `divs`: `Iterable[int]`
+    > the per-dimension number of grid points
+  - `base_opts`: `dict`
+    > extra options forwarded to the base `DirectProductDVR.__init__`
+  - `:returns`: `None`
+    > None
  </div>
 </div>
 
@@ -80,7 +89,7 @@ __init__(self, divs, **base_opts):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/DirectProduct/RingNDDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/DirectProduct/RingNDDVR.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L284?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DirectProduct.py#L357?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

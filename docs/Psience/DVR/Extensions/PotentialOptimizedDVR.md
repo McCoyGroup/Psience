@@ -1,8 +1,8 @@
 ## <a id="Psience.DVR.Extensions.PotentialOptimizedDVR">PotentialOptimizedDVR</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions.py#L111)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L111?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions.py#L199)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L199?message=Update%20Docs)]
 </div>
 
 
@@ -24,9 +24,18 @@
 __init__(self, wfns_1D: 'Iterable[DVRWavefunctions]', **base_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions.py#L112)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L112?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions.py#L200)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L200?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Build a multi-dimensional DVR whose per-dimension bases are potential-optimized (built from a given set of 1D wavefunctions rather than a fixed grid), via `WavefunctionBasisDVR` and `DirectProductDVR`.
+  - `wfns_1D`: `Iterable[DVRWavefunctions]`
+    > the per-dimension 1D wavefunctions to use as the optimized basis
+  - `base_opts`: `dict`
+    > extra options forwarded to the base `DirectProductDVR.__init__`
+  - `:returns`: `None`
+    > None
 
 
 <a id="Psience.DVR.Extensions.PotentialOptimizedDVR.from_minimum" class="docs-object-method">&nbsp;</a> 
@@ -35,9 +44,18 @@ __init__(self, wfns_1D: 'Iterable[DVRWavefunctions]', **base_opts):
 from_minimum(cls, base_dvr: 'DirectProductDVR|SelfConsistentDVR', **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L122)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L122?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L222)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L222?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Build a `PotentialOptimizedDVR` using the SCF wavefunctions computed from an initial (unconverged, single-iteration) guess at the potential minimum, wrapping `base_dvr` in a `SelfConsistentDVR` first if it isn't already one.
+  - `base_dvr`: `DirectProductDVR | SelfConsistentDVR`
+    > the base multi-dimensional DVR (or an already-built `SelfConsistentDVR`) to optimize the basis from
+  - `opts`: `dict`
+    > extra options, overriding the base DVR's own stored options, forwarded to the constructor
+  - `:returns`: `PotentialOptimizedDVR`
+    > the potential-optimized DVR
 
 
 <a id="Psience.DVR.Extensions.PotentialOptimizedDVR.from_scf" class="docs-object-method">&nbsp;</a> 
@@ -46,9 +64,20 @@ from_minimum(cls, base_dvr: 'DirectProductDVR|SelfConsistentDVR', **opts):
 from_scf(cls, scf_dvr: 'DirectProductDVR|SelfConsistentDVR', wfns=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L135)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L135?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L247)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L247?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Build a `PotentialOptimizedDVR` using the wavefunctions from a fully-converged SCF run (or an explicitly supplied set of wavefunctions), wrapping `scf_dvr` in a `SelfConsistentDVR` first if it isn't already one.
+  - `scf_dvr`: `DirectProductDVR | SelfConsistentDVR`
+    > the base multi-dimensional DVR (or an already-built `SelfConsistentDVR`) to run/use for the optimized basis
+  - `wfns`: `Iterable[DVRWavefunctions] | None`
+    > explicit wavefunctions to use instead of running the SCF procedure
+  - `opts`: `dict`
+    > extra options, overriding the base DVR's own stored options, forwarded to the constructor
+  - `:returns`: `PotentialOptimizedDVR`
+    > the potential-optimized DVR
  </div>
 </div>
 
@@ -102,7 +131,7 @@ from_scf(cls, scf_dvr: 'DirectProductDVR|SelfConsistentDVR', wfns=None, **opts):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/Extensions/PotentialOptimizedDVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/Extensions/PotentialOptimizedDVR.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L111?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions.py#L199?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -1,8 +1,8 @@
 ## <a id="Psience.DVR.BaseDVR.DVRResults">DVRResults</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L380)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L380?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L518)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L518?message=Update%20Docs)]
 </div>
 
 A subclass that can wrap all of the DVR run parameters and results into a clean interface for reuse and extension
@@ -24,9 +24,28 @@ A subclass that can wrap all of the DVR run parameters and results into a clean 
 __init__(self, grid=None, kinetic_energy=None, potential_energy=None, hamiltonian=None, wavefunctions=None, parent=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L384)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L384?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR.py#L522)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L522?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Store the full set of intermediate and final results from a DVR run (grid, kinetic/potential-energy operators, Hamiltonian, wavefunctions) alongside the DVR object that produced them and any extra run options.
+  - `grid`: `np.ndarray | None`
+    > the DVR grid used
+  - `kinetic_energy`: `np.ndarray | None`
+    > the kinetic-energy operator matrix
+  - `potential_energy`: `np.ndarray | None`
+    > the potential-energy operator matrix
+  - `hamiltonian`: `np.ndarray | None`
+    > the full Hamiltonian matrix
+  - `wavefunctions`: `DVRWavefunctions | None`
+    > the resulting wavefunctions
+  - `parent`: `BaseDVR | None`
+    > the `BaseDVR` object that produced these results
+  - `opts`: `dict`
+    > extra run options/metadata to store
+  - `:returns`: `None`
+    > None
 
 
 <a id="Psience.DVR.BaseDVR.DVRResults.dimension" class="docs-object-method">&nbsp;</a> 
@@ -35,9 +54,14 @@ __init__(self, grid=None, kinetic_energy=None, potential_energy=None, hamiltonia
 dimension(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR/DVRResults.py#L403)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR/DVRResults.py#L403?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR/DVRResults.py#L563)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR/DVRResults.py#L563?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+The number of spatial dimensions of the underlying DVR grid.
+  - `:returns`: `int`
+    > the dimensionality
 
 
 <a id="Psience.DVR.BaseDVR.DVRResults.plot_potential" class="docs-object-method">&nbsp;</a> 
@@ -45,8 +69,8 @@ dimension(self):
 plot_potential(self, plot_class=None, figure=None, plot_units=None, energy_threshold=None, zero_shift=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR/DVRResults.py#L410)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR/DVRResults.py#L410?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/BaseDVR/DVRResults.py#L578)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR/DVRResults.py#L578?message=Update%20Docs)]
 </div>
 Simple plotting function for the potential.
 Should be updated to deal with higher dimensional cases
@@ -109,7 +133,7 @@ Should be updated to deal with higher dimensional cases
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/BaseDVR/DVRResults.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/BaseDVR/DVRResults.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L380?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/BaseDVR.py#L518?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

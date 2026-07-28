@@ -27,6 +27,23 @@ __init__(self, energy, data, parent=None, grid=None, index=None, **opts):
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions.py#L17)/
 [edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions.py#L17?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Build a single DVR wavefunction from its value at the DVR grid points, falling back to the parent collection's grid if none is given directly.
+  - `energy`: `float`
+    > the wavefunction's energy
+  - `data`: `np.ndarray`
+    > the wavefunction's values at the grid points
+  - `parent`: `DVRWavefunctions | None`
+    > the `DVRWavefunctions` collection this wavefunction belongs to
+  - `grid`: `np.ndarray | None`
+    > the DVR grid this wavefunction is defined on; defaults to `parent.grid`
+  - `index`: `object | None`
+    > this wavefunction's index within its parent collection
+  - `opts`: `dict`
+    > extra options forwarded to the base `Wavefunction.__init__`
+  - `:returns`: `None`
+    > None
 
 
 <a id="Psience.DVR.Wavefunctions.DVRWavefunction.get_dimension" class="docs-object-method">&nbsp;</a> 
@@ -34,9 +51,14 @@ __init__(self, energy, data, parent=None, grid=None, index=None, **opts):
 get_dimension(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L23)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L23?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L43)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L43?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+The number of degrees of freedom this wavefunction is defined over, inferred from the trailing dimension of its grid.
+  - `:returns`: `int`
+    > the dimensionality
 
 
 <a id="Psience.DVR.Wavefunctions.DVRWavefunction.plot" class="docs-object-method">&nbsp;</a> 
@@ -44,9 +66,20 @@ get_dimension(self):
 plot(self, figure=None, grid=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L26)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L26?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L54)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L54?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Plot the wavefunction using its own DVR grid and values, delegating to the base `Wavefunction.plot`.
+  - `figure`: `object | None`
+    > an existing figure to draw into
+  - `grid`: `np.ndarray | None`
+    > the grid to plot over; defaults to `self.grid`
+  - `opts`: `dict`
+    > extra options forwarded to the base `plot`
+  - `:returns`: `object`
+    > the resulting figure
 
 
 <a id="Psience.DVR.Wavefunctions.DVRWavefunction.expectation" class="docs-object-method">&nbsp;</a> 
@@ -54,8 +87,8 @@ plot(self, figure=None, grid=None, **opts):
 expectation(self, op, other=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L31)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L31?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L73)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L73?message=Update%20Docs)]
 </div>
 Computes the expectation value of operator op over the wavefunction other and self
   - `other`: `Wavefunction | np.ndarray`
@@ -72,9 +105,14 @@ Computes the expectation value of operator op over the wavefunction other and se
 interp(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L46)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L46?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L88)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L88?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+A (lazily built and cached) continuous interpolant of the wavefunction's grid values, used by `evaluate` to evaluate the wavefunction off-grid.
+  - `:returns`: `Interpolator`
+    > the cached (or newly built) interpolator
 
 
 <a id="Psience.DVR.Wavefunctions.DVRWavefunction.evaluate" class="docs-object-method">&nbsp;</a> 
@@ -82,8 +120,8 @@ interp(self):
 evaluate(self, points): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L51)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L51?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L101)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L101?message=Update%20Docs)]
 </div>
 Evaluates the functions at the given points
   - `:returns`: `_`
@@ -95,8 +133,8 @@ Evaluates the functions at the given points
 marginalize_out(self, dofs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L60)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L60?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L110)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunction.py#L110?message=Update%20Docs)]
 </div>
 Computes the projection of the current wavefunction onto a set of degrees
 of freedom
