@@ -16,6 +16,7 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
                        color='black',
                        ticks=None,
                        labels=None,
+                       primary_label=None,
                        bar_styles=None,
                        connect=False,
                        connection_style=None,
@@ -131,8 +132,10 @@ def plot_energy_levels(energy_list, figure: plt.Graphics = None,
 
 
     for i, (f, x, c, s) in enumerate(zip(energy_list, x_list, color, bar_styles)):
-        style_dict = dict(styles, **s)
+        style_dict = styles | s
         c = style_dict.pop('color', c)
+        if primary_label is not None:
+            if i == 0: style_dict['label'] = primary_label
         figure = plt.HorizontalLinePlot(
             x,
             f,
