@@ -280,9 +280,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-78dc3f" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-78dc3f"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-f4c8e9" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-f4c8e9"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-78dc3f" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-f4c8e9" markdown="1">
  - [MultdiDegHOH](#MultdiDegHOH)
 - [HOHAnalytic](#HOHAnalytic)
 - [HOHLocal](#HOHLocal)
@@ -348,9 +348,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-baba86" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-baba86"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-ea5f20" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-ea5f20"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-baba86" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-ea5f20" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
