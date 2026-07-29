@@ -78,9 +78,14 @@ from_fchk(cls, file, internals=None, mode_selection=None, **kw):
 dipole_terms(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L356)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L356?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L412)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L412?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+The (lazily constructed and cached) `DipoleTerms` object used to expand the dipole surface, or `None` if dipole terms weren't requested (`include_dipole=False` at construction).
+  - `:returns`: `DipoleTerms | None`
+    > the dipole-terms expansion object, or `None`
 
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.prep_local_couplings" class="docs-object-method">&nbsp;</a> 
@@ -89,9 +94,16 @@ dipole_terms(self):
 prep_local_couplings(cls, local_mode_couplings): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L369)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L369?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L433)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L433?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Normalize the `local_mode_couplings` constructor argument into a `[v0, g0]` pair of local-mode potential/kinetic coupling matrices: `False`/falsy stays `False` (no local coupling), `True` becomes `[None, None]` (defer to defaults), a bare coupling matrix is split evenly between potential and kinetic contributions, and an explicit `(v0, g0)` pair is validated and passed through.
+  - `local_mode_couplings`: `bool | np.ndarray | tuple`
+    > the raw local-mode-coupling specification
+  - `:returns`: `bool | list[np.ndarray | None]`
+    > `False`, or the resolved `[v0, g0]` coupling-matrix pair
 
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.prep_operator_terms" class="docs-object-method">&nbsp;</a> 
@@ -99,9 +111,18 @@ prep_local_couplings(cls, local_mode_couplings):
 prep_operator_terms(self, coeffs, order): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L616)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L616?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L691)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L691?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Build the perturbative expansion terms for an arbitrary operator given as a `[constant, deriv1, deriv2, ...]` list of coefficients, padding any missing lower-order derivative tensors with zeros (inferred from the dimensionality of the first non-numeric entry) before expanding the whole thing through `OperatorTerms`.
+  - `coeffs`: `list`
+    > the operator's raw coefficient list: a constant term followed by successive derivative tensors (which may start at a higher order, with lower orders implicitly zero)
+  - `order`: `int`
+    > the highest derivative order to expand to
+  - `:returns`: `list`
+    > `[const] + expansion_terms`, the constant term followed by the expanded (mode-basis) derivative terms
 
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.get_perturbations" class="docs-object-method">&nbsp;</a> 
@@ -109,8 +130,8 @@ prep_operator_terms(self, coeffs, order):
 get_perturbations(self, expansion_orders, return_reps=True, order=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L648)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L648?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L736)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L736?message=Update%20Docs)]
 </div>
 Gets the `Representation` objects for the perturbations up through second order
   - `order`: `Any`
@@ -124,8 +145,8 @@ Gets the `Representation` objects for the perturbations up through second order
 get_Nielsen_xmatrix(self, freqs=None, v3=None, v4=None, zeta_Be=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L890)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L890?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1046)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1046?message=Update%20Docs)]
 </div>
 Provides Nielsen's X-Matrix when working in Cartesian coordinates
   - `:returns`: `_`
@@ -137,8 +158,8 @@ Provides Nielsen's X-Matrix when working in Cartesian coordinates
 get_Nielsen_energies(self, states, x_mat=None, freqs=None, v3=None, v4=None, zeta_Be=None, return_split=False, return_X=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L926)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L926?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1082)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1082?message=Update%20Docs)]
 </div>
 
   - `states`: `Any`
@@ -152,8 +173,8 @@ get_Nielsen_energies(self, states, x_mat=None, freqs=None, v3=None, v4=None, zet
 get_2nd_order_freqs(self, states, *, freqs=None, V_terms=None, G_terms=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L972)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L972?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1128)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1128?message=Update%20Docs)]
 </div>
 
   - `states`: `Any`
@@ -167,9 +188,34 @@ get_2nd_order_freqs(self, states, *, freqs=None, V_terms=None, G_terms=None):
 get_solver(self, states, degeneracies=None, allow_post_PT_calc=True, ignore_odd_order_energies=True, use_full_basis=True, order=2, expansion_order=None, memory_constrained=None, target_property_rules=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1060)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1060?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1228)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1228?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Build a `PerturbationTheorySolver` for the given target states: resolves the per-term expansion orders, builds the corresponding Hamiltonian perturbation representations (via `get_perturbations`), coerces `states` into a `BasisStateSpace` (optionally attaching a complete symmetric-group full basis), and constructs the solver with this Hamiltonian's logger/checkpointer/parallelizer and local-mode-coupling settings.
+  - `states`: `BasisStateSpace | Iterable[int] | Iterable[Iterable[int]]`
+    > the target states to solve for
+  - `degeneracies`: `object | None`
+    > the degenerate-state specification, forwarded as `opts['degenerate_states']` if not already present in `opts`
+  - `allow_post_PT_calc`: `bool`
+    > whether to allow post-perturbation-theory (e.g. degenerate) energy corrections
+  - `ignore_odd_order_energies`: `bool`
+    > whether to skip odd-order energy corrections (which should vanish by symmetry)
+  - `use_full_basis`: `bool`
+    > whether to attach a complete symmetric-group full basis to `states` if one isn't already present
+  - `order`: `int`
+    > the perturbation-theory order to solve to
+  - `expansion_order`: `int | dict | None`
+    > the per-term expansion orders; resolved via `_get_expansion_orders` if not already a full dict
+  - `memory_constrained`: `bool | None`
+    > whether to use a memory-constrained solving strategy; defaults to `True` if the state space has more than 20 dimensions
+  - `target_property_rules`: `object | None`
+    > property-specific selection rules to restrict the solve to
+  - `opts`: `dict`
+    > extra options forwarded to the `PerturbationTheorySolver` constructor
+  - `:returns`: `PerturbationTheorySolver`
+    > the constructed solver
 
 
 <a id="Psience.VPT2.Hamiltonian.PerturbationTheoryHamiltonian.get_wavefunctions" class="docs-object-method">&nbsp;</a> 
@@ -177,8 +223,8 @@ get_solver(self, states, degeneracies=None, allow_post_PT_calc=True, ignore_odd_
 get_wavefunctions(self, states, initial_states=None, degeneracies=None, allow_post_PT_calc=True, ignore_odd_order_energies=True, use_full_basis=True, order=2, expansion_order=None, memory_constrained=None, target_property_rules=None, results=None, degenerate_transformation_layout=None, return_solver=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1108)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1108?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1304)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1304?message=Update%20Docs)]
 </div>
 Gets a set of `PerturbationTheoryWavefunctions` from the perturbations defined by the Hamiltonian
   - `states`: `BasisStateSpace | Iterable[int] | Iterable[Iterable[int]]`
@@ -196,8 +242,8 @@ Gets a set of `PerturbationTheoryWavefunctions` from the perturbations defined b
 get_action_expansion(self, coupled_states=None, degeneracies=None, allow_sakurai_degs=False, allow_post_PT_calc=True, modify_degenerate_perturbations=False, intermediate_normalization=False, ignore_odd_order_energies=True, zero_element_warning=True, state_space_iterations=None, order=2): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1283)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1283?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1479)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1479?message=Update%20Docs)]
 </div>
 Gets the expansion of the energies in terms of Miller's "classical actions" by
 doing just enough PT to invert the matrix
@@ -212,9 +258,22 @@ doing just enough PT to invert the matrix
 get_breakdown(self, states, coupled_states=None, degeneracies=None, order=2): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1328)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1328?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1524)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Hamiltonian/PerturbationTheoryHamiltonian.py#L1524?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Intended to compute a term-by-term breakdown of the VPT energies (harmonic-only, +cubic, +quartic, full) for a set of states, but currently disabled -- immediately raises, noting the surrounding solver machinery has changed and this method hasn't been updated to match, so the remaining implementation below is unreachable legacy code.
+  - `states`: `object`
+    > the target states
+  - `coupled_states`: `object | None`
+    > the coupled-state space to use
+  - `degeneracies`: `object | None`
+    > the degenerate-state specification
+  - `order`: `int`
+    > the perturbation-theory order
+  - `:returns`: `dict`
+    > never returns
  </div>
 </div>
 
