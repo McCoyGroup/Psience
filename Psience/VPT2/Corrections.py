@@ -510,6 +510,28 @@ class PerturbationTheoryCorrections:
                                       local_coupling_hamiltonian=None,
                                       local_coupling_order=None
                                       ):
+        """
+        **LLM Docstring**
+
+        Compute the degenerate-perturbation-theory rotation for a single group of resonant/degenerate states: finds the group's positions within this object's overall state space (warning about any states in the group that aren't present), and, if the group has more than one matched state (and isn't skipped due to Gaussian-style high-order resonance handling), diagonalizes the corresponding non-degenerate Hamiltonian block via `get_degenerate_rotation`.
+
+        :param group: the group of mutually resonant/degenerate states to build the transformation for
+        :type group: BasisStateSpace
+        :param hams: the Hamiltonian correction matrices to build the block from
+        :type hams: list[np.ndarray]
+        :param gaussian_resonance_handling: whether to skip building a rotation for groups whose states have more than 2 quanta of excitation (mimicking Gaussian's resonance-handling convention)
+        :type gaussian_resonance_handling: bool
+        :param label: a label used for logging
+        :type label: str | None
+        :param zero_point_energy: the zero-point energy, used when building/logging the non-degenerate Hamiltonian block
+        :type zero_point_energy: float | None
+        :param local_coupling_hamiltonian: an explicit local coupling Hamiltonian to use instead of building one from `hams`
+        :type local_coupling_hamiltonian: np.ndarray | None
+        :param local_coupling_order: the perturbative order to build the local coupling Hamiltonian to, if not given explicitly
+        :type local_coupling_order: int | None
+        :return: `(deg_inds, H_nd, deg_rot, deg_engs)` -- the group's indices within this state space, the non-degenerate Hamiltonian block, the diagonalizing rotation, and the resulting (sorted) degenerate energies; `H_nd`/`deg_rot`/`deg_engs` are all `None` if the group doesn't need (or isn't eligible for) degenerate treatment
+        :rtype: tuple
+        """
         # this will be built from a series of block-diagonal matrices
         # so we store the relevant values and indices to compose the SparseArray
 
@@ -621,6 +643,26 @@ class PerturbationTheoryCorrections:
         return strong_couplings
 
     def format_strong_couplings_report(self, couplings=None, threshold=.1, int_fmt="{:>3.0f}", padding="{:<8}", join=True, use_excitations=True):
+        """
+        **LLM Docstring**
+
+        Format a human-readable report of the states found by `find_strong_couplings` (or an explicitly supplied `couplings` dict), listing each state alongside the other states it's strongly coupled to at each perturbative order.
+
+        :param couplings: the strong-coupling data to format; computed via `find_strong_couplings` if not given
+        :type couplings: dict | None
+        :param threshold: the coupling-strength threshold forwarded to `find_strong_couplings` if `couplings` isn't given
+        :type threshold: float
+        :param int_fmt: the format string used for each quantum-number column
+        :type int_fmt: str
+        :param padding: the format string used for row labels/indentation
+        :type padding: str
+        :param join: whether to join the report lines into a single string, or return them as a list
+        :type join: bool
+        :param use_excitations: whether to display states as their excitation-quantum-number vectors (rather than raw basis indices)
+        :type use_excitations: bool
+        :return: the formatted report, as a single string or a list of lines
+        :rtype: str | list[str]
+        """
         if couplings is None:
             couplings = self.find_strong_couplings(threshold=threshold)
 
@@ -666,6 +708,25 @@ class PerturbationTheoryCorrections:
 
     @staticmethod
     def _fmt_operator_rep(full_ops, operator_symbol, conversion, real_fmt="{:>.8e}", padding_fmt='{:>16}'):
+        """
+        **LLM Docstring**
+
+        Format a set of `<a|A(c)|b>`-labeled operator sub-representations into aligned text columns, for use in logging an operator's matrix representation.
+
+        :param full_ops: an iterable of `((a, b, c), subrep)` pairs, each giving a bra/ket/order label and the corresponding operator sub-matrix (dense, sparse, or a scalar zero placeholder)
+        :type full_ops: Iterable[tuple]
+        :param operator_symbol: the symbol used to label the operator (e.g. `"A"`) in each column header
+        :type operator_symbol: str
+        :param conversion: a unit-conversion factor to multiply each sub-representation by before formatting
+        :type conversion: float | None
+        :param real_fmt: the format string used for each numeric matrix element
+        :type real_fmt: str
+        :param padding_fmt: the format string used to pad each formatted element to a fixed width
+        :type padding_fmt: str
+        :return: the formatted lines, with the header/tag line first
+        :rtype: list[str]
+        :raises ValueError: if a sub-representation is a nonzero scalar (not a recognized representation), or if a zero scalar appears before any array-valued sub-representation has established the operator's dimension
+        """
         tag_line = None
         rep_lines = None
 
@@ -868,6 +929,17 @@ class PerturbationTheoryCorrections:
     #         self.unload_chk()
 
     def savez(self, file):
+        """
+        **LLM Docstring**
+
+        Intended to serialize the corrections to an `npz` file, but currently disabled -- immediately raises, noting the implementation is outdated; use `to_state`/`from_state` instead.
+
+        :param file: the target file path
+        :type file: str
+        :return: never returns
+        :rtype: None
+        :raises NotImplementedError: always, with a message noting this method is outdated
+        """
         raise NotImplementedError("old and wrong now")
         keys = dict(
             states=self.states,
@@ -885,6 +957,17 @@ class PerturbationTheoryCorrections:
         np.savez(file, **keys)
     @classmethod
     def loadz(cls, file):
+        """
+        **LLM Docstring**
+
+        Intended to reconstruct corrections from an `npz` file previously written by `savez`, but currently disabled -- immediately raises, noting the implementation is outdated; use `to_state`/`from_state` instead.
+
+        :param file: the source file path
+        :type file: str
+        :return: never returns
+        :rtype: PerturbationTheoryCorrections
+        :raises NotImplementedError: always, with a message noting this method is outdated
+        """
         raise NotImplementedError("old and wrong now")
         keys = np.load(file)
         return cls.from_dicts(
@@ -904,6 +987,16 @@ class PerturbationTheoryCorrections:
         )
 
     def to_state(self, serializer=None):
+        """
+        **LLM Docstring**
+
+        Serialize this object's core data (states, coupled states, total basis, energy/wavefunction corrections, and any degenerate-perturbation-theory data) into a plain dict.
+
+        :param serializer: accepted for interface consistency but not used in this method's body
+        :type serializer: object | None
+        :return: the serialized state dict
+        :rtype: dict
+        """
         keys = dict(
             states=self.states,
             coupled_states=self.coupled_states,
@@ -917,6 +1010,18 @@ class PerturbationTheoryCorrections:
         return keys
     @classmethod
     def from_state(cls, data, serializer=None):
+        """
+        **LLM Docstring**
+
+        Reconstruct a `PerturbationTheoryCorrections` object from a previously serialized state dict, deserializing the state-space objects via the given `serializer` and delegating to `from_dicts`.
+
+        :param data: the serialized state, as produced by `to_state`
+        :type data: dict
+        :param serializer: the serializer used to deserialize the state-space objects
+        :type serializer: object
+        :return: the reconstructed corrections object
+        :rtype: PerturbationTheoryCorrections
+        """
         return cls.from_dicts(
             {
                 "states": serializer.deserialize(data['states']),
@@ -965,6 +1070,14 @@ class AnalyticPerturbationTheoryCorrections:
     _zpe_pos: int = None
 
     def get_zpe_pos(self) -> int:
+        """
+        **LLM Docstring**
+
+        Find (and cache) the index of the zero-point-energy (ground) state within `self.states`, falling back to index `0` if the all-zeros excitation vector can't be found.
+
+        :return: the ZPE state's index
+        :rtype: int
+        """
         if self._zpe_pos is None:
             basis = self.states
             try:
@@ -978,6 +1091,14 @@ class AnalyticPerturbationTheoryCorrections:
 
     @property
     def energies(self) -> np.ndarray:
+        """
+        **LLM Docstring**
+
+        The final state energies: the sum of the (per-order) energy corrections if there are no degenerate states, otherwise the degenerate-perturbation-theory-corrected energies (computed via `get_degenerate_transformations`, which also populates the cached degenerate Hamiltonians/coefficients).
+
+        :return: the state energies
+        :rtype: np.ndarray
+        """
         if self._energies is None:
             if self.degenerate_states is None:
                 self._energies = np.sum(self.energy_corrections, axis=0)
@@ -990,12 +1111,30 @@ class AnalyticPerturbationTheoryCorrections:
 
     @property
     def deperturbed_energies(self) -> np.ndarray:
+        """
+        **LLM Docstring**
+
+        The (cached) deperturbed state energies -- the sum of the per-order energy corrections, without any degenerate-perturbation-theory rotation applied.
+
+        :return: the deperturbed energies
+        :rtype: np.ndarray
+        """
         if self._deperturbed_energies is None:
             self._deperturbed_energies = np.sum(self.energy_corrections, axis=0)
         return self._deperturbed_energies
 
     @classmethod
     def handle_degenerate_transformation(cls, degenerate_ham):
+        """
+        **LLM Docstring**
+
+        Diagonalize a degenerate-block Hamiltonian and reorder its eigenvalues/eigenvectors so that each output state is matched (by maximum overlap) to a distinct input state, avoiding two output states mapping to the same input state.
+
+        :param degenerate_ham: the (Hermitian) degenerate-block Hamiltonian matrix to diagonalize
+        :type degenerate_ham: np.ndarray
+        :return: `(deg_engs, deg_transf)` -- the reordered eigenvalues and eigenvector (transformation) matrix
+        :rtype: tuple[np.ndarray, np.ndarray]
+        """
         deg_engs, deg_transf = np.linalg.eigh(degenerate_ham)
 
         # ov_thresh = .5
@@ -1026,6 +1165,18 @@ class AnalyticPerturbationTheoryCorrections:
         return deg_engs, deg_transf
 
     def get_degenerate_transformations(self, basis, energies):
+        """
+        **LLM Docstring**
+
+        Apply degenerate perturbation theory block by block: for each group of degenerate states, build its Hamiltonian block (summing the per-order corrections, with the diagonal set to the current deperturbed energies), diagonalize it via `handle_degenerate_transformation`, and write the resulting energies back into the running energy array.
+
+        :param basis: the state space the energies are indexed against
+        :type basis: BasisStateSpace
+        :param energies: the deperturbed energies to correct, indexed against `basis`
+        :type energies: np.ndarray
+        :return: `(energies, (hams, transf))` -- the corrected energies, and the list of per-block Hamiltonians and diagonalizing transformations
+        :rtype: tuple[np.ndarray, tuple[list[np.ndarray], list[np.ndarray]]]
+        """
         energies = energies.copy()
 
         hams = []
@@ -1066,19 +1217,51 @@ class AnalyticPerturbationTheoryCorrections:
 
     @property
     def degenerate_hamiltonians(self):
+        """
+        **LLM Docstring**
+
+        The (cached) per-block degenerate Hamiltonians, computed as a side effect of evaluating `energies` if not already cached.
+
+        :return: the list of degenerate-block Hamiltonians
+        :rtype: list[np.ndarray]
+        """
         if self._degenerate_hamiltonians is None:
             e_base = self.energies # TODO: this is bad practice...
         return self._degenerate_hamiltonians
     @property
     def degenerate_coefficients(self):
+        """
+        **LLM Docstring**
+
+        The (cached) per-block degenerate-perturbation-theory mixing coefficients, computed as a side effect of evaluating `energies` if not already cached.
+
+        :return: the list of degenerate-block mixing-coefficient matrices
+        :rtype: list[np.ndarray]
+        """
         if self._degenerate_coefficients is None:
             e_base = self.energies # TODO: this is bad practice...
         return self._degenerate_coefficients
 
     def get_freqs(self):
+        """
+        **LLM Docstring**
+
+        Compute the vibrational transition frequencies (final energies) relative to the zero-point energy.
+
+        :return: the frequencies
+        :rtype: np.ndarray
+        """
         return self.energies - self.energies[self.get_zpe_pos()]
 
     def get_deperturbed_freqs(self):
+        """
+        **LLM Docstring**
+
+        Compute the deperturbed vibrational transition frequencies relative to the deperturbed zero-point energy, if degenerate states are present; otherwise falls back to `get_freqs`.
+
+        :return: the deperturbed frequencies
+        :rtype: np.ndarray
+        """
         if self.degenerate_states is not None:
             return self.deperturbed_energies - self.deperturbed_energies[self.get_zpe_pos()]
         else:
@@ -1086,10 +1269,29 @@ class AnalyticPerturbationTheoryCorrections:
 
     @property
     def degenerate_transformation_pairs(self):
+        """
+        **LLM Docstring**
+
+        The (cached) per-block `(row_tf, col_tf)` transformation pairs mapping each `state_lists` block's raw initial/final states onto their degenerate-perturbation-theory-mixed counterparts, computed lazily via `_get_degenerate_tfs_mats`.
+
+        :return: the list of per-block `[row_tf, col_tf]` transformation pairs
+        :rtype: list[list[np.ndarray]]
+        """
         if self._degenerate_state_list_transformations is None:
             self._degenerate_state_list_transformations = self._get_degenerate_tfs_mats()
         return self._degenerate_state_list_transformations
     def _get_degenerate_tfs_mats(self, logger=None):
+        """
+        **LLM Docstring**
+
+        Build, for each `(initial_states, final_states)` block in `state_lists`, the pair of transformation matrices that map the raw (unmixed) initial/final states onto their degenerate-perturbation-theory-mixed linear combinations -- identity everywhere except in rows/columns corresponding to states that participate in a degenerate block, which are replaced by the corresponding column of that block's mixing coefficients -- validating that each resulting transformation is (approximately) unitary.
+
+        :param logger: logger to report the degenerate blocks/transformations to; defaults to `self.logger`
+        :type logger: Logger | str | None
+        :return: the list of per-block `[row_tf, col_tf]` transformation-matrix pairs
+        :rtype: list[list[np.ndarray]]
+        :raises ValueError: if a computed row or column transformation isn't (approximately) unitary
+        """
         #TODO: add checks to ensure that our blocks are complete and we have proper unitary tfs at the end
         if logger is None:
             logger = self.logger
@@ -1193,6 +1395,18 @@ class AnalyticPerturbationTheoryCorrections:
             tfs.append([row_tf, col_tf])
         return tfs
     def _apply_degs_to_corrs(self, corrs, logger=None):
+        """
+        **LLM Docstring**
+
+        Apply the per-block degenerate-perturbation-theory transformation pairs (from `degenerate_transformation_pairs`) to a set of per-block correction matrices (or, for multi-axis quantities like transition moments, a list of such per-block matrices per axis), sandwiching each block between the row and column transformations.
+
+        :param corrs: the per-block correction data to transform, either a flat list of per-block matrices or a list of such lists (one per axis/operator component)
+        :type corrs: list
+        :param logger: logger, accepted for interface consistency but not used directly in this method's body
+        :type logger: Logger | str | None
+        :return: the transformed correction data, in the same nested structure as `corrs`
+        :rtype: list
+        """
         if logger is None:
             logger = self.logger
         logger = Logger.lookup(logger)
@@ -1218,6 +1432,14 @@ class AnalyticPerturbationTheoryCorrections:
 
     @property
     def transition_moments(self):
+        """
+        **LLM Docstring**
+
+        The (cached) final transition-dipole moments: the deperturbed transition moments if there are no degenerate states, otherwise those moments rotated by the degenerate-perturbation-theory transformation (via `_apply_degs_to_corrs`).
+
+        :return: the per-axis, per-block transition moments
+        :rtype: list
+        """
         if self._transition_moments is None:
             logger = Logger.lookup(self.logger)
             null = NullLogger()
@@ -1235,6 +1457,14 @@ class AnalyticPerturbationTheoryCorrections:
 
     @property
     def harmonic_transition_moments(self):
+        """
+        **LLM Docstring**
+
+        The purely harmonic (zeroth-order) transition-dipole moments, extracted from the first entry of each block's transition-moment corrections.
+
+        :return: the per-axis, per-block harmonic transition moments
+        :rtype: list
+        """
         return [
             [corr_block[0] for corr_block in axis]
             for axis in self.transition_moment_corrections
@@ -1244,6 +1474,14 @@ class AnalyticPerturbationTheoryCorrections:
 
     @property
     def deperturbed_transition_moments(self):
+        """
+        **LLM Docstring**
+
+        The (cached) deperturbed transition-dipole moments, summing each block's transition-moment corrections over all perturbative orders.
+
+        :return: the per-axis, per-block deperturbed transition moments
+        :rtype: list
+        """
         if self._deperturbed_transition_moments is None:
             self._deperturbed_transition_moments = [
                 [np.sum(corr_block, axis=0) for corr_block in axis]
@@ -1254,6 +1492,18 @@ class AnalyticPerturbationTheoryCorrections:
         return self._deperturbed_transition_moments
 
     def get_spectra(self, energies, transition_moments):
+        """
+        **LLM Docstring**
+
+        Build a per-block list of discrete IR spectra from a set of state energies and transition moments, one spectrum per initial state in each `state_lists` block, with transition frequencies computed relative to that initial state's energy.
+
+        :param energies: the state energies to compute transition frequencies from
+        :type energies: np.ndarray
+        :param transition_moments: the per-axis, per-block transition-moment data (as returned by `transition_moments`/`deperturbed_transition_moments`/`harmonic_transition_moments`)
+        :type transition_moments: list
+        :return: the per-block lists of per-initial-state discrete spectra
+        :rtype: list[list[DiscreteSpectrum]]
+        """
         spectra = []
         for block_idx, (init_states, final_states) in enumerate(self.state_lists):
             block_specs = []
@@ -1271,6 +1521,14 @@ class AnalyticPerturbationTheoryCorrections:
 
     @property
     def harmonic_spectra(self):
+        """
+        **LLM Docstring**
+
+        The purely harmonic (zeroth-order) IR spectra, built from the zeroth-order energy corrections and harmonic transition moments via `get_spectra`.
+
+        :return: the per-block lists of per-initial-state harmonic spectra
+        :rtype: list[list[DiscreteSpectrum]]
+        """
         return self.get_spectra(
             self.energy_corrections[0],
             self.harmonic_transition_moments
@@ -1278,6 +1536,14 @@ class AnalyticPerturbationTheoryCorrections:
 
     @property
     def deperturbed_spectra(self):
+        """
+        **LLM Docstring**
+
+        The (cached) deperturbed IR spectra, built from the deperturbed energies and transition moments via `get_spectra`.
+
+        :return: the per-block lists of per-initial-state deperturbed spectra
+        :rtype: list[list[DiscreteSpectrum]]
+        """
         if self._deperturbed_spectra is None:
             self._deperturbed_spectra = self.get_spectra(
                 self.deperturbed_energies,
@@ -1287,6 +1553,14 @@ class AnalyticPerturbationTheoryCorrections:
 
     @property
     def spectra(self):
+        """
+        **LLM Docstring**
+
+        The (cached) final IR spectra: the deperturbed spectra if there are no degenerate states, otherwise the spectra built from the degenerate-perturbation-theory-corrected energies and transition moments.
+
+        :return: the per-block lists of per-initial-state spectra
+        :rtype: list[list[DiscreteSpectrum]]
+        """
         if self._spectra is None:
             if self.degenerate_states is None:
                 self._spectra = self.deperturbed_spectra
@@ -1299,6 +1573,14 @@ class AnalyticPerturbationTheoryCorrections:
 
     @property
     def deperturbed_operator_values(self):
+        """
+        **LLM Docstring**
+
+        The (cached) deperturbed values of any extra tracked operators, summing each operator's per-block corrections over all perturbative orders.
+
+        :return: the per-operator, per-block deperturbed operator values
+        :rtype: list
+        """
         if self._deperturbed_operator_values is None:
             self._deperturbed_operator_values = [
                 [np.sum(corr_block, axis=0) for corr_block in op]
@@ -1308,6 +1590,14 @@ class AnalyticPerturbationTheoryCorrections:
 
     @property
     def operator_values(self):
+        """
+        **LLM Docstring**
+
+        The (cached) final values of any extra tracked operators: the deperturbed operator values if there are no degenerate states, otherwise those values rotated by the degenerate-perturbation-theory transformation (via `_apply_degs_to_corrs`).
+
+        :return: the per-operator, per-block operator values
+        :rtype: list
+        """
         if self._operator_values is None:
             if self.degenerate_states is None:
                 self._operator_values = self.deperturbed_operator_values
