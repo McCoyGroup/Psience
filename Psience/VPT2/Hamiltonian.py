@@ -313,10 +313,34 @@ class PerturbationTheoryHamiltonian:
 
     class TermGetter:
         def __init__(self, base_terms, input_terms, mode_selection=None):
+            """
+            **LLM Docstring**
+
+            Wrap a pair of term sources (a set of "base" expansion terms and/or a set of explicitly supplied "input" terms) so that indexing into this object transparently prefers the input terms where available, falling back to the base terms otherwise.
+
+            :param base_terms: the fallback expansion terms (e.g. computed potential/kinetic terms), indexable by order
+            :type base_terms: object | None
+            :param input_terms: explicitly supplied terms to prefer, indexable by order
+            :type input_terms: object | None
+            :param mode_selection: a subset of mode indices to restrict `input_terms` to when they're used
+            :type mode_selection: Iterable[int] | None
+            :return: None
+            :rtype: None
+            """
             self.base_terms = base_terms
             self.input_terms = input_terms
             self.mode_selection = mode_selection
         def __getitem__(self, o):
+            """
+            **LLM Docstring**
+
+            Fetch the term at order `o`: prefers the (mode-subset-restricted) input term if one is available at that order, otherwise falls back to the (adjusted) base term.
+
+            :param o: the perturbative order to fetch
+            :type o: int
+            :return: the term at that order, or `None` if neither source has one
+            :rtype: object | None
+            """
             if self.base_terms is not None or self.input_terms is not None:
                 V = None
                 if self.input_terms is not None and len(self.input_terms) > o:
@@ -328,6 +352,18 @@ class PerturbationTheoryHamiltonian:
                 V = None
             return V
         def take_mode_subset(self, V, sel):
+            """
+            **LLM Docstring**
+
+            Restrict a term tensor to a subset of modes along every axis, if a mode selection is configured.
+
+            :param V: the term tensor to restrict
+            :type V: np.ndarray | object
+            :param sel: the mode-index subset to restrict to; if `None`, `V` is returned unchanged
+            :type sel: Iterable[int] | None
+            :return: the restricted tensor (or `V` unchanged if `sel`/`V` isn't a plain array)
+            :rtype: np.ndarray | object
+            """
             if sel is None:
                 return V
             else:
@@ -336,6 +372,16 @@ class PerturbationTheoryHamiltonian:
                         V = np.take(V, self.mode_selection, axis=i)
                 return V
         def adjust_base_term(self, V):
+            """
+            **LLM Docstring**
+
+            Hook for post-processing a base term before it's returned; on the base `TermGetter` this is a no-op, returning `V` unchanged. Subclasses (e.g. `CoriolisTermGetter`) override this to apply term-specific adjustments.
+
+            :param V: the base term to adjust
+            :type V: object
+            :return: `V`, unchanged
+            :rtype: object
+            """
             return V
     class CoriolisTermGetter(TermGetter):
         # def take_mode_subset(self, Z, sel):
@@ -350,11 +396,29 @@ class PerturbationTheoryHamiltonian:
         #             zz.append(z)
         #         return zz
         def adjust_base_term(self, Z):
+            """
+            **LLM Docstring**
+
+            Collapse the Coriolis term's 3 rotational-axis components down to a single tensor by summing the `xx`, `yy`, and `zz` diagonal blocks.
+
+            :param Z: the Coriolis term, with its leading two axes indexing the rotational axes
+            :type Z: np.ndarray
+            :return: the summed (axis-collapsed) tensor
+            :rtype: np.ndarray
+            """
             Z = Z[0, 0] + Z[1, 1] + Z[2, 2]
             return Z
 
     @property
     def dipole_terms(self):
+        """
+        **LLM Docstring**
+
+        The (lazily constructed and cached) `DipoleTerms` object used to expand the dipole surface, or `None` if dipole terms weren't requested (`include_dipole=False` at construction).
+
+        :return: the dipole-terms expansion object, or `None`
+        :rtype: DipoleTerms | None
+        """
         if not self._include_dipole: return None
         if self._dipole_terms is None:
             self._dipole_terms = DipoleTerms(
@@ -368,6 +432,17 @@ class PerturbationTheoryHamiltonian:
 
     @classmethod
     def prep_local_couplings(cls, local_mode_couplings):
+        """
+        **LLM Docstring**
+
+        Normalize the `local_mode_couplings` constructor argument into a `[v0, g0]` pair of local-mode potential/kinetic coupling matrices: `False`/falsy stays `False` (no local coupling), `True` becomes `[None, None]` (defer to defaults), a bare coupling matrix is split evenly between potential and kinetic contributions, and an explicit `(v0, g0)` pair is validated and passed through.
+
+        :param local_mode_couplings: the raw local-mode-coupling specification
+        :type local_mode_couplings: bool | np.ndarray | tuple
+        :return: `False`, or the resolved `[v0, g0]` coupling-matrix pair
+        :rtype: bool | list[np.ndarray | None]
+        :raises ValueError: if a 2-element specification doesn't resolve to a valid 2D coupling matrix
+        """
         if not local_mode_couplings:
             return False
 
@@ -614,6 +689,19 @@ class PerturbationTheoryHamiltonian:
         return self._expansions[o]
 
     def prep_operator_terms(self, coeffs, order):
+        """
+        **LLM Docstring**
+
+        Build the perturbative expansion terms for an arbitrary operator given as a `[constant, deriv1, deriv2, ...]` list of coefficients, padding any missing lower-order derivative tensors with zeros (inferred from the dimensionality of the first non-numeric entry) before expanding the whole thing through `OperatorTerms`.
+
+        :param coeffs: the operator's raw coefficient list: a constant term followed by successive derivative tensors (which may start at a higher order, with lower orders implicitly zero)
+        :type coeffs: list
+        :param order: the highest derivative order to expand to
+        :type order: int
+        :return: `[const] + expansion_terms`, the constant term followed by the expanded (mode-basis) derivative terms
+        :rtype: list
+        :raises ValueError: if every entry in `coeffs[1:]` is purely numeric (so the intended tensor dimensionality can't be inferred)
+        """
         coeffs = [
             float(x)
                 if nput.is_numeric(x) else
@@ -687,6 +775,30 @@ class PerturbationTheoryHamiltonian:
 
     @staticmethod
     def _Nielsen_xss(s, w, v3, v4, zeta, Be, ndim, return_components=False):
+        """
+        **LLM Docstring**
+
+        Compute the same-mode (`X_ss`) anharmonicity constant contribution from Harald Nielsen's second-order perturbation-theory formulas, combining the quartic force-constant term with the (commented-out, currently unused) cubic and Coriolis contributions.
+
+        :param s: the mode index (negative indices wrap via `ndim`)
+        :type s: int
+        :param w: the harmonic frequencies
+        :type w: np.ndarray
+        :param v3: the cubic force-constant tensor
+        :type v3: np.ndarray
+        :param v4: the quartic force-constant tensor
+        :type v4: np.ndarray
+        :param zeta: the Coriolis zeta-constant tensor
+        :type zeta: np.ndarray
+        :param Be: the rotational constants
+        :type Be: np.ndarray
+        :param ndim: the number of vibrational modes
+        :type ndim: int
+        :param return_components: whether to return the individual cubic/quartic/Coriolis contributions instead of their (partial) sum
+        :type return_components: bool
+        :return: the `X_ss` contribution, or its `[cubic, quartic, coriolis]` components if `return_components` is set
+        :rtype: float | list
+        """
         # actually pulled from the Stanton VPT4 paper since they had
         # the same units as I do...then I simplified to make path formalism explicit
         # we split this up into 3rd derivative, 4th derivative, and coriolis terms
@@ -724,6 +836,32 @@ class PerturbationTheoryHamiltonian:
 
     @staticmethod
     def _Nielsen_xst(s, t, w, v3, v4, zeta, Be, ndim, return_components=False):
+        """
+        **LLM Docstring**
+
+        Compute the cross-mode (`X_st`) anharmonicity constant contribution from Harald Nielsen's second-order perturbation-theory formulas, combining cubic, quartic, and Coriolis force-constant terms.
+
+        :param s: the first mode index (negative indices wrap via `ndim`)
+        :type s: int
+        :param t: the second mode index (negative indices wrap via `ndim`)
+        :type t: int
+        :param w: the harmonic frequencies
+        :type w: np.ndarray
+        :param v3: the cubic force-constant tensor
+        :type v3: np.ndarray
+        :param v4: the quartic force-constant tensor
+        :type v4: np.ndarray
+        :param zeta: the Coriolis zeta-constant tensor
+        :type zeta: np.ndarray
+        :param Be: the rotational constants
+        :type Be: np.ndarray
+        :param ndim: the number of vibrational modes
+        :type ndim: int
+        :param return_components: whether to return the individual cubic/quartic/Coriolis contributions instead of their sum
+        :type return_components: bool
+        :return: `[cubic, quartic, coriolis]` -- the `X_st` contribution split into its component terms (summed if `return_components` is `False`, listed per-term if `True`)
+        :rtype: list
+        """
         # actually pulled from Stanton VPT4 paper
         # then simplified to make path formalism more explicit
 
@@ -809,6 +947,24 @@ class PerturbationTheoryHamiltonian:
 
     @classmethod
     def _get_Nielsen_xmat(cls, freqs, v3, v4, zeta, Be):
+        """
+        **LLM Docstring**
+
+        Build the full symmetric `X` anharmonicity-constant matrix (used in Nielsen's second-order vibrational energy formula) from the harmonic frequencies and cubic/quartic force constants, Coriolis zeta constants, and rotational constants, computing each same-mode entry via `_Nielsen_xss` and each cross-mode entry via `_Nielsen_xst`.
+
+        :param freqs: the harmonic frequencies
+        :type freqs: np.ndarray
+        :param v3: the cubic force-constant tensor; treated as all-zero if `None`/`0`
+        :type v3: np.ndarray | None
+        :param v4: the quartic force-constant tensor; treated as all-zero if `None`/`0`
+        :type v4: np.ndarray | None
+        :param zeta: the Coriolis zeta-constant tensor; treated as all-zero if `None`/`0`
+        :type zeta: np.ndarray | None
+        :param Be: the rotational constants; treated as all-zero if `None`/`0`
+        :type Be: np.ndarray | None
+        :return: the `(3, ndim, ndim)` X-matrix (one symmetric matrix per rotational axis... actually the leading axis holds the cubic/quartic/Coriolis split before being collapsed into a single symmetric `ndim x ndim` matrix per mode pair)
+        :rtype: np.ndarray
+        """
 
         # raise Exception(UnitsData.convert("Hartrees", "Wavenumbers") * Be, np.round(zeta, 5))
 
@@ -1035,6 +1191,18 @@ class PerturbationTheoryHamiltonian:
     #endregion Nielsen energies
 
     def _get_expansion_orders(self, expansion_order, order):
+        """
+        **LLM Docstring**
+
+        Normalize the `expansion_order` specification into a full per-term-type dict (`'potential'`, `'gmatrix'`, `'pseudopotential'`, `'coriolis'`), filling in unspecified entries from a `'default'` key (or the overall PT `order` if no default/kinetic entry is given) and from a shared `'kinetic'` fallback for the three kinetic-energy-related term types.
+
+        :param expansion_order: the raw expansion-order specification: `None` (use `order` for everything), a bare integer (used for both kinetic and potential), or a partial dict of per-term-type orders
+        :type expansion_order: int | dict | None
+        :param order: the overall perturbation-theory order, used as the ultimate fallback
+        :type order: int
+        :return: the fully populated per-term-type expansion-order dict
+        :rtype: dict
+        """
         if expansion_order is None:
             expansion_order = order
         if isinstance(expansion_order, int):
@@ -1069,6 +1237,34 @@ class PerturbationTheoryHamiltonian:
                    target_property_rules=None,
                    **opts
                 ):
+        """
+        **LLM Docstring**
+
+        Build a `PerturbationTheorySolver` for the given target states: resolves the per-term expansion orders, builds the corresponding Hamiltonian perturbation representations (via `get_perturbations`), coerces `states` into a `BasisStateSpace` (optionally attaching a complete symmetric-group full basis), and constructs the solver with this Hamiltonian's logger/checkpointer/parallelizer and local-mode-coupling settings.
+
+        :param states: the target states to solve for
+        :type states: BasisStateSpace | Iterable[int] | Iterable[Iterable[int]]
+        :param degeneracies: the degenerate-state specification, forwarded as `opts['degenerate_states']` if not already present in `opts`
+        :type degeneracies: object | None
+        :param allow_post_PT_calc: whether to allow post-perturbation-theory (e.g. degenerate) energy corrections
+        :type allow_post_PT_calc: bool
+        :param ignore_odd_order_energies: whether to skip odd-order energy corrections (which should vanish by symmetry)
+        :type ignore_odd_order_energies: bool
+        :param use_full_basis: whether to attach a complete symmetric-group full basis to `states` if one isn't already present
+        :type use_full_basis: bool
+        :param order: the perturbation-theory order to solve to
+        :type order: int
+        :param expansion_order: the per-term expansion orders; resolved via `_get_expansion_orders` if not already a full dict
+        :type expansion_order: int | dict | None
+        :param memory_constrained: whether to use a memory-constrained solving strategy; defaults to `True` if the state space has more than 20 dimensions
+        :type memory_constrained: bool | None
+        :param target_property_rules: property-specific selection rules to restrict the solve to
+        :type target_property_rules: object | None
+        :param opts: extra options forwarded to the `PerturbationTheorySolver` constructor
+        :type opts: dict
+        :return: the constructed solver
+        :rtype: PerturbationTheorySolver
+        """
 
         expansion_order = self._get_expansion_orders(expansion_order, order)
         h_reps = self.get_perturbations(expansion_order)
@@ -1331,6 +1527,23 @@ class PerturbationTheoryHamiltonian:
                       degeneracies=None,
                       order=2
                       ):
+        """
+        **LLM Docstring**
+
+        Intended to compute a term-by-term breakdown of the VPT energies (harmonic-only, +cubic, +quartic, full) for a set of states, but currently disabled -- immediately raises, noting the surrounding solver machinery has changed and this method hasn't been updated to match, so the remaining implementation below is unreachable legacy code.
+
+        :param states: the target states
+        :type states: object
+        :param coupled_states: the coupled-state space to use
+        :type coupled_states: object | None
+        :param degeneracies: the degenerate-state specification
+        :type degeneracies: object | None
+        :param order: the perturbation-theory order
+        :type order: int
+        :return: never returns
+        :rtype: dict
+        :raises NotImplementedError: always, noting the solver's form has changed and this method needs corresponding updates
+        """
 
         raise NotImplementedError("changed up form of Solver and need to include these changes here too")
 
