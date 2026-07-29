@@ -57,6 +57,17 @@ prep_local_modes(self, dRdX, dXdR=None, sort_freqs=False):
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTSystem.py#L224)/
 [edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTSystem.py#L224?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Build a set of "local mode" normal-mode data (frequencies, mode matrix, and its inverse) from a set of Cartesian-to-internal Jacobians, by rescaling the force-constant and G-matrix diagonals into a locally-diagonal (Duschinsky-like) basis.
+  - `dRdX`: `np.ndarray | None`
+    > the internals-by-Cartesians Jacobian; used to derive `dXdR` if not given
+  - `dXdR`: `np.ndarray | None`
+    > the Cartesians-by-internals Jacobian; derived from `dRdX` via pseudo-inverse if not given
+  - `sort_freqs`: `bool`
+    > whether to sort the resulting modes by ascending frequency
+  - `:returns`: `dict`
+    > a dict with `'matrix'`, `'inverse'`, and `'freqs'` keys describing the local-mode basis
 
 
 <a id="Psience.VPT2.Runner.VPTSystem.nmodes" class="docs-object-method">&nbsp;</a> 
@@ -65,8 +76,8 @@ prep_local_modes(self, dRdX, dXdR=None, sort_freqs=False):
 nmodes(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTSystem.py#L254)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTSystem.py#L254?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTSystem.py#L268)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTSystem.py#L268?message=Update%20Docs)]
 </div>
 Provides the number of modes in the system
   - `:returns`: `_`
@@ -78,8 +89,8 @@ Provides the number of modes in the system
 get_potential_derivatives(self, potential_function, order=2, **fd_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTSystem.py#L275)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTSystem.py#L275?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTSystem.py#L289)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTSystem.py#L289?message=Update%20Docs)]
 </div>
 Computes potential derivatives for the given function through finite difference
   - `potential_function`: `Any`
@@ -98,9 +109,16 @@ Computes potential derivatives for the given function through finite difference
 from_harmonic_scan(cls, scan_array): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L296)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L296?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L310)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L310?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Intended to build a `VPTSystem` from a harmonic potential-energy scan array. Not implemented.
+  - `scan_array`: `object`
+    > the scan data to build the system from
+  - `:returns`: `VPTSystem`
+    > never returns
  </div>
 </div>
 
@@ -108,9 +126,9 @@ from_harmonic_scan(cls, scan_array):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-3c4e41" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-3c4e41"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Details-fb0c7f" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-fb0c7f"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Details-3c4e41" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Details-fb0c7f" markdown="1">
  When using functions of internal (Z-matrix/polyspherical) coordinates, a sample form of the conversion function is
 ```python
 def conv(r, t, f, **kwargs):
