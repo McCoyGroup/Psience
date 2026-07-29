@@ -205,6 +205,25 @@ get_degenerate_transformation(self, group, hams, gaussian_resonance_handling=Fal
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L508)/
 [edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L508?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Compute the degenerate-perturbation-theory rotation for a single group of resonant/degenerate states: finds the group's positions within this object's overall state space (warning about any states in the group that aren't present), and, if the group has more than one matched state (and isn't skipped due to Gaussian-style high-order resonance handling), diagonalizes the corresponding non-degenerate Hamiltonian block via `get_degenerate_rotation`.
+  - `group`: `BasisStateSpace`
+    > the group of mutually resonant/degenerate states to build the transformation for
+  - `hams`: `list[np.ndarray]`
+    > the Hamiltonian correction matrices to build the block from
+  - `gaussian_resonance_handling`: `bool`
+    > whether to skip building a rotation for groups whose states have more than 2 quanta of excitation (mimicking Gaussian's resonance-handling convention)
+  - `label`: `str | None`
+    > a label used for logging
+  - `zero_point_energy`: `float | None`
+    > the zero-point energy, used when building/logging the non-degenerate Hamiltonian block
+  - `local_coupling_hamiltonian`: `np.ndarray | None`
+    > an explicit local coupling Hamiltonian to use instead of building one from `hams`
+  - `local_coupling_order`: `int | None`
+    > the perturbative order to build the local coupling Hamiltonian to, if not given explicitly
+  - `:returns`: `tuple`
+    > `(deg_inds, H_nd, deg_rot, deg_engs)` -- the group's indices within this state space, the non-degenerate Hamiltonian block, the diagonalizing rotation, and the resulting (sorted) degenerate energies; `H_nd`/`deg_rot`/`deg_engs` are all `None` if the group doesn't need (or isn't eligible for) degenerate treatment
 
 
 <a id="Psience.VPT2.Corrections.PerturbationTheoryCorrections.default_state_filter" class="docs-object-method">&nbsp;</a> 
@@ -213,8 +232,8 @@ get_degenerate_transformation(self, group, hams, gaussian_resonance_handling=Fal
 default_state_filter(state, couplings, energy_cutoff=None, energies=None, basis=None, target_modes=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L546)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L546?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L568)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L568?message=Update%20Docs)]
 </div>
 Excludes modes that differ in only one position, prioritizing states with fewer numbers of quanta
 (potentially add restrictions to high frequency modes...?)
@@ -231,8 +250,8 @@ Excludes modes that differ in only one position, prioritizing states with fewer 
 find_strong_couplings(self, threshold=0.1, state_filter=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L590)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L590?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L612)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L612?message=Update%20Docs)]
 </div>
 Finds positions in the expansion matrices where the couplings are too large
   - `threshold`: `Any`
@@ -246,9 +265,26 @@ Finds positions in the expansion matrices where the couplings are too large
 format_strong_couplings_report(self, couplings=None, threshold=0.1, int_fmt='{:>3.0f}', padding='{:<8}', join=True, use_excitations=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L623)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L623?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L645)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L645?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Format a human-readable report of the states found by `find_strong_couplings` (or an explicitly supplied `couplings` dict), listing each state alongside the other states it's strongly coupled to at each perturbative order.
+  - `couplings`: `dict | None`
+    > the strong-coupling data to format; computed via `find_strong_couplings` if not given
+  - `threshold`: `float`
+    > the coupling-strength threshold forwarded to `find_strong_couplings` if `couplings` isn't given
+  - `int_fmt`: `str`
+    > the format string used for each quantum-number column
+  - `padding`: `str`
+    > the format string used for row labels/indentation
+  - `join`: `bool`
+    > whether to join the report lines into a single string, or return them as a list
+  - `use_excitations`: `bool`
+    > whether to display states as their excitation-quantum-number vectors (rather than raw basis indices)
+  - `:returns`: `str | list[str]`
+    > the formatted report, as a single string or a list of lines
 
 
 <a id="Psience.VPT2.Corrections.PerturbationTheoryCorrections.collapse_strong_couplings" class="docs-object-method">&nbsp;</a> 
@@ -256,8 +292,8 @@ format_strong_couplings_report(self, couplings=None, threshold=0.1, int_fmt='{:>
 collapse_strong_couplings(self, sc: dict): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L643)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L643?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L685)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L685?message=Update%20Docs)]
 </div>
 
   - `sc`: `Any`
@@ -271,8 +307,8 @@ collapse_strong_couplings(self, sc: dict):
 operator_representation(self, operator_expansion, order=None, subspace=None, contract=True, logger_symbol='A', logger_conversion=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L713)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L713?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L774)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L774?message=Update%20Docs)]
 </div>
 Generates the representation of the operator in the basis of stored states
   - `operator_expansion`: `Iterable[float] | Iterable[np.ndarray]`
@@ -290,8 +326,8 @@ Generates the representation of the operator in the basis of stored states
 get_overlap_matrices(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L795)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L795?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L856)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L856?message=Update%20Docs)]
 </div>
 Returns the overlap matrices for the set of corrections
 at each order of correction
@@ -304,9 +340,16 @@ at each order of correction
 savez(self, file): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L870)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L870?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L931)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L931?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Intended to serialize the corrections to an `npz` file, but currently disabled -- immediately raises, noting the implementation is outdated; use `to_state`/`from_state` instead.
+  - `file`: `str`
+    > the target file path
+  - `:returns`: `None`
+    > never returns
 
 
 <a id="Psience.VPT2.Corrections.PerturbationTheoryCorrections.loadz" class="docs-object-method">&nbsp;</a> 
@@ -315,9 +358,16 @@ savez(self, file):
 loadz(cls, file): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L886)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L886?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L958)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L958?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Intended to reconstruct corrections from an `npz` file previously written by `savez`, but currently disabled -- immediately raises, noting the implementation is outdated; use `to_state`/`from_state` instead.
+  - `file`: `str`
+    > the source file path
+  - `:returns`: `PerturbationTheoryCorrections`
+    > never returns
 
 
 <a id="Psience.VPT2.Corrections.PerturbationTheoryCorrections.to_state" class="docs-object-method">&nbsp;</a> 
@@ -325,9 +375,16 @@ loadz(cls, file):
 to_state(self, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L906)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L906?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L989)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Corrections/PerturbationTheoryCorrections.py#L989?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Serialize this object's core data (states, coupled states, total basis, energy/wavefunction corrections, and any degenerate-perturbation-theory data) into a plain dict.
+  - `serializer`: `object | None`
+    > accepted for interface consistency but not used in this method's body
+  - `:returns`: `dict`
+    > the serialized state dict
 
 
 <a id="Psience.VPT2.Corrections.PerturbationTheoryCorrections.from_state" class="docs-object-method">&nbsp;</a> 
@@ -336,9 +393,18 @@ to_state(self, serializer=None):
 from_state(cls, data, serializer=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L918)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L918?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1011)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1011?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Reconstruct a `PerturbationTheoryCorrections` object from a previously serialized state dict, deserializing the state-space objects via the given `serializer` and delegating to `from_dicts`.
+  - `data`: `dict`
+    > the serialized state, as produced by `to_state`
+  - `serializer`: `object`
+    > the serializer used to deserialize the state-space objects
+  - `:returns`: `PerturbationTheoryCorrections`
+    > the reconstructed corrections object
  </div>
 </div>
 

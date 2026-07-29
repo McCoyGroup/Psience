@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Terms.PotentialLikeTerm">PotentialLikeTerm</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L2657)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2657?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L3370)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L3370?message=Update%20Docs)]
 </div>
 
 This accounts for the potential-like term.
@@ -26,9 +26,18 @@ In proper internals, this is the V' term.
 get_terms(self, order=None, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/PotentialLikeTerm.py#L2664)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/PotentialLikeTerm.py#L2664?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/PotentialLikeTerm.py#L3377)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/PotentialLikeTerm.py#L3377?message=Update%20Docs)]
 </div>
+**LLM Docstring**
+
+Compute the potential-like (Watson `U` / internal-coordinate `V'`) correction term's Taylor-expansion terms: either directly from the trace of the reciprocal-inertia-tensor derivatives (when working purely in Cartesian modes), or, for internal coordinates, via the standard Watson pseudopotential derivation combining the G-matrix and inertia-tensor log-determinant derivatives (`d/dQ[ln(detI) - ln(detG)]`, using a matrix-cookbook identity for the log-determinant derivative).
+  - `order`: `int | None`
+    > the highest derivative order to compute
+  - `logger`: `Logger | None`
+    > logger to report progress to; only used when computing the G-matrix terms via the base class
+  - `:returns`: `list[np.ndarray]`
+    > the potential-like-term expansion, one per order
  </div>
 </div>
 
@@ -82,7 +91,7 @@ get_terms(self, order=None, logger=None):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Terms/PotentialLikeTerm.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Terms/PotentialLikeTerm.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2657?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L3370?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
