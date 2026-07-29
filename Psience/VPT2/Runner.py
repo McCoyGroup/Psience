@@ -222,6 +222,20 @@ class VPTSystem:
                 self.mol = self.mol.get_embedded_molecule(eckart_embed)
 
     def prep_local_modes(self, dRdX, dXdR=None, sort_freqs=False):
+        """
+        **LLM Docstring**
+
+        Build a set of "local mode" normal-mode data (frequencies, mode matrix, and its inverse) from a set of Cartesian-to-internal Jacobians, by rescaling the force-constant and G-matrix diagonals into a locally-diagonal (Duschinsky-like) basis.
+
+        :param dRdX: the internals-by-Cartesians Jacobian; used to derive `dXdR` if not given
+        :type dRdX: np.ndarray | None
+        :param dXdR: the Cartesians-by-internals Jacobian; derived from `dRdX` via pseudo-inverse if not given
+        :type dXdR: np.ndarray | None
+        :param sort_freqs: whether to sort the resulting modes by ascending frequency
+        :type sort_freqs: bool
+        :return: a dict with `'matrix'`, `'inverse'`, and `'freqs'` keys describing the local-mode basis
+        :rtype: dict
+        """
         if dXdR is None:
             dXdR = np.linalg.pinv(dRdX)
         elif dRdX is None:
@@ -295,6 +309,17 @@ class VPTSystem:
 
     @classmethod
     def from_harmonic_scan(cls, scan_array):
+        """
+        **LLM Docstring**
+
+        Intended to build a `VPTSystem` from a harmonic potential-energy scan array. Not implemented.
+
+        :param scan_array: the scan data to build the system from
+        :type scan_array: object
+        :return: never returns
+        :rtype: VPTSystem
+        :raises NotImplementedError: always
+        """
         raise NotImplementedError("loading from a Harmonic scan needs to be implemented")
 
 class VPTStateSpace:
@@ -470,6 +495,20 @@ class VPTStateSpace:
 
     @classmethod
     def from_system_and_spec(cls, system, spec, **opts):
+        """
+        **LLM Docstring**
+
+        Build a `VPTStateSpace` from a system and a flexible state specification: passes an already-built `VPTStateSpace` through unchanged, dispatches a bare integer to `from_system_and_quanta` (states up to that many quanta), and otherwise treats `spec` as an explicit state list.
+
+        :param system: the system (molecule/mode context) the states are defined relative to
+        :type system: VPTSystem
+        :param spec: the state specification: an existing `VPTStateSpace`, an integer quanta cutoff, or an explicit list of states
+        :type spec: VPTStateSpace | int | Iterable
+        :param opts: extra options forwarded to the constructor used
+        :type opts: dict
+        :return: the resolved state space
+        :rtype: VPTStateSpace
+        """
         if isinstance(spec, VPTStateSpace): return spec
 
         if nput.is_int(spec):
@@ -606,7 +645,35 @@ class VPTStateSpace:
         #     raise NotImplementedError("don't know what to do with degeneracy spec {}".format(degeneracy_specs))
 
     def filter_generator(self, target_property, order=2, initial_states=None, postfilters=None):
+        """
+        **LLM Docstring**
+
+        Build a callable that produces a state-space filter for a given target property, by binding `target_property`/`order`/`initial_states`/`postfilters` and delegating each call to `get_state_space_filter`; used to supply `state_space_filter_generator`-style hooks that need to be re-evaluated against different candidate state sets.
+
+        :param target_property: the property (e.g. `'intensities'`) the filter should be built for
+        :type target_property: str
+        :param order: the perturbation-theory order to build the filter for
+        :type order: int
+        :param initial_states: the initial states the filtered property is computed relative to
+        :type initial_states: Iterable | None
+        :param postfilters: extra post-transformation filters to apply
+        :type postfilters: object | None
+        :return: the constructed filter-generating function
+        :rtype: callable
+        """
         def filter(states, **opts):
+            """
+            **LLM Docstring**
+
+            Build the state-space filter for a given candidate set of states, using the target property/order/initial-states/postfilters captured from the enclosing `filter_generator` call.
+
+            :param states: the candidate states to build the filter relative to
+            :type states: object
+            :param opts: extra options forwarded to `get_state_space_filter`
+            :type opts: dict
+            :return: the constructed state-space filter
+            :rtype: BasisStateSpaceFilter
+            """
             return self.get_state_space_filter(states,
                                                initial_states=initial_states,
                                                target=target_property,
@@ -1265,6 +1332,14 @@ class VPTRunner:
         self.pt_opts = VPTSolverOptions() if solver_options is None else solver_options
 
     def get_Hamiltonian(self):
+        """
+        **LLM Docstring**
+
+        Build a `PerturbationTheoryHamiltonian` for this runner's system, combining the configured Hamiltonian and runtime options.
+
+        :return: the constructed Hamiltonian
+        :rtype: PerturbationTheoryHamiltonian
+        """
         return PerturbationTheoryHamiltonian(
             self.system.mol,
             **self.ham_opts.opts,
@@ -1273,11 +1348,29 @@ class VPTRunner:
 
     @property
     def hamiltonian(self):
+        """
+        **LLM Docstring**
+
+        The (cached) `PerturbationTheoryHamiltonian` for this runner, built lazily via `get_Hamiltonian` the first time it's needed.
+
+        :return: the Hamiltonian
+        :rtype: PerturbationTheoryHamiltonian
+        """
         if self._ham is None:
             self._ham = self.get_Hamiltonian()
         return self._ham
 
     def get_wavefunctions(self, **opts):
+        """
+        **LLM Docstring**
+
+        Run the full VPT calculation and return the resulting wavefunctions, combining the solver options, degenerate-state/degeneracy-handler settings, and runtime options configured on this runner (with any explicitly passed `opts` taking precedence).
+
+        :param opts: extra options overriding the runner's configured solver/runtime options
+        :type opts: dict
+        :return: the computed perturbation-theory wavefunctions
+        :rtype: PerturbationTheoryWavefunctions
+        """
         pt_opts = self.pt_opts.opts.copy()
         if 'degenerate_states' not in pt_opts:
             pt_opts['degenerate_states'] = self.states.degenerate_states
@@ -1296,6 +1389,14 @@ class VPTRunner:
         )
 
     def get_solver(self):
+        """
+        **LLM Docstring**
+
+        Build a `PerturbationTheorySolver` for this runner's target states, without running the full wavefunction calculation, combining the configured solver and runtime options.
+
+        :return: the constructed solver
+        :rtype: PerturbationTheorySolver
+        """
         pt_opts = self.pt_opts.opts.copy()
         if 'degenerate_states' not in pt_opts:
             pt_opts['degenerate_states'] = self.states.degenerate_states
@@ -1328,6 +1429,20 @@ class VPTRunner:
             logger = wfns.logger
         if logger is not None:
             def print_block(label, *args, **kwargs):
+                """
+                **LLM Docstring**
+
+                Print a labeled block of text, either via the logger (with the label as a block tag) or via plain `print` calls bracketed by a formatted label/footer line, depending on which branch of the enclosing `print_output_tables` is active. Two separate definitions of this closure exist, one per branch.
+
+                :param label: the block's label/tag
+                :type label: str
+                :param args: the content to print, joined with spaces
+                :type args: tuple
+                :param kwargs: extra options forwarded to the underlying print/log call
+                :type kwargs: dict
+                :return: None
+                :rtype: None
+                """
                 with logger.block(tag=label):
                     logger.log_print(" ".join("{}".format(x) for x in args), **kwargs)
         else:
@@ -1335,15 +1450,57 @@ class VPTRunner:
                 file = sys.stdout
 
             def print_label(label, file=file, **opts):
+                """
+                **LLM Docstring**
+
+                Print a centered section-label line, padded on both sides with `sep_char` to a total width of `sep_len`, for use in the non-logger branch of `print_output_tables`.
+
+                :param label: the label text to center
+                :type label: str
+                :param file: the file-like object to print to; defaults to the enclosing `file`
+                :type file: object
+                :param opts: extra options forwarded to `print`
+                :type opts: dict
+                :return: None
+                :rtype: None
+                """
                 lablen = len(label) + 2
                 split_l = int(np.floor((sep_len - lablen) / 2))
                 split_r = int(np.ceil((sep_len - lablen) / 2))
                 print(sep_char * split_l, label, sep_char * split_r, **opts, file=file)
 
             def print_footer(label=None, file=file, **opts):
+                """
+                **LLM Docstring**
+
+                Print a full-width separator line of `sep_char` repeated `sep_len` times, for use in the non-logger branch of `print_output_tables`.
+
+                :param label: unused, accepted for interface consistency with `print_block`
+                :type label: str | None
+                :param file: the file-like object to print to; defaults to the enclosing `file`
+                :type file: object
+                :param opts: extra options forwarded to `print`
+                :type opts: dict
+                :return: None
+                :rtype: None
+                """
                 print(sep_char * sep_len, **opts, file=file)
 
             def print_block(label, *args, file=file, **kwargs):
+                """
+                **LLM Docstring**
+
+                Print a labeled block of text, either via the logger (with the label as a block tag) or via plain `print` calls bracketed by a formatted label/footer line, depending on which branch of the enclosing `print_output_tables` is active. Two separate definitions of this closure exist, one per branch.
+
+                :param label: the block's label/tag
+                :type label: str
+                :param args: the content to print, joined with spaces
+                :type args: tuple
+                :param kwargs: extra options forwarded to the underlying print/log call
+                :type kwargs: dict
+                :return: None
+                :rtype: None
+                """
                 print_label(label, file=file, **kwargs)
                 print(*args, file=file, **kwargs)
                 print_footer(file=file, **kwargs)
@@ -1423,6 +1580,20 @@ class VPTRunner:
         return wfns
 
     def get_Nielsen_energies(self, return_split=False, return_X=False, **potential_params):
+        """
+        **LLM Docstring**
+
+        Compute harmonic and anharmonic (Nielsen-formula) vibrational energies for the target states, via the Hamiltonian's own `get_Nielsen_energies`.
+
+        :param return_split: whether to also return the anharmonicity split out separately
+        :type return_split: bool
+        :param return_X: whether to also return the underlying X anharmonicity-constant matrix
+        :type return_X: bool
+        :param potential_params: extra options forwarded to `PerturbationTheoryHamiltonian.get_Nielsen_energies`
+        :type potential_params: dict
+        :return: `(harmonic, total)` energies, or `(harmonic, total, x_matrix)` if `return_split`/`return_X` is set
+        :rtype: tuple
+        """
         harm, anh, x = self.hamiltonian.get_Nielsen_energies(
             self.states.state_list,
             return_split=return_split,
@@ -1436,6 +1607,20 @@ class VPTRunner:
             return harm, tot
 
     def print_Nielsen_frequencies(self, logger=None, state_formatting='vector', **potential_params):
+        """
+        **LLM Docstring**
+
+        Compute the Nielsen-formula harmonic and anharmonic transition frequencies (relative to the ground state) and print them as a formatted state/frequency table.
+
+        :param logger: `None` to print directly, `True` to use the Hamiltonian's own logger, or an explicit logger to print into a block
+        :type logger: Logger | bool | None
+        :param state_formatting: `'vector'` to display states as raw excitation vectors, or another format understood by `VPTStateMaker.parse_state`
+        :type state_formatting: str
+        :param potential_params: extra options forwarded to `get_Nielsen_energies`
+        :type potential_params: dict
+        :return: None
+        :rtype: None
+        """
         harm, tot = self.get_Nielsen_energies(return_split=False, return_X=False, **potential_params)
         nielsh = (harm - harm[0]) * UnitsData.hartrees_to_wavenumbers
         nielsh[0] = harm[0] * UnitsData.hartrees_to_wavenumbers
@@ -1462,6 +1647,20 @@ class VPTRunner:
 
     @classmethod
     def _quanta_coupled_state_spaces(cls, states, order, track=False):
+        """
+        **LLM Docstring**
+
+        Build, per perturbative order, the set of states coupled to each input state purely by total-quantum-number-change parity/magnitude rules (states within `order` quanta of each other, alternating between odd/even changes by order), used as a coupling space to extend for degenerate treatment.
+
+        :param states: the reference states to build coupled spaces for
+        :type states: BasisStateSpace
+        :param order: the highest perturbative order to build coupled spaces for
+        :type order: int
+        :param track: whether to precompute change-index tracking on the resulting spaces
+        :type track: bool
+        :return: the per-order list of `SelectionRuleStateSpace` coupled spaces
+        :rtype: list[SelectionRuleStateSpace]
+        """
         exc = states.excitations
         qdiffs = np.sum(np.abs(exc[:, np.newaxis] - exc[np.newaxis, :]), axis=-1)
         # we extend state spaces bidirectionally because symmetry will be applied later
@@ -1502,6 +1701,21 @@ class VPTRunner:
 
     @classmethod
     def _matrix_element_filler(cls, new_states, new_spaces, degeneracy_spec):
+        """
+        **LLM Docstring**
+
+        Extend a set of coupled-state spaces to additionally include quantum-number-based coupling states (via `_quanta_coupled_state_spaces`), either across a single degeneracy-spec-free set of states or per degenerate group. Note the `degeneracy_spec is None` branch contains an unconditional `raise Exception(qspaces, new_spaces)` placed before the union logic that would otherwise complete it, so that branch currently always raises rather than returning extended spaces -- this looks like leftover debugging code.
+
+        :param new_states: the states to compute quantum-number-based couplings for
+        :type new_states: BasisStateSpace
+        :param new_spaces: the existing per-order coupled-state spaces to extend
+        :type new_spaces: list[SelectionRuleStateSpace]
+        :param degeneracy_spec: the degenerate groups to compute couplings within, or `None` to compute them across all of `new_states` at once
+        :type degeneracy_spec: Iterable[BasisStateSpace] | None
+        :return: the extended per-order coupled-state spaces
+        :rtype: list[SelectionRuleStateSpace]
+        :raises Exception: unconditionally, if `degeneracy_spec` is `None` (leftover debug code)
+        """
         order = len(new_spaces)
         track = any(s.track_change_positions for s in new_spaces)
         if degeneracy_spec is None:
@@ -1531,6 +1745,31 @@ class VPTRunner:
                   corrected_fundamental_frequencies=None,
                   **opts
                   ):
+        """
+        **LLM Docstring**
+
+        Top-level constructor that assembles a fully configured `VPTRunner` (and, if target states are given, its resolved `VPTStateSpace`) from a molecule/system specification, target states, and a large set of options split automatically across `VPTSystem`, `VPTStateSpace`, `VPTHamiltonianOptions`, `VPTRuntimeOptions`, and `VPTSolverOptions`.
+
+        :param system: the molecule or system specification to run VPT on
+        :type system: str | list | Molecule | VPTSystem
+        :param states: the target states, given as a states object, quanta cutoff, or explicit list
+        :type states: VPTStateSpace | int | Iterable
+        :param target_property: the property (e.g. `'intensities'`) used to build a default state-space filter if `state_space_filters` isn't explicitly given
+        :type target_property: str | None
+        :param extended_space_target_property: accepted for interface consistency but not directly used in this method's body
+        :type extended_space_target_property: object | None
+        :param basis_filters: extra post-transformation filters merged into the generated state-space filter
+        :type basis_filters: object | None
+        :param initial_states: the initial states used both for filter construction and as the runner's own initial states
+        :type initial_states: VPTStateSpace | int | Iterable | None
+        :param corrected_fundamental_frequencies: replacement fundamental frequencies to use for the underlying molecule's normal modes
+        :type corrected_fundamental_frequencies: np.ndarray | None
+        :param opts: the full set of system/state-space/Hamiltonian/runtime/solver options, validated against the union of all their `__props__`
+        :type opts: dict
+        :return: the constructed runner, or `(runner, states)` if target states were given
+        :rtype: VPTRunner | tuple[VPTRunner, VPTStateSpace]
+        :raises ValueError: if `opts` contains any key not recognized by any of the option classes
+        """
         full_opts = (
                 VPTSystem.__props__
                 + VPTStateSpace.__props__
@@ -1755,6 +1994,54 @@ class VPTRunner:
                          normalization_type=0,
                          **opts
                          ):
+            """
+            **LLM Docstring**
+
+            Stub placeholder documenting the intended `AnneInputHelpers.run_anne_job` interface for running a VPT job from Anne-format input files; the actual implementation lives on `AnneInputHelpers` and is bound onto `VPTRunner.helpers` at import time, so this method's body (`...`) is never executed.
+
+            :param base_dir: the directory containing the Anne-format input files
+            :type base_dir: str
+            :param states: the target states (or quanta cutoff) to compute
+            :type states: int | Iterable
+            :param calculate_intensities: whether to compute IR intensities
+            :type calculate_intensities: bool | None
+            :param return_analyzer: whether to return a `VPTAnalyzer` instead of raw results
+            :type return_analyzer: bool
+            :param return_runner: whether to return the constructed `VPTRunner` instead of raw results
+            :type return_runner: bool
+            :param modes_file: the normal-modes input file(s)
+            :type modes_file: str | tuple
+            :param atoms_file: the atoms input file
+            :type atoms_file: str
+            :param masses_file: the masses input file
+            :type masses_file: str
+            :param coords_file: the Cartesian-coordinates input file
+            :type coords_file: str
+            :param zmat_file: the Z-matrix input file
+            :type zmat_file: str
+            :param potential_files: the potential-derivative input files
+            :type potential_files: tuple
+            :param dipole_files: the dipole-derivative input files
+            :type dipole_files: tuple
+            :param coordinate_transformation: an explicit `[conversion, inverse]` coordinate-transformation pair
+            :type coordinate_transformation: list | None
+            :param coordinate_transformation_file: a Python module file defining `conversion`/`inverse` functions
+            :type coordinate_transformation_file: str
+            :param results_file: where to store the results checkpoint
+            :type results_file: str | None
+            :param order: the perturbation-theory order
+            :type order: int | None
+            :param expansion_order: the per-term expansion orders
+            :type expansion_order: int | dict | None
+            :param energy_units: the units the input energies are given in
+            :type energy_units: str | None
+            :param normalization_type: which mode-renormalization convention to use
+            :type normalization_type: int
+            :param opts: extra options forwarded to the underlying runner
+            :type opts: dict
+            :return: never actually executed (stub body is `...`)
+            :rtype: object
+            """
             ...
         convert = UnitsData.convert
 
@@ -1763,11 +2050,38 @@ class AnneInputHelpers:
 
     @classmethod
     def _check_file(cls, no_file):
+        """
+        **LLM Docstring**
+
+        Sanity-check that a supposed file path actually looks like a file (rather than raw file content passed by mistake): raises if the string has fewer than 2 lines and contains a `.`, which would be typical of a bare (nonexistent) filename rather than real multi-line data.
+
+        :param no_file: the string that was expected to be an existing file path but wasn't found on disk
+        :type no_file: str
+        :return: None
+        :rtype: None
+        :raises FileNotFoundError: if `no_file` looks like a filename rather than raw data
+        """
         if len(no_file.splitlines()) < 2 and '.' in no_file:
             raise FileNotFoundError("{} is not a file".format(no_file))
 
     @classmethod
     def get_tensor_idx(cls, line, inds, m, start_at=0):
+        """
+        **LLM Docstring**
+
+        Parse one line of a flattened force-constant/tensor data file into its (1-indexed-to-0-indexed) tuple of indices and its value, inserting the value into the running `inds` dict and updating the running maximum index seen.
+
+        :param line: the raw data line to parse, whitespace-separated indices followed by a value
+        :type line: str
+        :param inds: the running dict mapping index tuples to values, updated in place
+        :type inds: dict
+        :param m: the running maximum index seen so far
+        :type m: int
+        :param start_at: which index position to start considering for the running maximum (used to skip a leading Cartesian-component index for dipole tensors)
+        :type start_at: int
+        :return: the updated maximum index
+        :rtype: int
+        """
         bits = line.split()
         idx = tuple(int(i) - 1 for i in bits if '.' not in i)
         m = max(m, max(idx[start_at:]))
@@ -1777,6 +2091,18 @@ class AnneInputHelpers:
 
     @classmethod
     def parse_tensor(cls, block, dims=None):
+        """
+        **LLM Docstring**
+
+        Parse a symmetric force-constant tensor from an Anne-format data file (or its raw string content), filling in every index permutation from the (upper-triangular-only) parsed entries.
+
+        :param block: the file path, or the raw file content as a string
+        :type block: str
+        :param dims: the tensor's shape; inferred from the largest parsed index and the number of index columns if not given
+        :type dims: tuple | None
+        :return: the assembled, fully-symmetrized tensor
+        :rtype: np.ndarray
+        """
         inds = {}
         m = 0
         if os.path.isfile(block):
@@ -1802,6 +2128,18 @@ class AnneInputHelpers:
         return a
     @classmethod
     def parse_dipole_tensor(cls, block, dims=None):
+        """
+        **LLM Docstring**
+
+        Parse a dipole-derivative tensor from an Anne-format data file (or its raw string content), treating the first index column as the Cartesian (x/y/z) component and symmetrizing over the remaining (mode) indices.
+
+        :param block: the file path, or the raw file content as a string
+        :type block: str
+        :param dims: the tensor's shape (Cartesian-component axis first); inferred from the largest parsed mode index if not given
+        :type dims: tuple | None
+        :return: the assembled dipole-derivative tensor
+        :rtype: np.ndarray
+        """
         inds = {}
         m = 0
         if os.path.isfile(block):
@@ -1834,6 +2172,16 @@ class AnneInputHelpers:
 
     @classmethod
     def parse_freqs_line(cls, line):
+        """
+        **LLM Docstring**
+
+        Parse a whitespace-separated line of frequency values into a NumPy array.
+
+        :param line: the raw line to parse
+        :type line: str
+        :return: the parsed frequencies, or `None` if the line was empty
+        :rtype: np.ndarray | None
+        """
         data = [float(x) for x in line.split()]
         if len(data) > 0:
             return np.array(data)
@@ -1842,6 +2190,18 @@ class AnneInputHelpers:
 
     @classmethod
     def parse_modes_line(cls, line, nmodes):
+        """
+        **LLM Docstring**
+
+        Parse a whitespace-separated, flattened block of mode-matrix values into a `(nmodes, ncols)` array, inferring the number of columns from the total value count and the known number of modes.
+
+        :param line: the raw (possibly multi-line, joined) block of values to parse
+        :type line: str
+        :param nmodes: the number of modes (rows, before transposing) the flattened data should reshape into
+        :type nmodes: int
+        :return: the parsed, transposed mode matrix, or `None` if the line was empty
+        :rtype: np.ndarray | None
+        """
         data = [float(x) for x in line.split()]
         if len(data) > 0:
             l = len(data)
@@ -1852,6 +2212,18 @@ class AnneInputHelpers:
 
     @classmethod
     def _parse_modes(cls, line_iter, energy_units=None):
+        """
+        **LLM Docstring**
+
+        Parse the frequencies, mode matrix, and inverse mode matrix out of a sequence of file lines (separated into blank-line-delimited blocks), deriving the inverse from the mode matrix's transpose (with an appropriate unit conversion) if the file doesn't explicitly provide a third block.
+
+        :param line_iter: an iterator over the raw lines to parse
+        :type line_iter: Iterable[str]
+        :param energy_units: the units the parsed frequencies are given in, used to derive the fallback inverse-matrix scaling; if `None`, units are inferred from the frequency magnitudes
+        :type energy_units: str | None
+        :return: `(freqs, L, Linv)` -- the frequencies, mode matrix, and its inverse
+        :rtype: tuple[np.ndarray, np.ndarray, np.ndarray]
+        """
 
         freqs = None
         L = None
@@ -1893,6 +2265,18 @@ class AnneInputHelpers:
         return freqs, L, Linv
     @classmethod
     def parse_modes(cls, block, energy_units=None):
+        """
+        **LLM Docstring**
+
+        Parse the frequencies/mode matrix/inverse from an Anne-format modes file, or the first file that exists among a list of candidate filenames.
+
+        :param block: the file path (or raw file content), or an iterable of candidate file paths to try in order
+        :type block: str | Iterable[str]
+        :param energy_units: the units the frequencies are given in
+        :type energy_units: str | None
+        :return: `(freqs, L, Linv)`
+        :rtype: tuple[np.ndarray, np.ndarray, np.ndarray]
+        """
         if not isinstance(block, str):
             for file in block:
                 if os.path.isfile(file):
@@ -1907,6 +2291,16 @@ class AnneInputHelpers:
 
     @classmethod
     def parse_coords(cls, block):
+        """
+        **LLM Docstring**
+
+        Parse a Cartesian-coordinates data file (or its raw string content) into an `(natoms, 3)` array.
+
+        :param block: the file path, or the raw file content as a string
+        :type block: str
+        :return: the parsed coordinates
+        :rtype: np.ndarray
+        """
         coords = []
         if os.path.isfile(block):
             with open(block) as f:
@@ -1924,6 +2318,16 @@ class AnneInputHelpers:
 
     @classmethod
     def parse_atoms(cls, block):
+        """
+        **LLM Docstring**
+
+        Parse an atomic-number data file (or its raw string content) into a list of element symbols.
+
+        :param block: the file path, or the raw file content as a string
+        :type block: str
+        :return: the parsed element symbols
+        :rtype: list[str]
+        """
         coords = []
         if os.path.isfile(block):
             with open(block) as f:
@@ -1947,6 +2351,16 @@ class AnneInputHelpers:
 
     @classmethod
     def parse_masses(cls, block):
+        """
+        **LLM Docstring**
+
+        Parse a masses data file (or its raw string content) into a list of floating-point mass values.
+
+        :param block: the file path, or the raw file content as a string
+        :type block: str
+        :return: the parsed masses
+        :rtype: list[float]
+        """
         coords = []
         if os.path.isfile(block):
             with open(block) as f:
@@ -1970,6 +2384,16 @@ class AnneInputHelpers:
 
     @classmethod
     def parse_zmatrix(cls, block):
+        """
+        **LLM Docstring**
+
+        Parse a Z-matrix connectivity data file (or its raw string content) into a standard `(natoms, 4)` Z-matrix ordering array, prepending a placeholder dummy-origin row and padding each atom's row out to 4 columns (dropping a redundant 4th input column, if present).
+
+        :param block: the file path, or the raw file content as a string
+        :type block: str
+        :return: the parsed Z-matrix ordering array
+        :rtype: np.ndarray
+        """
         _ = 10000
         zmat = [[0, _, _, _]]
         n = 1
@@ -2028,6 +2452,22 @@ class AnneInputHelpers:
 
     @classmethod
     def get_internal_FG(cls, freqs, modes, inv, sorting=None):
+        """
+        **LLM Docstring**
+
+        Build the internal-coordinate force-constant (`F`) and kinetic-energy (`G`) matrices from a set of normal-mode frequencies and (mass-weighted, dimensionless) mode/inverse matrices, optionally reordering both to a standard coordinate ordering.
+
+        :param freqs: the mode frequencies
+        :type freqs: np.ndarray
+        :param modes: the mode matrix (frequency-undimensionalized inside this method)
+        :type modes: np.ndarray
+        :param inv: the inverse mode matrix
+        :type inv: np.ndarray
+        :param sorting: a permutation to reorder the resulting `F`/`G` matrices' rows/columns
+        :type sorting: np.ndarray | None
+        :return: `(F, G)` -- the internal-coordinate force-constant and kinetic-energy matrices
+        :rtype: tuple[np.ndarray, np.ndarray]
+        """
         modes = modes.T * np.sqrt(freqs)[:, np.newaxis]
         inv = inv.T / np.sqrt(freqs)[np.newaxis, :]
         G = np.dot(modes.T, modes)
@@ -2044,6 +2484,24 @@ class AnneInputHelpers:
 
     @classmethod
     def renormalize_modes(cls, freqs, modes, inv, sorting=None, type=2):
+        """
+        **LLM Docstring**
+
+        Re-derive a set of normal modes (with a chosen dimensionality convention) from the internal-coordinate `F`/`G` matrices, via a generalized eigenvalue solve, optionally reordering to a standard coordinate ordering first.
+
+        :param freqs: the original mode frequencies
+        :type freqs: np.ndarray
+        :param modes: the original mode matrix
+        :type modes: np.ndarray
+        :param inv: the original inverse mode matrix
+        :type inv: np.ndarray
+        :param sorting: a permutation to reorder the coordinates before re-solving
+        :type sorting: np.ndarray | None
+        :param type: the mode-dimensionality convention: `0` to just reorder/transpose the given matrices directly, `1`/`2` to re-solve the generalized eigenproblem `F v = freq^2 G v` (in the `G^-1`-inverted or standard form, respectively)
+        :type type: int
+        :return: `(freq, modes, inv)` -- the (square-rooted) frequencies and the renormalized mode/inverse matrices
+        :rtype: tuple[np.ndarray, np.ndarray, np.ndarray]
+        """
         if type == 0:
             if sorting is not None:
                 om = inv
@@ -2066,6 +2524,24 @@ class AnneInputHelpers:
 
     @classmethod
     def rerotate_force_field(cls, old_inv, new_modes, old_field, dim_skips=0, sorting=None):
+        """
+        **LLM Docstring**
+
+        Re-express a force-field expansion (a list of derivative tensors) from one mode basis to another, by first rotating every non-skipped axis back through the old inverse-mode matrix (into internal coordinates) and optionally reordering, then rotating forward again through the new mode matrix.
+
+        :param old_inv: the inverse mode matrix to rotate the old basis's derivative axes back through
+        :type old_inv: np.ndarray
+        :param new_modes: the (transposed) new mode matrix to rotate the intermediate (internal-coordinate) tensors forward through
+        :type new_modes: np.ndarray
+        :param old_field: the force-field expansion (list of derivative tensors) in the old mode basis
+        :type old_field: list[np.ndarray]
+        :param dim_skips: number of trailing axes to leave untouched by the rotation (e.g. a leading Cartesian-component axis)
+        :type dim_skips: int
+        :param sorting: a permutation to reorder the intermediate (internal-coordinate) tensor axes
+        :type sorting: np.ndarray | None
+        :return: `(new_field, mid_field)` -- the re-expressed force field in the new mode basis, and the intermediate internal-coordinate-basis force field
+        :rtype: tuple[list[np.ndarray], list[np.ndarray]]
+        """
         mid_field = []
         final = -1 - dim_skips
         for f in old_field:
@@ -2085,6 +2561,24 @@ class AnneInputHelpers:
 
     @classmethod
     def reexpress_normal_modes(cls, base_modes, old_field, dipole, sorting=None, type=2):
+        """
+        **LLM Docstring**
+
+        Re-express a potential (and, optionally, dipole) expansion from one normal-mode basis into a renormalized one, via `renormalize_modes` followed by `rerotate_force_field`.
+
+        :param base_modes: the `(freqs, modes, inv)` triple describing the original mode basis
+        :type base_modes: tuple
+        :param old_field: the potential-energy expansion (force constants) in the original mode basis
+        :type old_field: list[np.ndarray]
+        :param dipole: the dipole-derivative expansion (one list per Cartesian component) in the original mode basis, or `None`
+        :type dipole: list[list[np.ndarray]] | None
+        :param sorting: a permutation to reorder the intermediate internal-coordinate axes
+        :type sorting: np.ndarray | None
+        :param type: the mode-dimensionality convention forwarded to `renormalize_modes`
+        :type type: int
+        :return: `((freq, matrix, inv), potential_terms, dipole)` -- the renormalized mode data, the re-expressed potential terms, and the re-expressed dipole terms (or `None`)
+        :rtype: tuple
+        """
         freq, matrix, inv = cls.renormalize_modes(*base_modes, sorting=sorting, type=type)
         potential_terms = cls.rerotate_force_field(
             base_modes[1],
@@ -2119,10 +2613,38 @@ class AnneInputHelpers:
     convert = UnitsData.convert
     @staticmethod
     def mass(atom):
+        """
+        **LLM Docstring**
+
+        Look up an atom's mass (in atomic units) from its element symbol.
+
+        :param atom: the element symbol
+        :type atom: str
+        :return: the atom's mass, converted from atomic mass units to atomic units
+        :rtype: float
+        """
         return AtomData[atom]["Mass"] * UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
 
     @classmethod
     def extract_term_lists(cls, checkpoint, terms, skip_dimensions=0, threshold=0, aggregator=None):
+        """
+        **LLM Docstring**
+
+        Read a set of stored expansion terms out of a checkpoint file and flatten each one into a list of `(index..., value)` rows -- restricted to non-redundant (sorted) index combinations and, optionally, thresholded to only significant values -- for later text-file export.
+
+        :param checkpoint: the checkpoint file path to read from
+        :type checkpoint: str
+        :param terms: the checkpoint key naming the expansion to extract
+        :type terms: str
+        :param skip_dimensions: number of leading tensor axes to exclude from the symmetry/threshold filtering (e.g. a leading Cartesian-component axis)
+        :type skip_dimensions: int
+        :param threshold: minimum absolute value required for an entry to be included; `0` includes everything
+        :type threshold: float
+        :param aggregator: an optional function to transform the raw list of stored term tensors before flattening (e.g. to reassemble dipole components)
+        :type aggregator: callable | None
+        :return: a list, one entry per expansion order, of flattened `(idx1, idx2, ..., value)` row lists (1-indexed)
+        :rtype: list[list[tuple]]
+        """
         from McUtils.Scaffolding import Checkpointer
 
         data = Checkpointer.from_file(checkpoint)
@@ -2143,6 +2665,24 @@ class AnneInputHelpers:
 
     @classmethod
     def write_term_lists(cls, terms, file_template=None, int_fmt="{:>3.0f}", float_fmt="{:>16.8e}", index_function=None):
+        """
+        **LLM Docstring**
+
+        Write a set of flattened term-list data (as produced by `extract_term_lists`) out to text files (or in-memory string buffers, if no file template is given), one file per expansion order.
+
+        :param terms: the per-order flattened term-list data to write
+        :type terms: list[list[tuple]]
+        :param file_template: a filename template (with a single `{}` placeholder for the order index) to write each order's file to; if `None`, an in-memory `io.StringIO` is used instead
+        :type file_template: str | None
+        :param int_fmt: the format string used for integer-valued columns (indices)
+        :type int_fmt: str
+        :param float_fmt: the format string used for floating-point-valued columns
+        :type float_fmt: str
+        :param index_function: a function mapping the order index to the value substituted into `file_template`; identity by default
+        :type index_function: callable | None
+        :return: the list of written file paths (or in-memory `StringIO` buffers), one per order
+        :rtype: list
+        """
         import io
 
         res = []
@@ -2163,6 +2703,28 @@ class AnneInputHelpers:
 
     @classmethod
     def extract_terms(cls, chk, out, terms, default_output='output.hdf5', aggregator=None, index_function=None, skip_dimensions=0):
+        """
+        **LLM Docstring**
+
+        Extract and write out a named expansion's terms from a checkpoint (or a directory containing a default-named checkpoint file), via `extract_term_lists` and `write_term_lists`.
+
+        :param chk: the checkpoint file path, or a directory containing `default_output`
+        :type chk: str
+        :param out: the output filename template
+        :type out: str
+        :param terms: the checkpoint key naming the expansion to extract
+        :type terms: str
+        :param default_output: the default checkpoint filename to look for within `chk` if it's a directory
+        :type default_output: str
+        :param aggregator: an optional function to transform the raw term data before flattening
+        :type aggregator: callable | None
+        :param index_function: a function mapping the order index to the value substituted into the output filename template
+        :type index_function: callable | None
+        :param skip_dimensions: number of leading tensor axes to exclude from symmetry filtering
+        :type skip_dimensions: int
+        :return: the list of written output files/buffers
+        :rtype: list
+        """
         if os.path.isdir(chk):
             woof = os.getcwd()
             try:
@@ -2182,13 +2744,59 @@ class AnneInputHelpers:
             )
     @classmethod
     def extract_potential(cls, chk, out='potential_expansion_{}.dat'):
+        """
+        **LLM Docstring**
+
+        Extract and write out the potential-energy expansion terms from a checkpoint, via `extract_terms`.
+
+        :param chk: the checkpoint file path or directory
+        :type chk: str
+        :param out: the output filename template
+        :type out: str
+        :return: the list of written output files/buffers
+        :rtype: list
+        """
         return cls.extract_terms(chk, out, 'potential_terms', index_function=lambda i:i+2)
     @classmethod
     def extract_gmatrix(cls, chk, out='gmatrix_expansion_{}.dat'):
+        """
+        **LLM Docstring**
+
+        Extract and write out the G-matrix expansion terms from a checkpoint, via `extract_terms`.
+
+        :param chk: the checkpoint file path or directory
+        :type chk: str
+        :param out: the output filename template
+        :type out: str
+        :return: the list of written output files/buffers
+        :rtype: list
+        """
         return cls.extract_terms(chk, out, 'gmatrix_terms')
     @classmethod
     def extract_dipole_expansion(cls, chk, out='dipole_expansion_{}.dat'):
+        """
+        **LLM Docstring**
+
+        Extract and write out the dipole-derivative expansion terms from a checkpoint, via `extract_terms`, first regrouping the per-axis (`x`/`y`/`z`) stored terms into single per-order tensors with a leading Cartesian-component axis.
+
+        :param chk: the checkpoint file path or directory
+        :type chk: str
+        :param out: the output filename template
+        :type out: str
+        :return: the list of written output files/buffers
+        :rtype: list
+        """
         def agg(terms):
+            """
+            **LLM Docstring**
+
+            Regroup the per-axis (`x`/`y`/`z`) stored dipole-term dict into a list of per-order tensors, each with the Cartesian-component axis first.
+
+            :param terms: the dict of per-axis term lists (keyed `'x'`, `'y'`, `'z'`), from the enclosing scope
+            :type terms: dict
+            :return: the list of per-order, Cartesian-component-first tensors
+            :rtype: list[np.ndarray]
+            """
             return [
                 np.array([terms[a][i] for a in ['x', 'y', 'z']])
                 for i in range(len(terms['x']))
@@ -2220,6 +2828,57 @@ class AnneInputHelpers:
                      normalization_type=0,
                      **opts
                      ):
+        """
+        **LLM Docstring**
+
+        Run a full VPT calculation from a directory of Anne-format input files (normal modes, atoms, masses, coordinates, Z-matrix, potential/dipole expansions, and an optional custom coordinate transformation), parsing and re-expressing the inputs as needed before dispatching to `VPTRunner.construct`/`run_simple` or `VPTAnalyzer.run_VPT`.
+
+        :param base_dir: the directory containing the Anne-format input files (or `None`/`"."` to use the current directory)
+        :type base_dir: str | None
+        :param states: the target states (or quanta cutoff) to compute
+        :type states: int | Iterable
+        :param initial_states: the initial states to compute transitions from
+        :type initial_states: int | Iterable
+        :param calculate_intensities: whether to compute IR intensities; defaults to whether dipole data is available
+        :type calculate_intensities: bool | None
+        :param return_analyzer: whether to run via `VPTAnalyzer.run_VPT` and return an analyzer
+        :type return_analyzer: bool
+        :param return_runner: whether to run via `VPTRunner.construct` and return the constructed runner (without running)
+        :type return_runner: bool
+        :param modes_file: the normal-modes input file(s), tried in order
+        :type modes_file: str | tuple
+        :param atoms_file: the atoms input file
+        :type atoms_file: str
+        :param masses_file: the masses input file
+        :type masses_file: str
+        :param coords_file: the Cartesian-coordinates input file
+        :type coords_file: str
+        :param zmat_file: the Z-matrix input file
+        :type zmat_file: str | None
+        :param potential_files: the potential-derivative input files
+        :type potential_files: tuple
+        :param dipole_files: the dipole-derivative input files
+        :type dipole_files: tuple
+        :param coordinate_transformation: an explicit `[conversion, inverse]` coordinate-transformation function pair
+        :type coordinate_transformation: list | None
+        :param coordinate_transformation_file: a Python module file defining `conversion`/`inverse` functions, used if `coordinate_transformation` isn't given
+        :type coordinate_transformation_file: str
+        :param results_file: where to store the results checkpoint
+        :type results_file: str | None
+        :param order: the perturbation-theory order
+        :type order: int | None
+        :param expansion_order: the per-term expansion orders
+        :type expansion_order: int | dict | None
+        :param energy_units: the units the input energies/frequencies are given in; inferred from magnitude if not given
+        :type energy_units: str | None
+        :param normalization_type: which mode-renormalization convention to use when re-expressing into internal coordinates
+        :type normalization_type: int
+        :param opts: extra options forwarded to the underlying runner/analyzer
+        :type opts: dict
+        :return: the run results (wavefunctions, analyzer, or runner, depending on `return_analyzer`/`return_runner`)
+        :rtype: object
+        :raises ValueError: if `coordinate_transformation` is given without both a conversion and inverse function
+        """
         from .Analyzer import VPTAnalyzer
 
         og_dir = os.getcwd()
@@ -2397,6 +3056,32 @@ class AnneInputHelpers:
                      results_file='output.hdf5',
                      **opts
                      ):
+        """
+        **LLM Docstring**
+
+        Run a VPT calculation using a Gaussian FChk file for the molecule/potential/dipole data, together with an optional Z-matrix file for the internal-coordinate specification, dispatching to `VPTRunner.construct`/`run_simple` or `VPTAnalyzer.run_VPT`.
+
+        :param base_dir: the directory containing the FChk (and optional Z-matrix) file
+        :type base_dir: str
+        :param states: the target states (or quanta cutoff) to compute
+        :type states: int | Iterable
+        :param calculate_intensities: whether to compute IR intensities
+        :type calculate_intensities: bool | None
+        :param return_analyzer: whether to run via `VPTAnalyzer.run_VPT` and return an analyzer
+        :type return_analyzer: bool
+        :param return_runner: whether to run via `VPTRunner.construct` and return the constructed runner (without running)
+        :type return_runner: bool
+        :param zmat_file: the Z-matrix input file; if missing, Cartesian coordinates are used directly
+        :type zmat_file: str | None
+        :param fchk_file: the Gaussian FChk file to load the molecule/potential/dipole data from
+        :type fchk_file: str
+        :param results_file: where to store the results checkpoint
+        :type results_file: str
+        :param opts: extra options forwarded to the underlying runner/analyzer
+        :type opts: dict
+        :return: the run results (wavefunctions, analyzer, or runner, depending on `return_analyzer`/`return_runner`)
+        :rtype: object
+        """
         from .Analyzer import VPTAnalyzer
 
         curdir = os.getcwd()
@@ -2437,6 +3122,22 @@ class AnneInputHelpers:
 
     @classmethod
     def get_internal_expansion(cls, fchk, internals, states=2, **opts):
+        """
+        **LLM Docstring**
+
+        Build a throwaway `VPTRunner` for a given FChk file and internal-coordinate specification, purely to extract the resulting internal-coordinate potential/kinetic expansion and mode transformation data (without running the full perturbation theory).
+
+        :param fchk: the Gaussian FChk file to load
+        :type fchk: str
+        :param internals: the internal-coordinate (Z-matrix) specification to use
+        :type internals: object
+        :param states: the (nominal) target states used to construct the throwaway runner
+        :type states: int | Iterable
+        :param opts: extra options forwarded to `VPTRunner.construct`
+        :type opts: dict
+        :return: a dict with `'runner'`, `'freqs'`, `'molecule'`, `'kinetic'`, `'potential'`, `'modes'`, `'states'`, `'fchk'`, and `'zmatrix'` entries describing the extracted internal-coordinate expansion
+        :rtype: dict
+        """
         test_runner, _ = VPTRunner.construct(
             fchk,
             states,
@@ -2461,6 +3162,20 @@ class AnneInputHelpers:
 
     @classmethod
     def run_internal_expansion(cls, expansion_data, calculate_intensities=False, **opts):
+        """
+        **LLM Docstring**
+
+        Run a VPT calculation directly from a previously extracted internal-coordinate expansion (as produced by `get_internal_expansion`), reusing its modes and truncated (harmonic/cubic/quartic) potential expansion.
+
+        :param expansion_data: the expansion data dict, as returned by `get_internal_expansion`
+        :type expansion_data: dict
+        :param calculate_intensities: whether to compute IR intensities
+        :type calculate_intensities: bool
+        :param opts: accepted for interface consistency but not used in this method's body
+        :type opts: dict
+        :return: the computed VPT wavefunctions
+        :rtype: PerturbationTheoryWavefunctions
+        """
         test_V = expansion_data['potential']
         return VPTRunner.run_simple(
             expansion_data['fchk'],
@@ -2511,6 +3226,24 @@ class MultiVPTStateSpace:
                  evaluator=None,
                  **opts
                  ):
+        """
+        **LLM Docstring**
+
+        Build a collection of `(initial, target)` `VPTStateSpace` pairs sharing a common system, resolving each pair's spec, merging any per-pair degenerate-state groupings that overlap across pairs into a single consistent set (re-including the merged groups' states into every affected pair), and computing a flattened union of all states/degenerate-state pairs across the whole collection.
+
+        :param state_space_pairs: the `(initial, target)` state-space specs, or a bare single target-state spec (paired with the ground state `0`)
+        :type state_space_pairs: object | list[list]
+        :param system: the system (molecule/mode context) the states are defined relative to
+        :type system: VPTSystem | None
+        :param degeneracy_specs: the degeneracy specification(s) to apply when resolving each `VPTStateSpace`
+        :type degeneracy_specs: object | None
+        :param evaluator: an evaluator to forward to `VPTStateSpace.from_system_and_spec` for degeneracy handling
+        :type evaluator: object | None
+        :param opts: extra options forwarded to `VPTStateSpace.from_system_and_spec`
+        :type opts: dict
+        :return: None
+        :rtype: None
+        """
         if (
                 nput.is_numeric(state_space_pairs)
                 or isinstance(state_space_pairs, VPTStateSpace)
@@ -2607,6 +3340,14 @@ class MultiVPTStateSpace:
 
     @property
     def state_list_pairs(self):
+        """
+        **LLM Docstring**
+
+        The `[initial_state_list, target_state_list]` pairs for every `(initial, target)` space pair in this collection.
+
+        :return: the list of state-list pairs
+        :rtype: list[list]
+        """
         return [
             [init.state_list, target.state_list]
             for init, target in self.space_pairs
@@ -2637,6 +3378,48 @@ class AnalyticVPTRunner:
                  local_mode_coupling_order=None,
                  parallelizer=None
                  ):
+        """
+        **LLM Docstring**
+
+        Set up an analytic (symbolic) VPT evaluator, either wrapping an already-built `PerturbationTheoryEvaluator` directly or constructing one from a raw set of Taylor-expansion coefficients and an `AnalyticPerturbationTheorySolver` built for the requested order, and resolving the dipole expansion (from the attached classic Hamiltonian, if any and not given directly) needed for transition-moment/intensity calculations.
+
+        :param expansions: the raw per-order `[V, G, ...]` expansion coefficients, or an already-built `PerturbationTheoryEvaluator`
+        :type expansions: list | PerturbationTheoryEvaluator
+        :param order: the perturbation-theory order to build the solver for
+        :type order: int | None
+        :param expansion_order: the per-term expansion orders used to resolve the dipole expansion's default order
+        :type expansion_order: dict | None
+        :param freqs: the mode frequencies
+        :type freqs: np.ndarray | None
+        :param internals: whether the expansion is expressed in internal coordinates
+        :type internals: bool
+        :param logger: logger for diagnostics
+        :type logger: Logger | None
+        :param hamiltonian: an associated classic `PerturbationTheoryHamiltonian`, used as a fallback source for the dipole expansion and other molecule-specific data
+        :type hamiltonian: PerturbationTheoryHamiltonian | None
+        :param checkpoint: checkpoint file/object for caching intermediate symbolic expressions
+        :type checkpoint: str | Checkpointer | None
+        :param dipole_expansion: explicit dipole-derivative expansion terms to use instead of deriving them from `hamiltonian`
+        :type dipole_expansion: list[np.ndarray] | None
+        :param allowed_terms: restrict the analytic solver to only these perturbation term types
+        :type allowed_terms: object | None
+        :param allowed_coefficients: restrict the analytic solver to only these expansion coefficients
+        :type allowed_coefficients: object | None
+        :param disallowed_coefficients: exclude these expansion coefficients from the analytic solver
+        :type disallowed_coefficients: object | None
+        :param allowed_energy_changes: restrict the analytic solver to only these energy-change patterns
+        :type allowed_energy_changes: object | None
+        :param intermediate_normalization: whether to use intermediate (rather than full) normalization in the analytic solver
+        :type intermediate_normalization: bool | None
+        :param local_mode_couplings: extra local-mode coupling terms to inject into the Hamiltonian when running VPT
+        :type local_mode_couplings: list | None
+        :param local_mode_coupling_order: the perturbative order local-mode couplings should be injected at
+        :type local_mode_coupling_order: int | None
+        :param parallelizer: parallelization backend for the evaluator
+        :type parallelizer: Parallelizer | None
+        :return: None
+        :rtype: None
+        """
         # self.expansions = expansions
         # if order is None: order = len(expansions) - 1
         self.order = order
@@ -2778,6 +3561,40 @@ class AnalyticVPTRunner:
                   parallelizer=None,
                   **settings
                   ) -> "(AnalyticVPTRunner, VPTMultiStateSpace)":
+            """
+            **LLM Docstring**
+
+            Build an `AnalyticVPTRunner` (and, if target states are given, its resolved `MultiVPTStateSpace`) directly from a molecule/system specification: builds a throwaway single-state `VPTRunner` to assemble the classic Hamiltonian, then derives the analytic evaluator from it via `from_hamiltonian`.
+
+            :param system: the molecule or system specification to run VPT on
+            :type system: str | list | Molecule | VPTSystem
+            :param states: the target states (possibly as `(initial, target)` pairs)
+            :type states: object | None
+            :param order: the perturbation-theory order
+            :type order: int
+            :param expressions_file: checkpoint file for caching the analytic expressions
+            :type expressions_file: str | None
+            :param allowed_terms: restrict the analytic solver to only these perturbation term types
+            :type allowed_terms: object | None
+            :param allowed_coefficients: restrict the analytic solver to only these expansion coefficients
+            :type allowed_coefficients: object | None
+            :param disallowed_coefficients: exclude these expansion coefficients from the analytic solver
+            :type disallowed_coefficients: object | None
+            :param allowed_energy_changes: restrict the analytic solver to only these energy-change patterns
+            :type allowed_energy_changes: object | None
+            :param mixed_derivative_handling_mode: the mixed-derivative handling mode to use when building the classic Hamiltonian
+            :type mixed_derivative_handling_mode: str
+            :param degeneracy_specs: the degeneracy specification(s) to build the `MultiVPTStateSpace` with
+            :type degeneracy_specs: object | None
+            :param corrected_fundamental_frequencies: replacement fundamental frequencies to use
+            :type corrected_fundamental_frequencies: np.ndarray | None
+            :param parallelizer: parallelization backend for the evaluator
+            :type parallelizer: Parallelizer | None
+            :param settings: extra options forwarded to `VPTRunner.construct`
+            :type settings: dict
+            :return: the constructed runner, or `(runner, states)` if `states` was given
+            :rtype: AnalyticVPTRunner | tuple[AnalyticVPTRunner, MultiVPTStateSpace]
+            """
 
             runner, _ = VPTRunner.construct(
                 system,
@@ -2832,6 +3649,30 @@ class AnalyticVPTRunner:
                   allowed_energy_changes=None,
                   expressions_file=None,
                   **settings):
+        """
+        **LLM Docstring**
+
+        Build an `AnalyticVPTRunner` from a molecule file (e.g. an FChk), via a throwaway single-state `VPTRunner.construct` followed by `from_hamiltonian`.
+
+        :param file_name: the molecule file to load
+        :type file_name: str
+        :param order: the perturbation-theory order
+        :type order: int
+        :param allowed_terms: restrict the analytic solver to only these perturbation term types
+        :type allowed_terms: object | None
+        :param allowed_coefficients: restrict the analytic solver to only these expansion coefficients
+        :type allowed_coefficients: object | None
+        :param disallowed_coefficients: exclude these expansion coefficients from the analytic solver
+        :type disallowed_coefficients: object | None
+        :param allowed_energy_changes: restrict the analytic solver to only these energy-change patterns
+        :type allowed_energy_changes: object | None
+        :param expressions_file: checkpoint file for caching the analytic expressions
+        :type expressions_file: str | None
+        :param settings: extra options forwarded to `VPTRunner.construct`
+        :type settings: dict
+        :return: the constructed runner
+        :rtype: AnalyticVPTRunner
+        """
         runner, _ = VPTRunner.construct(
             file_name,
             1,
@@ -2865,6 +3706,36 @@ class AnalyticVPTRunner:
                                  initial_states=None,
                                  **opts
                                  ):
+        """
+        **LLM Docstring**
+
+        Build a classic `VPTRunner` reproducing this analytic evaluator's expansion data (rescaling the stored symbolic-coefficient conventions back into ordinary Taylor-expansion derivative tensors for potential/kinetic/Coriolis/pseudopotential/dipole terms), for cross-validation against the classic (matrix) VPT solver, or for use where a classic runner interface is required.
+
+        :param states: the target states, or a `MultiVPTStateSpace` (in which case its flattened state space and per-pair initial states are used)
+        :type states: object | MultiVPTStateSpace
+        :param system: the molecule/system to attach; derived from the associated Hamiltonian, or built as a dummy placeholder molecule, if not given
+        :type system: Molecule | None
+        :param logger: logger for the constructed runner; defaults to the associated Hamiltonian's logger
+        :type logger: Logger | None
+        :param corrected_fundamental_frequencies: replacement fundamental frequencies; defaults to this evaluator's own frequencies
+        :type corrected_fundamental_frequencies: np.ndarray | None
+        :param potential_terms: explicit potential-expansion tensors, bypassing the default rescaling
+        :type potential_terms: list[np.ndarray] | None
+        :param kinetic_terms: explicit kinetic-expansion tensors, bypassing the default rescaling
+        :type kinetic_terms: list[np.ndarray] | None
+        :param coriolis_terms: explicit Coriolis-expansion tensors, bypassing the default rescaling
+        :type coriolis_terms: list[np.ndarray] | None
+        :param pseudopotential_terms: explicit pseudopotential-expansion tensors, bypassing the default rescaling
+        :type pseudopotential_terms: list[np.ndarray] | None
+        :param dipole_terms: explicit dipole-expansion tensors; defaults to this evaluator's own dipole expansion
+        :type dipole_terms: list[np.ndarray] | None
+        :param initial_states: the initial states for the classic runner; derived from `states` if it's a `MultiVPTStateSpace`
+        :type initial_states: object | None
+        :param opts: extra options forwarded to `VPTRunner.construct`
+        :type opts: dict
+        :return: `(runner, states)`, the constructed classic runner and its resolved state space
+        :rtype: tuple
+        """
         freqs = (
             self.eval.freqs
                 if corrected_fundamental_frequencies is None else
@@ -2946,10 +3817,34 @@ class AnalyticVPTRunner:
 
     @classmethod
     def clear_caches(cls):
+        """
+        **LLM Docstring**
+
+        Clear the global caches used by the underlying `AnalyticPerturbationTheorySolver` (e.g. cached symbolic expressions shared across instances).
+
+        :return: None
+        :rtype: None
+        """
         AnalyticPerturbationTheorySolver.clear_caches()
 
     @classmethod
     def prep_multispace(self, states, freqs, system=None, degeneracy_specs=None):
+        """
+        **LLM Docstring**
+
+        Coerce a raw state specification into a `MultiVPTStateSpace`, passing an already-built one through unchanged and normalizing a bare `[[raise, lower], ...]` polyad-pair specification into the `{'polyads': ...}` dict form expected by `DegeneracySpec`.
+
+        :param states: the raw state specification, or an already-built `MultiVPTStateSpace`
+        :type states: object | MultiVPTStateSpace
+        :param freqs: the mode frequencies used to build the underlying `VPTStateSpace`(s)
+        :type freqs: np.ndarray
+        :param system: the system (molecule/mode context) to associate with the state space
+        :type system: object | None
+        :param degeneracy_specs: the degeneracy specification(s) to apply
+        :type degeneracy_specs: object | None
+        :return: the resolved `MultiVPTStateSpace`
+        :rtype: MultiVPTStateSpace
+        """
         if not isinstance(states, MultiVPTStateSpace):
             if (
                     isinstance(degeneracy_specs, (list, tuple, np.ndarray))
@@ -2968,9 +3863,31 @@ class AnalyticVPTRunner:
 
     class _dummy_system:
         def __init__(self, runner):
+            """
+            **LLM Docstring**
+
+            Wrap this `AnalyticVPTRunner` so it exposes just enough of the `VPTSystem` interface (specifically, `nmodes`) to be usable in places that expect a full system object but only actually need the mode count.
+
+            :param runner: the `AnalyticVPTRunner` to wrap
+            :type runner: AnalyticVPTRunner
+            :return: None
+            :rtype: None
+            """
             self.runner = runner
             self.nmodes = len(self.runner.eval.freqs)
     def prep_states(self, states, degeneracy_specs=None):
+        """
+        **LLM Docstring**
+
+        Coerce a raw state specification into a `MultiVPTStateSpace` using this evaluator's own frequencies and a lightweight dummy system object, via `prep_multispace`.
+
+        :param states: the raw state specification
+        :type states: object
+        :param degeneracy_specs: the degeneracy specification(s) to apply
+        :type degeneracy_specs: object | None
+        :return: the resolved `MultiVPTStateSpace`
+        :rtype: MultiVPTStateSpace
+        """
         return self.prep_multispace(states,
                                     self.eval.freqs,
                                     system=self._dummy_system(self),
@@ -2981,6 +3898,26 @@ class AnalyticVPTRunner:
 
     def evaluate_expressions(self, states, exprs, zero_cutoff=None, operator_expansions=None,
                              degeneracy_specs=None, verbose=False):
+        """
+        **LLM Docstring**
+
+        Evaluate a set of arbitrary symbolic perturbation-theory expressions numerically for the given target states, via the underlying `PerturbationTheoryEvaluator`.
+
+        :param states: the target states to evaluate the expressions for
+        :type states: object
+        :param exprs: the symbolic expression(s) to evaluate
+        :type exprs: object
+        :param zero_cutoff: the magnitude below which a term is treated as exactly zero
+        :type zero_cutoff: float | None
+        :param operator_expansions: extra operator expansions the expressions may reference
+        :type operator_expansions: object | None
+        :param degeneracy_specs: the degeneracy specification(s) to apply when resolving the state space
+        :type degeneracy_specs: object | None
+        :param verbose: whether to log detailed evaluation progress
+        :type verbose: bool
+        :return: the evaluated expression results
+        :rtype: object
+        """
         state_space, degenerate_states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
         return self.eval.evaluate_expressions(
             state_space.state_list,
@@ -2992,6 +3929,24 @@ class AnalyticVPTRunner:
         )
 
     def get_matrix_corrections(self, states, order=None, degeneracy_specs=None, zero_cutoff=None, verbose=False):
+        """
+        **LLM Docstring**
+
+        Compute the perturbative matrix-element corrections for the given target states, via the underlying `PerturbationTheoryEvaluator`.
+
+        :param states: the target states to compute corrections for
+        :type states: object
+        :param order: the perturbation-theory order to compute to
+        :type order: int | None
+        :param degeneracy_specs: the degeneracy specification(s) to apply
+        :type degeneracy_specs: object | None
+        :param zero_cutoff: the magnitude below which a term is treated as exactly zero
+        :type zero_cutoff: float | None
+        :param verbose: whether to log detailed evaluation progress
+        :type verbose: bool
+        :return: the matrix-element corrections
+        :rtype: object
+        """
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
         return self.eval.get_matrix_corrections(states.state_list,
                                                 order=order,
@@ -2999,6 +3954,24 @@ class AnalyticVPTRunner:
                                                 zero_cutoff=zero_cutoff)
 
     def get_energy_corrections(self, states, order=None, degeneracy_specs=None, zero_cutoff=None, verbose=False):
+        """
+        **LLM Docstring**
+
+        Compute the perturbative energy corrections for the given target states, via the underlying `PerturbationTheoryEvaluator`.
+
+        :param states: the target states to compute energy corrections for
+        :type states: object
+        :param order: the perturbation-theory order to compute to
+        :type order: int | None
+        :param degeneracy_specs: the degeneracy specification(s) to apply
+        :type degeneracy_specs: object | None
+        :param zero_cutoff: the magnitude below which a term is treated as exactly zero
+        :type zero_cutoff: float | None
+        :param verbose: whether to log detailed evaluation progress
+        :type verbose: bool
+        :return: the per-order energy corrections
+        :rtype: np.ndarray
+        """
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
         return self.eval.get_energy_corrections(
             states.flat_space.state_list,
@@ -3012,6 +3985,24 @@ class AnalyticVPTRunner:
                                 order=None, degeneracy_specs=None,
                                 zero_cutoff=None, verbose=False
                                 ):
+        """
+        **LLM Docstring**
+
+        Compute the perturbative wavefunction-overlap corrections for the given target states, via the underlying `PerturbationTheoryEvaluator`.
+
+        :param states: the target states to compute overlap corrections for
+        :type states: object
+        :param order: the perturbation-theory order to compute to
+        :type order: int | None
+        :param degeneracy_specs: the degeneracy specification(s) to apply
+        :type degeneracy_specs: object | None
+        :param zero_cutoff: the magnitude below which a term is treated as exactly zero
+        :type zero_cutoff: float | None
+        :param verbose: whether to log detailed evaluation progress
+        :type verbose: bool
+        :return: the overlap corrections
+        :rtype: object
+        """
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
         return self.eval.get_overlap_corrections(
             states.flat_space.state_list,
@@ -3021,6 +4012,16 @@ class AnalyticVPTRunner:
         )
     @classmethod
     def prep_eval_state_pairs(cls, states):
+        """
+        **LLM Docstring**
+
+        Flatten a `MultiVPTStateSpace`'s `(initial, final)` state-list pairs into a flat list of `[single_initial_state, final_states]` pairs, one per individual initial state (rather than grouped by pair-block), for direct consumption by the underlying evaluator.
+
+        :param states: the multi-state space to flatten
+        :type states: MultiVPTStateSpace
+        :return: the flattened `[initial_state, final_states]` pairs
+        :rtype: list[list]
+        """
         return [
             [s, finals]
             for initials, finals in states.state_list_pairs
@@ -3031,6 +4032,24 @@ class AnalyticVPTRunner:
                                           order=None, degeneracy_specs=None,
                                           zero_cutoff=None, verbose=False
                                           ):
+        """
+        **LLM Docstring**
+
+        Compute the full (all-component) perturbative wavefunction corrections for the given target states, via the underlying `PerturbationTheoryEvaluator`.
+
+        :param states: the target states to compute wavefunction corrections for
+        :type states: object
+        :param order: the perturbation-theory order to compute to
+        :type order: int | None
+        :param degeneracy_specs: the degeneracy specification(s) to apply
+        :type degeneracy_specs: object | None
+        :param zero_cutoff: the magnitude below which a term is treated as exactly zero
+        :type zero_cutoff: float | None
+        :param verbose: whether to log detailed evaluation progress
+        :type verbose: bool
+        :return: the full wavefunction corrections
+        :rtype: object
+        """
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
         return self.eval.get_full_wavefunction_corrections(
             self.prep_eval_state_pairs(states),
@@ -3044,6 +4063,24 @@ class AnalyticVPTRunner:
                                      order=None, degeneracy_specs=None,
                                      zero_cutoff=None, verbose=False
                                      ):
+        """
+        **LLM Docstring**
+
+        Compute the perturbative wavefunction corrections for the given target states, via the underlying `PerturbationTheoryEvaluator`.
+
+        :param states: the target states to compute wavefunction corrections for
+        :type states: object
+        :param order: the perturbation-theory order to compute to
+        :type order: int | None
+        :param degeneracy_specs: the degeneracy specification(s) to apply
+        :type degeneracy_specs: object | None
+        :param zero_cutoff: the magnitude below which a term is treated as exactly zero
+        :type zero_cutoff: float | None
+        :param verbose: whether to log detailed evaluation progress
+        :type verbose: bool
+        :return: the wavefunction corrections
+        :rtype: object
+        """
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs,)
         # raise Exception(states.state_list_pairs)
         return self.eval.get_wavefunction_corrections(
@@ -3055,6 +4092,18 @@ class AnalyticVPTRunner:
 
     @classmethod
     def unflatten_corr(cls, states, corrs):
+        """
+        **LLM Docstring**
+
+        Regroup a flat correction result (expressed over the combined initial/final state spaces) back into the per-`(initial, final)`-block structure implied by a `MultiVPTStateSpace`'s state-list pairs.
+
+        :param states: the multi-state space whose block structure the flat corrections should be regrouped into
+        :type states: MultiVPTStateSpace
+        :param corrs: the flat correction data (with `initial_states`/`final_states`/`corrections` attributes) to regroup
+        :type corrs: object
+        :return: the per-block regrouped correction arrays
+        :rtype: list[list[np.ndarray]]
+        """
         # corr is expressed over the total space of initial states and final states, we group
         # this by initial, final blocks
 
@@ -3088,6 +4137,32 @@ class AnalyticVPTRunner:
                                  check_single=True,
                                  **opts
                                  ):
+        """
+        **LLM Docstring**
+
+        Compute the perturbative corrections to one or more arbitrary operator expansions for the given target states, via the underlying `PerturbationTheoryEvaluator`, then regroup the flat results back into per-block structure via `unflatten_corr`.
+
+        :param operator_expansion: the raw operator expansion(s) to evaluate, each a list of derivative tensors
+        :type operator_expansion: list
+        :param states: the target states to compute corrections for
+        :type states: object
+        :param order: the perturbation-theory order to compute to
+        :type order: int | None
+        :param terms: restrict the evaluation to specific term contributions
+        :type terms: object | None
+        :param degeneracy_specs: the degeneracy specification(s) to apply
+        :type degeneracy_specs: object | None
+        :param verbose: whether to log detailed evaluation progress
+        :type verbose: bool
+        :param operator_type: the operator's symmetry/rank type; inferred from the expansion tensor shapes if not given
+        :type operator_type: str | int | None
+        :param check_single: whether to auto-detect and wrap a single (rather than multiple) operator expansion
+        :type check_single: bool
+        :param opts: extra options forwarded to the underlying evaluator
+        :type opts: dict
+        :return: the per-block regrouped operator corrections
+        :rtype: list
+        """
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
 
         is_sing = check_single and (
@@ -3128,6 +4203,18 @@ class AnalyticVPTRunner:
         return reconst_corrs
 
     def construct_corrections_vectors(self, states, corrs):
+        """
+        **LLM Docstring**
+
+        Assemble a set of flat per-order correction matrices spanning the full flat state space, from one or more raw per-block correction results, indexing rows by the union of every block's initial states.
+
+        :param states: the state space whose flat state list defines the column indexing
+        :type states: object
+        :param corrs: one (or a list of) raw correction result(s), each with `initial_states`/`final_states`/`corrections`
+        :type corrs: object | list
+        :return: `(init_states, op_corr_mats)` -- the union of initial states used for row indexing, and the assembled per-order correction matrices (single set if `corrs` was a single result)
+        :rtype: tuple
+        """
 
         smol = hasattr(corrs, 'initial_states')
         if smol: corrs = [corrs]
@@ -3158,6 +4245,18 @@ class AnalyticVPTRunner:
         return init_states, op_corr_mats
 
     def construct_corrections_matrix(self, group, corrs):
+        """
+        **LLM Docstring**
+
+        Assemble a set of square per-order correction matrices restricted to a single group of states, from one or more raw per-block correction results.
+
+        :param group: the group of states (typically a degenerate block) to build the matrix over
+        :type group: object
+        :param corrs: one (or a list of) raw correction result(s), each with `initial_states`/`final_states`/`corrections`
+        :type corrs: object | list
+        :return: the assembled per-order correction matrices, restricted to `group` (single set if `corrs` was a single result)
+        :rtype: list
+        """
 
         smol = hasattr(corrs, 'initial_states')
         if smol: corrs = [corrs]
@@ -3188,6 +4287,26 @@ class AnalyticVPTRunner:
                                           dipole_expansion=None, order=None,
                                           degeneracy_specs=None, axes=None,
                                           **opts):
+        """
+        **LLM Docstring**
+
+        Compute the perturbative transition-dipole-moment corrections for the given target states, using this evaluator's dipole expansion (or an explicitly given one), scaled by the appropriate factorial normalization, via `get_operator_corrections`.
+
+        :param states: the target states to compute transition moments for
+        :type states: object
+        :param dipole_expansion: an explicit dipole-derivative expansion to use instead of `self.dipole_expansion`
+        :type dipole_expansion: list[np.ndarray] | None
+        :param order: the perturbation-theory order to compute to; inferred from `self.expansion_order`/the dipole expansion length if not given
+        :type order: int | None
+        :param degeneracy_specs: the degeneracy specification(s) to apply
+        :type degeneracy_specs: object | None
+        :param axes: which Cartesian axes to compute transition moments for; defaults to all three
+        :type axes: Iterable[int] | None
+        :param opts: extra options forwarded to `get_operator_corrections`
+        :type opts: dict
+        :return: the per-block regrouped transition-moment corrections
+        :rtype: list
+        """
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
         if dipole_expansion is None:
             if order is None:
@@ -3215,6 +4334,24 @@ class AnalyticVPTRunner:
         return corrs
 
     def get_freqs(self, states, order=None, degeneracy_specs=None, return_corrections=False, verbose=False):
+        """
+        **LLM Docstring**
+
+        Compute the vibrational transition frequencies (in wavenumbers) for the given target states, relative to the ground/reference state.
+
+        :param states: the target states to compute frequencies for
+        :type states: object
+        :param order: the perturbation-theory order to compute to
+        :type order: int | None
+        :param degeneracy_specs: the degeneracy specification(s) to apply
+        :type degeneracy_specs: object | None
+        :param return_corrections: whether to also return the raw per-order energy corrections
+        :type return_corrections: bool
+        :param verbose: whether to log detailed evaluation progress
+        :type verbose: bool
+        :return: `(zpe, freqs)`, or `((zpe, freqs), corrections)` if `return_corrections` is set
+        :rtype: tuple
+        """
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
         corrs = self.get_energy_corrections(states, order=order, verbose=verbose)
         engs = np.sum(corrs, axis=0) * UnitsData.convert("Hartrees", "Wavenumbers")
@@ -3230,6 +4367,28 @@ class AnalyticVPTRunner:
                                     verbose=False,
                                     hamiltonian_corrections=None,
                                     **opts):
+        """
+        **LLM Docstring**
+
+        Build the deperturbed (degenerate-block) Hamiltonian matrices for each degenerate group of states, re-expressing the analytic Hamiltonian corrections in the basis of each group and summing them into square correction matrices.
+
+        :param states: the target states (used to resolve degenerate groupings)
+        :type states: object
+        :param order: the perturbation-theory order to compute to
+        :type order: int | None
+        :param degeneracy_specs: the degeneracy specification(s) to apply
+        :type degeneracy_specs: object | None
+        :param only_degenerate_terms: whether to include only the strictly degenerate-coupling terms in the reexpressed Hamiltonian
+        :type only_degenerate_terms: bool
+        :param verbose: whether to log detailed evaluation progress
+        :type verbose: bool
+        :param hamiltonian_corrections: extra Hamiltonian corrections to fold in
+        :type hamiltonian_corrections: object | None
+        :param opts: extra options forwarded to the underlying evaluator
+        :type opts: dict
+        :return: `(all_mats, all_corrs)` -- the summed Hamiltonian matrix and the individual per-order correction matrices, one entry per degenerate group; `None` if there are no degenerate states
+        :rtype: tuple | None
+        """
         states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
         degs = states.degenerate_pairs
         if states.flat_space.degenerate_states is None: return None
@@ -3254,6 +4413,18 @@ class AnalyticVPTRunner:
         return all_mats, all_corrs
 
     def get_wfc_test_states(self, input_states:BasisStateSpace, energy_window):
+        """
+        **LLM Docstring**
+
+        Identify the candidate states that could plausibly be strongly coupled (via wavefunction-correction magnitude) to a given set of input states, based purely on energy proximity (within `energy_window`) and the maximum possible change in quantum numbers implied by the Hamiltonian expansion's term structure.
+
+        :param input_states: the states to find coupling candidates for
+        :type input_states: BasisStateSpace
+        :param energy_window: the energy window (around each input state's own energy) to search within
+        :type energy_window: float
+        :return: the candidate coupling states for each input state
+        :rtype: list[BasisStateSpace]
+        """
         exc = input_states.excitations
         freqs = self.eval.freqs
 
@@ -3298,6 +4469,24 @@ class AnalyticVPTRunner:
             return self.get_wavefunction_corrections(state_pairs)
 
     def format_energies_table(self, states, energies, energy_corrections, zpe_pos, number_format=".3f"):
+        """
+        **LLM Docstring**
+
+        Format a table of state energies/frequencies alongside their per-order corrections, converting to wavenumbers and displaying every non-zero-point-energy state as a frequency shift relative to the ZPE.
+
+        :param states: the states the energies correspond to
+        :type states: MultiVPTStateSpace
+        :param energies: the total energies (in Hartrees), one per state
+        :type energies: np.ndarray
+        :param energy_corrections: the per-order energy corrections (in Hartrees)
+        :type energy_corrections: np.ndarray
+        :param zpe_pos: the index of the zero-point-energy (reference) state
+        :type zpe_pos: int
+        :param number_format: the format spec used for each numeric column
+        :type number_format: str
+        :return: the formatted table
+        :rtype: str
+        """
 
         nord = len(energy_corrections)
         energy_table_formatter = TableFormatter(
@@ -3331,6 +4520,24 @@ class AnalyticVPTRunner:
         )
 
     def format_degenerate_energies_table(self, states, energies, deperturbed_energies, zpe_pos, number_format=".3f"):
+        """
+        **LLM Docstring**
+
+        Format a table comparing each state's degenerate-perturbation-theory-corrected energy/frequency against its deperturbed counterpart, both relative to the zero-point energy.
+
+        :param states: the states the energies correspond to
+        :type states: MultiVPTStateSpace
+        :param energies: the degenerate-corrected total energies (in Hartrees)
+        :type energies: np.ndarray
+        :param deperturbed_energies: the deperturbed total energies (in Hartrees)
+        :type deperturbed_energies: np.ndarray
+        :param zpe_pos: the index of the zero-point-energy (reference) state
+        :type zpe_pos: int
+        :param number_format: the format spec used for each numeric column
+        :type number_format: str
+        :return: the formatted table
+        :rtype: str
+        """
 
         energy_table_formatter = TableFormatter(
             [StateMaker.parse_state, number_format, number_format],
@@ -3361,6 +4568,22 @@ class AnalyticVPTRunner:
     def format_transition_moment_table(self,
                                        states, transition_moments, transition_moment_corrections,
                                        number_format=".8f"):
+        """
+        **LLM Docstring**
+
+        Format a table of transition-dipole moments (and their per-order corrections) for each initial-state block in a `MultiVPTStateSpace`, with a labeled header separating each initial state's sub-table when there's more than one.
+
+        :param states: the initial/final state pairs the transition moments correspond to
+        :type states: MultiVPTStateSpace
+        :param transition_moments: the per-axis, per-block final transition moments
+        :type transition_moments: list
+        :param transition_moment_corrections: the per-axis, per-block, per-order transition-moment corrections
+        :type transition_moment_corrections: list
+        :param number_format: the format spec used for each numeric column
+        :type number_format: str
+        :return: the formatted table(s), concatenated with initial-state header separators
+        :rtype: str
+        """
 
         #transition_moment_corrections : xyz x state block
         nord = len(transition_moment_corrections)
@@ -3411,6 +4634,24 @@ class AnalyticVPTRunner:
                               states, keys, operator_values, operator_corrections,
                               number_format=".8f"
                               ):
+        """
+        **LLM Docstring**
+
+        Format a table of arbitrary operator expectation values (and their per-order corrections) for each initial-state block in a `MultiVPTStateSpace`, with a labeled header separating each initial state's sub-table when there's more than one.
+
+        :param states: the initial/final state pairs the operator values correspond to
+        :type states: MultiVPTStateSpace
+        :param keys: the operator names/labels, used as column headers
+        :type keys: Iterable
+        :param operator_values: the per-operator, per-block final operator values
+        :type operator_values: list
+        :param operator_corrections: the per-operator, per-block, per-order operator corrections
+        :type operator_corrections: list
+        :param number_format: the format spec used for each numeric column
+        :type number_format: str
+        :return: the formatted table(s), concatenated with initial-state header separators
+        :rtype: str
+        """
 
         nord = len(operator_corrections[0][0])
         nop = len(keys)
@@ -3468,6 +4709,24 @@ class AnalyticVPTRunner:
         return "\n".join(all_tables)
 
     def format_spectrum_table(self, states, harmonic_spectra, spectra, deperturbed_spectra=None, number_format=".3f"):
+        """
+        **LLM Docstring**
+
+        Format a table of harmonic, anharmonic, and (optionally) deperturbed IR spectra for each initial-state block in a `MultiVPTStateSpace`, with a labeled header separating each initial state's sub-table when there's more than one.
+
+        :param states: the initial/final state pairs the spectra correspond to
+        :type states: MultiVPTStateSpace
+        :param harmonic_spectra: the per-block harmonic `DiscreteSpectrum` objects
+        :type harmonic_spectra: list
+        :param spectra: the per-block anharmonic `DiscreteSpectrum` objects
+        :type spectra: list
+        :param deperturbed_spectra: the per-block deperturbed `DiscreteSpectrum` objects, if degenerate treatment was applied
+        :type deperturbed_spectra: list | None
+        :param number_format: the format spec used for each numeric column
+        :type number_format: str
+        :return: the formatted table(s), concatenated with initial-state header separators
+        :rtype: str
+        """
         tmom_table_formatter = TableFormatter(
             [StateMaker.parse_state] + [number_format] * (4 if deperturbed_spectra is None else 6),
             row_padding="  ",
@@ -3516,6 +4775,20 @@ class AnalyticVPTRunner:
         return "\n".join(all_tables)
 
     def prep_operators(self, operator_expansions, operator_terms, order=None):
+        """
+        **LLM Docstring**
+
+        Normalize a user-supplied operator specification (raw expansion coefficients, in either list or named-dict form) into the fully-expanded per-mode-basis operator terms needed for correction calculations, using `self.ham.prep_operator_terms` to expand raw finite coefficients if pre-expanded `operator_terms` weren't already given directly.
+
+        :param operator_expansions: raw operator expansion coefficients (a single operator's coefficient list, a list of such lists, or a name-keyed dict of them), used if `operator_terms` isn't given
+        :type operator_expansions: object | None
+        :param operator_terms: already-expanded per-mode-basis operator terms (a single list, a list of lists, or a name-keyed dict), used directly if given
+        :type operator_terms: object | None
+        :param order: the expansion order to expand `operator_expansions` to; inferred from the coefficient list length if not given
+        :type order: int | None
+        :return: `(keys, operator_terms)` -- the resolved operator names/indices and their expanded per-mode-basis terms
+        :rtype: tuple
+        """
         # if dipole_expansion is None:
         if order is None:
             if self.expansion_order is not None:
@@ -3560,11 +4833,31 @@ class AnalyticVPTRunner:
         linewidth=1e8, threshold=1e8, suppress=True, precision=3
     )
     def format_matrix(self, ham):
+        """
+        **LLM Docstring**
+
+        Format a matrix as a plain-text string using this class's standard print options (fixed precision, no truncation, suppressed scientific notation), stripping the outer bracket characters for a cleaner look.
+
+        :param ham: the matrix to format
+        :type ham: np.ndarray | object
+        :return: the formatted matrix string
+        :rtype: str
+        """
         ham = np.asanyarray(ham)
         with np.printoptions(**self.matrix_formatting_options):
             return str(ham).replace("[", " ").replace("]", " ")
 
     def modify_hamiltonian(self, hamiltonian_corrections):
+        """
+        **LLM Docstring**
+
+        Build a new `AnalyticVPTRunner` whose underlying evaluator has extra Hamiltonian corrections applied, via `PerturbationTheoryEvaluator.modify_hamiltonian`, preserving this runner's order/expansion-order/dipole-expansion/logger settings.
+
+        :param hamiltonian_corrections: the Hamiltonian corrections to apply (e.g. local-mode coupling terms)
+        :type hamiltonian_corrections: object
+        :return: the new runner with the modified Hamiltonian
+        :rtype: AnalyticVPTRunner
+        """
         return type(self)(
             self.eval.modify_hamiltonian(hamiltonian_corrections),
             order=self.order,
@@ -3575,6 +4868,20 @@ class AnalyticVPTRunner:
 
     @classmethod
     def _prep_deg_pair_msg(cls, pairs, max_pairs=1000, fmt="{l} <-> {r}"):
+        """
+        **LLM Docstring**
+
+        Format a list of degenerate state pairs as `"left <-> right"` log lines, truncating the middle of very long lists (showing only the first and last halves, separated by an ellipsis) to keep the log readable.
+
+        :param pairs: the `(left, right)` state pairs to format
+        :type pairs: list[tuple]
+        :param max_pairs: the maximum number of pairs to display before truncating
+        :type max_pairs: int
+        :param fmt: the format string used for each pair, given `l`/`r` keyword values
+        :type fmt: str
+        :return: the formatted log lines
+        :rtype: list[str]
+        """
         if len(pairs) > max_pairs:
             w = max_pairs // 2
             return [
@@ -3617,6 +4924,46 @@ class AnalyticVPTRunner:
                 only_degenerate_terms=True,
                 force_return_on_crash=True
                 ):
+        """
+        **LLM Docstring**
+
+        Top-level entry point for running a full analytic VPT calculation on a set of target states: optionally injects local-mode coupling terms (and/or applies other Hamiltonian corrections, either up front via `modify_hamiltonian` or as post-hoc corrections during the solve), resolves the degenerate-state structure, computes energies/wavefunction corrections/transition moments/operator values (with strong-coupling-based degenerate-state extension if requested), and assembles the results into formatted output tables and spectra.
+
+        :param states: the target states (and, optionally, initial states) to compute
+        :type states: object
+        :param calculate_intensities: whether to compute transition moments/IR intensities
+        :type calculate_intensities: bool
+        :param operator_expansions: extra operator expansions to additionally evaluate corrections for
+        :type operator_expansions: object | None
+        :param operator_terms: pre-expanded operator terms to additionally evaluate corrections for
+        :type operator_terms: object | None
+        :param operator_type: the operator symmetry/rank type, forwarded to the correction evaluator
+        :type operator_type: str | int | None
+        :param order: the perturbation-theory order to compute to
+        :type order: int | None
+        :param verbose: whether to log detailed evaluation progress
+        :type verbose: bool
+        :param degeneracy_specs: the degeneracy specification(s) to apply
+        :type degeneracy_specs: object | None
+        :param handle_degeneracies: whether to apply degenerate-perturbation-theory handling at all
+        :type handle_degeneracies: bool
+        :param zero_cutoff: the magnitude below which a term is treated as exactly zero
+        :type zero_cutoff: float | None
+        :param transition_moment_terms: restrict the transition-moment evaluation to specific term contributions
+        :type transition_moment_terms: object | None
+        :param hamiltonian_corrections: extra Hamiltonian corrections to apply, either up front (`'primary'`) or as post-hoc adjustments (`'degenerate'`), per `hamiltonian_correction_type`
+        :type hamiltonian_corrections: object | None
+        :param clear_caches: whether to clear the global analytic-solver caches before running
+        :type clear_caches: bool
+        :param hamiltonian_correction_type: `'primary'` to fold `hamiltonian_corrections` into the Hamiltonian itself before solving, or `'degenerate'`/other to apply them only within degenerate blocks; defaults to `self.hamiltonian_correction_modification_type`
+        :type hamiltonian_correction_type: str | None
+        :param only_degenerate_terms: whether the reexpressed Hamiltonian should include only strictly degenerate-coupling terms
+        :type only_degenerate_terms: bool
+        :param force_return_on_crash: whether to catch exceptions during the run and still return whatever partial results were computed, rather than propagating the error
+        :type force_return_on_crash: bool
+        :return: the computed VPT results (energies, wavefunction data, spectra, and formatted tables)
+        :rtype: object
+        """
         if hamiltonian_correction_type is None:
             hamiltonian_correction_type = self.hamiltonian_correction_modification_type
         if self.local_mode_couplings:
@@ -3861,6 +5208,50 @@ class AnalyticVPTRunner:
                    force_return_on_crash=True,
                    **opts
                    ):
+        """
+        **LLM Docstring**
+
+        Convenience one-shot entry point: builds an `AnalyticVPTRunner` for the given system (via `construct`) and immediately runs the full VPT calculation on it (via `run_VPT`).
+
+        :param system: the molecule or system specification to run VPT on
+        :type system: str | list | Molecule | VPTSystem
+        :param states: the target states (and, optionally, initial states) to compute
+        :type states: object
+        :param calculate_intensities: whether to compute transition moments/IR intensities
+        :type calculate_intensities: bool
+        :param operator_expansions: extra operator expansions to additionally evaluate corrections for
+        :type operator_expansions: object | None
+        :param operator_terms: pre-expanded operator terms to additionally evaluate corrections for
+        :type operator_terms: object | None
+        :param operator_type: the operator symmetry/rank type
+        :type operator_type: str | int | None
+        :param verbose: whether to log detailed evaluation progress
+        :type verbose: bool
+        :param return_runner: whether to also return the constructed runner alongside the results
+        :type return_runner: bool
+        :param degeneracy_specs: the degeneracy specification(s) to apply
+        :type degeneracy_specs: object | None
+        :param degeneracy_states: not a supported argument; if given, triggers a (currently non-raising) `ValueError(...)` construction reminding callers to use `degeneracy_specs` instead -- note the exception object is only constructed, never actually raised, so this check currently has no effect
+        :type degeneracy_states: object | None
+        :param handle_degeneracies: whether to apply degenerate-perturbation-theory handling at all
+        :type handle_degeneracies: bool
+        :param zero_cutoff: the magnitude below which a term is treated as exactly zero
+        :type zero_cutoff: float | None
+        :param clear_caches: whether to clear the global analytic-solver caches before running
+        :type clear_caches: bool
+        :param hamiltonian_correction_type: how to apply `hamiltonian_corrections`, forwarded to `run_VPT`
+        :type hamiltonian_correction_type: str | None
+        :param hamiltonian_corrections: extra Hamiltonian corrections to apply
+        :type hamiltonian_corrections: object | None
+        :param only_degenerate_terms: whether the reexpressed Hamiltonian should include only strictly degenerate-coupling terms
+        :type only_degenerate_terms: bool
+        :param force_return_on_crash: whether to catch exceptions during the run and still return partial results
+        :type force_return_on_crash: bool
+        :param opts: extra options forwarded to `construct`
+        :type opts: dict
+        :return: the computed VPT results, or `(runner, results)` if `return_runner` is set
+        :rtype: object | tuple
+        """
         if degeneracy_states is not None: ValueError("expect `degeneracy_specs`, not `degeneracy_states`")
 
         runner, states = cls.construct(system, states, degeneracy_specs=degeneracy_specs, **opts)
