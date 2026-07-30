@@ -1,0 +1,110 @@
+### `Common.py`
+  - **class `VibronicState`**
+    > Abstract base class for representing and electronic-vibrational product state
+    - `get_overlaps()`
+  - **class `VibronicModel`**
+    > Provides an abstraction for calculating vibronic spectra
+    - `__init__(*vibronic_states, **opts)`
+    - `calculate_spectrum()`
+
+### `FCFs.py`
+  - **class `State`** (enum.Enum)
+    - `get_aliases()`
+    - `resolve(method_name)`
+  - **class `RotationMethods`** (enum.Enum)
+    - `get_aliases()`
+    - `resolve(method_name)`
+  - **class `FranckCondonModel`**
+    - `__init__(gs_nms, es_nms, atoms=None, *, logger=None, embed=True, embedding_ref=None, masses=None, mass_weight=True, dimensionless=False, mode_selection=None, mode_reordering=None, rotation_method=None, rotation_order=None, rotation_center=None, include_rotation=None, rotation_blocks=None)`
+    - `prep_modes(gs_nms, es_nms, embed=True, embedding_ref=None, masses=None, mass_weight=False, dimensionless=False, mode_selection=None, mode_reordering=None, **rotation_opts)`
+    - `from_files(gs_file, es_file, logger=None, mode_selection=None, mode_reordering=None, internals=None, internals_ref='gs', **rotation_embedding_opts)`
+    - `convert_internal_modes(mol, nms)`
+    - `from_mols(gs, es, logger=None, remove_transrot=True, use_internals=True, embed=True, mass_weight=True, **rotation_embedding_opts)`
+    - `get_overlaps(excitations, *, duschinsky_cutoff=None, ground_states=None, return_states=True, **rotation_opts)`
+    - `get_overlap_data(**rotation_embedding_opts)`
+    - `prep_overlap_args(gs_nms, es_nms)`
+    - `get_poly_evaluation_plan(exponents, alphas=None, zpe_prod=None)` — Provides a function that can take a set of indices and rotation matrices
+    - `zero_point_alpha_contrib(alphas)`
+    - `term_evaluator(exponents_list, splits_list, splits_inds_list, weights_list, gammas, alphas=None, zpe_prod=None)`
+    - `evaluate_poly_chunks(poly_coeffs, exps, splits, split_inds, weights, alphas, include_baseline=False)`
+    - `evaluate_poly_contrib_chunk(inds, exponents_list, splits_list, splits_inds_list, weights_list, alphas, coeffs)`
+    - `evaluate_shifted_poly_overlap(poly, Q, alphas, zpe_prod, duschinsky_cutoff=None)`
+    - `df_weights(n)`
+    - `get_overlap_gaussian_data(freqs_gs, modes_gs, inv_gs, center_gs, freqs_es, modes_es, inv_es, center_es, rotation_method=None, rotation_order=None, rotation_center=None, include_rotation=None, rotation_blocks=None)`
+    - `eval_fcf_overlaps(excitations_gs, freqs_gs, modes_gs, inv_gs, center_gs, excitations_es, freqs_es, modes_es, inv_es, center_es, duschinsky_cutoff=None, logger=None, **rotation_opts)` — Evaluates the Gaussian overlaps between two H.O.
+    - `embed_modes(gs_nms, es_nms, ref=None, masses=None)`
+    - `mass_weight_nms(nms, masses=None)`
+    - `make_dimensionless(nms, freqs=None, masses=None)`
+    - `prep_states_from_threshold_and_quanta(nms, *, threshold=None, min_freq=None, max_state=None, min_quanta=None, max_quanta=None)`
+    - `prep_states_from_excitations(nms, *, states, **opts)`
+    - `state_space_prep_dispatchers()`
+    - `dispatch_state_space_prep(spec, nms)`
+    - `prep_state_space(excitations, nms, check=True)` — Dispatcher to get appropriate state spaces
+    - `get_fcfs(gs_nms, es_nms, excitations, ground_states=None, duschinsky_cutoff=None, logger=None, **rotation_embedding_opts)`
+    - `format_overlap_tables(es, overlaps, include_headers=True)`
+    - `get_fcf_spectrum(gs_nms, es_nms, excitations, ground_states=None, logger=None, duschinsky_cutoff=None, return_states=False, **rotation_embedding_opts)`
+    - `prep_opts(**opts)`
+    - `get_spectrum(excitations, *, ground_states=None, return_states=False, duschinsky_cutoff=None, **rotation_embedding_opts)`
+    - `get_ezFCF_input(excitations, atoms=None, ground_states=None, **rotation_embedding_opts)`
+  - **class `HermiteProductPolynomial`**
+    - `__init__(poly_dict, ndim)`
+    - `shift(s)`
+    - `concat(other)`
+    - `term_iter(filter=None)`
+    - `from_quanta(quanta, alphas)`
+    - `get_1D_hermite_poly(n, a)`
+
+### `ezFCFInterface.py`
+  - **class `ezXML`**
+    - **class `ezTag`** (JHTML.XML.DeclarativeElement)
+      - `__init__(*elems, flag=None, **attrs)`
+      - `sanitize_value(val)`
+      - `tostring(renormalize_padding=True)`
+    - **class `job_parameters`** (ezTag)
+    - **class `do_not_excite_subspace`** (ezTag)
+    - **class `initial_state`** (ezTag)
+    - **class `target_state`** (ezTag)
+    - **class `the_only_initial_state`** (ezTag)
+    - **class `energy_thresholds`** (ezTag)
+    - **class `print_franck_condon_matrices`** (ezTag)
+    - **class `print_normal_modes`** (ezTag)
+    - **class `parallel_approximation`** (ezTag)
+    - **class `max_vibr_to_store`** (ezTag)
+    - **class `single_excitation`** (ezTag)
+    - **class `dushinsky_rotations`** (ezTag)
+    - **class `geometry`** (ezTag)
+      - `__init__(*, number_of_atoms, text, linear='false', units='angstr', **opts)`
+    - **class `manual_atoms_reordering`** (ezTag)
+    - **class `manual_coordinates_transformation`** (ezTag)
+    - **class `normal_modes`** (ezTag)
+      - `__init__(*, atoms, if_mass_weighted, text, **opts)`
+    - **class `frequencies`** (ezTag)
+    - **class `excitation_energy`** (ezTag)
+    - **class `manual_normal_modes_reordering`** (ezTag)
+    - **class `input`** (ezTag)
+  - **class `ezFCFInterface`**
+    - `__init__(atoms, gs_nms, es_nms, excitations, masses=None, ground_states=None, include_rotation=True, rotation_order='gs', rotation_blocks=None, rotation_center=None, logger=None, mode_reordering=None, rotation_method='duschinsky', mass_weight=False, dimensionless=False, always_run_parallel=True, print_all=True, embed=False)`
+    - `format(job_type='harmonic_pes', temperature=0, spectrum_intensity_threshold=1e-08)`
+    - `prep_masses(atoms, masses, units=None)`
+    - `format_masses_file(atom_map)`
+    - **class `ezFCFRunner`** (ExternalProgramRunner)
+      - `__init__(job, binary, **opts)`
+      - `prep_dir(dir)`
+    - `run(ezFCF_binary, dir=None, dir_prefix=None, dir_suffix=None, mode='w', prefix='ezFCF-', suffix='.xml', delete=True, raise_errors=True, **job_opts)`
+    - `canonicalize_excitation_options(nms, threshold=None, fixed_modes=None, ground_states=None, **opts)`
+    - `prep_excitations(nms, ground_states, excitations)` — Dispatcher to get appropriate state spaces
+    - `prep_state_str(nms, state)`
+    - `prep_parallel(*elems, rotation_order='gs', max_vibr_excitations_in_initial_el_state=0, max_vibr_excitations_in_target_el_state=0, **etc)`
+    - `prep_duschinsky(*elems, rotation_order='gs', max_vibr_excitations_in_initial_el_state=0, max_vibr_excitations_in_target_el_state=0, **etc)`
+    - `prep_initial_state(atoms, nms, autoembed=False, excitation_energy_units='cm-1')`
+    - `prep_target_state(atoms, nms, autoembed=False, mode_reordering=None, excitation_energy_units='cm-1')` — :param atoms:
+    - `prep_state(tag, atoms, nms, *elems)`
+    - `prep_geometry(atoms, nms, linear=False, units='BohrRadius')`
+    - `format_modes_block(modes)`
+    - `parse_modes_block(modes_str, num_atoms=None)`
+    - `prep_normal_modes(atoms, nms)`
+    - `format_freqs_block(freqs)`
+    - `parse_freqs_block(freqs)`
+    - `prep_frequencies(nms)`
+    - `parse_state(state_xml)`
+    - `parse_fc_model(input_xml, **opts)`
