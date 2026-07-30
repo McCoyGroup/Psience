@@ -1,0 +1,271 @@
+### `Coordinates.py`
+  - **class `DGBCoords`**
+    - `centers()`
+    - `shape()`
+    - `kinetic_energy_evaluator()`
+    - `pairwise_potential_evaluator_type()`
+    - `pairwise_potential_evaluator(potential_functions)`
+    - `take_indices(subinds)`
+    - `drop_indices(subinds)`
+    - `gmatrix(coords)`
+    - `embedded_mode_function(func, modes, masses=None)`
+    - `embedded_subcoordinate_function(func, sel, ndim)`
+    - `embedded_cartesian_function(func, atom_sel, xyz_sel, natoms, ndim)`
+    - **class `DGBEmbeddedFunction`**
+      - `__init__(embedded_function, original_function, coords)`
+    - `embed_function(fn)`
+    - `as_cartesians()`
+  - **class `DGBCartesians`** (DGBCoords)
+    - `__init__(coords, masses, *, natoms=None, atom_sel=None, ndim=None, xyz_sel=None)`
+    - `centers()`
+    - `cart_shape()`
+    - `kinetic_energy_evaluator()`
+    - `pairwise_potential_evaluator_type()`
+    - `resolve_masses(coords, masses=None, atoms=None)`
+    - `from_cartesians(centers, masses=None, atoms=None)`
+    - `infer_shape_sel(selector)`
+    - `take_indices(subinds)`
+    - `embed_function(function)` — Embeds assuming we got a function in Cartesians _before_ any selections happened
+    - `gmatrix(coords)`
+  - **class `DGBInternals`** (DGBCoords)
+    - `__init__(coords, gmat_function=None, vprime_function=None)`
+  - **class `DGBWatsonModes`** (DGBCoords)
+    - `__init__(coords, modes, *, coriolis_inertia_function=None, masses=None, subselection=None)`
+    - `centers()`
+    - `kinetic_energy_evaluator()`
+    - `pairwise_potential_evaluator_type()`
+    - `zeta_momi(watson_coords, modes, masses)`
+    - `default_coriolis_inertia_function(modes, masses)`
+    - `embed_coords(carts, modes, shift=True)`
+    - `unembed_coords(mode_coords, modes, masses=None, shift=True)`
+    - `embed_derivs(derivs, modes)`
+    - `from_cartesians(coords, modes, masses=None, coriolis_inertia_function=None)`
+    - `as_cartesians(masses=None)`
+    - `gmatrix(coords)`
+    - `embed_function(fn)`
+
+### `DGB.py`
+  - **class `DGB`**
+    - `run_simple(centers, potential_function, *, masses=None, atoms=None, modes=None, transformations=None, alphas=None, logger=True, clustering_radius=None, min_singular_value=None, num_svd_vectors=None, svd_contrib_cutoff=None, optimize_centers=None, quadrature_degree=None, expansion_degree=None, expansion_type=None, pairwise_potential_functions=None, dipole_function=None)`
+    - `run(quiet=False, calculate_spectrum=True, dipole_degree=0, num_print=None, **wavefunction_options)` — The default case...
+    - `construct(centers, potential_function, gmat_function=None, masses=None, atoms=None, alphas=None, transformations=None, internals=None, modes=None, coordinate_selection=None, cartesians=None, logger=False, parallelizer=None, optimize_centers=False, quadrature_degree=3, expansion_degree=None, expansion_type='multicenter', momenta=None, poly_coeffs=None, pairwise_potential_functions=None, dipole_function=None, kinetic_options=None)`
+    - `construct_gaussians(centers, alphas, potential_spec, gmat_function=None, masses=None, atoms=None, internals=None, coordinate_selection=None, cartesians=None, modes=None, kinetic_options=None, transformations=None, momenta=None, pairwise_potential_functions=None, poly_coeffs=None, logger=None, parallelizer=None)`
+    - `construct_potential(potential_function, coords, quadrature_degree=None, expansion_degree=None, expansion_type=None, pairwise_potential_functions=None, logger=None, parallelizer=None)`
+    - `__init__(gaussians, potential, logger=None, parallelizer=None, wavefunction_options=None)`
+    - `as_cartesian_dgb()`
+    - `get_S()`
+    - `S()`
+    - `get_T()`
+    - `T()`
+    - `T(T)`
+    - `get_V()`
+    - `V()`
+    - `V(V)`
+    - `evaluate_multiplicative_operator(function, embed=True, expansion_degree=None, expansion_type=None, quadrature_degree=None, pairwise_functions=None)`
+    - `diagonalize(*, mode=None, similarity_cutoff=None, similarity_chunk_size=None, similar_det_cutoff=None, similarity_shift=None, subspace_size=None, min_singular_value=None, nodeless_ground_state=True, low_rank_energy_cutoff=None, low_rank_overlap_cutoff=None, low_rank_shift=None, stable_eigenvalue_epsilon=None)`
+    - `get_similarity_matrix()`
+    - `get_wavefunctions(mode=None, similarity_cutoff=None, similarity_chunk_size=None, similar_det_cutoff=None, subspace_size=None, min_singular_value=None, nodeless_ground_state=None, stable_eigenvalue_epsilon=None, **wfn_opts)`
+
+### `Evaluators.py`
+  - **class `OverlapGaussianData`**
+    - `__init__(input_data, product_data)`
+    - `npts()`
+    - `ndim()`
+    - `centers()`
+    - `alphas()`
+    - `rotations()`
+    - `inverse_rotations()`
+    - `precision_matrices()`
+    - `covariance_matrices()`
+    - `shift_matrices()`
+    - `phases_diff()`
+    - `phases_sum()`
+    - `momenta_sum()`
+    - `momenta_diff()`
+    - `rho_sum()`
+    - `rho_diff()`
+    - `correlation_factors_sum()`
+    - `correlation_factors_diff()`
+    - `cos_correlation_diff()`
+    - `sin_correlation_diff()`
+    - `cos_correlation_sum()`
+    - `sin_correlation_sum()`
+    - `decay_factor_diff()`
+    - `decay_factor_sum()`
+    - `center_difference()`
+    - `delta_position()`
+    - `delta_phase_sum()`
+    - `delta_phase_diff()`
+    - `indices()`
+    - `row_indices()`
+    - `col_indices()`
+    - `initial_centers()`
+    - `initial_alphas()`
+    - `initial_precision_matrices()`
+    - `initial_momenta()`
+    - `initial_phases()`
+    - `from_gaussian_parameters(centers, alphas, transformations, momenta, *, chunk_size=None, rows_cols=None, logger=None, parallelizer=None)`
+    - `get_overlap_data(centers, alphas, transformations, aligned_momenta, *, chunk_size=None, rows_cols=None, logger=None, parallelizer=None)`
+    - `take_subselection(positions)`
+  - **class `DGBEvaluator`**
+    > An object that supports evaluating matrix elements in a distributed Gaussian basis.
+    > Provides support for integrating a function via quadrature or as an expansion in a polynomial tensors
+    - `get_inverse_covariances(alphas, transformations)` — Transforms the alphas into proper inverse covariance matrices.
+    - `get_covariances(alphas, transformations)` — Transforms the alphas into proper inverse covariance matrices.
+    - `get_momentum_vectors(phases, transformations)` — Transforms the momenta so that they're aligned along the Gaussian axes
+    - `get_phase_vectors(momenta, transformations)` — Transforms the momenta so that they're aligned along the Gaussian axes
+    - `get_overlap_gaussians(centers, alphas, transformations, momenta, *, chunk_size=None, rows_cols=None, logger=None, parallelizer=None)`
+    - `poch(n, m)`
+    - `polyint_1D(centers, alphas, n)`
+    - `momentum_coeffient(k, n)`
+    - `momentum_integral(p, a, k)`
+    - `simple_poly_int(n)`
+    - `tensor_expansion_integrate(npts, derivs, overlap_data, expansion_type='multicenter', logger=None, reweight=True)` — provides an integral from a polynomial expansion with derivs as an expansion in tensors
+    - `quad_weight_eval(function, d_chunk, w_chunk, ndim, centers, squa)`
+    - `quad_nd(centers, alphas, function, flatten=False, degree=3, chunk_size=int(1000000.0), normalize=True)` — N-dimensional quadrature
+    - `rotated_gaussian_quadrature(function, alphas, centers, rotations, inverse, momenta, normalize=True, degree=2)`
+    - `quad_integrate(function, overlap_data, degree=2, logger=None)` — Integrate potential over all pairs of Gaussians at once
+    - `evaluate_overlap(overlap_data, logger=None, return_prefactor=False)`
+  - **class `DGBKineticEnergyEvaluator`** (DGBEvaluator)
+    - `evaluate_ke(overlap_data, logger=None, **opts)`
+    - `evaluate_diagonal_rotated_momentum_contrib(overlap_data, masses)`
+  - **class `DGBCartesianEvaluator`** (DGBKineticEnergyEvaluator)
+    - `__init__(masses)`
+    - `evaluate_ke(overlap_data, logger=None)`
+  - **class `DGBWatsonEvaluator`** (DGBKineticEnergyEvaluator)
+    - `__init__(modes, coriolis_inertia_function)`
+    - `annoying_coriolis_term(n, u, m, v, Xc, Dx, Sc, Sp, Gi, Gj, DG)`
+    - `annoying_coriolis_momentum_term(n, u, m, v, Xc, r, Jp, Dx, Sc, Sp, DG)`
+    - `annoying_imaginary_momentum_term(n, u, m, v, Xc, r, Jp, Dx, Sc, Sp, DG)`
+    - `evaluate_coriolis_contrib(coriolis_tensors, overlap_data)`
+    - `evaluate_watson_term(B_e, overlap_data)`
+    - `evaluate_ke(overlap_data, logger=None, include_diagonal_contribution=True, include_coriolis_coupling=True, include_watson_term=True)`
+  - **class `DGBPotentialEnergyEvaluator`** (DGBEvaluator)
+    > An evaluator designed
+    - `__init__(potential_function, integral_handler=None, expansion_degree=None, expansion_type=None, quadrature_degree=None, pairwise_functions=None, logger=None)`
+    - `analytic_integrate()`
+    - `expansion_integrate(function, overlap_data, expansion_type, expansion_degree=2, pairwise_functions=None, logger=None)`
+    - `evaluate_multiplicative(function, overlap_data, integral_handler=None, expansion_degree=None, expansion_type=None, quadrature_degree=None, pairwise_functions=None, logger=None)`
+    - `evaluate_pe(overlap_data, logger=None)`
+    - `evaluate_op(operator, overlap_data, integral_handler=None, expansion_degree=None, expansion_type=None, quadrature_degree=None, pairwise_functions=None, logger=None)`
+  - **class `DGBPairwisePotentialEvaluator`** (DGBEvaluator)
+    - `__init__(coords, pairwise_potential_functions, quadrature_degree=3, use_with_interpolation='ignored')`
+    - `get_bond_length_deltas(natoms, ndim, i, j, full=False)`
+    - `get_coordinate_bond_length_projection(i, j)`
+    - `get_coordinate_change_transformation(coordinate_projection_data)`
+    - `get_bond_length_change_transformation(overlap_data, i, j)`
+    - `wrap_distance_function(i, j, overlap_data, transformations, pairwise_function)`
+    - `evaluate_pairwise_contrib(overlap_data, quadrature_degree=None, expansion_degree=2)`
+  - **class `DGBCartesianPairwiseEvaluator`** (DGBPairwisePotentialEvaluator)
+    - `__init__(coords, pairwise_functions, **opts)`
+    - `get_coordinate_bond_length_projection(i, j)`
+  - **class `DGBWatsonPairwiseEvaluator`** (DGBPairwisePotentialEvaluator)
+    - `__init__(coords, pairwise_functions, **opts)`
+    - `get_coordinate_bond_length_projection(i, j)`
+
+### `Gaussians.py`
+  - **class `DGBCovarianceTransformations`**
+    - `__init__(tfs, invs=None, inverse_sum=None)`
+    - `transform(derivative_operators)`
+    - `inverse()`
+    - `combine(other)`
+  - **class `DGBGaussians`**
+    > A class to set up the actual N-dimensional Gaussians used in a DGB
+    - `__init__(coords, alphas, transformations=None, *, momenta=None, poly_coeffs=None, kinetic_options=None, logger=None, parallelizer=None)`
+    - `overlap_data()`
+    - `get_S(return_prefactor=False)`
+    - `get_T()`
+    - `optimize(optimizer_options, potential_function=None, logger=None, **opts)`
+    - `take_gaussian_selection(full_good_pos)`
+    - `construct(coords, alphas, *, potential_expansion=None, potential_function=None, transformations=None, masses=None, atoms=None, modes=None, kinetic_options=None, internals=None, coordinate_selection=None, cartesians=None, gmat_function=None, momenta=None, poly_coeffs=None, logger=None, pairwise_potential_functions=None, parallelizer=None)`
+    - `get_normal_modes(coords, potential_function, masses=None, atoms=None, internals=None, gmat_function=None, reference_structure=None, stationary_point_norm=0.01, project_transrot=True)`
+    - `get_reaction_path_transformations(coords, potential_function, gmat_function, stationary_point_norm=0.0001, sort_alphas=True)`
+    - `get_hessian_diagonalizing_transformations(coords, potential_function, gmat_function, *, masses=None, project_transrot=True)`
+    - `dispatch_get_alphas(alphas, centers, **extra_opts)`
+    - `get_mass_alphas(centers, *, masses, scaling=10, use_mean=False)`
+    - `get_min_distance_alphas(masses, centers, scaling=1 / 4, use_mean=False)`
+    - `get_virial_alphas(coords, *, potential_function, gmat_function, transformations, scaling=1 / 2)`
+    - `canonicalize_poly_coeffs(coeffs, alphas)`
+    - `transformations()`
+    - `transformations(tf)`
+    - `canonicalize_transforms(coords, tfs)`
+    - `prefactor()`
+    - `S()`
+    - `S(smat)`
+    - `T()`
+    - `T(tmat)`
+    - `marginalize_out(indices, *, bad_alpha_limit=None, bad_scaling_limit=None)`
+    - `as_cartesians()`
+    - `plot_centers(figure=None, xyz_sel=None, **plot_styles)`
+
+### `Interpolation.py`
+  - **class `DGBInterpolator`**
+    - `__init__(centers, potential_derivatives, declustering_alpha=None, declustering_overlap=None, neighborhood_size=None, logger=None, pairwise_potential_functions=None, **opts)`
+  - **class `DGBGenericInterpolator`** (DGBInterpolator)
+    - `__init__(centers, potential_derivatives, **opts)`
+  - **class `DGBWatsonInterpolatorSingleRef`** (DGBInterpolator)
+    - `__init__(centers, potential_derivatives, modes, **opts)`
+    - `take_remainder_potential(centers, potential_derivatives, modes)`
+  - **class `WatsonPairwisePotential`**
+    > Partial mimic of the PairwisePotentialEvaluator, but just taking
+    > the bits needed to actually convert f(q) -> f(delta) -> f(r) and get the
+    > derivatives cleanly
+    - `__init__(ppfs, modes)`
+    - `get_bond_length_deltas(natoms, ndim, i, j, full=False)`
+    - `get_coordinate_bond_length_projection(i, j, ndim=3)`
+    - `get_bond_lengths(coords, i, j, deriv_order=0)`
+    - `eval_ppf(f, coords, i, j, deriv_order=None)`
+  - **class `DGBWatsonTaylorInterpolator`** (DGBInterpolator)
+    - `__init__(centers, potential_derivatives, modes, power=4, include_harmonic_basis=False, harmonic_distance_cutoff=None, pairwise_potential_functions=None, **opts)`
+    - `take_remainder_potential(centers, potential_derivatives, modes)`
+    - `take_ppf_remainder(centers, potential_derivatives)`
+    - `taylor_interp(points, dists, neighbors, derivs, power=None, deriv_order=None)`
+  - **class `DGBWatsonLeastSquaresInterpolator`** (DGBInterpolator)
+  - **class `DGBCartesianWatsonInterpolator`** (DGBWatsonInterpolator)
+    - `__init__(centers, potential_derivatives, modes, **opts)`
+
+### `Runners.py`
+  - **class `DGBRunner`**
+    - `prep_interpolation(nms, coords, potential_function, symmetrizations=None)`
+    - `construct_from_mol_simulation(sim, mol, *, potential_function=None, dipole_function=None, use_dipole_embedding=True, use_cartesians=False, use_momenta=False, quadrature_degree=3, expansion_degree=2, use_interpolation=True, use_quadrature=False, symmetrizations=None, momentum_scaling=None, skip_initial_configurations=True, alphas='virial', modes='normal', transformations='diag', pairwise_potential_functions=None, logger=True, **opts)`
+    - `construct_from_model_simulation(sim, model, mol=None, *, use_cartesians=False, use_momenta=False, quadrature_degree=3, expansion_degree=2, use_interpolation=True, use_quadrature=False, symmetrizations=None, momentum_scaling=None, skip_initial_configurations=True, modes='normal', transformations='diag', **opts)`
+    - `construct_from_model(model, trajectories=10, *, sim=None, propagation_time=10, timestep=50, use_cartesians=False, use_momenta=False, pairwise_potential_functions=None, use_interpolation=True, use_quadrature=False, symmetrizations=None, momentum_scaling=None, total_energy=None, total_energy_scaling=None, sampled_modes=None, initial_energies=None, initial_displacements=None, initial_mode_directions=None, displaced_coords=None, track_velocities=True, logger=None, **aimd_options)`
+    - `from_mol(mol, sim=None, *, potential_function=None, dipole_function=None, trajectories=10, propagation_time=10, timestep=50, use_cartesians=False, use_momenta=False, pairwise_potential_functions=None, use_interpolation=True, use_quadrature=False, symmetrizations=None, momentum_scaling=None, trajectory_seed=None, total_energy=None, total_energy_scaling=None, sampled_modes=None, initial_energies=None, initial_displacements=None, initial_mode_directions=None, displaced_coords=None, track_velocities=True, logger=None, **aimd_options)`
+    - `run_simple(system_spec, sim=None, plot_wavefunctions=True, plot_spectrum=True, trajectories=10, propagation_time=10, timestep=50, use_cartesians=False, use_momenta=False, pairwise_potential_functions=None, use_interpolation=True, use_quadrature=False, symmetrizations=None, momentum_scaling=None, trajectory_seed=None, total_energy=None, total_energy_scaling=None, sampled_modes=None, initial_energies=None, initial_mode_directions=None, initial_displacements=None, displaced_coords=None, **opts)`
+    - `plot_dgb_potential(dgb, mol, potential, coordinate_sel=None, domain=None, domain_padding=1, potential_cutoff=None, potential_units=None, potential_min=0, plot_cartesians=None, plot_atoms=True, cmap=None, modes_nearest=False, plot_points=100, levels=24, **plot_styles)`
+    - `plot_gaussians(dgb, mol, *, domain=None, domain_padding=1, cmap='RdBu', plot_dir=None, plot_name=None, **plot_options)`
+    - `plot_wavefunctions(wfns, dgb, mol, which=True, coordinate_sel=None, cartesians=None, plot_dir=None, plot_name=None, plot_label='{e:.2f} cm-1', plot_potential=True, separate_potential=False, potential_plot_name=None, potential_units='Wavenumbers', plot_atoms=None, plot_centers=True, potential_styles=None, scaling=None, ticks=None, padding=None, aspect_ratio=None, plot_range=None, image_size=None, **plot_options)`
+    - `plot_potential_from_spec(dgb, mol, spec, plot_centers=True, **opts)`
+    - `prep_plot_wavefunctions_spec(dgb, spec)`
+    - `run_dgb(dgb, mol, plot_centers=True, plot_wavefunctions=True, plot_spectrum=False, spectrum_plot_name=None, pot_cmap='viridis', wfn_cmap='RdBu', wfn_points=100, wfn_contours=12, plot_dir=None, plot_potential=True, pot_points=100, domain=None, domain_padding=1, wavefunction_scaling=None, potential_cutoff=None, potential_units='Wavenumbers', mode=None, nodeless_ground_state=None, min_singular_value=None, subspace_size=None, plot_similarity=False, similarity_plot_name=None, similarity_cutoff=None, similarity_chunk_size=None, similar_det_cutoff=None, num_print=None, spectrum_plotting_options=None, **plot_options)`
+    - `getMorseParameters(w=None, wx=None, m1=None, m2=None, re=None)`
+    - `setupMorseFunction(model, i, j, w=None, wx=None)`
+    - `plot_interpolation_error(dgb, pot)`
+
+### `Solvers.py`
+  - **class `DGBEigensolver`**
+    - `get_orthogonal_transform(S, min_singular_value=None, subspace_size=None)`
+    - `classic_eigensolver(H, S, hamiltonian, min_singular_value=None, subspace_size=None, nodeless_ground_state=False)`
+    - `get_eigensimilarity_subspace_size(H, S, similarity_cutoff=None, similarity_chunk_size=None, similar_det_cutoff=None, similar_det_diff_cutoff=None, similarity_cutoff_rounding=None)`
+    - `similarity_mapped_solver(H, S, hamiltonian, similarity_cutoff=None, similarity_chunk_size=None, similar_det_cutoff=None)`
+    - `shift_similarity_solver(H, S, hamiltonian, similarity_cutoff=None, similarity_chunk_size=None, similar_det_cutoff=None, similarity_shift=None, similar_det_diff_cutoff=None, similarity_cutoff_rounding=None)`
+    - `low_rank_solver(H, S, hamiltonian, low_rank_energy_cutoff=None, low_rank_overlap_cutoff=None, low_rank_shift=None)`
+    - `cholesky_solver(H, S, hamiltonian)`
+    - `fix_heiberger(H, S, hamiltonian, eps=1e-05)`
+
+### `Wavefunctions.py` — Provides a DVRWavefunction class that inherits from the base Psience wavefunction
+  - **class `DGBWavefunction`** (Wavefunction)
+    - `__init__(energy, data, gaussians=None, **opts)`
+    - `get_dimension()`
+    - `plot(figure=None, domain=None, plot_centers=False, return_values=False, **opts)`
+    - `to_cartesian_wavefunction()` — Projects the wavefunction back to Cartesians
+    - `plot_cartesians(xyz_sel=None, *, atom_sel=None, figure=None, plot_centers=False, atom_styles=None, adjust_levels=False, projection_plot_density_cutoff=None, return_values=False, **plot_styles)`
+    - `evaluate(points)`
+    - `marginalize_out(dofs, rescale=True, return_scaling=False)` — Computes the projection of the current wavefunction onto a set of degrees
+  - **class `DGBWavefunctions`** (Wavefunctions)
+    - `__init__(energies=None, wavefunctions=None, hamiltonian=None, **opts)`
+    - `as_cartesian_wavefunction()` — Projects the wavefunction back to Cartesians
+    - `hamiltonian()`
+    - `operator_representation(op, embed=True, expansion_degree=None, quadrature_degree=None, expansion_type=None)`
+    - `expectation(op, expansion_degree=None, quadrature_degree=None, expansion_type=None, embed=True, other=None)` — Computes the expectation value of operator op over the wavefunction other and self
+    - `localize(criterion, which=None)` — Find a transformation that maximally localizes the wavefunctions in the Boys' sense

@@ -1,0 +1,504 @@
+{
+  "McUtils.Coordinerds": [
+    "Molecools::AutoCHModel",
+    "Molecools::BackboneChains",
+    "Molecools::Caching",
+    "Molecools::ComplexRelaxedScan",
+    "Molecools::DihedConstrainedOpt",
+    "Molecools::DihedOptRPNMScan",
+    "Molecools::EasyZMatrices",
+    "Molecools::FragInternalsScan",
+    "Molecools::FragInternalsSpec",
+    "Molecools::InternalProjectedModes",
+    "Molecools::MethanolConstrainedOpt",
+    "Molecools::MethanolTorsionScan",
+    "Molecools::MoreBondZMatrix",
+    "Molecools::Opts",
+    "Molecools::PartialQuartic",
+    "Molecools::PartialSymmetries",
+    "Molecools::ProblemTransformedZMatrix",
+    "Molecools::RequiredZMat2",
+    "VPT2::BenzeneInternals"
+  ],
+  "McUtils.Devutils": [
+    "DGB::NewRunnerOCHH",
+    "Molecools::ASEDimerProfile",
+    "Molecools::ASEProfileGenerator",
+    "Molecools::PysisGSMProfileGenerator",
+    "Molecools::PysisyphusDimerProfile",
+    "Molecools::PysisyphusZTSProfile"
+  ],
+  "McUtils.Jupyter": [
+    "Molecools::Manipulator"
+  ],
+  "McUtils.McUtils.Coordinerds.Conveniences.cartesian_to_zmatrix": [
+    "Data::LogFileDipoleSurface"
+  ],
+  "McUtils.McUtils.Data.AtomData": [
+    "VPT2::AnalyticModels"
+  ],
+  "McUtils.McUtils.Data.ConstantsData": [
+    "VPT2::AnalyticModels"
+  ],
+  "McUtils.McUtils.Data.PotentialData": [
+    "DGB::ModelPotentialAIMD1DOG"
+  ],
+  "McUtils.McUtils.Devutils.Loggers.Logger": [
+    "VPT2::HOHVPTRunner3rd"
+  ],
+  "McUtils.McUtils.Extensions.ModuleLoader.ModuleLoader": [
+    "DVR::MBPolDVR"
+  ],
+  "McUtils.McUtils.ExternalPrograms.QM9.QM9": [
+    "Molecools::QM9Iter",
+    "Molecools::QM9Loading",
+    "Molecools::QM9Queries"
+  ],
+  "McUtils.McUtils.ExternalPrograms.RDKit.RDMolecule": [
+    "Molecools::QM9Iter",
+    "Molecools::QM9Queries"
+  ],
+  "McUtils.McUtils.ExternalPrograms.SMILES.smarts_matcher": [
+    "Molecools::SubstructMatching"
+  ],
+  "McUtils.McUtils.Formatters.TableFormatters.TableFormatter": [
+    "Molecools::InternalProjectedModes",
+    "Molecools::PartialQuartic"
+  ],
+  "McUtils.McUtils.Parallelizers.Parallelizers.Parallelizer": [
+    "VPT2::AnalyticHOONO",
+    "VPT2::AnalyticHOONODeg",
+    "VPT2::PyreneAnalytic"
+  ],
+  "McUtils.McUtils.Plots.Colors.ColorPalette": [
+    "Molecools::SufaceTriangulation"
+  ],
+  "McUtils.McUtils.Plots.Graphics.Graphics3D": [
+    "Molecools::VisualizeNormalModes"
+  ],
+  "McUtils.McUtils.Plots.Graphics.GraphicsGrid": [
+    "Molecools::VisualizeNormalModes"
+  ],
+  "McUtils.McUtils.Profilers.Profiler.BlockProfiler": [
+    "VPT2::AnalyticHOONO",
+    "VPT2::AnalyticHOONODeg"
+  ],
+  "McUtils.McUtils.Profilers.Timer.Timer": [
+    "Molecools::SomeZMat3",
+    "VPT2::AnalyticHOONO",
+    "VPT2::AnalyticHOONODeg"
+  ],
+  "McUtils.McUtils.Scaffolding.Checkpointing.Checkpointer": [
+    "Molecools::Caching",
+    "VPT2::AnalyticModels"
+  ],
+  "McUtils.McUtils.Scaffolding.Logging.LogParser": [
+    "VPT2::ResultsFileAnalysis"
+  ],
+  "McUtils.McUtils.Zachary.Interpolator.Interpolator": [
+    "DVR::MoleculeDVR"
+  ],
+  "McUtils.McUtils.Zachary.Symbolic.TensorExpressions.TensorDerivativeConverter": [
+    "DGB::OCHH",
+    "DGB::WaterAIMD",
+    "VPT2::HOHNoKE",
+    "VPT2::NewEmbedding"
+  ],
+  "McUtils.Numputils": [
+    "DGB::WaterFromGauss",
+    "Molecools::AddDummyAtomJacobians",
+    "Molecools::AddDummyAtomProperties",
+    "Molecools::AddDummyAtoms",
+    "Molecools::DihedConstrainedOpt",
+    "Molecools::DihedOptRPNMScan",
+    "Molecools::InternalConv",
+    "Molecools::InternalProjectedModes",
+    "Molecools::PlotlyBackend",
+    "Molecools::SVGBackend",
+    "Molecools::SufaceTriangulation",
+    "VPT2::AmmoniaLocal",
+    "VPT2::AnalyticModels",
+    "VPT2::NH3LocalAnalytic"
+  ],
+  "McUtils.Plots": [
+    "DGB::ModelPotentialAIMD1DOG",
+    "DGB::ModelPotentialAIMD3D",
+    "DGB::OCHH",
+    "DGB::WaterAIMD",
+    "DVR::MBPolDVR",
+    "DVR::MoleculeDVR",
+    "Molecools::1DPotentialReps",
+    "Molecools::ASEDimerProfile",
+    "Molecools::ASEProfileGenerator",
+    "Molecools::ExpansionPotential",
+    "Molecools::InternalCartesianJacobians",
+    "Molecools::PysisGSMProfileGenerator",
+    "Molecools::PysisyphusDimerProfile",
+    "Molecools::PysisyphusZTSProfile",
+    "Molecools::SimpleRelaxedScan",
+    "Molecools::SufaceTriangulation"
+  ],
+  "McUtils.Profilers": [
+    "Molecools::ASEDimerProfile",
+    "Molecools::ASEProfileGenerator",
+    "Molecools::PysisGSMProfileGenerator",
+    "Molecools::PysisyphusDimerProfile",
+    "Molecools::PysisyphusZTSProfile"
+  ],
+  "Psience.AIMD.Simulator.AIMDSimulator": [
+    "DGB::WaterFromGauss"
+  ],
+  "Psience.AnalyticModels.AnalyticModelConstructors.AnalyticKineticEnergyConstructor": [
+    "AnalyticModels::RedundantG"
+  ],
+  "Psience.AnalyticModels.AnalyticModelConstructors.AnalyticModel": [
+    "VPT2::AnalyticModels"
+  ],
+  "Psience.AnalyticModels.AnalyticModelConstructors.GeometricFunction": [
+    "AnalyticModels::RedundantG"
+  ],
+  "Psience.AnalyticModels.Helpers.SymbolicCaller": [
+    "AnalyticModels::GmatrixElements"
+  ],
+  "Psience.BasisReps.Local.LocalHarmonicModel": [
+    "Molecools::AutoCHModel"
+  ],
+  "Psience.BasisReps.StateSpaces.BasisStateSpace": [
+    "Vibronic::FCFsNH3"
+  ],
+  "Psience.BasisReps.TaborCHModel": [
+    "Molecools::AutoCHModel",
+    "Molecools::HamiltonianExpansions"
+  ],
+  "Psience.BasisReps.Util.StateMaker": [
+    "Molecools::AutoCHModel",
+    "VPT2::AnalyticHOONO",
+    "VPT2::AnalyticHOONODeg",
+    "VPT2::BenzeneInternals",
+    "VPT2::ClHOClRunner",
+    "VPT2::PartialRebuild",
+    "VPT2::PyreneAnalytic",
+    "VPT2::SelAnharmAnalytic",
+    "VPT2::TrimerMatrix"
+  ],
+  "Psience.BasisReps.Util.modify_internal_hamiltonian": [
+    "Molecools::AutoCHModel",
+    "Molecools::LocalModeCHModel"
+  ],
+  "Psience.DGB.DGB": [
+    "DGB::Harmonic",
+    "DGB::Morse",
+    "DGB::OCHH",
+    "DGB::SampleRotated",
+    "DGB::WaterAIMD",
+    "DGB::WaterAIMDDisplaced",
+    "DGB::WaterFromGauss"
+  ],
+  "Psience.DGB.Runners.DGBRunner": [
+    "DGB::NewRunnerOCHH",
+    "DGB::NewRunnerOH",
+    "DGB::NewRunnerStretches",
+    "DGB::NewRunnerWaterMBPol",
+    "DGB::NewRunnerWaterModel"
+  ],
+  "Psience.DVR.ColbertMiller.CartesianDVR": [
+    "DVR::1D",
+    "DVR::MoleculeDVR",
+    "DVR::energies_1D"
+  ],
+  "Psience.DVR.ColbertMiller.RingDVR": [
+    "DVR::RingDVR1D",
+    "DVR::RingDVR1DCosMass",
+    "DVR::RingDVR1DExplicitMass"
+  ],
+  "Psience.DVR.DVR": [
+    "DGB::WaterAIMD"
+  ],
+  "Psience.DVR.DirectProduct.CartesianNDDVR": [
+    "DVR::energies_2D",
+    "DVR::energies_3D"
+  ],
+  "Psience.DVR.DirectProduct.RingNDDVR": [
+    "DVR::Ring2DDifferentMass",
+    "DVR::Ring3D",
+    "DVR::Ring3DCosMass3D",
+    "DVR::RingDVR2DExplicitMass"
+  ],
+  "Psience.Data.PotentialRegistry.PotentialRegistryAPI": [
+    "Data::PotentialRegistry"
+  ],
+  "Psience.Data.ScanManager": [
+    "Molecools::ScanIterator"
+  ],
+  "Psience.Data.ScanManager.molecule_atom_position_scan_iterator": [
+    "Molecools::ScanIterator"
+  ],
+  "Psience.Data.Surfaces.DipoleSurface": [
+    "Data::FChkFileDipoleSurface",
+    "Data::LogFileDipoleSurface",
+    "Molecools::EckartEmbedDipoles"
+  ],
+  "Psience.Data.Surfaces.PotentialSurface": [
+    "Data::LogFilePotentialSurface"
+  ],
+  "Psience.Modes.LocalizedModes": [
+    "DGB::NewRunnerOCHH"
+  ],
+  "Psience.Modes.NormalModes.ReactionPathModes": [
+    "Molecools::DihedOptRPNMScan"
+  ],
+  "Psience.Molecools.Molecule": [
+    "AnalyticModels::RedundantG",
+    "DGB::ModelPotentialAIMD1DOG",
+    "DGB::OCHH",
+    "DGB::WaterFromGauss",
+    "DVR::MBPolDVR",
+    "DVR::MoleculeDVR",
+    "Data::PotentialRegistry",
+    "Molecools::AIMNetDipoles",
+    "Molecools::AIMNetExpansions",
+    "Molecools::ASEProfileGenerator",
+    "Molecools::AddDummyAtomJacobians",
+    "Molecools::AddDummyAtomProperties",
+    "Molecools::AddDummyAtoms",
+    "Molecools::AnimateColors",
+    "Molecools::AtomTypeMap",
+    "Molecools::AutoCHModel",
+    "Molecools::AutoZMat",
+    "Molecools::AutomaticConversion",
+    "Molecools::BackboneChains",
+    "Molecools::BondGraphZMatrixIssues",
+    "Molecools::BondGuessing",
+    "Molecools::BreakBondZMat",
+    "Molecools::Caching",
+    "Molecools::CanonicalZMatrix",
+    "Molecools::CartesiansOtherCoords",
+    "Molecools::ComplexRelaxedScan",
+    "Molecools::CompositeCoordinates",
+    "Molecools::Constructors",
+    "Molecools::CoordinateSystems",
+    "Molecools::DihedConstrainedOpt",
+    "Molecools::DihedOptRPNMScan",
+    "Molecools::EasyZMatrices",
+    "Molecools::Eckart",
+    "Molecools::EckartEmbed",
+    "Molecools::EckartEmbedDipoles",
+    "Molecools::EckartEmbedMolecule",
+    "Molecools::EmbeddedMolecule",
+    "Molecools::EvaluatorModels",
+    "Molecools::EvenMoreZMatrix",
+    "Molecools::ExpansionPotential",
+    "Molecools::FastInternals",
+    "Molecools::FlexiblePlotting",
+    "Molecools::FormatImports",
+    "Molecools::FragBaseDraw",
+    "Molecools::FragEmbedding",
+    "Molecools::FragInternalsScan",
+    "Molecools::FragInternalsSpec",
+    "Molecools::Frags",
+    "Molecools::Functionalization",
+    "Molecools::H2OModes",
+    "Molecools::HODModes",
+    "Molecools::HOONODihedral",
+    "Molecools::HamiltonianExpansions",
+    "Molecools::ImportMolecule",
+    "Molecools::InternalCartesianJacobians",
+    "Molecools::InternalConv",
+    "Molecools::InternalCoordOrder",
+    "Molecools::InternalProjectedModes",
+    "Molecools::LocalModeCHModel",
+    "Molecools::MACEEnergy",
+    "Molecools::MACEPysis",
+    "Molecools::Manipulator",
+    "Molecools::ManipulatorRDKit",
+    "Molecools::MethanolConstrainedOpt",
+    "Molecools::MethanolTorsionScan",
+    "Molecools::ModeLabels",
+    "Molecools::ModeSelectedNMs",
+    "Molecools::MolecularGMatrix",
+    "Molecools::MolecularSES",
+    "Molecools::MoreBondZMatrix",
+    "Molecools::MultiGMatrix",
+    "Molecools::MultiXYZParsing",
+    "Molecools::NMFiniteDifference",
+    "Molecools::NeverEndingZMatrix",
+    "Molecools::NewAnim",
+    "Molecools::NewLocalModes",
+    "Molecools::NormalModeRephasing",
+    "Molecools::OddBGZmats",
+    "Molecools::OpenBabel",
+    "Molecools::Opts",
+    "Molecools::OrcaImport",
+    "Molecools::PartialQuartic",
+    "Molecools::PartialSymmetries",
+    "Molecools::PlotlyBackend",
+    "Molecools::Plotting",
+    "Molecools::PointGroups",
+    "Molecools::PrincipleAxisEmbedding",
+    "Molecools::ProblemCanonicalZMatrix",
+    "Molecools::ProblemTransformedZMatrix",
+    "Molecools::ProjectedConstrainedModes",
+    "Molecools::ProjectedLocalModes",
+    "Molecools::PubChemNames",
+    "Molecools::PySCFEnergy",
+    "Molecools::PysisGSMProfileGenerator",
+    "Molecools::QM9Iter",
+    "Molecools::QM9Loading",
+    "Molecools::QM9Queries",
+    "Molecools::RDKitConfGen",
+    "Molecools::RDKitInputFormats",
+    "Molecools::RDKitIssues",
+    "Molecools::RDKitNumberIssues",
+    "Molecools::RDKitPlotErrors",
+    "Molecools::RDKitSpectrum",
+    "Molecools::RMSDChecks",
+    "Molecools::RMSDEmbeddings",
+    "Molecools::RPNMVPT",
+    "Molecools::Raman",
+    "Molecools::RedundantConversion",
+    "Molecools::RenormalizeGaussianModes",
+    "Molecools::RequiredCoordinateZMatrix",
+    "Molecools::RequiredZMat2",
+    "Molecools::RestrictedZM2",
+    "Molecools::RestrictedZM3",
+    "Molecools::SVGBackend",
+    "Molecools::ScanIterator",
+    "Molecools::SimpleRelaxedScan",
+    "Molecools::SomeZMat3",
+    "Molecools::StableInternals",
+    "Molecools::SufaceArea",
+    "Molecools::SufaceTriangulation",
+    "Molecools::Surface2",
+    "Molecools::Surface3",
+    "Molecools::SurfaceNormals",
+    "Molecools::Symmetrization",
+    "Molecools::TRIC",
+    "Molecools::TrickyFunctionalization",
+    "Molecools::UMAEnergy",
+    "Molecools::VisualizeNormalModes",
+    "Molecools::ZMatOpt",
+    "VPT2::AmmoniaLocal",
+    "VPT2::HOHLocal",
+    "VPT2::HOHLocalAnalytic",
+    "VPT2::HOHVPTNonGSRunner",
+    "VPT2::HOHVPTSubstates",
+    "VPT2::NH3LocalAnalytic",
+    "VPT2::NewEmbedding",
+    "VPT2::TermRephasing"
+  ],
+  "Psience.Molecools.Vibrations.MolecularNormalModes": [
+    "Molecools::VisualizeNormalModes"
+  ],
+  "Psience.Molecools.Vibrations.MolecularVibrations": [
+    "Molecools::VisualizeNormalModes"
+  ],
+  "Psience.Psience.AnalyticModels.AnalyticJacobianDotCalculator.InternalJacobianDisplacements": [
+    "AnalyticModels::RedundantG"
+  ],
+  "Psience.Reactions.Reaction": [
+    "Molecools::ASEDimerProfile",
+    "Molecools::ASEProfileGenerator",
+    "Molecools::BackboneChains",
+    "Molecools::PysisGSMProfileGenerator",
+    "Molecools::PysisyphusDimerProfile",
+    "Molecools::PysisyphusZTSProfile"
+  ],
+  "Psience.Spectra.BaseSpectrum.DiscreteSpectrum": [
+    "DGB::NewRunnerOCHH"
+  ],
+  "Psience.VPT2.Analyzer.VPTAnalyzer": [
+    "VPT2::HOHCorrectedPostfilters",
+    "VPT2::LogFileAnalysis",
+    "VPT2::NH3Units",
+    "VPT2::OCHHInternals",
+    "VPT2::ResultsFileAnalysis"
+  ],
+  "Psience.VPT2.Runner.AnalyticVPTRunner": [
+    "VPT2::AnalyticHOONO",
+    "VPT2::AnalyticHOONODeg",
+    "VPT2::AnalyticOCHH",
+    "VPT2::AnalyticOCHHMultiple",
+    "VPT2::AnalyticOCHHOperators",
+    "VPT2::AnalyticWFC",
+    "VPT2::HOHAnalytic",
+    "VPT2::HOHLocalAnalytic",
+    "VPT2::NH3LocalAnalytic",
+    "VPT2::PartialRebuild",
+    "VPT2::PyreneAnalytic",
+    "VPT2::QuickAnneTest",
+    "VPT2::SelAnharmAnalytic",
+    "VPT2::TrimerAnalytic"
+  ],
+  "Psience.VPT2.Runner.VPTRunner": [
+    "DGB::ModelPotentialAIMD2D",
+    "DGB::ModelPotentialAIMD2DPhased",
+    "DGB::ModelPotentialAIMD2D_HOD",
+    "DGB::ModelPotentialAIMD3D",
+    "DGB::ModelPotentialAIMD3DHOD",
+    "DGB::OCHH",
+    "DGB::WaterAIMD",
+    "DGB::WaterFromGauss",
+    "VPT2::AmmoniaLocal",
+    "VPT2::AnalyticHOONODeg",
+    "VPT2::AnalyticModels",
+    "VPT2::AnneAPI",
+    "VPT2::BenzeneInternals",
+    "VPT2::BlockLabels",
+    "VPT2::ClHOClRunner",
+    "VPT2::CrieegeeVPTRunnerShifted",
+    "VPT2::H2COModeSel",
+    "VPT2::H2COPolyads",
+    "VPT2::H2COSkippedCouplings",
+    "VPT2::HODRephase",
+    "VPT2::HODVPTRunner",
+    "VPT2::HOHCorrectedDegeneracies",
+    "VPT2::HOHLocal",
+    "VPT2::HOHNoKE",
+    "VPT2::HOHPartialQuartic",
+    "VPT2::HOHRephase",
+    "VPT2::HOHVPTAnneManip",
+    "VPT2::HOHVPTNonGSRunner",
+    "VPT2::HOHVPTRunner",
+    "VPT2::HOHVPTRunner3rd",
+    "VPT2::HOHVPTRunnerFlow",
+    "VPT2::HOHVPTRunnerShifted",
+    "VPT2::HOHVPTSubstates",
+    "VPT2::HOONO",
+    "VPT2::HOONOFasterDegen",
+    "VPT2::HOONOFasterDegenSubspace",
+    "VPT2::HOONOTargetModeDegen",
+    "VPT2::HOONOVPTRunnerShifted",
+    "VPT2::IHOHExcited",
+    "VPT2::MultdiDegHOH",
+    "VPT2::NH3",
+    "VPT2::NewEmbedding",
+    "VPT2::OCHHFasterDegen",
+    "VPT2::OCHHFasterDegenSubspace",
+    "VPT2::OCHHSubspaceTargetProps",
+    "VPT2::OCHHVPTRunnerShifted",
+    "VPT2::ResultsFileAnalysis",
+    "VPT2::SimpleVPTDegs",
+    "VPT2::TrimerMatrix",
+    "VPT2::WaterDimerSkippedCouplings",
+    "VPT2::WaterSkippedCouplings"
+  ],
+  "Psience.VPT2.Runner.VPTRuntimeOptions": [
+    "VPT2::HOHVPTRunnerFlow"
+  ],
+  "Psience.VPT2.Runner.VPTSolverOptions": [
+    "VPT2::HOHVPTRunnerFlow"
+  ],
+  "Psience.VPT2.Runner.VPTStateSpace": [
+    "VPT2::GetDegenerateSpaces",
+    "VPT2::HOHVPTRunnerFlow"
+  ],
+  "Psience.VPT2.Runner.VPTSystem": [
+    "VPT2::CrieegeeVPTRunnerShifted",
+    "VPT2::HOHVPTRunnerFlow"
+  ],
+  "Psience.Vibronic.FCFs.FranckCondonModel": [
+    "Vibronic::FCFsAnalytic",
+    "Vibronic::FCFsBig",
+    "Vibronic::FCFsNH3"
+  ]
+}

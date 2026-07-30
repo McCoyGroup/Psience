@@ -5231,8 +5231,6 @@ class AnalyticVPTRunner:
         :type return_runner: bool
         :param degeneracy_specs: the degeneracy specification(s) to apply
         :type degeneracy_specs: object | None
-        :param degeneracy_states: not a supported argument; if given, triggers a (currently non-raising) `ValueError(...)` construction reminding callers to use `degeneracy_specs` instead -- note the exception object is only constructed, never actually raised, so this check currently has no effect
-        :type degeneracy_states: object | None
         :param handle_degeneracies: whether to apply degenerate-perturbation-theory handling at all
         :type handle_degeneracies: bool
         :param zero_cutoff: the magnitude below which a term is treated as exactly zero
@@ -5252,7 +5250,8 @@ class AnalyticVPTRunner:
         :return: the computed VPT results, or `(runner, results)` if `return_runner` is set
         :rtype: object | tuple
         """
-        if degeneracy_states is not None: ValueError("expect `degeneracy_specs`, not `degeneracy_states`")
+        if degeneracy_states is not None:
+            raise ValueError("expect `degeneracy_specs`, not `degeneracy_states`")
 
         runner, states = cls.construct(system, states, degeneracy_specs=degeneracy_specs, **opts)
 
