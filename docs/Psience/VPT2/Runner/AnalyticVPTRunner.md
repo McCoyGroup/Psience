@@ -887,8 +887,6 @@ Convenience one-shot entry point: builds an `AnalyticVPTRunner` for the given sy
     > whether to also return the constructed runner alongside the results
   - `degeneracy_specs`: `object | None`
     > the degeneracy specification(s) to apply
-  - `degeneracy_states`: `object | None`
-    > not a supported argument; if given, triggers a (currently non-raising) `ValueError(...)` construction reminding callers to use `degeneracy_specs` instead -- note the exception object is only constructed, never actually raised, so this check currently has no effect
   - `handle_degeneracies`: `bool`
     > whether to apply degenerate-perturbation-theory handling at all
   - `zero_cutoff`: `float | None`

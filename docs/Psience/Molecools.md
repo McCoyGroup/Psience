@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-56cb0e" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-56cb0e"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-a36ecc" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-a36ecc"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-56cb0e" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-a36ecc" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -227,12 +227,13 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [CartesiansOtherCoords](#CartesiansOtherCoords)
 - [EvaluatorModels](#EvaluatorModels)
 - [RMSDEmbeddings](#RMSDEmbeddings)
+- [LocalizedFragmentVPT](#LocalizedFragmentVPT)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-1b7ffd" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-1b7ffd"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-17f010" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-17f010"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-1b7ffd" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-17f010" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -6710,6 +6711,61 @@ class MolecoolsTests(TestCase):
                 })#.show()
 
         m2.get_surface().plot(figure=fig, transparency=.5).show()
+```
+
+#### <a name="LocalizedFragmentVPT">LocalizedFragmentVPT</a>
+```python
+    def test_LocalizedFragmentVPT(self):
+        import os
+        os.environ["TORCH_COMPILE_DISABLE"] = "1"
+
+        from Psience.Molecools import Molecule
+        from McUtils.Data import  UnitsData
+
+        mol = Molecule.from_string(
+            "CC(=O)NCCO[H]", "smi",  # num_confs=8,
+            spin=1,
+            confgen_opts={"random_seed": 17},
+        ).modify(
+            energy_evaluator="aimnet2:aimnet2-nse",
+            dipole_evaluator="rdkit"#aimnet2:aimnet2-nse"
+        ).optimize(max_iterations=1000)
+
+
+        # localize motions to one part of the system
+        nms = mol.get_normal_modes()
+        local = nms.localize(
+            method="atoms",
+            atoms=[1, 2, 6, 7],  # carbonyl C/O and alcohol O
+            allow_mode_mixing=True
+        )
+
+        # visualize the OH stretch mode
+        mol.animate_mode(-1, modes=local).show()
+
+        # filter local modes by frequency
+        sel = np.where(local.local_freqs > 100 * UnitsData.convert("Wavenumbers", "Hartrees"))[0]
+        local = local[sel]
+
+        # build partial dipole surface and force  field
+        dipole = mol.partial_dipole_surface(modes=local, order=1)
+        derivs = mol.partial_force_field(modes=local)
+        derivs = derivs[1:]
+
+        # set up VPT runner
+        runner, opts = mol.setup_VPT(
+            states=2,
+            order=2,
+            modes=local,
+            potential_derivatives=derivs,
+            dipole_derivatives=dipole,
+            degeneracy_specs='auto'
+        )
+
+        # run VPT, print output tables, plot spectrum
+        wfns = runner.print_tables()
+        specs = wfns.get_spectrum()
+        specs[0].broaden(breadth=8).plot().show()
 ```
 
  </div>

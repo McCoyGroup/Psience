@@ -43,8 +43,8 @@ __init__(self, molecule, dipole_derivatives=None, mixed_derivs=None, modes=None,
 get_terms(self, order=None, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/DipoleTerms.py#L3848)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/DipoleTerms.py#L3848?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/DipoleTerms.py#L3849)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/DipoleTerms.py#L3849?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 

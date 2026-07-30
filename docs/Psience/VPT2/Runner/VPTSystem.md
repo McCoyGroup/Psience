@@ -126,9 +126,9 @@ Intended to build a `VPTSystem` from a harmonic potential-energy scan array. Not
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-fb0c7f" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-fb0c7f"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Details-bdb526" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-bdb526"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Details-fb0c7f" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Details-bdb526" markdown="1">
  When using functions of internal (Z-matrix/polyspherical) coordinates, a sample form of the conversion function is
 ```python
 def conv(r, t, f, **kwargs):
