@@ -924,12 +924,14 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         """
         return dict(self.fd_defaults, **opts)
 
+    property_ndim = 0
     def finite_difference_derivs(self, coords, order,
                                  batched_orders=None,
                                  displacement_generator=None,
                                  coordinate_prep=None,
                                  index_filter=None,
                                  analytic_derivative_order=None,
+                                 property_ndim=None,
                                  **opts):
         """
         **LLM Docstring**
@@ -970,6 +972,9 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
         if analytic_derivative_order is None:
             analytic_derivative_order = self.analytic_derivative_order
 
+        if property_ndim is None:
+            property_ndim = self.property_ndim
+
         expansion_shape = [None]
         def derivs(structs, center=flat_coords, expansion_shape=expansion_shape):
             """
@@ -1006,7 +1011,8 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                 return ders
 
         der = FiniteDifferenceDerivative(derivs,
-                                         function_shape=((0,), (0,) * analytic_derivative_order),
+                                         function_shape=((0,),
+                                                         (0,) * (property_ndim + analytic_derivative_order)),
                                          **self.get_fd_opts(**fd_opts)
                                          )
         if coordinate_prep is not None:
@@ -1044,6 +1050,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                                           coordinate_prep=None,
                                           index_filter=None,
                                           analytic_derivative_order=None,
+                                          property_ndim=None,
                                           **opts):
         """
         **LLM Docstring**
@@ -1077,6 +1084,8 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
             batched_orders = self.batched_orders
         if analytic_derivative_order is None:
             analytic_derivative_order = self.analytic_derivative_order
+        if property_ndim is None:
+            property_ndim = self.property_ndim
 
         reembed = dev.str_is(self.use_internals, 'reembed')
         if (
@@ -1127,7 +1136,8 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                     return ders
 
         der = FiniteDifferenceDerivative(derivs,
-                                         function_shape=((0,), (0,) * analytic_derivative_order),
+                                         function_shape=((0,),
+                                                         (0,) * (property_ndim + analytic_derivative_order)),
                                          **self.get_fd_opts(**fd_opts)
                                          )
 
@@ -4147,11 +4157,13 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
         return calc
 
     @staticmethod
-    def autodiff(expr, coord, pad_dim, create_graph=False, retain_graph=False):
+    def autodiff(expr, coord, pad_dim, base_shape=None, create_graph=False, retain_graph=False):
         import torch
         # here forces have shape (N, 3) and coord has shape (N+1, 3)
         # return hessian with shape (N, 3, N, 3)
         coord_ndim = len(coord.shape)
+        if base_shape is not None:
+            coord = coord.reshape(base_shape + (-1, 3))
         shape = coord.shape + expr.shape
         grads = []
         # N = coord.shape[0] - 1
@@ -4286,6 +4298,7 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                         diff_var=None,
                         key_tag='deriv',
                         pad_coord=1,
+                        base_shape=None,
                         create_graph=None,
                         retain_graph=None):
         if pad_coord != 1:
@@ -4300,22 +4313,28 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                 for o in range(2, order + 1):
                     keys.append(f'{key_tag}_{o}')
                     data[f'{key_tag}_{o}'] = self.autodiff(data[f'{key_tag}_{o - 1}'][0],
-                                                       diff_var,
-                                                       property_shape,
-                                                       create_graph=create_graph if create_graph is not None else ((o==1) or (o < order)),
-                                                       retain_graph=retain_graph if retain_graph is not None else (o < order)
-                                                       )
+                                                           diff_var,
+                                                           property_shape,
+                                                           base_shape=base_shape,
+                                                           create_graph=create_graph if create_graph is not None else (
+                                                                       (o == 1) or (o < order)),
+                                                           retain_graph=retain_graph if retain_graph is not None else (
+                                                                       o < order)
+                                                           )
             else:
                 if 'forces' in data: data['forces'].unbind()
                 data[f'{key_tag}_0'] = (data[root_key], (slice(None),))
                 for o in range(1, order + 1):
                     keys.append(f'{key_tag}_{o}')
                     data[f'{key_tag}_{o}'] = self.autodiff(data[f'{key_tag}_{o - 1}'][0],
-                                                       diff_var,
-                                                       property_shape,
-                                                       create_graph=create_graph if create_graph is not None else ((o==1) or (o < order)),
-                                                       retain_graph=retain_graph if retain_graph is not None else (o < order)
-                                                       )
+                                                           diff_var,
+                                                           property_shape,
+                                                           base_shape=base_shape,
+                                                           create_graph=create_graph if create_graph is not None else (
+                                                                       (o == 1) or (o < order)),
+                                                           retain_graph=retain_graph if retain_graph is not None else (
+                                                                       o < order)
+                                                           )
         return keys
     def _replace_nans(self, e, replacement):
         if replacement is True: replacement = 1e8
@@ -4346,6 +4365,7 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
             self._apply_autodiff(data, root_key, deriv_key, suborder, property_shape,
                                  diff_var=var,
                                  pad_coord=pad_coord,
+                                 base_shape=base_shape,
                                  retain_graph=True,
                                  create_graph=True
                                  )
@@ -4357,7 +4377,8 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                 dkeys = self._apply_autodiff(data, f"subderiv_{n}", None, suborder,
                                              data[f"subderiv_{n}"].shape,
                                              key_tag=f"deriv_{n}",
-                                             pad_coord=pad_coord
+                                             pad_coord=pad_coord,
+                                             base_shape=base_shape
                                              )
                 deriv_keys += dkeys
                 root_keys.append(f"subderiv_{n}")
@@ -6071,6 +6092,7 @@ class PotentialExpansionEnergyEvaluator(PotentialFunctionEnergyEvaluator):
 class DipoleEvaluator(PropertyEvaluator):
     evaluator_registry = {}
 
+    property_ndim = 1
     target_property_units = ("ElementaryCharge", "BohrRadius")
     @classmethod
     def get_evaluators(cls):
@@ -6525,6 +6547,7 @@ class ChargeEvaluator(PropertyEvaluator):
 
     target_property_units = "ElementaryCharge"
     default_evaluator_type = 'rdkit'
+    property_ndim = 1
     @classmethod
     def get_evaluators(cls):
         """
@@ -6675,7 +6698,11 @@ class ChargeFunctionChargeEvaluator(ChargeEvaluator):
         cls.default_property_function = potential
 
 class RDKitChargeEvaluator(ChargeEvaluator):
-    def __init__(self, rdmol, model='gasteiger', **defaults):
+    @classmethod
+    def handle_specialization(cls, tag):
+        return {'model':tag}
+
+    def __init__(self, rdmol, model='gasteiger', charge=None, multiplicity=None, **defaults):
         super().__init__(**defaults)
         self.rdmol = rdmol
         self.model = model
@@ -6695,6 +6722,10 @@ class RDKitChargeEvaluator(ChargeEvaluator):
 
 class AIMNet2ChargeEvaluator(ChargeEvaluator):
 
+    @classmethod
+    def handle_specialization(cls, tag):
+        return AIMNet2EnergyEvaluator.handle_specialization(tag)
+
     def __init__(self, atoms, model='aimnet2', charge=0, multiplicity=None, quiet=True, **defaults):
         super().__init__(**defaults)
         self.base = AIMNet2EnergyEvaluator(atoms, model=model, charge=charge, multiplicity=multiplicity, quiet=quiet)
@@ -6706,24 +6737,41 @@ class AIMNet2ChargeEvaluator(ChargeEvaluator):
     property_units = 'ElementaryCharge'
     distance_units = 'Angstroms'
     batched_orders = True
-    analytic_derivative_order = 6
+    analytic_derivative_order = 1
     scaling_factor = 1#0.59667 # necessary to make water work...but I don't know what the actual units are
     def evaluate_term(self, coords, order, **opts):
-        base_shape, coords, data = self.base.prep_eval(coords, order, keep_graph=order>0, forces=False, hessian=False, **opts)
+        if coords.ndim == 2 or order < 2:
+            base_shape, coords, data = self.base.prep_eval(coords, order, keep_graph=order > 0, forces=False,
+                                                           hessian=False, **opts)
+            # nx = np.prod(coords.shape[:-2], dtype=int)
 
-        expansions = self.base.process_aimnet_derivs(
-            base_shape, coords, data,
-            'charges',
-            order,
-            property_shape=(coords.shape[-2]+1,),
-            output_shape=(coords.shape[-2],)
-        )
-        s = self.scaling_factor / np.sqrt(2)
-        expansions = [e * s for e in expansions]
+            expansions = self.base.process_aimnet_derivs(
+                base_shape, coords, data,
+                'charges',
+                order,
+                property_shape=(coords.shape[-2] + 1,),
+                output_shape=(coords.shape[-2],)
+            )
+            s = self.scaling_factor / np.sqrt(2)
+            expansions = [e * s for e in expansions]
 
-        return expansions
+            return expansions
+        else:
+            base_shape = coords.shape[:-2]
+            coords = coords.reshape((-1,) + coords.shape[-2:])
+            expansions = [
+                self.evaluate_term(c, order, **opts)
+                for c in coords
+            ]
+            cat = [
+                np.array(e).reshape(base_shape + e[0].shape)
+                for e in zip(*expansions)
+            ]
+            return cat
+
 
 class ChargeEvaluatorDipoleEvaluator(DipoleEvaluator):
+    property_ndim = 1
     def __init__(self, charge_evaluator:'ChargeEvaluator', **etc):
         self.evaluator = charge_evaluator
         super().__init__(**etc)
@@ -6735,17 +6783,24 @@ class ChargeEvaluatorDipoleEvaluator(DipoleEvaluator):
     def evaluate_term(self, coords, order, **opts):
         coords = np.asanyarray(coords)
         charges = self.evaluator.evaluate(coords, order=order, **opts)
-        coord_deriv = nput.identity_tensors(coords.shape[:-2], coords.shape[-2]*coords.shape[-1])
-        coord_deriv = coord_deriv.reshape(coord_deriv.shape[:-2] + (coord_deriv.shape[-2], -1, 3))
+        base_shape = coords.shape[:-2]
+        coord_deriv = nput.identity_tensors(base_shape, coords.shape[-2]*coords.shape[-1])
+        coord_deriv = coord_deriv.reshape(base_shape + (coord_deriv.shape[-2], -1, 3))
         coord_expansion = [coords, coord_deriv]
         expansion = nput.tensordot_deriv(
             charges, coord_expansion,
             order=order,
-            axes=[-1, -2]
+            axes=[-1, -2],
+            shared=len(base_shape)
         )
         return expansion
 
 class AIMNet2DipoleEvaluator(ChargeEvaluatorDipoleEvaluator):
+    analytic_derivative_order = 2
+
+    @classmethod
+    def handle_specialization(cls, tag):
+        return {'model':tag}
 
     @classmethod
     def from_mol(cls, mol, **opts):

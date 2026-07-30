@@ -8,6 +8,9 @@ if __name__ == '__main__':
     test_dir = os.path.dirname(os.path.abspath(__file__))
     root, pkg = os.path.split(test_dir)
 
+    sys.path.pop(0)
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(test_dir))))
+
     from Peeves.TestUtils import TestManager
 
     # provide a nice way to automatically pipe print output to stderr so it appears in the regular
