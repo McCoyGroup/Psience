@@ -3648,6 +3648,7 @@ class DipoleTerms(ExpansionTerms):
             if (
                     grad.shape != (coord_n, 3)
                     and grad.shape != (internals_n, 3)
+                    and grad.shape != (modes_n, 3)
             ):
                 raise PerturbationTheoryException(
                     "{0}.{1}: dimension of dipole derivative array ({2[0]}) is not {3} or {4}".format(
@@ -3903,6 +3904,9 @@ class DipoleTerms(ExpansionTerms):
             for coord in range(3):
 
                 u_derivs = [d[..., coord] for d in mu_derivs]
+                if u_derivs[0].shape == (self._pretf_dim,):
+                    # all mode derivatives for the dipole, not gonna be here often
+                    u_derivs[0] = self.modes.modes_by_coords @ u_derivs[0]
                 if mixed_derivs:
                     mixed_terms = [
                         [u_derivs[1]],  # dVdQXX

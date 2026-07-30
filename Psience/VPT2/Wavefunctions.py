@@ -87,7 +87,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         self.modes = modes
         self.mode_selection = mode_selection
         self.mode_transformation = mode_transformation
-        self.full_surface_mode_selection = full_surface_mode_selection,
+        self.full_surface_mode_selection = full_surface_mode_selection
         self.rep_basis = basis  # temporary hack until I decided how to merge the idea of
         # AnalyticWavefunctions with a RepresentationBasis
         self.initial_states = initial_states # For tracking where to start when calculating properties

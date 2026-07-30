@@ -218,45 +218,45 @@ class Molecule(AbstractMolecule):
         :param coords: replacement coordinates, or `dev.default` to keep the current ones
         :type coords: np.ndarray | object
         :param internals: replacement internal-coordinate specification
-        :type internals: object
+        :type internals: Any
         :param masses: replacement masses
         :type masses: np.ndarray | object
         :param bonds: replacement bonds
-        :type bonds: object
+        :type bonds: Any
         :param guess_bonds: replacement bond-guessing flag
         :type guess_bonds: bool | object
         :param energy: replacement cached energy value
         :type energy: float | object
         :param energy_evaluator: replacement energy evaluator
-        :type energy_evaluator: object
+        :type energy_evaluator: Any
         :param dipole_evaluator: replacement dipole evaluator
-        :type dipole_evaluator: object
+        :type dipole_evaluator: Any
         :param charge_evaluator: replacement charge evaluator
-        :type charge_evaluator: object
+        :type charge_evaluator: Any
         :param polarizability_evaluator: replacement polarizability evaluator
-        :type polarizability_evaluator: object
+        :type polarizability_evaluator: Any
         :param charge: replacement net charge
         :type charge: int | object
         :param spin: replacement spin
-        :type spin: object
+        :type spin: Any
         :param rdmol: replacement RDKit molecule
-        :type rdmol: object
+        :type rdmol: Any
         :param display_mode: replacement display mode
         :type display_mode: str | object
         :param display_settings: replacement display settings
         :type display_settings: dict | object
         :param normal_modes: replacement normal modes
-        :type normal_modes: object
+        :type normal_modes: Any
         :param dipole_surface: replacement dipole surface
-        :type dipole_surface: object
+        :type dipole_surface: Any
         :param potential_surface: replacement potential surface
-        :type potential_surface: object
+        :type potential_surface: Any
         :param dipole_derivatives: replacement dipole derivatives
-        :type dipole_derivatives: object
+        :type dipole_derivatives: Any
         :param potential_derivatives: replacement potential derivatives
-        :type potential_derivatives: object
+        :type potential_derivatives: Any
         :param polarizability_derivatives: replacement polarizability derivatives
-        :type polarizability_derivatives: object
+        :type polarizability_derivatives: Any
         :param meta: replacement/merged metadata
         :type meta: dict | object
         :param source_file: replacement source file path
@@ -365,7 +365,7 @@ class Molecule(AbstractMolecule):
         Serialize this molecule's essential data (atoms, masses, coordinates, bonds, internal-coordinate spec, evaluators, potential/dipole derivatives, charge, spin) into a plain dict, stripping out non-serializable embedding-specific converter options first.
 
         :param serializer: accepted for interface consistency but not used in this method's body
-        :type serializer: object | None
+        :type serializer: Any | None
         :return: the serialized state dict
         :rtype: dict
         """
@@ -426,7 +426,7 @@ class Molecule(AbstractMolecule):
         :param data: the serialized state, as produced by `to_state`
         :type data: dict
         :param serializer: accepted for interface consistency but not used in this method's body
-        :type serializer: object | None
+        :type serializer: Any | None
         :return: the reconstructed molecule
         :rtype: Molecule
         """
@@ -454,7 +454,7 @@ class Molecule(AbstractMolecule):
         :param kwargs: keyword arguments passed to `generator` if it is called
         :type kwargs: dict | None
         :return: the cached or newly computed value
-        :rtype: object
+        :rtype: Any
         """
         return self.checkpoint.cached_eval(
             key,
@@ -711,7 +711,7 @@ class Molecule(AbstractMolecule):
         Canonicalize an internal-coordinate specification against this molecule's own atoms, coordinates, bonds, and masses, via `canonicalize_internals`.
 
         :param spec: the internal-coordinate specification to canonicalize
-        :type spec: object
+        :type spec: Any
         :param relocalize: whether redundant coordinates should be relocalized by default
         :type relocalize: bool
         :param masses: atomic masses to use instead of this molecule's own
@@ -765,7 +765,7 @@ class Molecule(AbstractMolecule):
         :param embedding: an alternate embedding to build the evaluator for; defaults to `self.embedding`
         :type embedding: MolecularEmbedding | None
         :param normal_modes: normal modes to use instead of `self._normal_modes`
-        :type normal_modes: object
+        :type normal_modes: Any
         :return: the constructed evaluator
         :rtype: MolecularEvaluator
         """
@@ -899,9 +899,9 @@ class Molecule(AbstractMolecule):
         Property getter/setter for the molecule's spin, stored in its metadata.
 
         :param c: (setter only) the new spin value
-        :type c: object
+        :type c: Any
         :return: (getter) the spin, or `None` if unset
-        :rtype: object | None
+        :rtype: Any | None
         """
         return self._meta.get('spin')
     @spin.setter
@@ -912,9 +912,9 @@ class Molecule(AbstractMolecule):
         Property getter/setter for the molecule's spin, stored in its metadata.
 
         :param c: (setter only) the new spin value
-        :type c: object
+        :type c: Any
         :return: (getter) the spin, or `None` if unset
-        :rtype: object | None
+        :rtype: Any | None
         """
         self._meta['spin'] = c
     @property
@@ -977,11 +977,11 @@ class Molecule(AbstractMolecule):
         Resolve (and, if needed, instantiate from this molecule) a charge-evaluator object, defaulting to `self.charge_evaluator` if none is given explicitly.
 
         :param evaluator: an explicit evaluator (or evaluator-type specification) to resolve; defaults to `self.charge_evaluator`
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param opts: extra options forwarded to the evaluator's `from_mol` constructor, if applicable
         :type opts: dict
         :return: the resolved charge-evaluator instance
-        :rtype: object
+        :rtype: Any
         :raises ValueError: if the evaluator type can't be resolved
         """
         if evaluator is None:
@@ -1000,7 +1000,7 @@ class Molecule(AbstractMolecule):
         Compute partial-charge values (and, optionally, their derivatives) using the resolved charge evaluator at this molecule's current geometry.
 
         :param evaluator: an explicit evaluator (or evaluator-type specification) to use; defaults to `self.charge_evaluator`
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param order: the highest derivative order to compute; if `None`, only the charges themselves are returned
         :type order: int | None
         :param opts: extra options forwarded to `get_charge_evaluator`
@@ -1070,7 +1070,7 @@ class Molecule(AbstractMolecule):
         Test whether a coordinate label passes a set of allow/exclude filters on its atom types, ring membership, and functional-group membership.
 
         :param label: the coordinate label to test (exposing `.atoms`, `.ring`, `.group` attributes)
-        :type label: object
+        :type label: Any
         :param allowed_coordinate_types: if given, `label.atoms` must be among these to pass
         :type allowed_coordinate_types: Iterable | None
         :param excluded_coordinate_types: if given, `label.atoms` must not be among these to pass
@@ -1185,7 +1185,7 @@ class Molecule(AbstractMolecule):
         :param fragment: restrict to a single fragment, given as a fragment index or an explicit list of atom indices
         :type fragment: int | Iterable[int] | None
         :param base_internals: accepted and forwarded when recursing on a fragment, but not otherwise used directly in this method's own body
-        :type base_internals: object | None
+        :type base_internals: Any | None
         :param use_distance_matrix: whether to precompute a distance matrix for the fragment-coordinate generation
         :type use_distance_matrix: bool
         :param concatenate: whether to concatenate the different coordinate categories (stretches/bends/dihedrals/fragments) into a single list, or return them as separate groups
@@ -1287,7 +1287,7 @@ class Molecule(AbstractMolecule):
                         Compute the (translation/rotation-projected, mass-weighted) B-matrix for a candidate set of internal coordinates at this molecule's current geometry, used by the default `'b_matrix'` pruning method to assess rank/conditioning.
 
                         :param pos: the coordinate index/indices under consideration (unused directly in the body, but part of the callback signature expected by the pruning routine)
-                        :type pos: object
+                        :type pos: Any
                         :param crds: the candidate coordinate specs to build the B-matrix for
                         :type crds: list
                         :return: the projected, mass-weighted B-matrix
@@ -1407,7 +1407,7 @@ class Molecule(AbstractMolecule):
         :param internals: the labeled internal coordinates to project onto; computed via `get_labeled_internals` if not given
         :type internals: dict | None
         :param modes: the normal modes to label; computed via `get_normal_modes` if not given
-        :type modes: object | None
+        :type modes: Any | None
         :param use_redundants: whether to build a redundant-coordinate expansion (with relocalization) for the projection, rather than using the internal coordinates directly
         :type use_redundants: bool
         :param expansions: precomputed `(expansions, inverse_expansion)` internal-coordinate Jacobian data to reuse instead of recomputing it
@@ -1643,7 +1643,7 @@ class Molecule(AbstractMolecule):
         :param order: the highest derivative order needed; if `None`, whatever is available is returned
         :type order: int | None
         :param evaluator: an explicit dipole evaluator to use instead of `self.dipole_evaluator`
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param include_constant_term: whether to include the zeroth-order (reference dipole) term in the result
         :type include_constant_term: bool
         :return: the dipole derivative tensors (from first order, or zeroth if `include_constant_term`), or `None` if unavailable
@@ -1706,7 +1706,7 @@ class Molecule(AbstractMolecule):
         :param order: the highest derivative order needed; if `None`, whatever is available is returned
         :type order: int | None
         :param evaluator: an explicit polarizability evaluator to use instead of `self.polarizability_evaluator`
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param include_constant_term: accepted for interface consistency with `get_cartesian_dipole_derivatives` but not used in this method's body
         :type include_constant_term: bool
         :return: the polarizability derivative tensors
@@ -1756,7 +1756,7 @@ class Molecule(AbstractMolecule):
         :param potential_derivatives: alternate potential-energy derivative tensors to use
         :type potential_derivatives: list[np.ndarray] | None
         :param modes: alternate normal modes to use
-        :type modes: object | None
+        :type modes: Any | None
         :param dipole_derivatives: alternate dipole derivative tensors to use
         :type dipole_derivatives: list[np.ndarray] | None
         :param etc: extra options forwarded to the `MolecularHamiltonian` constructor
@@ -1885,7 +1885,7 @@ class Molecule(AbstractMolecule):
         :param order: the highest derivative order needed; defaults to `2` if a fresh calculation is required
         :type order: int | None
         :param evaluator: an explicit energy evaluator to use instead of `self.energy_evaluator`
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param use_cached: accepted for interface consistency but not used in this method's body
         :type use_cached: bool
         :return: the potential derivative tensors, truncated to `order` if given, or `None` if unavailable
@@ -1951,7 +1951,7 @@ class Molecule(AbstractMolecule):
         Setter for the normal modes: wraps the given value in a `NormalModesManager` (via `NormalModesManager.from_data`) unless it already is one. (A separate getter, not shown here, returns the current modes.)
 
         :param val: the new normal modes, in any form accepted by `NormalModesManager.from_data`
-        :type val: object
+        :type val: Any
         :return: None
         :rtype: None
         """
@@ -2422,7 +2422,7 @@ class Molecule(AbstractMolecule):
         :param kwargs: keyword arguments forwarded to the property function
         :type kwargs: dict
         :return: the computed property value
-        :rtype: object
+        :rtype: Any
         :raises MolecularPropertyError: if `name` doesn't match a known property
         """
         from .Properties import MolecularProperties, MolecularPropertyError
@@ -2502,7 +2502,7 @@ class Molecule(AbstractMolecule):
         :param pattern: the substructure pattern to search for (e.g. a SMARTS string)
         :type pattern: str
         :return: the matching substructures
-        :rtype: object
+        :rtype: Any
         """
         return self.rdmol.find_substructure(pattern)
 
@@ -3396,11 +3396,11 @@ class Molecule(AbstractMolecule):
         Resolve (and, if needed, instantiate from this molecule) an energy-evaluator object, defaulting to `self.energy_evaluator` (then `self.default_energy_evalutor`) if none is given explicitly.
 
         :param evaluator: an explicit evaluator (or evaluator-type specification) to resolve
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param opts: extra options forwarded to the evaluator's `from_mol` constructor, if applicable
         :type opts: dict
         :return: the resolved energy-evaluator instance
-        :rtype: object
+        :rtype: Any
         :raises ValueError: if the evaluator type can't be resolved
         """
         if evaluator is None:
@@ -3422,7 +3422,7 @@ class Molecule(AbstractMolecule):
         Build a standalone callable that evaluates this molecule's energy (and derivatives) at arbitrary coordinates using the resolved energy evaluator.
 
         :param evaluator: an explicit evaluator (or evaluator-type specification) to use
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param order: the derivative order the returned function should evaluate to by default
         :type order: int | None
         :param opts: extra options forwarded to `get_energy_evaluator`
@@ -3465,7 +3465,7 @@ class Molecule(AbstractMolecule):
         :param coords: the coordinates to evaluate at, in Bohr; defaults to `self.coords`
         :type coords: np.ndarray | None
         :param evaluator: an explicit evaluator (or evaluator-type specification) to use
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param order: the highest derivative order to compute; if `None`, only the energy itself is returned
         :type order: int | None
         :param opts: extra options forwarded to `get_energy_evaluator`
@@ -3499,9 +3499,9 @@ class Molecule(AbstractMolecule):
         :param coords: the coordinates to evaluate at; defaults to `self.coords`
         :type coords: np.ndarray | None
         :param modes: the normal modes to expand in; computed via `get_normal_modes` if not given
-        :type modes: object | None
+        :type modes: Any | None
         :param evaluator: an explicit evaluator (or evaluator-type specification) to use
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param order: the highest derivative order to compute
         :type order: int
         :param mesh_spacing: finite-difference step size to use for the underlying force-field evaluation
@@ -3511,11 +3511,53 @@ class Molecule(AbstractMolecule):
         :param opts: extra options forwarded to `get_energy_evaluator`
         :type opts: dict
         :return: the partial force-field expansion
-        :rtype: object
+        :rtype: Any
         """
         if modes is None:
             modes = self.get_normal_modes()
         evaluator = self.get_energy_evaluator(evaluator, **opts)
+        if coords is None:
+            coords = self.coords
+        expansion = evaluator.partial_force_field(
+            np.asanyarray(coords) * UnitsData.convert("BohrRadius", evaluator.distance_units),
+            order=order,
+            modes=modes,
+            mesh_spacing=mesh_spacing,
+            analytic_derivative_order=analytic_derivative_order
+        )
+        return expansion
+    def partial_dipole_surface(self,
+                            coords=None, modes=None, *,
+                            evaluator=None,
+                            order=3,
+                            mesh_spacing=1,
+                            analytic_derivative_order=None,
+                            **opts):
+        """
+        **LLM Docstring**
+
+        Compute a partial (mode-selected) force-field expansion of the potential, evaluated in the given normal modes via the resolved energy evaluator's `partial_force_field` method.
+
+        :param coords: the coordinates to evaluate at; defaults to `self.coords`
+        :type coords: np.ndarray | None
+        :param modes: the normal modes to expand in; computed via `get_normal_modes` if not given
+        :type modes: Any | None
+        :param evaluator: an explicit evaluator (or evaluator-type specification) to use
+        :type evaluator: Any | None
+        :param order: the highest derivative order to compute
+        :type order: int
+        :param mesh_spacing: finite-difference step size to use for the underlying force-field evaluation
+        :type mesh_spacing: float
+        :param analytic_derivative_order: order up to which derivatives should be computed analytically rather than numerically
+        :type analytic_derivative_order: int | None
+        :param opts: extra options forwarded to `get_energy_evaluator`
+        :type opts: dict
+        :return: the partial force-field expansion
+        :rtype: Any
+        """
+        if modes is None:
+            modes = self.get_normal_modes()
+        evaluator = self.get_dipole_evaluator(evaluator, **opts)
         if coords is None:
             coords = self.coords
         expansion = evaluator.partial_force_field(
@@ -3542,7 +3584,7 @@ class Molecule(AbstractMolecule):
         Geometry-optimize the molecule using the resolved energy evaluator, splitting `opts` into optimizer-specific and evaluator-specific options, re-embedding the optimized (and any trajectory) coordinates back onto the original geometry via an Eckart embedding, and returning a modified copy of the molecule at the optimized geometry.
 
         :param evaluator: an explicit evaluator (or evaluator-type specification) to use
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param method: the optimization method/algorithm to use
         :type method: str | None
         :param tol: convergence tolerance for the optimizer
@@ -3617,11 +3659,11 @@ class Molecule(AbstractMolecule):
         Perform a relaxed (constrained) potential-energy scan over the given coordinates/values using the resolved energy evaluator, optionally Eckart-reembedding the resulting trajectory onto the original geometry.
 
         :param scan_values: the coordinate value(s) to scan over
-        :type scan_values: object
+        :type scan_values: Any
         :param scan_coordinates: the coordinate(s) to hold fixed/scan along
-        :type scan_coordinates: object
+        :type scan_coordinates: Any
         :param evaluator: an explicit evaluator (or evaluator-type specification) to use
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param method: the optimization method/algorithm to use for the constrained relaxations
         :type method: str | None
         :param tol: convergence tolerance for the optimizer
@@ -3680,11 +3722,11 @@ class Molecule(AbstractMolecule):
         Resolve (and, if needed, instantiate from this molecule) a dipole-evaluator object, defaulting to `self.dipole_evaluator` if none is given explicitly.
 
         :param evaluator: an explicit evaluator (or evaluator-type specification) to resolve
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param opts: extra options forwarded to the evaluator's `from_mol` constructor, if applicable
         :type opts: dict
         :return: the resolved dipole-evaluator instance
-        :rtype: object
+        :rtype: Any
         :raises ValueError: if the evaluator type can't be resolved
         """
         if evaluator is None:
@@ -3704,7 +3746,7 @@ class Molecule(AbstractMolecule):
         Build a standalone callable that evaluates this molecule's dipole (and derivatives) at arbitrary coordinates using the resolved dipole evaluator.
 
         :param evaluator: an explicit evaluator (or evaluator-type specification) to use
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param order: the derivative order the returned function should evaluate to by default
         :type order: int | None
         :param opts: extra options forwarded to `get_dipole_evaluator`
@@ -3746,7 +3788,7 @@ class Molecule(AbstractMolecule):
         Compute the dipole moment (and, optionally, its derivatives) at this molecule's current coordinates using the resolved dipole evaluator.
 
         :param evaluator: an explicit evaluator (or evaluator-type specification) to use
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param order: the highest derivative order to compute; if `None`, only the dipole itself is returned
         :type order: int | None
         :param opts: extra options forwarded to `get_dipole_evaluator`
@@ -3771,11 +3813,11 @@ class Molecule(AbstractMolecule):
         Resolve (and, if needed, instantiate from this molecule) a dipole-polarizability-evaluator object, defaulting to `self.polarizability_evaluator` if none is given explicitly.
 
         :param evaluator: an explicit evaluator (or evaluator-type specification) to resolve
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param opts: extra options forwarded to the evaluator's `from_mol` constructor, if applicable
         :type opts: dict
         :return: the resolved polarizability-evaluator instance
-        :rtype: object
+        :rtype: Any
         :raises ValueError: if the evaluator type can't be resolved
         """
         if evaluator is None:
@@ -3794,7 +3836,7 @@ class Molecule(AbstractMolecule):
         Build a standalone callable that evaluates this molecule's dipole polarizability (and derivatives) at arbitrary coordinates using the resolved polarizability evaluator.
 
         :param evaluator: an explicit evaluator (or evaluator-type specification) to use
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param order: the derivative order the returned function should evaluate to by default
         :type order: int | None
         :param opts: extra options forwarded to `get_polarizability_evaluator`
@@ -3835,7 +3877,7 @@ class Molecule(AbstractMolecule):
         Compute the dipole polarizability (and, optionally, its derivatives) at this molecule's current coordinates using the resolved polarizability evaluator.
 
         :param evaluator: an explicit evaluator (or evaluator-type specification) to use
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param order: the highest derivative order to compute; if `None`, only the zeroth-order term of each returned quantity is kept
         :type order: int | None
         :param opts: extra options forwarded to `get_polarizability_evaluator`
@@ -3901,9 +3943,9 @@ class Molecule(AbstractMolecule):
         Generate 1D potential-energy slices along the specified coordinate(s), via a `ReducedDimensionalPotentialHandler`.
 
         :param spec: the coordinate specification(s) to slice along
-        :type spec: object
+        :type spec: Any
         :param evaluator: an explicit energy evaluator to use for the potential evaluations
-        :type evaluator: object | None
+        :type evaluator: Any | None
         :param energy_expansion: a precomputed energy expansion to use instead of evaluating fresh
         :type energy_expansion: list[np.ndarray] | None
         :param potential_params: extra parameters controlling the potential generation
@@ -3911,7 +3953,7 @@ class Molecule(AbstractMolecule):
         :param opts: extra options forwarded to `ReducedDimensionalPotentialHandler.get_1d_potentials`
         :type opts: dict
         :return: the generated 1D potentials
-        :rtype: object
+        :rtype: Any
         """
         pot_gen = self.get_reduced_potential_generator()
         return pot_gen.get_1d_potentials(
@@ -3942,7 +3984,7 @@ class Molecule(AbstractMolecule):
         :param strip_embedding: whether to strip the fixed embedding coordinates from the result
         :type strip_embedding: bool
         :return: the evaluated function value(s)/derivatives
-        :rtype: object
+        :rtype: Any
         """
         return self.evaluator.evaluate(
             func,
@@ -3973,7 +4015,7 @@ class Molecule(AbstractMolecule):
         :param strip_embedding: whether to strip the fixed embedding coordinates from the result
         :type strip_embedding: bool
         :return: the evaluated function value(s)/derivatives
-        :rtype: object
+        :rtype: Any
         """
         return self.evaluator.evaluate_at(
             func,
@@ -3998,11 +4040,11 @@ class Molecule(AbstractMolecule):
         :param displacements: the displacement values to apply
         :type displacements: np.ndarray
         :param which: which atoms/coordinates to displace
-        :type which: object | None
+        :type which: Any | None
         :param sel: a selection of atoms to restrict the displacement to
         :type sel: Iterable[int] | None
         :param axes: which axes to displace along
-        :type axes: object | None
+        :type axes: Any | None
         :param use_internals: whether the displacements are given in internal coordinates rather than Cartesians
         :type use_internals: bool
         :param coordinate_expansion: a coordinate-transformation expansion to apply to the displacements before applying them
@@ -4040,19 +4082,19 @@ class Molecule(AbstractMolecule):
         Build a grid of displaced coordinates spanning the given coordinate domains, optionally re-expressed through a normal-mode (or other) coordinate expansion, via the molecule's `MolecularEvaluator`.
 
         :param domains: the coordinate ranges to scan over
-        :type domains: object
+        :type domains: Any
         :param internals: whether the scan coordinates are internal coordinates rather than Cartesians
         :type internals: bool
         :param modes: normal modes to scan along instead of raw coordinates; `True` to use this molecule's own modes (with translation/rotation projection disabled)
-        :type modes: object | bool | None
+        :type modes: Any | bool | None
         :param order: the Jacobian order to use when building the mode-based coordinate expansion
         :type order: int | None
         :param which: which atoms/coordinates to scan
-        :type which: object | None
+        :type which: Any | None
         :param sel: a selection of atoms to restrict the scan to
         :type sel: Iterable[int] | None
         :param axes: which axes to scan along
-        :type axes: object | None
+        :type axes: Any | None
         :param shift: whether the scan values are relative shifts or absolute target values
         :type shift: bool
         :param coordinate_expansion: an explicit coordinate-transformation expansion to combine with the mode-based one (if `modes` is given) or use directly
@@ -4103,7 +4145,7 @@ class Molecule(AbstractMolecule):
         :param sel: a selection of atoms to restrict the search to
         :type sel: Iterable[int] | None
         :param axes: which coordinate axes to compute distances over
-        :type axes: object | None
+        :type axes: Any | None
         :param weighting_function: a custom function to weight distances by
         :type weighting_function: callable | None
         :param return_distances: whether to also return the computed distances
@@ -4132,7 +4174,7 @@ class Molecule(AbstractMolecule):
         :param sel: a selection of atoms to restrict the search to
         :type sel: Iterable[int] | None
         :param axes: which coordinate axes to compute distances over
-        :type axes: object | None
+        :type axes: Any | None
         :param weighting_function: a custom function to weight distances by
         :type weighting_function: callable | None
         :param modes_nearest: whether to find the nearest point in normal-mode space rather than Cartesian/internal space
@@ -4155,11 +4197,11 @@ class Molecule(AbstractMolecule):
         Find the scan-grid coordinates nearest to a set of query domains, via the molecule's `MolecularEvaluator`.
 
         :param domains: the coordinate domains to build the nearest scan grid for
-        :type domains: object
+        :type domains: Any
         :param sel: a selection of atoms to restrict the search to
         :type sel: Iterable[int] | None
         :param axes: which coordinate axes to compute distances over
-        :type axes: object | None
+        :type axes: Any | None
         :return: the nearest scan coordinates
         :rtype: np.ndarray
         """
@@ -4246,7 +4288,7 @@ class Molecule(AbstractMolecule):
         :param plot_options: extra options forwarded to the plotting call
         :type plot_options: dict
         :return: the resulting plot
-        :rtype: object
+        :rtype: Any
         :raises NotImplementedError: if the molecule holds more than one geometry configuration
         :raises ValueError: if more than 2 axes are requested
         """
@@ -4349,11 +4391,11 @@ class Molecule(AbstractMolecule):
                 :param _subgrids: the per-axis grid coordinate arrays (captured from the enclosing scope)
                 :type _subgrids: tuple[np.ndarray]
                 :param method: accepted but not used in this method's body
-                :type method: object | None
+                :type method: Any | None
                 :param opts: extra options forwarded to the base plotting class
                 :type opts: dict
                 :return: the constructed plot for this component
-                :rtype: object
+                :rtype: Any
                 """
                 return _baseclass(
                     *_subgrids,
@@ -4439,7 +4481,7 @@ class Molecule(AbstractMolecule):
             :param spec_dict: the specification, either containing an explicit `'function_type'` key or (if it has exactly one entry) a single `{function_type: params}` mapping
             :type spec_dict: dict
             :return: the constructed (and scaled) analytic function contribution
-            :rtype: object
+            :rtype: Any
             """
             if 'function_type' not in spec_dict and len(spec_dict) == 1:
                 function_type, spec_dict = next(iter(spec_dict.items()))
@@ -4543,7 +4585,7 @@ class Molecule(AbstractMolecule):
         :param tols: extra tolerance options forwarded to `PointGroupIdentifier`
         :type tols: dict
         :return: the identified point group, or `(identifier, point_group)` if `return_identifier` is set
-        :rtype: object | tuple
+        :rtype: Any | tuple
         """
         if coords is None:
             coords = self.coords
@@ -4870,7 +4912,7 @@ class Molecule(AbstractMolecule):
         :param opts: extra options forwarded to point-group identification/`symmetrize_internals`
         :type opts: dict
         :return: the symmetrized internal coordinates, plus any additionally requested return values, prefixed with the point group if `return_point_group` is set
-        :rtype: object | tuple
+        :rtype: Any | tuple
         :raises ValueError: if no internal coordinates are available or given
         """
         if internals is None:
@@ -4993,7 +5035,7 @@ class Molecule(AbstractMolecule):
         :param etc: extra options forwarded to `get_surface`
         :type etc: dict
         :return: the generated surface mesh
-        :rtype: object
+        :rtype: Any
         """
 
         if mesh_options is None:
@@ -5053,13 +5095,13 @@ class Molecule(AbstractMolecule):
         :param initial_mode_directions: explicit per-trajectory mode-direction vectors to convert into initial energies
         :type initial_mode_directions: np.ndarray | None
         :param displaced_coords: which coordinates `initial_displacements` applies to
-        :type displaced_coords: object | None
+        :type displaced_coords: Any | None
         :param track_kinetic_energy: whether the simulator should track kinetic energy over the trajectory
         :type track_kinetic_energy: bool
         :param track_velocities: whether the simulator should track velocities over the trajectory
         :type track_velocities: bool
         :param modes: normal modes to use for the energy-to-velocity conversion; computed via `get_normal_modes` if not given
-        :type modes: object | None
+        :type modes: Any | None
         :param etc: extra options forwarded to the `AIMDSimulator` constructor
         :type etc: dict
         :return: the constructed simulator
@@ -5181,29 +5223,29 @@ class Molecule(AbstractMolecule):
         :param potential_derivatives: explicit potential-energy derivative tensors to use instead of computing them
         :type potential_derivatives: list[np.ndarray] | None
         :param energy_evaluator: an explicit energy evaluator to use when computing the potential derivatives
-        :type energy_evaluator: object | None
+        :type energy_evaluator: Any | None
         :param dipole_derivatives: explicit dipole derivative tensors to use instead of computing them
         :type dipole_derivatives: list[np.ndarray] | None
         :param dipole_evaluator: an explicit dipole evaluator to use when computing the dipole derivatives
-        :type dipole_evaluator: object | None
+        :type dipole_evaluator: Any | None
         :param runner: which VPT runner to use: `'matrix'` for `VPTRunner`, or an explicit runner class/object
         :type runner: str | object
         :param use_reaction_path: whether to project the normal modes against reaction-path modes
         :type use_reaction_path: bool
         :param modes: explicit normal modes to use instead of computing them
-        :type modes: object | None
+        :type modes: Any | None
         :param projected_modes: explicit modes to localize the normal modes against
-        :type projected_modes: object | None
+        :type projected_modes: Any | None
         :param mode_transformation: an explicit mode-coordinate transformation to use
-        :type mode_transformation: object | None
+        :type mode_transformation: Any | None
         :param potential_terms: precomputed potential expansion terms, bypassing derivative computation entirely
-        :type potential_terms: object | None
+        :type potential_terms: Any | None
         :param dipole_terms: precomputed dipole expansion terms, bypassing derivative computation entirely
-        :type dipole_terms: object | None
+        :type dipole_terms: Any | None
         :param opts: extra options forwarded to the VPT runner's `construct` method
         :type opts: dict
         :return: the constructed VPT runner/calculation
-        :rtype: object
+        :rtype: Any
         """
         from ..VPT2 import VPTRunner, AnalyticVPTRunner
         if dev.str_is(runner, 'matrix'):
@@ -5295,7 +5337,7 @@ class Molecule(AbstractMolecule):
         :param kwargs: keyword arguments forwarded to the resolved job type's `from_mol`, merged over its default options
         :type kwargs: dict
         :return: the constructed job
-        :rtype: object
+        :rtype: Any
         """
         job_type, opts = ExternalProgramJob.resolve(job_type)
         return job_type.from_mol(
@@ -5732,7 +5774,7 @@ class Molecule(AbstractMolecule):
         The (cached) attached RDKit molecule representation, built lazily via `RDMolecule.from_mol` the first time it's needed (returning `None` if RDKit isn't available), and kept in sync with the current coordinates on subsequent access.
 
         :return: the RDKit molecule, or `None` if RDKit isn't available
-        :rtype: object | None
+        :rtype: Any | None
         """
         if self._rdmol is None:
             from McUtils.ExternalPrograms import RDMolecule
@@ -5754,7 +5796,7 @@ class Molecule(AbstractMolecule):
         :param kwargs: extra options forwarded to `ASEMolecule.from_mol`
         :type kwargs: dict
         :return: the constructed ASE molecule
-        :rtype: object
+        :rtype: Any
         """
         from McUtils.ExternalPrograms import ASEMolecule
 
@@ -5767,7 +5809,7 @@ class Molecule(AbstractMolecule):
         Build a `Molecule` from an ASE molecule object.
 
         :param ase_mol: the ASE molecule to convert
-        :type ase_mol: object
+        :type ase_mol: Any
         :param kwargs: extra keyword arguments merged over the ASE molecule's metadata and forwarded to the constructor
         :type kwargs: dict
         :return: the constructed molecule
@@ -5790,7 +5832,7 @@ class Molecule(AbstractMolecule):
         :param zmat: the Z-matrix specification, as a string or an `(atoms, (ordering, coords))` tuple
         :type zmat: str | tuple
         :param internals: the internal-coordinate specification to store on the resulting molecule; defaults to the Z-matrix's own atom ordering
-        :type internals: object | None
+        :type internals: Any | None
         :param axes: reference axes to use when converting to Cartesians
         :type axes: np.ndarray | None
         :param origin: reference origin to use when converting to Cartesians
@@ -5838,7 +5880,7 @@ class Molecule(AbstractMolecule):
         :param opts: extra options forwarded to `OBMolecule.from_mol`
         :type opts: dict
         :return: the constructed OpenBabel molecule
-        :rtype: object
+        :rtype: Any
         """
         from McUtils.ExternalPrograms import OBMolecule
 
@@ -5985,7 +6027,7 @@ class Molecule(AbstractMolecule):
         Build a `Molecule` from an RDKit molecule (or a raw RDKit `Mol`/owning-mol object, which is first wrapped in an `RDMolecule`), carrying over its atoms, coordinates, bonds, charges, and metadata.
 
         :param rdmol: the RDKit molecule (or wrappable RDKit object) to convert
-        :type rdmol: object
+        :type rdmol: Any
         :param opts: extra options merged over the RDKit molecule's metadata and forwarded to the constructor
         :type opts: dict
         :return: the constructed molecule
@@ -7074,7 +7116,7 @@ class Molecule(AbstractMolecule):
         Heuristically classify a raw molecule-construction `spec` (an RDKit-like object, a file path, a raw string, a dict of constructor kwargs, or an `(atoms, coords[, opts])` tuple) so `construct` can dispatch it to the right constructor.
 
         :param spec: the specification to classify
-        :type spec: object
+        :type spec: Any
         :param opts: accepted for interface consistency but not used in this method's body
         :type opts: dict
         :return: `(fmt, subopts)` where `fmt` is one of `'rdmol'`, `'file'`, `'str'`, `'dict'`, or an `(atoms, coords)` pair, and `subopts` is any extra options bundled with the spec
@@ -7111,7 +7153,7 @@ class Molecule(AbstractMolecule):
         Universal `Molecule` constructor: builds a molecule from essentially any reasonable input (an existing `Molecule` to copy/modify, an RDKit/ASE object, a file path, a raw structural string, a dict of constructor kwargs, or an `(atoms, coords)`/Z-matrix pair), inferring the format automatically if not given.
 
         :param spec: the specification to build the molecule from
-        :type spec: object
+        :type spec: Any
         :param fmt: an explicit format to use instead of inferring one; can also be an `(atoms, coords)` pair for direct construction
         :type fmt: str | tuple | None
         :param opts: extra options forwarded to the resolved constructor
@@ -7380,7 +7422,7 @@ class Molecule(AbstractMolecule):
         :param plot_opts: extra options forwarded to `plot`
         :type plot_opts: dict
         :return: the resulting animation figure/widget
-        :rtype: object
+        :rtype: Any
         """
         if backend is None:
             backend = self.display_mode
@@ -7429,7 +7471,7 @@ class Molecule(AbstractMolecule):
         :param steps: number of steps out to `extent`
         :type steps: int
         :param modes: the normal modes to animate; defaults to this molecule's own (converted to a fresh mode basis)
-        :type modes: object | None
+        :type modes: Any | None
         :param coordinate_expansion: an additional coordinate-transformation expansion to combine with the mode-displacement direction
         :type coordinate_expansion: list[np.ndarray] | None
         :param order: the Jacobian order to use when building the mode-based coordinate expansion (only used if given)
@@ -7445,7 +7487,7 @@ class Molecule(AbstractMolecule):
         :param opts: extra options forwarded to `animate_coordinate`
         :type opts: dict
         :return: the resulting animation figure/widget
-        :rtype: object
+        :rtype: Any
         """
         from ..Modes import NormalModes
 
@@ -7608,7 +7650,7 @@ class Molecule(AbstractMolecule):
         Build a displayable widget for this molecule, either a JSMol applet or an X3D scene, depending on `self.display_mode`.
 
         :return: the constructed widget/scene object
-        :rtype: object
+        :rtype: Any
         """
         display_opts = self.display_settings
         if display_opts is None: display_opts = {}
@@ -7626,7 +7668,7 @@ class Molecule(AbstractMolecule):
         IPython/Jupyter display hook: builds the display widget via `to_widget` and displays it.
 
         :return: the result of displaying the widget
-        :rtype: object
+        :rtype: Any
         """
         return self.to_widget()._ipython_display_()
         # display_opts = self.display_settings
@@ -7646,7 +7688,7 @@ class Molecule(AbstractMolecule):
         :param item: the attribute name to look up
         :type item: str
         :return: the attribute's value
-        :rtype: object
+        :rtype: Any
         :raises AttributeError: if no pybel molecule is attached
         """
         if self._mol is None:
