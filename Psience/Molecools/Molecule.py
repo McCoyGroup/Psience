@@ -37,7 +37,7 @@ from .Evaluator import (
 from .Hamiltonian import MolecularHamiltonian
 from .Properties import *
 from .Serializers import MoleculePropertyCache
-from .Topology import MolecularTopology
+from .Topology import MolecularTopology, MolecularCoordinateChoice
 
 __all__ = [
     "Molecule",
@@ -135,6 +135,8 @@ class Molecule(AbstractMolecule):
             guess_bonds=guess_bonds,
             bond_guesser=self._guess_bonds
         )
+        # internal-coordinate *choice* (selection/canonicalization/labeling) is exposed lazily
+        # via the `coordinate_choice` property, built from the current embedding + topology
 
         if charge is not None:
             metadata['charge'] = charge
@@ -475,7 +477,7 @@ class Molecule(AbstractMolecule):
         """
         **LLM Docstring**
 
-        Automatically pick a set of primitive internal coordinates (bond stretches, angles, dihedrals) from the bonding graph, via `PrimitiveCoordinatePicker`.
+        Automatically pick a set of primitive internal coordinates from the bonding graph, via `MolecularCoordinateChoice._generate_auto_spec`.
 
         :param atoms: the atom labels
         :type atoms: Iterable[str]
@@ -488,21 +490,16 @@ class Molecule(AbstractMolecule):
         :return: the picked coordinate specs
         :rtype: list
         """
-        return PrimitiveCoordinatePicker(
-            atoms,
-            [b[:2] for b in bonds],
-            base_coords=base_coords,
-            **opts
-        ).coords
+        return MolecularCoordinateChoice._generate_auto_spec(atoms, bonds, base_coords=base_coords, **opts)
 
     @classmethod
     def _generate_stretch_spec(cls, atoms, bonds, **opts):
         """
         **LLM Docstring**
 
-        Build a "natural"-coordinate specification consisting only of the bond-stretch coordinates implied by `bonds`.
+        Build a stretch-only coordinate specification from `bonds`, via `MolecularCoordinateChoice._generate_stretch_spec`.
 
-        :param atoms: the atom labels (unused directly, kept for interface consistency with `_generate_auto_spec`)
+        :param atoms: the atom labels
         :type atoms: Iterable[str]
         :param bonds: the bonds to build stretch coordinates from
         :type bonds: Iterable[Iterable[int]]
@@ -511,22 +508,16 @@ class Molecule(AbstractMolecule):
         :return: the list of bond-stretch coordinate specs
         :rtype: list
         """
-        return sum(coordops.get_stretch_coordinate_system([tuple(s[:2]) for s in bonds]), [])
+        return MolecularCoordinateChoice._generate_stretch_spec(atoms, bonds, **opts)
 
     @classmethod
-    def _auto_auto_spec(cls, spec_generator, atoms, coords, bonds, redundant=False, base_coordinates=None,
-                        masses=None,
-                        untransformed_coordinates=None,
-                        prune_coordinates=True,
-                        pruning_options=None,
-                        formal_charges=None,
-                        **opts):
+    def _auto_auto_spec(cls, spec_generator, atoms, coords, bonds, **opts):
         """
         **LLM Docstring**
 
-        Shared driver behind `_auto_spec`/`_stretch_spec`: guesses bonds if not given, optionally sets up a redundant-coordinate specification (folding in any `untransformed_coordinates`), generates the primitive coordinate specs via `spec_generator`, and (optionally) prunes them down to a well-conditioned, non-redundant subset via `RedundantCoordinateGenerator.prune_coordinate_specs`.
+        Shared driver behind `_auto_spec`/`_stretch_spec`, via `MolecularCoordinateChoice._auto_auto_spec`.
 
-        :param spec_generator: the coordinate-generating function to use (`_generate_auto_spec` or `_generate_stretch_spec`)
+        :param spec_generator: the coordinate-generating function to use
         :type spec_generator: callable
         :param atoms: the atom labels
         :type atoms: Iterable[str]
@@ -534,70 +525,19 @@ class Molecule(AbstractMolecule):
         :type coords: np.ndarray
         :param bonds: the bonds to use; guessed via RDKit if `None`
         :type bonds: Iterable[Iterable[int]] | None
-        :param redundant: whether to build a redundant coordinate specification
-        :type redundant: bool
-        :param base_coordinates: seed coordinates to prioritize/include
-        :type base_coordinates: Iterable | None
-        :param masses: atomic masses, used for pruning; computed from `atoms` if not given
-        :type masses: np.ndarray | None
-        :param untransformed_coordinates: coordinates that should remain untransformed under the redundant transformation
-        :type untransformed_coordinates: Iterable | None
-        :param prune_coordinates: whether to prune the generated coordinate specs down to a well-conditioned subset
-        :type prune_coordinates: bool
-        :param pruning_options: extra options forwarded to `RedundantCoordinateGenerator.prune_coordinate_specs`
-        :type pruning_options: dict | None
-        :param formal_charges: formal charges used when guessing bonds
-        :type formal_charges: Iterable | None
-        :param opts: extra options forwarded to `spec_generator`
+        :param opts: extra options forwarded to the underlying routine
         :type opts: dict
-        :return: the resulting internal-coordinate specification dict (with `'specs'`, and `'redundant'`/`'untransformed_coordinates'` if applicable)
+        :return: the resulting internal-coordinate specification dict
         :rtype: dict
         """
-        base_coords = base_coordinates
-        if bonds is None:
-            bonds = RDMolecule.from_coords(
-                                           atoms,
-                                           coords * UnitsData.convert("BohrRadius", "Angstroms"),
-                                           bonds,
-                                           formal_charges=formal_charges,
-                                           guess_bonds=True
-                                           ).bonds
-        if redundant and untransformed_coordinates is None:
-            untransformed_coordinates = base_coords
-            base_coords = None
-        if redundant and untransformed_coordinates is not None:
-            untransformed_coordinates = PrimitiveCoordinatePicker.prep_unique_coords(untransformed_coordinates)
-            base_coords = untransformed_coordinates + ([] if base_coords is None else list(base_coords))
-        if base_coords is not None:
-            base_coords = PrimitiveCoordinatePicker.prep_unique_coords(base_coords)
-        specs = spec_generator(atoms, bonds, base_coords=base_coords, **opts)
-        if prune_coordinates:
-            if pruning_options is None:
-                pruning_options = {}
-            expansion = nput.internal_coordinate_tensors(coords, specs, order=1)[1:]
-            if masses is None:
-                ats = [AtomData[atom] if isinstance(atom, (int, np.integer, str)) else atom for atom in atoms]
-                masses = np.array([a["Mass"] for a in ats])
-            prune_pos = RedundantCoordinateGenerator.prune_coordinate_specs(
-                expansion,
-                masses=masses,
-                untransformed_coordinates=np.arange(len(base_coords)) if base_coords is not None else None,
-                **pruning_options
-            )
-            specs = [specs[i] for i in prune_pos]
-        spec = {'specs':specs}
-        if redundant:
-            spec['redundant'] = True
-            if untransformed_coordinates is not None:
-                spec['untransformed_coordinates'] = np.arange(len(untransformed_coordinates))
-        return spec
+        return MolecularCoordinateChoice._auto_auto_spec(spec_generator, atoms, coords, bonds, **opts)
 
     @classmethod
     def _auto_spec(cls, atoms, coords, bonds, **opts):
         """
         **LLM Docstring**
 
-        Build an automatically-chosen internal-coordinate specification from the bonding graph, via `_auto_auto_spec` with `_generate_auto_spec`.
+        Build an automatically-chosen internal-coordinate specification, via `MolecularCoordinateChoice._auto_spec`.
 
         :param atoms: the atom labels
         :type atoms: Iterable[str]
@@ -610,13 +550,14 @@ class Molecule(AbstractMolecule):
         :return: the resulting internal-coordinate specification dict
         :rtype: dict
         """
-        return cls._auto_auto_spec(cls._generate_auto_spec, atoms, coords, bonds, **opts)
+        return MolecularCoordinateChoice._auto_spec(atoms, coords, bonds, **opts)
+
     @classmethod
     def _stretch_spec(cls, atoms, coords, bonds, **opts):
         """
         **LLM Docstring**
 
-        Build a "natural"/stretch-only internal-coordinate specification from the bonding graph, via `_auto_auto_spec` with `_generate_stretch_spec`.
+        Build a "natural"/stretch-only internal-coordinate specification, via `MolecularCoordinateChoice._stretch_spec`.
 
         :param atoms: the atom labels
         :type atoms: Iterable[str]
@@ -629,14 +570,15 @@ class Molecule(AbstractMolecule):
         :return: the resulting internal-coordinate specification dict
         :rtype: dict
         """
-        return cls._auto_auto_spec(cls._generate_stretch_spec, atoms, coords, bonds, **opts)
+        return MolecularCoordinateChoice._stretch_spec(atoms, coords, bonds, **opts)
 
-    # @classmethod
     def canonicalize_internals(self, spec, atoms, coords, bonds, relocalize=True, masses=None):
         """
         **LLM Docstring**
 
-        Normalize the many accepted forms of an internal-coordinate specification (the strings `'auto'`/`'zmatrix'`, a dict with `'primitives'`/`'specs'`/`'zmatrix'` keys where `'specs'` may itself be `'auto'`/`'natural'`, a bare Z-matrix-like array, or a bare list of primitive specs) down into the canonical dict form expected by `MolecularEmbedding`, recursively re-dispatching as needed.
+        Normalize the many accepted forms of an internal-coordinate specification into the
+        canonical dict form expected by `MolecularEmbedding`, via
+        `self.coordinate_choice.canonicalize_internals`.
 
         :param spec: the internal-coordinate specification to canonicalize
         :type spec: str | dict | Iterable | None
@@ -652,69 +594,17 @@ class Molecule(AbstractMolecule):
         :type masses: np.ndarray | None
         :return: the canonicalized specification
         :rtype: dict | None
-        :raises ValueError: if `spec` is a string that isn't recognized (`'auto'`/`'zmatrix'`/`'natural'`)
         """
-        if isinstance(spec, str) and spec.lower() == 'auto':
-            spec = {
-                'primitives': 'auto'
-            }
-        elif dev.str_is(spec, 'zmatrix'):
-            spec = self.get_bond_zmatrix()
+        return self.coordinate_choice.canonicalize_internals(
+            spec, atoms, coords, bonds, relocalize=relocalize, masses=masses
+        )
 
-        if isinstance(spec, str):
-            # if spec.lower() == 'auto':
-            #     spec = cls._auto_spec(atoms, coords, bonds)
-            # else:
-            raise ValueError(f"can't understand internal spec '{spec}'")
-        elif isinstance(spec, dict):
-            if 'zmatrix' in spec: return spec
-            prims = spec.pop('primitives', None)
-            if prims is not None:
-                spec = spec.copy()
-                spec['specs'] = prims
-                spec['redundant'] = True
-            subspec = spec.get('specs', '')
-            if isinstance(subspec, str):
-                if subspec.lower() == 'auto':
-                    opts = spec.copy()
-                    del opts['specs']
-                    if 'relocalize' in opts:
-                        relocalize = spec.get('relocalize', relocalize)
-                        del opts['relocalize']
-                    spec = self._auto_spec(atoms, coords, bonds, masses=masses, **opts)
-                elif subspec.lower() == 'natural':
-                    opts = spec.copy()
-                    del opts['specs']
-                    if 'relocalize' in opts:
-                        relocalize = spec.get('relocalize', relocalize)
-                        del opts['relocalize']
-                    spec = self._stretch_spec(atoms, coords, bonds, masses=masses, **opts)
-                else:
-                    raise ValueError(f"can't understand internal spec '{spec}'")
-            else:
-                untransformed_coordinates = spec.get('untransformed_coordinates')
-                if untransformed_coordinates is not None:
-                    if not nput.is_int(untransformed_coordinates[0]):
-                        prims = spec.get('specs')
-                        untransformed_coordinates = [
-                            prims.index(u)
-                            for u in untransformed_coordinates
-                        ]
-                    spec['untransformed_coordinates'] = untransformed_coordinates
-            if spec.get('redundant'):
-                spec['relocalize'] = spec.get('relocalize', relocalize)
-        elif not isinstance(spec, dict) and spec is not None:
-            if all(not isinstance(x, dict) and len(x) == 4 for x in spec):
-                spec = {'zmatrix': spec}
-            else:
-                spec = {'primitives':spec}
-            spec = self.canonicalize_internals(spec, atoms, coords, bonds, relocalize=relocalize, masses=masses)
-        return spec
     def prep_internal_spec(self, spec, relocalize=True, masses=None):
         """
         **LLM Docstring**
 
-        Canonicalize an internal-coordinate specification against this molecule's own atoms, coordinates, bonds, and masses, via `canonicalize_internals`.
+        Canonicalize an internal-coordinate specification against this molecule's own atoms,
+        coordinates, bonds, and masses, via `self.coordinate_choice.prep_internal_spec`.
 
         :param spec: the internal-coordinate specification to canonicalize
         :type spec: Any
@@ -725,14 +615,7 @@ class Molecule(AbstractMolecule):
         :return: the canonicalized specification
         :rtype: dict | None
         """
-        return self.canonicalize_internals(
-            spec,
-            self.atoms,
-            self.coords,
-            self._bonds,
-            relocalize=relocalize,
-            masses=masses
-        )
+        return self.coordinate_choice.prep_internal_spec(spec, relocalize=relocalize, masses=masses)
 
     @property
     def embedding(self):
@@ -762,6 +645,21 @@ class Molecule(AbstractMolecule):
         self._embedding = e
         self.evaluator = None
         self.hamiltonian = None
+
+    @property
+    def coordinate_choice(self):
+        """
+        **LLM Docstring**
+
+        The internal-coordinate *choice* helper (`MolecularCoordinateChoice`), built lazily from
+        this molecule's current embedding and topology. It carries no `Molecule` reference; the
+        molecule-level quantities it needs (G-matrix, normal modes) are passed in by the
+        `Molecule`-level delegators at the call sites that require them.
+
+        :return: the coordinate-choice helper bound to the current embedding + topology
+        :rtype: MolecularCoordinateChoice
+        """
+        return MolecularCoordinateChoice(self.embedding, self.topology)
     def get_evaluator(self, embedding=None, normal_modes=dev.default):
         """
         **LLM Docstring**
@@ -1062,104 +960,34 @@ class Molecule(AbstractMolecule):
         return self.embedding.redundant_internal_transformation
 
     @classmethod
-    def _check_label(cls, label,
-                     allowed_coordinate_types=None,
-                     excluded_coordinate_types=None,
-                     allowed_ring_types=None,
-                     excluded_ring_types=None,
-                     allowed_group_types=None,
-                     excluded_group_types=None,
-                     ):
+    def _check_label(cls, label, **filters):
         """
         **LLM Docstring**
 
-        Test whether a coordinate label passes a set of allow/exclude filters on its atom types, ring membership, and functional-group membership.
+        Test whether a coordinate label passes a set of allow/exclude filters, via `MolecularCoordinateChoice._check_label`.
 
         :param label: the coordinate label to test (exposing `.atoms`, `.ring`, `.group` attributes)
         :type label: Any
-        :param allowed_coordinate_types: if given, `label.atoms` must be among these to pass
-        :type allowed_coordinate_types: Iterable | None
-        :param excluded_coordinate_types: if given, `label.atoms` must not be among these to pass
-        :type excluded_coordinate_types: Iterable | None
-        :param allowed_ring_types: if given, `label.ring` must be among these to pass
-        :type allowed_ring_types: Iterable | None
-        :param excluded_ring_types: if given, `label.ring` must not be among these to pass
-        :type excluded_ring_types: Iterable | None
-        :param allowed_group_types: if given, `label.group` must be among these to pass
-        :type allowed_group_types: Iterable | None
-        :param excluded_group_types: if given, `label.group` must not be among these to pass
-        :type excluded_group_types: Iterable | None
+        :param filters: the allow/exclude criteria (`allowed_coordinate_types`, `excluded_coordinate_types`, `allowed_ring_types`, `excluded_ring_types`, `allowed_group_types`, `excluded_group_types`)
+        :type filters: dict
         :return: whether the label passes every specified filter
         :rtype: bool
         """
-        if allowed_coordinate_types is not None:
-            if label.atoms not in allowed_coordinate_types: return False
-        if excluded_coordinate_types is not None:
-            if label.atoms in excluded_coordinate_types: return False
-        if allowed_ring_types is not None:
-            if label.ring not in allowed_ring_types: return False
-        if excluded_ring_types is not None:
-            if label.ring in excluded_ring_types: return False
-        if allowed_group_types is not None:
-            if label.group not in allowed_group_types: return False
-        if excluded_group_types is not None:
-            if label.group in excluded_group_types: return False
-        return True
+        return MolecularCoordinateChoice._check_label(label, **filters)
 
     @classmethod
-    def get_coordinate_filer(cls,
-                             allowed_coordinate_types=None,
-                             excluded_coordinate_types=None,
-                             allowed_ring_types=None,
-                             excluded_ring_types=None,
-                             allowed_group_types=None,
-                             excluded_group_types=None
-                             ):
+    def get_coordinate_filer(cls, **filters):
         """
         **LLM Docstring**
 
-        Build a filter function (closing over the given allow/exclude criteria) that, given a dict of coordinate-to-label mappings, returns only the entries whose label passes `_check_label`.
+        Build a coordinate-filtering function closing over the given allow/exclude criteria, via `MolecularCoordinateChoice.get_coordinate_filer`.
 
-        :param allowed_coordinate_types: forwarded to `_check_label`
-        :type allowed_coordinate_types: Iterable | None
-        :param excluded_coordinate_types: forwarded to `_check_label`
-        :type excluded_coordinate_types: Iterable | None
-        :param allowed_ring_types: forwarded to `_check_label`
-        :type allowed_ring_types: Iterable | None
-        :param excluded_ring_types: forwarded to `_check_label`
-        :type excluded_ring_types: Iterable | None
-        :param allowed_group_types: forwarded to `_check_label`
-        :type allowed_group_types: Iterable | None
-        :param excluded_group_types: forwarded to `_check_label`
-        :type excluded_group_types: Iterable | None
+        :param filters: the allow/exclude criteria forwarded to `_check_label`
+        :type filters: dict
         :return: the constructed coordinate-filtering function
         :rtype: callable
         """
-        def coordinate_filter(coords):
-            """
-            **LLM Docstring**
-
-            Filter a dict of coordinate-to-label mappings down to just the entries whose label satisfies the enclosing allow/exclude criteria (via `_check_label`).
-
-            :param coords: the coordinate-to-label mapping to filter
-            :type coords: dict
-            :return: the filtered mapping
-            :rtype: dict
-            """
-            return {
-                c: l
-                for c, l in coords.items()
-                if cls._check_label(l,
-                                    allowed_coordinate_types=allowed_coordinate_types,
-                                    excluded_coordinate_types=excluded_coordinate_types,
-                                    allowed_ring_types=allowed_ring_types,
-                                    excluded_ring_types=excluded_ring_types,
-                                    allowed_group_types=allowed_group_types,
-                                    excluded_group_types=excluded_group_types
-                                    )
-            }
-
-        return coordinate_filter
+        return MolecularCoordinateChoice.get_coordinate_filer(**filters)
 
     default_coordinate_pruning = 'graph'
     def get_bond_graph_internals(self,
@@ -1176,7 +1004,8 @@ class Molecule(AbstractMolecule):
         """
         **LLM Docstring**
 
-        Build a set of internal coordinates (bond stretches, bends, dihedrals, and/or inter-fragment coordinates) directly from the bonding graph, optionally restricted to a single fragment (recursively, with the result permuted back into the full atom indexing) and/or pruned down to a well-conditioned subset.
+        Build a set of internal coordinates directly from the bonding graph, via
+        `self.coordinate_choice.get_bond_graph_internals`.
 
         :param include_stretches: whether to include bond-stretch coordinates
         :type include_stretches: bool
@@ -1186,130 +1015,101 @@ class Molecule(AbstractMolecule):
         :type include_dihedrals: bool
         :param include_fragments: whether to include coordinates connecting separate molecular fragments
         :type include_fragments: bool
-        :param pruning: whether/how to prune the resulting coordinates (`True` for the default method, or an explicit method spec), forwarded to `prune_internals`
+        :param pruning: whether/how to prune the resulting coordinates, forwarded to `prune_internals`
         :type pruning: bool | str | dict | None
         :param fragment: restrict to a single fragment, given as a fragment index or an explicit list of atom indices
         :type fragment: int | Iterable[int] | None
-        :param base_internals: accepted and forwarded when recursing on a fragment, but not otherwise used directly in this method's own body
+        :param base_internals: accepted and forwarded when recursing on a fragment
         :type base_internals: Any | None
         :param use_distance_matrix: whether to precompute a distance matrix for the fragment-coordinate generation
         :type use_distance_matrix: bool
-        :param concatenate: whether to concatenate the different coordinate categories (stretches/bends/dihedrals/fragments) into a single list, or return them as separate groups
+        :param concatenate: whether to concatenate the different coordinate categories into a single list, or return them as separate groups
         :type concatenate: bool
-        :return: the generated internal coordinates, as a single concatenated list or a list of category groups depending on `concatenate`
+        :return: the generated internal coordinates
         :rtype: list
-        :raises ValueError: if `pruning` is requested while `concatenate` is `False`
         """
-        if fragment is not None:
-            if nput.is_int(fragment):
-                fragment = self.fragment_indices[fragment]
-            base_ints = self.take_submolecule(fragment).get_bond_graph_internals(
-                include_stretches=include_stretches,
-                include_bends=include_bends,
-                include_dihedrals=include_dihedrals,
-                include_fragments=include_fragments,
-                base_internals=base_internals,
-                pruning=pruning,
-                concatenate=concatenate
-            )
-            if concatenate:
-                return coordops.permute_internals(base_ints, fragment)
-            else:
-                return [
-                    coordops.permute_internals(b, fragment)
-                    for b in base_ints
-                ]
-        else:
-            st, bo, di = coordops.get_stretch_coordinate_system(
-                [tuple(b[:2]) for b in self.bonds],
-                include_bends=include_bends,
-                include_dihedrals=include_dihedrals
-            )
-            bits = []
-            if include_fragments:
-                if use_distance_matrix:
-                    dm = nput.distance_matrix(self.coords)
-                else:
-                    dm = None
-                frag_bits = coordops.get_fragment_coordinate_system(
-                    self.edge_graph,
-                    masses=self.masses,
-                    distance_matrix=dm
-                )
-                bits.append(frag_bits)
-            if include_stretches:
-                bits.append(st)
-            if include_bends:
-                bits.append(bo)
-            if include_dihedrals:
-                bits.append(di)
+        return self.coordinate_choice.get_bond_graph_internals(
+            include_stretches=include_stretches,
+            include_bends=include_bends,
+            include_dihedrals=include_dihedrals,
+            include_fragments=include_fragments,
+            pruning=pruning,
+            fragment=fragment,
+            base_internals=base_internals,
+            use_distance_matrix=use_distance_matrix,
+            concatenate=concatenate,
+            gmatrix=self._pruning_gmatrix(pruning)
+        )
 
-            if concatenate:
-                internals = bits[0]
-                for b in bits[1:]:
-                    internals = internals + b
+    def _pruning_gmatrix(self, pruning):
+        """
+        **LLM Docstring**
 
-                if pruning:
-                    if pruning is True:
-                        pruning = self.default_coordinate_pruning
-                    internals = self.prune_internals(internals, method=pruning)
-            else:
-                if pruning:
-                    raise ValueError("can't prune without concatenating")
-                internals = bits
+        Resolve the `pruning` flag used by `get_bond_graph_internals`/`get_labeled_internals`
+        (mapping `True` to `default_coordinate_pruning`) and, if it would trigger B-matrix
+        pruning, compute the `G^{1/2}` matrix to hand down; otherwise return `None`.
 
-            return internals
+        :param pruning: the pruning flag/spec
+        :type pruning: bool | str | dict | None
+        :return: the `G^{1/2}` matrix, or `None` if B-matrix pruning won't be used
+        :rtype: np.ndarray | None
+        """
+        if not pruning:
+            return None
+        if pruning is True:
+            pruning = self.coordinate_choice.default_coordinate_pruning
+        return self._prune_gmatrix(pruning)
+
     def prune_internals(self, coords, method='b_matrix', check_rigidity=True):
         """
         **LLM Docstring**
 
-        Reduce a set of internal coordinates down to a non-redundant, well-conditioned subset, defaulting to a B-matrix-rank-based method (building the necessary translation/rotation-projected B-matrix generator and a sensible `max_coords` cap) if no custom method is supplied.
+        Reduce a set of internal coordinates down to a non-redundant, well-conditioned subset,
+        via `self.coordinate_choice.prune_internals`. The B-matrix pruning method needs the
+        `G^{1/2}` matrix, which this molecule computes (`get_gmatrix(power=1/2)`) and hands to
+        the coordinate-choice helper, since that helper doesn't hold a `Molecule` reference.
 
         :param coords: the internal-coordinate specs to prune
         :type coords: list
-        :param method: the pruning method: a method-name string, or a dict of method options (with a `'method'` key defaulting to `'b_matrix'`)
+        :param method: the pruning method: a method-name string, or a dict of method options
         :type method: str | dict
-        :param check_rigidity: whether to check that the pruned coordinate set spans a rigid (non-redundant) representation
+        :param check_rigidity: whether to check that the pruned coordinate set spans a rigid representation
         :type check_rigidity: bool
         :return: the pruned coordinate specs
         :rtype: list
         """
-        if isinstance(method, str):
-            method = {'method':method}
-        if hasattr(method, 'items'):
-            meth = method.get('method')
-            if meth is None:
-                method = method.copy()
-                method['method'] = 'b_matrix'
-                meth = 'b_matrix'
-            if dev.str_is(meth, 'b_matrix'):
-                if 'b_matrix' not in method:
-                    g12 = self.get_gmatrix(power=1 / 2)
-                    proj = nput.translation_rotation_projector(self.coords, self.atomic_masses, mass_weighted=True)
-                    def b_gen(pos, crds):
-                        """
-                        **LLM Docstring**
-
-                        Compute the (translation/rotation-projected, mass-weighted) B-matrix for a candidate set of internal coordinates at this molecule's current geometry, used by the default `'b_matrix'` pruning method to assess rank/conditioning.
-
-                        :param pos: the coordinate index/indices under consideration (unused directly in the body, but part of the callback signature expected by the pruning routine)
-                        :type pos: Any
-                        :param crds: the candidate coordinate specs to build the B-matrix for
-                        :type crds: list
-                        :return: the projected, mass-weighted B-matrix
-                        :rtype: np.ndarray
-                        """
-                        return proj @ g12 @ nput.internal_coordinate_tensors(self.coords, crds, order=1)[1]
-                    method = method.copy()
-                    method['b_matrix'] = b_gen
-                if 'max_coords' not in method:
-                    method = method.copy()
-                    method['max_coords'] =  min([3 * len(self.atoms) - 6, len(coords)])
-        return coordops.prune_internal_coordinates(
+        return self.coordinate_choice.prune_internals(
             coords,
             method=method,
             check_rigidity=check_rigidity,
+            gmatrix=self._prune_gmatrix(method)
         )
+
+    def _prune_gmatrix(self, method):
+        """
+        **LLM Docstring**
+
+        Compute the `G^{1/2}` matrix needed by B-matrix internal-coordinate pruning, but only
+        when the requested `method` actually resolves to the B-matrix method (and doesn't
+        already carry an explicit `'b_matrix'` generator); otherwise return `None` so no
+        G-matrix work is done.
+
+        :param method: the pruning method spec (string or dict) about to be used
+        :type method: str | dict | None
+        :return: the `G^{1/2}` matrix, or `None` if B-matrix pruning won't be triggered
+        :rtype: np.ndarray | None
+        """
+        if isinstance(method, str):
+            is_bmat = dev.str_is(method, 'b_matrix')
+        elif hasattr(method, 'items'):
+            if 'b_matrix' in method:
+                return None  # explicit generator already present; no G-matrix needed
+            meth = method.get('method')
+            is_bmat = meth is None or dev.str_is(meth, 'b_matrix')
+        else:
+            is_bmat = False
+        return self.get_gmatrix(power=1 / 2) if is_bmat else None
+
     def get_labeled_internals(self,
                               coordinate_filter=None,
                               allowed_coordinate_types=None,
@@ -1328,7 +1128,9 @@ class Molecule(AbstractMolecule):
         """
         **LLM Docstring**
 
-        Build the internal coordinates from the bonding graph (via `get_bond_graph_internals`) and label each one by its atom types/ring/functional-group membership (via `edge_graph.get_label_types` and `coordops.get_coordinate_label`), then filter and sort them.
+        Build the internal coordinates from the bonding graph and label each one by its atom
+        types/ring/functional-group membership, then filter and sort them, via
+        `self.coordinate_choice.get_labeled_internals`.
 
         :param coordinate_filter: an explicit filter function to apply instead of building one from the allow/exclude arguments
         :type coordinate_filter: callable | None
@@ -1352,50 +1154,29 @@ class Molecule(AbstractMolecule):
         :type include_dihedrals: bool
         :param include_fragments: whether to include inter-fragment coordinates
         :type include_fragments: bool
-        :param coordinate_sorting: a custom sorting function to apply to the labeled coordinates instead of the default `coordops.sort_internal_coordinates`; pass a falsy value to skip sorting
+        :param coordinate_sorting: a custom sorting function to apply to the labeled coordinates; pass a falsy value to skip sorting
         :type coordinate_sorting: callable | bool | None
         :param pruning: whether/how to prune the coordinates, forwarded to `get_bond_graph_internals`
         :type pruning: bool | str | dict
         :return: a mapping from coordinate spec to its label, filtered and sorted
         :rtype: dict
         """
-        internals = self.get_bond_graph_internals(
+        return self.coordinate_choice.get_labeled_internals(
+            coordinate_filter=coordinate_filter,
+            allowed_coordinate_types=allowed_coordinate_types,
+            excluded_coordinate_types=excluded_coordinate_types,
+            allowed_ring_types=allowed_ring_types,
+            excluded_ring_types=excluded_ring_types,
+            allowed_group_types=allowed_group_types,
+            excluded_group_types=excluded_group_types,
             include_stretches=include_stretches,
             include_bends=include_bends,
             include_dihedrals=include_dihedrals,
             include_fragments=include_fragments,
-            pruning=pruning
+            coordinate_sorting=coordinate_sorting,
+            pruning=pruning,
+            gmatrix=self._pruning_gmatrix(pruning)
         )
-
-        labels = self.edge_graph.get_label_types()
-        internals = {
-            (c if isinstance(c, tuple) else coordops.InternalCoordinateType.resolve(c)): coordops.get_coordinate_label(
-                c,
-                labels
-            )
-            for c in internals
-        }
-
-        if coordinate_filter is None:
-            coordinate_filter = self.get_coordinate_filer(
-                allowed_coordinate_types=allowed_coordinate_types,
-                excluded_coordinate_types=excluded_coordinate_types,
-                allowed_ring_types=allowed_ring_types,
-                excluded_ring_types=excluded_ring_types,
-                allowed_group_types=allowed_group_types,
-                excluded_group_types=excluded_group_types,
-            )
-
-        if coordinate_filter:
-            internals = coordinate_filter(internals)
-
-        if coordinate_sorting is None:
-            coordinate_sorting = coordops.sort_internal_coordinates
-
-        if coordinate_sorting:
-            internals = coordinate_sorting(internals)
-
-        return internals
 
     def get_mode_labels(self,
                         internals=None,
@@ -1408,15 +1189,18 @@ class Molecule(AbstractMolecule):
         """
         **LLM Docstring**
 
-        Assign human-readable labels (e.g. "C-H stretch") to a set of normal modes by projecting them onto labeled internal coordinates, handling both redundant and non-redundant internal-coordinate expansions and both Cartesian- and internal-coordinate-basis modes.
+        Assign human-readable labels to a set of normal modes by projecting them onto labeled
+        internal coordinates, via `self.coordinate_choice.get_mode_labels`. The normal modes
+        (defaulting to `self.get_normal_modes()`) and the G-matrix (`self.get_gmatrix()`) are
+        supplied here, since the coordinate-choice helper holds no `Molecule` reference.
 
         :param internals: the labeled internal coordinates to project onto; computed via `get_labeled_internals` if not given
         :type internals: dict | None
         :param modes: the normal modes to label; computed via `get_normal_modes` if not given
         :type modes: Any | None
-        :param use_redundants: whether to build a redundant-coordinate expansion (with relocalization) for the projection, rather than using the internal coordinates directly
+        :param use_redundants: whether to build a redundant-coordinate expansion for the projection
         :type use_redundants: bool
-        :param expansions: precomputed `(expansions, inverse_expansion)` internal-coordinate Jacobian data to reuse instead of recomputing it
+        :param expansions: precomputed `(expansions, inverse_expansion)` Jacobian data to reuse
         :type expansions: tuple | None
         :param return_modes: whether to also return the internal-coordinate-basis mode matrix alongside the labels
         :type return_modes: bool
@@ -1427,68 +1211,15 @@ class Molecule(AbstractMolecule):
         """
         if modes is None:
             modes = self.get_normal_modes()
-        modes = modes.remove_mass_weighting()
-
-        if internals is None:
-            internals = self.get_labeled_internals(**internals_opts)
-
-        if modes.is_cartesian:
-            if expansions is not None:
-                expansions, inv_expansion = expansions
-            else:
-                expansions = inv_expansion = None
-
-            if use_redundants:
-                redundant_tf, expansions = coordops.RedundantCoordinateGenerator(
-                    internals,
-                    masses=self.atomic_masses,
-                    relocalize=True
-                ).compute_redundant_expansions(self.coords,
-                                               expansions=expansions
-                                               )
-
-                redund_labs = coordops.get_mode_labels(
-                    internals,
-                    redundant_tf,
-                    norm_cutoff=.3
-                )
-
-                inv_expansion = nput.inverse_internal_coordinate_tensors(
-                    expansions,
-                    coords=self.coords,
-                    masses=self.atomic_masses,
-                    order=1,
-                    remove_translation_rotation=True
-                )
-
-            else:
-                redund_labs = internals
-                if expansions is None:
-                    expansions, inv_expansion = nput.internal_coordinate_tensors(
-                        self.coords,
-                        internals,
-                        order=1,
-                        masses=self.atomic_masses,
-                        return_inverse=True
-                    )
-                    expansions = expansions[1:]
-
-            g = expansions[0].T @ self.get_gmatrix() @ expansions[0]
-            g12 = nput.fractional_power(g, 1 / 2)
-            internal_modes = g12 @ inv_expansion[0] @ modes.modes_by_coords
-        else:
-            redund_labs = internals
-            internal_modes = modes
-
-        labels = coordops.get_mode_labels(
-            redund_labs,
-            internal_modes,
-            norm_cutoff=.8
+        return self.coordinate_choice.get_mode_labels(
+            internals=internals,
+            modes=modes,
+            use_redundants=use_redundants,
+            expansions=expansions,
+            return_modes=return_modes,
+            gmatrix=self.get_gmatrix(),
+            **internals_opts
         )
-        if return_modes:
-            return internal_modes, labels
-        else:
-            return labels
 
     @property
     def mode_embedding(self):
