@@ -37,13 +37,14 @@ from .Evaluator import (
 from .Hamiltonian import MolecularHamiltonian
 from .Properties import *
 from .Serializers import MoleculePropertyCache
+from .Topology import MolecularTopology
 
 __all__ = [
     "Molecule",
     "MolecoolException"
 ]
 
-__reload_hook__ = ["..Modes", ".MoleculeInterface", '.CoordinateSystems', '.Hamiltonian', '.Evaluator', '.Properties']
+__reload_hook__ = ["..Modes", ".MoleculeInterface", '.CoordinateSystems', '.Hamiltonian', '.Evaluator', '.Properties', '.Topology']
 
 from .Transformations import MolecularTransformation
 
@@ -125,9 +126,15 @@ class Molecule(AbstractMolecule):
 
 
         # properties to be returned
-        self._bonds = bonds
-        self._edge_graph = None
-        self.guess_bonds = guess_bonds
+        # all bond-topology-related state lives on the topology now; the topology is
+        # self-contained (atoms + bonds only) and calls back into `_guess_bonds` -- which
+        # runs the RDMolecule pass -- when it needs to guess bonds
+        self.topology = MolecularTopology(
+            self.atoms,
+            bonds=bonds,
+            guess_bonds=guess_bonds,
+            bond_guesser=self._guess_bonds
+        )
 
         if charge is not None:
             metadata['charge'] = charge
@@ -136,7 +143,6 @@ class Molecule(AbstractMolecule):
         if formal_charges is not None:
             metadata['formal_charges'] = formal_charges
         self._meta = metadata
-        self._fragment_indices = None
 
         self._rdmol = rdmol
         # a little messy
@@ -2188,38 +2194,68 @@ class Molecule(AbstractMolecule):
         """
         return self._atomic_masses()
     @property
+    def _bonds(self):
+        """
+        Internal accessor mirroring the raw (possibly un-guessed) bond list stored on
+        `self.topology`, kept so existing internal `self._bonds` usages continue to work.
+
+        :return: the raw stored bonds, or `None` if unset
+        :rtype: list[tuple] | None
+        """
+        return self.topology._bonds
+    @_bonds.setter
+    def _bonds(self, b):
+        self.topology._bonds = b
+    @property
+    def guess_bonds(self):
+        """
+        Whether the bonding arrangement should be guessed when needed; stored on
+        `self.topology`.
+
+        :return: the bond-guessing flag
+        :rtype: bool
+        """
+        return self.topology.guess_bonds
+    @guess_bonds.setter
+    def guess_bonds(self, g):
+        self.topology.guess_bonds = g
+    @property
     def bonds(self):
         """
         **LLM Docstring**
 
-        Property getter/setter for the molecule's bonds. The getter lazily guesses the bonds (via `get_guessed_bonds`) if none are set and `self.guess_bonds` is enabled.
+        Property getter/setter for the molecule's bonds. This is a thin reference to the bonds
+        stored by `self.topology`; the topology getter lazily guesses the bonds (via
+        `get_guessed_bonds`) if none are set and bond-guessing is enabled.
 
         :param b: (setter only) the new bonds
         :type b: list[tuple] | None
         :return: (getter) the bonds, or `None` if unset and bond-guessing is disabled
         :rtype: list[tuple] | None
         """
-        if self._bonds is None and self.guess_bonds:
-            self._bonds = self.get_guessed_bonds()
-        return self._bonds
+        return self.topology.bonds
     @bonds.setter
     def bonds(self, b):
         """
         **LLM Docstring**
 
-        Property getter/setter for the molecule's bonds. The getter lazily guesses the bonds (via `get_guessed_bonds`) if none are set and `self.guess_bonds` is enabled.
+        Property getter/setter for the molecule's bonds. This is a thin reference to the bonds
+        stored by `self.topology`; the topology getter lazily guesses the bonds (via
+        `get_guessed_bonds`) if none are set and bond-guessing is enabled.
 
         :param b: (setter only) the new bonds
         :type b: list[tuple] | None
         :return: (getter) the bonds, or `None` if unset and bond-guessing is disabled
         :rtype: list[tuple] | None
         """
-        self._bonds = b
+        self.topology.bonds = b
     def break_bonds(self, bonds, use_rdkit=False, **rdopts):
         """
         **LLM Docstring**
 
-        Build a copy of this molecule with the specified bonds removed, either by delegating to the attached RDKit molecule's `break_bonds` or by filtering the bond list directly.
+        Build a copy of this molecule with the specified bonds removed, either by delegating to
+        the attached RDKit molecule's `break_bonds` or by filtering the bond list directly
+        (via `self.topology.break_bonds`, then rebuilding a `Molecule` with the reduced bonds).
 
         :param bonds: the bonds to remove, each an atom-index pair
         :type bonds: Iterable[tuple]
@@ -2233,11 +2269,8 @@ class Molecule(AbstractMolecule):
         if use_rdkit:
             return self.from_rdmol(self.rdmol.break_bonds(bonds, **rdopts))
         else:
-            bond_sets = [{b[0], b[1]} for b in bonds]
-            return self.modify(
-                bonds=[b for b in self.bonds if
-                       all(b[0] not in bs or b[1] not in bs for bs in bond_sets)]
-            )
+            new_topo = self.topology.break_bonds(bonds)
+            return self.modify(bonds=new_topo.bonds)
     @property
     def formula(self):
         """
@@ -2436,11 +2469,14 @@ class Molecule(AbstractMolecule):
             ))
 
     bond_guessing_mode = 'rdkit'
-    def get_guessed_bonds(self, mode=None, **opts):
+    def _guess_bonds(self, mode=None, **opts):
         """
         **LLM Docstring**
 
-        Guess the bonding arrangement for this molecule, either via RDKit (from the Cartesian geometry) or via `MolecularProperties.guessed_bonds`, depending on `mode`.
+        Guess the bonding arrangement for this molecule, either via RDKit (from the Cartesian
+        geometry) or via `MolecularProperties.guessed_bonds`, depending on `mode`. This is the
+        `bond_guesser` callback hooked into `self.topology`, and is what actually runs the
+        `RDMolecule` pass.
 
         :param mode: the bond-guessing strategy to use (`'rdkit'` or another mode understood by `MolecularProperties.guessed_bonds`); defaults to `self.bond_guessing_mode`
         :type mode: str | None
@@ -2463,26 +2499,53 @@ class Molecule(AbstractMolecule):
         else:
             return MolecularProperties.guessed_bonds(self, **opts)
         # self._bonds = self.prop("guessed_bonds", tol=1.05, guess_type=True)
+    def get_guessed_bonds(self, mode=None, **opts):
+        """
+        **LLM Docstring**
 
+        Guess the bonding arrangement for this molecule, via `self._guess_bonds` (the
+        `RDMolecule` bond-guessing pass hooked into the topology).
+
+        :param mode: the bond-guessing strategy to use (`'rdkit'` or another mode understood by `MolecularProperties.guessed_bonds`); defaults to `self.bond_guessing_mode`
+        :type mode: str | None
+        :param opts: extra options forwarded to the underlying bond-guessing routine
+        :type opts: dict
+        :return: the guessed bonds
+        :rtype: list[tuple]
+        """
+        return self._guess_bonds(mode=mode, **opts)
+
+    @property
+    def _edge_graph(self):
+        """
+        Internal accessor mirroring the cached edge graph stored on `self.topology`, kept so
+        existing internal `self._edge_graph` usages continue to work.
+
+        :return: the cached edge graph, or `None` if not yet built
+        :rtype: EdgeGraph | None
+        """
+        return self.topology._edge_graph
+    @_edge_graph.setter
+    def _edge_graph(self, g):
+        self.topology._edge_graph = g
     @property
     def edge_graph(self) -> EdgeGraph:
         """
         **LLM Docstring**
 
-        The (cached) `EdgeGraph` representation of the molecule's bonding structure, built lazily via `MolecularProperties.edge_graph`.
+        The (cached) `EdgeGraph` representation of the molecule's bonding structure, via
+        `self.topology.edge_graph`.
 
         :return: the edge graph
         :rtype: EdgeGraph
         """
-        if self._edge_graph is None:
-            self._edge_graph = MolecularProperties.edge_graph(self)
-        return self._edge_graph
+        return self.topology.edge_graph
 
     def find_path(self, atom1, atom2):
         """
         **LLM Docstring**
 
-        Find a path between two atoms through the bonding graph.
+        Find a path between two atoms through the bonding graph, via `self.topology.find_path`.
 
         :param atom1: the starting atom index
         :type atom1: int
@@ -2491,7 +2554,7 @@ class Molecule(AbstractMolecule):
         :return: the path between the two atoms
         :rtype: list[int]
         """
-        return self.edge_graph.get_path(atom1, atom2)
+        return self.topology.find_path(atom1, atom2)
 
     def find_substructure(self, pattern):
         """
@@ -2536,7 +2599,7 @@ class Molecule(AbstractMolecule):
         :return: the neighboring atom indices
         :rtype: tuple[int]
         """
-        return tuple(l for l in self.edge_graph.neighbor_iterator(loc, num=size))
+        return self.topology.neighborhood(loc, size=size)
 
     def remove_hydrogens(self, positions=None, max=None, *, hydrogen_types=None):
         """
@@ -2831,20 +2894,20 @@ class Molecule(AbstractMolecule):
         """
         **LLM Docstring**
 
-        Find the longest chain of atoms in the bonding graph (the heavy-atom backbone), via `edge_graph.find_longest_chain`.
+        Find the longest chain of atoms in the bonding graph (the heavy-atom backbone), via `self.topology.find_heavy_atom_backbone`.
 
         :param root: an atom index to force as one end of the chain
         :type root: int | None
         :return: the backbone atom indices, in chain order
         :rtype: list[int]
         """
-        return self.edge_graph.find_longest_chain(root=root)
+        return self.topology.find_heavy_atom_backbone(root=root)
 
     def find_backbone_segments(self, root=None, initial_backbone=None):
         """
         **LLM Docstring**
 
-        Split the bonding graph into backbone-connected segments, via `edge_graph.segment_by_chains`.
+        Split the bonding graph into backbone-connected segments, via `self.topology.find_backbone_segments`.
 
         :param root: an atom index to anchor the segmentation at
         :type root: int | None
@@ -2853,7 +2916,7 @@ class Molecule(AbstractMolecule):
         :return: the resulting chain segments
         :rtype: list
         """
-        return self.edge_graph.segment_by_chains(root=root, backbone=initial_backbone)
+        return self.topology.find_backbone_segments(root=root, initial_backbone=initial_backbone)
 
     def get_backbone_zmatrix(self, root=None,
                              segments=None,
@@ -2868,7 +2931,7 @@ class Molecule(AbstractMolecule):
         """
         **LLM Docstring**
 
-        Build a Z-matrix for a (typically single-fragment) molecule by first segmenting its bonding graph into backbone chains (via `find_backbone_segments`, validating there are no duplicate atoms across segments), constructing the base Z-matrix graph from the bonds and segments, filling in any bonds missing from the initial graph, and (if requested) enforcing required/isolated/root coordinate constraints.
+        Build a Z-matrix for a (typically single-fragment) molecule from its bonding graph, via `self.topology.get_backbone_zmatrix`.
 
         :param root: an atom index to anchor the backbone segmentation at
         :type root: int | None
@@ -2892,57 +2955,23 @@ class Molecule(AbstractMolecule):
         :rtype: np.ndarray | tuple
         :raises ValueError: if `validate` is set and duplicate atoms are found across backbone segments
         """
-        if segments is None:
-            segments = self.find_backbone_segments(root=root, initial_backbone=initial_backbone)
-            if validate:
-                flat_frags = list(itut.flatten(segments))
-                frag_counts = itut.counts(flat_frags)
-                bad_frags = {k: v for k, v in frag_counts.items() if v > 1}
-                if len(bad_frags) > 0:
-                    raise ValueError(f"diplicate atoms {list(bad_frags.keys())} encountered in {segments}")
-
-        bond_list = [b[:2] for b in self.bonds]
-        base_graph = coordops.bond_graph_zmatrix(
-            bond_list,
-            segments,
-            validate_additions=validate,
+        return self.topology.get_backbone_zmatrix(
+            root=root,
+            segments=segments,
+            return_remainder=return_remainder,
+            return_segments=return_segments,
             required_coordinates=required_coordinates,
             isolated_coordinates=isolated_coordinates,
             root_coordinates=root_coordinates,
-            enforce_requirements=False
+            initial_backbone=initial_backbone,
+            validate=validate
         )
-        zmat, new_bonds = coordops.add_missing_zmatrix_bonds(
-            base_graph,
-            bond_list,
-            validate_additions=validate
-        )
-        if (
-                required_coordinates is not None
-                or isolated_coordinates is not None
-                or root_coordinates is not None
-        ):
-            zmat = coordops.enforce_required_zmatrix_coordinates(zmat,
-                                                                 required_coordinates,
-                                                                 isolated_coordinates=isolated_coordinates,
-                                                                 root_coordinates=root_coordinates,
-                                                                 validate=validate)
-
-        if return_segments or return_remainder:
-            res = (zmat,)
-            if return_segments:
-                res = res + (segments,)
-            if return_remainder:
-                res = res + (new_bonds,)
-
-            return res
-        else:
-            return zmat
 
     def get_canonical_zmatrix(self, ordering=None, validate=True):
         """
         **LLM Docstring**
 
-        Build a canonical Z-matrix ordering for the molecule from a canonical fragmentation of the bonding graph.
+        Build a canonical Z-matrix ordering for the molecule from a canonical fragmentation of the bonding graph, via `self.topology.get_canonical_zmatrix`.
 
         :param ordering: the atom ordering to use as the basis for canonicalization; defaults to the natural `0..N` ordering
         :type ordering: np.ndarray | None
@@ -2951,48 +2980,26 @@ class Molecule(AbstractMolecule):
         :return: the canonical Z-matrix
         :rtype: np.ndarray
         """
-        if ordering is None: ordering = np.arange(len(self.atoms))
-        frags = self.edge_graph.get_canonical_fragments(ordering)
-        return coordops.canonical_fragment_zmatrix(frags, validate_additions=validate)
+        return self.topology.get_canonical_zmatrix(ordering=ordering, validate=validate)
 
     @classmethod
     def _filter_coordinates_by_fragments(cls, inds, frags, required_coordinates):
         """
         **LLM Docstring**
 
-        Split a list of required internal-coordinate specs into those fully contained within a single fragment (reindexed to that fragment's local atom numbering) versus those that span multiple fragments and must be merged in afterward.
+        Split a list of required internal-coordinate specs into per-fragment and cross-fragment groups, via `MolecularTopology._filter_coordinates_by_fragments`.
 
         :param inds: the atom-index lists defining each fragment
         :type inds: list[Iterable[int]]
-        :param frags: the corresponding submolecules for each fragment (unused directly in the body but kept for interface/length consistency)
+        :param frags: the corresponding submolecules for each fragment
         :type frags: list[Molecule]
         :param required_coordinates: the coordinate specs to classify, each a tuple of atom indices in the full-molecule numbering
         :type required_coordinates: Iterable[tuple] | None
-        :return: `(merge_coordinates, fragment_requireds)` -- the coordinates that couldn't be assigned to a single fragment, and a per-fragment list of the (locally reindexed) coordinates assigned to each fragment
+        :return: `(merge_coordinates, fragment_requireds)`
         :rtype: tuple[list, list]
         """
-        merge_coordinates = []
-        if required_coordinates is not None:
-            fragment_requireds = [[] for _ in range(len(frags))]
-            for c in required_coordinates:
-                for i, f in enumerate(inds):
-                    ff = list(f)
-                    sub = []
-                    for j in c:
-                        try:
-                            x = ff.index(j)
-                        except ValueError:
-                            break
-                        else:
-                            sub.append(x)
-                    if len(sub) == len(c):
-                        fragment_requireds[i].append(tuple(sub))
-                        break
-                else:
-                    merge_coordinates.append(c)
-        else:
-            fragment_requireds = [None] * len(inds)
-        return merge_coordinates, fragment_requireds
+        return MolecularTopology._filter_coordinates_by_fragments(inds, frags, required_coordinates)
+
     def get_bond_zmatrix(self,
                          fragments=None,
                          segments=None,
@@ -3011,7 +3018,7 @@ class Molecule(AbstractMolecule):
         """
         **LLM Docstring**
 
-        Build a full Z-matrix for the molecule from its bonding graph, handling the single-fragment case via `get_backbone_zmatrix` directly and the multi-fragment case by building a per-fragment Z-matrix for each fragment (optionally reordering/rooting/filtering required coordinates per fragment) and then splicing them together into one connected Z-matrix (via `coordops.complex_zmatrix`) unless `connect_fragments` is `False`; can also be restricted to build the Z-matrix for just one fragment (`for_fragment`), in which case it recurses on the corresponding submolecule and reindexes the result back to the full atom numbering.
+        Build a full Z-matrix for the molecule from its bonding graph, via `self.topology.get_bond_zmatrix`.
 
         :param fragments: explicit fragment atom-index groups to use instead of `self.fragment_indices`
         :type fragments: list[Iterable[int]] | None
@@ -3031,7 +3038,7 @@ class Molecule(AbstractMolecule):
         :type check_attachment_points: bool
         :param validate: whether to validate each Z-matrix addition
         :type validate: bool
-        :param for_fragment: restrict the Z-matrix construction to just this fragment (an index into `self.fragment_indices`, or an explicit list of atom indices), returning the result reindexed to the full molecule
+        :param for_fragment: restrict the Z-matrix construction to just this fragment
         :type for_fragment: int | Iterable[int] | None
         :param fragment_ordering: explicit ordering to apply to the fragments before connecting them
         :type fragment_ordering: Iterable[int] | None
@@ -3042,182 +3049,58 @@ class Molecule(AbstractMolecule):
         :return: the (connected) Z-matrix, or a list of per-fragment Z-matrices if `connect_fragments` is `False`
         :rtype: np.ndarray | list[np.ndarray]
         """
-        if for_fragment is not None:
-            if nput.is_int(for_fragment):
-                for_fragment = self.fragment_indices[for_fragment]
-            if attachment_points is not None:
-                frag_map = dict(zip(for_fragment, np.arange(len(for_fragment))))
-                if hasattr(attachment_points, 'items'):
-                    attachment_points = {
-                        frag_map[i]: (frag_map[k] if nput.is_numeric(k) else tuple(frag_map[kk] for kk in k))
-                        for i,k in attachment_points.items()
-                    }
-                else:
-                    attachment_points = [
-                        frag_map[i] for i in attachment_points
-                    ]
+        return self.topology.get_bond_zmatrix(
+            coords=self.coords,
+            fragments=fragments,
+            segments=segments,
+            root=root,
+            required_coordinates=required_coordinates,
+            isolated_coordinates=isolated_coordinates,
+            root_coordinates=root_coordinates,
+            attachment_points=attachment_points,
+            check_attachment_points=check_attachment_points,
+            validate=validate,
+            for_fragment=for_fragment,
+            fragment_ordering=fragment_ordering,
+            connect_fragments=connect_fragments,
+            initial_backbone=initial_backbone
+        )
 
-            if initial_backbone is not None:
-                ff = list(for_fragment)
-                initial_backbone = [ff.index(i) for i in initial_backbone]
-            base_ints = self.take_submolecule(for_fragment).get_bond_zmatrix(
-                fragments=fragments, segments=segments, root=root,
-                attachment_points=attachment_points,
-                check_attachment_points=check_attachment_points,
-                fragment_ordering=fragment_ordering,
-                required_coordinates=required_coordinates,
-                isolated_coordinates=isolated_coordinates,
-                root_coordinates=root_coordinates,
-                initial_backbone=initial_backbone,
-                validate=validate
-            )
-            zm = coordops.reindex_zmatrix(base_ints, for_fragment)
-            return np.asarray(zm)
-        else:
-            no_frag = fragments is None
-            if no_frag:
-                fragments = self.fragment_indices
+    @property
+    def _fragment_indices(self):
+        """
+        Internal accessor mirroring the cached fragment indices stored on `self.topology`, kept
+        so existing internal `self._fragment_indices` usages continue to work.
 
-            if len(fragments) == 1:
-                if segments is not None and len(segments) == 1:
-                    segments = segments[0]
-                zm = self.get_backbone_zmatrix(
-                    root=root, segments=segments,
-                    required_coordinates=required_coordinates,
-                    isolated_coordinates=isolated_coordinates,
-                    root_coordinates=root_coordinates,
-                    validate=validate,
-                    initial_backbone=initial_backbone
-                )
-                zm = np.asarray(zm)
-                if connect_fragments:
-                    return zm
-                else:
-                    return [zm]
-            else:
-                inds = fragments
-                if no_frag:
-                    if fragment_ordering is None:
-                        fragment_ordering = np.argsort([-len(x) for x in inds])
-                    inds = [inds[i] for i in fragment_ordering]
-                if root is not None:
-                    if nput.is_numeric(root):
-                        inds = list(sorted(inds, key=lambda x:root not in x))
-                    else:
-                        inds = list(
-                            sorted(inds,
-                                   key=lambda x:sum(i if r is not None and r in x else len(inds) for i,r in enumerate(root))
-                                   )
-                        )
-
-                sort_attch = isinstance(attachment_points, dict)
-                if sort_attch:
-                    check_attachment_points = False
-                    inds, attachment_points = coordops.sort_complex_attachment_points(
-                        inds,
-                        attachment_points
-                    )
-
-                frags = [self.take_submolecule(ix) for ix in inds]
-                if root is None and sort_attch:
-                    root = [ix[0] for ix in inds]
-                if root is None:
-                    root = [root]
-
-
-                if initial_backbone is not None:
-                    initial_backbones = []
-                    for frag in inds:
-                        ff = list(frag)
-                        sub = []
-                        for i in initial_backbone:
-                            try:
-                                x = ff.index(i)
-                            except ValueError:
-                                continue
-                            else:
-                                sub.append(x)
-                        if len(sub) > 0:
-                            initial_backbones.append(sub)
-                        else:
-                            initial_backbones.append(None)
-                else:
-                    initial_backbones = [None] * len(inds)
-
-                root = list(root) + [None] * (len(inds) - len(root))
-                merge_coordinates, fragment_requireds = self._filter_coordinates_by_fragments(inds, frags, required_coordinates)
-                merge_isolated, fragment_isolated = self._filter_coordinates_by_fragments(inds, frags, isolated_coordinates)
-                merge_root, fragment_root = self._filter_coordinates_by_fragments(inds, frags, root_coordinates)
-                if len(merge_coordinates) == 0:
-                    merge_coordinates = None
-                if len(merge_isolated) == 0:
-                    merge_isolated = None
-                if len(merge_root) == 0:
-                    merge_root = None
-                zmats = [
-                    f.get_backbone_zmatrix(root=r, initial_backbone=bb,
-                                           required_coordinates=rq,
-                                           isolated_coordinates=iso,
-                                           root_coordinates=rot
-                                           )
-                    for r,f,bb,rq,iso,rot in zip(root, frags, initial_backbones,
-                                                 fragment_requireds, fragment_isolated, fragment_root)
-                ]
-
-                if connect_fragments:
-
-                    # inds = [inds[i] for i in ordering]
-                    # zmats = [zmats[i] for i in ordering]
-
-                    dm = nput.distance_matrix(self.coords)
-                    h_pos = [i for i,a in enumerate(self.atoms) if a in {'H', 'D'}]
-                    dm[:, h_pos] = 1e8
-                    dm[h_pos, :] = 1e8
-
-                    zm = coordops.complex_zmatrix(
-                        [b[:2] for b in self.bonds],
-                        inds,
-                        zmats,
-                        distance_matrix=dm,
-                        attachment_points=attachment_points,
-                        check_attachment_points=check_attachment_points,
-                        required_coordinates=required_coordinates,
-                        isolated_coordinates=isolated_coordinates,
-                        root_coordinates=root_coordinates,
-                        validate_additions=validate
-                    )
-                    return np.asarray(zm)
-                else:
-                    shift_mats = []
-                    offsets = 0
-                    for zmat in zmats:
-                        shift_mats.append([
-                            [(z + offsets) if z >= 0 else z for z in zm]
-                            for zm in zmat
-                        ])
-                        offsets += len(zmat)
-                    return [np.asarray(zm) for zm in shift_mats]
+        :return: the cached fragment indices, or `None` if not yet computed
+        :rtype: list[np.ndarray] | None
+        """
+        return self.topology._fragment_indices
+    @_fragment_indices.setter
+    def _fragment_indices(self, f):
+        self.topology._fragment_indices = f
 
     @property
     def fragment_indices(self):
         """
         **LLM Docstring**
 
-        The (cached) grouping of atom indices into connected molecular fragments, computed lazily via `MolecularProperties.fragment_indices`.
+        The (cached) grouping of atom indices into connected molecular fragments, via `self.topology.fragment_indices`.
 
         :return: the list of per-fragment atom-index groups
         :rtype: list[np.ndarray]
         """
-        if self._fragment_indices is None:
-            self._fragment_indices = MolecularProperties.fragment_indices(self)
-        return self._fragment_indices
+        return self.topology.fragment_indices
 
     @property
     def fragments(self):
         """
         **LLM Docstring**
 
-        The molecule split into its connected fragments (as separate `Molecule` objects), via `MolecularProperties.fragments`.
+        The molecule split into its connected fragments (as separate `Molecule` objects), via
+        `MolecularProperties.fragments` (which uses `take_submolecule`, carrying the geometry
+        along). The topology only knows how to split itself into sub-topologies, so the
+        Molecule-level fragmentation lives here.
 
         :return: the list of fragment molecules
         :rtype: list[Molecule]

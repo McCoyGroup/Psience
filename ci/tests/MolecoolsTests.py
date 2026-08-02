@@ -2114,66 +2114,64 @@ class MolecoolsTests(TestCase):
         ethanol = Molecule.from_string('CCO', energy_evaluator='uma')
         print(ethanol.calculate_energy())
 
-    @validationTest
+    @debugTest
     def test_BackboneChains(self):
         from Psience.Molecools import Molecule
         import McUtils.Coordinerds as coordops
-        from Psience.Reactions import Reaction
-
-        # woof = Reaction.from_smiles("C=C.C=CC=C>>C1CCC=CC1",
+        # from Psience.Reactions import Reaction
+        #
+        # # woof = Reaction.from_smiles("C=C.C=CC=C>>C1CCC=CC1",
+        # #                             fragment_expansion_method='centroid',
+        # #                             optimize=True,
+        # #                             min_distance=.1,
+        # #                             add_radius=False,
+        # #                             expansion_factor=.01,
+        # #                             )
+        #
+        # woof = Reaction.from_smiles("C=C.C=CC=C(c1c2ccccc2ccc1)>>C1CCC=CC1(c1c2ccccc2ccc1)",
         #                             fragment_expansion_method='centroid',
         #                             optimize=True,
         #                             min_distance=.1,
         #                             add_radius=False,
         #                             expansion_factor=.01,
         #                             )
+        #
+        # reactant_complex = woof.reactant_complex
+        # full_zmat = reactant_complex.get_bond_zmatrix()
+        # int_comp = reactant_complex.modify(internals=full_zmat)
+        #
+        # # int_comp.animate_coordinate(30-6).show()
+        #
+        # return
 
-        woof = Reaction.from_smiles("C=C.C=CC=C(c1c2ccccc2ccc1)>>C1CCC=CC1(c1c2ccccc2ccc1)",
-                                    fragment_expansion_method='centroid',
-                                    optimize=True,
-                                    min_distance=.1,
-                                    add_radius=False,
-                                    expansion_factor=.01,
-                                    )
-
-        reactant_complex = woof.reactant_complex
-        full_zmat = reactant_complex.get_bond_zmatrix()
-        int_comp = reactant_complex.modify(internals=full_zmat)
-
-        # int_comp.animate_coordinate(30-6).show()
-
-        return
-
-        woof = Molecule.construct('CCCC')
-        zm = coordops.chain_zmatrix(4)
-
-        print(woof.atoms)
-        print(
-            coordops.add_missing_zmatrix_bonds(
-                zm,
-                [b[:2] for b in woof.bonds]
-            )
-        )
-
-
-
-
-        return
+        # woof = Molecule.construct('CCCC')
+        # zm = coordops.chain_zmatrix(4)
+        #
+        # print(woof.atoms)
+        # print(
+        #     coordops.add_missing_zmatrix_bonds(
+        #         zm,
+        #         [b[:2] for b in woof.bonds]
+        #     )
+        # )
+        #
+        #
+        #
+        #
+        # return
 
 
         napthalene = Molecule.construct('CCCCC(c1c2ccccc2ccc1)CCCC')
-        # backbone = napthalene.find_heavy_atom_backbone()
-
-
+        print(napthalene.get_bond_zmatrix())
 
         chains = napthalene.edge_graph.segment_by_chains()
-        zm = coordops.bond_graph_zmatrix(
-            [b[:2] for b in napthalene.bonds],
-            chains
-        )
-
-        print(zm)
-        return
+        # zm = coordops.bond_graph_zmatrix(
+        #     [b[:2] for b in napthalene.bonds],
+        #     chains
+        # )
+        #
+        # print(zm)
+        # return
 
         backbone, (side_chain,) = napthalene.edge_graph.segment_by_chains()
         atom_styles = {
@@ -2195,6 +2193,7 @@ class MolecoolsTests(TestCase):
             bond_style[(side_chain[i], side_chain[i + 1])] = {'color': 'white', 'glow': 'purple'}
             bond_style[(side_chain[i + 1], side_chain[i])] = {'color': 'white', 'glow': 'purple'}
         napthalene.plot(
+            backend='x3d',
             highlight_atoms=backbone[1:-1],
             atom_style=atom_styles,
             bond_style=bond_style,
@@ -6711,7 +6710,7 @@ class MolecoolsTests(TestCase):
         specs = wfns.get_spectrum()
         specs[0].broaden(breadth=8).plot().show()
 
-    @debugTest
+    @validationTest
     def test_QChem(self):
         mol = Molecule.from_file(TestManager.test_data('qchem_samp.out'), 'qchem', coordinate_filter=lambda c:c[::5])
         mol[0].plot(
