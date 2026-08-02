@@ -6658,7 +6658,7 @@ class MolecoolsTests(TestCase):
 
         m2.get_surface().plot(figure=fig, transparency=.5).show()
 
-    @debugTest
+    @validationTest
     def test_LocalizedFragmentVPT(self):
         import os
         os.environ["TORCH_COMPILE_DISABLE"] = "1"
@@ -6710,3 +6710,20 @@ class MolecoolsTests(TestCase):
         wfns = runner.print_tables()
         specs = wfns.get_spectrum()
         specs[0].broaden(breadth=8).plot().show()
+
+    @debugTest
+    def test_QChem(self):
+        mol = Molecule.from_file(TestManager.test_data('qchem_samp.out'), 'qchem', coordinate_filter=lambda c:c[::5])
+        mol[0].plot(
+            [
+                mol[0].coords,
+                mol[-1].coords
+            ],
+            comparison_styles={'atom_style':{'color':'red'}}
+        ).show()
+
+        mol[0].plot([m.coords for m in mol]).show()
+
+
+
+

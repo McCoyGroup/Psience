@@ -6019,6 +6019,39 @@ class Molecule(AbstractMolecule):
             **opts
         )
         return mol
+
+    @classmethod
+    def _from_qchem_file(cls, file, coordinate_filter=True, **opts):
+        from McUtils.ExternalPrograms import QChemLogReader
+        with QChemLogReader(file) as gr:
+            parse = gr.parse(['CartesianCoordinates'])['CartesianCoordinates']
+
+        if coordinate_filter is True:
+            coordinate_filter = lambda c:c[-1]
+
+        coords = parse.coords
+        if coordinate_filter is not None:
+            coords = coordinate_filter(coords)
+        coords = coords * UnitsData.convert("Angstroms", "BohrRadius")
+        if coords.ndim == 2:
+            mol = cls(
+                parse.atoms,
+                coords,
+                # masses=parse.masses[-1],
+                **opts
+            )
+        else:
+            mol = [
+                cls(
+                    parse.atoms,
+                    c,
+                    # masses=parse.masses[-1],
+                    **opts
+                )
+                for c in coords
+            ]
+        return mol
+
     @classmethod
     def from_rdmol(cls, rdmol, **opts):
         """
@@ -6063,6 +6096,7 @@ class Molecule(AbstractMolecule):
                      allow_cxsmiles=True,
                      strict_cxsmiles=True,
                      remove_hydrogens=False,
+                     reorder_from_atom_map=True,
                      replacements=None,
                      parser_options=None,
                      confgen_opts=None,
@@ -6125,6 +6159,7 @@ class Molecule(AbstractMolecule):
                                        strict_cxsmiles=strict_cxsmiles,
                                        remove_hydrogens=remove_hydrogens,
                                        replacements=replacements,
+                                       reorder_from_atom_map=reorder_from_atom_map,
                                        confgen_opts=confgen_opts,
                                        coords=coords,
                                        **parser_options
@@ -6703,7 +6738,7 @@ class Molecule(AbstractMolecule):
         :param format_options: per-format parsing options, keyed by format, merged under `opts`
         :type format_options: dict | None
         :param opts: extra options forwarded to the format-specific parser
-        :type opts: dict
+        :type opts:
         :return: the constructed molecule
         :rtype: Molecule
         """
@@ -6760,6 +6795,7 @@ class Molecule(AbstractMolecule):
             "fchk": cls._from_fchk_file,
             "orca": cls._from_orca_file,
             "molpro": cls._from_molpro_file,
+            "qchem": cls._from_qchem_file,
             "hess": cls._from_hess_file,
             "smi": cls._from_smiles,
             "mol": cls._from_molblock,
@@ -7037,7 +7073,6 @@ class Molecule(AbstractMolecule):
         :param fmt: the export format key
         :type fmt: str
         :param opts: extra options forwarded to the format-specific exporter
-        :type opts: dict
         :return: the exported string
         :rtype: str
         """
