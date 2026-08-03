@@ -23,7 +23,7 @@ import McUtils.Zachary as zach
 from McUtils.Zachary import Mesh
 from McUtils.Graphs import EdgeGraph
 import McUtils.Plots as plt
-from McUtils.ExternalPrograms import RDMolecule, ExternalProgramJob
+from McUtils.ExternalPrograms import RDMolecule, ExternalProgramJob, build_templated_smiles
 from McUtils.Scaffolding import Logger
 import McUtils.Symmetry as symm
 
@@ -2620,6 +2620,227 @@ class Molecule(AbstractMolecule):
             bonds=total_bonds,
             masses=np.concatenate([[self.masses[i] for i in rem], masses])
         )
+
+    @classmethod
+    def from_fragments(
+            cls,
+            scaffold,
+            *replacements,
+            **smiles_options
+    ):
+        def canonicalize_fragment(scaffold: str | Molecule | dict):
+            if isinstance(scaffold, str):
+                scaffold = {'smiles': scaffold}
+            elif hasattr(scaffold, 'to_string'):
+                scaffold = {'molecule': scaffold}
+            scaffold = scaffold.copy()
+            mol: Molecule | None = scaffold.pop('molecule', None)
+            if mol is not None:
+                ordering = None
+                if 'smiles' not in scaffold:
+                    scaffold['smiles'], ordering = mol.to_string('smi', remove_hydrogens=True,
+                                                                 return_reordering=True)
+                    rem = np.setdiff1d(np.arange(len(mol.atoms)), ordering)
+                    ordering = np.concatenate([ordering, rem], axis=0)
+                if 'atoms' not in scaffold:
+                    scaffold['atoms'] = mol.atoms
+                    if ordering is not None:
+                        a = scaffold['atoms']
+                        scaffold['atoms'] = [a[i] for i in ordering]
+                if 'coords' not in scaffold:
+                    scaffold['coords'] = mol.coords
+                    if ordering is not None:
+                        scaffold['coords'] =scaffold['coords'][ordering,]
+                if 'bonds' not in scaffold:
+                    scaffold['bonds'] = mol.bonds
+                    if ordering is not None:
+                        map = np.argsort(ordering)
+                        scaffold['bonds'] = [
+                            (map[b[0]], map[b[1]]) + tuple(b[2:])
+                            for b in scaffold['bonds']
+                        ]
+            return scaffold
+
+        frags = [canonicalize_fragment(scaffold)] + [canonicalize_fragment(f) for f in replacements]
+
+        # `build_templated_smiles`/`join_smiles_fragments` only care about the
+        # SMILES-level bookkeeping, so strip the 3D-only keys before forwarding
+        geom_keys = ('coords', 'bonds', 'atoms')
+        smiles_frags = [
+            {k: v for k, v in f.items() if k not in geom_keys}
+            for f in frags
+        ]
+        for s in smiles_frags:
+            s['functional_group'] = s.pop('smiles')
+
+        smiles_options = dict(smiles_options)
+        smiles_options['return_fragment_indices'] = True
+        smiles_options['return_new_bonds'] = True
+
+        smiles, atom_maps, bond_maps = build_templated_smiles(
+            smiles_frags[0]['functional_group'],
+            *smiles_frags[1:],
+            **smiles_options
+        )
+        print(smiles)
+        print(bond_maps)
+
+        def heavy_atom_positions(atoms):
+            # SMILES fragments are built with `remove_hydrogens=True`, so
+            # `atom_maps`/`bond_maps` only ever reference heavy atoms; this
+            # recovers the correspondence with the (H-inclusive) 3D atom list
+            return [i for i, a in enumerate(atoms) if a not in ('H', 'D', 'T')]
+
+        def find_bonded_hydrogen(atoms, coords, bonds, heavy_local):
+            if bonds is None:
+                bonds = Molecule(atoms, coords).bonds
+            for b in bonds:
+                a, c = b[0], b[1]
+                if a == heavy_local and atoms[c] in ('H', 'D', 'T'):
+                    return c
+                if c == heavy_local and atoms[a] in ('H', 'D', 'T'):
+                    return a
+            return None
+
+        base = frags[0]
+        mol = cls(base['atoms'], base['coords'], bonds=base.get('bonds'))
+
+        heavy0 = heavy_atom_positions(base['atoms'])
+        # map: final (fully-joined) SMILES heavy-atom index -> current position in `mol`
+        current_index = {
+            atom_maps[0][i]: heavy0[i]
+            for i in range(len(atom_maps[0]))
+        }
+
+        for frag, am, bonds_i in zip(frags[1:], atom_maps[1:], bond_maps):
+            if not bonds_i:
+                continue
+
+            heavy_frag = heavy_atom_positions(frag['atoms'])
+            heavy_to_smiles_local = {loc: k for k, loc in enumerate(heavy_frag)}
+            sub_index = {final: i for i, final in enumerate(am)}
+
+            # only the first bond drives the 3D placement; any further bonds
+            # from this join (e.g. ring closures) are just connectivity
+            base_final, frag_final, *rest = bonds_i[0]
+            bond_order = rest[0] if rest else 1
+
+            base_heavy = current_index[base_final]
+            frag_local = heavy_frag[sub_index[frag_final]]
+
+            # the atom actually being replaced is the explicit hydrogen sitting
+            # at this position on the scaffold (if any) -- NOT the heavy atom,
+            # since `attach_functional_group` always deletes `target_fragment`
+            base_h = find_bonded_hydrogen(mol.atoms, mol.coords, mol.bonds, base_heavy)
+            target = base_h if base_h is not None else base_heavy
+
+            # the hydrogen on the incoming fragment marks the direction its
+            # bond used to point in the fully-substituted structure; it's used
+            # only to derive the correct embedding via `group_site`, then dropped
+            frag_h = find_bonded_hydrogen(frag['atoms'], frag['coords'], frag.get('bonds'), frag_local)
+
+            # `group_site` mode assumes the true attachment atom sits at local index 0
+            order = [frag_local] + [j for j in range(len(frag['atoms'])) if j != frag_local]
+            remap = {old: new for new, old in enumerate(order)}
+            frag_atoms = [frag['atoms'][j] for j in order]
+            frag_coords = frag['coords'][order,]
+            frag_bonds = frag.get('bonds')
+            if frag_bonds is not None:
+                frag_bonds = [
+                    [remap[b[0]], remap[b[1]]] + list(b[2:])
+                    for b in frag_bonds
+                ]
+            group_site = remap[frag_h] if frag_h is not None else None
+
+            n_before = len(mol.atoms)
+            mol = mol.attach_functional_group(
+                [target],
+                frag_atoms,
+                frag_coords,
+                bonds=frag_bonds if frag_bonds is not None else 'recompute',
+                bond_order=bond_order,
+                group_site=group_site
+            )
+
+            # `target` was removed from `mol`; shift every stored position down
+            current_index = {
+                final: (idx if idx < target else idx - 1)
+                for final, idx in current_index.items()
+                if idx != target
+            }
+            base_offset = n_before - 1  # actual atom count after removing `target`
+
+            # the fragment's atoms were appended in `order`, minus whichever
+            # position `group_site` removed (np.setdiff1d preserves ascending
+            # order, which here is the same as `order` with that slot skipped)
+            appended = [j for j in order if frag_h is None or j != frag_h]
+            for pos, local_idx in enumerate(appended):
+                if local_idx in heavy_to_smiles_local:
+                    final_idx = am[heavy_to_smiles_local[local_idx]]
+                    current_index[final_idx] = base_offset + pos
+                # explicit hydrogens carried on the fragment have no
+                # counterpart in the (hydrogen-free) SMILES numbering, so
+                # they simply aren't tracked here
+
+        return mol
+
+        for replacement in replacements:
+            fragment = replacement["molecule"]
+            new_bonds = np.asarray(replacement["new_bonds"], dtype=int).reshape(-1, 2)
+            offset = len(coords)
+
+            coords = attach_functional_group(
+                coords,
+                bonds,
+                new_bonds,
+                np.asarray(fragment.coords),
+                bonds=np.asarray(fragment.bonds, dtype=int),
+            )
+
+            fragment_bonds = np.asarray(fragment.bonds, dtype=int).reshape(-1, 2)
+            bonds = np.concatenate(
+                [
+                    bonds,
+                    fragment_bonds + offset,
+                    np.column_stack([
+                        new_bonds[:, 0],
+                        new_bonds[:, 1] + offset,
+                    ]),
+                ],
+                axis=0,
+            )
+
+        # atom_maps[i][j] is the composite-SMILES index corresponding to atom j
+        # of input fragment i.
+        n_atoms = sum(len(mol.coords) for mol in molecules)
+        input_to_smiles = np.empty(n_atoms, dtype=int)
+
+        offset = 0
+        for mol, mapping in zip(molecules, atom_maps):
+            mapping = np.asarray(mapping, dtype=int)
+
+            if len(mapping) != len(mol.coords):
+                raise ValueError(
+                    "The atom map returned by build_templated_smiles does not "
+                    "match the corresponding Molecule atom count"
+                )
+
+            input_to_smiles[offset:offset + len(mapping)] = mapping
+            offset += len(mapping)
+
+        # Coordinates are currently in concatenated input order. Invert the map
+        # to put rows in composite-SMILES order.
+        smiles_to_input = np.argsort(input_to_smiles)
+        coords = coords[smiles_to_input]
+
+        # Convert bond indices into composite-SMILES indexing.
+        bonds = input_to_smiles[bonds]
+
+        joined = type(scaffold_molecule)(
+            coords=coords,
+            bonds=bonds,
+        )
+        return smiles, joined
 
     def find_heavy_atom_backbone(self, root=None):
         """
