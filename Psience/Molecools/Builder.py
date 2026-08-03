@@ -25,8 +25,6 @@ import McUtils.Numputils as nput
 import McUtils.Devutils as dev
 from McUtils.ExternalPrograms import build_templated_smiles, parse_smiles_and_atom_map
 
-from .Molecule import Molecule
-
 __all__ = [
     "MoleculeBuilder"
 ]
@@ -43,6 +41,18 @@ class MoleculeBuilder:
     class used to build new objects is passed as `molecule_type` (defaulting to the standard
     `Molecule`).
     """
+
+    @classmethod
+    def _default_molecule_type(cls):
+        """
+        Resolve the default `Molecule` class to build with, imported lazily to avoid a circular
+        import at module load.
+
+        :return: the standard `Molecule` class
+        :rtype: type
+        """
+        from .Molecule import Molecule
+        return Molecule
 
     #region Fragment frame
     @classmethod
@@ -261,6 +271,443 @@ class MoleculeBuilder:
     #endregion
 
     #region Functional-group attachment
+    @staticmethod
+    def _is_multisite_spec(target_fragment, group_site):
+        """
+        Decide whether the call describes multiple bond sites. Multi-site mode is selected when
+        `group_site` is given as a (non-string) sequence of site atoms; a scalar `group_site`
+        (or `None`) keeps the legacy single-site behavior.
+
+        :param target_fragment: the target-fragment specification passed to `attach_functional_group`
+        :type target_fragment: Any
+        :param group_site: the `group_site` specification passed to `attach_functional_group`
+        :type group_site: Any
+        :return: whether to use the multi-site path
+        :rtype: bool
+        """
+        if group_site is None:
+            return False
+        if nput.is_int(group_site):
+            return False
+        # a bare list/array/tuple of ints => one attachment atom per bond site
+        try:
+            n = len(group_site)
+        except TypeError:
+            return False
+        return n > 0
+
+    @classmethod
+    def _group_bonds(cls, atoms, coords, bonds, molecule_type):
+        """
+        Resolve the group's own bond list, guessing it from `atoms`/`coords` (via `molecule_type`)
+        when it is `None` or `'recompute'`.
+
+        :param atoms: the group's element symbols
+        :type atoms: Iterable[str]
+        :param coords: the group's coordinates
+        :type coords: np.ndarray
+        :param bonds: the group's bonds; `'recompute'`/`None` to guess, or an explicit list
+        :type bonds: str | list | None
+        :param molecule_type: the molecule class used to guess bonds
+        :type molecule_type: type
+        :return: the resolved bond list
+        :rtype: list
+        """
+        if bonds is None or dev.str_is(bonds, 'recompute'):
+            return list(molecule_type(list(atoms), np.asanyarray(coords, dtype=float)).bonds)
+        return list(bonds)
+
+    @classmethod
+    def _attachment_atom_for_placeholder(cls, group_bonds, placeholder):
+        """
+        Find the heavy attachment atom for a placeholder `group_site`: the atom the placeholder
+        is bonded to (its unique neighbor in the group). This is the atom that will bond to the
+        scaffold once the placeholder is removed.
+
+        :param group_bonds: the group's bond list
+        :type group_bonds: Iterable
+        :param placeholder: the local index of the placeholder atom being replaced
+        :type placeholder: int
+        :return: the local index of the attachment atom
+        :rtype: int
+        :raises ValueError: if the placeholder has no bonded neighbor to attach through
+        """
+        for b in group_bonds:
+            if b[0] == placeholder:
+                return b[1]
+            if b[1] == placeholder:
+                return b[0]
+        raise ValueError(
+            f"group_site placeholder {placeholder} has no bonded neighbor to attach through"
+        )
+
+    @classmethod
+    def _normalize_site_specs(cls, mol, target_fragment, group_sites, ref, bond_order):
+        """
+        Normalize the per-site inputs for multi-site attachment into aligned lists of the same
+        length: one target fragment (as a list of scaffold atom indices), one reference-atom
+        list, one placeholder `group_site`, and one bond order per binding site.
+
+        :param mol: the scaffold molecule (used to auto-derive missing reference atoms)
+        :type mol: Molecule
+        :param target_fragment: the per-site target fragments; a list with one entry per site
+            (each an int or list of ints), or a single fragment shared/paired across sites
+        :type target_fragment: Iterable
+        :param group_sites: the per-site placeholder atom indices (each removed on attachment)
+        :type group_sites: Iterable[int]
+        :param ref: the per-site reference atoms (a list of int-or-list, one per site), a single
+            shared reference spec, or `None` to auto-derive each from the target neighborhood
+        :type ref: Iterable | None
+        :param bond_order: the per-site bond orders, a single shared order, or `None` (defaults
+            to 1 per site)
+        :type bond_order: Iterable[float] | float | None
+        :return: `(targets, refs, group_sites, bond_orders)` -- four equal-length lists
+        :rtype: tuple[list, list, list, list]
+        :raises ValueError: if any explicitly per-site list has a length that doesn't match the
+            number of group sites
+        """
+        group_sites = [int(g) for g in group_sites]
+        n_sites = len(group_sites)
+
+        # --- targets ---
+        def _is_site_list(spec):
+            if spec is None or nput.is_int(spec):
+                return False
+            spec = list(spec)
+            return len(spec) == n_sites
+
+        if target_fragment is None:
+            raise ValueError("multi-site attachment needs target fragment(s)")
+        if _is_site_list(target_fragment) and all(
+                nput.is_int(t) or (not isinstance(t, str) and hasattr(t, '__len__'))
+                for t in target_fragment
+        ):
+            targets = [[t] if nput.is_int(t) else list(t) for t in target_fragment]
+        else:
+            shared = [target_fragment] if nput.is_int(target_fragment) else list(target_fragment)
+            targets = [list(shared) for _ in range(n_sites)]
+        if len(targets) != n_sites:
+            raise ValueError(f"got {len(targets)} target fragments for {n_sites} group sites")
+
+        # --- refs ---
+        if ref is None:
+            refs = [None] * n_sites
+        elif not isinstance(ref, str) and hasattr(ref, '__len__') and len(ref) == n_sites and all(
+                r is None or nput.is_int(r) or (not isinstance(r, str) and hasattr(r, '__len__'))
+                for r in ref
+        ) and any((not nput.is_int(r) and r is not None) for r in ref):
+            refs = [None if r is None else ([r] if nput.is_int(r) else list(r)) for r in ref]
+        else:
+            shared_ref = [ref] if nput.is_int(ref) else list(ref)
+            refs = [list(shared_ref) for _ in range(n_sites)]
+        refs = [
+            (r if r is not None else list(mol.neighborhood(targets[i][0], size=2)))
+            for i, r in enumerate(refs)
+        ]
+
+        # --- bond orders ---
+        if bond_order is None:
+            bond_orders = [1] * n_sites
+        elif not isinstance(bond_order, str) and hasattr(bond_order, '__len__'):
+            bond_orders = list(bond_order)
+            if len(bond_orders) != n_sites:
+                raise ValueError(f"got {len(bond_orders)} bond orders for {n_sites} group sites")
+        else:
+            bond_orders = [bond_order] * n_sites
+
+        return targets, refs, group_sites, bond_orders
+
+    @classmethod
+    def _attach_multisite_group(cls,
+                                mol,
+                                target_fragment,
+                                atoms,
+                                new_coords,
+                                group_sites,
+                                bonds='recompute',
+                                ref=None,
+                                masses=None,
+                                distance='auto',
+                                angle=0,
+                                dihedral='auto',
+                                dihedral_search_steps=36,
+                                dihedral_distance_metric=None,
+                                embedding='auto',
+                                bond_order=None,
+                                use_absolue_posititions=False,
+                                molecule_type=None
+                                ):
+        """
+        Attach a group to `mol` at several binding sites at once, forming one bond per site to
+        close a ring or form a linker (e.g. a bidentate ligand). Each `group_sites` atom is a
+        placeholder (typically a hydrogen) that is removed; the heavy atom it was bonded to
+        becomes the attachment atom that bonds to the corresponding scaffold reference atom.
+
+        All `target_fragment` atoms are removed from the scaffold and all `group_sites`
+        placeholders are removed from the group. With `embedding='auto'` the group is oriented so
+        each attachment atom lines up with its scaffold bond direction, anchored on the reference
+        atoms of the first binding site.
+
+        :param mol: the scaffold molecule
+        :type mol: Molecule
+        :param target_fragment: the per-site target fragments (see `_normalize_site_specs`)
+        :type target_fragment: Iterable
+        :param atoms: the element symbols of the new group's atoms
+        :type atoms: Iterable[str]
+        :param new_coords: the (local) coordinates of the new group's atoms
+        :type new_coords: np.ndarray
+        :param group_sites: the per-site placeholder atom indices (removed on attachment)
+        :type group_sites: Iterable[int]
+        :param bonds: bonds within the new group; `'recompute'`, `None`, or an explicit list
+        :type bonds: str | list | None
+        :param ref: per-site reference atoms (see `_normalize_site_specs`)
+        :type ref: Iterable | None
+        :param masses: masses for the new group's atoms; looked up from `atoms` if not given
+        :type masses: np.ndarray | None
+        :param distance: bond distance for the first site's placement; `'auto'`, `None`, or a number
+        :type distance: str | float | None
+        :param angle: rotation angle (about the up-vector) applied before site alignment
+        :type angle: float
+        :param dihedral: dihedral handling passed through to the clash-avoiding search
+        :type dihedral: float | str
+        :param dihedral_search_steps: number of angles to scan when `dihedral='auto'`
+        :type dihedral_search_steps: int
+        :param dihedral_distance_metric: clash metric used when `dihedral='auto'`
+        :type dihedral_distance_metric: Callable | None
+        :param embedding: `'auto'` to derive orientation from the per-site geometry, or an
+            explicit orientation
+        :type embedding: str | tuple | np.ndarray | None
+        :param bond_order: per-site (or shared) bond orders
+        :type bond_order: Iterable[float] | float | None
+        :param use_absolue_posititions: whether to use `new_coords` as absolute positions
+        :type use_absolue_posititions: bool
+        :param molecule_type: the molecule class used to build intermediate molecules
+        :type molecule_type: type | None
+        :return: the molecule with the group attached at every site
+        :rtype: Molecule
+        :raises ValueError: if a placeholder has no bonded neighbor to attach through
+        """
+        if molecule_type is None:
+            molecule_type = cls._default_molecule_type()
+
+        targets, refs, group_sites, bond_orders = cls._normalize_site_specs(
+            mol, target_fragment, group_sites, ref, bond_order
+        )
+        n_sites = len(group_sites)
+
+        if masses is None:
+            masses = np.array([AtomData[a, "Mass"] for a in atoms])
+        else:
+            masses = np.asanyarray(masses)
+        new_coords = np.asanyarray(new_coords, dtype=float)
+
+        # resolve the group's bonds so we can find each placeholder's attachment atom
+        group_bonds = cls._group_bonds(atoms, new_coords, bonds, molecule_type)
+        attach_atoms = [
+            cls._attachment_atom_for_placeholder(group_bonds, g)
+            for g in group_sites
+        ]
+
+        # orient the group using the placeholder->attachment directions, anchored on site 0
+        if not use_absolue_posititions:
+            new_coords = cls._orient_multisite_group(
+                mol, new_coords, masses,
+                targets, refs, group_sites, attach_atoms,
+                distance=distance,
+                angle=angle,
+                embedding=embedding,
+                atoms=atoms,
+                dihedral=dihedral,
+                dihedral_search_steps=dihedral_search_steps,
+                dihedral_distance_metric=dihedral_distance_metric
+            )
+
+        # --- remove scaffold targets and group placeholders ---
+        removed_scaffold = np.unique(np.concatenate([np.asanyarray(t, dtype=int) for t in targets]))
+        rem = np.setdiff1d(np.arange(len(mol.atoms)), removed_scaffold)
+        group_keep = np.setdiff1d(np.arange(len(atoms)), np.array(group_sites, dtype=int))
+        group_remap = {old: new for new, old in enumerate(group_keep)}
+
+        n = len(rem)  # offset of the first kept group atom in the combined molecule
+        scaffold_remap = {i: k for k, i in enumerate(rem)}
+
+        # --- splice bonds ---
+        if dev.str_is(bonds, 'recompute'):
+            total_bonds = None
+        else:
+            # intra-group bonds among the kept atoms, reindexed
+            group_bond_list = [
+                [group_remap[b[0]] + n, group_remap[b[1]] + n, 1 if len(b) == 2 else b[2]]
+                for b in group_bonds
+                if b[0] in group_remap and b[1] in group_remap
+            ]
+            scaffold_bonds = [
+                [scaffold_remap[b[0]], scaffold_remap[b[1]], 1 if len(b) == 2 else b[2]]
+                for b in mol.bonds
+                if b[0] in scaffold_remap and b[1] in scaffold_remap
+            ]
+            site_bonds = [
+                [scaffold_remap[refs[i][0]], group_remap[attach_atoms[i]] + n, bond_orders[i]]
+                for i in range(n_sites)
+            ]
+            total_bonds = scaffold_bonds + site_bonds + group_bond_list
+
+        return mol.modify(
+            atoms=tuple(mol.atoms[i] for i in rem) + tuple(atoms[i] for i in group_keep),
+            coords=np.concatenate([mol.coords[rem], new_coords[group_keep,]]),
+            bonds=total_bonds,
+            masses=np.concatenate([[mol.masses[i] for i in rem], masses[group_keep,]])
+        )
+
+    @classmethod
+    def _orient_multisite_group(cls, mol, new_coords, masses,
+                                targets, refs, group_sites, attach_atoms,
+                                distance='auto',
+                                angle=0,
+                                embedding='auto',
+                                atoms=None,
+                                dihedral='auto',
+                                dihedral_search_steps=36,
+                                dihedral_distance_metric=None):
+        """
+        Position and orient a multi-site group so each attachment atom sits at its scaffold bond
+        point, with the frame anchored on the first binding site.
+
+        Each site's target bond point is built from `fragment_embedding` (the origin of that
+        site's reference atoms plus the bond offset; the first site uses `distance`). The group
+        is translated so its first attachment atom lands on the first target point, then, when
+        there are two or more sites, rotated so the vector between its first two attachment atoms
+        aligns with the vector between the corresponding scaffold target points (the first site's
+        up-vector fixes the residual roll). A single site falls back to the placeholder-directed
+        frame used by the single-site path. When only one site pins the orientation, a
+        clash-avoiding rotation about the primary bond axis is applied as usual.
+
+        :param mol: the scaffold molecule
+        :type mol: Molecule
+        :param new_coords: the group's local coordinates (all atoms, before placeholder removal)
+        :type new_coords: np.ndarray
+        :param masses: the group's masses
+        :type masses: np.ndarray
+        :param targets: per-site target fragments (lists of scaffold indices)
+        :type targets: list[list[int]]
+        :param refs: per-site reference-atom lists
+        :type refs: list[list[int]]
+        :param group_sites: per-site placeholder atom indices
+        :type group_sites: list[int]
+        :param attach_atoms: per-site attachment atom indices (heavy neighbor of each placeholder)
+        :type attach_atoms: list[int]
+        :param distance: bond distance for the first site
+        :type distance: str | float | None
+        :param angle: rotation about the up-vector applied before the dihedral search
+        :type angle: float
+        :param embedding: `'auto'` or an explicit orientation for the group
+        :type embedding: str | tuple | np.ndarray | None
+        :param atoms: element symbols of the group (for the default clash metric)
+        :type atoms: Iterable[str] | None
+        :param dihedral: dihedral handling; `'auto'` scans for least clash
+        :type dihedral: float | str
+        :param dihedral_search_steps: number of angles to scan when `dihedral='auto'`
+        :type dihedral_search_steps: int
+        :param dihedral_distance_metric: clash metric used when `dihedral='auto'`
+        :type dihedral_distance_metric: Callable | None
+        :return: the repositioned group coordinates (absolute, for all atoms)
+        :rtype: np.ndarray
+        """
+        n_sites = len(group_sites)
+
+        # first site sets the primary frame
+        origin0, offset0, up0 = cls.fragment_embedding(mol, targets[0], ref=refs[0])
+        if dev.str_is(distance, 'auto'):
+            r0 = refs[0][0]
+            if r0 > -1:
+                ref_type = mol.atoms[r0]
+                site_atom_type = atoms[attach_atoms[0]] if atoms is not None else 'C'
+                dist0 = BondData[(ref_type, site_atom_type, 1)] * UnitsData.convert("Angstroms", "BohrRadius")
+            else:
+                dist0 = None
+        elif distance is None:
+            dist0 = None
+        else:
+            dist0 = distance
+        if dist0 is not None:
+            offset0 = nput.vec_normalize(offset0) * dist0
+        primary_target = origin0 + offset0
+
+        target_points = [primary_target]
+        for i in range(1, n_sites):
+            oi, ofi, _ = cls.fragment_embedding(mol, targets[i], ref=refs[i])
+            target_points.append(oi + ofi)
+        target_points = np.array(target_points)
+
+        # translate so the first attachment atom sits at the local origin
+        shift = new_coords[attach_atoms[0]]
+        coords = new_coords - shift[np.newaxis]
+
+        if n_sites >= 2:
+            # align the vector between the first two attachment atoms with the vector between the
+            # first two scaffold target points; use the first site's up-vector to fix the roll
+            src_view = coords[attach_atoms[1]] - coords[attach_atoms[0]]
+            tgt_view = target_points[1] - target_points[0]
+            inv = nput.view_matrix(up_vector=up0, view_vector=src_view)
+            rot = nput.view_matrix(up_vector=up0, view_vector=tgt_view)
+            coords = coords @ (inv @ rot.T)
+        else:
+            # single placeholder: orient the attachment->placeholder direction along the scaffold
+            # offset, matching the single-site path's use of the placeholder as the reference
+            place_dir = coords[group_sites[0]] - coords[attach_atoms[0]]
+            if dev.str_is(embedding, 'auto'):
+                inv = nput.view_matrix(up_vector=up0, view_vector=place_dir)
+                rot = nput.view_matrix(up_vector=up0, view_vector=offset0)
+                coords = coords @ (inv @ rot.T)
+            elif embedding is not None:
+                if not dev.str_is(embedding, 'auto') and len(embedding) == 2:
+                    cent, emb = embedding
+                    cent = cent - shift
+                else:
+                    emb = embedding
+                    cent = nput.center_of_mass(coords, masses=masses)
+                u = coords[attach_atoms[0]] - cent
+                inv = nput.view_matrix(up_vector=emb[:, 2], view_vector=u)
+                rot = nput.view_matrix(up_vector=up0, view_vector=offset0)
+                coords = coords @ (inv @ rot.T)
+
+        if angle != 0:
+            coords = coords @ nput.rotation_matrix(up0, angle)
+
+        placement = primary_target - coords[attach_atoms[0]]
+
+        if n_sites < 2:
+            if dev.str_is(dihedral, 'auto'):
+                metric = dihedral_distance_metric
+                keep = np.setdiff1d(np.arange(len(new_coords)), np.array(group_sites, dtype=int))
+                removed_scaffold = np.unique(np.concatenate([np.asanyarray(t, dtype=int) for t in targets]))
+                rem = np.setdiff1d(np.arange(len(mol.atoms)), removed_scaffold)
+                if metric is None and atoms is not None:
+                    metric = functools.partial(
+                        cls._vdw_clash_metric,
+                        frag_atoms=[atoms[i] for i in keep],
+                        other_atoms=[mol.atoms[i] for i in rem]
+                    )
+                if metric is not None:
+                    other_coords = mol.coords[rem]
+                    axis = offset0
+                    best_score = -np.inf
+                    best = coords
+                    for cand in np.linspace(0, np.pi / 2, dihedral_search_steps, endpoint=False):
+                        cand_coords = coords @ nput.rotation_matrix(axis, cand)
+                        placed_all = cand_coords + (primary_target - cand_coords[attach_atoms[0]])[np.newaxis]
+                        score = metric(placed_all[keep,], other_coords)
+                        if score > best_score:
+                            best_score = score
+                            best = cand_coords
+                    coords = best
+                    placement = primary_target - coords[attach_atoms[0]]
+            elif dihedral != 0:
+                coords = coords @ nput.rotation_matrix(offset0, dihedral)
+                placement = primary_target - coords[attach_atoms[0]]
+
+        return coords + placement[np.newaxis]
+
     @classmethod
     def attach_functional_group(cls,
                                 mol,
@@ -289,10 +736,23 @@ class MoleculeBuilder:
         the new group as its attachment point, in which case the method recurses after
         re-deriving the embedding/bonds relative to that site.
 
+        **Multiple bond sites.** More than one bond can be formed at once by passing a list of
+        binding sites: `target_fragment` becomes a list (one target fragment per site), `ref`
+        and `bond_order` may be given as matching per-site lists, and `group_site` becomes a
+        list of the group atoms to replace at each corresponding site. As in the single-site
+        `group_site` path, each `group_site` atom is a *placeholder that is removed* -- typically
+        a hydrogen -- and the heavy atom it was bonded to becomes the real attachment atom that
+        bonds to the scaffold. This lets a bidentate (or polydentate) ligand be attached to an
+        existing scaffold at several points at once, closing a ring or forming a linker. The
+        group is oriented so its attachment atoms line up with the scaffold's per-site bond
+        directions, with the overall frame anchored on the reference atoms of the *first* binding
+        site by default (`embedding='auto'`); an explicit `embedding` overrides this.
+
         :param mol: the scaffold molecule the group is attached to
         :type mol: Molecule
-        :param target_fragment: the atom(s) of `mol` the new group attaches to/replaces
-        :type target_fragment: int | Iterable[int]
+        :param target_fragment: the atom(s) of `mol` the new group attaches to/replaces; a list
+            of target fragments (one per site) selects multi-site mode
+        :type target_fragment: int | Iterable[int] | Iterable[Iterable[int]]
         :param atoms: the element symbols of the atoms in the new group
         :type atoms: Iterable[str]
         :param new_coords: the (local) coordinates of the new group's atoms
@@ -301,8 +761,8 @@ class MoleculeBuilder:
             reuse `mol.bonds` remapped, or an explicit bond list
         :type bonds: str | list | None
         :param ref: reference atom(s) used to anchor the attachment frame; computed automatically
-            if not given
-        :type ref: Iterable[int] | None
+            if not given. In multi-site mode this may be a per-site list of reference-atom lists
+        :type ref: Iterable[int] | Iterable[Iterable[int]] | None
         :param masses: masses for the new group's atoms; looked up from `atoms` if not given
         :type masses: np.ndarray | None
         :param distance: the bond distance to place the new group at; `'auto'` to look it up from
@@ -323,18 +783,23 @@ class MoleculeBuilder:
             distance between the new group's atoms and the surviving scaffold atoms
         :type dihedral_distance_metric: Callable | None
         :param embedding: the reference orientation for the new group; `'auto'` to derive it from
-            moments of inertia, or an explicit `(origin, axes)`/axes specification
+            moments of inertia (single site) or from the per-site bond geometry anchored on the
+            first site (multi-site), or an explicit `(origin, axes)`/axes specification
         :type embedding: str | tuple | np.ndarray | None
         :param bond_order: the bond order connecting the new group to the target fragment;
-            defaults to `1` (or inferred when `group_site` is used)
-        :type bond_order: float | None
+            defaults to `1` (or inferred when `group_site` is used). In multi-site mode may be a
+            per-site list
+        :type bond_order: float | Iterable[float] | None
         :param use_absolue_posititions: whether `new_coords` should be used as absolute
             coordinates rather than being repositioned relative to the fragment frame
         :type use_absolue_posititions: bool
-        :param group_site: index (within `atoms`/`new_coords`) of the atom that should serve as
-            the attachment point; if given, the method recurses with the group re-anchored at
-            this site and that atom excluded from the final group
-        :type group_site: int | None
+        :param group_site: index (within `atoms`/`new_coords`) of the placeholder atom that
+            marks the attachment point; the placeholder is removed and its heavy neighbor becomes
+            the atom that bonds to the scaffold. A single int uses the single-site path; a list
+            of ints selects multi-site mode (each placeholder removed and its neighbor bonded at
+            the corresponding site), e.g. two hydrogens replaced when a bidentate ligand closes a
+            ring or forms a linker
+        :type group_site: int | Iterable[int] | None
         :param molecule_type: the molecule class used to build any intermediate molecules;
             defaults to the standard `Molecule`
         :type molecule_type: type | None
@@ -342,7 +807,30 @@ class MoleculeBuilder:
         :rtype: Molecule
         """
         if molecule_type is None:
-            molecule_type = Molecule
+            molecule_type = cls._default_molecule_type()
+
+        # multi-site dispatch: a list of group sites (placeholder atoms, one per bond) forms one
+        # bond per site, replacing each placeholder with a bond from its heavy neighbor
+        if cls._is_multisite_spec(target_fragment, group_site):
+            return cls._attach_multisite_group(
+                mol,
+                target_fragment,
+                atoms,
+                new_coords,
+                group_sites=group_site,
+                bonds=bonds,
+                ref=ref,
+                masses=masses,
+                distance=distance,
+                angle=angle,
+                dihedral=dihedral,
+                dihedral_search_steps=dihedral_search_steps,
+                dihedral_distance_metric=dihedral_distance_metric,
+                embedding=embedding,
+                bond_order=bond_order,
+                use_absolue_posititions=use_absolue_posititions,
+                molecule_type=molecule_type
+            )
 
         if group_site is not None:
             if dev.str_is(embedding, 'auto'):
@@ -550,7 +1038,8 @@ class MoleculeBuilder:
         :raises ValueError: if not every atom could be placed into the final SMILES ordering
         """
         if molecule_type is None:
-            molecule_type = Molecule
+            molecule_type = cls._default_molecule_type()
+        Molecule = molecule_type
 
         def canonicalize_fragment(scaffold):
             if isinstance(scaffold, str):
@@ -560,7 +1049,7 @@ class MoleculeBuilder:
             scaffold = scaffold.copy()
             mol = scaffold.pop('molecule', None)
             if mol is None and 'smiles' in scaffold and 'coords' not in scaffold:
-                mol = molecule_type.from_string(scaffold.pop('smiles'), add_implicit_hydrogens='full')
+                mol = Molecule.from_string(scaffold.pop('smiles'), add_implicit_hydrogens='full')
             if mol is not None:
                 ordering = None
                 if 'smiles' not in scaffold:
@@ -637,7 +1126,7 @@ class MoleculeBuilder:
             return None
 
         base = frags[0]
-        mol = molecule_type(base['atoms'], base['coords'], bonds=base.get('bonds'), **opts)
+        mol = Molecule(base['atoms'], base['coords'], bonds=base.get('bonds'), **opts)
 
         heavy0 = heavy_atom_positions(base['atoms'])
         # map: final (fully-joined) SMILES heavy-atom index -> current position in `mol`
@@ -799,7 +1288,7 @@ class MoleculeBuilder:
         new_ord = [full_index[i] for i in range(n_total)]
 
         if recompute_properties:
-            new_mol = molecule_type.from_string(smiles, 'smi', reorder_from_atom_map=False, **opts)
+            new_mol = Molecule.from_string(smiles, 'smi', reorder_from_atom_map=False, **opts)
             new_mol.coords = mol.coords[new_ord,]
         else:
             new_mol = mol.take_submolecule(new_ord)

@@ -5124,8 +5124,8 @@ class MolecoolsTests(TestCase):
         # fg.plot().show()
         comb.plot(backend='x3d').show()
 
-    @debugTest
-    def test_JoinedConstructor(self):
+    @validationTest
+    def test_JoinedConstructorStereo(self):
 
         comb = MoleculeBuilder.from_fragments(
             '[C:1]=[C:2]',
@@ -5136,6 +5136,32 @@ class MolecoolsTests(TestCase):
         # mol.plot().show()
         # fg.plot().show()
         comb.plot(backend='x3d', atom_radius_scaling=1).show()
+
+    @debugTest
+    def test_FunctionalizationMulti(self):
+        from McUtils.Data import SMILESData
+        from McUtils.ExternalPrograms import build_templated_smiles
+        mol = Molecule.from_string('c1ccccc1')
+        fg = Molecule.from_string(r'N/C=C\N')
+        # mol.plot(display_atom_numbers=True).show()
+        # fg.plot(display_atom_numbers=True).show()
+        # return
+
+        mol = MoleculeBuilder.attach_functional_group(
+            mol,
+            [6, 7],
+            fg.atoms,
+            fg.coords,
+            fg.bonds,
+            group_site=[5, 8],
+            # dihedral=-np.pi / 2
+        )
+
+        mol.plot(
+            # highlight_atoms=[6],
+            # dipole=emb * 3,
+            # dipole_origin=mol.coords[6],
+            backend='x3d').show()
 
     @validationTest
     def test_MolecularSES(self):
