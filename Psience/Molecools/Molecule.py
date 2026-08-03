@@ -215,7 +215,7 @@ class Molecule(AbstractMolecule):
                polarizability_derivatives=dev.default,
                meta=dev.default,
                source_file=dev.default
-               ):
+               ) -> Molecule:
         """
         **LLM Docstring**
 
@@ -2393,6 +2393,8 @@ class Molecule(AbstractMolecule):
         if len(fragment_indices) < 3:
             if len(fragment_indices) + len(ref) < 3:
                 extra = self.neighborhood(fragment_indices[0], size=2)
+                ref = np.asanyarray(ref, dtype=int)
+                extra = np.asanyarray([r for r in extra if r not in ref], dtype=int)
                 ref = np.concatenate([ref, [r for r in extra if r not in ref]])
             ref = [r for r in ref if r not in fragment_indices]
 
@@ -2400,7 +2402,7 @@ class Molecule(AbstractMolecule):
             if len(fragment_indices) < 3: # these refer to COM and principle axis positions
                 fragment_indices = np.concatenate([fragment_indices, [-1, -2, -3]])
 
-        ref = np.asanyarray(ref)[0]
+        ref = np.asanyarray(ref, dtype=int)[0]
         r_coords = self.coords[ref,]
         if ref == -1: r_coords = self.center_of_mass
         if ref == -2: r_coords = self.center_of_mass + self.inertial_axes[:, 2]
@@ -2411,7 +2413,7 @@ class Molecule(AbstractMolecule):
             up = axes[:, 2]
         else:
             # need origin, displacement vector, and up-vector
-            fragment_indices = np.asanyarray(fragment_indices)[:3]
+            fragment_indices = np.asanyarray(fragment_indices, dtype=int)[:3]
             f_coords = self.coords[fragment_indices,]
             com_f = ref == -1
             if np.any(com_f):
@@ -2455,7 +2457,7 @@ class Molecule(AbstractMolecule):
                                 bond_order=None,
                                 use_absolue_posititions=False,
                                 group_site=None
-                                ) -> 'typing.Self':
+                                ) -> 'Molecule':
         """
         **LLM Docstring**
 
@@ -2621,12 +2623,103 @@ class Molecule(AbstractMolecule):
             masses=np.concatenate([[self.masses[i] for i in rem], masses])
         )
 
+    @staticmethod
+    def _angle_diff(a, b):
+        d = (a - b) % (2*np.pi)
+        return min(d, (2*np.pi) - d)
+
+    @classmethod
+    def resolve_stereo_hydrogen(cls, atoms, coords, bonds, stereo_pos, stereos, final_of, ref_exclude=()):
+        """
+        atoms, coords, bonds : the geometry the stereocenter currently lives in
+                                (either `mol` or an unattached fragment -- both
+                                are static at this point, so their existing
+                                torsions are ground truth)
+        stereo_pos            : local index of the atom being functionalized
+                                 (i.e. one of the two atoms of the double bond)
+        stereos                : {(final_i, final_j): 'cis'/'trans'}
+        final_of               : dict mapping local index -> final (SMILES) atom
+                                  index, for every heavy atom in this geometry
+                                  that has one (lets us match against `stereos`,
+                                  which is keyed in final-index space)
+        ref_exclude             : local indices to exclude when hunting for the
+                                  retained reference substituent on the far atom
+                                  (pass [target_pos] etc. as needed)
+
+        Returns the local index of the hydrogen to use as the attachment site
+        (i.e. the one to pass as `target_fragment` or `group_site`), or None if
+        there's no ambiguity to resolve (caller should fall back to its default
+        H-picking logic).
+        """
+        h_candidates = [
+            (b[1] if b[0] == stereo_pos else b[0])
+            for b in bonds
+            if stereo_pos in b[:2]
+               and atoms[b[1] if b[0] == stereo_pos else b[0]] in ('H', 'D', 'T')
+        ]
+        if len(h_candidates) < 2:
+            return None  # nothing to disambiguate
+
+        stereo_final = final_of.get(stereo_pos)
+        if stereo_final is None:
+            return None
+
+        partner_final = relation = None
+        for (a, b), rel in stereos.items():
+            if a == stereo_final:
+                partner_final, relation = b, rel
+                break
+            elif b == stereo_final:
+                partner_final, relation = a, rel
+                break
+        if partner_final is None:
+            return None  # this atom isn't part of a specified stereo bond
+
+        # translate the partner's final index back to a local position in this
+        # same geometry (only meaningful if the whole double bond lives here)
+        pos_of_final = {v: k for k, v in final_of.items()}
+        partner_pos = pos_of_final.get(partner_final)
+        if partner_pos is None:
+            return None  # partner isn't in this fragment's geometry -- can't resolve locally
+
+        # the retained substituent on the far side anchors what cis/trans means
+        ref_pos = next(
+            (
+                (b[1] if b[0] == partner_pos else b[0])
+                for b in bonds
+                if partner_pos in b[:2]
+                   and (b[1] if b[0] == partner_pos else b[0]) not in (stereo_pos, *ref_exclude)
+                   and atoms[b[1] if b[0] == partner_pos else b[0]] not in ('H', 'D', 'T')
+            ),
+            None
+        )
+        if ref_pos is None:
+            return None  # no usable reference substituent found
+
+        target_torsion = np.pi if relation == 'cis' else 0.0
+        return min(
+            h_candidates,
+            key=lambda h: cls._angle_diff(
+                nput.pts_dihedrals(coords[h], coords[stereo_pos], coords[partner_pos], coords[ref_pos]),
+                target_torsion
+            )
+        )
+
     @classmethod
     def from_fragments(
             cls,
             scaffold,
             *replacements,
-            **smiles_options
+            active_sites=None,
+            chiralities=None,
+            stereos=None,
+            bond_orders=None,
+            atom_replacements=None,
+            cache=None,
+            add_implicit_hydrogens='full',
+            remove_sites=False,
+            recompute_properties=True,
+            **opts
     ):
         def canonicalize_fragment(scaffold: str | Molecule | dict):
             if isinstance(scaffold, str):
@@ -2635,6 +2728,8 @@ class Molecule(AbstractMolecule):
                 scaffold = {'molecule': scaffold}
             scaffold = scaffold.copy()
             mol: Molecule | None = scaffold.pop('molecule', None)
+            if mol is None and 'smiles' in scaffold and 'coords' not in scaffold:
+                mol = Molecule.from_string(scaffold.pop('smiles'), add_implicit_hydrogens='full')
             if mol is not None:
                 ordering = None
                 if 'smiles' not in scaffold:
@@ -2673,17 +2768,25 @@ class Molecule(AbstractMolecule):
         for s in smiles_frags:
             s['functional_group'] = s.pop('smiles')
 
-        smiles_options = dict(smiles_options)
-        smiles_options['return_fragment_indices'] = True
-        smiles_options['return_new_bonds'] = True
+
+        smiles_options = dict(
+            active_sites=active_sites,
+            chiralities=chiralities,
+            stereos=stereos,
+            bond_orders=bond_orders,
+            atom_replacements=atom_replacements,
+            cache=cache,
+            add_implicit_hydrogens=add_implicit_hydrogens,
+            remove_sites=remove_sites,
+            return_fragment_indices=True,
+            return_new_bonds=True
+        )
 
         smiles, atom_maps, bond_maps = build_templated_smiles(
             smiles_frags[0]['functional_group'],
             *smiles_frags[1:],
             **smiles_options
         )
-        print(smiles)
-        print(bond_maps)
 
         def heavy_atom_positions(atoms):
             # SMILES fragments are built with `remove_hydrogens=True`, so
@@ -2703,7 +2806,7 @@ class Molecule(AbstractMolecule):
             return None
 
         base = frags[0]
-        mol = cls(base['atoms'], base['coords'], bonds=base.get('bonds'))
+        mol = cls(base['atoms'], base['coords'], bonds=base.get('bonds'), **opts)
 
         heavy0 = heavy_atom_positions(base['atoms'])
         # map: final (fully-joined) SMILES heavy-atom index -> current position in `mol`
@@ -2731,13 +2834,26 @@ class Molecule(AbstractMolecule):
             # the atom actually being replaced is the explicit hydrogen sitting
             # at this position on the scaffold (if any) -- NOT the heavy atom,
             # since `attach_functional_group` always deletes `target_fragment`
-            base_h = find_bonded_hydrogen(mol.atoms, mol.coords, mol.bonds, base_heavy)
+            # --- picking `target` on the base side ---
+            final_of_base = {v: k for k, v in current_index.items()}  # local pos -> final idx, base side
+            stereo_h = cls.resolve_stereo_hydrogen(
+                mol.atoms, mol.coords, mol.bonds,
+                base_heavy, stereos or {}, final_of_base
+            )
+            base_h = stereo_h if stereo_h is not None else find_bonded_hydrogen(
+                mol.atoms, mol.coords, mol.bonds, base_heavy
+            )
             target = base_h if base_h is not None else base_heavy
 
-            # the hydrogen on the incoming fragment marks the direction its
-            # bond used to point in the fully-substituted structure; it's used
-            # only to derive the correct embedding via `group_site`, then dropped
-            frag_h = find_bonded_hydrogen(frag['atoms'], frag['coords'], frag.get('bonds'), frag_local)
+            # --- picking `group_site` on the fragment side ---
+            final_of_frag = {loc: am[k] for k, loc in enumerate(heavy_frag)}  # local pos -> final idx, frag side
+            stereo_h = cls.resolve_stereo_hydrogen(
+                frag['atoms'], frag['coords'], frag.get('bonds') or Molecule(frag['atoms'], frag['coords']).bonds,
+                frag_local, stereos or {}, final_of_frag
+            )
+            frag_h = stereo_h if stereo_h is not None else find_bonded_hydrogen(
+                frag['atoms'], frag['coords'], frag.get('bonds'), frag_local
+            )
 
             # `group_site` mode assumes the true attachment atom sits at local index 0
             order = [frag_local] + [j for j in range(len(frag['atoms'])) if j != frag_local]
@@ -2782,65 +2898,56 @@ class Molecule(AbstractMolecule):
                 # counterpart in the (hydrogen-free) SMILES numbering, so
                 # they simply aren't tracked here
 
-        return mol
+        def _extend_with_hydrogen_indices(mol, current_index, n_heavy_total):
+            """
+            current_index: {final heavy-atom index -> current position in `mol`}
+            Extends it with hydrogens: {n_heavy_total + rank -> current position},
+            where `rank` orders H's by the final index of the heavy atom each is
+            bonded to (ties broken by their existing relative order in `mol`).
+            """
+            pos_to_final_heavy = {pos: final for final, pos in current_index.items()}
 
-        for replacement in replacements:
-            fragment = replacement["molecule"]
-            new_bonds = np.asarray(replacement["new_bonds"], dtype=int).reshape(-1, 2)
-            offset = len(coords)
-
-            coords = attach_functional_group(
-                coords,
-                bonds,
-                new_bonds,
-                np.asarray(fragment.coords),
-                bonds=np.asarray(fragment.bonds, dtype=int),
-            )
-
-            fragment_bonds = np.asarray(fragment.bonds, dtype=int).reshape(-1, 2)
-            bonds = np.concatenate(
-                [
-                    bonds,
-                    fragment_bonds + offset,
-                    np.column_stack([
-                        new_bonds[:, 0],
-                        new_bonds[:, 1] + offset,
-                    ]),
-                ],
-                axis=0,
-            )
-
-        # atom_maps[i][j] is the composite-SMILES index corresponding to atom j
-        # of input fragment i.
-        n_atoms = sum(len(mol.coords) for mol in molecules)
-        input_to_smiles = np.empty(n_atoms, dtype=int)
-
-        offset = 0
-        for mol, mapping in zip(molecules, atom_maps):
-            mapping = np.asarray(mapping, dtype=int)
-
-            if len(mapping) != len(mol.coords):
-                raise ValueError(
-                    "The atom map returned by build_templated_smiles does not "
-                    "match the corresponding Molecule atom count"
+            def heavy_neighbor(i):
+                return next(
+                    (b[1] if b[0] == i else b[0])
+                    for b in mol.bonds
+                    if i in b[:2]
+                    and mol.atoms[b[1] if b[0] == i else b[0]] not in ('H', 'D', 'T')
                 )
 
-            input_to_smiles[offset:offset + len(mapping)] = mapping
-            offset += len(mapping)
+            h_entries = [
+                (pos_to_final_heavy[heavy_neighbor(i)], i)
+                for i, a in enumerate(mol.atoms)
+                if a in ('H', 'D', 'T')
+            ]
+            # stable sort: ties (same attachment atom) keep current relative order
+            h_entries.sort(key=lambda e: e[0])
 
-        # Coordinates are currently in concatenated input order. Invert the map
-        # to put rows in composite-SMILES order.
-        smiles_to_input = np.argsort(input_to_smiles)
-        coords = coords[smiles_to_input]
+            full_index = dict(current_index)
+            for rank, (_, pos) in enumerate(h_entries):
+                full_index[n_heavy_total + rank] = pos
+            return full_index
 
-        # Convert bond indices into composite-SMILES indexing.
-        bonds = input_to_smiles[bonds]
+        n_heavy_total = max(max(am) for am in atom_maps) + 1
+        full_index = _extend_with_hydrogen_indices(mol, current_index, n_heavy_total)
 
-        joined = type(scaffold_molecule)(
-            coords=coords,
-            bonds=bonds,
-        )
-        return smiles, joined
+        n_total = len(mol.atoms)
+        if len(full_index) != n_total:
+            missing = set(range(n_total)) - set(full_index.values())
+            raise ValueError(
+                f"Could not place every atom into the final SMILES ordering; "
+                f"unaccounted current positions: {missing}"
+            )
+
+        new_ord = [full_index[i] for i in range(n_total)]
+
+        if recompute_properties:
+            new_mol = cls.from_string(smiles, 'smi', reorder_from_atom_map=False, **opts)
+            new_mol.coords = mol.coords[new_ord,]
+        else:
+            new_mol = mol.take_submolecule(new_ord)
+
+        return new_mol
 
     def find_heavy_atom_backbone(self, root=None):
         """
@@ -5462,7 +5569,7 @@ class Molecule(AbstractMolecule):
                                       )
         return self.apply_rotation(frame, load_properties=load_properties, embed_properties=embed_properties)
 
-    def get_rmsd(self, other:'typing.Self | np.ndarray', sel=None,
+    def get_rmsd(self, other:'Molecule | np.ndarray', sel=None,
                  embed=True,
                  embedding_sel=None,
                  mass_weighted=False):
@@ -5513,7 +5620,7 @@ class Molecule(AbstractMolecule):
 
         return np.linalg.norm(ref - other, axis=-1).reshape(base_shape)
 
-    def align_molecule(self, other:'typing.Self',
+    def align_molecule(self, other:'Molecule',
                        reindex_bonds=True,
                        permute_atoms=True,
                        align_structures=True,

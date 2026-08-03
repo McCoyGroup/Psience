@@ -5106,16 +5106,32 @@ class MolecoolsTests(TestCase):
                  highlight_atoms=[0, 1, 2]
                  ).show()
 
-    @debugTest
+    @validationTest
     def test_JoinedConstructor(self):
         mol = Molecule.from_string('[c:1]1ccccc1', add_implicit_hydrogens='full')
         fg = Molecule.from_string('[C:1](=O)[O:2]', add_implicit_hydrogens='full')
-        fg2 = Molecule.from_string('[C:1]CC', add_implicit_hydrogens='full')
+
         comb = Molecule.from_fragments(
             mol,
             fg,
-            {'molecule':fg2, 'new_bonds':[[2, 0, 1]]}
+            {'smiles':'[C:1]CC', 'new_bonds':[[2, 0, 1]]},
+            {'smiles':'[F:1]', 'new_bonds':[[3, 0, 1]]}
         )
+        # mol.plot().show()
+        # fg.plot().show()
+        comb.plot(backend='x3d').show()
+
+    @debugTest
+    def test_JoinedConstructor(self):
+
+        comb = Molecule.from_fragments(
+            '[C:1]=[C:2]',
+            '[C:1]C(C)(C)(C)',
+            '[C:1]C(C)(C)(C)',
+            stereos={(0, 1): 'trans'},
+        )
+        # mol.plot().show()
+        # fg.plot().show()
         comb.plot(backend='x3d').show()
 
     @validationTest
