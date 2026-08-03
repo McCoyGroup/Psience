@@ -2114,7 +2114,7 @@ class MolecoolsTests(TestCase):
         ethanol = Molecule.from_string('CCO', energy_evaluator='uma')
         print(ethanol.calculate_energy())
 
-    @debugTest
+    @validationTest
     def test_BackboneChains(self):
         from Psience.Molecools import Molecule
         import McUtils.Coordinerds as coordops
@@ -5105,6 +5105,34 @@ class MolecoolsTests(TestCase):
                  # atom_style={0:{'color':'green'}}
                  highlight_atoms=[0, 1, 2]
                  ).show()
+
+    @validationTest
+    def test_JoinedConstructor(self):
+        mol = Molecule.from_string('[c:1]1ccccc1', add_implicit_hydrogens='full')
+        fg = Molecule.from_string('[C:1](=O)[O:2]', add_implicit_hydrogens='full')
+
+        comb = Molecule.from_fragments(
+            mol,
+            fg,
+            {'smiles':'[C:1]CC', 'new_bonds':[[2, 0, 1]]},
+            {'smiles':'[F:1]', 'new_bonds':[[3, 0, 1]]}
+        )
+        # mol.plot().show()
+        # fg.plot().show()
+        comb.plot(backend='x3d').show()
+
+    @debugTest
+    def test_JoinedConstructor(self):
+
+        comb = Molecule.from_fragments(
+            '[C:1]=[C:2]',
+            '[C:1]C(C)(C)(C)',
+            '[C:1]C(C)(C)(C)',
+            stereos={(0, 1): 'trans'},
+        )
+        # mol.plot().show()
+        # fg.plot().show()
+        comb.plot(backend='x3d').show()
 
     @validationTest
     def test_MolecularSES(self):
