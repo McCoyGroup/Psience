@@ -6,7 +6,7 @@ from Peeves.TestUtils import *
 from unittest import TestCase
 from Peeves import BlockProfiler
 
-from Psience.Molecools import Molecule, MolecularNormalModes
+from Psience.Molecools import Molecule, MolecularNormalModes, MoleculeBuilder
 # from Psience.Molecools.Transformations import MolecularTransformation
 from Psience.Data import DipoleSurface # this will be leaving Zachary very soon I think...
 from McUtils.GaussianInterface import GaussianFChkReader, GaussianLogReader
@@ -5042,20 +5042,23 @@ class MolecoolsTests(TestCase):
         # mol2 = fg.remove_hydrogens(0)
         # mol3 = Molecule.from_string('CCC').remove_hydrogens(0, 1)
         fg2 = Molecule.from_string('CCC')
-        mol = mol.attach_functional_group(
-           [6],
+        mol = MoleculeBuilder.attach_functional_group(
+            mol,
+            [6],
             fg.atoms,
             fg.coords,
             fg.bonds,
             group_site=3,
-            dihedral=-np.pi/2
+            dihedral=-np.pi / 2
         )
-        mol = mol.attach_functional_group(
+        mol = MoleculeBuilder.attach_functional_group(
+            mol,
            [8],
             ['F'],
             [[0, 0, 0]]
         )
-        mol = mol.attach_functional_group(
+        mol = MoleculeBuilder.attach_functional_group(
+            mol,
             [11-2+4],
             # [6],
             fg2.atoms,
@@ -5111,7 +5114,7 @@ class MolecoolsTests(TestCase):
         mol = Molecule.from_string('[c:1]1ccccc1', add_implicit_hydrogens='full')
         fg = Molecule.from_string('[C:1](=O)[O:2]', add_implicit_hydrogens='full')
 
-        comb = Molecule.from_fragments(
+        comb = MoleculeBuilder.from_fragments(
             mol,
             fg,
             {'smiles':'[C:1]CC', 'new_bonds':[[2, 0, 1]]},
@@ -5124,7 +5127,7 @@ class MolecoolsTests(TestCase):
     @debugTest
     def test_JoinedConstructor(self):
 
-        comb = Molecule.from_fragments(
+        comb = MoleculeBuilder.from_fragments(
             '[C:1]=[C:2]',
             '[C:1]C(C)(C)(C)',
             '[C:1]C(C)(C)(C)',
@@ -5144,7 +5147,7 @@ class MolecoolsTests(TestCase):
         )
         targ = next((b[1] for b in base.bonds if b[0] == 0 and base.atoms[b[1]] == 'H'), None)
         root = next((b[1] for b in frag.bonds if b[0] == 0 and frag.atoms[b[1]] == 'H'), None)
-        new: Molecule = base.attach_functional_group(
+        new: Molecule = MoleculeBuilder.attach_functional_group(
             [targ],
             frag.atoms,
             frag.coords,
