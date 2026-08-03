@@ -5132,7 +5132,7 @@ class MolecoolsTests(TestCase):
         )
         # mol.plot().show()
         # fg.plot().show()
-        comb.plot(backend='x3d').show()
+        comb.plot(backend='x3d', atom_radius_scaling=1).show()
 
     @validationTest
     def test_MolecularSES(self):

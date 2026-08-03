@@ -4,6 +4,7 @@ Uses AtomData to get properties and whatnot
 """
 from __future__ import annotations
 
+import functools
 import io
 import os, numpy as np
 import tempfile
@@ -2442,6 +2443,26 @@ class Molecule(AbstractMolecule):
             return origin, offset, axes
         else:
             return origin, offset, up
+    @staticmethod
+    def _vdw_clash_metric(frag_coords, other_coords,
+                          frag_atoms=None, other_atoms=None,
+                          frag_radii=None, other_radii=None):
+        if frag_radii is None:
+            if frag_atoms is not None:
+                frag_radii = np.array([AtomData[a, "VanDerWaalsRadius"] for a in frag_atoms])
+            else:
+                frag_radii = np.array([1.5])
+        if other_radii is None:
+            if other_atoms is not None:
+                other_radii = np.array([AtomData[a, "VanDerWaalsRadius"] for a in other_atoms])
+            else:
+                other_radii = np.array([1.5])
+        radii_sum = (frag_radii[:, np.newaxis] + other_radii[np.newaxis, :]) * UnitsData.convert("Angstroms", "BohrRadius")
+
+        diffs = frag_coords[:, np.newaxis, :] - other_coords[np.newaxis, :, :]
+        dists = np.linalg.norm(diffs, axis=-1)
+        overlap = np.maximum(radii_sum - dists, 0.0)  # only penalize actual clashes
+        return -np.sum(overlap ** 2)  # higher (less negative) is better
 
     def attach_functional_group(self,
                                 target_fragment,
@@ -2554,7 +2575,6 @@ class Molecule(AbstractMolecule):
                 distance = BondData[(ref_type, atoms[0], bond_order)] * UnitsData.convert("Angstroms", "BohrRadius")
             else:
                 distance = None
-
         if masses is None:
             masses = np.array([AtomData[a, "Mass"] for a in atoms])
 
@@ -2595,10 +2615,11 @@ class Molecule(AbstractMolecule):
                     if dev.str_is(dihedral, 'auto'):
                         metric = dihedral_distance_metric
                         if metric is None:
-                            def metric(frag_coords, other_coords):
-                                diffs = frag_coords[:, np.newaxis, :] - other_coords[np.newaxis, :, :]
-                                dists = np.linalg.norm(diffs, axis=-1)
-                                return -np.mean(1/dists)
+                            metric = functools.partial(
+                                self._vdw_clash_metric,
+                                frag_atoms=atoms,
+                                other_atoms=[self.atoms[i] for i in rem]
+                            )
                         other_coords = self.coords[rem]
                         base_coords = new_coords
                         best_score = -np.inf
@@ -2654,7 +2675,7 @@ class Molecule(AbstractMolecule):
         return min(d, (2*np.pi) - d)
 
     @classmethod
-    def resolve_stereo_hydrogen(cls, atoms, coords, bonds, stereo_pos, stereos, final_of, ref_exclude=()):
+    def resolve_stereo_hydrogen(cls, atoms, coords, bonds, stereo_pos, stereos, ref_exclude=()):
         """
         atoms, coords, bonds : the geometry the stereocenter currently lives in
                                 (either `mol` or an unattached fragment -- both
@@ -2662,11 +2683,7 @@ class Molecule(AbstractMolecule):
                                 torsions are ground truth)
         stereo_pos            : local index of the atom being functionalized
                                  (i.e. one of the two atoms of the double bond)
-        stereos                : {(final_i, final_j): 'cis'/'trans'}
-        final_of               : dict mapping local index -> final (SMILES) atom
-                                  index, for every heavy atom in this geometry
-                                  that has one (lets us match against `stereos`,
-                                  which is keyed in final-index space)
+        stereos                : {(i, j): 'cis'/'trans'}
         ref_exclude             : local indices to exclude when hunting for the
                                   retained reference substituent on the far atom
                                   (pass [target_pos] etc. as needed)
