@@ -23,9 +23,8 @@ import numpy as np
 from McUtils.Data import AtomData, UnitsData, BondData
 import McUtils.Numputils as nput
 import McUtils.Devutils as dev
+import McUtils.Iterators as itut
 from McUtils.ExternalPrograms import build_templated_smiles, parse_smiles_and_atom_map
-
-from .Molecule import Molecule
 
 __all__ = [
     "MoleculeBuilder"
@@ -44,12 +43,26 @@ class MoleculeBuilder:
     `Molecule`).
     """
 
+    @classmethod
+    def _default_molecule_type(cls):
+        """
+        Resolve the default `Molecule` class to build with, imported lazily to avoid a circular
+        import at module load.
+
+        :return: the standard `Molecule` class
+        :rtype: type
+        """
+        from .Molecule import Molecule
+        return Molecule
+
     #region Fragment frame
     @classmethod
     def fragment_embedding(cls, mol, fragment_indices,
                            ref=None,
                            return_axes=False,
+                           order=1,
                            view_inds=(1, 2),
+                           excluded=None,
                            use_moments=False):
         """
         Compute a local coordinate frame (origin, offset vector, and an up-vector or full axis
@@ -80,11 +93,18 @@ class MoleculeBuilder:
         """
         if nput.is_int(fragment_indices):
             fragment_indices = [fragment_indices]
+        if len(fragment_indices) < order:
+            raise ValueError(f"need at least {len(fragment_indices)} indices or embedding of order {order}")
+        if excluded is None:
+            excluded = ()
         if ref is None:
-            ref = mol.neighborhood(fragment_indices[0], size=2)
+            ref = list(itut.flatten(zip(*(
+                (m for m in mol.neighborhood(fragment_indices[i], size=1, heavy_only=True) if m not in excluded)
+                for i in range(order)
+            ))))
         if len(fragment_indices) < 3:
             if len(fragment_indices) + len(ref) < 3:
-                extra = mol.neighborhood(fragment_indices[0], size=2)
+                extra = [m for m in mol.neighborhood(fragment_indices[0], size=2, heavy_only=True) if m not in excluded]
                 ref = np.asanyarray(ref, dtype=int)
                 extra = np.asanyarray([r for r in extra if r not in ref], dtype=int)
                 ref = np.concatenate([ref, [r for r in extra if r not in ref]])
@@ -94,28 +114,34 @@ class MoleculeBuilder:
             if len(fragment_indices) < 3: # these refer to COM and principle axis positions
                 fragment_indices = np.concatenate([fragment_indices, [-1, -2, -3]])
 
-        ref = np.asanyarray(ref, dtype=int)[0]
+        ref = np.asanyarray(ref, dtype=int)[:order]
         r_coords = mol.coords[ref,]
-        if ref == -1: r_coords = mol.center_of_mass
-        if ref == -2: r_coords = mol.center_of_mass + mol.inertial_axes[:, 2]
-        if ref == -3: r_coords = mol.center_of_mass + mol.inertial_axes[:, 0]
+        for i,r0 in enumerate(ref):
+            if r0 == -1: r_coords[i] = mol.center_of_mass
+            if r0 == -2: r_coords[i] = mol.center_of_mass + mol.inertial_axes[:, 2]
+            if r0 == -3: r_coords[i] = mol.center_of_mass + mol.inertial_axes[:, 0]
+
+        f_coords = mol.coords[fragment_indices,]
+        com_f = fragment_indices == -1
+        if np.any(com_f):
+            f_coords[com_f] = mol.center_of_mass
+        paxc_f = fragment_indices == -2
+        if np.any(paxc_f):
+            f_coords[paxc_f] = mol.center_of_mass + mol.inertial_axes[:, 2]
+        paxa_f = fragment_indices == -3
+        if np.any(paxa_f):
+            f_coords[paxa_f] = mol.center_of_mass + mol.inertial_axes[:, 0]
+
+        origin = np.average(r_coords, axis=0)
+        offset = np.average(f_coords[:order], axis=0) - origin
+
         if use_moments:
-            f_coords = mol.coords[fragment_indices,]
             _, axes = nput.moments_of_inertia(f_coords, np.asanyarray(mol.masses)[fragment_indices,])
             up = axes[:, 2]
         else:
             # need origin, displacement vector, and up-vector
             fragment_indices = np.asanyarray(fragment_indices, dtype=int)[:3]
             f_coords = mol.coords[fragment_indices,]
-            com_f = ref == -1
-            if np.any(com_f):
-                f_coords[com_f] = mol.center_of_mass
-            paxc_f = ref == -2
-            if np.any(paxc_f):
-                f_coords[paxc_f] = mol.center_of_mass + mol.inertial_axes[:, 2]
-            paxa_f = ref == -3
-            if np.any(paxa_f):
-                f_coords[paxa_f] = mol.center_of_mass + mol.inertial_axes[:, 0]
 
             up = nput.pts_normals(*f_coords, normalize=True)
             if return_axes:
@@ -125,10 +151,6 @@ class MoleculeBuilder:
                 )
             else:
                 axes = np.eye(3)
-
-
-        origin = r_coords
-        offset = f_coords[0] - r_coords
 
         if return_axes:
             return origin, offset, axes
@@ -261,6 +283,76 @@ class MoleculeBuilder:
     #endregion
 
     #region Functional-group attachment
+    @staticmethod
+    def _is_multisite_spec(target_fragment, group_site):
+        """
+        Decide whether the call describes multiple bond sites. Multi-site mode is selected when
+        `group_site` is given as a (non-string) sequence of site atoms; a scalar `group_site`
+        (or `None`) keeps the legacy single-site behavior.
+
+        :param target_fragment: the target-fragment specification passed to `attach_functional_group`
+        :type target_fragment: Any
+        :param group_site: the `group_site` specification passed to `attach_functional_group`
+        :type group_site: Any
+        :return: whether to use the multi-site path
+        :rtype: bool
+        """
+        if group_site is None:
+            return False
+        if nput.is_int(group_site):
+            return False
+        # a bare list/array/tuple of ints => one attachment atom per bond site
+        try:
+            n = len(group_site)
+        except TypeError:
+            return False
+        return n > 0
+
+    @classmethod
+    def _group_bonds(cls, atoms, coords, bonds, molecule_type):
+        """
+        Resolve the group's own bond list, guessing it from `atoms`/`coords` (via `molecule_type`)
+        when it is `None` or `'recompute'`.
+
+        :param atoms: the group's element symbols
+        :type atoms: Iterable[str]
+        :param coords: the group's coordinates
+        :type coords: np.ndarray
+        :param bonds: the group's bonds; `'recompute'`/`None` to guess, or an explicit list
+        :type bonds: str | list | None
+        :param molecule_type: the molecule class used to guess bonds
+        :type molecule_type: type
+        :return: the resolved bond list
+        :rtype: list
+        """
+        if bonds is None or dev.str_is(bonds, 'recompute'):
+            return list(molecule_type(list(atoms), np.asanyarray(coords, dtype=float)).bonds)
+        return list(bonds)
+
+    @classmethod
+    def _attachment_atom_for_placeholder(cls, group_bonds, placeholder):
+        """
+        Find the heavy attachment atom for a placeholder `group_site`: the atom the placeholder
+        is bonded to (its unique neighbor in the group). This is the atom that will bond to the
+        scaffold once the placeholder is removed.
+
+        :param group_bonds: the group's bond list
+        :type group_bonds: Iterable
+        :param placeholder: the local index of the placeholder atom being replaced
+        :type placeholder: int
+        :return: the local index of the attachment atom
+        :rtype: int
+        :raises ValueError: if the placeholder has no bonded neighbor to attach through
+        """
+        for b in group_bonds:
+            if b[0] == placeholder:
+                return b[1]
+            if b[1] == placeholder:
+                return b[0]
+        raise ValueError(
+            f"group_site placeholder {placeholder} has no bonded neighbor to attach through"
+        )
+
     @classmethod
     def attach_functional_group(cls,
                                 mol,
@@ -273,6 +365,7 @@ class MoleculeBuilder:
                                 distance='auto',
                                 angle=0,
                                 dihedral='auto',
+                                bond_sites=None,
                                 dihedral_search_steps=36,
                                 dihedral_distance_metric=None,
                                 embedding='auto',
@@ -289,10 +382,23 @@ class MoleculeBuilder:
         the new group as its attachment point, in which case the method recurses after
         re-deriving the embedding/bonds relative to that site.
 
+        **Multiple bond sites.** More than one bond can be formed at once by passing a list of
+        binding sites: `target_fragment` becomes a list (one target fragment per site), `ref`
+        and `bond_order` may be given as matching per-site lists, and `group_site` becomes a
+        list of the group atoms to replace at each corresponding site. As in the single-site
+        `group_site` path, each `group_site` atom is a *placeholder that is removed* -- typically
+        a hydrogen -- and the heavy atom it was bonded to becomes the real attachment atom that
+        bonds to the scaffold. This lets a bidentate (or polydentate) ligand be attached to an
+        existing scaffold at several points at once, closing a ring or forming a linker. The
+        group is oriented so its attachment atoms line up with the scaffold's per-site bond
+        directions, with the overall frame anchored on the reference atoms of the *first* binding
+        site by default (`embedding='auto'`); an explicit `embedding` overrides this.
+
         :param mol: the scaffold molecule the group is attached to
         :type mol: Molecule
-        :param target_fragment: the atom(s) of `mol` the new group attaches to/replaces
-        :type target_fragment: int | Iterable[int]
+        :param target_fragment: the atom(s) of `mol` the new group attaches to/replaces; a list
+            of target fragments (one per site) selects multi-site mode
+        :type target_fragment: int | Iterable[int] | Iterable[Iterable[int]]
         :param atoms: the element symbols of the atoms in the new group
         :type atoms: Iterable[str]
         :param new_coords: the (local) coordinates of the new group's atoms
@@ -301,8 +407,8 @@ class MoleculeBuilder:
             reuse `mol.bonds` remapped, or an explicit bond list
         :type bonds: str | list | None
         :param ref: reference atom(s) used to anchor the attachment frame; computed automatically
-            if not given
-        :type ref: Iterable[int] | None
+            if not given. In multi-site mode this may be a per-site list of reference-atom lists
+        :type ref: Iterable[int] | Iterable[Iterable[int]] | None
         :param masses: masses for the new group's atoms; looked up from `atoms` if not given
         :type masses: np.ndarray | None
         :param distance: the bond distance to place the new group at; `'auto'` to look it up from
@@ -323,18 +429,23 @@ class MoleculeBuilder:
             distance between the new group's atoms and the surviving scaffold atoms
         :type dihedral_distance_metric: Callable | None
         :param embedding: the reference orientation for the new group; `'auto'` to derive it from
-            moments of inertia, or an explicit `(origin, axes)`/axes specification
+            moments of inertia (single site) or from the per-site bond geometry anchored on the
+            first site (multi-site), or an explicit `(origin, axes)`/axes specification
         :type embedding: str | tuple | np.ndarray | None
         :param bond_order: the bond order connecting the new group to the target fragment;
-            defaults to `1` (or inferred when `group_site` is used)
-        :type bond_order: float | None
+            defaults to `1` (or inferred when `group_site` is used). In multi-site mode may be a
+            per-site list
+        :type bond_order: float | Iterable[float] | None
         :param use_absolue_posititions: whether `new_coords` should be used as absolute
             coordinates rather than being repositioned relative to the fragment frame
         :type use_absolue_posititions: bool
-        :param group_site: index (within `atoms`/`new_coords`) of the atom that should serve as
-            the attachment point; if given, the method recurses with the group re-anchored at
-            this site and that atom excluded from the final group
-        :type group_site: int | None
+        :param group_site: index (within `atoms`/`new_coords`) of the placeholder atom that
+            marks the attachment point; the placeholder is removed and its heavy neighbor becomes
+            the atom that bonds to the scaffold. A single int uses the single-site path; a list
+            of ints selects multi-site mode (each placeholder removed and its neighbor bonded at
+            the corresponding site), e.g. two hydrogens replaced when a bidentate ligand closes a
+            ring or forms a linker
+        :type group_site: int | Iterable[int] | None
         :param molecule_type: the molecule class used to build any intermediate molecules;
             defaults to the standard `Molecule`
         :type molecule_type: type | None
@@ -342,28 +453,63 @@ class MoleculeBuilder:
         :rtype: Molecule
         """
         if molecule_type is None:
-            molecule_type = Molecule
+            molecule_type = cls._default_molecule_type()
 
         if group_site is not None:
+            if nput.is_int(group_site): group_site = [(0, group_site)]
+            group_site = [(i, g) if nput.is_int(g) else g for i, g in enumerate(group_site)]
+            group_roots = [i for i,g in group_site]
+            group_inds = [g for i,g in group_site]
             if dev.str_is(embedding, 'auto'):
                 if dev.str_is(bonds, 'recompute') or bonds is not None:
                     if dev.str_is(bonds, 'recompute'): bonds = None
                     group_mol = molecule_type(atoms, new_coords, bonds=bonds)
                     if bond_order is None:
-                        bond_order = next(
-                            (b[2] for b in group_mol.bonds if b[1] in (0, group_site) and b[0] in (0, group_site)),
-                            None
+                        bond_order = [
+                            next(
+                                (
+                                    b[2] for b in group_mol.bonds
+                                    if b[1] in (i, gs) and b[0] in (i, gs)
+                                ),
+                                None
+                            )
+                            for i,gs in group_site
+                        ]
+                    if len(group_site) == 1:
+                        embedding = cls.fragment_embedding(
+                            group_mol,
+                            group_roots,
+                            order=len(group_site),
+                            ref=group_inds
                         )
-                    embedding = cls.fragment_embedding(
-                        group_mol,
-                        0,
-                        ref=[group_site]
-                    )
-                    embedding = nput.view_matrix(up_vector=embedding[-1])
+                        origin = np.average(new_coords[group_inds,], axis=0)
+                        embedding = origin, nput.view_matrix(
+                            view_vector=embedding[1],
+                            up_vector=embedding[2]
+                        )
+                    else:
+                        embedding = cls.fragment_embedding(
+                            group_mol,
+                            group_roots,
+                            order=len(group_site),
+                            # ref=group_inds,
+                            excluded=group_inds
+                        )
+                        og_1 = np.average(new_coords[group_inds,], axis=0)
+                        og_2 = np.average(new_coords[group_roots,], axis=0)
+                        v0 = og_2 - og_1
+                        if np.dot(embedding[2], v0) < 0:
+                            embedding = embedding[:2] + (embedding[2] * -1,)
+
+                        origin = embedding[1] + og_2
+                        embedding = origin, nput.view_matrix(
+                            view_vector=embedding[1],
+                            up_vector=embedding[2]
+                        )
                 elif bonds == None:
                     _, embedding = nput.moments_of_inertia(new_coords, masses=masses)
-                embedding = new_coords[group_site], embedding
-            rem = np.setdiff1d(np.arange(len(atoms)), [group_site])
+                    embedding = np.average(new_coords[group_inds,], axis=0), embedding
+            rem = np.setdiff1d(np.arange(len(atoms)), group_inds)
             if bonds is not None and not dev.str_is(bonds, 'recompute'):
                 remapping = {i: n for n, i in enumerate(rem)}
                 bonds = [
@@ -373,6 +519,8 @@ class MoleculeBuilder:
                 ]
             if masses is not None:
                 masses = np.asanyarray(masses)[rem,]
+            if bond_sites is None:
+                bond_sites = [i for i,g in group_site]
             return cls.attach_functional_group(
                 mol,
                 target_fragment,
@@ -390,19 +538,33 @@ class MoleculeBuilder:
                 bond_order=bond_order,
                 use_absolue_posititions=use_absolue_posititions,
                 group_site=None,
+                bond_sites=bond_sites,
                 molecule_type=molecule_type
             )
 
         if bond_order is None:
             bond_order = 1
+        if bond_sites is None:
+            if nput.is_int(bond_order):
+                bond_sites = [0]
+            else:
+                bond_sites = list(range(bond_order))
         if dev.str_is(distance, 'auto'):
             if ref is None:
                 ref = mol.neighborhood(target_fragment[0], size=2)
-            if ref[0] > -1:
-                ref_type = mol.atoms[ref[0]]
-                distance = BondData[(ref_type, atoms[0], bond_order)] * UnitsData.convert("Angstroms", "BohrRadius")
+            if nput.is_int(bond_order):
+                if ref[0] > -1:
+                    ref_type = mol.atoms[ref[0]]
+                    distance = BondData[(ref_type, atoms[bond_sites[0]], bond_order)] * UnitsData.convert("Angstroms", "BohrRadius")
+                else:
+                    distance = None
             else:
-                distance = None
+                distance = [
+                    BondData[(mol.atoms[r], atoms[bs], bo)] * UnitsData.convert("Angstroms", "BohrRadius")
+                        if r > -1 else
+                    None
+                    for r,bo,bs in zip(ref, bond_order, bond_sites)
+                ]
         if masses is None:
             masses = np.array([AtomData[a, "Mass"] for a in atoms])
 
@@ -411,23 +573,31 @@ class MoleculeBuilder:
         rem = np.setdiff1d(np.arange(len(mol.atoms)), target_fragment)
 
         if not use_absolue_posititions:
-            origin, offset, up = cls.fragment_embedding(mol, target_fragment, ref=ref)
+            if nput.is_int(bond_order):
+                attachement_order = 1
+            else:
+                attachement_order = len(bond_order)
+            origin, offset, up = cls.fragment_embedding(mol, target_fragment, ref=ref, order=attachement_order)
+            # single bond attachement
             if distance is not None:
+                if not nput.is_numeric(distance):
+                    distance = np.average(distance)
                 offset = nput.vec_normalize(offset) * distance
             if len(new_coords) == 1:
                 new_coords = (origin + offset)[np.newaxis]
             else:
                 if dev.str_is(embedding, 'auto'):
                     _, embedding = nput.moments_of_inertia(new_coords, masses=masses)
-                shift = new_coords[0]
-                new_coords = new_coords - shift[np.newaxis]
+                centroid = np.average(new_coords[bond_sites,], axis=0)
+                shift = centroid
+                new_coords = new_coords - centroid[np.newaxis]
                 if embedding is not None:
                     if len(embedding) == 2:
                         cent, embedding = embedding
                         cent = cent - shift
                     else:
                         cent = nput.center_of_mass(new_coords, masses=masses)
-                    u = new_coords[0] - cent
+                    u = centroid - cent
                     inv = nput.view_matrix(
                         up_vector=embedding[:, 2],
                         view_vector=u
@@ -441,26 +611,29 @@ class MoleculeBuilder:
                         new_coords = new_coords @ nput.rotation_matrix(up, angle)
 
                     if dev.str_is(dihedral, 'auto'):
-                        metric = dihedral_distance_metric
-                        if metric is None:
-                            metric = functools.partial(
-                                cls._vdw_clash_metric,
-                                frag_atoms=atoms,
-                                other_atoms=[mol.atoms[i] for i in rem]
-                            )
-                        other_coords = mol.coords[rem]
-                        base_coords = new_coords
-                        best_score = -np.inf
-                        best_coords = base_coords
-                        for cand in np.linspace(0, np.pi/2, dihedral_search_steps, endpoint=False):
-                            cand_coords = base_coords @ nput.rotation_matrix(offset, cand)
-                            placed = (origin + offset)[np.newaxis] + cand_coords
-                            score = metric(placed, other_coords)
-                            if score > best_score:
-                                best_score = score
-                                best_coords = cand_coords
-                        new_coords = best_coords
-                    elif dihedral != 0:
+                        dihedral = 0
+                        if attachement_order == 1:
+                            # numerically solve for good placement
+                            metric = dihedral_distance_metric
+                            if metric is None:
+                                metric = functools.partial(
+                                    cls._vdw_clash_metric,
+                                    frag_atoms=atoms,
+                                    other_atoms=[mol.atoms[i] for i in rem]
+                                )
+                            other_coords = mol.coords[rem]
+                            base_coords = new_coords
+                            best_score = -np.inf
+                            best_coords = base_coords
+                            for cand in np.linspace(0, np.pi/2, dihedral_search_steps, endpoint=False):
+                                cand_coords = base_coords @ nput.rotation_matrix(offset, cand)
+                                placed = (origin + offset)[np.newaxis] + cand_coords
+                                score = metric(placed, other_coords)
+                                if score > best_score:
+                                    best_score = score
+                                    best_coords = cand_coords
+                            new_coords = best_coords
+                    if dihedral != 0:
                         # rotate about offset axis, assumed to be perp to up
                         new_coords = new_coords @ nput.rotation_matrix(offset, dihedral)
                 new_coords = (origin + offset)[np.newaxis] + new_coords
@@ -481,7 +654,8 @@ class MoleculeBuilder:
                 for b in mol.bonds
                 if b[0] in remapping and b[1] in remapping
             ] + [
-                [remapping[ref[0]], n, bond_order]
+                [remapping[ref[i]], n+bs, bo]
+                for i,(bo,bs) in enumerate(zip(bond_order, bond_sites))
             ] + [
                 [b[0]+n, b[1]+n, 1 if len(b) == 2 else b[2]]
                 for b in bonds
@@ -513,6 +687,7 @@ class MoleculeBuilder:
             add_implicit_hydrogens='full',
             remove_sites=False,
             recompute_properties=True,
+            reorder_from_atom_map=False,
             molecule_type=None,
             **opts
     ):
@@ -550,7 +725,8 @@ class MoleculeBuilder:
         :raises ValueError: if not every atom could be placed into the final SMILES ordering
         """
         if molecule_type is None:
-            molecule_type = Molecule
+            molecule_type = cls._default_molecule_type()
+        Molecule = molecule_type
 
         def canonicalize_fragment(scaffold):
             if isinstance(scaffold, str):
@@ -560,7 +736,7 @@ class MoleculeBuilder:
             scaffold = scaffold.copy()
             mol = scaffold.pop('molecule', None)
             if mol is None and 'smiles' in scaffold and 'coords' not in scaffold:
-                mol = molecule_type.from_string(scaffold.pop('smiles'), add_implicit_hydrogens='full')
+                mol = Molecule.from_string(scaffold.pop('smiles'), add_implicit_hydrogens='full')
             if mol is not None:
                 ordering = None
                 if 'smiles' not in scaffold:
@@ -609,6 +785,7 @@ class MoleculeBuilder:
             cache=cache,
             add_implicit_hydrogens=add_implicit_hydrogens,
             remove_sites=remove_sites,
+            reorder_from_atom_map=reorder_from_atom_map,
             return_fragment_indices=True,
             return_new_bonds=True
         )
@@ -625,19 +802,32 @@ class MoleculeBuilder:
             # recovers the correspondence with the (H-inclusive) 3D atom list
             return [i for i, a in enumerate(atoms) if a not in ('H', 'D', 'T')]
 
-        def find_bonded_hydrogen(atoms, coords, bonds, heavy_local):
+        def find_bonded_hydrogen(atoms, coords, bonds, heavy_local, exclude=(), return_all=False):
             if bonds is None:
                 bonds = Molecule(atoms, coords).bonds
+            exclude = set(exclude)
+            candidates = []
             for b in bonds:
                 a, c = b[0], b[1]
-                if a == heavy_local and atoms[c] in ('H', 'D', 'T'):
-                    return c
-                if c == heavy_local and atoms[a] in ('H', 'D', 'T'):
-                    return a
-            return None
+                if a == heavy_local:
+                    if atoms[c] in ('H', 'D', 'T') and c not in exclude:
+                        if return_all:
+                            candidates.append(c)
+                        else:
+                            return c
+                elif c == heavy_local:
+                    if atoms[a] in ('H', 'D', 'T') and a not in exclude:
+                        if return_all:
+                            candidates.append(a)
+                        else:
+                            return a
+            if return_all:
+                return candidates
+            else:
+                return None
 
         base = frags[0]
-        mol = molecule_type(base['atoms'], base['coords'], bonds=base.get('bonds'), **opts)
+        mol = Molecule(base['atoms'], base['coords'], bonds=base.get('bonds'), **opts)
 
         heavy0 = heavy_atom_positions(base['atoms'])
         # map: final (fully-joined) SMILES heavy-atom index -> current position in `mol`
@@ -649,7 +839,8 @@ class MoleculeBuilder:
         for f in frags:
             f['sites'] = parse_smiles_and_atom_map(f['smiles'],
                                                    cache=smiles_options['cache'],
-                                                   add_implicit_hydrogens=smiles_options['add_implicit_hydrogens'])['map']
+                                                   add_implicit_hydrogens=smiles_options['add_implicit_hydrogens'],
+                                                   reorder_from_atom_map=smiles_options['reorder_from_atom_map'])['map']
 
         cur_sites = frags[0]['sites']
         if stereos is None:
@@ -663,97 +854,241 @@ class MoleculeBuilder:
             heavy_to_smiles_local = {loc: k for k, loc in enumerate(heavy_frag)}
             sub_index = {final: i for i, final in enumerate(am)}
 
-            # only the first bond drives the 3D placement; any further bonds
-            # from this join (e.g. ring closures) are just connectivity
-            base_final, frag_final, *rest = bonds_i[0]
-            bond_order = rest[0] if rest else 1
-
-            base_heavy = current_index[base_final]
-            frag_local = heavy_frag[sub_index[frag_final]]
-
-            # the atom actually being replaced is the explicit hydrogen sitting
-            # at this position on the scaffold (if any) -- NOT the heavy atom,
-            # since `attach_functional_group` always deletes `target_fragment`
-            # --- picking `target` on the base side ---
-            final_of_base = {v: k for k, v in current_index.items()}  # local pos -> final idx, base side
-            substereos = {
-                (cur_sites[i+1], cur_sites[j+1]):v
-                for (i,j), v in stereos.items()
-                if (i+1 in cur_sites) and (j+1 in cur_sites)
-            }
-            stereo_h = cls.resolve_stereo_hydrogen(
-                mol.atoms, mol.coords, mol.bonds,
-                base_heavy, substereos, final_of_base
-            )
-            base_h = stereo_h if stereo_h is not None else find_bonded_hydrogen(
-                mol.atoms, mol.coords, mol.bonds, base_heavy
-            )
-            target = base_h if base_h is not None else base_heavy
-
-            # --- picking `group_site` on the fragment side ---
             frag_sites = frag['sites']
-            substereos = {
+            frag_bonds_raw = frag.get('bonds') or Molecule(frag['atoms'], frag['coords']).bonds
+
+            # `bonds_i` may contain more than one bond (e.g. a bidentate ligand that
+            # closes a ring / forms a linker). Discover a scaffold target atom and a
+            # fragment placeholder hydrogen for *each* bond, removing an explicit H at
+            # each site where one exists. Hydrogens already claimed by an earlier bond
+            # in this same join are not reused.
+            base_final_of = {v: k for k, v in current_index.items()}  # local pos -> final idx, base side
+            base_substereos = {
+                (cur_sites[i + 1], cur_sites[j + 1]): v
+                for (i, j), v in stereos.items()
+                if (i + 1 in cur_sites) and (j + 1 in cur_sites)
+            }
+            frag_substereos = {
                 (frag_sites[i + 1], frag_sites[j + 1]): v
                 for (i, j), v in stereos.items()
                 if (i + 1 in frag_sites) and (j + 1 in frag_sites)
             }
             final_of_frag = {loc: am[k] for k, loc in enumerate(heavy_frag)}  # local pos -> final idx, frag side
-            stereo_h = cls.resolve_stereo_hydrogen(
-                frag['atoms'], frag['coords'], frag.get('bonds') or Molecule(frag['atoms'], frag['coords']).bonds,
-                frag_local, substereos, final_of_frag
-            )
-            frag_h = stereo_h if stereo_h is not None else find_bonded_hydrogen(
-                frag['atoms'], frag['coords'], frag.get('bonds'), frag_local
-            )
 
-            # `group_site` mode assumes the true attachment atom sits at local index 0
-            order = [frag_local] + [j for j in range(len(frag['atoms'])) if j != frag_local]
-            remap = {old: new for new, old in enumerate(order)}
-            frag_atoms = [frag['atoms'][j] for j in order]
-            frag_coords = frag['coords'][order,]
-            frag_bonds = frag.get('bonds')
-            if frag_bonds is not None:
-                frag_bonds = [
-                    [remap[b[0]], remap[b[1]]] + list(b[2:])
-                    for b in frag_bonds
-                ]
-            group_site = remap[frag_h] if frag_h is not None else None
+            used_base_h = set()
+            used_frag_h = set()
+            sites = []  # one entry per bond: (target, base_heavy, frag_h, frag_local, bond_order)
+            if len(bonds_i) == 1:
+                bond = bonds_i[0]
+                base_final, frag_final, *rest = bond
+                bo = rest[0] if rest else 1
+
+                base_heavy = current_index[base_final]
+                frag_local = heavy_to_smiles_local[heavy_frag[sub_index[frag_final]]]
+
+                # the atom actually replaced is the explicit hydrogen at this scaffold
+                # site (if any) -- NOT the heavy atom -- since the target is deleted
+                stereo_h = cls.resolve_stereo_hydrogen(
+                    mol.atoms, mol.coords, mol.bonds,
+                    base_heavy, base_substereos, base_final_of
+                )
+                if stereo_h is not None and stereo_h in used_base_h:
+                    stereo_h = None  # already claimed by an earlier bond in this join
+                base_h = stereo_h if stereo_h is not None else find_bonded_hydrogen(
+                    mol.atoms, mol.coords, mol.bonds, base_heavy, exclude=used_base_h
+                )
+                if base_h is not None:
+                    used_base_h.add(base_h)
+                target = base_h if base_h is not None else base_heavy
+
+                stereo_h = cls.resolve_stereo_hydrogen(
+                    frag['atoms'], frag['coords'], frag_bonds_raw,
+                    frag_local, frag_substereos, final_of_frag
+                )
+                if stereo_h is not None and stereo_h in used_frag_h:
+                    stereo_h = None
+                frag_h = stereo_h if stereo_h is not None else find_bonded_hydrogen(
+                    frag['atoms'], frag['coords'], frag.get('bonds'), frag_local,
+                    exclude=used_frag_h
+                )
+                if frag_h is not None:
+                    used_frag_h.add(frag_h)
+
+                sites.append((target, base_heavy, frag_h, frag_local, bo))
+            else:
+                # find all hydrogen candidates from `bonds_i`
+                targets, frag_targs = [], []
+                base_candidates, frag_candidates = [], []
+                bond_orders = []
+                for bond in bonds_i:
+                    base_final, frag_final, *rest = bond
+                    bo = rest[0] if rest else 1
+                    bond_orders.append(bo)
+
+                    base_heavy = current_index[base_final]
+                    frag_local = heavy_to_smiles_local[heavy_frag[sub_index[frag_final]]]
+
+                    targets.append(base_heavy)
+                    bh = find_bonded_hydrogen(
+                            mol.atoms, mol.coords, mol.bonds, base_heavy, exclude=used_base_h,
+                            return_all=True
+                        )
+                    if len(bh) == 0: bh = [None]
+                    base_candidates.append(bh)
+
+                    frag_targs.append(frag_local)
+                    fh = find_bonded_hydrogen(
+                        frag['atoms'], frag['coords'], frag.get('bonds'), frag_local,
+                        exclude=used_frag_h,
+                        return_all=True
+                    )
+                    if len(fh) == 0: fh = [None]
+                    frag_candidates.append(fh)
+
+                # choose candidates such that their sum of pairwise distances is minimized
+
+                best_base = None
+                min_dist = np.inf
+                for cands in itut.unique_product(*base_candidates):
+                    cands = [c for c in cands if c is not None]
+                    if len(cands) == 0:
+                        best_base = cands
+                        break
+                    else:
+                        pos = mol.coords[cands,]
+                        dists = np.sum(nput.distance_matrix(pos, return_triu=True))
+                        if dists < min_dist:
+                            min_dist = dists
+                            best_base = cands
+                if best_base is None:
+                    raise ValueError("could not find candidate base hydrogens")
+
+                best_frag = None
+                min_dist = np.inf
+                for cands in itut.unique_product(*frag_candidates):
+                    cands = [c for c in cands if c is not None]
+                    if len(cands) == 0:
+                        best_frag = cands
+                        break
+                    else:
+                        pos = frag['coords'][cands,]
+                        dists = np.sum(nput.distance_matrix(pos, return_triu=True))
+                        if dists < min_dist:
+                            min_dist = dists
+                            best_frag = cands
+                if best_frag is None:
+                    raise ValueError("could not find candidate fragment hydrogens")
+
+                print(best_base, best_frag)
+                print(targets, frag_targs)
+                # best_base = [0, 3]
+                # best_frag = [5, 8]
+
+                for target, base_heavy, frag_h, frag_local, bo in zip(best_base, targets, best_frag, frag_targs, bond_orders):
+                    sites.append((target, base_heavy, frag_h, frag_local, bo))
 
             n_before = len(mol.atoms)
-            mol = cls.attach_functional_group(
-                mol,
-                [target],
-                frag_atoms,
-                frag_coords,
-                bonds=frag_bonds if frag_bonds is not None else 'recompute',
-                bond_order=bond_order,
-                group_site=group_site,
-                molecule_type=molecule_type
-            )
 
-            # `target` was removed from `mol`; shift every stored position down
+            if len(sites) == 1:
+                # ---- single-bond join: unchanged single-site path ----
+                target, base_heavy, frag_h, frag_local, bond_order = sites[0]
+
+                # `group_site` mode assumes the true attachment atom sits at local index 0
+                order = [frag_local] + [j for j in range(len(frag['atoms'])) if j != frag_local]
+                remap = {old: new for new, old in enumerate(order)}
+                frag_atoms = [frag['atoms'][j] for j in order]
+                frag_coords = frag['coords'][order,]
+                frag_bonds = frag.get('bonds')
+                if frag_bonds is not None:
+                    frag_bonds = [
+                        [remap[b[0]], remap[b[1]]] + list(b[2:])
+                        for b in frag_bonds
+                    ]
+                group_site = remap[frag_h] if frag_h is not None else None
+
+                mol = cls.attach_functional_group(
+                    mol,
+                    [target],
+                    frag_atoms,
+                    frag_coords,
+                    bonds=frag_bonds if frag_bonds is not None else 'recompute',
+                    bond_order=bond_order,
+                    group_site=group_site,
+                    molecule_type=molecule_type
+                )
+
+                removed_targets = [target]
+                # the fragment's atoms were appended in `order`, minus whichever
+                # position `group_site` removed
+                appended = [j for j in order if frag_h is None or j != frag_h]
+            else:
+                # ---- multi-bond join: multi-site placeholder attachment ----
+                # every fragment site must expose an explicit H to remove so it can be
+                # cast as a `group_site` placeholder; likewise every scaffold site needs
+                # an H to remove (otherwise there's no unambiguous atom to delete)
+                if any(frag_h is None for (_, _, frag_h, _, _) in sites):
+                    raise ValueError(
+                        "multi-bond fragment join needs an explicit hydrogen at every "
+                        "fragment bond site to remove; none found for some site"
+                    )
+                if any(t == bh for (t, bh, _, _, _) in sites):
+                    raise ValueError(
+                        "multi-bond fragment join needs an explicit hydrogen at every "
+                        "scaffold bond site to remove; none found for some site"
+                    )
+
+                frag_atoms = list(frag['atoms'])
+                frag_coords = np.asanyarray(frag['coords'], dtype=float)
+                frag_bonds = frag.get('bonds')
+
+                targets = [t for (t, _, _, _, _) in sites]
+                # refs = [bh for (_, bh, _, _, _) in sites]
+                group_sites = [(fl, fh) for (_, _, fh, fl, _) in sites]
+                bond_orders = [bo for (_, _, _, _, bo) in sites]
+
+                print(group_sites)
+                print(frag_atoms)
+                mol = cls.attach_functional_group(
+                    mol,
+                    targets,
+                    frag_atoms,
+                    frag_coords,
+                    bonds=frag_bonds if frag_bonds is not None else 'recompute',
+                    # ref=refs,
+                    bond_order=bond_orders,
+                    group_site=group_sites,
+                    molecule_type=molecule_type
+                )
+
+                removed_targets = [t for (t, _, _, _, _) in sites]
+                # in the multi-site path the surviving fragment atoms are appended in
+                # ascending local order, minus the removed placeholders
+                order = list(range(len(frag_atoms)))
+                appended = [j for j in order if j not in set(group_sites)]
+
+            # --- update current_index after removing the scaffold target(s) ---
+            removed_sorted = sorted(removed_targets)
+            def _shift(idx):
+                return idx - sum(1 for t in removed_sorted if t < idx)
             current_index = {
-                final: (idx if idx < target else idx - 1)
+                final: _shift(idx)
                 for final, idx in current_index.items()
-                if idx != target
+                if idx not in removed_targets
             }
-            base_offset = n_before - 1  # actual atom count after removing `target`
+            base_offset = n_before - len(removed_targets)  # atom count after removals
 
-            # the fragment's atoms were appended in `order`, minus whichever
-            # position `group_site` removed (np.setdiff1d preserves ascending
-            # order, which here is the same as `order` with that slot skipped)
-            appended = [j for j in order if frag_h is None or j != frag_h]
+            # the fragment heavy atoms were appended after the surviving scaffold atoms,
+            # in the order given by `appended`
             for pos, local_idx in enumerate(appended):
                 if local_idx in heavy_to_smiles_local:
                     final_idx = am[heavy_to_smiles_local[local_idx]]
                     current_index[final_idx] = base_offset + pos
-                # explicit hydrogens carried on the fragment have no
-                # counterpart in the (hydrogen-free) SMILES numbering, so
-                # they simply aren't tracked here
+                # explicit hydrogens carried on the fragment have no counterpart in the
+                # (hydrogen-free) SMILES numbering, so they simply aren't tracked here
 
             # join cur_sites and frag_sites
             site_offset = len(cur_sites)
-            cur_sites = cur_sites | {i + site_offset:f + base_offset for i,f in frag_sites.items()}
+            cur_sites = cur_sites | {i + site_offset: f + base_offset for i, f in frag_sites.items()}
 
         def _extend_with_hydrogen_indices(mol, current_index, n_heavy_total):
             """
@@ -799,7 +1134,7 @@ class MoleculeBuilder:
         new_ord = [full_index[i] for i in range(n_total)]
 
         if recompute_properties:
-            new_mol = molecule_type.from_string(smiles, 'smi', reorder_from_atom_map=False, **opts)
+            new_mol = Molecule.from_string(smiles, 'smi', reorder_from_atom_map=False, **opts)
             new_mol.coords = mol.coords[new_ord,]
         else:
             new_mol = mol.take_submolecule(new_ord)

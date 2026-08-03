@@ -2318,7 +2318,7 @@ class Molecule(AbstractMolecule):
             for m in new_mols
         ]
 
-    def neighborhood(self, loc, size=1):
+    def neighborhood(self, loc, size=1, heavy_only=False):
         """
         **LLM Docstring**
 
@@ -2331,7 +2331,7 @@ class Molecule(AbstractMolecule):
         :return: the neighboring atom indices
         :rtype: tuple[int]
         """
-        return self.topology.neighborhood(loc, size=size)
+        return self.topology.neighborhood(loc, size=size, heavy_only=heavy_only)
 
     def remove_hydrogens(self, positions=None, max=None, *, hydrogen_types=None):
         """
