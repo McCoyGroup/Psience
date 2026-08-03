@@ -240,7 +240,7 @@ class MolecularTopology:
         """
         return self.edge_graph.get_path(atom1, atom2)
 
-    def neighborhood(self, loc, size=1):
+    def neighborhood(self, loc, size=1, heavy_only=False):
         """
         Find the atoms within a given graph-distance of a location in the bonding graph.
 
@@ -251,7 +251,10 @@ class MolecularTopology:
         :return: the neighboring atom indices
         :rtype: tuple[int]
         """
-        return tuple(l for l in self.edge_graph.neighbor_iterator(loc, num=size))
+        nb = tuple(l for l in self.edge_graph.neighbor_iterator(loc, num=size))
+        if heavy_only:
+            nb = tuple(n for n in nb if self.atoms[n] not in ("H", "D", "T"))
+        return nb
     #endregion
 
     #region Fragments

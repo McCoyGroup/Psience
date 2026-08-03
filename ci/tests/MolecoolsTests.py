@@ -5137,7 +5137,7 @@ class MolecoolsTests(TestCase):
         # fg.plot().show()
         comb.plot(backend='x3d', atom_radius_scaling=1).show()
 
-    @debugTest
+    @validationTest
     def test_FunctionalizationMulti(self):
         from McUtils.Data import SMILESData
         from McUtils.ExternalPrograms import build_templated_smiles
@@ -5153,8 +5153,31 @@ class MolecoolsTests(TestCase):
             fg.atoms,
             fg.coords,
             fg.bonds,
-            group_site=[5, 8],
+            group_site=[(0, 5), (3, 8)],
             # dihedral=-np.pi / 2
+        )
+
+        mol.plot(
+            # highlight_atoms=[6],
+            # dipole=emb * 3,
+            # dipole_origin=mol.coords[6],
+            backend='x3d').show()
+
+    @debugTest
+    def test_FragmentsMulti(self):
+        from McUtils.Data import SMILESData
+        from McUtils.ExternalPrograms import build_templated_smiles
+
+        # Molecule.from_string(r'[N:1]/C=C\[N:2]', add_implicit_hydrogens='full').plot().show()
+        # Molecule.from_string(r'N/C=C\N', add_implicit_hydrogens='full').plot().show()
+        # return
+
+        mol = MoleculeBuilder.from_fragments(
+            '[c:1]1[c:2]cccc1',
+            {'smiles':r'[N:1]/C=C\[N:2]', 'new_bonds':[
+                [0, 0],
+                [1, 1]
+            ]}
         )
 
         mol.plot(
