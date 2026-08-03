@@ -2452,12 +2452,14 @@ class Molecule(AbstractMolecule):
                                 masses=None,
                                 distance='auto',
                                 angle=0,
-                                dihedral=0,
+                                dihedral='auto',
+                                dihedral_search_steps=36,
+                                dihedral_distance_metric=None,
                                 embedding='auto',
                                 bond_order=None,
                                 use_absolue_posititions=False,
                                 group_site=None
-                                ) -> 'Molecule':
+                                ) -> 'typing.Self':
         """
         **LLM Docstring**
 
@@ -2479,8 +2481,12 @@ class Molecule(AbstractMolecule):
         :type distance: str | float | None
         :param angle: rotation angle (about the up-vector) to apply to the new group
         :type angle: float
-        :param dihedral: rotation angle (about the offset axis) to apply to the new group
-        :type dihedral: float
+        :param dihedral: rotation angle (about the offset axis) to apply to the new group; `'auto'` to instead scan `dihedral_search_steps` evenly-spaced angles and keep whichever maximizes `dihedral_distance_metric` between the new group and the rest of the scaffold
+        :type dihedral: float | str
+        :param dihedral_search_steps: number of evenly-spaced angles (over 360°) to try when `dihedral='auto'`
+        :type dihedral_search_steps: int
+        :param dihedral_distance_metric: `(frag_coords, other_coords) -> float` scoring function used when `dihedral='auto'`; higher is better. Defaults to the average pairwise distance between the new group's atoms and the surviving scaffold atoms
+        :type dihedral_distance_metric: Callable | None
         :param embedding: the reference orientation for the new group; `'auto'` to derive it from moments of inertia, or an explicit `(origin, axes)`/axes specification
         :type embedding: str | tuple | np.ndarray | None
         :param bond_order: the bond order connecting the new group to the target fragment; defaults to `1` (or inferred when `group_site` is used)
@@ -2509,12 +2515,6 @@ class Molecule(AbstractMolecule):
                     embedding = nput.view_matrix(up_vector=embedding[-1])
                 elif bonds == None:
                     _, embedding = nput.moments_of_inertia(new_coords, masses=masses)
-                # new_coords = (new_coords - new_coords[(0,)]) @ embedding
-                # origin, offset, up = self.fragment_embedding(target_fragment, ref=ref)
-                # embedding = nput.view_matrix(up_vector=up)
-                # new_coords = new_coords @ embedding
-                # u = new_coords[0] - new_coords[group_site]
-                # new_coords = new_coords @ nput.rotation_matrix(u, offset)
                 embedding = new_coords[group_site], embedding
             rem = np.setdiff1d(np.arange(len(atoms)), [group_site])
             if bonds is not None and not dev.str_is(bonds, 'recompute'):
@@ -2536,6 +2536,8 @@ class Molecule(AbstractMolecule):
                 distance=distance,
                 angle=angle,
                 dihedral=dihedral,
+                dihedral_search_steps=dihedral_search_steps,
+                dihedral_distance_metric=dihedral_distance_metric,
                 embedding=embedding,
                 bond_order=bond_order,
                 use_absolue_posititions=use_absolue_posititions,
@@ -2555,6 +2557,10 @@ class Molecule(AbstractMolecule):
 
         if masses is None:
             masses = np.array([AtomData[a, "Mass"] for a in atoms])
+
+        # needed both for bond remapping below and, now, as the comparison
+        # set when `dihedral='auto'` scores candidate orientations
+        rem = np.setdiff1d(np.arange(len(self.atoms)), target_fragment)
 
         if not use_absolue_posititions:
             origin, offset, up = self.fragment_embedding(target_fragment, ref=ref)
@@ -2585,12 +2591,31 @@ class Molecule(AbstractMolecule):
                     new_coords = new_coords @ (inv @ rot.T)
                     if angle != 0:
                         new_coords = new_coords @ nput.rotation_matrix(up, angle)
-                    if dihedral != 0:
+
+                    if dev.str_is(dihedral, 'auto'):
+                        metric = dihedral_distance_metric
+                        if metric is None:
+                            def metric(frag_coords, other_coords):
+                                diffs = frag_coords[:, np.newaxis, :] - other_coords[np.newaxis, :, :]
+                                dists = np.linalg.norm(diffs, axis=-1)
+                                return -np.mean(1/dists)
+                        other_coords = self.coords[rem]
+                        base_coords = new_coords
+                        best_score = -np.inf
+                        best_coords = base_coords
+                        for cand in np.linspace(0, np.pi/2, dihedral_search_steps, endpoint=False):
+                            cand_coords = base_coords @ nput.rotation_matrix(offset, cand)
+                            placed = (origin + offset)[np.newaxis] + cand_coords
+                            score = metric(placed, other_coords)
+                            if score > best_score:
+                                best_score = score
+                                best_coords = cand_coords
+                        new_coords = best_coords
+                    elif dihedral != 0:
                         # rotate about offset axis, assumed to be perp to up
                         new_coords = new_coords @ nput.rotation_matrix(offset, dihedral)
                 new_coords = (origin + offset)[np.newaxis] + new_coords
 
-        rem = np.setdiff1d(np.arange(len(self.atoms)), target_fragment)
         remapping = {i:n for n,i in enumerate(rem)}
         if dev.str_is(bonds, 'recompute'):
             total_bonds = None
