@@ -23,7 +23,7 @@ import McUtils.Zachary as zach
 from McUtils.Zachary import Mesh
 from McUtils.Graphs import EdgeGraph
 import McUtils.Plots as plt
-from McUtils.ExternalPrograms import RDMolecule, ExternalProgramJob, build_templated_smiles
+from McUtils.ExternalPrograms import RDMolecule, ExternalProgramJob, build_templated_smiles, parse_smiles_and_atom_map
 from McUtils.Scaffolding import Logger
 import McUtils.Symmetry as symm
 
@@ -2660,27 +2660,20 @@ class Molecule(AbstractMolecule):
         if len(h_candidates) < 2:
             return None  # nothing to disambiguate
 
-        stereo_final = final_of.get(stereo_pos)
-        if stereo_final is None:
+        for bb in bonds:
+            partner_pos = None
+            if bb[0] == stereo_pos:
+                partner_pos = bb[1]
+            elif bb[1] == stereo_pos:
+                partner_pos = bb[0]
+            if partner_pos is not None:
+                relation = stereos.get((bb[0], bb[1]))
+                if relation is None:
+                    relation = stereos.get((bb[1], bb[0]))
+                if relation is not None:
+                    break
+        else:
             return None
-
-        partner_final = relation = None
-        for (a, b), rel in stereos.items():
-            if a == stereo_final:
-                partner_final, relation = b, rel
-                break
-            elif b == stereo_final:
-                partner_final, relation = a, rel
-                break
-        if partner_final is None:
-            return None  # this atom isn't part of a specified stereo bond
-
-        # translate the partner's final index back to a local position in this
-        # same geometry (only meaningful if the whole double bond lives here)
-        pos_of_final = {v: k for k, v in final_of.items()}
-        partner_pos = pos_of_final.get(partner_final)
-        if partner_pos is None:
-            return None  # partner isn't in this fragment's geometry -- can't resolve locally
 
         # the retained substituent on the far side anchors what cis/trans means
         ref_pos = next(
@@ -2696,7 +2689,7 @@ class Molecule(AbstractMolecule):
         if ref_pos is None:
             return None  # no usable reference substituent found
 
-        target_torsion = np.pi if relation == 'cis' else 0.0
+        target_torsion = 0 if relation == 'cis' else np.pi
         return min(
             h_candidates,
             key=lambda h: cls._angle_diff(
@@ -2815,6 +2808,15 @@ class Molecule(AbstractMolecule):
             for i in range(len(atom_maps[0]))
         }
 
+        for f in frags:
+            f['sites'] = parse_smiles_and_atom_map(f['smiles'],
+                                                   cache=smiles_options['cache'],
+                                                   add_implicit_hydrogens=smiles_options['add_implicit_hydrogens'])['map']
+
+        cur_sites = frags[0]['sites']
+        if stereos is None:
+            stereos = {}
+
         for frag, am, bonds_i in zip(frags[1:], atom_maps[1:], bond_maps):
             if not bonds_i:
                 continue
@@ -2836,9 +2838,14 @@ class Molecule(AbstractMolecule):
             # since `attach_functional_group` always deletes `target_fragment`
             # --- picking `target` on the base side ---
             final_of_base = {v: k for k, v in current_index.items()}  # local pos -> final idx, base side
+            substereos = {
+                (cur_sites[i+1], cur_sites[j+1]):v
+                for (i,j), v in stereos.items()
+                if (i+1 in cur_sites) and (j+1 in cur_sites)
+            }
             stereo_h = cls.resolve_stereo_hydrogen(
                 mol.atoms, mol.coords, mol.bonds,
-                base_heavy, stereos or {}, final_of_base
+                base_heavy, substereos, final_of_base
             )
             base_h = stereo_h if stereo_h is not None else find_bonded_hydrogen(
                 mol.atoms, mol.coords, mol.bonds, base_heavy
@@ -2846,10 +2853,16 @@ class Molecule(AbstractMolecule):
             target = base_h if base_h is not None else base_heavy
 
             # --- picking `group_site` on the fragment side ---
+            frag_sites = frag['sites']
+            substereos = {
+                (frag_sites[i + 1], frag_sites[j + 1]): v
+                for (i, j), v in stereos.items()
+                if (i + 1 in frag_sites) and (j + 1 in frag_sites)
+            }
             final_of_frag = {loc: am[k] for k, loc in enumerate(heavy_frag)}  # local pos -> final idx, frag side
             stereo_h = cls.resolve_stereo_hydrogen(
                 frag['atoms'], frag['coords'], frag.get('bonds') or Molecule(frag['atoms'], frag['coords']).bonds,
-                frag_local, stereos or {}, final_of_frag
+                frag_local, substereos, final_of_frag
             )
             frag_h = stereo_h if stereo_h is not None else find_bonded_hydrogen(
                 frag['atoms'], frag['coords'], frag.get('bonds'), frag_local
@@ -2897,6 +2910,10 @@ class Molecule(AbstractMolecule):
                 # explicit hydrogens carried on the fragment have no
                 # counterpart in the (hydrogen-free) SMILES numbering, so
                 # they simply aren't tracked here
+
+            # join cur_sites and frag_sites
+            site_offset = len(cur_sites)
+            cur_sites = cur_sites | {i + site_offset:f + base_offset for i,f in frag_sites.items()}
 
         def _extend_with_hydrogen_indices(mol, current_index, n_heavy_total):
             """
