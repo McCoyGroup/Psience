@@ -403,6 +403,22 @@ class MolecularTopology:
         else:
             return zmat
 
+    def get_canonical_fragments(self, ordering=None):
+        """
+        Build a canonical Z-matrix ordering for the molecule from a canonical fragmentation of
+        the bonding graph.
+
+        :param ordering: the atom ordering to use as the basis for canonicalization; defaults
+            to the natural `0..N` ordering
+        :type ordering: np.ndarray | None
+        :param validate: whether to validate each Z-matrix addition
+        :type validate: bool
+        :return: the canonical Z-matrix
+        :rtype: np.ndarray
+        """
+        if ordering is None: ordering = np.arange(len(self.atoms))
+        return self.edge_graph.get_canonical_fragments(ordering)
+
     def get_canonical_zmatrix(self, ordering=None, validate=True):
         """
         Build a canonical Z-matrix ordering for the molecule from a canonical fragmentation of

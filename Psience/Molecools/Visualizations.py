@@ -544,9 +544,10 @@ class MoleculePlotter:
                 if k not in atom_style: atom_style[k] = {}
                 atom_style[k].update(highlight_styles)
 
-        for k, v in atom_style.items():
-            colors[k] = v.get('color', colors[k])
-            glows[k] = v.get('glow', glows[k])
+        if atom_style is not False:
+            for k, v in atom_style.items():
+                colors[k] = v.get('color', colors[k])
+                glows[k] = v.get('glow', glows[k])
 
         return atom_style, highlight_atoms, colors, glows
 
@@ -880,7 +881,8 @@ class MoleculePlotter:
                              bond_style,
                              theme_function,
                              plotos,
-                             cylinder_options
+                             cylinder_options,
+                             split_bond_segments=True
                              ):
         """
         **LLM Docstring**
@@ -1111,7 +1113,7 @@ class MoleculePlotter:
                 3 if mbo > 2.01 else
                 2 if mbo > 1.01 else
                 1
-            )
+            ) if render_multiple_bonds else 1
             if len(bond_point_list) < target_bond_number:
                 bond_point_list = bond_point_list + [bond_point_list[0]] * (target_bond_number - len(bond_point_list))
 
@@ -1120,24 +1122,35 @@ class MoleculePlotter:
             sty1 = (plotos | cylinder_options | b_sty_1)
             if theme_function is not None:
                 sty1 = theme_function((atom1, atom2), cylinder_class, sty1)
-            cc1 = cylinder_class(
-                pp1,
-                mp,
-                bond_radius,
-                closed=(True, False),
-                **sty1
-            )
-            sty2 = (plotos | cylinder_options | b_sty_2)
-            if theme_function is not None:
-                sty2 = theme_function((atom2, atom1), cylinder_class, sty2)
-            cc2 = cylinder_class(
-                mp,
-                pp2,
-                bond_radius,
-                closed=(False, True),
-                **sty2
-            )
-            bond_objs.extend([cc1, cc2])
+            if split_bond_segments:
+                cc1 = cylinder_class(
+                    pp1,
+                    mp,
+                    bond_radius,
+                    closed=(True, False),
+                    **sty1
+                )
+                sty2 = (plotos | cylinder_options | b_sty_2)
+                if theme_function is not None:
+                    sty2 = theme_function((atom2, atom1), cylinder_class, sty2)
+                cc2 = cylinder_class(
+                    mp,
+                    pp2,
+                    bond_radius,
+                    closed=(False, True),
+                    **sty2
+                )
+                bond_objs.extend([cc1, cc2])
+            else:
+                cc1 = cylinder_class(
+                    pp1,
+                    pp2,
+                    bond_radius,
+                    closed=(True, True),
+                    **sty1
+                )
+                bond_objs.extend([cc1])
+
 
         return bond_objs
 
@@ -1160,7 +1173,8 @@ class MoleculePlotter:
                                  bond_style,
                                  theme_function,
                                  plotos,
-                                 cylinder_options
+                                 cylinder_options,
+                                 split_bond_segments=True
                                  ):
         """
         **LLM Docstring**
@@ -1228,7 +1242,8 @@ class MoleculePlotter:
                     bond_style=bond_style,
                     theme_function=theme_function,
                     plotos=plotos,
-                    cylinder_options=cylinder_options
+                    cylinder_options=cylinder_options,
+                    split_bond_segments=split_bond_segments
                 )
             )
         return all_bonds
@@ -2157,6 +2172,7 @@ class MoleculePlotter:
                       objects=False,
                       graphics_class=None,
                       cylinder_class=None,
+                      split_bond_segments=True,
                       cylinder_options=None,
                       sphere_class=None,
                       sphere_options=None,
@@ -2249,6 +2265,7 @@ class MoleculePlotter:
             objects=objects,
             graphics_class=graphics_class,
             cylinder_class=cylinder_class,
+            split_bond_segments=split_bond_segments,
             cylinder_options=cylinder_options,
             sphere_class=sphere_class,
             sphere_options=sphere_options,
@@ -3141,12 +3158,34 @@ class RDKitMoleculePlotter(MoleculePlotter):
             highlight_atom_colors = {}
             for a in highlight_atoms:
                 highlight_atom_colors[a] = highlight_color
+        if atom_style is not None:
+            for a, d in atom_style.items():
+                if 'glow' in d:
+                    if highlight_atoms is None:
+                        highlight_atoms = []
+                    if a not in highlight_atoms:
+                        highlight_atoms.append(a)
+                    if highlight_atom_colors is None:
+                        highlight_atom_colors = {}
+                    highlight_atom_colors[a] = d['glow']
         if highlight_bonds is not None:
             highlight_bond_colors = {}
             for b in highlight_bonds:
                 if not nput.is_int(b):
                     b = tuple(b)
+                if highlight_bonds is None:
+                    highlight_bonds = []
+                if b not in highlight_bonds:
+                    highlight_bonds.append(b)
                 highlight_bond_colors[b] = highlight_color
+        if bond_style is not None:
+            for b, d in bond_style.items():
+                if not nput.is_int(b):
+                    b = tuple(b)
+                if 'glow' in d:
+                    if highlight_bond_colors is None:
+                        highlight_bond_colors = {}
+                    highlight_bond_colors[b] = d['glow']
 
         if not use_default_radii:
             atom_radii = self._get_atom_radii(atom_radii, atom_radius_scaling, radius_type)
@@ -3155,7 +3194,6 @@ class RDKitMoleculePlotter(MoleculePlotter):
             bond_radius = None
 
         return dict(
-            dict(
                 figure=figure,
                 highlight_atoms=highlight_atoms,
                 highlight_bonds=highlight_bonds,
@@ -3171,9 +3209,7 @@ class RDKitMoleculePlotter(MoleculePlotter):
                 draw_coords=draw_coords,
                 label_style=label_style,
                 highlight_bond_width_multiplier=None
-            ),
-            **extra_opts
-        )
+            ) | extra_opts
 
 
 class Graphics3DMoleculePlotter(MoleculePlotter):
@@ -3261,6 +3297,7 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
             objects,
             graphics_class,
             cylinder_class,
+            split_bond_segments,
             cylinder_options,
             sphere_class,
             sphere_options,
@@ -3324,6 +3361,7 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
                 "objects",
                 "graphics_class",
                 "cylinder_class",
+                "split_bond_segments",
                 "cylinder_options",
                 "sphere_class",
                 "sphere_options",
@@ -3548,6 +3586,7 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
             fractional_bond_offset,
             up_vector,
             cylinder_class,
+            split_bond_segments,
             colors,
             glows,
             display_atom_numbers,
@@ -3577,6 +3616,7 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
                 fractional_bond_offset,
                 up_vector,
                 cylinder_class,
+                split_bond_segments,
                 colors,
                 glows,
                 display_atom_numbers,
@@ -3658,6 +3698,7 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
                 sphere_class = substyle.pop('sphere_class', sphere_class)
                 sphere_options = substyle.pop('sphere_options', sphere_options)
                 cylinder_class = substyle.pop('cylinder_class', cylinder_class)
+                split_bond_segments = substyle.pop('split_bond_segments', split_bond_segments)
                 cylinder_options = substyle.pop('cylinder_options', cylinder_options)
 
                 plotos = plotos | substyle
@@ -3723,6 +3764,7 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
                     max_bond_orders=max_bond_orders,
                     up_vector=up_vector,
                     cylinder_class=cylinder_class,
+                    split_bond_segments=split_bond_segments,
                     colors=colors,
                     glows=glows,
                     bond_style=bond_style,
