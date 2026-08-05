@@ -4987,7 +4987,10 @@ class Molecule(AbstractMolecule):
     def get_rmsd(self, other:'Molecule | np.ndarray', sel=None,
                  embed=True,
                  embedding_sel=None,
-                 mass_weighted=False):
+                 mass_weighted=False,
+                 total=False,
+                 averaged=False,
+                 ):
         """
         **LLM Docstring**
 
@@ -5006,34 +5009,25 @@ class Molecule(AbstractMolecule):
         :return: the RMSD value(s)
         :rtype: float | np.ndarray
         """
-        if embed:
-            if embedding_sel is None: embedding_sel = sel
-            self = self.get_embedded_molecule(embed_properties=False, sel=embedding_sel)
-            if isinstance(other, Molecule):
-                other = other.get_embedded_molecule(ref=self, sel=embedding_sel, embed_properties=False).coords
-            else:
-                other = self.embed_coords(other, sel=embedding_sel)
-        elif isinstance(other, Molecule):
+        if hasattr(other, 'coords'):
             other = other.coords
 
-        ref = self.coords
-        other = np.asanyarray(other)
-        base_shape = other.shape[:-2]
-        ref = np.expand_dims(ref, list(range(other.ndim-2)))
-        if mass_weighted:
-            mass_scaling = np.asanyarray(self.masses) / np.sum(self.masses)
-            mass_scaling = np.expand_dims(mass_scaling[:, np.newaxis], list(range(other.ndim-2)))
-            ref = ref * mass_scaling
-            other = other * mass_scaling
+        if not mass_weighted:
+            masses = None
+        else:
+            masses = self.masses
 
-        if sel is not None:
-            ref = ref[..., sel, :]
-            other = other[..., sel, :]
-
-        ref = ref.reshape((-1, np.prod(ref.shape[-2:], dtype=int)))
-        other = other.reshape((-1, np.prod(other.shape[-2:], dtype=int)))
-
-        return np.linalg.norm(ref - other, axis=-1).reshape(base_shape)
+        return nput.eckart_rmsd(
+            other,
+            self.coords,
+            masses=masses,
+            embed=embed,
+            comparison_sel=sel,
+            embedding_sel=embedding_sel,
+            mass_weighted=mass_weighted,
+            total=total,
+            averaged=averaged
+        )
 
     def align_molecule(self, other:'Molecule',
                        reindex_bonds=True,
@@ -5445,6 +5439,7 @@ class Molecule(AbstractMolecule):
     def _from_smiles(cls, smi,
                      add_implicit_hydrogens=True,
                      num_confs=None,
+                     return_multiconf=False,
                      conf_id=None,
                      take_min=None,
                      optimize=False,
@@ -5523,7 +5518,14 @@ class Molecule(AbstractMolecule):
                                        )
 
         if isinstance(confs, list):
-            return [cls.from_rdmol(s, **opts) for s in confs]
+            if return_multiconf:
+                c0 = cls.from_rdmol(confs[0], **opts)
+                coords = np.array([
+                    s.coords for s in confs
+                ]) * UnitsData.convert("Angstroms", "BohrRadius")
+                return c0.modify(coords=coords)
+            else:
+                return [cls.from_rdmol(s, **opts) for s in confs]
         else:
             return cls.from_rdmol(confs, **opts)
     @classmethod
@@ -6327,7 +6329,7 @@ class Molecule(AbstractMolecule):
             raise ValueError(f"couldn't get `rdmol` for {mol}")
 
     @classmethod
-    def _to_xyz_string(cls, mol, comment=None, units=None, num_prec=8):
+    def _to_xyz_string(cls, mol, comment=None, units=None, num_prec=8, filter=None):
         """
         **LLM Docstring**
 
@@ -6348,6 +6350,8 @@ class Molecule(AbstractMolecule):
         crds = mol.coords
         if units is not None:
             crds = crds * UnitsData.convert("BohrRadius", units)
+        if filter is not None:
+            ats, crds = filter(ats, crds)
         num_ats = len(ats)
         x_width = 1 + np.ceil(np.max(np.log10(np.abs(crds.flatten()) + 1e-6)))
         total_width = int(2 + x_width + num_prec)
