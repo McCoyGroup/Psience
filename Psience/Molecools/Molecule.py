@@ -5453,6 +5453,7 @@ class Molecule(AbstractMolecule):
                      parser_options=None,
                      confgen_opts=None,
                      coords=None,
+                     conformer_encoder=None,
                      **opts):
         """
         **LLM Docstring**
@@ -5514,6 +5515,7 @@ class Molecule(AbstractMolecule):
                                        reorder_from_atom_map=reorder_from_atom_map,
                                        confgen_opts=confgen_opts,
                                        coords=coords,
+                                       conformer_encoder=conformer_encoder,
                                        **parser_options
                                        )
 
