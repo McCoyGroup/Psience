@@ -45,7 +45,8 @@ __all__ = [
     "MolecoolException"
 ]
 
-__reload_hook__ = ["..Modes", ".MoleculeInterface", '.CoordinateSystems', '.Hamiltonian', '.Evaluator', '.Properties', '.Topology', '.Builder']
+__reload_hook__ = ["..Modes", ".MoleculeInterface", '.CoordinateSystems', '.Hamiltonian', '.Evaluator', '.Properties',
+                   '.Topology', '.Builder', '.Visualizations']
 
 from .Transformations import MolecularTransformation
 
@@ -2634,7 +2635,7 @@ class Molecule(AbstractMolecule):
         """
         return MolecularProperties.translation_rotation_eigenvectors(self)
 
-    def get_translation_rotation_projector(self, mass_weighted=False):
+    def get_translation_rotation_projector(self, mass_weighted=False, direction='forward'):
         """
         **LLM Docstring**
 
@@ -2649,6 +2650,7 @@ class Molecule(AbstractMolecule):
             self.coords,
             self.atomic_masses,
             mass_weighted=mass_weighted,
+            direction=direction,
             return_modes=False
         )
         # L_tr = self.translation_rotation_modes[1]

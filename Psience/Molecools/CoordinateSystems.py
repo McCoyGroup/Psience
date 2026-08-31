@@ -1778,7 +1778,9 @@ class MolecularGenericInternalCoordinateSystem(GenericInternalCoordinateSystem):
     """
     Mirrors the standard ZMatrix coordinate system in _almost_ all regards, but forces an embedding
     """
-    name = "MolecularGenericInternals"
+    # name = "MolecularGenericInternals"
+    name = None
+    name_format = "MolecularGenericInternals-{uuid}"
     class PassThroughRedundantGenerator:
         def __init__(self, redundant_transformation, redundant_inverse=None,
                      masses=None,
@@ -1877,7 +1879,8 @@ class MolecularZMatrixCoordinateSystem(ZMatrixCoordinateSystem):
     """
     Mirrors the standard ZMatrix coordinate system in _almost_ all regards, but forces an embedding
     """
-    name = "MolecularZMatrix"
+    name = None
+    name_format = "MolecularZMatrix-{uuid}"
     embedding_coords = [0, 1, 2, 4, 5, 8]
     def __init__(self, masses, coords, converter_options=None, **opts):
         """
@@ -2107,7 +2110,9 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
     """
     Mirrors the standard Cartesian coordinate system in _almost_ all regards, but forces an embedding
     """
-    name= "MolecularCartesians"
+    # name = "MolecularCartesians"
+    name = None
+    name_format = "MolecularCartesians-{uuid}"
     def __init__(self, masses, coords, dummy_positions=None, converter_options=None, **opts):
         """
 
@@ -3286,7 +3291,9 @@ class MolecularGICConverterToRegularGIC(CoordinateSystemConverter):
         return coords, kwargs
 
 class MolecularIZCoordinateSystem(MolecularZMatrixCoordinateSystem):
-    name = "MolecularIZMatrix"
+    # name = "MolecularIZMatrix"
+    name = None
+    name_format = "MolecularIZMatrix-{uuid}"
 
 class MolecularCartesianToIZConverter(MolecularCartesianToZMatrixConverter):
     """

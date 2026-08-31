@@ -4736,6 +4736,7 @@ class MACEEnergyEvaluator(ASECalcEnergyEvaluator):
         'mp':'mp/medium-mpa-0',
         'polar':'polar/polar-1-l'
     }
+    _mace_cache = {} # weird OOM errors...
     @classmethod
     def setup_calc(cls, model='extra_large', model_type=None, device=None, model_dir=None, **settings):
         model = model.lower()
@@ -4758,12 +4759,17 @@ class MACEEnergyEvaluator(ASECalcEnergyEvaluator):
                     import mace.calculators
                     model_type = getattr(mace.calculators, model_type)
 
-        with cls.quiet_mode(), cls._overload_mace_modeldir(model_dir):
-            device = cls._resolve_torch_device(device)
-            if model == 'none':
-                calc = model_type(model=model, device=device, **settings)
-            else:
-                calc = model_type(model=model, device=device, **settings)
+        if len(settings) > 0 or ((model, device) not in cls._mace_cache):
+            with cls.quiet_mode(), cls._overload_mace_modeldir(model_dir):
+                device = cls._resolve_torch_device(device)
+                if model == 'none':
+                    calc = model_type(model=model, device=device, **settings)
+                else:
+                    calc = model_type(model=model, device=device, **settings)
+            if len(settings) == 0:
+                cls._mace_cache[(model, device)] = calc
+        else:
+            calc = cls._mace_cache[(model, device)]
 
         return calc
 
