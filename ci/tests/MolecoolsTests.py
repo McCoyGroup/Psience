@@ -5163,7 +5163,7 @@ class MolecoolsTests(TestCase):
             # dipole_origin=mol.coords[6],
             backend='x3d').show()
 
-    @debugTest
+    @validationTest
     def test_FragmentsMulti(self):
         from McUtils.Data import SMILESData
         from McUtils.ExternalPrograms import build_templated_smiles
@@ -6803,6 +6803,46 @@ class MolecoolsTests(TestCase):
 
         mol[0].plot([m.coords for m in mol]).show()
 
+    @debugTest
+    def test_RedundantMassWeighting(self):
+        import McUtils.Iterators as itut
+        import McUtils.Coordinerds as coordops
+
+        mol = Molecule.from_string(
+            'C(=C/S(=O)(=O)c1ccccc1)/OC'
+        )
+        base_internals = mol.get_bond_graph_internals(
+            include_fragments=False,
+            include_dihedrals=False,
+        )
+        enum_internals = [tuple(x) for x in nput.combination_indices(len(mol.atoms), 2)]
+        dm = nput.distance_matrix(mol.coords)
+        bonds = {frozenset(b[:2]) for b in mol.bonds}
+        atoms = mol.atoms
+        enum_internals = sorted(enum_internals,
+                                key=lambda i: (
+                                    i not in bonds,
+                                    (atoms[i[0]] == "H" or atoms[i[1]] == "H"),
+                                    dm[i[0], i[1]]
+                                ))
+        base_internals = list(itut.delete_duplicates(
+            base_internals + enum_internals,
+            key=lambda x:coordops.canonicalize_internal(x)
+        ))
+
+        mol_int = mol.modify(
+            internals={'primitives': base_internals,
+                       'relocalize': True}
+        )
+
+        buh = mol_int.internal_coordinates
+        mask = (mol_int.internals['redundant_transformation']**2) < .01
+        mol_int.internals['redundant_transformation'][mask] = 0
+
+        import McUtils.Plots as plt
+        plt.ArrayPlot(mol_int.internals['redundant_transformation']**2).show()
+
+        anim = mol_int.animate_coordinate(0)
 
 
-
+        anim.show()

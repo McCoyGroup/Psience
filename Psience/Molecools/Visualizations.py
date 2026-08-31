@@ -1118,11 +1118,13 @@ class MoleculePlotter:
                 bond_point_list = bond_point_list + [bond_point_list[0]] * (target_bond_number - len(bond_point_list))
 
         bond_objs = []
+        annotation_objs = []
         for pp1, pp2, mp in bond_point_list:
             sty1 = (plotos | cylinder_options | b_sty_1)
             if theme_function is not None:
                 sty1 = theme_function((atom1, atom2), cylinder_class, sty1)
             if split_bond_segments:
+                annotation_function_1 = sty1.pop('annotation_function', None)
                 cc1 = cylinder_class(
                     pp1,
                     mp,
@@ -1130,9 +1132,17 @@ class MoleculePlotter:
                     closed=(True, False),
                     **sty1
                 )
+                if annotation_function_1 is not None:
+                    annotations = annotation_function_1(cylinder_class, (atom1, atom2),
+                                                        pp1,
+                                                        mp,
+                                                        bond_radius,
+                                                        sty1 | dict(closed=(True, False)))
+                    annotation_objs.extend(annotations)
                 sty2 = (plotos | cylinder_options | b_sty_2)
                 if theme_function is not None:
                     sty2 = theme_function((atom2, atom1), cylinder_class, sty2)
+                annotation_function_2 = sty2.pop('annotation_function', None)
                 cc2 = cylinder_class(
                     mp,
                     pp2,
@@ -1140,8 +1150,16 @@ class MoleculePlotter:
                     closed=(False, True),
                     **sty2
                 )
+                if annotation_function_2 is not None:
+                    annotations = annotation_function_2(cylinder_class, (atom1, atom2),
+                                                        mp,
+                                                        pp2,
+                                                        bond_radius,
+                                                        sty2 | dict(closed=(False, True)))
+                    annotation_objs.extend(annotations)
                 bond_objs.extend([cc1, cc2])
             else:
+                annotation_function = sty1.pop('annotation_function', None)
                 cc1 = cylinder_class(
                     pp1,
                     pp2,
@@ -1150,9 +1168,16 @@ class MoleculePlotter:
                     **sty1
                 )
                 bond_objs.extend([cc1])
+                if annotation_function is not None:
+                    annotations = annotation_function(cylinder_class, (atom1, atom2),
+                                                        pp1,
+                                                        pp2,
+                                                        bond_radius,
+                                                        sty1 | dict(closed=(True, True)))
+                    annotation_objs.extend(annotations)
 
 
-        return bond_objs
+        return bond_objs, annotation_objs
 
     def _get_bondlist_primitives(self,
                                  geom,
@@ -1221,9 +1246,9 @@ class MoleculePlotter:
         :rtype: list[list]
         """
         all_bonds = []
+        all_annotations = []
         for j, b in enumerate(bond_list):
-            all_bonds.append(
-                self._get_bond_primitives(
+            bonds, annots = self._get_bond_primitives(
                     geom,
                     b,
                     bond_list=bond_list,
@@ -1245,8 +1270,9 @@ class MoleculePlotter:
                     cylinder_options=cylinder_options,
                     split_bond_segments=split_bond_segments
                 )
-            )
-        return all_bonds
+            all_bonds.append(bonds)
+            all_annotations.extend(annots)
+        return all_bonds, all_annotations
 
     def _get_atom_primitives(self,
                              geom,
@@ -1287,6 +1313,7 @@ class MoleculePlotter:
         :rtype: list
         """
         atom_objs = []
+        annotation_objs = []
         for j, stuff in enumerate(zip(colors, radii, geom)):
             color, radius, coord = stuff
             a_sty = atom_style.get(j, {})
@@ -1296,13 +1323,17 @@ class MoleculePlotter:
             modifier = a_sty.pop('modifier', None)
             if modifier is not None:
                 a_sty = modifier(j, self.atoms[j], a_sty)
+            annotation_function = a_sty.pop('annotation_function', None)
 
             asty = (plotos | sphere_options | a_sty)
             if theme_function is not None:
                 asty = theme_function(j, sphere_class, asty)
             sphere = sphere_class(coord, radius, **asty)
             atom_objs.append(sphere)
-        return atom_objs
+            if annotation_function is not None:
+                annotations = annotation_function(sphere_class, j, coord, radius, asty)
+                annotation_objs.extend(annotations)
+        return atom_objs, annotation_objs
 
     def _get_dipole_primitives(self,
                                geom,
@@ -3751,7 +3782,7 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
                             or
                             self._ats[b[1]]["ElementSymbol"] in {"H", "X", "D"}
                     ))
-                bond_objs = self._get_bondlist_primitives(
+                bond_objs, bond_annots = self._get_bondlist_primitives(
                     geom,
                     bond_list,
                     bond_radius=bond_radius,
@@ -3784,12 +3815,25 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
                             subbonds.append(cyl)
                         _.append(subbonds)
                     bond_objs = _
+
+                    _ = []
+                    for c in bond_annots:
+                        cyl = c.plot(figure)
+                        if isinstance(cyl, (list, tuple)):
+                            cyl = cyl[0]
+                        _.append(cyl)
+                    bond_annots = _
+
                 bonds[i] = bond_objs
+                if len(bond_annots) > 0:
+                    arrows: list
+                    if arrows[i] is None: arrows[i] = []
+                    arrows[i].extend(bond_annots)
 
             if atom_style is not False:
                 atoms: list
                 atoms[i] = [None] * len(geom)
-                atom_objs = self._get_atom_primitives(
+                atom_objs, atom_annots = self._get_atom_primitives(
                     geom,
                     self._ats,
                     colors=colors,
@@ -3809,7 +3853,20 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
                             cyl = cyl[0]
                         _.append(cyl)
                     atom_objs = _
+
+                    _ = []
+                    for c in atom_annots:
+                        cyl = c.plot(figure)
+                        if isinstance(cyl, (list, tuple)):
+                            cyl = cyl[0]
+                        _.append(cyl)
+                    atom_annots = _
                 atoms[i] = atom_objs
+
+                if len(atom_annots) > 0:
+                    arrows: list
+                    if arrows[i] is None: arrows[i] = []
+                    arrows[i].extend(bond_annots)
 
             if dipole is not None:
                 arrows: list
