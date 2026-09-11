@@ -46,13 +46,61 @@ Build a collection of DVR wavefunctions sharing a common grid and the `DVRResult
     > None
 
 
+<a id="Psience.DVR.Wavefunctions.DVRWavefunctions.to_state" class="docs-object-method">&nbsp;</a> 
+```python
+to_state(self, serializer=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L151)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L151?message=Update%20Docs)]
+</div>
+Provides just the state needed to reconstruct this
+`DVRWavefunctions` object -- the energies, the (n_grid, n_states)
+matrix of wavefunction values, the grid they're defined over, and
+any explicit state-space `indices` -- paralleling
+`PerturbationTheoryWavefunctions.to_state` /
+`PerturbationTheoryCorrections.to_state` in `Psience.VPT2`.
+
+Like `PerturbationTheoryCorrections.to_state` deliberately drops
+the (potentially large, and not always cleanly serializable, since
+it can carry a raw `potential_function` closure and a `Logger`)
+`hamiltonians` payload, this drops `results` (the parent
+`DVRResults`/DVR object) rather than trying to serialize it: the
+wavefunction data itself is what's needed to reuse the
+wavefunctions downstream (e.g. to build a
+`ContractedDVRHarmonicRepresentation`).
+  - `serializer`: `Any`
+    > 
+  - `:returns`: `_`
+    >
+
+
+<a id="Psience.DVR.Wavefunctions.DVRWavefunctions.from_state" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+from_state(cls, data, serializer=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L181)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L181?message=Update%20Docs)]
+</div>
+Reloads a `DVRWavefunctions` object from the state produced by
+`to_state`.
+  - `data`: `Any`
+    > 
+  - `serializer`: `Any`
+    > 
+  - `:returns`: `_`
+    >
+
+
 <a id="Psience.DVR.Wavefunctions.DVRWavefunctions.__repr__" class="docs-object-method">&nbsp;</a> 
 ```python
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L150)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L150?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L202)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L202?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -66,8 +114,8 @@ Debug string representation showing the class name, the number of wavefunctions,
 plot(self, figure=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L195)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L195?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L247)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L247?message=Update%20Docs)]
 </div>
 Plots the held wavefunctions
   - `figure`: `Any`
@@ -91,8 +139,8 @@ Plots the held wavefunctions
 expectation(self, op, other=None, multiplicative=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L227)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L227?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L279)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L279?message=Update%20Docs)]
 </div>
 Computes the expectation value of operator op over the wavefunction other and self
   - `other`: `DVRWavefunctions | np.ndarray`
@@ -108,8 +156,8 @@ Computes the expectation value of operator op over the wavefunction other and se
 transform_operator(self, M): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L256)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L256?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L308)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L308?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -125,8 +173,8 @@ Transform an operator matrix given in the DVR grid-point basis into the basis of
 coordinate(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L271)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L271?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L323)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L323?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -140,8 +188,8 @@ The position-operator matrix in the wavefunction basis, computed as the expectat
 momentum(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L281)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L281?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L333)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L333?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -155,8 +203,8 @@ The real part of the momentum-operator matrix in the wavefunction basis, compute
 laplacian(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L293)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L293?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L345)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L345?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -170,8 +218,8 @@ The Laplacian operator matrix in the wavefunction basis, derived from a fresh (u
 kinetic_energy(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L306)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L306?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L358)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L358?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -185,8 +233,8 @@ The kinetic-energy operator matrix in the wavefunction basis, transformed from t
 potential_energy(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L320)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L320?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L372)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Wavefunctions/DVRWavefunctions.py#L372?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 

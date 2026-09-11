@@ -68,7 +68,7 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 [MolecularCartesianCoordinateSystem](Molecools/CoordinateSystems/MolecularCartesianCoordinateSystem.md)   
 </div>
    <div class="col" markdown="1">
-   
+[MoleculeBuilder](Molecools/Builder/MoleculeBuilder.md)   
 </div>
    <div class="col" markdown="1">
    
@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-a36ecc" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-a36ecc"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-159ac0" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-159ac0"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-a36ecc" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-159ac0" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -196,6 +196,10 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [AnimateColors](#AnimateColors)
 - [Functionalization](#Functionalization)
 - [TrickyFunctionalization](#TrickyFunctionalization)
+- [JoinedConstructor](#JoinedConstructor)
+- [JoinedConstructorStereo](#JoinedConstructorStereo)
+- [FunctionalizationMulti](#FunctionalizationMulti)
+- [FragmentsMulti](#FragmentsMulti)
 - [MolecularSES](#MolecularSES)
 - [ScanIterator](#ScanIterator)
 - [SomeZMat3](#SomeZMat3)
@@ -228,12 +232,16 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [EvaluatorModels](#EvaluatorModels)
 - [RMSDEmbeddings](#RMSDEmbeddings)
 - [LocalizedFragmentVPT](#LocalizedFragmentVPT)
+- [QChem](#QChem)
+- [RedundantMassWeighting](#RedundantMassWeighting)
+- [MMFFOptBugs](#MMFFOptBugs)
+- [ConformerGeneration](#ConformerGeneration)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-17f010" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-17f010"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-94b958" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-94b958"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-17f010" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-94b958" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -2342,62 +2350,60 @@ class MolecoolsTests(TestCase):
     def test_BackboneChains(self):
         from Psience.Molecools import Molecule
         import McUtils.Coordinerds as coordops
-        from Psience.Reactions import Reaction
-
-        # woof = Reaction.from_smiles("C=C.C=CC=C>>C1CCC=CC1",
+        # from Psience.Reactions import Reaction
+        #
+        # # woof = Reaction.from_smiles("C=C.C=CC=C>>C1CCC=CC1",
+        # #                             fragment_expansion_method='centroid',
+        # #                             optimize=True,
+        # #                             min_distance=.1,
+        # #                             add_radius=False,
+        # #                             expansion_factor=.01,
+        # #                             )
+        #
+        # woof = Reaction.from_smiles("C=C.C=CC=C(c1c2ccccc2ccc1)>>C1CCC=CC1(c1c2ccccc2ccc1)",
         #                             fragment_expansion_method='centroid',
         #                             optimize=True,
         #                             min_distance=.1,
         #                             add_radius=False,
         #                             expansion_factor=.01,
         #                             )
+        #
+        # reactant_complex = woof.reactant_complex
+        # full_zmat = reactant_complex.get_bond_zmatrix()
+        # int_comp = reactant_complex.modify(internals=full_zmat)
+        #
+        # # int_comp.animate_coordinate(30-6).show()
+        #
+        # return
 
-        woof = Reaction.from_smiles("C=C.C=CC=C(c1c2ccccc2ccc1)>>C1CCC=CC1(c1c2ccccc2ccc1)",
-                                    fragment_expansion_method='centroid',
-                                    optimize=True,
-                                    min_distance=.1,
-                                    add_radius=False,
-                                    expansion_factor=.01,
-                                    )
-
-        reactant_complex = woof.reactant_complex
-        full_zmat = reactant_complex.get_bond_zmatrix()
-        int_comp = reactant_complex.modify(internals=full_zmat)
-
-        # int_comp.animate_coordinate(30-6).show()
-
-        return
-
-        woof = Molecule.construct('CCCC')
-        zm = coordops.chain_zmatrix(4)
-
-        print(woof.atoms)
-        print(
-            coordops.add_missing_zmatrix_bonds(
-                zm,
-                [b[:2] for b in woof.bonds]
-            )
-        )
-
-
-
-
-        return
+        # woof = Molecule.construct('CCCC')
+        # zm = coordops.chain_zmatrix(4)
+        #
+        # print(woof.atoms)
+        # print(
+        #     coordops.add_missing_zmatrix_bonds(
+        #         zm,
+        #         [b[:2] for b in woof.bonds]
+        #     )
+        # )
+        #
+        #
+        #
+        #
+        # return
 
 
         napthalene = Molecule.construct('CCCCC(c1c2ccccc2ccc1)CCCC')
-        # backbone = napthalene.find_heavy_atom_backbone()
-
-
+        print(napthalene.get_bond_zmatrix())
 
         chains = napthalene.edge_graph.segment_by_chains()
-        zm = coordops.bond_graph_zmatrix(
-            [b[:2] for b in napthalene.bonds],
-            chains
-        )
-
-        print(zm)
-        return
+        # zm = coordops.bond_graph_zmatrix(
+        #     [b[:2] for b in napthalene.bonds],
+        #     chains
+        # )
+        #
+        # print(zm)
+        # return
 
         backbone, (side_chain,) = napthalene.edge_graph.segment_by_chains()
         atom_styles = {
@@ -2419,6 +2425,7 @@ class MolecoolsTests(TestCase):
             bond_style[(side_chain[i], side_chain[i + 1])] = {'color': 'white', 'glow': 'purple'}
             bond_style[(side_chain[i + 1], side_chain[i])] = {'color': 'white', 'glow': 'purple'}
         napthalene.plot(
+            backend='x3d',
             highlight_atoms=backbone[1:-1],
             atom_style=atom_styles,
             bond_style=bond_style,
@@ -5143,20 +5150,23 @@ class MolecoolsTests(TestCase):
         # mol2 = fg.remove_hydrogens(0)
         # mol3 = Molecule.from_string('CCC').remove_hydrogens(0, 1)
         fg2 = Molecule.from_string('CCC')
-        mol = mol.attach_functional_group(
-           [6],
+        mol = MoleculeBuilder.attach_functional_group(
+            mol,
+            [6],
             fg.atoms,
             fg.coords,
             fg.bonds,
             group_site=3,
-            dihedral=-np.pi/2
+            dihedral=-np.pi / 2
         )
-        mol = mol.attach_functional_group(
+        mol = MoleculeBuilder.attach_functional_group(
+            mol,
            [8],
             ['F'],
             [[0, 0, 0]]
         )
-        mol = mol.attach_functional_group(
+        mol = MoleculeBuilder.attach_functional_group(
+            mol,
             [11-2+4],
             # [6],
             fg2.atoms,
@@ -5210,6 +5220,91 @@ class MolecoolsTests(TestCase):
                  ).show()
 ```
 
+#### <a name="JoinedConstructor">JoinedConstructor</a>
+```python
+    def test_JoinedConstructor(self):
+        mol = Molecule.from_string('[c:1]1ccccc1', add_implicit_hydrogens='full')
+        fg = Molecule.from_string('[C:1](=O)[O:2]', add_implicit_hydrogens='full')
+
+        comb = MoleculeBuilder.from_fragments(
+            mol,
+            fg,
+            {'smiles':'[C:1]CC', 'new_bonds':[[2, 0, 1]]},
+            {'smiles':'[F:1]', 'new_bonds':[[3, 0, 1]]}
+        )
+        # mol.plot().show()
+        # fg.plot().show()
+        comb.plot(backend='x3d').show()
+```
+
+#### <a name="JoinedConstructorStereo">JoinedConstructorStereo</a>
+```python
+    def test_JoinedConstructorStereo(self):
+
+        comb = MoleculeBuilder.from_fragments(
+            '[C:1]=[C:2]',
+            '[C:1]C(C)(C)(C)',
+            '[C:1]C(C)(C)(C)',
+            stereos={(0, 1): 'trans'},
+        )
+        # mol.plot().show()
+        # fg.plot().show()
+        comb.plot(backend='x3d', atom_radius_scaling=1).show()
+```
+
+#### <a name="FunctionalizationMulti">FunctionalizationMulti</a>
+```python
+    def test_FunctionalizationMulti(self):
+        from McUtils.Data import SMILESData
+        from McUtils.ExternalPrograms import build_templated_smiles
+        mol = Molecule.from_string('c1ccccc1')
+        fg = Molecule.from_string(r'N/C=C\N')
+        # mol.plot(display_atom_numbers=True).show()
+        # fg.plot(display_atom_numbers=True).show()
+        # return
+
+        mol = MoleculeBuilder.attach_functional_group(
+            mol,
+            [6, 7],
+            fg.atoms,
+            fg.coords,
+            fg.bonds,
+            group_site=[(0, 5), (3, 8)],
+            # dihedral=-np.pi / 2
+        )
+
+        mol.plot(
+            # highlight_atoms=[6],
+            # dipole=emb * 3,
+            # dipole_origin=mol.coords[6],
+            backend='x3d').show()
+```
+
+#### <a name="FragmentsMulti">FragmentsMulti</a>
+```python
+    def test_FragmentsMulti(self):
+        from McUtils.Data import SMILESData
+        from McUtils.ExternalPrograms import build_templated_smiles
+
+        # Molecule.from_string(r'[N:1]/C=C\[N:2]', add_implicit_hydrogens='full').plot().show()
+        # Molecule.from_string(r'N/C=C\N', add_implicit_hydrogens='full').plot().show()
+        # return
+
+        mol = MoleculeBuilder.from_fragments(
+            '[c:1]1[c:2]cccc1',
+            {'smiles':r'[N:1]/C=C\[N:2]', 'new_bonds':[
+                [0, 0],
+                [1, 1]
+            ]}
+        )
+
+        mol.plot(
+            # highlight_atoms=[6],
+            # dipole=emb * 3,
+            # dipole_origin=mol.coords[6],
+            backend='x3d').show()
+```
+
 #### <a name="MolecularSES">MolecularSES</a>
 ```python
     def test_MolecularSES(self):
@@ -5221,7 +5316,7 @@ class MolecoolsTests(TestCase):
         )
         targ = next((b[1] for b in base.bonds if b[0] == 0 and base.atoms[b[1]] == 'H'), None)
         root = next((b[1] for b in frag.bonds if b[0] == 0 and frag.atoms[b[1]] == 'H'), None)
-        new: Molecule = base.attach_functional_group(
+        new: Molecule = MoleculeBuilder.attach_functional_group(
             [targ],
             frag.atoms,
             frag.coords,
@@ -6766,6 +6861,100 @@ class MolecoolsTests(TestCase):
         wfns = runner.print_tables()
         specs = wfns.get_spectrum()
         specs[0].broaden(breadth=8).plot().show()
+```
+
+#### <a name="QChem">QChem</a>
+```python
+    def test_QChem(self):
+        mol = Molecule.from_file(TestManager.test_data('qchem_samp.out'), 'qchem', coordinate_filter=lambda c:c[::5])
+        mol[0].plot(
+            [
+                mol[0].coords,
+                mol[-1].coords
+            ],
+            comparison_styles={'atom_style':{'color':'red'}}
+        ).show()
+
+        mol[0].plot([m.coords for m in mol]).show()
+```
+
+#### <a name="RedundantMassWeighting">RedundantMassWeighting</a>
+```python
+    def test_RedundantMassWeighting(self):
+        import McUtils.Iterators as itut
+        import McUtils.Coordinerds as coordops
+
+        mol = Molecule.from_string(
+            'C(=C/S(=O)(=O)c1ccccc1)/OC'
+        )
+        base_internals = mol.get_bond_graph_internals(
+            include_fragments=False,
+            include_dihedrals=False,
+        )
+        enum_internals = [tuple(x) for x in nput.combination_indices(len(mol.atoms), 2)]
+        dm = nput.distance_matrix(mol.coords)
+        bonds = {frozenset(b[:2]) for b in mol.bonds}
+        atoms = mol.atoms
+        enum_internals = sorted(enum_internals,
+                                key=lambda i: (
+                                    i not in bonds,
+                                    (atoms[i[0]] == "H" or atoms[i[1]] == "H"),
+                                    dm[i[0], i[1]]
+                                ))
+        base_internals = list(itut.delete_duplicates(
+            base_internals + enum_internals,
+            key=lambda x:coordops.canonicalize_internal(x)
+        ))
+
+        mol_int = mol.modify(
+            internals={'primitives': base_internals,
+                       'relocalize': True}
+        )
+
+        buh = mol_int.internal_coordinates
+        mask = (mol_int.internals['redundant_transformation']**2) < .01
+        mol_int.internals['redundant_transformation'][mask] = 0
+
+        import McUtils.Plots as plt
+        plt.ArrayPlot(mol_int.internals['redundant_transformation']**2).show()
+
+        anim = mol_int.animate_coordinate(0)
+
+
+        anim.show()
+```
+
+#### <a name="MMFFOptBugs">MMFFOptBugs</a>
+```python
+    def test_MMFFOptBugs(self):
+        from Psience.Molecools import Molecule
+
+        # Embed several conformers of a simple molecule.
+        structs = Molecule.from_string(
+            'CCO', 'smi',
+            num_confs=8,
+            energy_evaluator='rdkit',
+            conf_gen_options={'numConfs': 8},
+            spin=1,
+        )
+        print(f"embedded {len(structs)} conformers")
+
+        # Align every conformer onto the first (this is the normal
+        # generate -> dedupe workflow: RMSD pruning requires aligned coordinates).
+        ref = structs[0].get_embedded_molecule()
+        structs = [s.get_embedded_molecule(ref=ref) for s in structs]
+        print("alignment via get_embedded_molecule(ref=...) succeeded")
+
+        # Now try to optimize every conformer.
+        for i, struct in enumerate(structs):
+            # try:
+            struct.optimize(max_iterations=50)
+```
+
+#### <a name="ConformerGeneration">ConformerGeneration</a>
+```python
+    def test_ConformerGeneration(self):
+        ...
 ```
 
  </div>
