@@ -6803,7 +6803,7 @@ class MolecoolsTests(TestCase):
 
         mol[0].plot([m.coords for m in mol]).show()
 
-    @debugTest
+    @validationTest
     def test_RedundantMassWeighting(self):
         import McUtils.Iterators as itut
         import McUtils.Coordinerds as coordops
@@ -6846,3 +6846,35 @@ class MolecoolsTests(TestCase):
 
 
         anim.show()
+
+    @validationTest
+    def test_MMFFOptBugs(self):
+        from Psience.Molecools import Molecule
+
+        # Embed several conformers of a simple molecule.
+        structs = Molecule.from_string(
+            'CCO', 'smi',
+            num_confs=8,
+            energy_evaluator='rdkit',
+            conf_gen_options={'numConfs': 8},
+            spin=1,
+        )
+        print(f"embedded {len(structs)} conformers")
+
+        # Align every conformer onto the first (this is the normal
+        # generate -> dedupe workflow: RMSD pruning requires aligned coordinates).
+        ref = structs[0].get_embedded_molecule()
+        structs = [s.get_embedded_molecule(ref=ref) for s in structs]
+        print("alignment via get_embedded_molecule(ref=...) succeeded")
+
+        # Now try to optimize every conformer.
+        for i, struct in enumerate(structs):
+            # try:
+            struct.optimize(max_iterations=50)
+                # print(f"conformer {i}: optimize() OK")
+            # except Exception as e:
+            #     print(f"conformer {i}: optimize() FAILED -- {type(e).__name__}: {e}")
+
+    @debugTest
+    def test_ConformerGeneration(self):
+        ...

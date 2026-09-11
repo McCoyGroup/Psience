@@ -147,6 +147,58 @@ class DVRWavefunctions(Wavefunctions):
         super().__init__(energies=energies, wavefunctions=wavefunctions, results=results, grid=grid, **opts) # add all opts
         self.results = results
         self.grid = grid
+
+    def to_state(self, serializer=None):
+        """
+        Provides just the state needed to reconstruct this
+        `DVRWavefunctions` object -- the energies, the (n_grid, n_states)
+        matrix of wavefunction values, the grid they're defined over, and
+        any explicit state-space `indices` -- paralleling
+        `PerturbationTheoryWavefunctions.to_state` /
+        `PerturbationTheoryCorrections.to_state` in `Psience.VPT2`.
+
+        Like `PerturbationTheoryCorrections.to_state` deliberately drops
+        the (potentially large, and not always cleanly serializable, since
+        it can carry a raw `potential_function` closure and a `Logger`)
+        `hamiltonians` payload, this drops `results` (the parent
+        `DVRResults`/DVR object) rather than trying to serialize it: the
+        wavefunction data itself is what's needed to reuse the
+        wavefunctions downstream (e.g. to build a
+        `ContractedDVRHarmonicRepresentation`).
+
+        :param serializer:
+        :type serializer:
+        :return:
+        :rtype:
+        """
+        return {
+            'energies': self.energies,
+            'wavefunctions': self.wavefunctions,
+            'grid': self.grid,
+            'indices': self.indices
+        }
+
+    @classmethod
+    def from_state(cls, data, serializer=None):
+        """
+        Reloads a `DVRWavefunctions` object from the state produced by
+        `to_state`.
+
+        :param data:
+        :type data:
+        :param serializer:
+        :type serializer:
+        :return:
+        :rtype:
+        """
+        des = (lambda x: x) if serializer is None else serializer.deserialize
+        return cls(
+            energies=des(data['energies']),
+            wavefunctions=des(data['wavefunctions']),
+            grid=des(data['grid']),
+            indices=des(data['indices']) if data.get('indices') is not None else None
+        )
+
     def __repr__(self):
         """
         **LLM Docstring**
