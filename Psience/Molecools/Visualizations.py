@@ -529,10 +529,18 @@ class MoleculePlotter:
                     'specularity': 'white',
                     'shininess': 100 * np.clip(1.1 - reflectiveness, 0, 1)
                 })
-            _atom_style = {i: {} for i in range(len(self._ats))}
+            atom_types = {
+                atom_data["ElementSymbol"]
+                for atom_data in self._ats
+            }
+            _atom_style = {
+                i: atom_style.get(a["ElementSymbol"] , {}).copy()
+                for i,a in enumerate(self._ats)
+            }
             for k, v in atom_style.items():
                 if isinstance(k, str):
-                    base_atom_style[k] = v
+                    if k not in atom_types:
+                        base_atom_style[k] = v
                 else:
                     _atom_style[k] = v
             for k, v in _atom_style.items():
@@ -3276,7 +3284,13 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
         units = full_opts.pop('units', 'Angstroms')
 
         plot_ops = full_opts.pop('extra_opts')
-        graphics_keys = Graphics3D.known_keys | Graphics3D.opt_keys | Graphics3D.figure_keys | Graphics3D.axes_keys
+        graphics_keys = (
+                                Graphics3D.known_keys |
+                                Graphics3D.opt_keys |
+                                Graphics3D.figure_keys |
+                                Graphics3D.axes_keys |
+                                {'lighting', 'environment', 'navigation', 'use_xite'}
+        )
         graphics_opts = {k: plot_ops[k] for k in plot_ops.keys() & graphics_keys}
         plot_ops = {k: plot_ops[k] for k in plot_ops.keys() - graphics_keys}
 

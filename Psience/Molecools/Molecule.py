@@ -5168,6 +5168,9 @@ class Molecule(AbstractMolecule):
         :return: the constructed molecule
         :rtype: Molecule
         """
+        from McUtils.ExternalPrograms import ASEMolecule
+        if not hasattr(ase_mol, 'atoms'):
+            ase_mol = ASEMolecule.from_atoms(ase_mol)
         return cls(
             ase_mol.atoms,
             ase_mol.coords * UnitsData.convert("Angstroms", "BohrRadius"),
