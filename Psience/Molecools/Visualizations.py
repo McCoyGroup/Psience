@@ -874,6 +874,7 @@ class MoleculePlotter:
                              b,
                              *,
                              bond_list,
+                             rings=None,
                              bond_radius,
                              radii,
                              bond_center_radius_offset,
@@ -903,6 +904,8 @@ class MoleculePlotter:
         :type b: tuple
         :param bond_list: the full list of bonds, used to find a reference atom for orienting multiple-bond offsets
         :type bond_list: list[tuple]
+        :param rings: rings (ordered atom-index sequences); when the current bond's two atoms both belong to the first such ring, `u_vec` is flipped (if needed) so it points from the bond center toward that ring's center
+        :type rings: Iterable[Iterable[int]] | None
         :param bond_radius: the base cylinder radius for single bonds
         :type bond_radius: float
         :param radii: the per-atom display radii, used to offset bond endpoints away from atom centers
@@ -1021,23 +1024,39 @@ class MoleculePlotter:
             if up_vector is None:
                 up_vector = [0, 0, 1]
 
+            found_reference_bond = False
             for bb in bond_list:
                 atom3 = bb[0]
                 atom4 = bb[1]
                 if atom3 in {atom1, atom2} and atom4 not in {atom1, atom2}:
                     u_vec = np.cross(disp_vector, geom[atom4] - geom[atom3])
+                    found_reference_bond = True
                     break
                 elif atom4 not in {atom1, atom2} and atom3 in {atom1, atom2}:
                     u_vec = np.cross(disp_vector, geom[atom3] - geom[atom4])
+                    found_reference_bond = True
                     break
             else:
                 u_vec = up_vector
+
             if multiple_bond_spacing is None:
                 multiple_bond_spacing = bond_radius * 1.1
 
             axis = nput.vec_normalize(
                 np.cross(disp_vector, u_vec)
             )
+
+            if found_reference_bond and rings is not None:
+                ring_center = None
+                for ring in rings:
+                    ring_atoms = set(ring)
+                    if atom1 in ring_atoms and atom2 in ring_atoms:
+                        ring_center = np.mean(geom[list(ring)], axis=0)
+                        break
+                if ring_center is not None:
+                    bond_center = (p1 + p2) / 2
+                    if np.dot(axis, ring_center - bond_center) > 0:
+                        axis = -axis
 
             if isinstance(bond_center_radius_offset, dict):
                 pad = bond_center_radius_offset['padding']
@@ -1191,6 +1210,7 @@ class MoleculePlotter:
                                  geom,
                                  bond_list,
                                  *,
+                                 rings=None,
                                  bond_radius,
                                  radii,
                                  bond_center_radius_offset,
@@ -1218,6 +1238,8 @@ class MoleculePlotter:
         :type geom: np.ndarray
         :param bond_list: the bonds to draw
         :type bond_list: list[tuple]
+        :param rings: rings (ordered atom-index sequences) forwarded to `_get_bond_primitives` to orient multiple-bond offsets toward the ring interior
+        :type rings: Iterable[Iterable[int]] | None
         :param bond_radius: base bond cylinder radius
         :type bond_radius: float
         :param radii: per-atom display radii
@@ -1260,6 +1282,7 @@ class MoleculePlotter:
                     geom,
                     b,
                     bond_list=bond_list,
+                    rings=rings,
                     bond_radius=bond_radius,
                     radii=radii,
                     bond_center_radius_offset=bond_center_radius_offset,
@@ -2168,6 +2191,7 @@ class MoleculePlotter:
                       figure=None,
                       return_objects=False,
                       bonds=None,
+                      rings=None,
                       bond_radius=None,
                       atom_radius_scaling=None,
                       atom_style=None,
@@ -2250,6 +2274,8 @@ class MoleculePlotter:
         :type return_objects: bool
         :param bonds: bonds to draw instead of `mol.bonds`; `False` to draw none
         :type bonds: tuple | bool | None
+        :param rings: rings (ordered atom-index sequences) used, currently only by `Graphics3DMoleculePlotter`, to orient multiple-bond offsets toward the interior of the ring a bond belongs to
+        :type rings: Iterable[Iterable[int]] | None
         :param mode: the requested display mode
         :type mode: str | None
         :param backend: the requested rendering backend
@@ -2264,6 +2290,7 @@ class MoleculePlotter:
         full_opts = dict(
             return_objects=return_objects,
             bonds=bonds,
+            rings=rings,
             bond_radius=bond_radius,
             atom_radius_scaling=atom_radius_scaling,
             atom_style=atom_style,
@@ -3302,6 +3329,7 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
         (
             return_objects,
             bonds,
+            rings,
             bond_radius,
             atom_radius_scaling,
             atom_style,
@@ -3366,6 +3394,7 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
             full_opts.pop(f) for f in (  # allows for theme flexibility
                 "return_objects",
                 "bonds",
+                "rings",
                 "bond_radius",
                 "atom_radius_scaling",
                 "atom_style",
@@ -3799,6 +3828,7 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
                 bond_objs, bond_annots = self._get_bondlist_primitives(
                     geom,
                     bond_list,
+                    rings=rings,
                     bond_radius=bond_radius,
                     radii=radii,
                     bond_center_radius_offset=bond_center_radius_offset,

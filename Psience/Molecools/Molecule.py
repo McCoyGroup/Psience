@@ -6605,6 +6605,7 @@ class Molecule(AbstractMolecule):
              figure=None,
              return_objects=False,
              bonds=None,
+             rings=True,
              bond_radius=None,
              atom_radius_scaling=None,
              atom_style=None,
@@ -6678,6 +6679,8 @@ class Molecule(AbstractMolecule):
         defaults, and return conventions are unchanged.
         """
         from .Visualizations import MoleculePlotter
+        if rings is True and bonds is not False:
+            rings = self.edge_graph.rings
         return MoleculePlotter.plot_molecule(self, *geometries,
                                              figure=figure,
                                              mode=mode,
@@ -6686,6 +6689,7 @@ class Molecule(AbstractMolecule):
                                              return_objects=return_objects,
                                              units=units,
                                              bonds=bonds,
+                                             rings=rings,
                                              reconcile_bonds=reconcile_bonds,
                                              bond_radius=bond_radius,
                                              atom_radius_scaling=atom_radius_scaling,
