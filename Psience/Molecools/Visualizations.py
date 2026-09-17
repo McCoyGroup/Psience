@@ -138,10 +138,10 @@ class MoleculePlotter:
         },
         "svg3D": {
             'default': {
-                'cylinder_options': {'stroke-width': ".01px", 'stroke': 'black'},
-                'sphere_options': {'stroke-width': ".01px", 'stroke': 'black'},
-                'line_options': {'stroke-width': ".05px", 'stroke': 'black'},
-                'disk_options': {'stroke-width': ".05px", 'stroke': 'black'},
+                'cylinder_options': {'line_thickness': 0.01, 'line_color': 'black'},
+                'sphere_options': {'line_thickness': 0.01, 'line_color': 'black'},
+                'line_options': {'line_thickness': 0.05, 'line_color': 'black'},
+                'disk_options': {'line_thickness': 0.05, 'line_color': 'black'},
                 'label_style': {'font_size': '.5px'}
             },
             'simple': {
@@ -149,9 +149,10 @@ class MoleculePlotter:
                 'bond_style': {'color': 'black'},
                 'multiple_bond_spacing': .1,
                 'label_style': {'font_size': '.5px'},
-                'sphere_options': {'stroke-width': ".01px", 'stroke': 'black'},
-                'line_options': {'stroke-width': ".05px", 'stroke': 'black'},
-                'disk_options': {'stroke-width': ".05px", 'stroke': 'black'},
+                # 'cylinder_options': {'line_thickness': 0.01, 'line_color': 'black'},
+                'sphere_options': {'line_thickness': 0.01, 'line_color': 'black'},
+                'line_options': {'line_thickness': 0.05, 'line_color': 'black'},
+                'disk_options': {'line_thickness': 0.05, 'line_color': 'black'},
             }
         },
         "rdkit": {
@@ -422,7 +423,7 @@ class MoleculePlotter:
         :type include_save_buttons: bool | None
         :param dynamic_loading: whether the figure should use dynamic (lazy) loading, `x3d` only
         :type dynamic_loading: bool | None
-        :param recording_options: recording configuration to attach to the figure, `x3d` only
+        :param recording_options: recording configuration to attach to the figure, `x3d` or `svg3D`
         :type recording_options: dict | None
         :param ignored: any other options, accepted but not used
         :type ignored: dict
@@ -443,6 +444,13 @@ class MoleculePlotter:
         elif backend == 'plotly3D':
             if include_save_buttons is not None:
                 figure.figure.include_save_buttons = True
+        elif backend == 'svg3D':
+            if include_save_buttons is not None:
+                figure.figure.include_save_buttons = include_save_buttons
+            if dynamic_loading is not None:
+                figure.figure.dynamic_loading = dynamic_loading
+            if recording_options is not None:
+                figure.figure.recording_options = recording_options
 
     @staticmethod
     def _flat_color(i, a, styles):
