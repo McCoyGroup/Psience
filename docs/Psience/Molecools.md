@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-159ac0" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-159ac0"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-5fa5bf" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-5fa5bf"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-159ac0" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-5fa5bf" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -235,13 +235,15 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [QChem](#QChem)
 - [RedundantMassWeighting](#RedundantMassWeighting)
 - [MMFFOptBugs](#MMFFOptBugs)
+- [ZMatrixUnionMultiGraphPlot](#ZMatrixUnionMultiGraphPlot)
+- [ZMatrixGraphNotebookOpen](#ZMatrixGraphNotebookOpen)
 - [ConformerGeneration](#ConformerGeneration)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-94b958" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-94b958"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-1891cb" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-1891cb"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-94b958" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-1891cb" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -6949,6 +6951,105 @@ class MolecoolsTests(TestCase):
         for i, struct in enumerate(structs):
             # try:
             struct.optimize(max_iterations=50)
+```
+
+#### <a name="ZMatrixUnionMultiGraphPlot">ZMatrixUnionMultiGraphPlot</a>
+```python
+    def test_ZMatrixUnionMultiGraphPlot(self):
+        import re
+        import xml.etree.ElementTree as ET
+        import McUtils.Coordinerds as coordops
+
+        mol = Molecule.from_file(TestManager.test_data('tbhp_180.fchk'))
+
+        zm_graph = coordops.zmatrix_internals_graph(mol.get_bond_zmatrix())
+        multigraph = zm_graph.get_multigraph(
+            weights={'bonds': .1, 'angles': .1, 'dihedrals': 2}
+        )
+        fig = multigraph.plot(
+            graph_styles=[
+                {'line_thickness': .01},
+                {'line_thickness': .008, 'line_style': 'dashed'},
+                {'line_thickness': .005, 'line_style': 'dotted'}
+            ]
+        )
+
+        # a Jupyter frontend renders whichever representer hook it finds; make sure
+        # both the rich-HTML path (`_repr_html_`) and the raw mimebundle path
+        # (`get_mime_bundle`) hand back a single, well-formed <svg>...</svg> block
+        html = fig._repr_html_()
+        self.assertIsInstance(html, str)
+        svg_match = re.search(r"<svg[^>]*>.*</svg>", html, re.S)
+        self.assertIsNotNone(svg_match, msg="no <svg>...</svg> block found in _repr_html_ output")
+        self.assertEqual(html.count("<svg"), 1)
+        self.assertEqual(html.count("</svg>"), 1)
+        # raises if the markup isn't well-formed XML (unclosed/mismatched tags, bad attrs, etc.)
+        svg_root = ET.fromstring(svg_match.group(0))
+        self.assertTrue(svg_root.tag.endswith("svg"))
+
+        mime_bundle = fig.get_mime_bundle()
+        self.assertIn('image/svg', mime_bundle)
+        ET.fromstring(mime_bundle['image/svg'])
+```
+
+#### <a name="ZMatrixGraphNotebookOpen">ZMatrixGraphNotebookOpen</a>
+```python
+    def test_ZMatrixGraphNotebookOpen(self):
+        import McUtils.Coordinerds as coordops
+        from McUtils.Jupyter import NotebookWriter, NotebookReader
+
+        mol = Molecule.from_file(TestManager.test_data('tbhp_180.fchk'))
+        zm_graph = coordops.zmatrix_internals_graph(mol.get_bond_zmatrix())
+        multigraph = zm_graph.get_multigraph(
+            weights={'bonds': .1, 'angles': .1, 'dihedrals': 2}
+        )
+        fig = multigraph.plot(
+            graph_styles=[
+                {'line_thickness': .01},
+                {'line_thickness': .008, 'line_style': 'dashed'},
+                {'line_thickness': .005, 'line_style': 'dotted'}
+            ]
+        )
+        svg_html = fig._repr_html_()
+
+        # dropping the raw SVG straight into a Markdown cell is exactly how you'd
+        # preview it in an actual notebook -- Jupyter's Markdown renderer passes
+        # inline HTML like `<svg>...</svg>` straight through
+        markdown = f"# Z-Matrix UnionMultiGraph\n\n{svg_html}\n"
+        blocks = NotebookWriter.from_markdown(markdown)
+        self.assertEqual(len(blocks), 1)
+        self.assertEqual(blocks[0][0], 'markdown')
+        self.assertIn('<svg', blocks[0][1])
+
+        writer = NotebookWriter(blocks)
+
+        # `open_temp` shells out to `webbrowser.open`; swap in a fake so the test
+        # doesn't actually try to pop a browser window, while still exercising the
+        # exact same file-writing/URL-building path a real `webbrowser` would hit
+        class FakeBrowser:
+            def __init__(self):
+                self.opened = []
+            def open(self, url, new=0):
+                self.opened.append((url, new))
+                return True
+
+        browser = FakeBrowser()
+        name = "zmat_graph_test"
+        url = writer.open_temp(8888, mode='lab', name=name, browser=browser)
+
+        self.assertEqual(len(browser.opened), 1)
+        self.assertEqual(browser.opened[0][0], url)
+        self.assertEqual(url, f"http://localhost:8888/lab/tree/{name}.ipynb")
+
+        nb_file = os.path.join(writer.notebook_directory, f"{name}.ipynb")
+        self.assertTrue(os.path.exists(nb_file))
+
+        # round-trip through `NotebookReader` the way a Jupyter server would load it
+        reader = NotebookReader(nb_file)
+        cells = reader.cell_list()
+        self.assertEqual(len(cells), 1)
+        self.assertEqual(cells[0].cell_type, 'markdown')
+        self.assertIn('<svg', cells[0].text)
 ```
 
 #### <a name="ConformerGeneration">ConformerGeneration</a>
