@@ -407,6 +407,7 @@ class MoleculePlotter:
                                     include_save_buttons=None,
                                     dynamic_loading=None,
                                     recording_options=None,
+                                    depth_lighting=None,
                                     **ignored):
         """
         **LLM Docstring**
@@ -451,6 +452,8 @@ class MoleculePlotter:
                 figure.figure.dynamic_loading = dynamic_loading
             if recording_options is not None:
                 figure.figure.recording_options = recording_options
+            if depth_lighting is not None:
+                figure.figure.depth_lighting = depth_lighting
 
     @staticmethod
     def _flat_color(i, a, styles):
@@ -2240,6 +2243,7 @@ class MoleculePlotter:
                       mode=None,
                       backend=None,
                       include_save_buttons=None,
+                      depth_lighting=None,
                       objects=False,
                       graphics_class=None,
                       cylinder_class=None,
@@ -2336,6 +2340,7 @@ class MoleculePlotter:
             up_vector=up_vector,
             multiple_bond_spacing=multiple_bond_spacing,
             include_save_buttons=include_save_buttons,
+            depth_lighting=depth_lighting,
             objects=objects,
             graphics_class=graphics_class,
             cylinder_class=cylinder_class,
@@ -3375,6 +3380,7 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
             up_vector,
             multiple_bond_spacing,
             include_save_buttons,
+            depth_lighting,
             objects,
             graphics_class,
             cylinder_class,
@@ -3440,6 +3446,7 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
                 "up_vector",
                 "multiple_bond_spacing",
                 "include_save_buttons",
+                "depth_lighting",
                 "objects",
                 "graphics_class",
                 "cylinder_class",
