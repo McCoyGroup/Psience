@@ -2,7 +2,7 @@
 Provides a symbolic approach to vibrational perturbation theory based on a Harmonic description
 """
 
-import abc, itertools, collections, enum, math
+import abc, itertools, collections, enum, math, pickle, weakref
 import contextlib
 import functools
 
@@ -25,6 +25,11 @@ from .Corrections import BasicAPTCorrections
 __all__ = [
     'PerturbationTheoryEvaluator',
     'AnalyticPerturbationTheorySolver',
+    'PolyAtom',
+    'PolyAxis',
+    'PolyTerm',
+    'PolyPath',
+    'PTTensorCoeffProductDAG',
     # 'AnalyticPerturbationTheoryDriver',
     # 'AnalyticPTCorrectionGenerator',
     # 'RaisingLoweringClasses'
@@ -52,7 +57,8 @@ class AnalyticPerturbationTheorySolver:
                  allowed_coefficients=None,
                  disallowed_coefficients=None,
                  allowed_energy_changes=None,
-                 intermediate_normalization=None
+                 intermediate_normalization=None,
+                 polynomial_representation='path'
                  ):
         self.hamiltonian_expansion = hamiltonian_expansion
         self.logger = Logger.lookup(logger)
@@ -62,6 +68,10 @@ class AnalyticPerturbationTheorySolver:
         self.disallowed_coefficients = disallowed_coefficients
         self.allowed_energy_changes = allowed_energy_changes
         self.intermediate_normalization = intermediate_normalization
+        if polynomial_representation not in {'eager', 'path'}:
+            raise ValueError("unknown polynomial representation {}".format(polynomial_representation))
+        self.polynomial_representation = polynomial_representation
+        self._op_maps = {}
 
     @classmethod
     def from_order(cls, order, internals=True, logger=None, checkpoint=None,
@@ -69,7 +79,8 @@ class AnalyticPerturbationTheorySolver:
                    allowed_coefficients=None,
                    disallowed_coefficients=None,
                    allowed_energy_changes=None,
-                   intermediate_normalization=None):
+                   intermediate_normalization=None,
+                   polynomial_representation='path'):
         logger = Logger.lookup(logger)
         if order < 2:
             raise ValueError("why")
@@ -90,7 +101,8 @@ class AnalyticPerturbationTheorySolver:
                     identities=[0, 1] + ([] if o < 2 else [2]), # V, G, G'
                     logger=logger,
                     allowed_coefficients=allowed_coefficients,
-                    disallowed_coefficients=disallowed_coefficients
+                    disallowed_coefficients=disallowed_coefficients,
+                    polynomial_representation=polynomial_representation
                 )
                 for o in range(order + 1)
             ]
@@ -115,7 +127,8 @@ class AnalyticPerturbationTheorySolver:
                     identities=([0, 1] if o == 0 else [0]) + ([] if o < 2 else [3, 4]),  # V, G, G'
                     logger=logger,
                     allowed_coefficients=allowed_coefficients,
-                    disallowed_coefficients=disallowed_coefficients
+                    disallowed_coefficients=disallowed_coefficients,
+                    polynomial_representation=polynomial_representation
                 )
                 for o in range(order + 1)
             ]
@@ -125,7 +138,8 @@ class AnalyticPerturbationTheorySolver:
                    allowed_coefficients=allowed_coefficients,
                    disallowed_coefficients=disallowed_coefficients,
                    allowed_energy_changes=allowed_energy_changes,
-                   intermediate_normalization=intermediate_normalization)
+                   intermediate_normalization=intermediate_normalization,
+                   polynomial_representation=polynomial_representation)
 
     def modify_hamiltonian(self, hamiltonian_corrections):
         new_expansion = ReexpressedHamiltonian.prep_expansion(
@@ -143,7 +157,8 @@ class AnalyticPerturbationTheorySolver:
             allowed_coefficients=self.allowed_coefficients,
             disallowed_coefficients=self.disallowed_coefficients,
             allowed_energy_changes=self.allowed_energy_changes,
-            intermediate_normalization=self.intermediate_normalization
+            intermediate_normalization=self.intermediate_normalization,
+            polynomial_representation=self.polynomial_representation
         )
     _op_maps = {}
     def get_correction(self, key, cls, order, **kw):
@@ -157,7 +172,8 @@ class AnalyticPerturbationTheorySolver:
                 ["allowed_terms", self.allowed_terms],
                 ["allowed_energy_changes", self.allowed_energy_changes],
                 ["allowed_coefficients", self.allowed_coefficients],
-                ["disallowed_coefficients", self.disallowed_coefficients]
+                ["disallowed_coefficients", self.disallowed_coefficients],
+                ["polynomial_representation", self.polynomial_representation]
             ]:
                 if kw.get(k, None) is None:
                     kw[k] = v
@@ -200,7 +216,8 @@ class AnalyticPerturbationTheorySolver:
 
     operator_expansion_index = 5
     @classmethod
-    def operator_expansion_terms(cls, order, logger=None, base_index=None, operator_type=None):
+    def operator_expansion_terms(cls, order, logger=None, base_index=None, operator_type=None,
+                                 polynomial_representation='path'):
         if base_index is None:
             base_index = cls.operator_expansion_index
 
@@ -221,7 +238,8 @@ class AnalyticPerturbationTheorySolver:
                         order=0,
                         index=0,
                         identities=[base_index],
-                        logger=logger
+                        logger=logger,
+                        polynomial_representation=polynomial_representation
                     )
                 )
             else:
@@ -236,7 +254,8 @@ class AnalyticPerturbationTheorySolver:
                 order=o,
                 index=index_padding+o,
                 identities=[base_index],
-                logger=logger
+                logger=logger,
+                polynomial_representation=polynomial_representation
             )
             for o in range(order+1)
         ]
@@ -254,9 +273,26 @@ class AnalyticPerturbationTheorySolver:
     def clear_caches(cls):
         cls._op_maps.clear()
         ProductPTPolynomial._cache.clear()
+        ProductPTPolynomial._prod_poly_cache.clear()
         PerturbationTheoryTermProduct._cache.clear()
+        PerturbationTheoryTermProduct._poly_product_cache.clear()
         ShiftedEnergyBaseline._cache.clear()
         PerturbationOperator._cache.clear()
+        ScaledPerturbationTheoryTerm._cache.clear()
+        OperatorExpansionTerm._poly_cache.clear()
+        PerturbationTheoryExpressionEvaluator._poly_cache = PerturbationTheoryExpressionEvaluator.get_cache()
+        PerturbationTheoryExpressionEvaluator._ecoeff_cache = PerturbationTheoryExpressionEvaluator.get_cache()
+        PolyPath.clear_caches()
+        PTTensorCoeffProductDAG.clear_caches()
+
+    def polynomial_cache_info(self):
+        """Return backend-specific counters useful for path/eager timing comparisons."""
+        return {
+            'representation': self.polynomial_representation,
+            'product_results': len(PerturbationTheoryTermProduct._poly_product_cache),
+            **PolyPath.cache_info(),
+            **PTTensorCoeffProductDAG.cache_info()
+        }
 
 
 class PolynomialInterface(metaclass=abc.ABCMeta):
@@ -323,45 +359,129 @@ class PolynomialInterface(metaclass=abc.ABCMeta):
     def mutate(self, *args, **kwargs) -> 'Self':
         ...
 
-#TODO: add class that provides caching for "path polynomials" generated via different routes
-#      this means we need to only track modifications, not actually convolve at each step
-#      and can easily reconstruct the final polynomials at the end from this
-class PolyPath:
-    """
-    A simple holder class that contains the set of modifications along each dimension
-    used to build a given polynomial
-    """
-    def __init__(self, paths, scaling):
-        self.paths = paths # one path per dimension
-        self.scaling = scaling
-    def as_tuple(self):
-        return (self.paths, self.scaling)
-    def __add__(self, other):
-        # we assume dimension alignment has been handled exterior to this
-        if self.scaling == other.scaling:
-            return type(self)(
-                tuple((p1, p2) for p1, p2 in zip(self.paths, other.paths)),
-                self.scaling
+class PolyAtom:
+    """An immutable, interned one-dimensional polynomial factor."""
+
+    _cache = {}
+
+    def __new__(cls, coeffs, shift=0):
+        coeffs = np.asanyarray(coeffs)
+        key = (coeffs.dtype.str, coeffs.shape, coeffs.tobytes(), int(shift))
+        atom = cls._cache.get(key)
+        if atom is None:
+            atom = super().__new__(cls)
+            atom._key = key
+            atom._base_coeffs = np.array(coeffs, copy=True)
+            atom._base_coeffs.flags.writeable = False
+            atom.shift = int(shift)
+            atom._coeffs = None
+            cls._cache[key] = atom
+        return atom
+
+    @property
+    def coeffs(self):
+        if self._coeffs is None:
+            self._coeffs = (
+                self._base_coeffs
+                    if self.shift == 0 else
+                DensePolynomial.compute_shifted_coeffs(self._base_coeffs, self.shift)
             )
-        else:
-            return type(self)(
-                (self.as_tuple(), other.as_tuple()),
-                1,
-            )
-    def mul_along(self, other, inds, remainder):
-        li, ri = inds
-        lr, rr = remainder
-        return type(self)(
-            tuple(
-                self.paths[p1] + other.paths[p2]
-                for p1,p2 in zip(li, ri)
-            ) + tuple(
-                self.paths[p1] for p1 in lr
-            ) + tuple(
-                self.paths[p2] for p2 in rr
-            ),
-            self.scaling * other.scaling
+        return self._coeffs
+
+    @property
+    def order(self):
+        return len(self._base_coeffs) - 1
+
+    def shifted(self, shift):
+        return self if shift == 0 else type(self)(self._base_coeffs, self.shift + shift)
+
+    def __hash__(self):
+        return hash(self._key)
+
+    def __eq__(self, other):
+        return self is other or isinstance(other, type(self)) and self._key == other._key
+
+    def __reduce__(self):
+        return type(self), (self._base_coeffs, self.shift)
+
+
+class PolyAxis:
+    """A canonical product of :class:`PolyAtom` objects along one mode."""
+
+    _cache = {}
+    _materialization_count = 0
+
+    def __new__(cls, atoms=()):
+        atoms = tuple(sorted(atoms, key=lambda a: a._key))
+        axis = cls._cache.get(atoms)
+        if axis is None:
+            axis = super().__new__(cls)
+            axis.atoms = atoms
+            axis._coeffs = None
+            cls._cache[atoms] = axis
+        return axis
+
+    @property
+    def order(self):
+        return sum(a.order for a in self.atoms)
+
+    @property
+    def coeffs(self):
+        if self._coeffs is None:
+            type(self)._materialization_count += 1
+            coeffs = np.array([1])
+            for atom in self.atoms:
+                coeffs = scipy.signal.convolve(coeffs, atom.coeffs)
+            self._coeffs = coeffs
+        return self._coeffs
+
+    def multiply(self, other):
+        return type(self)(self.atoms + other.atoms)
+
+    def shifted(self, shift):
+        return self if shift == 0 else type(self)(a.shifted(shift) for a in self.atoms)
+
+    def __hash__(self):
+        return hash(self.atoms)
+
+    def __eq__(self, other):
+        return self is other or isinstance(other, type(self)) and self.atoms == other.atoms
+
+    def __reduce__(self):
+        return type(self), (self.atoms,)
+
+
+class PolyTerm:
+    """One separable product in a :class:`PolyPath` sum."""
+
+    _cache = {}
+
+    def __new__(cls, axes, steps=0):
+        axes = tuple(axes)
+        key = (axes, 0 if steps is None else int(steps))
+        term = cls._cache.get(key)
+        if term is None:
+            term = super().__new__(cls)
+            term.axes, term.steps = key
+            cls._cache[key] = term
+        return term
+
+    @property
+    def order(self):
+        return tuple(a.order for a in self.axes)
+
+    def __hash__(self):
+        return hash((self.axes, self.steps))
+
+    def __eq__(self, other):
+        return self is other or (
+            isinstance(other, type(self))
+            and self.steps == other.steps
+            and self.axes == other.axes
         )
+
+    def __reduce__(self):
+        return type(self), (self.axes, self.steps)
 
 class TreeSerializer:
     @classmethod
@@ -923,12 +1043,9 @@ class ProductPTPolynomial(PolynomialInterface):
     @classmethod
     def _poly_mul(cls, self, other):
 
-        bad_keys = other._idx is not None or self._idx is not None
-        key = ((self._idx, other._idx), (0,) * len(self.coeffs)) if not bad_keys else None
-        if bad_keys:
-            new = None
-        else:
-            new = self._prod_poly_cache.get(key, None)
+        cacheable = other._idx is not None and self._idx is not None
+        key = ((self._idx, other._idx), (0,) * len(self.coeffs)) if cacheable else None
+        new = self._prod_poly_cache.get(key, None) if cacheable else None
 
         if new is None:
             ocs = other.coeffs
@@ -936,7 +1053,7 @@ class ProductPTPolynomial(PolynomialInterface):
             if len(ocs) < len(scs):
                 ocs = ocs + [[1]]*(len(scs) - len(ocs))
             elif len(scs) < len(ocs):
-                scs = scs + [[1]]*(len(scs) - len(scs))
+                scs = scs + [[1]]*(len(ocs) - len(scs))
 
                 # raise ValueError("not sure how to 'simply multiply' {} and {}".format(self, other))
             new = cls(
@@ -948,7 +1065,7 @@ class ProductPTPolynomial(PolynomialInterface):
                 idx=key,
                 steps=self.steps + other.steps
             )
-            if not bad_keys: cls._prod_poly_cache[key] = new
+            if cacheable: cls._prod_poly_cache[key] = new
 
         return new
 
@@ -1162,13 +1279,22 @@ class ProductPTPolynomialSum(PolynomialInterface):
         self._ndim = ndim
 
     def prep_serialization_dict(self):
+        ndim = len(self.polys[0].coeffs)
         return {
             'shared_prefactor': self.prefactor,
             'steps': self.polys[0].steps,
-            'ndim': len(self.polys[0].coeffs),
+            'ndim': ndim,
             'prefactors': np.array([p.prefactor for p in self.polys]),
-            'shapes': np.concatenate([[len(c) for c in p.coeffs] for p in self.polys], axis=0),
-            'coeffs': np.concatenate([np.concatenate(p.coeffs) for p in self.polys])
+            'shapes': (
+                np.concatenate([[len(c) for c in p.coeffs] for p in self.polys], axis=0)
+                    if ndim > 0 else
+                np.array([], dtype=int)
+            ),
+            'coeffs': (
+                np.concatenate([np.concatenate(p.coeffs) for p in self.polys])
+                    if ndim > 0 else
+                np.array([], dtype=float)
+            )
         }
     @classmethod
     def from_serialization_dict(cls, big_dict):
@@ -1176,9 +1302,17 @@ class ProductPTPolynomialSum(PolynomialInterface):
         coeff_vector = big_dict['coeffs']
         ndim = big_dict['ndim']
         shape_vecs = big_dict['shapes']
-        shapes = shape_vecs[shape_vecs > 0].reshape(-1, ndim)
         steps = big_dict['steps']
         prefactors = big_dict['prefactors']
+        if ndim == 0:
+            return cls(
+                [
+                    ProductPTPolynomial([], prefactor=prefactor, steps=steps)
+                    for prefactor in prefactors
+                ],
+                prefactor=big_dict['shared_prefactor']
+            )
+        shapes = shape_vecs[shape_vecs > 0].reshape(-1, ndim)
         padding = 0
         for i,shape in enumerate(shapes):
             coeffs = []
@@ -1457,6 +1591,722 @@ class ProductPTPolynomialSum(PolynomialInterface):
     def __radd__(self, other):
         return self + other
 
+
+class PolyPath(ProductPTPolynomialSum):
+    """
+    Canonical DAG-backed representation of a sum of separable polynomial products.
+
+    Each key is an interned :class:`PolyTerm`; the corresponding value is its
+    scalar coefficient.  Multiplication joins interned axis paths rather than
+    convolving coefficient arrays.  ``polys`` and ``to_eager`` provide a
+    compatibility boundary for the legacy implementation.
+    """
+
+    _construction_count = 0
+    _node_cache = weakref.WeakValueDictionary()
+    _node_requests = 0
+    _node_hits = 0
+
+    @staticmethod
+    def _sort_key(term):
+        return (
+            term.steps,
+            tuple(tuple(atom._key for atom in axis.atoms) for axis in term.axes)
+        )
+
+    def __init__(self, terms, reduced=False, node=None, ndim=None, order=None):
+        if isinstance(terms, dict):
+            terms = terms.items()
+        merged = {}
+        for term, scaling in terms:
+            if nput.is_zero(scaling):
+                continue
+            merged[term] = merged.get(term, 0) + scaling
+        self._items = tuple(
+            (term, scaling)
+            for term, scaling in sorted(merged.items(), key=lambda x: self._sort_key(x[0]))
+            if not nput.is_zero(scaling)
+        )
+        self.prefactor = 1
+        self.reduced = reduced
+        self._node = node
+        self._ndim = ndim
+        self._order = order
+        self._hash = None
+        self._combined = None
+        type(self)._construction_count += 1
+
+    @classmethod
+    def _from_node(cls, kind, args, ndim, order):
+        cls._node_requests += 1
+        # Addition is intentionally binary and remaps/symmetry orbits have very
+        # high cardinality.  Interning those nodes costs substantially more
+        # memory than their observed (<1%) hit rate at fourth order; their
+        # children and canonical leaves remain interned and structurally
+        # hashable.
+        if kind in {'add', 'remap', 'permutation_sum'}:
+            return cls((), reduced=True, node=(kind, args), ndim=ndim, order=tuple(order))
+        key = (kind, args)
+        path = cls._node_cache.get(key)
+        if path is None:
+            path = cls((), reduced=True, node=key, ndim=ndim, order=tuple(order))
+            cls._node_cache[key] = path
+        else:
+            cls._node_hits += 1
+        return path
+
+    @property
+    def is_zero(self):
+        return self._node is None and len(self._items) == 0
+
+    @classmethod
+    def from_coeffs(cls, coeffs, prefactor=1, idx=None, steps=None):
+        axes = tuple(PolyAxis((PolyAtom(c),)) for c in coeffs)
+        return cls({PolyTerm(axes, steps=steps): prefactor}, reduced=True)
+
+    @classmethod
+    def from_polynomial(cls, poly):
+        if isinstance(poly, cls):
+            return poly
+        if isinstance(poly, ProductPTPolynomial):
+            return cls.from_coeffs(
+                poly.coeffs,
+                prefactor=poly.prefactor,
+                idx=poly._idx,
+                steps=poly.steps
+            )
+        if isinstance(poly, ProductPTPolynomialSum):
+            terms = cls((), reduced=True)
+            for subpoly in poly.polys:
+                terms = terms + cls.from_polynomial(subpoly).scale(poly.prefactor)
+            return terms
+        raise TypeError("can't convert {} to PolyPath".format(type(poly)))
+
+    @classmethod
+    def clear_caches(cls):
+        PolyAtom._cache.clear()
+        PolyAxis._cache.clear()
+        PolyTerm._cache.clear()
+        cls._node_cache.clear()
+        PolyAxis._materialization_count = 0
+        cls._construction_count = 0
+        cls._node_requests = 0
+        cls._node_hits = 0
+
+    @classmethod
+    def cache_info(cls):
+        return {
+            'atoms': len(PolyAtom._cache),
+            'axes': len(PolyAxis._cache),
+            'terms': len(PolyTerm._cache),
+            'nodes': len(cls._node_cache),
+            'node_requests': cls._node_requests,
+            'node_hits': cls._node_hits,
+            'paths_created': cls._construction_count,
+            'axis_materializations': PolyAxis._materialization_count
+        }
+
+    @property
+    def path_terms(self):
+        if self._node is not None:
+            raise ValueError("DAG-backed PolyPath has no flat term table")
+        return dict(self._items)
+
+    @property
+    def polys(self):
+        eager = self.to_eager()
+        if nput.is_numeric(eager):
+            return []
+        if isinstance(eager, ProductPTPolynomial):
+            return [eager]
+        return eager.polys
+
+    def _leaf_to_eager(self):
+        return [
+            ProductPTPolynomial(
+                [axis.coeffs for axis in term.axes],
+                prefactor=scaling,
+                steps=term.steps
+            )
+            for term, scaling in self._items
+        ]
+
+    def to_eager(self):
+        if self._node is None:
+            polys = self._leaf_to_eager()
+            if len(polys) == 0:
+                return 0
+            elif len(polys) == 1:
+                return polys[0]
+            return ProductPTPolynomialSum(polys, reduced=self.reduced)
+
+        kind, args = self._node
+        if kind == 'add':
+            eager = 0
+            for child in args:
+                eager = eager + child.to_eager()
+            return eager
+        elif kind == 'linear':
+            eager = 0
+            for child, scaling in args:
+                contribution = child.to_eager()
+                eager = eager + (
+                    contribution if scaling == 1 else contribution.scale(scaling)
+                )
+            return eager
+        elif kind == 'scale':
+            child, scaling = args
+            eager = child.to_eager()
+            return eager if scaling == 1 else eager.scale(scaling)
+        elif kind == 'shift':
+            child, shift = args
+            return child.to_eager().shift(shift)
+        elif kind == 'remap':
+            child, pull, output_ndim = args
+            eager = child.to_eager()
+            if nput.is_numeric(eager):
+                return eager
+            polys = eager.polys if isinstance(eager, ProductPTPolynomialSum) else [eager]
+            remapped = []
+            for poly in polys:
+                coeffs = [np.array([1])] * output_ndim
+                for source, target in enumerate(pull):
+                    if source < len(poly.coeffs):
+                        coeffs[target] = poly.coeffs[source]
+                remapped.append(ProductPTPolynomial(
+                    coeffs, prefactor=poly.prefactor, steps=poly.steps
+                ))
+            return remapped[0] if len(remapped) == 1 else ProductPTPolynomialSum(remapped)
+        elif kind == 'permutation_sum':
+            child, permutations, pulls = args
+            eager = 0
+            child_eager = child.to_eager()
+            for permutation in permutations:
+                eager = eager + child_eager.permute(permutation)
+            return eager
+        elif kind == 'project':
+            child, keep, condensed = args
+            eager = child.to_eager()
+            if nput.is_numeric(eager):
+                return eager
+            polys = eager.polys if isinstance(eager, ProductPTPolynomialSum) else [eager]
+            projected = []
+            for poly in polys:
+                scaling = poly.prefactor
+                for index in condensed:
+                    scaling *= poly.coeffs[index][0]
+                projected.append(ProductPTPolynomial(
+                    [poly.coeffs[index] for index in keep],
+                    prefactor=scaling,
+                    steps=poly.steps
+                ))
+            return (
+                projected[0]
+                    if len(projected) == 1 else
+                ProductPTPolynomialSum(projected)
+            )
+        elif kind == 'mul':
+            left, right, left_inds, right_inds, left_pull, right_pull = args
+            left_eager, right_eager = left.to_eager(), right.to_eager()
+            if left_inds is None:
+                return left_eager.mul_simple(right_eager)
+            return left_eager.mul_along(right_eager, [left_inds, right_inds])
+        raise ValueError("unknown PolyPath node {}".format(kind))
+
+    def prep_serialization_dict(self):
+        eager = self.to_eager()
+        if nput.is_numeric(eager):
+            raise ValueError("cannot serialize an empty PolyPath")
+        if isinstance(eager, ProductPTPolynomial):
+            eager = ProductPTPolynomialSum([eager], reduced=True)
+        return eager.prep_serialization_dict()
+
+    def mutate(self, polynomials=default, prefactor=default, **kwargs):
+        new = self if polynomials is default else type(self).from_polynomial(
+            ProductPTPolynomialSum(polynomials)
+                if not isinstance(polynomials, PolynomialInterface) else
+            polynomials
+        )
+        if prefactor is not default:
+            new = new.scale(prefactor)
+        return new
+
+    @property
+    def ndim(self):
+        if self._ndim is None:
+            self._ndim = max([len(t.axes) for t, _ in self._items] + [0])
+        return self._ndim
+
+    @property
+    def order(self):
+        if self._order is None:
+            self._order = tuple(
+                max((t.axes[i].order if i < len(t.axes) else 0) for t, _ in self._items)
+                for i in range(self.ndim)
+            )
+        return self._order
+
+    def __hash__(self):
+        if self._hash is None:
+            self._hash = hash(self._node if self._node is not None else self._items)
+        return self._hash
+
+    def __eq__(self, other):
+        return self is other or (
+            isinstance(other, type(self))
+            and self._node == other._node
+            and self._items == other._items
+        )
+
+    def __repr__(self):
+        return "PolyPath(<{}>; {} terms)".format(
+            ",".join(str(o) for o in self.order),
+            len(self._items) if self._node is None else "DAG"
+        )
+
+    def format_expr(self):
+        eager = self.to_eager()
+        return "0" if nput.is_numeric(eager) else eager.format_expr()
+
+    def audit(self, target=None, ignore_constants=True):
+        if target is None:
+            target = self.ndim
+        if self._node is not None:
+            if self.ndim != target and not ignore_constants:
+                raise ValueError("{} has wrong dimension (expected {})".format(self, target))
+            return
+        for term, _ in self._items:
+            if len(term.axes) != target:
+                if not (ignore_constants and all(axis.order == 0 for axis in term.axes)):
+                    raise ValueError("{} has wrong dimension (expected {})".format(self, target))
+
+    def ensure_dimension(self, ndim):
+        if self.ndim >= ndim:
+            return self
+        return type(self)._from_node(
+            'remap',
+            (self, tuple(range(self.ndim)), ndim),
+            ndim,
+            self.order + (0,) * (ndim - self.ndim)
+        )
+
+    def pad(self, left_right_pads):
+        if nput.is_numeric(left_right_pads):
+            left_right_pads = [0, left_right_pads]
+        left, right = left_right_pads
+        ndim = left + self.ndim + right
+        return type(self)._from_node(
+            'remap',
+            (self, tuple(range(left, left + self.ndim)), ndim),
+            ndim,
+            (0,) * left + self.order + (0,) * right
+        )
+
+    def permute(self, new_inds, check_perm=True, allow_padding=False):
+        new_inds = tuple(int(i) for i in new_inds)
+        ndim = self.ndim
+        if allow_padding:
+            ndim = max(ndim, len(new_inds))
+        if check_perm:
+            tail = np.arange(len(new_inds), ndim)
+            if np.any(np.sort(np.concatenate([new_inds, tail])) != np.arange(ndim)):
+                raise ValueError("bad permutation {} into {} dimensions".format(new_inds, ndim))
+        source_order = new_inds + tuple(range(len(new_inds), ndim))
+        pull = tuple(int(i) for i in np.argsort(source_order)[:self.ndim])
+        padded_order = self.order + (0,) * (ndim - self.ndim)
+        return type(self)._from_node(
+            'remap',
+            (self, pull, ndim),
+            ndim,
+            tuple(padded_order[i] for i in source_order)
+        )
+
+    def permutation_sum(self, permutations, check_perm=True, allow_padding=False):
+        """Represent a symmetry sum without constructing each remapped child."""
+        permutations = tuple(tuple(int(i) for i in perm) for perm in permutations)
+        if len(permutations) == 0:
+            return type(self)((), reduced=True)
+        if len(permutations) == 1:
+            return self.permute(
+                permutations[0], check_perm=check_perm, allow_padding=allow_padding
+            )
+
+        pulls = []
+        orders = []
+        output_ndim = self.ndim
+        for new_inds in permutations:
+            ndim = self.ndim
+            if allow_padding:
+                ndim = max(ndim, len(new_inds))
+            if check_perm:
+                tail = np.arange(len(new_inds), ndim)
+                if np.any(np.sort(np.concatenate([new_inds, tail])) != np.arange(ndim)):
+                    raise ValueError("bad permutation {} into {} dimensions".format(new_inds, ndim))
+            if ndim != output_ndim:
+                raise ValueError("inconsistent permutation dimensions")
+            source_order = new_inds + tuple(range(len(new_inds), ndim))
+            pulls.append(tuple(int(i) for i in np.argsort(source_order)[:self.ndim]))
+            padded_order = self.order + (0,) * (ndim - self.ndim)
+            orders.append(tuple(padded_order[i] for i in source_order))
+
+        order = tuple(max(o[i] for o in orders) for i in range(output_ndim))
+        return type(self)._from_node(
+            'permutation_sum',
+            (self, permutations, tuple(pulls)),
+            output_ndim,
+            order
+        )
+
+    def shift(self, shift):
+        shift = tuple(shift) + (0,) * max(0, self.ndim - len(shift))
+        shift = shift[:self.ndim]
+        if not any(shift):
+            return self
+        return type(self)._from_node('shift', (self, shift), self.ndim, self.order)
+
+    def scale(self, scaling):
+        if nput.is_numeric(scaling):
+            if scaling == 0:
+                return 0
+            elif scaling == 1:
+                return self
+        return type(self)._from_node('scale', (self, scaling), self.ndim, self.order)
+
+    def evaluate_polynomial(self, substates, node_cache=None, axis_cache=None):
+        if node_cache is None:
+            node_cache = {}
+        if axis_cache is None:
+            axis_cache = {}
+        state_key = (substates.dtype.str, substates.shape, substates.tobytes())
+        cache_key = (self, state_key)
+        value = node_cache.get(cache_key)
+        if value is not None:
+            return value
+
+        if self._node is None:
+            value = np.zeros(substates.shape[0], dtype=float)
+            for term, scaling in self._items:
+                factors = []
+                for state_values, axis in zip(substates.T, term.axes):
+                    axis_key = (axis, state_values.dtype.str, state_values.tobytes())
+                    axis_value = axis_cache.get(axis_key)
+                    if axis_value is None:
+                        axis_value = np.polynomial.polynomial.polyval(state_values, axis.coeffs)
+                        axis_cache[axis_key] = axis_value
+                    factors.append(axis_value)
+                poly_factor = (
+                    np.prod(factors, axis=0)
+                        if len(factors) > 0 else
+                    np.ones(substates.shape[0])
+                )
+                value += scaling * poly_factor / np.sqrt(2) ** term.steps
+        else:
+            kind, args = self._node
+            if kind == 'add':
+                value = np.zeros(substates.shape[0], dtype=float)
+                stack = list(args)
+                while stack:
+                    child = stack.pop()
+                    if child._node is not None and child._node[0] == 'add':
+                        stack.extend(child._node[1])
+                    else:
+                        value += child.evaluate_polynomial(substates, node_cache, axis_cache)
+            elif kind == 'linear':
+                value = np.zeros(substates.shape[0], dtype=float)
+                for child, scaling in args:
+                    value += scaling * child.evaluate_polynomial(
+                        substates, node_cache, axis_cache
+                    )
+            elif kind == 'scale':
+                child, scaling = args
+                value = scaling * child.evaluate_polynomial(substates, node_cache, axis_cache)
+            elif kind == 'shift':
+                child, shift = args
+                value = child.evaluate_polynomial(
+                    substates[:, :child.ndim] + np.asanyarray(shift)[np.newaxis, :],
+                    node_cache, axis_cache
+                )
+            elif kind == 'remap':
+                child, pull, output_ndim = args
+                value = child.evaluate_polynomial(
+                    substates[:, pull], node_cache, axis_cache
+                )
+            elif kind == 'permutation_sum':
+                child, permutations, pulls = args
+                value = np.zeros(substates.shape[0], dtype=float)
+                for pull in pulls:
+                    value += child.evaluate_polynomial(
+                        substates[:, pull], node_cache, axis_cache
+                    )
+            elif kind == 'project':
+                child, keep, condensed = args
+                child_states = np.zeros(
+                    (substates.shape[0], child.ndim), dtype=substates.dtype
+                )
+                child_states[:, keep] = substates[:, :len(keep)]
+                value = child.evaluate_polynomial(
+                    child_states, node_cache, axis_cache
+                )
+            elif kind == 'mul':
+                left, right, left_inds, right_inds, left_pull, right_pull = args
+                left_value = left.evaluate_polynomial(
+                    substates[:, left_pull], node_cache, axis_cache
+                )
+                right_value = right.evaluate_polynomial(
+                    substates[:, right_pull], node_cache, axis_cache
+                )
+                value = left_value * right_value
+            else:
+                raise ValueError("unknown PolyPath node {}".format(kind))
+
+        node_cache[cache_key] = value
+        return value
+
+    @staticmethod
+    def _normalize_axis(axis):
+        coeffs, scaling = ProductPTPolynomial._monify(axis.coeffs)
+        if scaling == 0:
+            return None, 0
+        return PolyAxis((PolyAtom(coeffs),)), scaling
+
+    def _reduce_terms(self):
+        if len(self._items) < 2:
+            return type(self)(self._items, reduced=True)
+
+        max_steps = max(term.steps for term, _ in self._items)
+        identity = PolyAxis((PolyAtom([1]),))
+        terms = {}
+        for term, scaling in self._items:
+            scaling = scaling * np.sqrt(2) ** (max_steps - term.steps)
+            axes = []
+            for axis in term.axes:
+                axis, axis_scaling = self._normalize_axis(axis)
+                if axis is None:
+                    scaling = 0
+                    break
+                axes.append(axis)
+                scaling *= axis_scaling
+            if nput.is_zero(scaling):
+                continue
+            if len(axes) < self.ndim:
+                axes.extend([identity] * (self.ndim - len(axes)))
+            new_term = PolyTerm(tuple(axes), max_steps)
+            terms[new_term] = terms.get(new_term, 0) + scaling
+        terms = {term: scaling for term, scaling in terms.items() if not nput.is_zero(scaling)}
+
+        changed = True
+        while changed and len(terms) > 1:
+            changed = False
+            for axis_index in range(self.ndim):
+                grouped = {}
+                for term, scaling in terms.items():
+                    group_key = term.axes[:axis_index] + term.axes[axis_index + 1:]
+                    grouped.setdefault(group_key, []).append((term.axes[axis_index], scaling))
+
+                if not any(len(group) > 1 for group in grouped.values()):
+                    continue
+
+                new_terms = {}
+                for group_key, group in grouped.items():
+                    if len(group) == 1:
+                        axis, scaling = group[0]
+                    else:
+                        max_len = max(len(axis.coeffs) for axis, _ in group)
+                        coeffs = np.zeros(max_len)
+                        for axis, subscaling in group:
+                            axis_coeffs = axis.coeffs
+                            coeffs[:len(axis_coeffs)] += subscaling * axis_coeffs
+                        monic, scaling = ProductPTPolynomial._monify(coeffs)
+                        if scaling == 0:
+                            continue
+                        axis = PolyAxis((PolyAtom(monic),))
+                        changed = True
+
+                    axes = group_key[:axis_index] + (axis,) + group_key[axis_index:]
+                    new_term = PolyTerm(axes, max_steps)
+                    new_terms[new_term] = new_terms.get(new_term, 0) + scaling
+                terms = {
+                    term: scaling
+                    for term, scaling in new_terms.items()
+                    if not nput.is_zero(scaling)
+                }
+
+        return type(self)(terms, reduced=True)
+
+    def combine(self, *args, **kwargs):
+        if self.is_zero:
+            return self
+        if self._node is not None:
+            coefficients = {}
+            stack = [(self, 1)]
+            while stack:
+                child, scaling = stack.pop()
+                if child._node is not None and child._node[0] == 'add':
+                    stack.extend((term, scaling) for term in child._node[1])
+                elif child._node is not None and child._node[0] == 'linear':
+                    stack.extend(
+                        (term, scaling * subscaling)
+                        for term, subscaling in child._node[1]
+                    )
+                elif child._node is not None and child._node[0] == 'scale':
+                    term, subscaling = child._node[1]
+                    stack.append((term, scaling * subscaling))
+                else:
+                    coefficients[child] = coefficients.get(child, 0) + scaling
+
+            terms = tuple(
+                (child, scaling)
+                for child, scaling in sorted(
+                    coefficients.items(), key=lambda item: (hash(item[0]), id(item[0]))
+                )
+                if not nput.is_zero(scaling)
+            )
+            if len(terms) == 0:
+                return type(self)((), reduced=True)
+            if len(terms) == 1:
+                child, scaling = terms[0]
+                return child if scaling == 1 else child.scale(scaling)
+            order = tuple(max(child.order[i] for child, _ in terms) for i in range(self.ndim))
+            return type(self)._from_node('linear', terms, self.ndim, order)
+        if self.reduced or len(self._items) == 1:
+            return self
+        if self._combined is None:
+            self._combined = self._reduce_terms()
+        return self._combined
+
+    def condense(self, inds=None, return_inds=False, check_inds=True):
+        if inds is None:
+            inds = np.arange(self.ndim)
+        if check_inds:
+            condensed = np.array([i for i in inds if self.order[i] == 0], dtype=int)
+        else:
+            condensed = np.asanyarray(inds, dtype=int)
+        if len(condensed) == 0:
+            new = self
+        else:
+            keep = tuple(int(i) for i in ProductPTPolynomial.fast_ind_remainder(
+                self.ndim, condensed
+            ))
+            condensed_key = tuple(int(i) for i in condensed)
+            new = type(self)._from_node(
+                'project',
+                (self, keep, condensed_key),
+                len(keep),
+                tuple(self.order[i] for i in keep)
+            )
+        return (condensed, new) if return_inds else new
+
+    def constant_rescale(self):
+        eager = self.to_eager()
+        if isinstance(eager, ProductPTPolynomial):
+            return type(self).from_polynomial(eager.constant_rescale())
+        return self
+
+    def mul_simple(self, other):
+        if nput.is_numeric(other):
+            if other == 0:
+                return 0
+            elif other == 1:
+                return self
+            raise ValueError(other)
+        if not isinstance(other, (ProductPTPolynomial, ProductPTPolynomialSum)):
+            return other.rmul_simple(self)
+        other = type(self).from_polynomial(other)
+        ndim = max(self.ndim, other.ndim)
+        left_order = self.order + (0,) * (ndim - self.ndim)
+        right_order = other.order + (0,) * (ndim - other.ndim)
+        return type(self)._from_node(
+            'mul',
+            (
+                self, other, None, None,
+                tuple(range(self.ndim)), tuple(range(other.ndim))
+            ),
+            ndim,
+            tuple(a + b for a, b in zip(left_order, right_order))
+        )
+
+    def rmul_simple(self, other):
+        if isinstance(other, (ProductPTPolynomial, ProductPTPolynomialSum)):
+            return type(self).from_polynomial(other).mul_simple(self)
+        return other.mul_simple(self)
+
+    def mul_along(self, other, inds, remainder=None, mapping=None):
+        if not isinstance(other, (ProductPTPolynomial, ProductPTPolynomialSum)):
+            return other.rmul_along(self, inds, remainder=remainder, mapping=mapping)
+        other = type(self).from_polynomial(other)
+        (left_inds, right_inds), (left_rem, right_rem) = ProductPTPolynomial.get_index_mapping(
+            self.ndim, other.ndim, inds, return_remainder=True
+        )
+        left_pull = [None] * self.ndim
+        right_pull = [None] * other.ndim
+        order = []
+        for output, (left, right) in enumerate(zip(left_inds, right_inds)):
+            if left < self.ndim:
+                left_pull[left] = output
+            if right < other.ndim:
+                right_pull[right] = output
+            order.append(
+                (self.order[left] if left < self.ndim else 0)
+                + (other.order[right] if right < other.ndim else 0)
+            )
+        offset = len(order)
+        for left in left_rem:
+            if left < self.ndim:
+                left_pull[left] = offset
+                order.append(self.order[left])
+                offset += 1
+        for right in right_rem:
+            if right < other.ndim:
+                right_pull[right] = offset
+                order.append(other.order[right])
+                offset += 1
+        if any(i is None for i in left_pull) or any(i is None for i in right_pull):
+            raise ValueError("incomplete PolyPath multiplication mapping")
+        return type(self)._from_node(
+            'mul',
+            (
+                self, other,
+                tuple(left_inds), tuple(right_inds),
+                tuple(left_pull), tuple(right_pull)
+            ),
+            len(order),
+            tuple(order)
+        )
+
+    def rmul_along(self, other, inds, remainder=None, mapping=None):
+        if isinstance(other, (ProductPTPolynomial, ProductPTPolynomialSum)):
+            return type(self).from_polynomial(other).mul_along(
+                self, inds, remainder=remainder, mapping=mapping
+            )
+        return other.mul_along(self, inds, remainder=remainder, mapping=mapping)
+
+    def __mul__(self, other):
+        return self.scale(other) if nput.is_numeric(other) else self.mul_simple(other)
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+    def __add__(self, other):
+        if nput.is_numeric(other):
+            if other == 0:
+                return self
+            raise NotImplementedError("non-zero scalar polynomial addition")
+        other = type(self).from_polynomial(other)
+        ndim = max(self.ndim, other.ndim)
+        left = self.ensure_dimension(ndim)
+        right = other.ensure_dimension(ndim)
+        if left.is_zero and right.is_zero:
+            return type(self)((), reduced=True)
+        if left.is_zero:
+            return right
+        if right.is_zero:
+            return left
+        order = tuple(max(left.order[i], right.order[i]) for i in range(ndim))
+        return type(self)._from_node('add', (left, right), ndim, order)
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
 class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
     """
     A representation of a sum of 1/energy * poly sums
@@ -1712,6 +2562,37 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
             new_terms[new_ech] = polys.permute(new_inds, check_perm=check_perm, allow_padding=allow_padding)
         return self.mutate(new_terms)
 
+    def permutation_sum(self, permutations, check_perm=True, allow_padding=False):
+        """Group a symmetry orbit by energy key before building polynomial nodes."""
+        permutations = tuple(tuple(int(i) for i in perm) for perm in permutations)
+        new_terms = {}
+        for energy_changes, polys in self.terms.items():
+            groups = {}
+            for permutation in permutations:
+                new_ech = tuple(
+                    (side,) + self._permute_changes(ec, permutation)
+                    for side, ec in self.side_change_iter(energy_changes)
+                )
+                groups.setdefault(new_ech, []).append(permutation)
+            for new_ech, subpermutations in groups.items():
+                if hasattr(polys, 'permutation_sum'):
+                    contribution = polys.permutation_sum(
+                        subpermutations,
+                        check_perm=check_perm,
+                        allow_padding=allow_padding
+                    )
+                else:
+                    contribution = sum(
+                        polys.permute(
+                            permutation,
+                            check_perm=check_perm,
+                            allow_padding=allow_padding
+                        )
+                        for permutation in subpermutations
+                    )
+                new_terms[new_ech] = new_terms.get(new_ech, 0) + contribution
+        return self.mutate(new_terms)
+
     @staticmethod
     def _check_neg(t1, t2):
         if len(t1) != len(t2):
@@ -1782,7 +2663,10 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         for k,p in base_terms.items():
             if combine_subterms and isinstance(p, ProductPTPolynomialSum):
                 p = p.combine()
-                if len(p.polys) > 0:
+                if isinstance(p, PolyPath):
+                    if not p.is_zero:
+                        new_terms[k] = p
+                elif len(p.polys) > 0:
                     new_terms[k] = p
             else:
                 new_terms[k] = p
@@ -2258,7 +3142,10 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
         for k,p in base_terms.items():
             if combine_subterms and isinstance(p, ProductPTPolynomialSum):
                 p = p.combine()
-                if len(p.polys) > 0:
+                if isinstance(p, PolyPath):
+                    if not p.is_zero:
+                        new_terms[k] = p
+                elif len(p.polys) > 0:
                     new_terms[k] = p
             elif isinstance(p, (PTTensorCoeffProductSum, PTEnergyChangeProductSum)):
                 p = p.combine(combine_subterms=combine_subterms, combine_energies=combine_energies)
@@ -2780,6 +3667,8 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                                         free_perms, _ = self._get_uperms(perm_idx)
                                         num_prev = num_fixed + num_defd_left + num_defd_right
                                         perm_blocks.append(num_prev + free_perms)
+                                    group_permutations = polynomial_uses_path(new_poly)
+                                    permutation_groups = {} if group_permutations else None
                                     for perm_bits in itertools.product(*perm_blocks):
                                         perm = np.concatenate(perm_bits)
                                         inv_map = np.argsort(perm)
@@ -2790,8 +3679,6 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                                             )
                                             for ci in new_key
                                         )
-                                        perm_poly = new_poly.permute(perm)
-
                                         perm_key = self.canonical_key(perm_key)
 
                                         logger.log_print("{k} [{r}]",
@@ -2800,6 +3687,23 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                                                          preformatter=lambda **vars: dict(vars, k=self.format_tensor_key(vars['k'])),
                                                          log_level=log_level
                                                          )
+                                        if group_permutations:
+                                            permutation_groups.setdefault(perm_key, []).append(tuple(perm))
+                                        else:
+                                            perm_poly = new_poly.permute(perm)
+                                            logger.log_print("{p}", p=perm_poly,
+                                                             preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
+                                                             log_level=log_level
+                                                             )
+                                            yield perm_key, perm_poly
+
+                                    for perm_key, permutations in (
+                                            permutation_groups.items() if group_permutations else ()
+                                    ):
+                                        if hasattr(new_poly, 'permutation_sum'):
+                                            perm_poly = new_poly.permutation_sum(permutations)
+                                        else:
+                                            perm_poly = sum(new_poly.permute(perm) for perm in permutations)
                                         logger.log_print("{p}", p=perm_poly,
                                                          preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
                                                          log_level=log_level
@@ -2845,7 +3749,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                                                                     *kargs
                                                                     )
             )
-        elif isinstance(other, (PTEnergyChangeProductSum, ProductPTPolynomial)):
+        elif isinstance(other, (PTEnergyChangeProductSum, ProductPTPolynomial, ProductPTPolynomialSum)):
             new = self.mutate(
                 {
                     self._adjust_key_right(k, other, inds, remainder):other.rmul_along(p, inds, remainder=remainder, mapping=mapping)
@@ -2953,6 +3857,451 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
         else:
             return other.mul_simple(self)
 
+
+class PTTensorCoeffProductDAG(PTTensorCoeffProductSum):
+    """Lazy, canonical operation DAG for tensor-coefficient expressions.
+
+    Leaves retain the existing dictionary-backed ``PTTensorCoeffProductSum``.
+    Algebra builds immutable nodes and materializes the legacy representation
+    only at compatibility boundaries such as serialization or the current
+    tensor evaluator.  Materialization is cached on every node, so repeated
+    evaluation never replays the derivation tree.
+    """
+
+    _node_cache = weakref.WeakValueDictionary()
+    _node_requests = 0
+    _node_hits = 0
+    _materializations = 0
+
+    def __init__(self, node, ndim=None, reduced=False):
+        self._node = node
+        self._ndim = ndim
+        self._inds_map = {}
+        self.reduced = reduced
+        self.prefactor = 1
+        self._eager = None
+        self._hash = None
+        self._operator_keys = None
+
+    @staticmethod
+    def _freeze(arg):
+        if isinstance(arg, np.ndarray):
+            return tuple(PTTensorCoeffProductDAG._freeze(x) for x in arg.tolist())
+        if isinstance(arg, dict):
+            return tuple(sorted(
+                (
+                    PTTensorCoeffProductDAG._freeze(key),
+                    PTTensorCoeffProductDAG._freeze(value)
+                )
+                for key, value in arg.items()
+            ))
+        if isinstance(arg, (set, frozenset)):
+            return tuple(sorted(PTTensorCoeffProductDAG._freeze(x) for x in arg))
+        if isinstance(arg, list):
+            return tuple(PTTensorCoeffProductDAG._freeze(x) for x in arg)
+        if isinstance(arg, tuple):
+            return tuple(PTTensorCoeffProductDAG._freeze(x) for x in arg)
+        return arg
+
+    @classmethod
+    def from_sum(cls, expression):
+        if isinstance(expression, cls):
+            return expression
+        if not isinstance(expression, PTTensorCoeffProductSum):
+            raise TypeError("can't make a tensor DAG from {}".format(type(expression)))
+        return cls(('leaf', expression), ndim=expression.ndim, reduced=expression.reduced)
+
+    @classmethod
+    def _from_node(cls, kind, args, ndim=None, reduced=False):
+        args = cls._freeze(args)
+        cls._node_requests += 1
+        key = (kind, args, ndim, reduced)
+        node = cls._node_cache.get(key)
+        if node is None:
+            node = cls((kind,) + args, ndim=ndim, reduced=reduced)
+            cls._node_cache[key] = node
+        else:
+            cls._node_hits += 1
+        return node
+
+    @classmethod
+    def clear_caches(cls):
+        cls._node_cache.clear()
+        cls._node_requests = 0
+        cls._node_hits = 0
+        cls._materializations = 0
+
+    @classmethod
+    def cache_info(cls):
+        return {
+            'tensor_nodes': len(cls._node_cache),
+            'tensor_node_requests': cls._node_requests,
+            'tensor_node_hits': cls._node_hits,
+            'tensor_materializations': cls._materializations
+        }
+
+    @property
+    def terms(self):
+        eager = self.to_eager()
+        return {} if nput.is_numeric(eager) else eager.terms
+
+    @property
+    def ndim(self):
+        if self._ndim is None:
+            self._ndim = self.to_eager().ndim
+        return self._ndim
+
+    @property
+    def operator_keys(self):
+        if self._operator_keys is None:
+            kind, *args = self._node
+            if kind == 'leaf':
+                self._operator_keys = frozenset(
+                    coefficient[:2]
+                    for product in args[0].terms
+                    for coefficient in product
+                )
+            else:
+                self._operator_keys = frozenset().union(*(
+                    arg.operator_keys
+                    for arg in args
+                    if isinstance(arg, type(self))
+                ))
+        return self._operator_keys
+
+    def __hash__(self):
+        if self._hash is None:
+            if self._node[0] == 'leaf':
+                self._hash = hash(('tensor_leaf', id(self._node[1])))
+            else:
+                self._hash = hash(self._node)
+        return self._hash
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        if not isinstance(other, type(self)) or self._node[0] != other._node[0]:
+            return False
+        if self._node[0] == 'leaf':
+            return self._node[1] is other._node[1]
+        return self._node == other._node
+
+    def __repr__(self):
+        return "TensorDAG({}; ndim={})".format(self._node[0], self._ndim)
+
+    def format_expr(self):
+        eager = self.to_eager()
+        return str(eager) if nput.is_numeric(eager) else eager.format_expr()
+
+    @staticmethod
+    def _coerce_eager(expression):
+        return expression.to_eager() if isinstance(expression, PTTensorCoeffProductDAG) else expression
+
+    def to_eager(self):
+        if self._eager is not None:
+            return self._eager
+
+        type(self)._materializations += 1
+        kind, *args = self._node
+        if kind == 'leaf':
+            eager = args[0]
+        elif kind == 'add':
+            left, right = args
+            left_eager, right_eager = left.to_eager(), right.to_eager()
+            if nput.is_zero(left_eager):
+                eager = right_eager
+            elif nput.is_zero(right_eager):
+                eager = left_eager
+            else:
+                eager = left_eager + right_eager
+        elif kind == 'scale':
+            child, scaling = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.scale(scaling)
+        elif kind == 'shift':
+            child, shift = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.shift(shift)
+        elif kind == 'shift_energies':
+            child, change = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.shift_energies(change)
+        elif kind == 'permute':
+            child, permutation, check_perm, allow_padding = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.permute(
+                    permutation,
+                    check_perm=check_perm,
+                    allow_padding=allow_padding
+                )
+        elif kind == 'ensure_dimension':
+            child, ndim = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.ensure_dimension(ndim)
+        elif kind == 'free_up_indices':
+            child, start, stop = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.free_up_indices(start, stop)
+        elif kind == 'flip_energy_terms':
+            eager = args[0].to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.flip_energy_terms()
+        elif kind == 'filter_coefficients':
+            child, terms, mode = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.filter_coefficients(terms, mode=mode)
+        elif kind == 'filter_energies':
+            child, terms, mode = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.filter_energies(terms, mode=mode)
+        elif kind == 'prune_operators':
+            child, ops = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.prune_operators(ops)
+        elif kind == 'combine':
+            child, combine_coeffs, combine_subterms, combine_energies = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.combine(
+                    combine_coeffs=combine_coeffs,
+                    combine_subterms=combine_subterms,
+                    combine_energies=combine_energies
+                )
+        elif kind == 'mul_along':
+            (
+                left, right, inds, remainder, index_classes,
+                mapping, baseline
+            ) = args
+            left_eager = left.to_eager()
+            right_eager = self._coerce_eager(right)
+            if nput.is_zero(left_eager) or nput.is_zero(right_eager):
+                eager = 0
+            else:
+                eager = left_eager.mul_along(
+                    right_eager,
+                    inds,
+                    remainder=remainder,
+                    index_classes=index_classes,
+                    mapping=mapping,
+                    baseline=baseline
+                )
+        elif kind == 'rmul_along':
+            left, right, inds, remainder, mapping = args
+            left_eager = self._coerce_eager(left)
+            right_eager = right.to_eager()
+            if nput.is_zero(left_eager) or nput.is_zero(right_eager):
+                eager = 0
+            else:
+                eager = right_eager.rmul_along(
+                    left_eager,
+                    inds,
+                    remainder=remainder,
+                    mapping=mapping
+                )
+        elif kind == 'mul_simple':
+            left, right = args
+            left_eager = left.to_eager()
+            right_eager = self._coerce_eager(right)
+            eager = (
+                0 if nput.is_zero(left_eager) or nput.is_zero(right_eager) else
+                left_eager.mul_simple(right_eager)
+            )
+        elif kind == 'rmul_simple':
+            left, right = args
+            left_eager = self._coerce_eager(left)
+            right_eager = right.to_eager()
+            eager = (
+                0 if nput.is_zero(left_eager) or nput.is_zero(right_eager) else
+                right_eager.rmul_simple(left_eager)
+            )
+        else:
+            raise ValueError("unknown tensor DAG node {}".format(kind))
+
+        if isinstance(eager, PTTensorCoeffProductDAG):
+            eager = eager.to_eager()
+        self._eager = eager
+        return eager
+
+    def prep_serialization_dict(self):
+        return self.to_eager().prep_serialization_dict()
+
+    def mutate(self, terms=default, *, prefactor=default, ndim=default,
+               inds_map=default, canonicalize=default, reduced=default):
+        if terms is default:
+            expression = self
+        else:
+            expression = type(self).from_sum(PTTensorCoeffProductSum(
+                terms,
+                prefactor=1 if prefactor is default else prefactor,
+                canonicalize=True if canonicalize is default else canonicalize,
+                ndim=None if ndim is default else ndim,
+                inds_map=None if inds_map is default else inds_map,
+                reduced=False if reduced is default else reduced
+            ))
+        if prefactor is not default and terms is default:
+            expression = expression.scale(prefactor)
+        return expression
+
+    def audit(self, target=None, required_dimension=None, ignore_constants=True):
+        if target is not None and self._ndim is not None and self._ndim < target:
+            raise ValueError("too few tensor DAG indices for target {}".format(target))
+        return self
+
+    def get_inds(self, key):
+        if key not in self._inds_map:
+            self._inds_map[key] = self.coeff_product_inds(key)
+        return self._inds_map[key]
+
+    def ensure_dimension(self, ndim):
+        if self._ndim is not None and self._ndim >= ndim:
+            return self
+        return type(self)._from_node(
+            'ensure_dimension', (self, int(ndim)), ndim=ndim, reduced=self.reduced
+        )
+
+    def sort(self):
+        return self
+
+    def permute(self, new_inds, check_perm=True, allow_padding=False):
+        new_inds = tuple(int(i) for i in new_inds)
+        ndim = max(self.ndim, len(new_inds)) if allow_padding else self.ndim
+        return type(self)._from_node(
+            'permute', (self, new_inds, check_perm, allow_padding), ndim=ndim
+        )
+
+    def free_up_indices(self, start, stop):
+        return type(self)._from_node(
+            'free_up_indices', (self, int(start), int(stop)), ndim=self.ndim
+        )
+
+    def shift(self, shift):
+        shift = tuple(shift)
+        if len(shift) == 0 or not any(shift):
+            return self
+        return type(self)._from_node('shift', (self, shift), ndim=self.ndim)
+
+    def shift_energies(self, change):
+        change = tuple(change)
+        if len(change) == 0 or not any(change):
+            return self
+        return type(self)._from_node('shift_energies', (self, change), ndim=self.ndim)
+
+    def scale(self, scaling):
+        if nput.is_numeric(scaling):
+            if scaling == 0:
+                return 0
+            if scaling == 1:
+                return self
+        return type(self)._from_node('scale', (self, scaling), ndim=self.ndim)
+
+    def flip_energy_terms(self):
+        return type(self)._from_node('flip_energy_terms', (self,), ndim=self.ndim)
+
+    def _map_leaves(self, method, *args, **kwargs):
+        kind, *node_args = self._node
+        if kind == 'leaf':
+            transformed = getattr(node_args[0], method)(*args, **kwargs)
+            return type(self).from_sum(transformed)
+        mapped_args = tuple(
+            arg._map_leaves(method, *args, **kwargs)
+                if isinstance(arg, type(self)) else
+            arg
+            for arg in node_args
+        )
+        return type(self)._from_node(
+            kind, mapped_args, ndim=self._ndim, reduced=self.reduced
+        )
+
+    def filter_coefficients(self, terms, mode='match'):
+        return type(self)._from_node(
+            'filter_coefficients', (self, tuple(terms), mode), ndim=self.ndim
+        )
+
+    def filter_energies(self, terms, mode='match'):
+        return type(self)._from_node(
+            'filter_energies', (self, tuple(terms), mode), ndim=self.ndim
+        )
+
+    def prune_operators(self, ops):
+        return self._map_leaves('prune_operators', tuple(ops))
+
+    def combine(self, combine_coeffs=False, combine_subterms=True, combine_energies=False):
+        if self.reduced and not combine_coeffs and combine_subterms and not combine_energies:
+            return self
+        return type(self)._from_node(
+            'combine',
+            (self, combine_coeffs, combine_subterms, combine_energies),
+            ndim=self.ndim,
+            reduced=True
+        )
+
+    def mul_along(self, other, inds, remainder=None, index_classes=None,
+                  mapping=None, baseline=None):
+        if isinstance(other, PTTensorCoeffProductSum):
+            other = type(self).from_sum(other)
+            ndim = self.ndim + other.ndim - len(inds[0])
+        else:
+            ndim = self.ndim
+        return type(self)._from_node(
+            'mul_along',
+            (
+                self, other, inds, remainder, index_classes,
+                mapping, baseline
+            ),
+            ndim=ndim
+        )
+
+    def rmul_along(self, other, inds, remainder=None, mapping=None):
+        if isinstance(other, PTTensorCoeffProductSum):
+            return type(self).from_sum(other).mul_along(
+                self, inds, remainder=remainder, mapping=mapping
+            )
+        return type(self)._from_node(
+            'rmul_along', (other, self, inds, remainder, mapping), ndim=self.ndim
+        )
+
+    def mul_simple(self, other):
+        if isinstance(other, PTTensorCoeffProductSum):
+            other = type(self).from_sum(other)
+            ndim = self.ndim + other.ndim
+        else:
+            ndim = self.ndim
+        return type(self)._from_node('mul_simple', (self, other), ndim=ndim)
+
+    def rmul_simple(self, other):
+        if isinstance(other, PTTensorCoeffProductSum):
+            return type(self).from_sum(other).mul_simple(self)
+        return type(self)._from_node('rmul_simple', (other, self), ndim=self.ndim)
+
+    def __add__(self, other):
+        if nput.is_numeric(other):
+            if other == 0:
+                return self
+            raise NotImplementedError("non-zero scalar tensor addition")
+        other = type(self).from_sum(other)
+        return type(self)._from_node(
+            'add', (self, other), ndim=max(self.ndim, other.ndim)
+        )
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __mul__(self, other):
+        return self.scale(other) if nput.is_numeric(other) else self.mul_simple(other)
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+
 class SqrtChangePoly(PolynomialInterface):
     def __init__(self, poly_obj:'PolynomialInterface', change, shift, canonicalize=False):
         if nput.is_numeric(poly_obj): raise ValueError("{} isn't a polynomial".format(poly_obj))
@@ -2989,6 +4338,19 @@ class SqrtChangePoly(PolynomialInterface):
 
     def to_state(self, serializer=None):
 
+        if isinstance(self.poly_obj, PTTensorCoeffProductDAG):
+            # The checkpoint is already handled through the serializer's
+            # pseudo-pickle protocol.  Keeping the DAG as one byte buffer also
+            # preserves cross-node sharing and avoids eager tensor expansion.
+            dag_buffer = np.frombuffer(
+                pickle.dumps(self.poly_obj, protocol=5), dtype=np.uint8
+            ).copy()
+            return {
+                'tensor_dag_v1': dag_buffer,
+                'change': list(self.poly_change),
+                'shift': list(self.shift_start)
+            }
+
         serial_dict = self.poly_obj.prep_serialization_dict()
 
         ordered_terms = []
@@ -3016,6 +4378,16 @@ class SqrtChangePoly(PolynomialInterface):
 
     @classmethod
     def from_state(cls, state, serializer=None):
+        if 'tensor_dag_v1' in state:
+            poly_obj = pickle.loads(
+                np.asanyarray(state['tensor_dag_v1'], dtype=np.uint8).tobytes()
+            )
+            return cls(
+                poly_obj,
+                state['change'],
+                state['shift'],
+                canonicalize=False
+            )
         trees = state['term_ordered_trees']
         full_dict = {}
         for subtree_data in trees:
@@ -3271,7 +4643,11 @@ class SqrtChangePoly(PolynomialInterface):
         )
         if len(sqrt_contrib) == 0: sqrt_contrib = None
         if sqrt_contrib is not None:
-            sqrt_contrib = ProductPTPolynomial(sqrt_contrib, steps=0)
+            sqrt_contrib = make_product_polynomial(
+                sqrt_contrib,
+                steps=0,
+                representation='path' if polynomial_uses_path(self.poly_obj) else 'eager'
+            )
 
         return new_changes, sqrt_contrib
 
@@ -3439,6 +4815,65 @@ class SqrtChangePoly(PolynomialInterface):
                 self.shift_start
             )
 
+
+def make_product_polynomial(coeffs, prefactor=1, idx=None, steps=None,
+                            representation='eager'):
+    if representation == 'path':
+        return PolyPath.from_coeffs(coeffs, prefactor=prefactor, idx=idx, steps=steps)
+    return ProductPTPolynomial(coeffs, prefactor=prefactor, idx=idx, steps=steps)
+
+
+def polynomial_uses_path(poly):
+    if isinstance(poly, PolyPath):
+        return True
+    if isinstance(poly, PTTensorCoeffProductDAG):
+        return True
+    if isinstance(poly, SqrtChangePoly):
+        return polynomial_uses_path(poly.poly_obj)
+    if isinstance(poly, (PTEnergyChangeProductSum, PTTensorCoeffProductSum)):
+        return any(polynomial_uses_path(p) for p in poly.terms.values())
+    return False
+
+
+def coerce_polynomial_representation(poly, representation):
+    """Convert polynomial leaves while retaining tensor/energy/change wrappers."""
+    if nput.is_numeric(poly):
+        return poly
+    if isinstance(poly, PTTensorCoeffProductDAG):
+        if representation == 'path':
+            return poly
+        poly = poly.to_eager()
+    if isinstance(poly, SqrtChangePoly):
+        return poly.mutate(
+            coerce_polynomial_representation(poly.poly_obj, representation)
+        )
+    if isinstance(poly, PTTensorCoeffProductSum):
+        converted = poly.mutate(
+            {
+                key: coerce_polynomial_representation(subpoly, representation)
+                for key, subpoly in poly.terms.items()
+            },
+            canonicalize=False
+        )
+        return (
+            PTTensorCoeffProductDAG.from_sum(converted)
+                if representation == 'path' else
+            converted
+        )
+    if isinstance(poly, PTEnergyChangeProductSum):
+        return poly.mutate(
+            {
+                key: coerce_polynomial_representation(subpoly, representation)
+                for key, subpoly in poly.terms.items()
+            },
+            canonicalize=False
+        )
+    if representation == 'path':
+        return PolyPath.from_polynomial(poly)
+    elif isinstance(poly, PolyPath):
+        return poly.to_eager()
+    return poly
+
 class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
     """
     A generic version of one of the three terms in
@@ -3451,7 +4886,8 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                  allowed_energy_changes=None,
                  intermediate_normalization=None,
                  allowed_coefficients=None,
-                 disallowed_coefficients=None):
+                 disallowed_coefficients=None,
+                 polynomial_representation='path'):
         self._exprs = None
         self._raw_changes = {}
         self._changes = None
@@ -3467,6 +4903,7 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
         self.allowed_energy_changes = allowed_energy_changes
         self.allowed_coefficients=allowed_coefficients
         self.disallowed_coefficients=disallowed_coefficients
+        self.polynomial_representation = polynomial_representation
 
     def get_subexpressions(self) -> 'Iterable[PerturbationTheoryTerm]':
         raise NotImplementedError("just here to be overloaded")
@@ -3608,6 +5045,10 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                         terms = self.get_core_poly(changes, shift=None)
                         if simplify and not nput.is_zero(terms):
                             terms = terms.combine()
+
+                    if self.polynomial_representation == 'path' and not nput.is_numeric(terms):
+                        terms = coerce_polynomial_representation(terms, 'path')
+                        self.changes[changes] = terms
 
                     if nput.is_numeric(terms): return terms
 
@@ -3802,11 +5243,12 @@ class OperatorExpansionTerm(PerturbationTheoryTerm):
             # not sure what to do if group_size == 0...?
             if group_size == 0: # constant contrib
                 for term_index, term_list in terms:
-                    subpolys = [
-                        ProductPTPolynomial([], steps=0)
-                    ]
+                    subpoly = make_product_polynomial(
+                        [], steps=0,
+                        representation=self.polynomial_representation
+                    )
                     prefactor = (self.index, self.identities[term_index])  # type: tuple[int]
-                    poly_contribs[(prefactor,)] = poly_contribs.get((prefactor,), 0) + ProductPTPolynomialSum(subpolys)
+                    poly_contribs[(prefactor,)] = poly_contribs.get((prefactor,), 0) + subpoly
                 continue
 
             total_dim = og_dim + remainder // 2
@@ -3885,16 +5327,15 @@ class OperatorExpansionTerm(PerturbationTheoryTerm):
 
     keep_ints = True
     _poly_cache = {}
-    @classmethod
-    def _resolve_poly(cls, term_list, partition_sizes, p_index, c_key, s_key, p_vec, changes, shift):
+    def _resolve_poly(self, term_list, partition_sizes, p_index, c_key, s_key, p_vec, changes, shift):
 
-        key = (term_list, partition_sizes, p_index, c_key)
-        poly = cls._poly_cache.get(key, None)
+        key = (self.polynomial_representation, term_list, partition_sizes, p_index, c_key)
+        poly = self._poly_cache.get(key, None)
         if poly is None:
             s = len(term_list)
             phase = (-1)**(sum(1 for t in term_list if t == 'p')//2)
             poly_coeffs = [
-                cls._evaluate_poly_coeffs(term_list, inds, delta, 0, cls.keep_ints)
+                self._evaluate_poly_coeffs(term_list, inds, delta, 0, self.keep_ints)
                 for inds, delta in zip(p_vec, changes)
                 if len(inds) > 0
             ]
@@ -3905,8 +5346,14 @@ class OperatorExpansionTerm(PerturbationTheoryTerm):
                 #     c for c in poly_coeffs
                 #     if c[0] != 1 or len(c) > 1
                 # ]
-                poly = ProductPTPolynomial(poly_coeffs, prefactor=phase, idx=key, steps=s if cls.keep_ints else 0)
-            cls._poly_cache[key] = poly
+                poly = make_product_polynomial(
+                    poly_coeffs,
+                    prefactor=phase,
+                    idx=key,
+                    steps=s if self.keep_ints else 0,
+                    representation=self.polynomial_representation
+                )
+            self._poly_cache[key] = poly
         return poly
 
 class HamiltonianExpansionTerm(OperatorExpansionTerm):
@@ -3935,7 +5382,10 @@ class PerturbationOperator(PerturbationTheoryTerm):
 
     _energy_baseline = None
     def __init__(self, subterm):
-        super().__init__(logger=subterm.logger)
+        super().__init__(
+            logger=subterm.logger,
+            polynomial_representation=subterm.polynomial_representation
+        )
 
         self.subterm = subterm
 
@@ -4004,7 +5454,10 @@ class PerturbationOperator(PerturbationTheoryTerm):
 
 class _ShiftedEnergyBaseline(PerturbationTheoryTerm):
     def __init__(self, base_term:'PerturbationTheoryTerm'):
-        super().__init__(logger=base_term.logger)
+        super().__init__(
+            logger=base_term.logger,
+            polynomial_representation=base_term.polynomial_representation
+        )
         self.base = base_term
 
     def __repr__(self):
@@ -4033,7 +5486,10 @@ class ShiftedEnergyBaseline(PerturbationTheoryTerm):
     for evaluating things like Y[1]M[0]Y[1], essentially changing raising operations to lowering
     """
     def __init__(self, base_term):
-        super().__init__(logger=base_term.logger)
+        super().__init__(
+            logger=base_term.logger,
+            polynomial_representation=base_term.polynomial_representation
+        )
         self.base = base_term
 
     def __repr__(self):
@@ -4291,7 +5747,13 @@ class OperatorCorrection(PerturbationTheoryTerm):
         self.parent = parent
         self.order = order
         self.type = self.get_type_key(operator_type)
-        self.expansion = parent.operator_expansion_terms(order, logger=self.logger, base_index=base_index, operator_type=operator_type)
+        self.expansion = parent.operator_expansion_terms(
+            order,
+            logger=self.logger,
+            base_index=base_index,
+            operator_type=operator_type,
+            polynomial_representation=self.polynomial_representation
+        )
         self._wavefunction_generator = wavefunction_generator
 
     @classmethod
@@ -4572,7 +6034,10 @@ class ReexpressedHamiltonianDegenerateCorrection(OperatorDegenerateCorrection):
 class ScaledPerturbationTheoryTerm(PerturbationTheoryTerm):
     #TODO: refactor since inheritance isn't really the right paradigm here
     def __init__(self, base_term:'PerturbationTheoryTerm', scaling):
-        super().__init__(logger=base_term.logger)
+        super().__init__(
+            logger=base_term.logger,
+            polynomial_representation=base_term.polynomial_representation
+        )
         self.prefactor = scaling
         self.base = base_term
 
@@ -4607,7 +6072,10 @@ class ScaledPerturbationTheoryTerm(PerturbationTheoryTerm):
 class PerturbationTheoryTermSum(PerturbationTheoryTerm):
 
     def __init__(self, *terms):
-        super().__init__(logger=terms[0].logger)
+        super().__init__(
+            logger=terms[0].logger,
+            polynomial_representation=terms[0].polynomial_representation
+        )
         self.terms = terms
     def __repr__(self):
         return "+".join("{}".format(t) for t in self.terms)
@@ -4626,8 +6094,12 @@ class PerturbationTheoryTermSum(PerturbationTheoryTerm):
 class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
 
     _cache = {}
+    _poly_product_cache = {}
     def __init__(self, post_op, pre_op):
-        super().__init__(logger=post_op.logger)
+        super().__init__(
+            logger=post_op.logger,
+            polynomial_representation=post_op.polynomial_representation
+        )
 
         self.gen1 = pre_op # we apply right-to-left
         self.gen2 = post_op
@@ -5012,12 +6484,60 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
     def get_expressions(self):
         raise NotImplementedError("shouldn't need this here...")
 
+    @staticmethod
+    def _freeze_product_arg(arg):
+        if isinstance(arg, np.ndarray):
+            return (
+                'array', arg.dtype.str, tuple(arg.shape),
+                tuple(arg.reshape(-1).tolist())
+            )
+        if isinstance(arg, (list, tuple)):
+            return tuple(PerturbationTheoryTermProduct._freeze_product_arg(x) for x in arg)
+        return arg
+
     @classmethod
     def get_poly_product_terms(cls,
                                gen1, gen2, change_1, change_2,
                                target_inds, remainder_inds, reorgs,
                                simplify=True
                                ):
+        if (
+                gen1.polynomial_representation != 'path'
+                or gen2.polynomial_representation != 'path'
+        ):
+            return cls._build_poly_product_terms(
+                gen1, gen2, change_1, change_2,
+                target_inds, remainder_inds, reorgs,
+                simplify=simplify
+            )
+        key = (
+            gen1, gen2,
+            cls._freeze_product_arg(change_1),
+            cls._freeze_product_arg(change_2),
+            cls._freeze_product_arg(target_inds),
+            cls._freeze_product_arg(remainder_inds),
+            cls._freeze_product_arg(reorgs),
+            simplify,
+            gen1.polynomial_representation,
+            gen2.polynomial_representation
+        )
+        try:
+            return cls._poly_product_cache[key]
+        except KeyError:
+            product = cls._build_poly_product_terms(
+                gen1, gen2, change_1, change_2,
+                target_inds, remainder_inds, reorgs,
+                simplify=simplify
+            )
+            cls._poly_product_cache[key] = product
+            return product
+
+    @classmethod
+    def _build_poly_product_terms(cls,
+                                  gen1, gen2, change_1, change_2,
+                                  target_inds, remainder_inds, reorgs,
+                                  simplify=True
+                                  ):
 
         log_level = Logger.LogLevel.Normal if _DEBUG_PRINT else Logger.LogLevel.MoreDebug
         logger = cls.default_logger()
@@ -5206,6 +6726,32 @@ class PerturbationTheoryExpressionEvaluator:
                        verbose, logger
                        ):
         log_level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
+        if isinstance(poly, PolyPath):
+            poly_evals = []
+            for substates in perm_substates:
+                if baseline_shift is not None:
+                    raise NotImplementedError('sorry')
+                if substates.shape[-1] == 0:
+                    sqrt_factor = np.ones(substates.shape[0])
+                else:
+                    shifts_sqrts = [
+                        np.prod(
+                            n[:, np.newaxis] + np.arange(
+                                delta + 1 if delta < 0 else 1,
+                                1 if delta < 0 else delta + 1
+                            )[np.newaxis, :],
+                            axis=-1
+                        )
+                        for n, delta in zip(substates.T, change)
+                    ]
+                    sqrt_factor = np.sqrt(np.prod(shifts_sqrts, axis=0))
+
+                value = poly.evaluate_polynomial(substates)
+                poly_evals.append(value * sqrt_factor)
+            if len(poly_evals) == 1:
+                return poly_evals[0][:, np.newaxis]
+            return np.moveaxis(np.array(poly_evals), 0, 1)
+
         if isinstance(poly, ProductPTPolynomialSum):
             subvals = [
                 cls._eval_raw_poly(perm_substates, p, change, baseline_shift, pows, verbose, logger)
@@ -5292,9 +6838,14 @@ class PerturbationTheoryExpressionEvaluator:
                    verbose, logger):
         # TODO: this could be way faster but we're being dumb for now
 
-        if poly not in cache:
-            cache[poly] = {}
-        cache = cache[poly]
+        poly_key = (
+            poly,
+            None if change is None else tuple(change),
+            None if baseline_shift is None else tuple(baseline_shift)
+        )
+        if poly_key not in cache:
+            cache[poly_key] = {}
+        cache = cache[poly_key]
 
         eval_pos = []
         eval_keys = []
@@ -5712,7 +7263,9 @@ class PerturbationTheoryExpressionEvaluator:
 
     @classmethod
     def _get_max_order(cls, expr):
-        if isinstance(expr, ProductPTPolynomial):
+        if isinstance(expr, PolyPath):
+            return max(expr.order + (0,)) + 1
+        elif isinstance(expr, ProductPTPolynomial):
             return 1 if len(expr.coeffs) == 0 else max(len(c) for c in expr.coeffs)
         elif isinstance(expr, ProductPTPolynomialSum):
             return max(cls._get_max_order(p) for p in expr.polys)
@@ -6192,6 +7745,18 @@ class PerturbationTheoryExpressionEvaluator:
             ]
             for expansion in coeffs
         ]
+
+        if isinstance(expr, PTTensorCoeffProductDAG):
+            active_coefficients = {
+                (order, coefficient_type)
+                for expansion in coeffs
+                for order, order_expansion in enumerate(expansion)
+                for coefficient_type, coefficient in enumerate(order_expansion)
+                if not nput.is_zero(coefficient)
+            }
+            inactive_coefficients = expr.operator_keys.difference(active_coefficients)
+            if len(inactive_coefficients) > 0:
+                expr = expr.prune_operators(inactive_coefficients)
 
         # udegs, udeg_inv = np.unique(np.concatenate(degenerate_changes, axis=0), axis=0, return_inverse=True)
 

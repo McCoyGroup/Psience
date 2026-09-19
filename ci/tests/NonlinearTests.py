@@ -6,6 +6,8 @@ from McUtils.Data import UnitsData
 import sys, os, numpy as np
 import copy
 import itertools
+import json
+import tempfile
 
 class NonlinearTests(TestCase):
 
@@ -405,7 +407,7 @@ class NonlinearTests(TestCase):
             states = sorted(tuple(int(x) for x in total_space.excitations[i]) for i in touched)
             return paths, states
 
-    @debugTest
+    @validationTest
     def test_FilterSpaceBaselineHasNoRestriction(self):
         """
         Sanity check establishing the unfiltered numbers that the two
@@ -421,7 +423,7 @@ class NonlinearTests(TestCase):
         self.assertEqual(len(paths), 44)
         self.assertEqual(len(states), 15)
 
-    @debugTest
+    @validationTest
     def test_FilterSpaceExcludesSpectatorMode(self):
         """
         `filter_space` passed through `prep_liouville_spaces`/
@@ -454,7 +456,7 @@ class NonlinearTests(TestCase):
         self.assertEqual(len(paths), 24)
         self.assertEqual(len(states), 10)
 
-    @debugTest
+    @validationTest
     def test_FilterSpaceExcludesTargetedState(self):
         """
         `filter_space` should also work as a scalpel, excluding a single
@@ -477,3 +479,1130 @@ class NonlinearTests(TestCase):
         self.assertNotIn(target, total_states)
         self.assertNotIn(target, states)
         self.assertEqual(len(total_space), 34)
+
+    @validationTest
+    def test_VPTResponseTargetStatePreparation(self):
+        """Explicit and dictionary target-state specifications resolve consistently."""
+        try:
+            from Psience.Nonlinear.NonlinearResponse import _prep_vpt_target_states
+            from Psience.BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis
+        except ImportError:
+            from Psience.Psience.Nonlinear.NonlinearResponse import _prep_vpt_target_states
+            from Psience.Psience.BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis
+
+        freqs = np.array([1.0, 2.0, 3.0])
+        ground = (0, 0, 0)
+
+        # Explicit vectors are preserved, deduplicated, and get an implicit ground state.
+        explicit = _prep_vpt_target_states(
+            freqs,
+            target_states=[
+                [1, 0, 0],
+                [0, 0, 1],
+                [1, 0, 0]
+            ]
+        )
+        self.assertEqual(explicit, [ground, (1, 0, 0), (0, 0, 1)])
+        self.assertEqual(_prep_vpt_target_states(freqs, target_states=[]), [ground])
+        generated_iterable = ([n, 0, 0] for n in (1, 2))
+        self.assertEqual(
+            _prep_vpt_target_states(freqs, target_states=generated_iterable),
+            [ground, (1, 0, 0), (2, 0, 0)]
+        )
+
+        # Existing BasisStateSpace objects are accepted without regenerating states.
+        basis_space = BasisStateSpace(
+            HarmonicOscillatorProductBasis(3),
+            [[0, 1, 0], [0, 0, 2]],
+            mode=BasisStateSpace.StateSpaceSpec.Excitations
+        )
+        from_basis = _prep_vpt_target_states(freqs, target_states=basis_space)
+        self.assertEqual(from_basis, [ground, (0, 1, 0), (0, 0, 2)])
+
+        # A dict is forwarded as BasisStateSpace.states_under_freq_threshold options.
+        state_options = {
+            'max_freq': 4.1,
+            'max_quanta': 3,
+            'fixed_modes': [1]
+        }
+        generated = _prep_vpt_target_states(freqs, target_states=state_options)
+        direct = BasisStateSpace.states_under_freq_threshold(freqs, **state_options)
+        expected = {ground} | {tuple(int(x) for x in state) for state in direct}
+        self.assertEqual(set(generated), expected)
+        self.assertTrue(all(state[1] == 0 for state in generated))
+        self.assertTrue(all(sum(state) < 3 for state in generated))
+
+        with self.assertRaises(ValueError):
+            _prep_vpt_target_states(freqs, target_states=[[1, 0]])
+        with self.assertRaises(ValueError):
+            _prep_vpt_target_states(freqs, target_states=[[0, -1, 0]])
+        with self.assertRaises(ValueError):
+            _prep_vpt_target_states(freqs, target_states=[[0, 0.5, 0]])
+
+    @validationTest
+    def test_VPTResponseTargetStatesReachRunners(self):
+        """Restricted target states are forwarded to both VPT runner styles."""
+        from types import SimpleNamespace
+        from unittest import mock
+        try:
+            from Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data
+            from Psience.VPT2 import VPTSystem, VPTRunner, AnalyticVPTRunner
+        except ImportError:
+            from Psience.Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data
+            from Psience.Psience.VPT2 import VPTSystem, VPTRunner, AnalyticVPTRunner
+
+        fake_system = VPTSystem.__new__(VPTSystem)
+        fake_system.mol = SimpleNamespace(
+            normal_modes=SimpleNamespace(
+                modes=SimpleNamespace(freqs=np.array([0.01, 0.02]))
+            )
+        )
+        target_states = [
+            [0, 0],
+            [1, 0],
+            [0, 1],
+            [2, 0]
+        ]
+
+        class RunnerReached(Exception):
+            pass
+
+        with mock.patch.object(VPTRunner, 'run_simple', side_effect=RunnerReached) as run:
+            with self.assertRaises(RunnerReached):
+                prep_vpt_response_data(fake_system, target_states=target_states)
+        self.assertEqual(run.call_args.args[1], [tuple(s) for s in target_states])
+        self.assertEqual(
+            run.call_args.kwargs['initial_states'],
+            [(0, 0), (1, 0), (0, 1)]
+        )
+
+        with mock.patch.object(AnalyticVPTRunner, 'run_simple', side_effect=RunnerReached) as run:
+            with self.assertRaises(RunnerReached):
+                prep_vpt_response_data(
+                    fake_system,
+                    target_states=target_states,
+                    use_analytic=True
+                )
+        self.assertEqual(
+            run.call_args.args[1],
+            [
+                [[[0, 0]], [[1, 0], [0, 1]]],
+                [[[1, 0], [0, 1]], [[2, 0]]]
+            ]
+        )
+
+    @validationTest
+    def test_VPTResponseDataFromWaterFchk(self):
+        """
+        `prep_vpt_response_data` bridges a real ab initio VPT calculation
+        (via `VPTRunner.run_simple`) into the `transition_dict` format that
+        `prep_nonlinear_transition_data`/`experimental_response_generator`
+        consume, rather than requiring the transitions to be hand-specified
+        like the systems above: it builds the target state list from
+        `BasisStateSpace.states_under_freq_threshold` (capped at two total
+        quanta), always includes the ground state, and seeds the VPT run's
+        `initial_states` with the ground state plus every one-quantum
+        fundamental.
+
+        NOTE: this depends on `claude_drafts/prep_vpt_response_data.patch`
+        being merged into `Psience/Nonlinear/NonlinearResponse.py`.
+        """
+        try:
+            from Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data
+        except ImportError:
+            # see the `filter_space` tests above for why this fallback is needed
+            from Psience.Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data
+
+        # `TestManager.test_data(...)` resolves relative to a legacy `<repo_root>/Tests`
+        # layout that doesn't match this project's actual `ci/tests/TestData` convention
+        # (and is only correctly configured when driven through `ci/tests/run_tests.py`),
+        # so we resolve the path directly relative to this file instead.
+        fchk = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'TestData', 'water_freq.fchk')
+        transition_dict, wfns = prep_vpt_response_data(fchk, return_wavefunctions=True)
+
+        states_seen = set()
+        for si, sj in transition_dict.keys():
+            states_seen.add(si)
+            states_seen.add(sj)
+        ndim = len(next(iter(states_seen)))
+        ground_state = (0,) * ndim
+
+        # water has 3 normal modes -> 1 (gs) + 3 (fundamentals) + 3 (overtones)
+        # + 3 (combination bands) = 10 states with <= 2 total quanta
+        self.assertEqual(ndim, 3)
+        self.assertIn(ground_state, states_seen)
+        self.assertEqual(len(states_seen), 10)
+
+        # every mode's fundamental should show up as a real, dipole-allowed
+        # transition directly out of the ground state
+        fundamentals = [s for s in states_seen if sum(s) == 1]
+        self.assertEqual(len(fundamentals), 3)
+        for fund in fundamentals:
+            key = (ground_state, fund)
+            self.assertIn(key, transition_dict)
+            data = transition_dict[key]
+            # water's fundamentals (bend + two stretches) all fall in the mid-IR
+            self.assertGreater(data['frequency'], 1000)
+            self.assertLess(data['frequency'], 4200)
+            self.assertGreater(np.linalg.norm(data['transition_moment']), 1e-3)
+
+        # every transition should be reported in its "upward" (positive-frequency)
+        # direction -- `prep_nonlinear_transition_data` infers the reverse itself
+        for data in transition_dict.values():
+            self.assertGreater(data['frequency'], 0)
+
+    @validationTest
+    def test_VPTResponseDataCaching(self):
+        """
+        `prep_vpt_response_data`'s `output_file` option should cache the
+        computed `transition_dict` to disk as JSON (a list of
+        `{"state": [state_i, state_j], ...}` records, since JSON object keys
+        can't be tuples) and, on a later call with the same `output_file`,
+        load that cached data back in verbatim rather than rerunning VPT --
+        unless `overwrite=True` is passed, in which case it always reruns and
+        rewrites the file.
+
+        NOTE: this depends on `claude_drafts/prep_vpt_response_data.patch`
+        being merged into `Psience/Nonlinear/NonlinearResponse.py`.
+        """
+        try:
+            from Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data
+        except ImportError:
+            # see the `filter_space` tests above for why this fallback is needed
+            from Psience.Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data
+
+        fchk = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'TestData', 'water_freq.fchk')
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            out_file = os.path.join(tmp_dir, 'water_response.json')
+
+            self.assertFalse(os.path.exists(out_file))
+            computed = prep_vpt_response_data(fchk, output_file=out_file)
+            self.assertTrue(os.path.isfile(out_file))
+
+            # the file on disk should be a JSON list of "state"-keyed records,
+            # not a JSON object keyed by (unserializable) state-pair tuples
+            with open(out_file) as f:
+                raw_records = json.load(f)
+            self.assertIsInstance(raw_records, list)
+            self.assertEqual(len(raw_records), len(computed))
+            for rec in raw_records:
+                self.assertIn('state', rec)
+                self.assertEqual(len(rec['state']), 2)
+                self.assertIn('frequency', rec)
+                self.assertIn('transition_moment', rec)
+
+            # loading it back in (overwrite=False, the default) should match exactly
+            cached = prep_vpt_response_data(fchk, output_file=out_file)
+            self.assertEqual(set(cached.keys()), set(computed.keys()))
+            for key in computed:
+                self.assertAlmostEqual(cached[key]['frequency'], computed[key]['frequency'], places=6)
+                np.testing.assert_allclose(
+                    cached[key]['transition_moment'], computed[key]['transition_moment']
+                )
+
+            # a cache load has no live VPTWavefunctions to hand back
+            _, wfns = prep_vpt_response_data(fchk, output_file=out_file, return_wavefunctions=True)
+            self.assertIsNone(wfns)
+
+            # tamper with the cached file directly; without `overwrite`, the tampered
+            # value should come back verbatim -- proving the cache is actually used
+            # rather than silently recomputed every time
+            raw_records[0]['frequency'] = -12345.0
+            with open(out_file, 'w') as f:
+                json.dump(raw_records, f)
+            tampered = prep_vpt_response_data(fchk, output_file=out_file)
+            self.assertIn(-12345.0, [d['frequency'] for d in tampered.values()])
+
+            # `overwrite=True` should ignore the tampered file and recompute + rewrite it
+            recomputed = prep_vpt_response_data(fchk, output_file=out_file, overwrite=True)
+            self.assertNotIn(-12345.0, [d['frequency'] for d in recomputed.values()])
+            self.assertEqual(set(recomputed.keys()), set(computed.keys()))
+
+    @validationTest
+    def test_VPTResponseDataSavedToTestData(self):
+        """
+        Exercises `prep_vpt_response_data`'s `output_file` disk-caching against
+        a *persistent* location -- `ci/tests/TestData/water_freq_response.json`,
+        checked in alongside `water_freq.fchk` itself -- rather than a scratch
+        tempfile, so that once the cache file exists this test (and anything
+        else that wants water's VPT response data) never has to rerun the VPT
+        calculation at all: with `overwrite` left at its default of `False`,
+        `prep_vpt_response_data` loads the checked-in JSON straight off disk
+        instead of recomputing it every time the test suite runs. Passing
+        `overwrite=True` (not exercised as the default path here on purpose)
+        is the only way to force a refresh of that file.
+
+        NOTE: this depends on `claude_drafts/prep_vpt_response_data.patch`
+        being merged into `Psience/Nonlinear/NonlinearResponse.py`.
+        """
+
+        fchk = TestManager.test_data('water_freq.fchk')
+        out_file = TestManager.test_data('water_freq_response.json')
+
+        # by default (`overwrite=False`) this does nothing but load the
+        # checked-in file if it's already there -- a fresh VPT run only
+        # happens the first time this is ever called for this file
+        transition_dict = prep_vpt_response_data(fchk, output_file=out_file, overwrite=False)
+        self.assertTrue(os.path.isfile(out_file))
+
+        with open(out_file) as f:
+            raw_records = json.load(f)
+        self.assertIsInstance(raw_records, list)
+        self.assertEqual(len(raw_records), len(transition_dict))
+        for rec in raw_records:
+            self.assertIn('state', rec)
+            self.assertEqual(len(rec['state']), 2)
+            self.assertIn('frequency', rec)
+            self.assertIn('transition_moment', rec)
+
+        # the same sanity checks as `test_VPTResponseDataFromWaterFchk`: water
+        # has 3 normal modes -> 10 states with <= 2 total quanta, ground state
+        # included, and all 3 fundamentals present as real ground-state transitions
+        states_seen = set()
+        for si, sj in transition_dict.keys():
+            states_seen.add(si)
+            states_seen.add(sj)
+        ndim = len(next(iter(states_seen)))
+        ground_state = (0,) * ndim
+
+        self.assertEqual(ndim, 3)
+        self.assertIn(ground_state, states_seen)
+        self.assertEqual(len(states_seen), 10)
+
+        fundamentals = [s for s in states_seen if sum(s) == 1]
+        self.assertEqual(len(fundamentals), 3)
+        for fund in fundamentals:
+            key = (ground_state, fund)
+            self.assertIn(key, transition_dict)
+            data = transition_dict[key]
+            self.assertGreater(data['frequency'], 1000)
+            self.assertLess(data['frequency'], 4200)
+            self.assertGreater(np.linalg.norm(data['transition_moment']), 1e-3)
+
+    @validationTest
+    def test_FullTwoDimensionalIRFromVPTResponseData(self):
+        """
+        Hooks `prep_vpt_response_data`'s real ab initio VPT results for water
+        straight into the same Liouville-pathway 2D-IR machinery exercised by
+        the hand-specified systems above, instead of a synthetic transition
+        dict -- i.e. runs a genuine, from-first-principles 2D-IR calculation
+        on water.
+
+        VPT gives frequencies and transition moments but no dephasing rates,
+        so every coherence/population band is given a uniform, physically
+        modest homogeneous linewidth via `band_coherences`, mirroring the
+        (0,1)/(1,1)-style band-quanta convention used by
+        `FourStateLiouvilleSystem` above (rather than a lambda keyed on raw
+        state vectors, which would also assign a spurious decay rate to the
+        ground state itself). The observation window is restricted to
+        water's two O-H stretch fundamentals -- picked out as the two
+        higher-frequency fundamentals in the data (the lowest is the bend) --
+        since that's the classic textbook water 2D-IR region: two diagonal
+        peaks plus a real excited-state absorption feature from the
+        anharmonically-shifted stretch overtones/combination band, exactly
+        like the synthetic system in `test_CombinationBandCrossPeaksAndESA`
+        above, except here every number -- including the two stretches'
+        genuinely different transition dipole moments -- comes from an
+        actual VPT calculation instead of being made up. Because of that,
+        the two diagonal peaks are NOT expected to have comparable height
+        (unlike the symmetric synthetic system): the peak heights are
+        checked against each other's ab initio transition dipole magnitudes
+        instead of a shared absolute threshold.
+        """
+        from Psience.Spectra import TwoDimensionalSpectrum
+
+        fchk = TestManager.test_data('water_freq.fchk')
+        out_file = TestManager.test_data('water_freq_response.json')
+
+        # by default (`overwrite=False`) this does nothing but load the
+        # checked-in file if it's already there -- a fresh VPT run only
+        # happens the first time this is ever called for this file
+        transition_dict = prep_vpt_response_data(fchk, output_file=out_file, overwrite=False)
+
+        ndim = len(next(iter(transition_dict))[0])
+        ground_state = (0,) * ndim
+        fundamentals = sorted(
+            (data['frequency'], sj)
+            for (si, sj), data in transition_dict.items()
+            if si == ground_state and sum(sj) == 1
+        )
+        self.assertEqual(len(fundamentals), 3)
+        # the lowest-frequency fundamental is the bend; the other two are the
+        # O-H stretches -- the classic water 2D-IR system
+        stretch_freqs = [f for f, _ in fundamentals[1:]]
+        stretch_states = [sj for _, sj in fundamentals[1:]]
+
+        center = (min(stretch_freqs) + max(stretch_freqs)) / 2  # ~3683 cm^-1 for the two O-H stretches
+        coherence_strength = 3  # physically modest linewidth -- see the module docstring note above
+        responses = experimental_response_generator(
+            transition_dict,
+            band_coherences={
+                (0, 1): coherence_strength,
+                (1, 2): coherence_strength,
+                (1, 1): coherence_strength,
+                (2, 2): coherence_strength
+            },
+            frequency_unit="Wavenumbers",
+            application_domain="frequency",
+            driving_frequency=center,
+        )
+
+        window = [min(stretch_freqs) - 250, max(stretch_freqs) + 100]
+        spec:TwoDimensionalSpectrum = responses.get_spectrum(
+            window, 10, window,
+            default_frequency_divisions=300
+        )
+        spec.plot().show()
+        I = np.real(spec.intensities)
+        self.assertGreater(I.max(), 1e-9)
+
+        def nearest_value(w1, w3):
+            ix = int(np.argmin(np.abs(spec.freq1 - w1)))
+            iy = int(np.argmin(np.abs(spec.freq2 - w3)))
+            return I[iy, ix]
+
+        # both O-H stretch fundamentals should show up as positive
+        # (ground-state bleach/stimulated emission) diagonal peaks, and the
+        # stretch with the larger ab initio transition dipole should produce
+        # the larger diagonal peak
+        diag_vals = []
+        tm_norms = []
+        for freq, state in zip(stretch_freqs, stretch_states):
+            val = nearest_value(freq, freq)
+            self.assertGreater(val, 5e-12)
+            diag_vals.append(val)
+            tm_norms.append(np.linalg.norm(
+                transition_dict[(ground_state, state)]['transition_moment']
+            ))
+        self.assertEqual(int(np.argmax(diag_vals)), int(np.argmax(tm_norms)))
+
+        # a real, coupled/anharmonic 2D-IR spectrum must also show excited-state
+        # absorption: a genuine negative-going feature somewhere in the window
+        self.assertLess(I.min(), -1e-3 * I.max())
+
+    @validationTest
+    def test_VPTResponseDataFromWaterFchkAnalytic(self):
+        """
+        `prep_vpt_response_data(..., use_analytic=True)` bridges a real
+        symbolic/analytic VPT calculation (via `AnalyticVPTRunner.run_simple`)
+        into the same `transition_dict` format as the classic branch, but via
+        a genuinely different calling convention under the hood: instead of
+        one dense "every initial state x every final state" matrix, it builds
+        one `[initial_space, target_space]` block per consecutive quantum
+        shell implied by `initial_quanta` (ground -> fundamentals,
+        fundamentals -> two-quantum states), and only computes transition
+        moments *within* each block. This test exercises that branch fresh
+        (no caching) against real water data and checks both the ordinary
+        sanity properties (ground state, all three fundamentals present with
+        sane frequencies/moments) and the block-structure-specific ones: the
+        full 10-state space is still reachable, but non-adjacent-shell
+        transitions (a direct ground -> two-quantum overtone, or a
+        fundamental -> fundamental cross term within the one-quantum
+        manifold) are *not* computed, unlike the classic branch.
+
+        NOTE: this depends on `claude_drafts/prep_vpt_response_data_analytic.patch`
+        being merged into `Psience/Nonlinear/NonlinearResponse.py`.
+        """
+        # `TestManager.test_data(...)` resolves relative to a legacy `<repo_root>/Tests`
+        # layout that doesn't match this project's actual `ci/tests/TestData` convention
+        # (and is only correctly configured when driven through `ci/tests/run_tests.py`),
+        # so we resolve the path directly relative to this file instead.
+        fchk = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'TestData', 'water_freq.fchk')
+        transition_dict, corrs = prep_vpt_response_data(
+            fchk, use_analytic=True, logger=False, return_wavefunctions=True
+        )
+
+        # a fresh analytic run hands back the live `AnalyticPerturbationTheoryCorrections`,
+        # not a `VPTWavefunctions` -- distinguishable by its `state_lists` attribute,
+        # which the classic branch's result doesn't have
+        self.assertTrue(hasattr(corrs, 'state_lists'))
+        self.assertFalse(hasattr(corrs, 'initial_state_indices'))
+
+        states_seen = set()
+        for si, sj in transition_dict.keys():
+            states_seen.add(si)
+            states_seen.add(sj)
+        ndim = len(next(iter(states_seen)))
+        ground_state = (0,) * ndim
+
+        # the block structure (0->1, 1->2 quantum shells) still touches every
+        # one of water's 10 states with <= 2 total quanta
+        self.assertEqual(ndim, 3)
+        self.assertIn(ground_state, states_seen)
+        self.assertEqual(len(states_seen), 10)
+
+        # every mode's fundamental is still a real, dipole-allowed transition
+        # directly out of the ground state (the 0->1 block)
+        fundamentals = [s for s in states_seen if sum(s) == 1]
+        self.assertEqual(len(fundamentals), 3)
+        for fund in fundamentals:
+            key = (ground_state, fund)
+            self.assertIn(key, transition_dict)
+            data = transition_dict[key]
+            self.assertGreater(data['frequency'], 1000)
+            self.assertLess(data['frequency'], 4200)
+            self.assertGreater(np.linalg.norm(data['transition_moment']), 1e-3)
+
+        # every transition should still be reported in its "upward" direction
+        for data in transition_dict.values():
+            self.assertGreater(data['frequency'], 0)
+
+        # the block structure only connects *adjacent* quantum shells, so a
+        # direct ground -> two-quantum overtone (a non-adjacent-shell
+        # transition) should NOT show up, unlike in the classic branch
+        two_quantum_states = [s for s in states_seen if sum(s) == 2]
+        self.assertEqual(len(two_quantum_states), 6)
+        for state in two_quantum_states:
+            self.assertNotIn((ground_state, state), transition_dict)
+
+        # nor should a fundamental -> fundamental cross term within the
+        # one-quantum manifold itself (both endpoints live in the same block
+        # boundary, not across one)
+        for fund_a in fundamentals:
+            for fund_b in fundamentals:
+                if fund_a != fund_b:
+                    self.assertNotIn((fund_a, fund_b), transition_dict)
+
+        # exactly 19 transitions survive: the classic branch's 28 minus the
+        # 6 direct ground -> two-quantum overtones and the 3 fundamental ->
+        # fundamental cross terms that the block structure can't reach
+        self.assertEqual(len(transition_dict), 19)
+
+    @validationTest
+    def test_VPTResponseDataAnalyticMatchesClassicOnSharedTransitions(self):
+        """
+        The classic and analytic branches are independent VPT
+        implementations, so they should agree closely -- but not
+        necessarily bit-for-bit, and not necessarily up to the same overall
+        sign convention on transition moments -- on whatever transitions
+        they *both* compute. This compares the two persisted `TestData`
+        caches (so it doesn't have to rerun either VPT calculation) on their
+        common transitions: frequencies should match to a small fraction of
+        a wavenumber, and each transition moment should match up to a
+        possible overall sign flip (the two evaluators' dipole-derivative
+        phase conventions aren't guaranteed to agree, but the underlying
+        physics -- and thus every even, sign-invariant combination that
+        actually enters a computed intensity/spectrum -- is the same either
+        way).
+
+        NOTE: this depends on `claude_drafts/prep_vpt_response_data_analytic.patch`
+        being merged into `Psience/Nonlinear/NonlinearResponse.py`, and on both
+        `ci/tests/TestData/water_freq_response.json` and
+        `ci/tests/TestData/water_freq_response_analytic.json` being checked in.
+        """
+        fchk = TestManager.test_data('water_freq.fchk')
+        classic_out = TestManager.test_data('water_freq_response.json')
+        analytic_out = TestManager.test_data('water_freq_response_analytic.json')
+
+        classic = prep_vpt_response_data(fchk, output_file=classic_out, overwrite=False)
+        analytic = prep_vpt_response_data(
+            fchk, use_analytic=True, output_file=analytic_out, overwrite=False
+        )
+
+        # every transition the analytic (block-restricted) branch computes is
+        # also computed by the classic (dense-matrix) branch -- the block
+        # structure is strictly more conservative about what it connects
+        self.assertTrue(set(analytic.keys()) <= set(classic.keys()))
+        self.assertLess(len(analytic), len(classic))
+
+        for key in analytic:
+            c_freq = classic[key]['frequency']
+            a_freq = analytic[key]['frequency']
+            self.assertAlmostEqual(c_freq, a_freq, delta=0.5)
+
+            tm_c = np.asarray(classic[key]['transition_moment'])
+            tm_a = np.asarray(analytic[key]['transition_moment'])
+            diff_same_sign = np.linalg.norm(tm_c - tm_a)
+            diff_flipped = np.linalg.norm(tm_c + tm_a)
+            # whichever relative sign is the better match should agree closely
+            self.assertLess(min(diff_same_sign, diff_flipped), 5e-3)
+
+    @validationTest
+    def test_VPTResponseDataAnalyticCaching(self):
+        """
+        `prep_vpt_response_data`'s `output_file` caching behaves the same way
+        for the analytic branch as for the classic one (see
+        `test_VPTResponseDataCaching`): the first call runs
+        `AnalyticVPTRunner.run_simple` and writes the JSON cache, a later
+        call with the same `output_file` loads that cache back in verbatim
+        (proven by tampering with it directly and getting the tampered value
+        back) rather than rerunning VPT, and `overwrite=True` always reruns
+        and rewrites the file. A cache load also still has no live results
+        object to hand back via `return_wavefunctions`, exactly as for the
+        classic branch.
+
+        NOTE: this depends on `claude_drafts/prep_vpt_response_data_analytic.patch`
+        being merged into `Psience/Nonlinear/NonlinearResponse.py`.
+        """
+        fchk = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'TestData', 'water_freq.fchk')
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            out_file = os.path.join(tmp_dir, 'water_response_analytic.json')
+
+            self.assertFalse(os.path.exists(out_file))
+            computed = prep_vpt_response_data(fchk, use_analytic=True, logger=False, output_file=out_file)
+            self.assertTrue(os.path.isfile(out_file))
+
+            with open(out_file) as f:
+                raw_records = json.load(f)
+            self.assertIsInstance(raw_records, list)
+            self.assertEqual(len(raw_records), len(computed))
+            for rec in raw_records:
+                self.assertIn('state', rec)
+                self.assertEqual(len(rec['state']), 2)
+                self.assertIn('frequency', rec)
+                self.assertIn('transition_moment', rec)
+
+            # loading it back in (overwrite=False, the default) should match exactly
+            cached = prep_vpt_response_data(fchk, use_analytic=True, output_file=out_file)
+            self.assertEqual(set(cached.keys()), set(computed.keys()))
+            for key in computed:
+                self.assertAlmostEqual(cached[key]['frequency'], computed[key]['frequency'], places=6)
+                np.testing.assert_allclose(
+                    cached[key]['transition_moment'], computed[key]['transition_moment']
+                )
+
+            # a cache load has no live results object to hand back
+            _, corrs = prep_vpt_response_data(
+                fchk, use_analytic=True, output_file=out_file, return_wavefunctions=True
+            )
+            self.assertIsNone(corrs)
+
+            # tamper with the cached file directly; without `overwrite`, the tampered
+            # value should come back verbatim -- proving the cache is actually used
+            raw_records[0]['frequency'] = -12345.0
+            with open(out_file, 'w') as f:
+                json.dump(raw_records, f)
+            tampered = prep_vpt_response_data(fchk, use_analytic=True, output_file=out_file)
+            self.assertIn(-12345.0, [d['frequency'] for d in tampered.values()])
+
+            # `overwrite=True` should ignore the tampered file and recompute + rewrite it
+            recomputed = prep_vpt_response_data(
+                fchk, use_analytic=True, logger=False, output_file=out_file, overwrite=True
+            )
+            self.assertNotIn(-12345.0, [d['frequency'] for d in recomputed.values()])
+            self.assertEqual(set(recomputed.keys()), set(computed.keys()))
+
+    @validationTest
+    def test_VPTResponseDataFromLogMatchesWaterFchk(self):
+        """
+        Exercises `prep_vpt_response_data_from_log` -- which reconstructs a
+        `transition_dict` purely from a saved VPT2 text log via
+        `Psience.VPT2.Analyzer.VPTAnalyzer`, rather than from an in-memory
+        `VPTWavefunctions` result -- against a checked-in log fixture
+        (`water_vpt_classic.log`, generated the same way
+        `prep_vpt_response_data`'s classic branch itself would generate one,
+        via `VPTRunner.run_simple(..., logger=<path>)`), and checks it against
+        the known-correct ground truth already checked in for the in-memory
+        classic branch (`water_freq_response.json`).
+
+        This only works at all because of three real bugs found and fixed in
+        `Psience/VPT2/Analyzer.py` while building this function -- see
+        `claude_drafts/vpt_analyzer_log_parsing_fixes.patch` for the full
+        writeup, and `claude_drafts/prep_vpt_response_data_from_log.patch`
+        for `prep_vpt_response_data_from_log` itself. Both patches must be
+        merged for this test to pass.
+
+        With all three fixed, both the frequencies (which come straight off
+        the log's own printed values) and the transition moments (reconstructed
+        by summing every printed per-order dipole-correction term, matching
+        `VPTWavefunctions._compute_tmom_to_order`'s own combination rule) come
+        back exact for all 28 known transitions, fundamentals and combination
+        bands/overtones alike -- not just approximately.
+        """
+        try:
+            from Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data_from_log
+        except ImportError:
+            from Psience.Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data_from_log
+
+        log_file = TestManager.test_data('water_vpt_classic.log')
+        gt_file = TestManager.test_data('water_freq_response.json')
+
+        transition_dict = prep_vpt_response_data_from_log(log_file)
+        self.assertEqual(len(transition_dict), 28)
+
+        with open(gt_file) as f:
+            gt_records = json.load(f)
+        gt_dict = {
+            (tuple(rec['state'][0]), tuple(rec['state'][1])): rec
+            for rec in gt_records
+        }
+        self.assertEqual(set(transition_dict.keys()), set(gt_dict.keys()))
+
+        for key, data in transition_dict.items():
+            gt_rec = gt_dict[key]
+            self.assertAlmostEqual(data['frequency'], gt_rec['frequency'], places=3)
+
+            tm = np.asarray(data['transition_moment'])
+            tm_gt = np.asarray(gt_rec['transition_moment'])
+            # the two independent codepaths (in-memory vs. log-reconstructed) can come back
+            # with an overall sign flip, same as the classic-vs-analytic comparison above
+            self.assertLess(
+                min(np.max(np.abs(tm - tm_gt)), np.max(np.abs(tm + tm_gt))),
+                1e-5,
+                msg=f"transition moment mismatch for {key}"
+            )
+
+    @validationTest
+    def test_VPTResponseDataFromLogFreshlyGenerated(self):
+        """
+        Same idea as `test_VPTResponseDataFromLogMatchesWaterFchk`, but generates its own
+        log fresh (via `VPTRunner.run_simple(..., logger=<path>)`, using the identical
+        `state_list`/`initial_states` construction `prep_vpt_response_data`'s classic
+        branch uses) rather than relying on the checked-in fixture -- so this also exercises
+        `VPTRunner`'s own log-writing path, not just `VPTAnalyzer`'s parsing of a pre-made one.
+        """
+        try:
+            from Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data_from_log
+        except ImportError:
+            from Psience.Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data_from_log
+        from Psience.VPT2 import VPTRunner, VPTSystem
+        from Psience.BasisReps import BasisStateSpace
+
+        fchk = TestManager.test_data('water_freq.fchk')
+        vpt_system = VPTSystem(fchk)
+        freqs = vpt_system.mol.normal_modes.modes.freqs
+        max_quanta = 2
+        max_freq = max_quanta * np.max(np.abs(freqs))
+        raw_states = BasisStateSpace.states_under_freq_threshold(freqs, max_freq, max_quanta=max_quanta + 1)
+        state_list = [tuple(int(x) for x in s) for s in raw_states]
+        gs = (0, 0, 0)
+        if gs not in state_list:
+            state_list = [gs] + state_list
+        initial_states = [s for s in state_list if sum(s) in (0, 1)]
+        if gs not in initial_states:
+            initial_states = [gs] + initial_states
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            log_path = os.path.join(tmp_dir, 'water_vpt.log')
+            VPTRunner.run_simple(vpt_system, state_list, initial_states=initial_states, logger=log_path)
+            self.assertTrue(os.path.isfile(log_path))
+
+            transition_dict = prep_vpt_response_data_from_log(log_path)
+
+        self.assertEqual(len(transition_dict), 28)
+        ground_state = (0, 0, 0)
+        fundamentals = [sj for (si, sj) in transition_dict if si == ground_state and sum(sj) == 1]
+        self.assertEqual(len(fundamentals), 3)
+        for fund in fundamentals:
+            data = transition_dict[(ground_state, fund)]
+            self.assertGreater(data['frequency'], 1000)
+            self.assertLess(data['frequency'], 4200)
+            self.assertGreater(np.linalg.norm(data['transition_moment']), 1e-3)
+
+    @validationTest
+    def test_VPTAnalyzerLoadTermCountsConsumesAllColumns(self):
+        """
+        Direct regression test for the `VPTAnalyzerLogParser.load_term_counts` bug
+        documented in `claude_drafts/vpt_analyzer_log_parsing_fixes.patch`: it used to
+        return `SymmetricGroupGenerator`'s *cumulative* term-count boundaries (e.g.
+        `[0, 1, 4]` for a 10-column row) and hand them straight to `reformat_tm_block`
+        as per-order chunk *widths*, and also excluded the boundary that reaches the
+        row's own column count via a strict `<` -- between the two, a 10-column
+        "X/Y/Z Dipole Contributions" row only ever got 5 of its 10 columns read
+        (widths `0, 1, 4`), silently dropping the rest.
+
+        This checks the per-order widths returned for a handful of concrete column
+        counts sum back up to that column count exactly (the property that was
+        violated before the fix), and spot-checks the specific `nterms=10` case
+        (1 + 3 + 6 term/order for 3 modes through 2nd order) against the exact
+        widths that should come out.
+        """
+        try:
+            from Psience.VPT2.Analyzer import VPTAnalyzerLogParser
+        except ImportError:
+            from Psience.Psience.VPT2.Analyzer import VPTAnalyzerLogParser
+
+        self.assertEqual(VPTAnalyzerLogParser.load_term_counts(1), [1])
+        self.assertEqual(VPTAnalyzerLogParser.load_term_counts(4), [1, 3])
+        self.assertEqual(VPTAnalyzerLogParser.load_term_counts(10), [1, 3, 6])
+        self.assertEqual(VPTAnalyzerLogParser.load_term_counts(20), [1, 3, 6, 10])
+
+        for nterms in (1, 4, 10, 20):
+            widths = VPTAnalyzerLogParser.load_term_counts(nterms)
+            self.assertEqual(
+                sum(widths), nterms,
+                msg=f"per-order widths {widths} don't account for all {nterms} columns"
+            )
+
+    @validationTest
+    def test_VPTResponseDataFromLogRejectsAnalyticLog(self):
+        """
+        `AnalyticVPTRunner` logs use an entirely different, untagged table format that
+        `VPTAnalyzerLogParser` cannot parse at all (confirmed by actually generating one,
+        `water_vpt_analytic.log`, via `AnalyticVPTRunner.run_simple(..., logger=<path>)`
+        and attempting to load it -- see `prep_vpt_response_data_from_log`'s docstring).
+        This checks `prep_vpt_response_data_from_log` turns that failure into a clear,
+        actionable `ValueError` instead of letting a bare `IndexError` from deep inside
+        `VPTAnalyzerLogParser` leak out.
+        """
+        try:
+            from Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data_from_log
+        except ImportError:
+            from Psience.Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data_from_log
+
+        log_file = TestManager.test_data('water_vpt_analytic.log')
+        with self.assertRaises(ValueError) as ctx:
+            prep_vpt_response_data_from_log(log_file)
+        self.assertIn('AnalyticVPTRunner', str(ctx.exception))
+
+    @validationTest
+    def test_PrepVptResponseDataDispatchesLogFilesByContent(self):
+        """
+        Regression test for `prep_vpt_response_data`'s `isinstance(system, str)` branch,
+        which merges `prep_vpt_response_data_from_log` into the main entry point so a saved
+        run log can be handed to either function -- but `system` being a string is *not* by
+        itself enough to tell "this is a saved VPT run log" apart from "this is a molecule
+        spec path", which is the far more common case (every `fchk`-based test in this file
+        passes such a string). Both are ordinary text files with no distinguishing extension
+        -- a quantum-chemistry package's own frequency-job output is routinely a `.log` file
+        too, exactly like a `VPTRunner`/`AnalyticVPTRunner` run log. `_looks_like_vpt_runner_log`
+        disambiguates by content instead (the classic runner's wrapping banner, or the
+        analytic runner's top-level `"Running VPT"` section -- see its docstring), and this
+        checks all three cases: a classic-format log dispatches through to
+        `prep_vpt_response_data_from_log` and matches it exactly, an analytic-format log
+        raises the same clear `ValueError` `prep_vpt_response_data_from_log` always has
+        (rather than silently misparsing it), and a molecule-spec string (an `.fchk` path,
+        the same kind of string every other `prep_vpt_response_data` test in this file
+        passes) is *not* misdetected as a log and still runs VPT normally.
+        """
+        try:
+            from Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data, prep_vpt_response_data_from_log
+        except ImportError:
+            from Psience.Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data, prep_vpt_response_data_from_log
+
+        classic_log = TestManager.test_data('water_vpt_classic.log')
+        analytic_log = TestManager.test_data('water_vpt_analytic.log')
+
+        dispatched = prep_vpt_response_data(classic_log)
+        direct = prep_vpt_response_data_from_log(classic_log)
+        self.assertEqual(set(dispatched.keys()), set(direct.keys()))
+        for key in dispatched:
+            self.assertEqual(dispatched[key]['frequency'], direct[key]['frequency'])
+
+        with self.assertRaises(ValueError) as ctx:
+            prep_vpt_response_data(analytic_log)
+        self.assertIn('AnalyticVPTRunner', str(ctx.exception))
+
+        # a molecule-spec string must NOT be misdetected as a run log and diverted into
+        # `prep_vpt_response_data_from_log` -- this is the exact regression this test guards
+        # against, since a naive `isinstance(system, str)` dispatch (with no content check)
+        # would send this down that path and fail
+        fchk = TestManager.test_data('water_freq.fchk')
+        transition_dict = prep_vpt_response_data(fchk, max_quanta=1)
+        ground_state = (0, 0, 0)
+        fundamentals = [sj for (si, sj) in transition_dict if si == ground_state and sum(sj) == 1]
+        self.assertEqual(len(fundamentals), 3)
+
+    @validationTest
+    def test_VPTResponseDataAnalyticSavedToTestData(self):
+        """
+        Exercises `prep_vpt_response_data(..., use_analytic=True)`'s
+        `output_file` disk-caching against a *persistent* location --
+        `ci/tests/TestData/water_freq_response_analytic.json`, checked in
+        alongside `water_freq.fchk` and the classic branch's own
+        `water_freq_response.json` -- rather than a scratch tempfile, so this
+        (and `test_VPTResponseDataAnalyticMatchesClassicOnSharedTransitions`
+        above) never has to rerun the (comparatively slow) analytic VPT
+        calculation once the cache file exists.
+
+        NOTE: this depends on `claude_drafts/prep_vpt_response_data_analytic.patch`
+        being merged into `Psience/Nonlinear/NonlinearResponse.py`.
+        """
+        fchk = TestManager.test_data('water_freq.fchk')
+        out_file = TestManager.test_data('water_freq_response_analytic.json')
+
+        transition_dict = prep_vpt_response_data(
+            fchk, use_analytic=True, output_file=out_file, overwrite=False
+        )
+        self.assertTrue(os.path.isfile(out_file))
+
+        with open(out_file) as f:
+            raw_records = json.load(f)
+        self.assertIsInstance(raw_records, list)
+        self.assertEqual(len(raw_records), len(transition_dict))
+        for rec in raw_records:
+            self.assertIn('state', rec)
+            self.assertEqual(len(rec['state']), 2)
+            self.assertIn('frequency', rec)
+            self.assertIn('transition_moment', rec)
+
+        states_seen = set()
+        for si, sj in transition_dict.keys():
+            states_seen.add(si)
+            states_seen.add(sj)
+        ndim = len(next(iter(states_seen)))
+        ground_state = (0,) * ndim
+
+        self.assertEqual(ndim, 3)
+        self.assertIn(ground_state, states_seen)
+        self.assertEqual(len(states_seen), 10)
+        self.assertEqual(len(transition_dict), 19)
+
+        fundamentals = [s for s in states_seen if sum(s) == 1]
+        self.assertEqual(len(fundamentals), 3)
+        for fund in fundamentals:
+            key = (ground_state, fund)
+            self.assertIn(key, transition_dict)
+            data = transition_dict[key]
+            self.assertGreater(data['frequency'], 1000)
+            self.assertLess(data['frequency'], 4200)
+            self.assertGreater(np.linalg.norm(data['transition_moment']), 1e-3)
+
+    @validationTest
+    def test_FullTwoDimensionalIRFromAnalyticVPTResponseData(self):
+        """
+        The whole point of `use_analytic=True` is that its `transition_dict`
+        output plugs into the same `prep_nonlinear_transition_data`/
+        `experimental_response_generator` Liouville-pathway machinery as the
+        classic branch's -- this mirrors
+        `test_FullTwoDimensionalIRFromVPTResponseData` but sources its
+        `transition_dict` from the analytic branch's persisted cache instead,
+        confirming that swap produces an equally sane 2D-IR spectrum (same
+        two-diagonal-peaks-plus-ESA-feature structure), not just a
+        structurally-plausible `transition_dict` in isolation.
+
+        NOTE: this depends on `claude_drafts/prep_vpt_response_data_analytic.patch`
+        being merged into `Psience/Nonlinear/NonlinearResponse.py`.
+        """
+        fchk = TestManager.test_data('water_freq.fchk')
+        out_file = TestManager.test_data('water_freq_response_analytic.json')
+        transition_dict = prep_vpt_response_data(
+            fchk, use_analytic=True, output_file=out_file, overwrite=False
+        )
+
+        ground_state = (0, 0, 0)
+        fundamentals = sorted(
+            (data['frequency'], sj)
+            for (si, sj), data in transition_dict.items()
+            if si == ground_state and sum(sj) == 1
+        )
+        self.assertEqual(len(fundamentals), 3)
+        stretch_freqs = [f for f, _ in fundamentals[1:]]
+        stretch_states = [sj for _, sj in fundamentals[1:]]
+
+        center = (min(stretch_freqs) + max(stretch_freqs)) / 2
+        coherence_strength = 3
+        responses = experimental_response_generator(
+            transition_dict,
+            band_coherences={
+                (0, 1): coherence_strength,
+                (1, 2): coherence_strength,
+                (1, 1): coherence_strength,
+                (2, 2): coherence_strength
+            },
+            frequency_unit="Wavenumbers",
+            application_domain="frequency",
+            driving_frequency=center,
+        )
+
+        window = [min(stretch_freqs) - 250, max(stretch_freqs) + 100]
+        spec = responses.get_spectrum(window, 10, window, default_frequency_divisions=300)
+        I = np.real(spec.intensities)
+        self.assertGreater(I.max(), 1e-9)
+
+        def nearest_value(w1, w3):
+            ix = int(np.argmin(np.abs(spec.freq1 - w1)))
+            iy = int(np.argmin(np.abs(spec.freq2 - w3)))
+            return I[iy, ix]
+
+        # the stretch with the larger ab initio transition dipole should still
+        # produce the larger diagonal peak, same as the classic-branch test
+        diag_vals = []
+        tm_norms = []
+        for freq, state in zip(stretch_freqs, stretch_states):
+            val = nearest_value(freq, freq)
+            diag_vals.append(val)
+            tm_norms.append(np.linalg.norm(
+                transition_dict[(ground_state, state)]['transition_moment']
+            ))
+        self.assertEqual(int(np.argmax(diag_vals)), int(np.argmax(tm_norms)))
+        self.assertGreater(diag_vals[int(np.argmax(tm_norms))], 1e-9)
+
+    @validationTest
+    def test_AnalyticVPTLogParserStateLabelConvention(self):
+        """
+        Regression test for `AnalyticVPTLogParser.parse_state_label`'s mode-index
+        convention. `AnalyticVPTRunner` logs print states as `"k(q)"` tokens (mode
+        position `k`, quanta `q`) using `StateMaker`'s default `mode='low-high'`
+        numbering, which counts positions from the END of the excitation tuple
+        (`Psience/BasisReps/Util.py`) -- i.e. printed position `k` maps to tuple
+        index `ndim - k`, NOT the naively-expected `k - 1`. This was originally
+        gotten wrong (as a plain `k - 1` mapping) and only caught by comparing
+        reconstructed frequencies against `water_freq_response_analytic.json`,
+        where the two water OH-stretch fundamentals came out swapped.
+
+        Checked directly against `water_vpt_analytic.log`'s own printed labels:
+        for the 3-mode water system used there, `"3(1)"` is the 1572.7 cm^-1
+        bend fundamental, which is classic-convention tuple `(1, 0, 0)` -- the
+        *first* mode, not the third.
+        """
+        try:
+            from Psience.VPT2.Analyzer import AnalyticVPTLogParser
+        except ImportError:
+            from Psience.Psience.VPT2.Analyzer import AnalyticVPTLogParser
+
+        parse = lambda lbl: AnalyticVPTLogParser.parse_state_label(lbl, ndim=3)
+
+        self.assertEqual(parse("()"), (0, 0, 0))
+        self.assertEqual(parse("3(1)"), (1, 0, 0))
+        self.assertEqual(parse("2(1)"), (0, 1, 0))
+        self.assertEqual(parse("1(1)"), (0, 0, 1))
+        self.assertEqual(parse("1(2)"), (0, 0, 2))
+        self.assertEqual(parse("3(1)1(1)"), (1, 0, 1))
+
+    @validationTest
+    def test_AnalyticVPTLogParserMatchesGroundTruth(self):
+        """
+        Exercises `AnalyticVPTLogParser` directly (not through
+        `prep_vpt_response_data_from_log`, which only supports classic-format
+        logs -- see `test_VPTResponseDataFromLogRejectsAnalyticLog`) against the
+        checked-in `water_vpt_analytic.log` fixture, reconstructing a
+        `transition_dict`-shaped mapping from its `spectra`/
+        `transition_moment_corrections` properties and checking it reproduces
+        `water_freq_response_analytic.json` exactly for all 19 known transitions.
+
+        This is the direct regression test for the two format quirks specific
+        to the analytic log (neither of which has any precedent in the classic
+        parser): the mode-index convention covered by
+        `test_AnalyticVPTLogParserStateLabelConvention` above, and the fact
+        that analytic-format per-initial-state tables never include a diagonal
+        self-transition row, so the initial state must be read directly off
+        each sub-block's own header rather than inferred by elimination the
+        way `prep_vpt_response_data_from_log` does for classic logs.
+        """
+        try:
+            from Psience.VPT2.Analyzer import AnalyticVPTLogParser
+        except ImportError:
+            from Psience.Psience.VPT2.Analyzer import AnalyticVPTLogParser
+
+        log_file = TestManager.test_data('water_vpt_analytic.log')
+        gt_file = TestManager.test_data('water_freq_response_analytic.json')
+
+        parser = AnalyticVPTLogParser(log_file)
+        specs = parser.spectra
+        tms = parser.transition_moment_corrections
+        if isinstance(specs, dict):
+            specs = [specs]
+        if isinstance(tms, dict):
+            tms = [tms]
+
+        ndim = 3
+        parse = lambda lbl: AnalyticVPTLogParser.parse_state_label(lbl, ndim=ndim)
+
+        transition_dict = {}
+        for sb, tb in zip(specs, tms):
+            self.assertEqual(sb['initial_state'], tb['initial_state'])
+            init_state = parse(sb['initial_state'])
+            final_labels = sb['states']
+            freqs = sb['anharmonic'][:, 0]
+            # match transition moments to final states by label rather than by
+            # position, and skip non-positive "frequencies" (the block for a
+            # given initial state can list transitions back down to lower
+            # states, which aren't physical absorptions); when the same
+            # (initial, final) pair shows up in more than one block, keep
+            # whichever was found first, same as `prep_vpt_response_data_from_log`
+            # does for the classic format
+            tm_lookup = {lbl: tm for lbl, tm in zip(tb['states'], tb['transition_moment'])}
+            for lbl, freq in zip(final_labels, freqs):
+                if freq <= 0:
+                    continue
+                key = (init_state, parse(lbl))
+                if key in transition_dict:
+                    continue
+                transition_dict[key] = {
+                    'frequency': freq,
+                    'transition_moment': tm_lookup[lbl],
+                }
+
+        self.assertEqual(len(transition_dict), 19)
+
+        with open(gt_file) as f:
+            gt_records = json.load(f)
+        gt_dict = {
+            (tuple(rec['state'][0]), tuple(rec['state'][1])): rec
+            for rec in gt_records
+        }
+        self.assertEqual(set(transition_dict.keys()), set(gt_dict.keys()))
+
+        for key, data in transition_dict.items():
+            gt_rec = gt_dict[key]
+            self.assertAlmostEqual(data['frequency'], gt_rec['frequency'], places=3)
+            tm = np.asarray(data['transition_moment'])
+            tm_gt = np.asarray(gt_rec['transition_moment'])
+            # allow the same overall sign ambiguity tolerated elsewhere when comparing
+            # independently-reconstructed transition moments
+            self.assertLess(
+                min(np.max(np.abs(tm - tm_gt)), np.max(np.abs(tm + tm_gt))),
+                1e-5,
+                msg=f"transition moment mismatch for {key}"
+            )
+
+    @validationTest
+    def test_VPTResultsLoaderDetectsAnalyticLog(self):
+        """
+        Regression test for the classic-vs-analytic log sniffing added to
+        `VPTResultsLoader.resolve_file_res_type` so that `VPTAnalyzer(path)`
+        can dispatch to the right parser without the caller having to say
+        which kind of log it is. Both `water_vpt_classic.log` and
+        `water_vpt_analytic.log` are plain-text logs with no distinguishing
+        file extension, so the two are told apart by sniffing for the classic
+        runner's wrapping `"Starting Perturbation Theory Runner"` banner line,
+        which only the classic format ever prints.
+        """
+        try:
+            from Psience.VPT2.Analyzer import VPTResultsLoader, VPTResultsSource
+        except ImportError:
+            from Psience.Psience.VPT2.Analyzer import VPTResultsLoader, VPTResultsSource
+
+        classic_log = TestManager.test_data('water_vpt_classic.log')
+        analytic_log = TestManager.test_data('water_vpt_analytic.log')
+
+        self.assertEqual(
+            VPTResultsLoader.resolve_file_res_type(classic_log),
+            VPTResultsSource.LogFile
+        )
+        self.assertEqual(
+            VPTResultsLoader.resolve_file_res_type(analytic_log),
+            VPTResultsSource.AnalyticLogFile
+        )
+
+    @validationTest
+    def test_VPTAnalyzerAnalyticLogWiring(self):
+        """
+        End-to-end test that `AnalyticVPTLogParser` is properly slotted into
+        the `VPTResultsLoader`/`VPTResultsSource`/`VPTAnalyzer` dispatch
+        framework the same way `VPTAnalyzerLogParser` is for classic logs:
+        `VPTAnalyzer(analytic_log_path)` should transparently detect the
+        analytic format, build an `AnalyticVPTLogParser`, and serve
+        `spectrum`/`zero_order_spectrum`/`log_parser` off of it -- while every
+        dispatcher that `AnalyticVPTLogParser` doesn't yet implement (only the
+        2D-IR-relevant spectrum/transition-moment data is implemented for now)
+        raises a clear `NotImplementedError("TBD")` rather than a bare
+        `KeyError` from the dispatcher falling through with no registration.
+        """
+        try:
+            from Psience.VPT2.Analyzer import VPTAnalyzer, VPTResultsSource, AnalyticVPTLogParser
+        except ImportError:
+            from Psience.Psience.VPT2.Analyzer import VPTAnalyzer, VPTResultsSource, AnalyticVPTLogParser
+
+        analytic_log = TestManager.test_data('water_vpt_analytic.log')
+        analyzer = VPTAnalyzer(analytic_log)
+
+        self.assertEqual(analyzer.loader.res_type, VPTResultsSource.AnalyticLogFile)
+        self.assertIsInstance(analyzer.loader.data, AnalyticVPTLogParser)
+        self.assertIsInstance(analyzer.log_parser, AnalyticVPTLogParser)
+
+        spec = analyzer.spectrum
+        zero_order_spec = analyzer.zero_order_spectrum
+        self.assertEqual(len(spec.frequencies), 3)
+        self.assertEqual(len(zero_order_spec.frequencies), 3)
+        # anharmonic corrections should shift the fundamentals down from their
+        # harmonic values, same sanity check the classic-format tests rely on
+        self.assertTrue(np.all(spec.frequencies < zero_order_spec.frequencies))
+
+        for dispatcher_name in ("potential_terms", "kinetic_terms", "dipole_terms",
+                                 "basis", "degenerate_energies"):
+            with self.assertRaises(NotImplementedError, msg=dispatcher_name):
+                getattr(analyzer, dispatcher_name)

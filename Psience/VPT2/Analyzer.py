@@ -2,7 +2,7 @@
 Provides analyzer class to handle common VPT analyses
 """
 
-import enum, weakref, functools, numpy as np, itertools as ip, io
+import enum, weakref, functools, numpy as np, itertools as ip, io, re
 import itertools
 import os.path
 import tempfile
@@ -19,7 +19,9 @@ from .Runner import VPTRunner
 __all__ = [
     "VPTResultsLoader",
     "VPTResultsSource",
-    "VPTAnalyzer"
+    "VPTAnalyzer",
+    "VPTAnalyzerLogParser",
+    "AnalyticVPTLogParser"
 ]
 
 __reload_hook__ = ["..Spectra", ".Runner", ".Wavefunctions"]
@@ -31,6 +33,7 @@ class VPTResultsSource(enum.Enum):
     Wavefunctions = "wavefunctions"
     Checkpoint = "checkpoint"
     LogFile = 'log_file'
+    AnalyticLogFile = 'analytic_log_file'
 
 def property_dispatcher(basefn):
     """
@@ -148,13 +151,32 @@ class VPTAnalyzerLogParser(LogParser):
 
         The (cached) parsed block-tree structure of the log file, collapsed down to just the "Computing PT corrections:" subtree (or otherwise condensed) if the raw parse produced multiple top-level blocks.
 
+        Every log produced by `VPTRunner.run_simple(..., logger=...)` is wrapped in exactly one outer
+        named block (`">>--- Starting Perturbation Theory Runner ---<<"`), so `to_tree()` almost always
+        returns a tree with a *single* top-level key. The `len(self._tree) > 1` branch below never used
+        to handle that case at all -- it only unwrapped a tree with *more than one* top-level entry --
+        which meant the named tables underneath that single banner block (`"IR Data"`, `"X/Y/Z Dipole
+        Contributions"`, etc) were never reachable and any log-based lookup of them (`.spectrum`,
+        `.transition_moment_corrections`, ...) failed with a bare `IndexError`, even for the one
+        pre-existing reference log fixture (`methanol_vpt_3.out`) shipped in `ci/tests/TestData`. This
+        now unwraps that single banner block first, before falling through to the pre-existing
+        multi-block handling (which still applies to logs that genuinely have more than one top-level
+        block once unwrapped, or that start directly with a "Computing PT corrections:" block and never
+        had an outer banner to begin with).
+
         :return: the parsed (and condensed) log-file tree
         :rtype: object
         """
         if self._tree is None:
             with self:
                 self._tree = self.to_tree(depth=-1)
-                if len(self._tree) > 1:
+                keys = self._tree.keys()
+                if len(self._tree) == 1 and keys is not None and list(keys)[0] != "Computing PT corrections:":
+                    # unwrap the single outer banner block (e.g. "Starting Perturbation Theory Runner")
+                    # so the named tables nested underneath it become top-level keys
+                    inner = self._tree[list(keys)[0]]
+                    self._tree = inner if isinstance(inner, type(self._tree)) else type(self._tree)(inner)
+                elif len(self._tree) > 1:
                     if (
                                     self._tree.keys() is not None
                                     and list(self._tree.keys())[0] != "Computing PT corrections:"
@@ -411,11 +433,23 @@ class VPTAnalyzerLogParser(LogParser):
             :return: `LineReaderTags.SKIP`, a `(BLOCK_START, label, None)` triple for a new initial-state block, or `None` for ordinary content
             :rtype: object | tuple | None
             """
-            block_tag = ' Initial State:'
+            block_tag = 'Initial State:'
+            stripped = line.strip()
             if len(line) == 0 or line.startswith("State") or line.startswith(" "*5):
                 return self.LineReaderTags.SKIP
-            elif line.startswith(block_tag):
-                return self.LineReaderTags.BLOCK_START, line[len(block_tag):].strip(), None
+            elif stripped.startswith(block_tag):
+                # NOTE: only the *first* "Initial State:" header in a multi-initial-state log
+                # block picks up a leading space from the logger's own indentation --
+                # `VPTWavefunctions.format_spectrum_table`'s later per-block headers (joined in
+                # with a dashed separator line) are emitted with no leading space at all, so this
+                # now strips the line before matching instead of requiring a literal leading space.
+                return self.LineReaderTags.BLOCK_START, stripped[len(block_tag):].strip(), None
+            elif stripped and set(stripped) == {'-'}:
+                # the dashed separator line `format_spectrum_table` inserts between consecutive
+                # per-initial-state sub-blocks; previously fell through and got parsed as a bogus
+                # data row of whichever sub-block was still active, which crashed further downstream
+                # for any log with more than one initial state
+                return self.LineReaderTags.SKIP
         def handle_block_line(self, label, line, depth=0, history:list[str]=None):
             """
             **LLM Docstring**
@@ -520,11 +554,17 @@ class VPTAnalyzerLogParser(LogParser):
             :return: `LineReaderTags.SKIP`, a `(BLOCK_START, label, None)` triple for a new initial-state block, or `None` for ordinary content
             :rtype: object | tuple | None
             """
-            block_tag = ' Initial State:'
+            block_tag = 'Initial State:'
+            stripped = line.strip()
             if len(line) == 0 or line.startswith("State") or line.startswith(" "*5):
                 return self.LineReaderTags.SKIP
-            elif line.startswith(block_tag):
-                return self.LineReaderTags.BLOCK_START, line[len(block_tag):].strip(), None
+            elif stripped.startswith(block_tag):
+                # see the matching note in SpectrumBlockParser.check_tag above -- only the first
+                # "Initial State:" header in the log text has a leading space
+                return self.LineReaderTags.BLOCK_START, stripped[len(block_tag):].strip(), None
+            elif stripped and set(stripped) == {'-'}:
+                # dashed separator between per-initial-state sub-blocks; see the matching note above
+                return self.LineReaderTags.SKIP
         def handle_block_line(self, label, line, depth=0, history:list[str]=None):
             """
             **LLM Docstring**
@@ -553,11 +593,31 @@ class VPTAnalyzerLogParser(LogParser):
         """
         **LLM Docstring**
 
-        Compute how many perturbative-order transition-moment correction terms exist below a given total column count, using a `SymmetricGroupGenerator`'s cumulative term totals as the source of per-order term counts.
+        Compute how many perturbative-order transition-moment correction terms are packed into each
+        column-chunk of a transition-moment data row, using a `SymmetricGroupGenerator`'s cumulative
+        term totals (the running total of `(i, j, k)` triples with `i + j + k <= order`, across
+        increasing `order`) to derive each order's own term count.
+
+        `_indexer._cumtotals` is a list of *cumulative* boundaries (e.g. `[0, 1, 4, 10, 20]` for 3
+        modes: 1 term through order 0, 4 through order 1, 10 through order 2, 20 through order 3).
+        This used to return those cumulative boundaries themselves, filtered to `< nterms`, and
+        `reformat_tm_block` then used each one directly as a *chunk width* -- but a cumulative total
+        is not a per-order width, and the final boundary that actually reaches `nterms` was always
+        excluded by the strict `<` (a row with exactly `nterms` columns needs the boundary *at*
+        `nterms` included, not just those strictly below it). For a `nterms=10` row (all 10 order-0
+        through order-2 correction terms, i.e. `1 + 3 + 6`), this returned `[0, 1, 4]` and got used as
+        chunk widths `0, 1, 4` -- consuming only the first 5 of the row's 10 printed columns and
+        silently dropping the rest, which is why `VPTAnalyzerLogParser`-reconstructed transition
+        moments for combination-band/overtone transitions came out ~5-30% off even once the multi-
+        initial-state parsing bugs elsewhere in this class were fixed (see
+        `claude_drafts/vpt_analyzer_log_parsing_fixes.patch`). This now includes the boundary
+        that reaches `nterms` itself, and converts the cumulative boundaries into genuine per-order
+        term-count *widths* via consecutive differences, so `reformat_tm_block` consumes every printed
+        column.
 
         :param nterms: the total number of numeric columns present in a transition-moment data row
         :type nterms: int
-        :return: the list of cumulative term counts below `nterms`, one entry per perturbative order
+        :return: the number of correction terms belonging to each perturbative order, in order (e.g. `[1, 3, 6]` for a 10-column row)
         :rtype: list[int]
         """
         import McUtils.Combinatorics as comb
@@ -566,7 +626,8 @@ class VPTAnalyzerLogParser(LogParser):
             cls._indexer = comb.SymmetricGroupGenerator(3)
 
         cls._indexer.load_to_size(nterms)
-        return [c for c in cls._indexer._cumtotals if c < nterms]
+        cumulative_boundaries = [c for c in cls._indexer._cumtotals if c <= nterms]
+        return [b - a for a, b in zip(cumulative_boundaries[:-1], cumulative_boundaries[1:])]
 
     @classmethod
     def reformat_tm_block(cls, sb):
@@ -672,6 +733,483 @@ class VPTAnalyzerLogParser(LogParser):
         return self._deperturbed_tms
 
 
+class AnalyticVPTLogParser(LogParser):
+    """
+    Log-file parser for text logs produced by `AnalyticVPTRunner.run_VPT(..., logger=<path>)`,
+    following the same overall convention as `VPTAnalyzerLogParser` (a `LogParser` subclass
+    exposing cached, lazily-parsed properties backed by small `StringLineByLineReader` block
+    parsers) -- but adapted to `AnalyticVPTRunner`'s own, structurally different log format:
+
+    - There's no single outer `">>--- Starting Perturbation Theory Runner ---<<"` banner
+      wrapping the whole run the way there is for the classic `VPTRunner`; results live
+      directly under a top-level `"Running VPT"` block instead (see `tree`).
+    - Its per-initial-state tables -- the `"Transition Moments:"` block, and the IR-spectrum-
+      style table that immediately follows it -- are genuinely `"|"`-delimited (unlike the
+      classic parser's fixed-width columns), and use a different state-label convention:
+      `"()"` for the ground state, `"k(q)"` for `q` quanta in 1-indexed mode `k`, concatenated
+      for combination states (e.g. `"1(1)2(1)"` for one quantum each in modes 1 and 2) --
+      rather than the classic parser's space-separated per-mode quanta (`"0 0 0"`, `"1 1 0"`,
+      ...). See `parse_state_label`.
+    - The `"Transition Moments:"` table already prints the fully-summed *total* transition
+      moment for each transition as its own leading `x, y, z` columns, ahead of the same
+      per-order breakdown the classic log only ever gives in pieces -- so there's no analytic-
+      log equivalent of the `load_term_counts` column-slicing bug that had to be fixed for
+      `VPTAnalyzerLogParser` (see `claude_drafts/vpt_analyzer_log_parsing_fixes.patch`):
+      `transition_moment_corrections` here just reads that leading total straight off the
+      table, no order-by-order recombination required.
+
+    Only the two tables needed to reconstruct a `transition_dict` for 2D-IR are implemented
+    here -- `spectra` and `transition_moment_corrections`, mirroring the two properties
+    `prep_vpt_response_data_from_log` actually calls on `VPTAnalyzerLogParser` for the classic
+    format. Everything else (`energies` and friends, `deperturbed_spectra`,
+    `deperturbed_transition_moment_corrections`, ...) raises `NotImplementedError("TBD")` for
+    now -- mirroring the many properties that are already effectively unsupported (bare
+    `KeyError`) for `VPTAnalyzerLogParser`+`VPTResultsLoader`'s classic `"log_file"` dispatch,
+    just made explicit here rather than left as a surprise.
+    """
+
+    def __init__(self, log_file, **opts):
+        """
+        **LLM Docstring**
+
+        Set up a log-file parser for an `AnalyticVPTRunner` run's text log output, accepting
+        either a file path or an in-memory `io.StringIO` -- mirrors
+        `VPTAnalyzerLogParser.__init__` exactly, since the underlying `LogParser` needs a real
+        file either way.
+
+        :param log_file: the path to the log file, or an in-memory string buffer containing its contents
+        :type log_file: str | io.StringIO
+        :param opts: extra options forwarded to the base `LogParser.__init__`
+        :type opts: dict
+        :return: None
+        :rtype: None
+        :raises ValueError: if `log_file` is neither a string path nor a `StringIO` buffer
+        """
+        if isinstance(log_file, str):
+            lf = log_file
+        elif isinstance(log_file, io.StringIO):
+            with tempfile.NamedTemporaryFile(delete=False) as tf:
+                lf = tf.name
+            with open(lf, 'w+') as tf:
+                log_file.seek(0)
+                tf.write(log_file.read())
+        else:
+            lf = None
+
+        if lf is None:
+            raise ValueError("log file {} can't be parsed".format(log_file))
+
+        super().__init__(lf, **opts)
+        self._tree = None
+        self._spectra = None
+        self._tms = None
+
+    _state_label_pattern = re.compile(r'^(?:\(\)|(?:\d+\(\d+\))+)$')
+
+    @classmethod
+    def parse_state_label(cls, label, ndim=None):
+        """
+        **LLM Docstring**
+
+        Parse an `AnalyticVPTRunner`-style state label (e.g. `"1(1)2(1)"`, or `"()"` for the
+        ground state) into an excitation-quanta tuple (e.g. `(0, 1, 1)`), matching the tuple
+        format the classic parser's labels are converted to elsewhere (e.g.
+        `NonlinearResponse._parse_vpt_state_label`). Nothing in this class does this conversion
+        internally -- `spectra`/`transition_moment_corrections` hand back the raw label strings,
+        same as `VPTAnalyzerLogParser` does for its own differently-formatted labels -- so a
+        caller reconstructing a `transition_dict` needs to convert them itself, same as it
+        already has to for the classic format.
+
+        The mode-index-to-tuple-position mapping is *not* the naive `label_index - 1`: these
+        labels are formatted by `Psience.BasisReps.Util.StateMaker.parse_state` in its default
+        `mode='low-high'` convention, which numbers a state's modes from the *end* of the
+        excitation tuple -- position 1 is the tuple's last entry, position `ndim` is its first
+        -- so mode index `k` (1-indexed, as printed) lands at tuple position `ndim - k`
+        (confirmed against `StateMaker.make_state`'s own inverse, `state[-i] = q`, and verified
+        against `water_freq_response_analytic.json`: label `"3(1)"` is the fundamental at
+        1572.7 cm^-1, matching classic-format tuple `(1, 0, 0)`, not `(0, 0, 1)`).
+
+        :param label: the raw state label, e.g. `"1(1)2(1)"` or `"()"`
+        :type label: str
+        :param ndim: the number of modes; if not given, inferred as the highest mode index that
+            appears in `label` (or 1, for the ground state alone) -- which only gives the right
+            answer if the *lowest-position* mode (position 1, the tuple's last entry) shows up
+            excited somewhere in `label`, so callers that need a reliable `ndim` should pass it
+            explicitly instead of relying on the fallback
+        :type ndim: int | None
+        :return: excitation-quanta tuple, e.g. `(0, 1, 1)`
+        :rtype: tuple[int]
+        """
+        pairs = [
+            (int(pos), int(n))
+            for pos, n in re.findall(r'(\d+)\((\d+)\)', label)
+        ]
+        if ndim is None:
+            ndim = max((pos for pos, n in pairs), default=1)
+        state = [0] * ndim
+        for pos, n in pairs:
+            state[ndim - pos] = n
+        return tuple(state)
+
+    @property
+    def tree(self):
+        """
+        **LLM Docstring**
+
+        The (cached) content of the log's top-level `"Running VPT"` block: a flat list mixing
+        named sub-block dicts (e.g. `{"Transition Moments:": [...]}`, for content
+        `AnalyticVPTRunner` wraps in a `logger.block(tag=...)`) with bare, one-string-per-line
+        entries (for content it prints via a plain `logger.log_print(...)` instead, such as the
+        energies table and the IR-spectrum-style table -- see `_raw_lines_after`). Unlike
+        `VPTAnalyzerLogParser.tree`, there's no multi-top-level-block collapsing to do here:
+        `AnalyticVPTRunner`'s log always has exactly one `"Running VPT"` entry among its
+        top-level blocks (alongside the separate `"calculating G/potential/dipole derivatives"`
+        setup blocks, which aren't needed for anything implemented so far), so this just
+        reaches directly into it.
+
+        :return: the parsed `"Running VPT"` block content
+        :rtype: list
+        """
+        if self._tree is None:
+            with self:
+                top = self.to_tree(depth=-1)
+            self._tree = top["Running VPT"]
+        return self._tree
+
+    def _find_block(self, tag):
+        """
+        **LLM Docstring**
+
+        Locate the (first) named sub-block `{tag: content}` within `self.tree` and return its
+        index and content.
+
+        :param tag: the block tag to look for, e.g. `"Transition Moments:"`
+        :type tag: str
+        :return: `(index, content)`
+        :rtype: tuple[int, object]
+        :raises IndexError: if no such block is found
+        """
+        for i, item in enumerate(self.tree):
+            if isinstance(item, dict) and tag in item:
+                return i, item[tag]
+        raise IndexError("[{}] not found in tree".format(tag))
+
+    def _raw_lines_after(self, tag):
+        """
+        **LLM Docstring**
+
+        Join the raw text lines trailing the named block `tag` (up to the next dict entry, or
+        the end of `self.tree`) back into a single newline-joined string. This is how content
+        `AnalyticVPTRunner` prints without a `logger.block(tag=...)` wrapper has to be recovered
+        -- `to_tree()` can only hand such content back as a flat run of individual line-strings
+        (one list entry per line) rather than one grouped block string the way a tagged table's
+        content comes back, so this re-joins them the way `spectra` (below) needs.
+
+        :param tag: the block tag to search after, e.g. `"Transition Moments:"`
+        :type tag: str
+        :return: the joined raw text of every line immediately following that block
+        :rtype: str
+        """
+        i, _ = self._find_block(tag)
+        lines = []
+        for item in self.tree[i + 1:]:
+            if not isinstance(item, str):
+                break
+            lines.append(item)
+        return "\n".join(lines)
+
+    class AnalyticBlockParser(StringLineByLineReader):
+        """
+        **LLM Docstring**
+
+        Shared line-by-line reader for `AnalyticVPTRunner`'s pipe-delimited, per-initial-state
+        tables. Both tables needed for 2D-IR -- the `"Transition Moments:"` block and the
+        untagged IR-spectrum-style table trailing it -- use the same
+        `"=...= <label> =...="` per-initial-state header convention and `"|"`-delimited data
+        rows, so (unlike `VPTAnalyzerLogParser`, which keeps `SpectrumBlockParser` and
+        `TransitionMomentBlockParser` separate because the classic format's header/row
+        conventions differ slightly between the two) one shared parser class covers both here;
+        `reformat_spectrum_block`/`reformat_transition_moment_block` below handle what actually
+        differs -- how many numeric columns each table has and what they mean.
+        """
+
+        _header_pattern = re.compile(r'^=+\s*(.+?)\s*=+$')
+
+        def __init__(self, spec_str, **opts):
+            """
+            **LLM Docstring**
+
+            Set up a line-by-line reader for one of `AnalyticVPTRunner`'s pipe-delimited,
+            per-initial-state table blocks.
+
+            :param spec_str: the raw text of the block to parse
+            :type spec_str: str
+            :param opts: extra options forwarded to the base `StringLineByLineReader.__init__`
+            :type opts: dict
+            :return: None
+            :rtype: None
+            """
+            super().__init__(spec_str, max_nesting_depth=0, **opts)
+
+        def check_tag(self, line: str, depth: int = 0, active_tag=None, label: str = None, history: list[str] = None):
+            """
+            **LLM Docstring**
+
+            Skip blank lines, the dashed separator between the header and data rows, and any
+            other header/group-label row (recognized by its first `"|"`-delimited field not
+            looking like a state label); recognize a `"=...= <label> =...="` line as the start
+            of a new per-initial-state sub-block.
+
+            :param line: the current line being classified
+            :type line: str
+            :param depth: the current nesting depth, unused
+            :type depth: int
+            :param active_tag: the currently active block tag, unused
+            :type active_tag: object
+            :param label: the current block label, unused
+            :type label: str | None
+            :param history: the tag history, unused
+            :type history: list[str] | None
+            :return: `LineReaderTags.SKIP`, a `(BLOCK_START, label, None)` triple for a new initial-state block, or `None` for ordinary content
+            :rtype: object | tuple | None
+            """
+            stripped = line.strip()
+            if len(stripped) == 0:
+                return self.LineReaderTags.SKIP
+            m = self._header_pattern.match(stripped)
+            if m and AnalyticVPTLogParser._state_label_pattern.match(m.group(1)):
+                return self.LineReaderTags.BLOCK_START, m.group(1), None
+            if set(stripped) <= {'-'}:
+                return self.LineReaderTags.SKIP
+            first_field = stripped.split('|', 1)[0].strip()
+            if not AnalyticVPTLogParser._state_label_pattern.match(first_field):
+                # a header/group-label row ("States | ...", "| Transition Moment | Order 0 | ...", etc)
+                return self.LineReaderTags.SKIP
+
+        def handle_block_line(self, label, line, depth=0, history: list[str] = None):
+            """
+            **LLM Docstring**
+
+            Split a `"|"`-delimited data row of a per-initial-state sub-block into the
+            final-state label and its numeric columns.
+
+            :param label: the enclosing sub-block's initial-state label, unused (the row is
+                self-delimiting via `"|"`, unlike the classic parser's fixed-width columns)
+            :type label: str
+            :param line: the raw data-row line to parse
+            :type line: str
+            :param depth: the current nesting depth, unused
+            :type depth: int
+            :param history: the tag history, unused
+            :type history: list[str] | None
+            :return: `(state_label, value_tokens)`
+            :rtype: tuple[str, list[str]]
+            """
+            fields = [f.strip() for f in line.strip().split('|')]
+            return fields[0], fields[1:]
+
+    @classmethod
+    def reformat_spectrum_block(cls, sb):
+        """
+        **LLM Docstring**
+
+        Convert one parsed spectrum sub-block (`{initial_label: [(final_label, value_tokens), ...]}`)
+        into a `{'states':..., 'harmonic':..., 'anharmonic':...}` dict -- the analytic-log
+        equivalent of `VPTAnalyzerLogParser.reformat_spec_block`, for the same 4-numeric-column
+        (harmonic freq/intensity, anharmonic freq/intensity) table shape.
+
+        :param sb: the parsed block data, as returned by `AnalyticBlockParser`
+        :type sb: dict
+        :return: a single dict (if there was only one initial state) or list of dicts, each with `'states'`, `'harmonic'`, and `'anharmonic'` entries
+        :rtype: dict | list[dict]
+        """
+        res = []
+        for init, sublist in sb.items():
+            harm = np.empty((len(sublist), 2), dtype=float)
+            anh = np.empty((len(sublist), 2), dtype=float)
+            states = []
+            for i, (state, vals) in enumerate(sublist):
+                states.append(state)
+                harm[i][0] = float(vals[0])
+                harm[i][1] = float(vals[1])
+                anh[i][0] = float(vals[2])
+                anh[i][1] = float(vals[3])
+            # unlike the classic format's tables, `init` (this block's own initial-state label,
+            # captured from its "=...= <label> =...=" header by `AnalyticBlockParser.check_tag`)
+            # is included directly here -- the analytic log's tables never include a diagonal
+            # self-transition row the way the classic log's do, so there's no way to infer it
+            # after the fact the way `prep_vpt_response_data_from_log` has to for the classic
+            # format; it has to be carried through from the header instead
+            res.append({'initial_state': init, 'states': states, 'harmonic': harm, 'anharmonic': anh})
+        if len(res) == 1:
+            res = res[0]
+        return res
+
+    @classmethod
+    def reformat_transition_moment_block(cls, sb):
+        """
+        **LLM Docstring**
+
+        Convert one parsed transition-moment sub-block (`{initial_label: [(final_label, value_tokens), ...]}`)
+        into a `{'states':..., 'transition_moment':...}` dict, reading the already fully-summed
+        total `x, y, z` transition moment straight off the table's own leading 3 columns (see
+        this class's docstring for why no per-order recombination is needed here, unlike
+        `VPTAnalyzerLogParser.reformat_tm_block`).
+
+        :param sb: the parsed block data, as returned by `AnalyticBlockParser`
+        :type sb: dict
+        :return: a single dict (if there was only one initial state) or list of dicts, each with `'states'` and `'transition_moment'` entries
+        :rtype: dict | list[dict]
+        """
+        res = []
+        for init, sublist in sb.items():
+            tm = np.empty((len(sublist), 3), dtype=float)
+            states = []
+            for i, (state, vals) in enumerate(sublist):
+                states.append(state)
+                tm[i, :] = [float(v) for v in vals[:3]]
+            # see the matching note in `reformat_spectrum_block` above -- `init` is carried
+            # through directly since there's no diagonal row to infer it from afterward
+            res.append({'initial_state': init, 'states': states, 'transition_moment': tm})
+        if len(res) == 1:
+            res = res[0]
+        return res
+
+    def parse_analytic_blocks(self, spec_str, reformatter):
+        """
+        **LLM Docstring**
+
+        Parse a raw multi-initial-state table block of log text into a list of reformatted
+        per-block dicts, via `AnalyticBlockParser` and the given `reformatter`
+        (`reformat_spectrum_block` or `reformat_transition_moment_block`) -- the analytic-log
+        equivalent of `VPTAnalyzerLogParser.parse_spectrum_blocks`/`parse_tm_blocks`.
+
+        :param spec_str: the raw text of the table block
+        :type spec_str: str
+        :param reformatter: the classmethod to reformat each parsed sub-block with
+        :type reformatter: callable
+        :return: the list of reformatted blocks, one per initial state
+        :rtype: list
+        """
+        with self.AnalyticBlockParser(spec_str) as parser:
+            base_specs = list(parser)
+        return [reformatter(sb) for sb in base_specs]
+
+    @property
+    def spectra(self):
+        """
+        **LLM Docstring**
+
+        The (cached) IR spectrum data parsed from the untagged table trailing the log's
+        `"Transition Moments:"` block, via `reformat_spectrum_block`. Needed for 2D-IR: gives
+        frequency + intensity per transition, per initial state -- the analytic-log equivalent
+        of `VPTAnalyzerLogParser.spectra`. Unlike that method, each returned dict also carries
+        an `'initial_state'` entry (the raw label, e.g. `"3(1)"` or `"()"`) rather than leaving
+        the caller to infer it, since there's no diagonal row here to infer it from.
+
+        :return: the parsed per-initial-state spectrum data, each entry also keyed by `'initial_state'`
+        :rtype: list[dict]
+        """
+        if self._spectra is None:
+            spec_str = self._raw_lines_after("Transition Moments:")
+            self._spectra = self.parse_analytic_blocks(spec_str, self.reformat_spectrum_block)
+        return self._spectra
+
+    @property
+    def transition_moment_corrections(self):
+        """
+        **LLM Docstring**
+
+        The (cached) transition-dipole-moment data parsed from the log's `"Transition Moments:"`
+        block, via `reformat_transition_moment_block`. Needed for 2D-IR: gives the already
+        fully-summed `[x, y, z]` transition moment per transition, per initial state -- the
+        analytic-log equivalent of `VPTAnalyzerLogParser.transition_moment_corrections`, minus
+        the per-order recombination that one needs (see this class's docstring). Each returned
+        dict also carries an `'initial_state'` entry, same as `spectra` above.
+
+        :return: the parsed per-initial-state transition-moment data, each entry also keyed by `'initial_state'`
+        :rtype: list[dict]
+        """
+        if self._tms is None:
+            _, tm_content = self._find_block("Transition Moments:")
+            tm_str = "\n".join(tm_content) if isinstance(tm_content, list) else tm_content
+            self._tms = self.parse_analytic_blocks(tm_str, self.reformat_transition_moment_block)
+        return self._tms
+
+    # --- Not yet needed for 2D-IR. Stubbed rather than left to fail with a bare KeyError from
+    # VPTResultsLoader's dispatch -- mirroring the many properties that are already effectively
+    # unsupported (also a bare KeyError) for VPTAnalyzerLogParser + the classic log format's own
+    # "log_file" dispatch, just made explicit here. Fill these in in the same style as `spectra`/
+    # `transition_moment_corrections` above once something actually needs them -- the energies
+    # table, in particular, is already sitting right there in the log (see this class's
+    # docstring and `_raw_lines_after`), just not wired up to anything yet. ---
+
+    @property
+    def harmonic_energies(self):
+        """
+        **LLM Docstring**
+
+        Not yet implemented -- see this class's docstring.
+
+        :raises NotImplementedError: always, for now
+        """
+        raise NotImplementedError("TBD")
+
+    @property
+    def energies(self):
+        """
+        **LLM Docstring**
+
+        Not yet implemented -- see this class's docstring.
+
+        :raises NotImplementedError: always, for now
+        """
+        raise NotImplementedError("TBD")
+
+    @property
+    def zero_order_energies(self):
+        """
+        **LLM Docstring**
+
+        Not yet implemented -- see this class's docstring.
+
+        :raises NotImplementedError: always, for now
+        """
+        raise NotImplementedError("TBD")
+
+    @property
+    def deperturbed_energies(self):
+        """
+        **LLM Docstring**
+
+        Not yet implemented -- see this class's docstring.
+
+        :raises NotImplementedError: always, for now
+        """
+        raise NotImplementedError("TBD")
+
+    @property
+    def deperturbed_spectra(self):
+        """
+        **LLM Docstring**
+
+        Not yet implemented -- see this class's docstring.
+
+        :raises NotImplementedError: always, for now
+        """
+        raise NotImplementedError("TBD")
+
+    @property
+    def deperturbed_transition_moment_corrections(self):
+        """
+        **LLM Docstring**
+
+        Not yet implemented -- see this class's docstring.
+
+        :raises NotImplementedError: always, for now
+        """
+        raise NotImplementedError("TBD")
+
 class VPTResultsLoader:
     """
     Provides tools for loading results into canonical
@@ -693,6 +1231,8 @@ class VPTResultsLoader:
                 res_type = self.resolve_file_res_type(res)
             if res_type == VPTResultsSource.Checkpoint:
                 res = Checkpointer.from_file(res)
+            elif res_type == VPTResultsSource.AnalyticLogFile:
+                res = AnalyticVPTLogParser(res)
             else:
                 res = VPTAnalyzerLogParser(res)
         self.data = res
@@ -715,7 +1255,18 @@ class VPTResultsLoader:
         if ext in cls.checkpoint_file_types:
             return VPTResultsSource.Checkpoint
         else:
-            return VPTResultsSource.LogFile
+            # Both the classic `VPTRunner` and the `AnalyticVPTRunner` write plain-text
+            # logs with no distinguishing file extension, so the two are told apart by
+            # sniffing for the classic runner's wrapping banner line. Only the classic
+            # log wraps its whole run in a single
+            # ">>--- Starting Perturbation Theory Runner ---<<" block (see
+            # `VPTAnalyzerLogParser.tree`); the analytic log has no such banner at all.
+            with open(res) as woof:
+                content = woof.read()
+            if "Starting Perturbation Theory Runner" in content:
+                return VPTResultsSource.LogFile
+            else:
+                return VPTResultsSource.AnalyticLogFile
 
     def get_res_type(self, res):
         """
@@ -728,6 +1279,10 @@ class VPTResultsLoader:
             return VPTResultsSource.Wavefunctions
         elif isinstance(res, Checkpointer):
             return VPTResultsSource.Checkpoint
+        elif isinstance(res, AnalyticVPTLogParser):
+            return VPTResultsSource.AnalyticLogFile
+        elif isinstance(res, VPTAnalyzerLogParser):
+            return VPTResultsSource.LogFile
         else:
             raise ValueError("do not know how to load PT results from {}".format(
                 res
@@ -776,6 +1331,22 @@ class VPTResultsLoader:
         :raises ValueError: always, noting potential terms aren't available from a log file
         """
         raise ValueError("potential terms not in log file")
+    @potential_terms.register("analytic_log_file")
+    def _(self):
+        """
+        **LLM Docstring**
+
+        Analytic-log-backed implementation of `potential_terms`: not yet implemented for
+        `AnalyticVPTLogParser`-backed results (see `AnalyticVPTLogParser`, which
+        currently only reconstructs the 2D-IR-relevant spectrum/transition-moment
+        data). Raises `NotImplementedError` rather than falling through to a bare
+        `KeyError` from the dispatcher.
+
+        :return: never returns
+        :rtype: None
+        :raises NotImplementedError: always
+        """
+        raise NotImplementedError("TBD")
 
     @property_dispatcher
     def kinetic_terms(self):
@@ -836,6 +1407,22 @@ class VPTResultsLoader:
         :raises ValueError: always, noting kinetic terms aren't available from a log file
         """
         raise ValueError("kinetic terms not in log file")
+    @kinetic_terms.register("analytic_log_file")
+    def _(self):
+        """
+        **LLM Docstring**
+
+        Analytic-log-backed implementation of `kinetic_terms`: not yet implemented for
+        `AnalyticVPTLogParser`-backed results (see `AnalyticVPTLogParser`, which
+        currently only reconstructs the 2D-IR-relevant spectrum/transition-moment
+        data). Raises `NotImplementedError` rather than falling through to a bare
+        `KeyError` from the dispatcher.
+
+        :return: never returns
+        :rtype: None
+        :raises NotImplementedError: always
+        """
+        raise NotImplementedError("TBD")
 
     @property_dispatcher
     def dipole_terms(self):
@@ -880,6 +1467,22 @@ class VPTResultsLoader:
         :raises ValueError: always, noting dipole terms aren't available from a log file
         """
         raise ValueError("dipole terms not in log file")
+    @dipole_terms.register("analytic_log_file")
+    def _(self):
+        """
+        **LLM Docstring**
+
+        Analytic-log-backed implementation of `dipole_terms`: not yet implemented for
+        `AnalyticVPTLogParser`-backed results (see `AnalyticVPTLogParser`, which
+        currently only reconstructs the 2D-IR-relevant spectrum/transition-moment
+        data). Raises `NotImplementedError` rather than falling through to a bare
+        `KeyError` from the dispatcher.
+
+        :return: never returns
+        :rtype: None
+        :raises NotImplementedError: always
+        """
+        raise NotImplementedError("TBD")
 
     @property_dispatcher
     def basis(self):
@@ -925,6 +1528,22 @@ class VPTResultsLoader:
         :raises ValueError: always, noting the total basis isn't available from a log file
         """
         raise ValueError("total basis not in log file")
+    @basis.register("analytic_log_file")
+    def _(self):
+        """
+        **LLM Docstring**
+
+        Analytic-log-backed implementation of `basis`: not yet implemented for
+        `AnalyticVPTLogParser`-backed results (see `AnalyticVPTLogParser`, which
+        currently only reconstructs the 2D-IR-relevant spectrum/transition-moment
+        data). Raises `NotImplementedError` rather than falling through to a bare
+        `KeyError` from the dispatcher.
+
+        :return: never returns
+        :rtype: None
+        :raises NotImplementedError: always
+        """
+        raise NotImplementedError("TBD")
 
     @property_dispatcher
     def target_states(self):
@@ -1003,6 +1622,18 @@ class VPTResultsLoader:
         """
         freq, ints = self.data.spectra[0]["anharmonic"].T
         return DiscreteSpectrum(freq, ints)
+    @spectrum.register("analytic_log_file")
+    def _(self):
+        """
+        **LLM Docstring**
+
+        Analytic-log-backed implementation of `spectrum`: builds a `DiscreteSpectrum` from the anharmonic frequency/intensity columns of the parsed analytic log's first spectrum block. Mirrors the `"log_file"` implementation exactly, since `AnalyticVPTLogParser.spectra` is shaped the same way as `VPTAnalyzerLogParser.spectra` (a list of per-initial-state dicts with `"harmonic"`/`"anharmonic"` arrays).
+
+        :return: the IR spectrum
+        :rtype: DiscreteSpectrum
+        """
+        freq, ints = self.data.spectra[0]["anharmonic"].T
+        return DiscreteSpectrum(freq, ints)
 
     @property_dispatcher
     def zero_order_spectrum(self):
@@ -1044,6 +1675,18 @@ class VPTResultsLoader:
         **LLM Docstring**
 
         Log-file-backed implementation of `zero_order_spectrum`: builds a `DiscreteSpectrum` from the harmonic frequency/intensity columns of the parsed log's first spectrum block.
+
+        :return: the zero-order (harmonic) IR spectrum
+        :rtype: DiscreteSpectrum
+        """
+        freq, ints = self.data.spectra[0]["harmonic"].T
+        return DiscreteSpectrum(freq, ints)
+    @zero_order_spectrum.register("analytic_log_file")
+    def _(self):
+        """
+        **LLM Docstring**
+
+        Analytic-log-backed implementation of `zero_order_spectrum`: builds a `DiscreteSpectrum` from the harmonic frequency/intensity columns of the parsed analytic log's first spectrum block. Mirrors the `"log_file"` implementation exactly, since `AnalyticVPTLogParser.spectra` is shaped the same way as `VPTAnalyzerLogParser.spectra`.
 
         :return: the zero-order (harmonic) IR spectrum
         :rtype: DiscreteSpectrum
@@ -1373,6 +2016,22 @@ class VPTResultsLoader:
         """
         self.data: VPTAnalyzerLogParser
         return self.data.energies
+    @degenerate_energies.register("analytic_log_file")
+    def _(self):
+        """
+        **LLM Docstring**
+
+        Analytic-log-backed implementation of `degenerate_energies`: not yet implemented for
+        `AnalyticVPTLogParser`-backed results (see `AnalyticVPTLogParser`, which
+        currently only reconstructs the 2D-IR-relevant spectrum/transition-moment
+        data). Raises `NotImplementedError` rather than falling through to a bare
+        `KeyError` from the dispatcher.
+
+        :return: never returns
+        :rtype: None
+        :raises NotImplementedError: always
+        """
+        raise NotImplementedError("TBD")
 
     @property_dispatcher
     def degenerate_rotations(self):
@@ -1455,6 +2114,22 @@ class VPTResultsLoader:
         :rtype: VPTAnalyzerLogParser
         """
         return self.data
+    @log_file.register("analytic_log_file")
+    def _(self):
+        """
+        **LLM Docstring**
+
+        Analytic-log-backed implementation of `log_file`: not yet implemented for
+        `AnalyticVPTLogParser`-backed results (see `AnalyticVPTLogParser`, which
+        currently only reconstructs the 2D-IR-relevant spectrum/transition-moment
+        data). Raises `NotImplementedError` rather than falling through to a bare
+        `KeyError` from the dispatcher.
+
+        :return: never returns
+        :rtype: None
+        :raises NotImplementedError: always
+        """
+        raise NotImplementedError("TBD")
 
     @property
     def log_parser(self):
@@ -1466,7 +2141,7 @@ class VPTResultsLoader:
         :return: the log parser, or `None` if unavailable
         :rtype: VPTAnalyzerLogParser | None
         """
-        if isinstance(self.data, VPTAnalyzerLogParser):
+        if isinstance(self.data, (VPTAnalyzerLogParser, AnalyticVPTLogParser)):
             return self.data
         else:
             lf = self.log_file()

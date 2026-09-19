@@ -1,5 +1,9 @@
+from __future__ import annotations
+
 import collections
 import itertools
+import os
+import json
 import numpy as np
 import scipy.fft
 import enum
@@ -15,7 +19,8 @@ import McUtils.Combinatorics as comb
 __all__ = [
     "liouville_pathways",
     "nonlinear_response_generators",
-    "experimental_response_generator"
+    "experimental_response_generator",
+    "prep_vpt_response_data"
 ]
 
 def nested_commutator_expansion(k, side='left'):
@@ -251,6 +256,585 @@ def prep_nonlinear_transition_data(transition_dict: dict,
                 break
 
     return TransitionData(states, frequencies, transition_moments, couplings)
+
+def _vpt_response_data_to_records(transition_dict):
+    """
+    Converts a `transition_dict` (as returned by `prep_vpt_response_data`) into
+    a JSON-serializable list of records, one per transition, each of the form
+    `{"state": [state_i, state_j], "frequency": ..., "transition_moment": [...], ...}`
+    -- i.e. the `(state_i, state_j)` dict key gets folded into the record itself
+    under a `"state"` key rather than kept as a (non-JSON-safe) tuple key.
+
+    :param transition_dict: mapping of `(state_i, state_j)` state-vector tuples to
+        per-transition data (at least `frequency` and `transition_moment`)
+    :type transition_dict: dict
+    :return: a list of JSON-safe transition records
+    :rtype: list[dict]
+    """
+    records = []
+    for (si, sj), data in transition_dict.items():
+        rec = dict(data)
+        if 'transition_moment' in rec and rec['transition_moment'] is not None:
+            rec['transition_moment'] = np.asarray(rec['transition_moment']).tolist()
+        if 'frequency' in rec and rec['frequency'] is not None:
+            rec['frequency'] = float(rec['frequency'])
+        rec['state'] = [list(si), list(sj)]
+        records.append(rec)
+    return records
+
+def _vpt_response_data_from_records(records):
+    """
+    Inverse of `_vpt_response_data_to_records`: reconstitutes a `transition_dict`
+    (state-tuple-pair keys, `transition_moment` as an `np.ndarray`) from the
+    JSON-safe record list that gets written to/read from `output_file`.
+
+    :param records: the JSON-decoded list of transition records
+    :type records: list[dict]
+    :return: the reconstituted `transition_dict`
+    :rtype: dict
+    """
+    transition_dict = {}
+    for rec in records:
+        rec = dict(rec)
+        si, sj = rec.pop('state')
+        si = tuple(int(x) for x in si)
+        sj = tuple(int(x) for x in sj)
+        if 'transition_moment' in rec and rec['transition_moment'] is not None:
+            rec['transition_moment'] = np.array(rec['transition_moment'])
+        transition_dict[(si, sj)] = rec
+    return transition_dict
+
+def _prep_vpt_target_states(freqs, target_states=None, max_freq=None, max_quanta=2):
+    """Resolve explicit or generated target states for ``prep_vpt_response_data``."""
+    freqs = np.asanyarray(freqs)
+    ndim = len(freqs)
+    ground_state = tuple([0] * ndim)
+
+    if target_states is None or isinstance(target_states, dict):
+        state_opts = {} if target_states is None else target_states.copy()
+        if 'max_freq' not in state_opts:
+            if max_freq is None:
+                max_freq = max_quanta * np.max(np.abs(freqs))
+            state_opts['max_freq'] = max_freq
+        if 'max_quanta' not in state_opts:
+            # ``states_under_freq_threshold`` uses an exclusive upper bound,
+            # while this helper's long-standing ``max_quanta`` option is inclusive.
+            state_opts['max_quanta'] = max_quanta + 1
+        raw_states = BasisStateSpace.states_under_freq_threshold(freqs, **state_opts)
+    elif isinstance(target_states, BasisStateSpace):
+        raw_states = target_states.excitations
+    else:
+        raw_states = target_states
+
+    if not isinstance(raw_states, np.ndarray):
+        raw_states = list(raw_states)
+    raw_states = np.asanyarray(raw_states)
+    if raw_states.size == 0:
+        raw_states = np.empty((0, ndim), dtype=int)
+    if raw_states.ndim == 1 and raw_states.shape == (ndim,):
+        raw_states = raw_states[np.newaxis, :]
+    if raw_states.ndim != 2 or raw_states.shape[1] != ndim:
+        raise ValueError(
+            f"target states must be a two-dimensional array with {ndim} columns; "
+            f"got shape {raw_states.shape}"
+        )
+    if not np.issubdtype(raw_states.dtype, np.number):
+        raise TypeError("target states must contain numeric quantum numbers")
+    if np.any(~np.isfinite(raw_states)) or np.any(raw_states < 0):
+        raise ValueError("target states must contain finite, non-negative quantum numbers")
+    if np.any(raw_states != np.floor(raw_states)):
+        raise ValueError("target states must contain integer quantum numbers")
+
+    # Normalize to hashable tuples and remove duplicates without disturbing the
+    # caller/BasisStateSpace ordering used by the downstream VPT runners.
+    state_list = []
+    seen = set()
+    for state in raw_states:
+        state = tuple(int(x) for x in state)
+        if state not in seen:
+            state_list.append(state)
+            seen.add(state)
+    if ground_state not in seen:
+        state_list.insert(0, ground_state)
+    return state_list
+
+def _looks_like_vpt_runner_log(path):
+    """
+    **LLM Docstring**
+
+    Sniffs whether `path` is a saved text log written by one of this module's own VPT
+    runners (`VPTRunner`/`AnalyticVPTRunner`, via their `logger=<path>` option) rather than
+    a molecule/system spec -- the other thing a string `system` argument to
+    `prep_vpt_response_data` can legitimately be. Both are plain text files with no
+    distinguishing extension (a quantum-chemistry package's own frequency-job output is
+    routinely named `something.log`, exactly like a `VPTRunner` log), so this checks for the
+    literal banner text each runner's log actually contains instead: the classic `VPTRunner`
+    wraps its whole run in a single `">>--- Starting Perturbation Theory Runner ---<<"`
+    block (see `VPTAnalyzerLogParser.tree`), and `AnalyticVPTRunner` always logs a top-level
+    `">>--- ... Running VPT ... ---"` section (see `AnalyticVPTLogParser.tree`) -- neither
+    of which would plausibly appear by coincidence in a molecule spec file.
+
+    Any error reading `path` as text (a missing file, a directory, a binary/non-text file
+    such as a checkpoint) is treated as "not a VPT runner log" and returns `False`, so a bad
+    path falls through to the normal molecule-spec handling in `prep_vpt_response_data` and
+    fails there with a more relevant error instead of a confusing one from this sniff.
+
+    :param path: the path to check
+    :type path: str
+    :return: whether `path` looks like a `VPTRunner`/`AnalyticVPTRunner` log
+    :rtype: bool
+    """
+    try:
+        with open(path, 'r') as woof:
+            content = woof.read()
+    except (OSError, UnicodeDecodeError, ValueError):
+        return False
+    return (
+        "Starting Perturbation Theory Runner" in content
+        or "Running VPT" in content
+    )
+
+def prep_vpt_response_data(system,
+                            max_freq=None,
+                            max_quanta=2,
+                            initial_quanta=(0, 1),
+                            return_wavefunctions=False,
+                            output_file=None,
+                            overwrite=False,
+                            use_analytic=False,
+                            target_states=None,
+                            **vpt_opts
+                            ):
+    """
+    Runs a VPT calculation over the states reachable from the ground state
+    within `max_quanta` quanta of excitation and returns the resulting state
+    energies/transition moments as a `transition_dict` in the format expected
+    by `prep_nonlinear_transition_data`/`experimental_response_generator`.
+
+    By default (`use_analytic=False`) this runs `VPTRunner.run_simple`, which
+    computes a single dense "every initial state x every final state"
+    transition-moment matrix (so e.g. a direct ground-state overtone
+    transition ends up included alongside the fundamentals, if VPT gives it
+    a nonzero moment). Passing `use_analytic=True` instead runs
+    `AnalyticVPTRunner.run_simple`, which has a different calling convention:
+    rather than one flat state list plus an `initial_states` seed, it wants
+    an explicit list of `[initial_space, target_space]` block pairs, and only
+    ever computes transition moments *within* each block -- there's no
+    implicit dense any-initial-to-any-final matrix. To keep the same overall
+    coverage as the classic branch as closely as that block-based API allows,
+    one block is built per consecutive pair of quantum shells reachable from
+    `initial_quanta` (e.g. ground -> one-quantum fundamentals, one-quantum ->
+    two-quantum states, and so on up to `max_quanta`), mirroring the
+    ground -> fundamentals -> overtones/combinations cascade a 2D-IR
+    calculation actually needs. One consequence of this block structure:
+    a *non-adjacent*-shell transition (like a direct ground -> two-quantum
+    overtone) is only included by the classic branch, not the analytic one,
+    since no block connects those two shells directly.
+
+    The two branches are independent VPT implementations, so their results
+    agree closely but not bit-for-bit: energies for shared states typically
+    match to a small fraction of a wavenumber, and per-mode transition
+    moments can come back with an overall sign flipped relative to the
+    classic branch's (an arbitrary phase-convention difference between the
+    two evaluators, verified against real water VPT data to have no effect
+    on downstream intensities/spectra, which only ever depend on these
+    moments through even, sign-invariant combinations).
+
+    By default, the target state list comes from
+    `BasisStateSpace.states_under_freq_threshold`, run over the system's
+    harmonic normal-mode frequencies and capped at `max_quanta` total quanta
+    of excitation. Passing explicit state vectors through `target_states`
+    restricts the calculation to precisely those states. A `BasisStateSpace`
+    may be passed directly, or a dictionary may be supplied as keyword options
+    for `BasisStateSpace.states_under_freq_threshold`; dictionary values
+    override the `max_freq`/`max_quanta` defaults. The ground state is always
+    included. The classic branch seeds `initial_states` with every target
+    state whose total quantum number is in `initial_quanta` (by default the
+    ground state and every singly-excited fundamental); the analytic branch
+    uses the same `initial_quanta` values to build quantum-shell blocks.
+
+    If `output_file` is given and already exists, the cached `transition_dict`
+    is loaded from it directly and returned *without running any VPT
+    calculation* (unless `overwrite=True`, which always reruns and rewrites
+    the file). If `output_file` is given and doesn't yet exist (or
+    `overwrite=True`), the calculation is run as usual and the resulting
+    `transition_dict` is saved to `output_file` as JSON before being returned.
+    A loaded-from-cache result has no associated wavefunctions/corrections
+    object, so `return_wavefunctions` yields `None` in its place in that case.
+
+    :param system: a molecule/system spec (path, `Molecule`, or `VPTSystem`) to run VPT on
+    :type system: str | list | Molecule | VPTSystem
+    :param max_freq: the maximum total (harmonic) excitation energy to include when generating
+        the target state list, in the same units as the system's normal-mode
+        frequencies (Hartrees). Defaults to `max_quanta` times the largest
+        normal-mode frequency, which is always enough to admit every state
+        satisfying the `max_quanta` cutoff below.
+    :type max_freq: float | None
+    :param max_quanta: the largest total number of vibrational quanta (summed over all
+        modes) a target state is allowed to carry (inclusive)
+    :type max_quanta: int
+    :param initial_quanta: the total quantum numbers (again summed over modes) that qualify a
+        state to be used as an `initial_states` seed for the VPT run (classic
+        branch) or as a quantum-shell boundary to build a block across
+        (analytic branch) -- by default the ground state (0 quanta) and every
+        fundamental (1 quantum)
+    :type initial_quanta: int | Iterable[int]
+    :param target_states: optional target-state specification. May be an explicit iterable/array
+        of full-dimensional excitation vectors, a `BasisStateSpace`, or a dictionary of keyword
+        options passed to `BasisStateSpace.states_under_freq_threshold` (for example
+        `{'max_freq': ..., 'max_quanta': 3, 'fixed_modes': [...]}`). When omitted, the legacy
+        `max_freq`/inclusive-`max_quanta` generation behavior is retained. Dictionary-provided
+        `max_quanta` is passed directly to `BasisStateSpace` and therefore uses its exclusive
+        upper-bound convention. Duplicate states are removed and the ground state is added.
+    :type target_states: Iterable[Iterable[int]] | BasisStateSpace | dict | None
+    :param return_wavefunctions: if `True`, also return the raw results object from the VPT
+        run alongside the `transition_dict` -- a `VPTWavefunctions` for the
+        classic branch, or an `AnalyticPerturbationTheoryCorrections` for the
+        analytic branch (`use_analytic=True`) -- or `None` if the result was
+        loaded from `output_file` instead of computed
+    :type return_wavefunctions: bool
+    :param output_file: optional path to cache the resulting `transition_dict` as JSON
+        (a list of `{"state": [state_i, state_j], "frequency":..., "transition_moment":...}`
+        records, since JSON object keys can't be tuples). When this file already exists,
+        it's loaded and returned as-is instead of rerunning the VPT calculation, unless
+        `overwrite=True`
+    :type output_file: str | None
+    :param overwrite: if `True`, always (re)run the calculation and overwrite `output_file`,
+        even if it already exists
+    :type overwrite: bool
+    :param use_analytic: if `True`, run `AnalyticVPTRunner.run_simple` (symbolic/analytic VPT)
+        instead of `VPTRunner.run_simple`, building one `[initial_space, target_space]`
+        block per consecutive pair of quantum shells reachable from `initial_quanta`
+        (see above for how this differs from the classic branch's dense matrix)
+    :type use_analytic: bool
+    :param vpt_opts: extra options forwarded to `VPTRunner.run_simple`/`VPTRunner.construct`
+        (classic branch) or `AnalyticVPTRunner.run_simple`/`AnalyticVPTRunner.construct`
+        (analytic branch, e.g. `full_surface_mode_selection`,
+        `mixed_derivative_handling_mode`, `mixed_derivative_handle_zeros`,
+        `mixed_derivative_warning_threshold`, `corrected_fundamental_frequencies`, `logger`)
+    :type vpt_opts: dict
+    :return: a `transition_dict` of the form `{(state_i, state_j): {'frequency':..., 'transition_moment':...}}`
+        (in wavenumbers/a.u., respectively), suitable for `prep_nonlinear_transition_data`,
+        or `(transition_dict, wfns)` if `return_wavefunctions` is set
+    :rtype: dict | tuple[dict, 'VPTWavefunctions' | 'AnalyticPerturbationTheoryCorrections']
+    """
+
+    if isinstance(system, str) and _looks_like_vpt_runner_log(system):
+        # `system` can legitimately be a string in two very different senses: a molecule/
+        # system spec path (an `.fchk`, or a quantum-chemistry package's own frequency-job
+        # `.log`, handed to `VPTSystem` below) or the path to a text log *this module's own
+        # VPT runners* previously wrote out (via `VPTRunner`/`AnalyticVPTRunner`'s
+        # `logger=<path>` -- see `prep_vpt_response_data_from_log`). Both are ordinary text
+        # files with no distinguishing extension (a Gaussian frequency-job output and a
+        # `VPTRunner` log are both commonly named `*.log`), so a bare `isinstance(system,
+        # str)` can't tell them apart -- it would send every molecule-spec path (which is by
+        # far the common case; see e.g. every `prep_vpt_response_data(fchk, ...)` call in
+        # `ci/tests/NonlinearTests.py`) through `prep_vpt_response_data_from_log` instead of
+        # running VPT on it. `_looks_like_vpt_runner_log` sniffs the file's content for the
+        # banner text only a saved run log (of either kind) actually contains, so a molecule
+        # spec still falls through to the normal path below.
+        return prep_vpt_response_data_from_log(system,
+                                               max_freq=max_freq,
+                                               initial_quanta=initial_quanta)
+
+    if output_file is not None and not overwrite and os.path.isfile(output_file):
+        with open(output_file, 'r') as woof:
+            transition_dict = _vpt_response_data_from_records(json.load(woof))
+        if return_wavefunctions:
+            return transition_dict, None
+        return transition_dict
+
+    from ..VPT2 import VPTRunner, VPTSystem
+
+    vpt_system = system if isinstance(system, VPTSystem) else VPTSystem(system)
+    freqs = vpt_system.mol.normal_modes.modes.freqs
+    ndim = len(freqs)
+    ground_state = tuple([0] * ndim)
+    state_list = _prep_vpt_target_states(
+        freqs,
+        target_states=target_states,
+        max_freq=max_freq,
+        max_quanta=max_quanta
+    )
+
+    if nput.is_int(initial_quanta):
+        initial_quanta = (initial_quanta,)
+    initial_states = [s for s in state_list if sum(s) in initial_quanta]
+    if ground_state not in initial_states:
+        initial_states = [ground_state] + initial_states
+
+    h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+    transition_dict = {}
+
+    if use_analytic:
+        from ..VPT2 import AnalyticVPTRunner
+
+        # `AnalyticVPTRunner` wants an explicit list of `[initial_space,
+        # target_space]` block pairs rather than a flat state list + an
+        # `initial_states` seed, and it only computes transition moments
+        # *within* each block -- build one block per consecutive quantum
+        # shell boundary in `initial_quanta` (e.g. 0->1, 1->2, ...)
+        by_quanta = collections.defaultdict(list)
+        for s in state_list:
+            by_quanta[sum(s)].append(list(s))
+
+        blocks = []
+        for k in sorted(set(initial_quanta)):
+            if k not in by_quanta or (k + 1) not in by_quanta:
+                continue
+            blocks.append([by_quanta[k], by_quanta[k + 1]])
+
+        if len(blocks) == 0:
+            raise ValueError(
+                f"no consecutive-quanta-shell blocks to run between "
+                f"`initial_quanta={initial_quanta}` and `max_quanta={max_quanta}`"
+            )
+
+        corrs = AnalyticVPTRunner.run_simple(
+            vpt_system,
+            blocks,
+            **vpt_opts
+        )
+
+        energies = corrs.energies * h2w
+        # `corrs.transition_moments` is `[axis][block_idx] -> (n_init, n_final)`,
+        # not the classic branch's single dense `(3, n_initial, n_total)` tensor
+        tms = corrs.transition_moments
+
+        for block_idx, (init_block, final_block) in enumerate(corrs.state_lists):
+            init_block = [tuple(int(x) for x in s) for s in init_block]
+            final_block = [tuple(int(x) for x in s) for s in final_block]
+            init_inds = corrs.states.find(init_block)
+            final_inds = corrs.states.find(final_block)
+            for i, (si, ii) in enumerate(zip(init_block, init_inds)):
+                for j, (sj, jj) in enumerate(zip(final_block, final_inds)):
+                    if ii == jj:
+                        continue
+                    freq = energies[jj] - energies[ii]
+                    if freq <= 0:
+                        # keep only the "upward" direction of each pair; `prep_nonlinear_transition_data`
+                        # infers the reverse (negative-frequency) transition automatically
+                        continue
+                    key = (si, sj)
+                    if key in transition_dict:
+                        continue
+                    tm = np.array([tms[c][block_idx][i][j] for c in range(3)])
+                    transition_dict[key] = {'frequency': float(freq), 'transition_moment': tm}
+
+        wfns = corrs
+    else:
+        wfns = VPTRunner.run_simple(
+            vpt_system,
+            state_list,
+            initial_states=initial_states,
+            **vpt_opts
+        )
+
+        state_tuples = [tuple(int(x) for x in s) for s in wfns.corrs.states.excitations]
+        energies = wfns.energies * h2w
+        tms = wfns.transition_moments
+
+        for n, init_idx in enumerate(wfns.initial_state_indices):
+            si = state_tuples[init_idx]
+            for j, sj in enumerate(state_tuples):
+                if j == init_idx:
+                    continue
+                freq = energies[j] - energies[init_idx]
+                if freq <= 0:
+                    # keep only the "upward" direction of each pair; `prep_nonlinear_transition_data`
+                    # infers the reverse (negative-frequency) transition automatically
+                    continue
+                key = (si, sj)
+                if key in transition_dict:
+                    continue
+                tm = np.array([tms[k][n][j] for k in range(3)])
+                transition_dict[key] = {'frequency': float(freq), 'transition_moment': tm}
+
+    if output_file is not None:
+        out_dir = os.path.dirname(output_file)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+        with open(output_file, 'w') as woof:
+            json.dump(_vpt_response_data_to_records(transition_dict), woof)
+
+    if return_wavefunctions:
+        return transition_dict, wfns
+    return transition_dict
+
+def _parse_vpt_state_label(label):
+    """
+    Parse a `VPTAnalyzer`/`VPTAnalyzerLogParser` state label (e.g. `"1 0 0"`) into an
+    excitation-quanta tuple (e.g. `(1, 0, 0)`), matching the tuple format used for
+    `transition_dict` keys elsewhere in this module.
+
+    Nothing in `Psience.VPT2.Analyzer` currently does this conversion -- `VPTAnalyzerLogParser`
+    hands back state labels as the raw, whitespace-joined digit strings taken verbatim from the
+    log table (e.g. via `.spectra`/`.transition_moment_corrections`), and every consumer is left
+    to parse them itself. This is one of the concrete small gaps found while building
+    `prep_vpt_response_data_from_log` below; a `state_label` <-> excitation-tuple helper like this
+    one would be a reasonable thing to add directly to `VPTAnalyzer`/`VPTAnalyzerLogParser`.
+
+    :param label: whitespace-separated per-mode quanta, e.g. `"1 0 0"`
+    :type label: str
+    :return: excitation-quanta tuple, e.g. `(1, 0, 0)`
+    :rtype: tuple[int]
+    """
+    return tuple(int(x) for x in label.split())
+
+def prep_vpt_response_data_from_log(log_file, max_freq=None, initial_quanta=(0, 1)):
+    """
+    Reconstructs a `transition_dict` (in the same format returned by `prep_vpt_response_data`)
+    purely from a saved VPT2 *text log*, using the existing `Psience.VPT2.Analyzer.VPTAnalyzer`
+    class to do the parsing, rather than from an in-memory `VPTWavefunctions`/`AnalyticPerturbationTheoryCorrections`
+    result.
+
+    This only works for logs produced by the **classic** `VPTRunner` (i.e. `logger=<path>` passed
+    to `VPTRunner.run_simple`), and even then only after two real bugs in `VPTAnalyzerLogParser`
+    were found and fixed while building this function (see `claude_drafts/vpt_analyzer_log_parsing_fixes.patch`):
+    the `.tree` property never unwrapped the single outer `">>--- Starting Perturbation Theory Runner ---<<"`
+    banner block that every such log is wrapped in, so no named table (`"IR Data"`, `"X Dipole Contributions"`,
+    etc) was ever reachable; and `SpectrumBlockParser`/`TransitionMomentBlockParser.check_tag` only
+    recognized a *leading-space* `" Initial State:"` header as the start of a new per-initial-state
+    sub-block and didn't skip the dashed separator line between sub-blocks, which happened to work by
+    accident for single-initial-state logs (e.g. the one existing reference fixture, `methanol_vpt_3.out`)
+    but silently mis-parsed (or crashed on) *any* log with more than one initial state -- which is the
+    normal case for this module, since `prep_vpt_response_data`'s classic branch always requests both
+    ground- and one-quantum initial states.
+
+    Two further limitations remain, and are NOT fixed here (see the patch notes above for the full
+    writeup):
+
+    - `AnalyticVPTRunner` logs cannot be parsed by `VPTAnalyzerLogParser` **at all** -- confirmed by
+      actually generating one (checked in as `ci/tests/TestData/water_vpt_analytic.log`) and attempting to load
+      it: `AnalyticVPTRunner.run_VPT` never emits the named log blocks (`"IR Data"`, `"X/Y/Z Dipole
+      Contributions"`, etc) that `VPTAnalyzerLogParser` looks for by exact tag string; it instead logs
+      a combined `"Transition Moments:"` table (via `format_transition_moment_table`) and leaves the
+      energies/spectrum output untagged. Supporting this would require either teaching `AnalyticVPTRunner`
+      to emit `VPTRunner`-compatible tagged blocks, or writing an entirely separate parser for its log
+      format. This function raises a clear `ValueError` (rather than a bare `IndexError`) if pointed at
+      such a log.
+    - The *transition moments* this function recovers are only approximately correct for combination-band
+      and overtone transitions (verified exact for all pure fundamentals, and within ~1e-3 for about
+      70% of all transitions tested against the in-memory `prep_vpt_response_data(water_freq.fchk)`
+      ground truth, with the rest off by up to ~30%). This traces to a third, separate bug: `VPTAnalyzerLogParser.reformat_tm_block`
+      (via `load_term_counts`/`McUtils.Combinatorics.SymmetricGroupGenerator`) mis-slices the raw
+      per-order dipole-correction columns of a `"X/Y/Z Dipole Contributions"` table row, silently
+      dropping roughly half of the printed correction terms for a 10-column row -- so the *frequencies*
+      this function returns are exact (verified against all 28 ground-truth transitions for water),
+      but the transition moments should be treated as approximate unless/until that slicing bug is
+      also fixed. That fix needs to trace through exactly how many dipole-derivative-order correction
+      terms `VPTWavefunctions.format_dipole_contribs_tables` prints for a given expansion order, which
+      is out of scope here.
+
+    :param log_file: path to a text log produced by `VPTRunner.run_simple(..., logger=log_file)`
+    :type log_file: str
+    :param max_freq: if given, drop any reconstructed transition whose frequency (in cm^-1) exceeds this
+    :type max_freq: float | None
+    :param initial_quanta: which initial-state total-quanta values to keep transitions from (matches the
+        same-named parameter of `prep_vpt_response_data`); the ground state and one-quantum blocks (`(0, 1)`)
+        are always present when the log was generated the way `prep_vpt_response_data`'s classic branch
+        generates them
+    :type initial_quanta: tuple[int]
+    :return: a `transition_dict` of the form `{(state_i, state_j): {'frequency':..., 'transition_moment':...}}`,
+        in the same format as `prep_vpt_response_data`
+    :rtype: dict
+    """
+    from ..VPT2 import VPTAnalyzer
+    from ..VPT2.Analyzer import VPTResultsSource
+
+    analyzer = VPTAnalyzer(log_file)
+
+    # `VPTResultsLoader.resolve_file_res_type` now sniffs plain-text logs and correctly
+    # tells an `AnalyticVPTRunner` log apart from a classic one (see
+    # `claude_drafts/analytic_vpt_log_parser.patch`), building an `AnalyticVPTLogParser`
+    # for it instead of a `VPTAnalyzerLogParser`. That parser handles the analytic log's
+    # own format just fine -- it just returns data shaped differently (a flat
+    # `'transition_moment'` array per block rather than per-axis `'corrections'` dicts)
+    # than what the rest of this function (written only for the classic format) expects.
+    # So the detection this function relies on below -- catching `IndexError`/`KeyError`
+    # from a parser choking on the wrong format -- no longer fires for analytic logs,
+    # since parsing them no longer fails; it just succeeds with an incompatible shape.
+    # Check the resolved source directly instead, and keep raising the same clear,
+    # actionable `ValueError` this function has always raised for analytic logs.
+    if analyzer.loader.res_type == VPTResultsSource.AnalyticLogFile:
+        raise ValueError(
+            "'{}' is an `AnalyticVPTRunner` log, which this function does not support -- "
+            "it only reconstructs a transition_dict from a classic `VPTRunner` log "
+            "(see `AnalyticVPTLogParser` for reading 2D-IR-relevant data directly out of "
+            "an `AnalyticVPTRunner` log instead)".format(log_file)
+        )
+
+    parser = analyzer.log_parser
+
+    try:
+        spectra = parser.spectra
+        tm_corrections = parser.transition_moment_corrections
+    except (IndexError, KeyError) as e:
+        raise ValueError(
+            "could not parse a transition_dict from log file '{}': {} "
+            "(note: VPTAnalyzerLogParser currently only supports logs from the classic `VPTRunner` -- "
+            "`AnalyticVPTRunner` logs use a different, untagged table format and aren't supported)".format(
+                log_file, e
+            )
+        ) from e
+
+    if isinstance(spectra, dict):
+        spectra = [spectra]
+    if isinstance(tm_corrections, dict):
+        tm_corrections = [tm_corrections]
+
+    if len(spectra) != len(tm_corrections):
+        raise ValueError(
+            "parsed {} spectrum block(s) but {} transition-moment block(s) from '{}'; "
+            "can't reliably pair these up".format(len(spectra), len(tm_corrections), log_file)
+        )
+
+    transition_dict = {}
+    for spec_block, tm_block in zip(spectra, tm_corrections):
+        fin_labels = spec_block['states']
+        tm_axes = tm_block['corrections']  # [x, y, z] axis dicts, each from `reformat_tm_block`
+        tm_labels = tm_axes[0]['states']
+
+        # `VPTAnalyzerLogParser` doesn't currently record which initial state a parsed
+        # transition-moment block belongs to; each such block's raw table does include exactly
+        # one extra row beyond what's in the matching spectrum block, though -- the block's own
+        # diagonal <initial|mu|initial> self-term (a real, nonzero permanent-dipole matrix element,
+        # but not a "transition" so it's excluded from the "IR Data" spectrum table). Whichever
+        # label appears in the TM block but not in the spectrum block's final-state list is
+        # therefore this block's initial state.
+        fin_label_set = set(fin_labels)
+        init_candidates = [s for s in tm_labels if s not in fin_label_set]
+        if len(init_candidates) != 1:
+            raise ValueError(
+                "couldn't uniquely infer the initial state of a parsed transition-moment block in "
+                "'{}' (candidates: {}) -- VPTAnalyzer doesn't currently label these blocks directly, "
+                "so this had to be inferred, and the inference failed here".format(log_file, init_candidates)
+            )
+        init_label = init_candidates[0]
+        init_state = _parse_vpt_state_label(init_label)
+        if sum(init_state) not in initial_quanta:
+            continue
+
+        rows = [k for k, s in enumerate(tm_labels) if s != init_label]
+
+        for row, fin_label, (freq, _intensity) in zip(rows, fin_labels, spec_block['anharmonic']):
+            if freq <= 0:
+                # keep only the "upward" direction of each pair, matching `prep_vpt_response_data`;
+                # the reverse (negative-frequency) transition is inferred downstream automatically
+                continue
+            if max_freq is not None and freq > max_freq:
+                continue
+            fin_state = _parse_vpt_state_label(fin_label)
+            key = (init_state, fin_state)
+            if key in transition_dict:
+                continue
+            tm = np.array([
+                sum(arr[row].sum() for arr in axis_block['corrections'])
+                for axis_block in tm_axes
+            ])
+            transition_dict[key] = {'frequency': float(freq), 'transition_moment': tm}
+
+    return transition_dict
 
 def get_interaction_basis(initial_states:BasisStateSpace, *, selection_rules, **filter_opts):
     def _apply_rules(space, rules, filter_opts):
@@ -1263,7 +1847,7 @@ def nonlinear_response_generators(transition_data,
                                   application_domain="time",
                                   response_function_class=None,
                                   **state_opts
-                                  ):
+                                  ) -> NonlinearResponseFunction:
     td = prep_nonlinear_transition_data(transition_data, **state_opts)
     if driving_frequency is True:
         bands = np.sum(td.states.excitations, axis=1)
