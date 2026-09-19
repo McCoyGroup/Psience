@@ -96,9 +96,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-6b7d69" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-6b7d69"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-8d6726" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-8d6726"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-6b7d69" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-8d6726" markdown="1">
  - [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
@@ -174,6 +174,7 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 - [TRIC](#TRIC)
 - [NewAnim](#NewAnim)
 - [RDKitIssues](#RDKitIssues)
+- [InChIExport](#InChIExport)
 - [RDKitConfGen](#RDKitConfGen)
 - [CanonicalZMatrix](#CanonicalZMatrix)
 - [FlexiblePlotting](#FlexiblePlotting)
@@ -241,9 +242,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-a6c1e2" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-a6c1e2"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-2b29f5" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-2b29f5"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-a6c1e2" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-2b29f5" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -3664,6 +3665,50 @@ class MolecoolsTests(TestCase):
         from Psience.Molecools import Molecule
 
         Molecule.from_string('COc1cc([OH]C2([N+](c3c(C2(C)C)cc(OC)cc3)CCCOS([O-])=O)C=C4)c4cc1', 'smi')
+```
+
+#### <a name="InChIExport">InChIExport</a>
+```python
+    def test_InChIExport(self):
+        mol = Molecule.from_string('CCO', 'smi')
+        inchi = 'InChI=1S/C2H6O/c1-2-3/h3H,2H2,1H3'
+        inchi_key = 'LFQSCWFLJHTTHZ-UHFFFAOYSA-N'
+
+        self.assertEqual(mol.rdmol.to_inchi(), inchi)
+        self.assertEqual(mol.rdmol.to_inchi_key(), inchi_key)
+        self.assertEqual(mol.to_string('inchi'), inchi)
+        self.assertEqual(mol.to_string('inchi_key'), inchi_key)
+
+        tagged_inchi, reordering = mol.to_string(
+            'inchi',
+            include_tag=True,
+            return_reordering=True
+        )
+        serialized_inchi, separator, tag = tagged_inchi.partition('_')
+        self.assertEqual(serialized_inchi, inchi)
+        self.assertEqual(separator, '_')
+        self.assertGreater(len(tag), 0)
+        self.assertEqual(sorted(reordering), [0, 1, 2])
+
+        heavy_coords = mol.rdmol.coords[reordering,]
+        loaded = Molecule.from_string(
+            tagged_inchi,
+            add_implicit_hydrogens=False
+        )
+        self.assertEqual(loaded.to_string('inchi'), inchi)
+        self.assertTrue(np.allclose(
+            np.linalg.norm(loaded.rdmol.coords[:, np.newaxis] - loaded.rdmol.coords[np.newaxis, :], axis=-1),
+            np.linalg.norm(heavy_coords[:, np.newaxis] - heavy_coords[np.newaxis, :], axis=-1),
+            atol=.05
+        ))
+
+        explicit_coords = heavy_coords + np.array([1, 2, 3])
+        loaded = Molecule.from_string(
+            inchi,
+            coords=explicit_coords,
+            add_implicit_hydrogens=False
+        )
+        self.assertTrue(np.allclose(loaded.rdmol.coords, explicit_coords))
 ```
 
 #### <a name="RDKitConfGen">RDKitConfGen</a>
