@@ -3378,6 +3378,13 @@ class NormalModesManager(PropertyManager):
         else:
             if hasattr(modes, 'to_new_modes'):
                 modes = modes.to_new_modes()
+            v3 = mol.potential_derivatives[2]
+            if np.shape(v3)[0] != len(modes.freqs):
+                # a partial surface (only some modes differentiated) carries no
+                # full-dimensional rephasing information, and its numerical
+                # dipole derivatives are partial too, so the dipole fallback
+                # can't resolve it either -- same guard as the `gspec` branch
+                return None
             return cls.get_partial_cubic_based_rephasing(
                 modes.remove_mass_weighting(),
                 mol.potential_derivatives[2]
