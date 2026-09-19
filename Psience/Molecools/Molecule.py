@@ -5572,6 +5572,11 @@ class Molecule(AbstractMolecule):
         else:
             raise ValueError(f"{name} didn't resolve to any known compounds with {method}")
     @classmethod
+    def _from_inchi(cls, inchi, **opts):
+        """Build a `Molecule` from an InChI string via RDKit."""
+        from McUtils.ExternalPrograms import RDMolecule
+        return cls.from_rdmol(RDMolecule.from_inchi(inchi, **opts))
+    @classmethod
     def _from_sdf(cls, sdf, **opts):
         """
         **LLM Docstring**
@@ -6031,7 +6036,9 @@ class Molecule(AbstractMolecule):
         lines = string.strip().split('\n', 3)
         at_strs = cls.get_atom_strings()
         if len(lines) == 1:
-            if len(string.strip().split()) == 1 and cls._check_smi(string, at_strs):
+            if string.startswith('InChI='):
+                return 'inchi'
+            elif len(string.strip().split()) == 1 and cls._check_smi(string, at_strs):
                 return 'smi'
             elif allow_names:
                 return 'name'
@@ -6076,6 +6083,7 @@ class Molecule(AbstractMolecule):
         """
         return {
             "smi": cls._from_smiles,
+            "inchi": cls._from_inchi,
             "name": cls._from_name,
             "mol": cls._from_molblock,
             "sdf": cls._from_sdf,
@@ -6227,6 +6235,24 @@ class Molecule(AbstractMolecule):
         rdmol = mol.rdmol
         if rdmol is not None:
             return rdmol.to_smiles(**opts)
+        else:
+            raise ValueError(f"couldn't get `rdmol` for {mol}")
+
+    @classmethod
+    def _to_inchi(cls, mol, **opts):
+        """Export a molecule as an InChI string via RDKit."""
+        rdmol = mol.rdmol
+        if rdmol is not None:
+            return rdmol.to_inchi(**opts)
+        else:
+            raise ValueError(f"couldn't get `rdmol` for {mol}")
+
+    @classmethod
+    def _to_inchi_key(cls, mol, **opts):
+        """Export a molecule as an InChIKey via RDKit."""
+        rdmol = mol.rdmol
+        if rdmol is not None:
+            return rdmol.to_inchi_key(**opts)
         else:
             raise ValueError(f"couldn't get `rdmol` for {mol}")
 
@@ -6424,6 +6450,8 @@ class Molecule(AbstractMolecule):
         """
         return {
             "smi": cls._to_smiles,
+            "inchi": cls._to_inchi,
+            "inchi_key": cls._to_inchi_key,
             "mol": cls._to_molblock,
             "sdf": cls._to_sdf,
             "pdb": cls._to_pdb,
