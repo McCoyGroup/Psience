@@ -1248,6 +1248,54 @@ class NonlinearTests(TestCase):
         self.assertIn('AnalyticVPTRunner', str(ctx.exception))
 
     @validationTest
+    def test_PrepVptResponseDataDispatchesLogFilesByContent(self):
+        """
+        Regression test for `prep_vpt_response_data`'s `isinstance(system, str)` branch,
+        which merges `prep_vpt_response_data_from_log` into the main entry point so a saved
+        run log can be handed to either function -- but `system` being a string is *not* by
+        itself enough to tell "this is a saved VPT run log" apart from "this is a molecule
+        spec path", which is the far more common case (every `fchk`-based test in this file
+        passes such a string). Both are ordinary text files with no distinguishing extension
+        -- a quantum-chemistry package's own frequency-job output is routinely a `.log` file
+        too, exactly like a `VPTRunner`/`AnalyticVPTRunner` run log. `_looks_like_vpt_runner_log`
+        disambiguates by content instead (the classic runner's wrapping banner, or the
+        analytic runner's top-level `"Running VPT"` section -- see its docstring), and this
+        checks all three cases: a classic-format log dispatches through to
+        `prep_vpt_response_data_from_log` and matches it exactly, an analytic-format log
+        raises the same clear `ValueError` `prep_vpt_response_data_from_log` always has
+        (rather than silently misparsing it), and a molecule-spec string (an `.fchk` path,
+        the same kind of string every other `prep_vpt_response_data` test in this file
+        passes) is *not* misdetected as a log and still runs VPT normally.
+        """
+        try:
+            from Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data, prep_vpt_response_data_from_log
+        except ImportError:
+            from Psience.Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data, prep_vpt_response_data_from_log
+
+        classic_log = TestManager.test_data('water_vpt_classic.log')
+        analytic_log = TestManager.test_data('water_vpt_analytic.log')
+
+        dispatched = prep_vpt_response_data(classic_log)
+        direct = prep_vpt_response_data_from_log(classic_log)
+        self.assertEqual(set(dispatched.keys()), set(direct.keys()))
+        for key in dispatched:
+            self.assertEqual(dispatched[key]['frequency'], direct[key]['frequency'])
+
+        with self.assertRaises(ValueError) as ctx:
+            prep_vpt_response_data(analytic_log)
+        self.assertIn('AnalyticVPTRunner', str(ctx.exception))
+
+        # a molecule-spec string must NOT be misdetected as a run log and diverted into
+        # `prep_vpt_response_data_from_log` -- this is the exact regression this test guards
+        # against, since a naive `isinstance(system, str)` dispatch (with no content check)
+        # would send this down that path and fail
+        fchk = TestManager.test_data('water_freq.fchk')
+        transition_dict = prep_vpt_response_data(fchk, max_quanta=1)
+        ground_state = (0, 0, 0)
+        fundamentals = [sj for (si, sj) in transition_dict if si == ground_state and sum(sj) == 1]
+        self.assertEqual(len(fundamentals), 3)
+
+    @validationTest
     def test_VPTResponseDataAnalyticSavedToTestData(self):
         """
         Exercises `prep_vpt_response_data(..., use_analytic=True)`'s
@@ -1371,3 +1419,190 @@ class NonlinearTests(TestCase):
             ))
         self.assertEqual(int(np.argmax(diag_vals)), int(np.argmax(tm_norms)))
         self.assertGreater(diag_vals[int(np.argmax(tm_norms))], 1e-9)
+
+    @validationTest
+    def test_AnalyticVPTLogParserStateLabelConvention(self):
+        """
+        Regression test for `AnalyticVPTLogParser.parse_state_label`'s mode-index
+        convention. `AnalyticVPTRunner` logs print states as `"k(q)"` tokens (mode
+        position `k`, quanta `q`) using `StateMaker`'s default `mode='low-high'`
+        numbering, which counts positions from the END of the excitation tuple
+        (`Psience/BasisReps/Util.py`) -- i.e. printed position `k` maps to tuple
+        index `ndim - k`, NOT the naively-expected `k - 1`. This was originally
+        gotten wrong (as a plain `k - 1` mapping) and only caught by comparing
+        reconstructed frequencies against `water_freq_response_analytic.json`,
+        where the two water OH-stretch fundamentals came out swapped.
+
+        Checked directly against `water_vpt_analytic.log`'s own printed labels:
+        for the 3-mode water system used there, `"3(1)"` is the 1572.7 cm^-1
+        bend fundamental, which is classic-convention tuple `(1, 0, 0)` -- the
+        *first* mode, not the third.
+        """
+        try:
+            from Psience.VPT2.Analyzer import AnalyticVPTLogParser
+        except ImportError:
+            from Psience.Psience.VPT2.Analyzer import AnalyticVPTLogParser
+
+        parse = lambda lbl: AnalyticVPTLogParser.parse_state_label(lbl, ndim=3)
+
+        self.assertEqual(parse("()"), (0, 0, 0))
+        self.assertEqual(parse("3(1)"), (1, 0, 0))
+        self.assertEqual(parse("2(1)"), (0, 1, 0))
+        self.assertEqual(parse("1(1)"), (0, 0, 1))
+        self.assertEqual(parse("1(2)"), (0, 0, 2))
+        self.assertEqual(parse("3(1)1(1)"), (1, 0, 1))
+
+    @validationTest
+    def test_AnalyticVPTLogParserMatchesGroundTruth(self):
+        """
+        Exercises `AnalyticVPTLogParser` directly (not through
+        `prep_vpt_response_data_from_log`, which only supports classic-format
+        logs -- see `test_VPTResponseDataFromLogRejectsAnalyticLog`) against the
+        checked-in `water_vpt_analytic.log` fixture, reconstructing a
+        `transition_dict`-shaped mapping from its `spectra`/
+        `transition_moment_corrections` properties and checking it reproduces
+        `water_freq_response_analytic.json` exactly for all 19 known transitions.
+
+        This is the direct regression test for the two format quirks specific
+        to the analytic log (neither of which has any precedent in the classic
+        parser): the mode-index convention covered by
+        `test_AnalyticVPTLogParserStateLabelConvention` above, and the fact
+        that analytic-format per-initial-state tables never include a diagonal
+        self-transition row, so the initial state must be read directly off
+        each sub-block's own header rather than inferred by elimination the
+        way `prep_vpt_response_data_from_log` does for classic logs.
+        """
+        try:
+            from Psience.VPT2.Analyzer import AnalyticVPTLogParser
+        except ImportError:
+            from Psience.Psience.VPT2.Analyzer import AnalyticVPTLogParser
+
+        log_file = TestManager.test_data('water_vpt_analytic.log')
+        gt_file = TestManager.test_data('water_freq_response_analytic.json')
+
+        parser = AnalyticVPTLogParser(log_file)
+        specs = parser.spectra
+        tms = parser.transition_moment_corrections
+        if isinstance(specs, dict):
+            specs = [specs]
+        if isinstance(tms, dict):
+            tms = [tms]
+
+        ndim = 3
+        parse = lambda lbl: AnalyticVPTLogParser.parse_state_label(lbl, ndim=ndim)
+
+        transition_dict = {}
+        for sb, tb in zip(specs, tms):
+            self.assertEqual(sb['initial_state'], tb['initial_state'])
+            init_state = parse(sb['initial_state'])
+            final_labels = sb['states']
+            freqs = sb['anharmonic'][:, 0]
+            # match transition moments to final states by label rather than by
+            # position, and skip non-positive "frequencies" (the block for a
+            # given initial state can list transitions back down to lower
+            # states, which aren't physical absorptions); when the same
+            # (initial, final) pair shows up in more than one block, keep
+            # whichever was found first, same as `prep_vpt_response_data_from_log`
+            # does for the classic format
+            tm_lookup = {lbl: tm for lbl, tm in zip(tb['states'], tb['transition_moment'])}
+            for lbl, freq in zip(final_labels, freqs):
+                if freq <= 0:
+                    continue
+                key = (init_state, parse(lbl))
+                if key in transition_dict:
+                    continue
+                transition_dict[key] = {
+                    'frequency': freq,
+                    'transition_moment': tm_lookup[lbl],
+                }
+
+        self.assertEqual(len(transition_dict), 19)
+
+        with open(gt_file) as f:
+            gt_records = json.load(f)
+        gt_dict = {
+            (tuple(rec['state'][0]), tuple(rec['state'][1])): rec
+            for rec in gt_records
+        }
+        self.assertEqual(set(transition_dict.keys()), set(gt_dict.keys()))
+
+        for key, data in transition_dict.items():
+            gt_rec = gt_dict[key]
+            self.assertAlmostEqual(data['frequency'], gt_rec['frequency'], places=3)
+            tm = np.asarray(data['transition_moment'])
+            tm_gt = np.asarray(gt_rec['transition_moment'])
+            # allow the same overall sign ambiguity tolerated elsewhere when comparing
+            # independently-reconstructed transition moments
+            self.assertLess(
+                min(np.max(np.abs(tm - tm_gt)), np.max(np.abs(tm + tm_gt))),
+                1e-5,
+                msg=f"transition moment mismatch for {key}"
+            )
+
+    @validationTest
+    def test_VPTResultsLoaderDetectsAnalyticLog(self):
+        """
+        Regression test for the classic-vs-analytic log sniffing added to
+        `VPTResultsLoader.resolve_file_res_type` so that `VPTAnalyzer(path)`
+        can dispatch to the right parser without the caller having to say
+        which kind of log it is. Both `water_vpt_classic.log` and
+        `water_vpt_analytic.log` are plain-text logs with no distinguishing
+        file extension, so the two are told apart by sniffing for the classic
+        runner's wrapping `"Starting Perturbation Theory Runner"` banner line,
+        which only the classic format ever prints.
+        """
+        try:
+            from Psience.VPT2.Analyzer import VPTResultsLoader, VPTResultsSource
+        except ImportError:
+            from Psience.Psience.VPT2.Analyzer import VPTResultsLoader, VPTResultsSource
+
+        classic_log = TestManager.test_data('water_vpt_classic.log')
+        analytic_log = TestManager.test_data('water_vpt_analytic.log')
+
+        self.assertEqual(
+            VPTResultsLoader.resolve_file_res_type(classic_log),
+            VPTResultsSource.LogFile
+        )
+        self.assertEqual(
+            VPTResultsLoader.resolve_file_res_type(analytic_log),
+            VPTResultsSource.AnalyticLogFile
+        )
+
+    @validationTest
+    def test_VPTAnalyzerAnalyticLogWiring(self):
+        """
+        End-to-end test that `AnalyticVPTLogParser` is properly slotted into
+        the `VPTResultsLoader`/`VPTResultsSource`/`VPTAnalyzer` dispatch
+        framework the same way `VPTAnalyzerLogParser` is for classic logs:
+        `VPTAnalyzer(analytic_log_path)` should transparently detect the
+        analytic format, build an `AnalyticVPTLogParser`, and serve
+        `spectrum`/`zero_order_spectrum`/`log_parser` off of it -- while every
+        dispatcher that `AnalyticVPTLogParser` doesn't yet implement (only the
+        2D-IR-relevant spectrum/transition-moment data is implemented for now)
+        raises a clear `NotImplementedError("TBD")` rather than a bare
+        `KeyError` from the dispatcher falling through with no registration.
+        """
+        try:
+            from Psience.VPT2.Analyzer import VPTAnalyzer, VPTResultsSource, AnalyticVPTLogParser
+        except ImportError:
+            from Psience.Psience.VPT2.Analyzer import VPTAnalyzer, VPTResultsSource, AnalyticVPTLogParser
+
+        analytic_log = TestManager.test_data('water_vpt_analytic.log')
+        analyzer = VPTAnalyzer(analytic_log)
+
+        self.assertEqual(analyzer.loader.res_type, VPTResultsSource.AnalyticLogFile)
+        self.assertIsInstance(analyzer.loader.data, AnalyticVPTLogParser)
+        self.assertIsInstance(analyzer.log_parser, AnalyticVPTLogParser)
+
+        spec = analyzer.spectrum
+        zero_order_spec = analyzer.zero_order_spectrum
+        self.assertEqual(len(spec.frequencies), 3)
+        self.assertEqual(len(zero_order_spec.frequencies), 3)
+        # anharmonic corrections should shift the fundamentals down from their
+        # harmonic values, same sanity check the classic-format tests rely on
+        self.assertTrue(np.all(spec.frequencies < zero_order_spec.frequencies))
+
+        for dispatcher_name in ("potential_terms", "kinetic_terms", "dipole_terms",
+                                 "basis", "degenerate_energies"):
+            with self.assertRaises(NotImplementedError, msg=dispatcher_name):
+                getattr(analyzer, dispatcher_name)

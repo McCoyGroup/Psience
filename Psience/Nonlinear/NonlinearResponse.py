@@ -20,8 +20,7 @@ __all__ = [
     "liouville_pathways",
     "nonlinear_response_generators",
     "experimental_response_generator",
-    "prep_vpt_response_data",
-    "prep_vpt_response_data_from_log"
+    "prep_vpt_response_data"
 ]
 
 def nested_commutator_expansion(k, side='left'):
@@ -359,6 +358,42 @@ def _prep_vpt_target_states(freqs, target_states=None, max_freq=None, max_quanta
         state_list.insert(0, ground_state)
     return state_list
 
+def _looks_like_vpt_runner_log(path):
+    """
+    **LLM Docstring**
+
+    Sniffs whether `path` is a saved text log written by one of this module's own VPT
+    runners (`VPTRunner`/`AnalyticVPTRunner`, via their `logger=<path>` option) rather than
+    a molecule/system spec -- the other thing a string `system` argument to
+    `prep_vpt_response_data` can legitimately be. Both are plain text files with no
+    distinguishing extension (a quantum-chemistry package's own frequency-job output is
+    routinely named `something.log`, exactly like a `VPTRunner` log), so this checks for the
+    literal banner text each runner's log actually contains instead: the classic `VPTRunner`
+    wraps its whole run in a single `">>--- Starting Perturbation Theory Runner ---<<"`
+    block (see `VPTAnalyzerLogParser.tree`), and `AnalyticVPTRunner` always logs a top-level
+    `">>--- ... Running VPT ... ---"` section (see `AnalyticVPTLogParser.tree`) -- neither
+    of which would plausibly appear by coincidence in a molecule spec file.
+
+    Any error reading `path` as text (a missing file, a directory, a binary/non-text file
+    such as a checkpoint) is treated as "not a VPT runner log" and returns `False`, so a bad
+    path falls through to the normal molecule-spec handling in `prep_vpt_response_data` and
+    fails there with a more relevant error instead of a confusing one from this sniff.
+
+    :param path: the path to check
+    :type path: str
+    :return: whether `path` looks like a `VPTRunner`/`AnalyticVPTRunner` log
+    :rtype: bool
+    """
+    try:
+        with open(path, 'r') as woof:
+            content = woof.read()
+    except (OSError, UnicodeDecodeError, ValueError):
+        return False
+    return (
+        "Starting Perturbation Theory Runner" in content
+        or "Running VPT" in content
+    )
+
 def prep_vpt_response_data(system,
                             max_freq=None,
                             max_quanta=2,
@@ -483,6 +518,24 @@ def prep_vpt_response_data(system,
         or `(transition_dict, wfns)` if `return_wavefunctions` is set
     :rtype: dict | tuple[dict, 'VPTWavefunctions' | 'AnalyticPerturbationTheoryCorrections']
     """
+
+    if isinstance(system, str) and _looks_like_vpt_runner_log(system):
+        # `system` can legitimately be a string in two very different senses: a molecule/
+        # system spec path (an `.fchk`, or a quantum-chemistry package's own frequency-job
+        # `.log`, handed to `VPTSystem` below) or the path to a text log *this module's own
+        # VPT runners* previously wrote out (via `VPTRunner`/`AnalyticVPTRunner`'s
+        # `logger=<path>` -- see `prep_vpt_response_data_from_log`). Both are ordinary text
+        # files with no distinguishing extension (a Gaussian frequency-job output and a
+        # `VPTRunner` log are both commonly named `*.log`), so a bare `isinstance(system,
+        # str)` can't tell them apart -- it would send every molecule-spec path (which is by
+        # far the common case; see e.g. every `prep_vpt_response_data(fchk, ...)` call in
+        # `ci/tests/NonlinearTests.py`) through `prep_vpt_response_data_from_log` instead of
+        # running VPT on it. `_looks_like_vpt_runner_log` sniffs the file's content for the
+        # banner text only a saved run log (of either kind) actually contains, so a molecule
+        # spec still falls through to the normal path below.
+        return prep_vpt_response_data_from_log(system,
+                                               max_freq=max_freq,
+                                               initial_quanta=initial_quanta)
 
     if output_file is not None and not overwrite and os.path.isfile(output_file):
         with open(output_file, 'r') as woof:
@@ -687,8 +740,30 @@ def prep_vpt_response_data_from_log(log_file, max_freq=None, initial_quanta=(0, 
     :rtype: dict
     """
     from ..VPT2 import VPTAnalyzer
+    from ..VPT2.Analyzer import VPTResultsSource
 
     analyzer = VPTAnalyzer(log_file)
+
+    # `VPTResultsLoader.resolve_file_res_type` now sniffs plain-text logs and correctly
+    # tells an `AnalyticVPTRunner` log apart from a classic one (see
+    # `claude_drafts/analytic_vpt_log_parser.patch`), building an `AnalyticVPTLogParser`
+    # for it instead of a `VPTAnalyzerLogParser`. That parser handles the analytic log's
+    # own format just fine -- it just returns data shaped differently (a flat
+    # `'transition_moment'` array per block rather than per-axis `'corrections'` dicts)
+    # than what the rest of this function (written only for the classic format) expects.
+    # So the detection this function relies on below -- catching `IndexError`/`KeyError`
+    # from a parser choking on the wrong format -- no longer fires for analytic logs,
+    # since parsing them no longer fails; it just succeeds with an incompatible shape.
+    # Check the resolved source directly instead, and keep raising the same clear,
+    # actionable `ValueError` this function has always raised for analytic logs.
+    if analyzer.loader.res_type == VPTResultsSource.AnalyticLogFile:
+        raise ValueError(
+            "'{}' is an `AnalyticVPTRunner` log, which this function does not support -- "
+            "it only reconstructs a transition_dict from a classic `VPTRunner` log "
+            "(see `AnalyticVPTLogParser` for reading 2D-IR-relevant data directly out of "
+            "an `AnalyticVPTRunner` log instead)".format(log_file)
+        )
+
     parser = analyzer.log_parser
 
     try:

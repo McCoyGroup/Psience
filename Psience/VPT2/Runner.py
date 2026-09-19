@@ -3374,6 +3374,7 @@ class AnalyticVPTRunner:
                  disallowed_coefficients=None,
                  allowed_energy_changes=None,
                  intermediate_normalization=None,
+                 polynomial_representation='eager',
                  local_mode_couplings=None,
                  local_mode_coupling_order=None,
                  parallelizer=None
@@ -3438,7 +3439,8 @@ class AnalyticVPTRunner:
                     allowed_coefficients=allowed_coefficients,
                     disallowed_coefficients=disallowed_coefficients,
                     allowed_energy_changes=allowed_energy_changes,
-                    intermediate_normalization=intermediate_normalization
+                    intermediate_normalization=intermediate_normalization,
+                    polynomial_representation=polynomial_representation
                 ),
                 expansions,
                 freqs=freqs,
@@ -3473,6 +3475,7 @@ class AnalyticVPTRunner:
                          allowed_energy_changes=None,
                          take_diagonal_v4_terms=True,
                          intermediate_normalization=None,
+                         polynomial_representation='eager',
                          corrected_fundamental_frequencies=None,
                          **opts):
         """
@@ -3540,6 +3543,7 @@ class AnalyticVPTRunner:
             disallowed_coefficients=disallowed_coefficients,
             allowed_energy_changes=allowed_energy_changes,
             intermediate_normalization=intermediate_normalization,
+            polynomial_representation=polynomial_representation,
             local_mode_couplings=ham.local_mode_couplings,
             local_mode_coupling_order=ham.local_mode_coupling_order
         )
@@ -3559,6 +3563,7 @@ class AnalyticVPTRunner:
                   degeneracy_specs=None,
                   corrected_fundamental_frequencies=None,
                   parallelizer=None,
+                  polynomial_representation='eager',
                   **settings
                   ) -> "(AnalyticVPTRunner, VPTMultiStateSpace)":
             """
@@ -3617,6 +3622,7 @@ class AnalyticVPTRunner:
                 allowed_coefficients=allowed_coefficients,
                 disallowed_coefficients=disallowed_coefficients,
                 allowed_energy_changes=allowed_energy_changes,
+                polynomial_representation=polynomial_representation,
                 intermediate_normalization=opts.get('intermediate_normalization', None),
                 corrected_fundamental_frequencies=corrected_fundamental_frequencies
             )
@@ -3648,6 +3654,7 @@ class AnalyticVPTRunner:
                   disallowed_coefficients=None,
                   allowed_energy_changes=None,
                   expressions_file=None,
+                  polynomial_representation='eager',
                   **settings):
         """
         **LLM Docstring**
@@ -3689,7 +3696,8 @@ class AnalyticVPTRunner:
             allowed_terms=allowed_terms,
             allowed_coefficients=allowed_coefficients,
             disallowed_coefficients=disallowed_coefficients,
-            allowed_energy_changes=allowed_energy_changes
+            allowed_energy_changes=allowed_energy_changes,
+            polynomial_representation=polynomial_representation
         )
 
     def construct_classic_runner(self,
