@@ -135,6 +135,17 @@ class AnalyticDAGTests(unittest.TestCase):
                     polynomial_representation=representation
                 )
                 expressions[representation] = builder(solver).expr
+                if representation == 'path' and isinstance(
+                        expressions[representation], Analytic.SqrtChangePoly
+                ):
+                    self.assertIsInstance(
+                        expressions[representation].poly_obj,
+                        Analytic.PTTensorCoeffProductDAG
+                    )
+                    self.assertEqual(
+                        Analytic.PTTensorCoeffProductDAG.cache_info()['tensor_materializations'],
+                        0
+                    )
             with self.subTest(name=name):
                 self.assertPolynomialEqual(expressions['eager'], expressions['path'])
 
@@ -187,6 +198,38 @@ class AnalyticDAGTests(unittest.TestCase):
             values['eager'], values['path'], rtol=2e-12, atol=2e-12
         )
 
+        tensor_dag = evaluators['path'].expr.poly_obj
+        materialized = tensor_dag.to_eager()
+        materialization_count = Analytic.PTTensorCoeffProductDAG.cache_info()[
+            'tensor_materializations'
+        ]
+        self.assertIs(tensor_dag.to_eager(), materialized)
+        self.assertEqual(
+            Analytic.PTTensorCoeffProductDAG.cache_info()['tensor_materializations'],
+            materialization_count
+        )
+
+        excluded_operator = next(iter(tensor_dag.operator_keys))
+        pruned_eager = materialized.prune_operators([excluded_operator])
+        pruned_dag = tensor_dag.prune_operators([excluded_operator]).to_eager()
+        self.assertPolynomialEqual(pruned_eager, pruned_dag)
+
+    def test_fourth_order_derivation_stays_lazy(self):
+        Analytic.AnalyticPerturbationTheorySolver.clear_caches()
+        solver = Analytic.AnalyticPerturbationTheorySolver.from_order(
+            6,
+            polynomial_representation='path'
+        )
+        expression = solver.energy_correction(4)([]).expr
+        self.assertIsInstance(
+            expression.poly_obj,
+            Analytic.PTTensorCoeffProductDAG
+        )
+        cache_info = solver.polynomial_cache_info()
+        self.assertEqual(cache_info['tensor_materializations'], 0)
+        self.assertEqual(cache_info['axis_materializations'], 0)
+        self.assertLess(cache_info['tensor_nodes'], 50000)
+
     def test_path_is_default_and_eager_remains_selectable(self):
         solver = Analytic.AnalyticPerturbationTheorySolver.from_order(3)
         self.assertEqual(solver.polynomial_representation, 'path')
@@ -202,6 +245,7 @@ class AnalyticDAGTests(unittest.TestCase):
         )
 
     def test_path_checkpoint_roundtrip(self):
+        Analytic.AnalyticPerturbationTheorySolver.clear_caches()
         with tempfile.TemporaryDirectory() as tmpdir:
             checkpoint = os.path.join(tmpdir, 'analytic-path.hdf5')
             solver = Analytic.AnalyticPerturbationTheorySolver.from_order(
@@ -210,6 +254,10 @@ class AnalyticDAGTests(unittest.TestCase):
                 polynomial_representation='path'
             )
             original = solver.energy_correction(2)([])
+            self.assertEqual(
+                Analytic.PTTensorCoeffProductDAG.cache_info()['tensor_materializations'],
+                0
+            )
 
             restored_solver = Analytic.AnalyticPerturbationTheorySolver.from_order(
                 4,
@@ -218,6 +266,10 @@ class AnalyticDAGTests(unittest.TestCase):
             )
             restored = restored_solver.energy_correction(2)([])
             self.assertTrue(Analytic.polynomial_uses_path(restored.expr))
+            self.assertIsInstance(
+                restored.expr.poly_obj,
+                Analytic.PTTensorCoeffProductDAG
+            )
             self.assertPolynomialEqual(original.expr, restored.expr)
 
 

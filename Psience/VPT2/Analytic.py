@@ -2,7 +2,7 @@
 Provides a symbolic approach to vibrational perturbation theory based on a Harmonic description
 """
 
-import abc, itertools, collections, enum, math, weakref
+import abc, itertools, collections, enum, math, pickle, weakref
 import contextlib
 import functools
 
@@ -29,6 +29,7 @@ __all__ = [
     'PolyAxis',
     'PolyTerm',
     'PolyPath',
+    'PTTensorCoeffProductDAG',
     # 'AnalyticPerturbationTheoryDriver',
     # 'AnalyticPTCorrectionGenerator',
     # 'RaisingLoweringClasses'
@@ -282,13 +283,15 @@ class AnalyticPerturbationTheorySolver:
         PerturbationTheoryExpressionEvaluator._poly_cache = PerturbationTheoryExpressionEvaluator.get_cache()
         PerturbationTheoryExpressionEvaluator._ecoeff_cache = PerturbationTheoryExpressionEvaluator.get_cache()
         PolyPath.clear_caches()
+        PTTensorCoeffProductDAG.clear_caches()
 
     def polynomial_cache_info(self):
         """Return backend-specific counters useful for path/eager timing comparisons."""
         return {
             'representation': self.polynomial_representation,
             'product_results': len(PerturbationTheoryTermProduct._poly_product_cache),
-            **PolyPath.cache_info()
+            **PolyPath.cache_info(),
+            **PTTensorCoeffProductDAG.cache_info()
         }
 
 
@@ -398,6 +401,9 @@ class PolyAtom:
     def __eq__(self, other):
         return self is other or isinstance(other, type(self)) and self._key == other._key
 
+    def __reduce__(self):
+        return type(self), (self._base_coeffs, self.shift)
+
 
 class PolyAxis:
     """A canonical product of :class:`PolyAtom` objects along one mode."""
@@ -441,6 +447,9 @@ class PolyAxis:
     def __eq__(self, other):
         return self is other or isinstance(other, type(self)) and self.atoms == other.atoms
 
+    def __reduce__(self):
+        return type(self), (self.atoms,)
+
 
 class PolyTerm:
     """One separable product in a :class:`PolyPath` sum."""
@@ -470,6 +479,9 @@ class PolyTerm:
             and self.steps == other.steps
             and self.axes == other.axes
         )
+
+    def __reduce__(self):
+        return type(self), (self.axes, self.steps)
 
 class TreeSerializer:
     @classmethod
@@ -3845,6 +3857,451 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
         else:
             return other.mul_simple(self)
 
+
+class PTTensorCoeffProductDAG(PTTensorCoeffProductSum):
+    """Lazy, canonical operation DAG for tensor-coefficient expressions.
+
+    Leaves retain the existing dictionary-backed ``PTTensorCoeffProductSum``.
+    Algebra builds immutable nodes and materializes the legacy representation
+    only at compatibility boundaries such as serialization or the current
+    tensor evaluator.  Materialization is cached on every node, so repeated
+    evaluation never replays the derivation tree.
+    """
+
+    _node_cache = weakref.WeakValueDictionary()
+    _node_requests = 0
+    _node_hits = 0
+    _materializations = 0
+
+    def __init__(self, node, ndim=None, reduced=False):
+        self._node = node
+        self._ndim = ndim
+        self._inds_map = {}
+        self.reduced = reduced
+        self.prefactor = 1
+        self._eager = None
+        self._hash = None
+        self._operator_keys = None
+
+    @staticmethod
+    def _freeze(arg):
+        if isinstance(arg, np.ndarray):
+            return tuple(PTTensorCoeffProductDAG._freeze(x) for x in arg.tolist())
+        if isinstance(arg, dict):
+            return tuple(sorted(
+                (
+                    PTTensorCoeffProductDAG._freeze(key),
+                    PTTensorCoeffProductDAG._freeze(value)
+                )
+                for key, value in arg.items()
+            ))
+        if isinstance(arg, (set, frozenset)):
+            return tuple(sorted(PTTensorCoeffProductDAG._freeze(x) for x in arg))
+        if isinstance(arg, list):
+            return tuple(PTTensorCoeffProductDAG._freeze(x) for x in arg)
+        if isinstance(arg, tuple):
+            return tuple(PTTensorCoeffProductDAG._freeze(x) for x in arg)
+        return arg
+
+    @classmethod
+    def from_sum(cls, expression):
+        if isinstance(expression, cls):
+            return expression
+        if not isinstance(expression, PTTensorCoeffProductSum):
+            raise TypeError("can't make a tensor DAG from {}".format(type(expression)))
+        return cls(('leaf', expression), ndim=expression.ndim, reduced=expression.reduced)
+
+    @classmethod
+    def _from_node(cls, kind, args, ndim=None, reduced=False):
+        args = cls._freeze(args)
+        cls._node_requests += 1
+        key = (kind, args, ndim, reduced)
+        node = cls._node_cache.get(key)
+        if node is None:
+            node = cls((kind,) + args, ndim=ndim, reduced=reduced)
+            cls._node_cache[key] = node
+        else:
+            cls._node_hits += 1
+        return node
+
+    @classmethod
+    def clear_caches(cls):
+        cls._node_cache.clear()
+        cls._node_requests = 0
+        cls._node_hits = 0
+        cls._materializations = 0
+
+    @classmethod
+    def cache_info(cls):
+        return {
+            'tensor_nodes': len(cls._node_cache),
+            'tensor_node_requests': cls._node_requests,
+            'tensor_node_hits': cls._node_hits,
+            'tensor_materializations': cls._materializations
+        }
+
+    @property
+    def terms(self):
+        eager = self.to_eager()
+        return {} if nput.is_numeric(eager) else eager.terms
+
+    @property
+    def ndim(self):
+        if self._ndim is None:
+            self._ndim = self.to_eager().ndim
+        return self._ndim
+
+    @property
+    def operator_keys(self):
+        if self._operator_keys is None:
+            kind, *args = self._node
+            if kind == 'leaf':
+                self._operator_keys = frozenset(
+                    coefficient[:2]
+                    for product in args[0].terms
+                    for coefficient in product
+                )
+            else:
+                self._operator_keys = frozenset().union(*(
+                    arg.operator_keys
+                    for arg in args
+                    if isinstance(arg, type(self))
+                ))
+        return self._operator_keys
+
+    def __hash__(self):
+        if self._hash is None:
+            if self._node[0] == 'leaf':
+                self._hash = hash(('tensor_leaf', id(self._node[1])))
+            else:
+                self._hash = hash(self._node)
+        return self._hash
+
+    def __eq__(self, other):
+        if self is other:
+            return True
+        if not isinstance(other, type(self)) or self._node[0] != other._node[0]:
+            return False
+        if self._node[0] == 'leaf':
+            return self._node[1] is other._node[1]
+        return self._node == other._node
+
+    def __repr__(self):
+        return "TensorDAG({}; ndim={})".format(self._node[0], self._ndim)
+
+    def format_expr(self):
+        eager = self.to_eager()
+        return str(eager) if nput.is_numeric(eager) else eager.format_expr()
+
+    @staticmethod
+    def _coerce_eager(expression):
+        return expression.to_eager() if isinstance(expression, PTTensorCoeffProductDAG) else expression
+
+    def to_eager(self):
+        if self._eager is not None:
+            return self._eager
+
+        type(self)._materializations += 1
+        kind, *args = self._node
+        if kind == 'leaf':
+            eager = args[0]
+        elif kind == 'add':
+            left, right = args
+            left_eager, right_eager = left.to_eager(), right.to_eager()
+            if nput.is_zero(left_eager):
+                eager = right_eager
+            elif nput.is_zero(right_eager):
+                eager = left_eager
+            else:
+                eager = left_eager + right_eager
+        elif kind == 'scale':
+            child, scaling = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.scale(scaling)
+        elif kind == 'shift':
+            child, shift = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.shift(shift)
+        elif kind == 'shift_energies':
+            child, change = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.shift_energies(change)
+        elif kind == 'permute':
+            child, permutation, check_perm, allow_padding = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.permute(
+                    permutation,
+                    check_perm=check_perm,
+                    allow_padding=allow_padding
+                )
+        elif kind == 'ensure_dimension':
+            child, ndim = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.ensure_dimension(ndim)
+        elif kind == 'free_up_indices':
+            child, start, stop = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.free_up_indices(start, stop)
+        elif kind == 'flip_energy_terms':
+            eager = args[0].to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.flip_energy_terms()
+        elif kind == 'filter_coefficients':
+            child, terms, mode = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.filter_coefficients(terms, mode=mode)
+        elif kind == 'filter_energies':
+            child, terms, mode = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.filter_energies(terms, mode=mode)
+        elif kind == 'prune_operators':
+            child, ops = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.prune_operators(ops)
+        elif kind == 'combine':
+            child, combine_coeffs, combine_subterms, combine_energies = args
+            eager = child.to_eager()
+            if not nput.is_zero(eager):
+                eager = eager.combine(
+                    combine_coeffs=combine_coeffs,
+                    combine_subterms=combine_subterms,
+                    combine_energies=combine_energies
+                )
+        elif kind == 'mul_along':
+            (
+                left, right, inds, remainder, index_classes,
+                mapping, baseline
+            ) = args
+            left_eager = left.to_eager()
+            right_eager = self._coerce_eager(right)
+            if nput.is_zero(left_eager) or nput.is_zero(right_eager):
+                eager = 0
+            else:
+                eager = left_eager.mul_along(
+                    right_eager,
+                    inds,
+                    remainder=remainder,
+                    index_classes=index_classes,
+                    mapping=mapping,
+                    baseline=baseline
+                )
+        elif kind == 'rmul_along':
+            left, right, inds, remainder, mapping = args
+            left_eager = self._coerce_eager(left)
+            right_eager = right.to_eager()
+            if nput.is_zero(left_eager) or nput.is_zero(right_eager):
+                eager = 0
+            else:
+                eager = right_eager.rmul_along(
+                    left_eager,
+                    inds,
+                    remainder=remainder,
+                    mapping=mapping
+                )
+        elif kind == 'mul_simple':
+            left, right = args
+            left_eager = left.to_eager()
+            right_eager = self._coerce_eager(right)
+            eager = (
+                0 if nput.is_zero(left_eager) or nput.is_zero(right_eager) else
+                left_eager.mul_simple(right_eager)
+            )
+        elif kind == 'rmul_simple':
+            left, right = args
+            left_eager = self._coerce_eager(left)
+            right_eager = right.to_eager()
+            eager = (
+                0 if nput.is_zero(left_eager) or nput.is_zero(right_eager) else
+                right_eager.rmul_simple(left_eager)
+            )
+        else:
+            raise ValueError("unknown tensor DAG node {}".format(kind))
+
+        if isinstance(eager, PTTensorCoeffProductDAG):
+            eager = eager.to_eager()
+        self._eager = eager
+        return eager
+
+    def prep_serialization_dict(self):
+        return self.to_eager().prep_serialization_dict()
+
+    def mutate(self, terms=default, *, prefactor=default, ndim=default,
+               inds_map=default, canonicalize=default, reduced=default):
+        if terms is default:
+            expression = self
+        else:
+            expression = type(self).from_sum(PTTensorCoeffProductSum(
+                terms,
+                prefactor=1 if prefactor is default else prefactor,
+                canonicalize=True if canonicalize is default else canonicalize,
+                ndim=None if ndim is default else ndim,
+                inds_map=None if inds_map is default else inds_map,
+                reduced=False if reduced is default else reduced
+            ))
+        if prefactor is not default and terms is default:
+            expression = expression.scale(prefactor)
+        return expression
+
+    def audit(self, target=None, required_dimension=None, ignore_constants=True):
+        if target is not None and self._ndim is not None and self._ndim < target:
+            raise ValueError("too few tensor DAG indices for target {}".format(target))
+        return self
+
+    def get_inds(self, key):
+        if key not in self._inds_map:
+            self._inds_map[key] = self.coeff_product_inds(key)
+        return self._inds_map[key]
+
+    def ensure_dimension(self, ndim):
+        if self._ndim is not None and self._ndim >= ndim:
+            return self
+        return type(self)._from_node(
+            'ensure_dimension', (self, int(ndim)), ndim=ndim, reduced=self.reduced
+        )
+
+    def sort(self):
+        return self
+
+    def permute(self, new_inds, check_perm=True, allow_padding=False):
+        new_inds = tuple(int(i) for i in new_inds)
+        ndim = max(self.ndim, len(new_inds)) if allow_padding else self.ndim
+        return type(self)._from_node(
+            'permute', (self, new_inds, check_perm, allow_padding), ndim=ndim
+        )
+
+    def free_up_indices(self, start, stop):
+        return type(self)._from_node(
+            'free_up_indices', (self, int(start), int(stop)), ndim=self.ndim
+        )
+
+    def shift(self, shift):
+        shift = tuple(shift)
+        if len(shift) == 0 or not any(shift):
+            return self
+        return type(self)._from_node('shift', (self, shift), ndim=self.ndim)
+
+    def shift_energies(self, change):
+        change = tuple(change)
+        if len(change) == 0 or not any(change):
+            return self
+        return type(self)._from_node('shift_energies', (self, change), ndim=self.ndim)
+
+    def scale(self, scaling):
+        if nput.is_numeric(scaling):
+            if scaling == 0:
+                return 0
+            if scaling == 1:
+                return self
+        return type(self)._from_node('scale', (self, scaling), ndim=self.ndim)
+
+    def flip_energy_terms(self):
+        return type(self)._from_node('flip_energy_terms', (self,), ndim=self.ndim)
+
+    def _map_leaves(self, method, *args, **kwargs):
+        kind, *node_args = self._node
+        if kind == 'leaf':
+            transformed = getattr(node_args[0], method)(*args, **kwargs)
+            return type(self).from_sum(transformed)
+        mapped_args = tuple(
+            arg._map_leaves(method, *args, **kwargs)
+                if isinstance(arg, type(self)) else
+            arg
+            for arg in node_args
+        )
+        return type(self)._from_node(
+            kind, mapped_args, ndim=self._ndim, reduced=self.reduced
+        )
+
+    def filter_coefficients(self, terms, mode='match'):
+        return type(self)._from_node(
+            'filter_coefficients', (self, tuple(terms), mode), ndim=self.ndim
+        )
+
+    def filter_energies(self, terms, mode='match'):
+        return type(self)._from_node(
+            'filter_energies', (self, tuple(terms), mode), ndim=self.ndim
+        )
+
+    def prune_operators(self, ops):
+        return self._map_leaves('prune_operators', tuple(ops))
+
+    def combine(self, combine_coeffs=False, combine_subterms=True, combine_energies=False):
+        if self.reduced and not combine_coeffs and combine_subterms and not combine_energies:
+            return self
+        return type(self)._from_node(
+            'combine',
+            (self, combine_coeffs, combine_subterms, combine_energies),
+            ndim=self.ndim,
+            reduced=True
+        )
+
+    def mul_along(self, other, inds, remainder=None, index_classes=None,
+                  mapping=None, baseline=None):
+        if isinstance(other, PTTensorCoeffProductSum):
+            other = type(self).from_sum(other)
+            ndim = self.ndim + other.ndim - len(inds[0])
+        else:
+            ndim = self.ndim
+        return type(self)._from_node(
+            'mul_along',
+            (
+                self, other, inds, remainder, index_classes,
+                mapping, baseline
+            ),
+            ndim=ndim
+        )
+
+    def rmul_along(self, other, inds, remainder=None, mapping=None):
+        if isinstance(other, PTTensorCoeffProductSum):
+            return type(self).from_sum(other).mul_along(
+                self, inds, remainder=remainder, mapping=mapping
+            )
+        return type(self)._from_node(
+            'rmul_along', (other, self, inds, remainder, mapping), ndim=self.ndim
+        )
+
+    def mul_simple(self, other):
+        if isinstance(other, PTTensorCoeffProductSum):
+            other = type(self).from_sum(other)
+            ndim = self.ndim + other.ndim
+        else:
+            ndim = self.ndim
+        return type(self)._from_node('mul_simple', (self, other), ndim=ndim)
+
+    def rmul_simple(self, other):
+        if isinstance(other, PTTensorCoeffProductSum):
+            return type(self).from_sum(other).mul_simple(self)
+        return type(self)._from_node('rmul_simple', (other, self), ndim=self.ndim)
+
+    def __add__(self, other):
+        if nput.is_numeric(other):
+            if other == 0:
+                return self
+            raise NotImplementedError("non-zero scalar tensor addition")
+        other = type(self).from_sum(other)
+        return type(self)._from_node(
+            'add', (self, other), ndim=max(self.ndim, other.ndim)
+        )
+
+    def __radd__(self, other):
+        return self.__add__(other)
+
+    def __mul__(self, other):
+        return self.scale(other) if nput.is_numeric(other) else self.mul_simple(other)
+
+    def __rmul__(self, other):
+        return self.__mul__(other)
+
+
 class SqrtChangePoly(PolynomialInterface):
     def __init__(self, poly_obj:'PolynomialInterface', change, shift, canonicalize=False):
         if nput.is_numeric(poly_obj): raise ValueError("{} isn't a polynomial".format(poly_obj))
@@ -3881,6 +4338,19 @@ class SqrtChangePoly(PolynomialInterface):
 
     def to_state(self, serializer=None):
 
+        if isinstance(self.poly_obj, PTTensorCoeffProductDAG):
+            # The checkpoint is already handled through the serializer's
+            # pseudo-pickle protocol.  Keeping the DAG as one byte buffer also
+            # preserves cross-node sharing and avoids eager tensor expansion.
+            dag_buffer = np.frombuffer(
+                pickle.dumps(self.poly_obj, protocol=5), dtype=np.uint8
+            ).copy()
+            return {
+                'tensor_dag_v1': dag_buffer,
+                'change': list(self.poly_change),
+                'shift': list(self.shift_start)
+            }
+
         serial_dict = self.poly_obj.prep_serialization_dict()
 
         ordered_terms = []
@@ -3908,6 +4378,16 @@ class SqrtChangePoly(PolynomialInterface):
 
     @classmethod
     def from_state(cls, state, serializer=None):
+        if 'tensor_dag_v1' in state:
+            poly_obj = pickle.loads(
+                np.asanyarray(state['tensor_dag_v1'], dtype=np.uint8).tobytes()
+            )
+            return cls(
+                poly_obj,
+                state['change'],
+                state['shift'],
+                canonicalize=False
+            )
         trees = state['term_ordered_trees']
         full_dict = {}
         for subtree_data in trees:
@@ -4346,6 +4826,8 @@ def make_product_polynomial(coeffs, prefactor=1, idx=None, steps=None,
 def polynomial_uses_path(poly):
     if isinstance(poly, PolyPath):
         return True
+    if isinstance(poly, PTTensorCoeffProductDAG):
+        return True
     if isinstance(poly, SqrtChangePoly):
         return polynomial_uses_path(poly.poly_obj)
     if isinstance(poly, (PTEnergyChangeProductSum, PTTensorCoeffProductSum)):
@@ -4357,11 +4839,28 @@ def coerce_polynomial_representation(poly, representation):
     """Convert polynomial leaves while retaining tensor/energy/change wrappers."""
     if nput.is_numeric(poly):
         return poly
+    if isinstance(poly, PTTensorCoeffProductDAG):
+        if representation == 'path':
+            return poly
+        poly = poly.to_eager()
     if isinstance(poly, SqrtChangePoly):
         return poly.mutate(
             coerce_polynomial_representation(poly.poly_obj, representation)
         )
-    if isinstance(poly, (PTEnergyChangeProductSum, PTTensorCoeffProductSum)):
+    if isinstance(poly, PTTensorCoeffProductSum):
+        converted = poly.mutate(
+            {
+                key: coerce_polynomial_representation(subpoly, representation)
+                for key, subpoly in poly.terms.items()
+            },
+            canonicalize=False
+        )
+        return (
+            PTTensorCoeffProductDAG.from_sum(converted)
+                if representation == 'path' else
+            converted
+        )
+    if isinstance(poly, PTEnergyChangeProductSum):
         return poly.mutate(
             {
                 key: coerce_polynomial_representation(subpoly, representation)
@@ -7246,6 +7745,18 @@ class PerturbationTheoryExpressionEvaluator:
             ]
             for expansion in coeffs
         ]
+
+        if isinstance(expr, PTTensorCoeffProductDAG):
+            active_coefficients = {
+                (order, coefficient_type)
+                for expansion in coeffs
+                for order, order_expansion in enumerate(expansion)
+                for coefficient_type, coefficient in enumerate(order_expansion)
+                if not nput.is_zero(coefficient)
+            }
+            inactive_coefficients = expr.operator_keys.difference(active_coefficients)
+            if len(inactive_coefficients) > 0:
+                expr = expr.prune_operators(inactive_coefficients)
 
         # udegs, udeg_inv = np.unique(np.concatenate(degenerate_changes, axis=0), axis=0, return_inverse=True)
 
