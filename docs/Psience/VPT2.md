@@ -67,62 +67,84 @@ Finally, the general code flow is detailed below
 [VPTAnalyzer](VPT2/Analyzer/VPTAnalyzer.md)   
 </div>
    <div class="col" markdown="1">
+[VPTAnalyzerLogParser](VPT2/Analyzer/VPTAnalyzerLogParser.md)   
+</div>
+   <div class="col" markdown="1">
+[AnalyticVPTLogParser](VPT2/Analyzer/AnalyticVPTLogParser.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
 [PerturbationTheoryHamiltonian](VPT2/Hamiltonian/PerturbationTheoryHamiltonian.md)   
 </div>
    <div class="col" markdown="1">
 [PerturbationTheoryCorrections](VPT2/Corrections/PerturbationTheoryCorrections.md)   
 </div>
-</div>
-  <div class="row">
    <div class="col" markdown="1">
 [PerturbationTheorySolver](VPT2/Solver/PerturbationTheorySolver.md)   
 </div>
+</div>
+  <div class="row">
    <div class="col" markdown="1">
 [AnalyticPerturbationTheoryCorrections](VPT2/Corrections/AnalyticPerturbationTheoryCorrections.md)   
 </div>
    <div class="col" markdown="1">
 [PTCorrections](VPT2/Corrections/PTCorrections.md)   
 </div>
-</div>
-  <div class="row">
    <div class="col" markdown="1">
 [PerturbationTheoryWavefunctions](VPT2/Wavefunctions/PerturbationTheoryWavefunctions.md)   
 </div>
+</div>
+  <div class="row">
    <div class="col" markdown="1">
 [ExpansionTerms](VPT2/Terms/ExpansionTerms.md)   
 </div>
    <div class="col" markdown="1">
 [KineticTerms](VPT2/Terms/KineticTerms.md)   
 </div>
-</div>
-  <div class="row">
    <div class="col" markdown="1">
 [PotentialTerms](VPT2/Terms/PotentialTerms.md)   
 </div>
+</div>
+  <div class="row">
    <div class="col" markdown="1">
 [CoriolisTerm](VPT2/Terms/CoriolisTerm.md)   
 </div>
    <div class="col" markdown="1">
 [PotentialLikeTerm](VPT2/Terms/PotentialLikeTerm.md)   
 </div>
-</div>
-  <div class="row">
    <div class="col" markdown="1">
 [DipoleTerms](VPT2/Terms/DipoleTerms.md)   
 </div>
+</div>
+  <div class="row">
    <div class="col" markdown="1">
 [OperatorTerms](VPT2/Terms/OperatorTerms.md)   
 </div>
    <div class="col" markdown="1">
 [PerturbationTheoryEvaluator](VPT2/Analytic/PerturbationTheoryEvaluator.md)   
 </div>
-</div>
-  <div class="row">
    <div class="col" markdown="1">
 [AnalyticPerturbationTheorySolver](VPT2/Analytic/AnalyticPerturbationTheorySolver.md)   
 </div>
+</div>
+  <div class="row">
    <div class="col" markdown="1">
-   
+[PolyAtom](VPT2/Analytic/PolyAtom.md)   
+</div>
+   <div class="col" markdown="1">
+[PolyAxis](VPT2/Analytic/PolyAxis.md)   
+</div>
+   <div class="col" markdown="1">
+[PolyTerm](VPT2/Analytic/PolyTerm.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[PolyPath](VPT2/Analytic/PolyPath.md)   
+</div>
+   <div class="col" markdown="1">
+[PTTensorCoeffProductDAG](VPT2/Analytic/PTTensorCoeffProductDAG.md)   
 </div>
    <div class="col" markdown="1">
    
@@ -280,9 +302,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-827b55" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-827b55"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-4949e2" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-4949e2"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-827b55" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-4949e2" markdown="1">
  - [MultdiDegHOH](#MultdiDegHOH)
 - [HOHAnalytic](#HOHAnalytic)
 - [HOHLocal](#HOHLocal)
@@ -348,9 +370,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-8ddfd8" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-8ddfd8"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-000225" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-000225"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-8ddfd8" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-000225" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces

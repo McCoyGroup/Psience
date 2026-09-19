@@ -96,10 +96,11 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-8d6726" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-8d6726"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-653913" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-653913"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-8d6726" markdown="1">
- - [NormalModeRephasing](#NormalModeRephasing)
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-653913" markdown="1">
+ - [EmbeddedMoleculeOwnsCartesianSystem](#EmbeddedMoleculeOwnsCartesianSystem)
+- [NormalModeRephasing](#NormalModeRephasing)
 - [MolecularGMatrix](#MolecularGMatrix)
 - [ImportMolecule](#ImportMolecule)
 - [PrincipleAxisEmbedding](#PrincipleAxisEmbedding)
@@ -242,9 +243,9 @@ Molecules provides wrapper utilities for working with and visualizing molecular 
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-2b29f5" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-2b29f5"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-c928bd" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-c928bd"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-2b29f5" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-c928bd" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -322,6 +323,30 @@ class MolecoolsTests(TestCase):
 
  </div>
 </div>
+
+#### <a name="EmbeddedMoleculeOwnsCartesianSystem">EmbeddedMoleculeOwnsCartesianSystem</a>
+```python
+    def test_EmbeddedMoleculeOwnsCartesianSystem(self):
+        coords = np.array([
+            [0., 0., 0.],
+            [1., 0., 0.],
+            [0., 1., 0.],
+            [0., 0., 1.],
+            [1., 1., 0.],
+            [1., 0., 1.]
+        ])
+        source = Molecule(["C"] * len(coords), coords, bonds=[])
+        source_system = source.coords.system
+
+        embedded = source.get_embedded_molecule(sel=list(range(len(coords))))
+        self.assertIsNot(embedded.coords.system, source_system)
+
+        del source
+        gc.collect()
+
+        converted = embedded.coords.convert(CartesianCoordinates3D)
+        self.assertTrue(np.allclose(converted, embedded.coords))
+```
 
 #### <a name="NormalModeRephasing">NormalModeRephasing</a>
 ```python
