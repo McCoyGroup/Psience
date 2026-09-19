@@ -1,5 +1,7 @@
 import collections
 import itertools
+import os
+import json
 import numpy as np
 import scipy.fft
 import enum
@@ -15,7 +17,8 @@ import McUtils.Combinatorics as comb
 __all__ = [
     "liouville_pathways",
     "nonlinear_response_generators",
-    "experimental_response_generator"
+    "experimental_response_generator",
+    "prep_vpt_response_data"
 ]
 
 def nested_commutator_expansion(k, side='left'):
@@ -251,6 +254,201 @@ def prep_nonlinear_transition_data(transition_dict: dict,
                 break
 
     return TransitionData(states, frequencies, transition_moments, couplings)
+
+def _vpt_response_data_to_records(transition_dict):
+    """
+    Converts a `transition_dict` (as returned by `prep_vpt_response_data`) into
+    a JSON-serializable list of records, one per transition, each of the form
+    `{"state": [state_i, state_j], "frequency": ..., "transition_moment": [...], ...}`
+    -- i.e. the `(state_i, state_j)` dict key gets folded into the record itself
+    under a `"state"` key rather than kept as a (non-JSON-safe) tuple key.
+
+    :param transition_dict: mapping of `(state_i, state_j)` state-vector tuples to
+        per-transition data (at least `frequency` and `transition_moment`)
+    :type transition_dict: dict
+    :return: a list of JSON-safe transition records
+    :rtype: list[dict]
+    """
+    records = []
+    for (si, sj), data in transition_dict.items():
+        rec = dict(data)
+        if 'transition_moment' in rec and rec['transition_moment'] is not None:
+            rec['transition_moment'] = np.asarray(rec['transition_moment']).tolist()
+        if 'frequency' in rec and rec['frequency'] is not None:
+            rec['frequency'] = float(rec['frequency'])
+        rec['state'] = [list(si), list(sj)]
+        records.append(rec)
+    return records
+
+def _vpt_response_data_from_records(records):
+    """
+    Inverse of `_vpt_response_data_to_records`: reconstitutes a `transition_dict`
+    (state-tuple-pair keys, `transition_moment` as an `np.ndarray`) from the
+    JSON-safe record list that gets written to/read from `output_file`.
+
+    :param records: the JSON-decoded list of transition records
+    :type records: list[dict]
+    :return: the reconstituted `transition_dict`
+    :rtype: dict
+    """
+    transition_dict = {}
+    for rec in records:
+        rec = dict(rec)
+        si, sj = rec.pop('state')
+        si = tuple(int(x) for x in si)
+        sj = tuple(int(x) for x in sj)
+        if 'transition_moment' in rec and rec['transition_moment'] is not None:
+            rec['transition_moment'] = np.array(rec['transition_moment'])
+        transition_dict[(si, sj)] = rec
+    return transition_dict
+
+def prep_vpt_response_data(system,
+                            max_freq=None,
+                            max_quanta=2,
+                            initial_quanta=(0, 1),
+                            return_wavefunctions=False,
+                            output_file=None,
+                            overwrite=False,
+                            **vpt_opts
+                            ):
+    """
+    Runs a `VPTRunner.run_simple` calculation over the states reachable from
+    the ground state within `max_quanta` quanta of excitation and returns the
+    resulting state energies/transition moments as a `transition_dict` in the
+    format expected by `prep_nonlinear_transition_data`/
+    `experimental_response_generator`.
+
+    The target state list comes from `BasisStateSpace.states_under_freq_threshold`,
+    run over the system's harmonic normal-mode frequencies and capped at
+    `max_quanta` total quanta of excitation (the ground state is always
+    included, even if it wouldn't otherwise pass the frequency/quanta
+    filters). The VPT calculation is seeded with `initial_states` set to every
+    one of those states with a total quantum number in `initial_quanta`
+    (by default the ground state and every singly-excited fundamental), so
+    that transition moments/frequencies get computed both for the ordinary
+    fundamentals/overtones/combination bands relative to the ground state
+    *and* for the "hot"/excited-state-absorption-type transitions out of each
+    fundamental into the two-quantum manifold -- exactly what a 2D-IR
+    Liouville-pathway calculation needs.
+
+    If `output_file` is given and already exists, the cached `transition_dict`
+    is loaded from it directly and returned *without running any VPT
+    calculation* (unless `overwrite=True`, which always reruns and rewrites
+    the file). If `output_file` is given and doesn't yet exist (or
+    `overwrite=True`), the calculation is run as usual and the resulting
+    `transition_dict` is saved to `output_file` as JSON before being returned.
+    A loaded-from-cache result has no associated `VPTWavefunctions` object, so
+    `return_wavefunctions` yields `None` in its place in that case.
+
+    :param system: a molecule/system spec (path, `Molecule`, or `VPTSystem`) to run VPT on
+    :type system: str | list | Molecule | VPTSystem
+    :param max_freq: the maximum total (harmonic) excitation energy to include when generating
+        the target state list, in the same units as the system's normal-mode
+        frequencies (Hartrees). Defaults to `max_quanta` times the largest
+        normal-mode frequency, which is always enough to admit every state
+        satisfying the `max_quanta` cutoff below.
+    :type max_freq: float | None
+    :param max_quanta: the largest total number of vibrational quanta (summed over all
+        modes) a target state is allowed to carry (inclusive)
+    :type max_quanta: int
+    :param initial_quanta: the total quantum numbers (again summed over modes) that qualify a
+        state to be used as an `initial_states` seed for the VPT run --
+        by default the ground state (0 quanta) and every fundamental (1 quantum)
+    :type initial_quanta: int | Iterable[int]
+    :param return_wavefunctions: if `True`, also return the raw `VPTWavefunctions`
+        object from `VPTRunner.run_simple` alongside the `transition_dict`
+        (or `None` if the result was loaded from `output_file` instead of computed)
+    :type return_wavefunctions: bool
+    :param output_file: optional path to cache the resulting `transition_dict` as JSON
+        (a list of `{"state": [state_i, state_j], "frequency":..., "transition_moment":...}`
+        records, since JSON object keys can't be tuples). When this file already exists,
+        it's loaded and returned as-is instead of rerunning the VPT calculation, unless
+        `overwrite=True`
+    :type output_file: str | None
+    :param overwrite: if `True`, always (re)run the calculation and overwrite `output_file`,
+        even if it already exists
+    :type overwrite: bool
+    :param vpt_opts: extra options forwarded to `VPTRunner.run_simple`/`VPTRunner.construct`
+    :type vpt_opts: dict
+    :return: a `transition_dict` of the form `{(state_i, state_j): {'frequency':..., 'transition_moment':...}}`
+        (in wavenumbers/a.u., respectively), suitable for `prep_nonlinear_transition_data`,
+        or `(transition_dict, wfns)` if `return_wavefunctions` is set
+    :rtype: dict | tuple[dict, 'VPTWavefunctions']
+    """
+
+    if output_file is not None and not overwrite and os.path.isfile(output_file):
+        with open(output_file, 'r') as woof:
+            transition_dict = _vpt_response_data_from_records(json.load(woof))
+        if return_wavefunctions:
+            return transition_dict, None
+        return transition_dict
+
+    from ..VPT2 import VPTRunner, VPTSystem
+
+    vpt_system = system if isinstance(system, VPTSystem) else VPTSystem(system)
+    freqs = vpt_system.mol.normal_modes.modes.freqs
+    ndim = len(freqs)
+    ground_state = tuple([0] * ndim)
+
+    if max_freq is None:
+        max_freq = max_quanta * np.max(np.abs(freqs))
+
+    raw_states = BasisStateSpace.states_under_freq_threshold(
+        freqs, max_freq,
+        # `states_under_freq_threshold`/`states_in_windows` treat `max_quanta` as an
+        # exclusive bound (`total_quanta < max_quanta`); bump by one so that our own
+        # `max_quanta` parameter reads as the inclusive "up to N quanta" the caller expects
+        max_quanta=max_quanta + 1
+    )
+    state_list = [tuple(int(x) for x in s) for s in raw_states]
+    if ground_state not in state_list:
+        state_list = [ground_state] + state_list
+
+    if nput.is_int(initial_quanta):
+        initial_quanta = (initial_quanta,)
+    initial_states = [s for s in state_list if sum(s) in initial_quanta]
+    if ground_state not in initial_states:
+        initial_states = [ground_state] + initial_states
+
+    wfns = VPTRunner.run_simple(
+        vpt_system,
+        state_list,
+        initial_states=initial_states,
+        **vpt_opts
+    )
+
+    h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+    state_tuples = [tuple(int(x) for x in s) for s in wfns.corrs.states.excitations]
+    energies = wfns.energies * h2w
+    tms = wfns.transition_moments
+
+    transition_dict = {}
+    for n, init_idx in enumerate(wfns.initial_state_indices):
+        si = state_tuples[init_idx]
+        for j, sj in enumerate(state_tuples):
+            if j == init_idx:
+                continue
+            freq = energies[j] - energies[init_idx]
+            if freq <= 0:
+                # keep only the "upward" direction of each pair; `prep_nonlinear_transition_data`
+                # infers the reverse (negative-frequency) transition automatically
+                continue
+            key = (si, sj)
+            if key in transition_dict:
+                continue
+            tm = np.array([tms[k][n][j] for k in range(3)])
+            transition_dict[key] = {'frequency': float(freq), 'transition_moment': tm}
+
+    if output_file is not None:
+        out_dir = os.path.dirname(output_file)
+        if out_dir:
+            os.makedirs(out_dir, exist_ok=True)
+        with open(output_file, 'w') as woof:
+            json.dump(_vpt_response_data_to_records(transition_dict), woof)
+
+    if return_wavefunctions:
+        return transition_dict, wfns
+    return transition_dict
 
 def get_interaction_basis(initial_states:BasisStateSpace, *, selection_rules, **filter_opts):
     def _apply_rules(space, rules, filter_opts):
