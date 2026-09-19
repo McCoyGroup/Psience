@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import collections
 import itertools
 import os
@@ -1461,7 +1463,7 @@ def nonlinear_response_generators(transition_data,
                                   application_domain="time",
                                   response_function_class=None,
                                   **state_opts
-                                  ):
+                                  ) -> NonlinearResponseFunction:
     td = prep_nonlinear_transition_data(transition_data, **state_opts)
     if driving_frequency is True:
         bands = np.sum(td.states.excitations, axis=1)

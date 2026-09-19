@@ -608,7 +608,7 @@ class NonlinearTests(TestCase):
             self.assertNotIn(-12345.0, [d['frequency'] for d in recomputed.values()])
             self.assertEqual(set(recomputed.keys()), set(computed.keys()))
 
-    @debugTest
+    @validationTest
     def test_VPTResponseDataSavedToTestData(self):
         """
         Exercises `prep_vpt_response_data`'s `output_file` disk-caching against
@@ -668,3 +668,96 @@ class NonlinearTests(TestCase):
             self.assertGreater(data['frequency'], 1000)
             self.assertLess(data['frequency'], 4200)
             self.assertGreater(np.linalg.norm(data['transition_moment']), 1e-3)
+
+    @debugTest
+    def test_FullTwoDimensionalIRFromVPTResponseData(self):
+        """
+        Hooks `prep_vpt_response_data`'s real ab initio VPT results for water
+        straight into the same Liouville-pathway 2D-IR machinery exercised by
+        the hand-specified systems above, instead of a synthetic transition
+        dict -- i.e. runs a genuine, from-first-principles 2D-IR calculation
+        on water.
+
+        VPT gives frequencies and transition moments but no dephasing rates,
+        so every coherence/population band is given a uniform, physically
+        modest homogeneous linewidth via `band_coherences`, mirroring the
+        (0,1)/(1,1)-style band-quanta convention used by
+        `FourStateLiouvilleSystem` above (rather than a lambda keyed on raw
+        state vectors, which would also assign a spurious decay rate to the
+        ground state itself). The observation window is restricted to
+        water's two O-H stretch fundamentals -- picked out as the two
+        higher-frequency fundamentals in the data (the lowest is the bend) --
+        since that's the classic textbook water 2D-IR region: two diagonal
+        peaks plus a real excited-state absorption feature from the
+        anharmonically-shifted stretch overtones/combination band, exactly
+        like the synthetic system in `test_CombinationBandCrossPeaksAndESA`
+        above, except here every number -- including the two stretches'
+        genuinely different transition dipole moments -- comes from an
+        actual VPT calculation instead of being made up. Because of that,
+        the two diagonal peaks are NOT expected to have comparable height
+        (unlike the symmetric synthetic system): the peak heights are
+        checked against each other's ab initio transition dipole magnitudes
+        instead of a shared absolute threshold.
+        """
+        from Psience.Spectra import TwoDimensionalSpectrum
+
+        fchk = TestManager.test_data('water_freq.fchk')
+        out_file = TestManager.test_data('water_freq_response.json')
+
+        # by default (`overwrite=False`) this does nothing but load the
+        # checked-in file if it's already there -- a fresh VPT run only
+        # happens the first time this is ever called for this file
+        transition_dict = prep_vpt_response_data(fchk, output_file=out_file, overwrite=False)
+
+        ndim = len(next(iter(transition_dict))[0])
+        ground_state = (0,) * ndim
+        fundamentals = sorted(
+            (data['frequency'], sj)
+            for (si, sj), data in transition_dict.items()
+            if si == ground_state and sum(sj) == 1
+        )
+        self.assertEqual(len(fundamentals), 3)
+        # the lowest-frequency fundamental is the bend; the other two are the
+        # O-H stretches -- the classic water 2D-IR system
+        stretch_freqs = [f for f, _ in fundamentals[1:]]
+        stretch_states = [sj for _, sj in fundamentals[1:]]
+
+        responses = experimental_response_generator(
+            transition_dict,
+            band_coherences={(0, 1): 3., (1, 2): 3., (1, 1): 3., (2, 2): 3.},
+            frequency_unit="Wavenumbers",
+            application_domain="frequency",
+        )
+
+        window = [min(stretch_freqs) - 250, max(stretch_freqs) + 100]
+        spec:TwoDimensionalSpectrum = responses.get_spectrum(
+            window, 10, window,
+            default_frequency_divisions=300
+        )
+        # spec.plot().show()
+        I = np.real(spec.intensities)
+        self.assertGreater(I.max(), 1e-9)
+
+        def nearest_value(w1, w3):
+            ix = int(np.argmin(np.abs(spec.freq1 - w1)))
+            iy = int(np.argmin(np.abs(spec.freq2 - w3)))
+            return I[iy, ix]
+
+        # both O-H stretch fundamentals should show up as positive
+        # (ground-state bleach/stimulated emission) diagonal peaks, and the
+        # stretch with the larger ab initio transition dipole should produce
+        # the larger diagonal peak
+        diag_vals = []
+        tm_norms = []
+        for freq, state in zip(stretch_freqs, stretch_states):
+            val = nearest_value(freq, freq)
+            self.assertGreater(val, 5e-12)
+            diag_vals.append(val)
+            tm_norms.append(np.linalg.norm(
+                transition_dict[(ground_state, state)]['transition_moment']
+            ))
+        self.assertEqual(int(np.argmax(diag_vals)), int(np.argmax(tm_norms)))
+
+        # a real, coupled/anharmonic 2D-IR spectrum must also show excited-state
+        # absorption: a genuine negative-going feature somewhere in the window
+        self.assertLess(I.min(), -1e-3 * I.max())
