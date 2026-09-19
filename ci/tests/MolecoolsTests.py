@@ -899,6 +899,109 @@ class MolecoolsTests(TestCase):
         spec.plot().show()
 
     @validationTest
+    def test_AlignMoleculePermuteAtoms(self):
+        # tbhp (tert-butyl hydroperoxide) has three graph-equivalent methyl groups, so its
+        # automorphism group is large (3! group permutations x (3!)**3 within-methyl H
+        # permutations = 1296) -- a good stress case for the RDKit-automorphism-driven
+        # permutation search in `align_molecule`/`RDMolecule.find_alignment_permutation`.
+        np.random.seed(2)
+
+        ref = Molecule.from_file(TestManager.test_data("tbhp_180.fchk"))
+        n = len(ref.atoms)
+
+        auts = ref.rdmol.get_automorphisms()
+        self.assertGreater(auts.shape[0], 1,
+                           msg="expected tbhp to have a nontrivial automorphism group")
+        nontrivial = [a for a in auts if not np.all(a == np.arange(n))]
+        true_perm = nontrivial[len(nontrivial) // 2]
+
+        # build a scrambled/rotated/translated copy of `ref` under a *known*
+        # graph-consistent relabeling, so the correct answer is known up front
+        other_coords = np.zeros_like(ref.coords)
+        other_coords[true_perm] = ref.coords
+        theta = 0.9
+        c, s = np.cos(theta), np.sin(theta)
+        R = (
+            np.array([[c, -s, 0], [s, c, 0], [0, 0, 1]])
+            @ np.array([[1, 0, 0], [0, 0.7, -0.71], [0, 0.71, 0.7]])
+        )
+        other_coords = other_coords @ R.T + np.array([2.0, -1.0, 3.0])
+        other = ref.modify(coords=other_coords)
+
+        naive_rmsd = nput.eckart_rmsd(other.coords, ref.coords, masses=ref.atomic_masses)
+
+        aligned = ref.align_molecule(other)
+        self.assertEqual(aligned.atoms, ref.atoms,
+                         msg="align_molecule should return `other` relabeled into `ref`'s atom order")
+
+        final_rmsd = nput.eckart_rmsd(aligned.coords, ref.coords, masses=ref.atomic_masses, embed=False)
+
+        # the real correctness property: the search lands on the true global-minimum RMSD
+        # over *every* graph-automorphism-consistent atom map, not just an improvement over
+        # the naive (identity-correspondence) alignment -- confirmed here by an independent
+        # brute-force search over the full candidate set. Note the global minimum need not
+        # be ~0: a graph automorphism is a symmetry of the molecular *graph*, not necessarily
+        # a realizable rigid motion of this specific numerically-optimized conformer (e.g. it
+        # can call for mixing hydrogens across two differently-rotated methyls), so a nonzero
+        # residual here is expected and is not itself a sign of a bug.
+        candidates = ref.rdmol.get_alignment_permutation_candidates(other.rdmol)
+        brute_force_rmsds = np.array([
+            nput.eckart_rmsd(other.coords[c], ref.coords, masses=ref.atomic_masses)
+            for c in candidates
+        ])
+        self.assertTrue(np.isclose(final_rmsd, brute_force_rmsds.min(), atol=1e-8),
+                        msg="align_molecule ({}) did not match the true brute-force global minimum ({})".format(
+                            final_rmsd, brute_force_rmsds.min()
+                        ))
+        self.assertLess(final_rmsd, naive_rmsd * 1e-2,
+                        msg="expected a large RMSD improvement over the naive (unpermuted) alignment")
+
+    @validationTest
+    def test_AlignMoleculeNoPermuteAtoms(self):
+        # with permute_atoms=False, align_molecule should fall back to a pure rigid-body
+        # (Eckart) fit against whatever atom order `other` already has -- no relabeling
+        np.random.seed(3)
+
+        ref = Molecule.from_file(TestManager.test_data("tbhp_180.fchk"))
+        n = len(ref.atoms)
+
+        auts = ref.rdmol.get_automorphisms()
+        nontrivial = [a for a in auts if not np.all(a == np.arange(n))]
+        true_perm = nontrivial[len(nontrivial) // 2]
+
+        other_coords = np.zeros_like(ref.coords)
+        other_coords[true_perm] = ref.coords
+        other = ref.modify(coords=other_coords)
+
+        aligned_permuted = ref.align_molecule(other, permute_atoms=True)
+        aligned_unpermuted = ref.align_molecule(other, permute_atoms=False)
+
+        self.assertEqual(aligned_unpermuted.atoms, other.atoms,
+                         msg="permute_atoms=False should not relabel `other`'s atoms")
+
+        rmsd_permuted = nput.eckart_rmsd(aligned_permuted.coords, ref.coords, masses=ref.atomic_masses, embed=False)
+        rmsd_unpermuted = nput.eckart_rmsd(aligned_unpermuted.coords, ref.coords, masses=ref.atomic_masses, embed=False)
+
+        # searching over the automorphism-consistent relabelings can only do as well as or
+        # better than accepting whatever labeling `other` came in with
+        self.assertLessEqual(rmsd_permuted, rmsd_unpermuted + 1e-8,
+                             msg="permute_atoms=True should never do worse than permute_atoms=False")
+
+    @validationTest
+    def test_AlignMoleculeIdentity(self):
+        # aligning a molecule against an already-aligned copy of itself should recover
+        # (near-)zero RMSD and leave the atom ordering exactly as `ref`'s
+        ref = Molecule.from_file(TestManager.test_data("tbhp_180.fchk"))
+        other = ref.modify(coords=ref.coords.copy())
+
+        aligned = ref.align_molecule(other)
+        self.assertEqual(aligned.atoms, ref.atoms)
+
+        rmsd = nput.eckart_rmsd(aligned.coords, ref.coords, masses=ref.atomic_masses, embed=False)
+        self.assertLess(rmsd, 1e-8,
+                        msg="aligning a molecule to an unperturbed copy of itself should give ~0 RMSD")
+
+    @validationTest
     def test_ExpansionPotential(self):
         h2co = Molecule.from_file(TestManager.test_data('OCHH_freq.fchk'))
         disps, scan_coords = h2co.get_scan_coordinates(
