@@ -25,6 +25,10 @@ from .Corrections import BasicAPTCorrections
 __all__ = [
     'PerturbationTheoryEvaluator',
     'AnalyticPerturbationTheorySolver',
+    'PolyAtom',
+    'PolyAxis',
+    'PolyTerm',
+    'PolyPath',
     # 'AnalyticPerturbationTheoryDriver',
     # 'AnalyticPTCorrectionGenerator',
     # 'RaisingLoweringClasses'
@@ -53,7 +57,7 @@ class AnalyticPerturbationTheorySolver:
                  disallowed_coefficients=None,
                  allowed_energy_changes=None,
                  intermediate_normalization=None,
-                 polynomial_representation='eager'
+                 polynomial_representation='path'
                  ):
         self.hamiltonian_expansion = hamiltonian_expansion
         self.logger = Logger.lookup(logger)
@@ -75,7 +79,7 @@ class AnalyticPerturbationTheorySolver:
                    disallowed_coefficients=None,
                    allowed_energy_changes=None,
                    intermediate_normalization=None,
-                   polynomial_representation='eager'):
+                   polynomial_representation='path'):
         logger = Logger.lookup(logger)
         if order < 2:
             raise ValueError("why")
@@ -212,7 +216,7 @@ class AnalyticPerturbationTheorySolver:
     operator_expansion_index = 5
     @classmethod
     def operator_expansion_terms(cls, order, logger=None, base_index=None, operator_type=None,
-                                 polynomial_representation='eager'):
+                                 polynomial_representation='path'):
         if base_index is None:
             base_index = cls.operator_expansion_index
 
@@ -278,6 +282,14 @@ class AnalyticPerturbationTheorySolver:
         PerturbationTheoryExpressionEvaluator._poly_cache = PerturbationTheoryExpressionEvaluator.get_cache()
         PerturbationTheoryExpressionEvaluator._ecoeff_cache = PerturbationTheoryExpressionEvaluator.get_cache()
         PolyPath.clear_caches()
+
+    def polynomial_cache_info(self):
+        """Return backend-specific counters useful for path/eager timing comparisons."""
+        return {
+            'representation': self.polynomial_representation,
+            'product_results': len(PerturbationTheoryTermProduct._poly_product_cache),
+            **PolyPath.cache_info()
+        }
 
 
 class PolynomialInterface(metaclass=abc.ABCMeta):
@@ -1255,13 +1267,22 @@ class ProductPTPolynomialSum(PolynomialInterface):
         self._ndim = ndim
 
     def prep_serialization_dict(self):
+        ndim = len(self.polys[0].coeffs)
         return {
             'shared_prefactor': self.prefactor,
             'steps': self.polys[0].steps,
-            'ndim': len(self.polys[0].coeffs),
+            'ndim': ndim,
             'prefactors': np.array([p.prefactor for p in self.polys]),
-            'shapes': np.concatenate([[len(c) for c in p.coeffs] for p in self.polys], axis=0),
-            'coeffs': np.concatenate([np.concatenate(p.coeffs) for p in self.polys])
+            'shapes': (
+                np.concatenate([[len(c) for c in p.coeffs] for p in self.polys], axis=0)
+                    if ndim > 0 else
+                np.array([], dtype=int)
+            ),
+            'coeffs': (
+                np.concatenate([np.concatenate(p.coeffs) for p in self.polys])
+                    if ndim > 0 else
+                np.array([], dtype=float)
+            )
         }
     @classmethod
     def from_serialization_dict(cls, big_dict):
@@ -1269,9 +1290,17 @@ class ProductPTPolynomialSum(PolynomialInterface):
         coeff_vector = big_dict['coeffs']
         ndim = big_dict['ndim']
         shape_vecs = big_dict['shapes']
-        shapes = shape_vecs[shape_vecs > 0].reshape(-1, ndim)
         steps = big_dict['steps']
         prefactors = big_dict['prefactors']
+        if ndim == 0:
+            return cls(
+                [
+                    ProductPTPolynomial([], prefactor=prefactor, steps=steps)
+                    for prefactor in prefactors
+                ],
+                prefactor=big_dict['shared_prefactor']
+            )
+        shapes = shape_vecs[shape_vecs > 0].reshape(-1, ndim)
         padding = 0
         for i,shape in enumerate(shapes):
             coeffs = []
@@ -1563,6 +1592,8 @@ class PolyPath(ProductPTPolynomialSum):
 
     _construction_count = 0
     _node_cache = weakref.WeakValueDictionary()
+    _node_requests = 0
+    _node_hits = 0
 
     @staticmethod
     def _sort_key(term):
@@ -1595,13 +1626,21 @@ class PolyPath(ProductPTPolynomialSum):
 
     @classmethod
     def _from_node(cls, kind, args, ndim, order):
-        if kind == 'add':
+        cls._node_requests += 1
+        # Addition is intentionally binary and remaps/symmetry orbits have very
+        # high cardinality.  Interning those nodes costs substantially more
+        # memory than their observed (<1%) hit rate at fourth order; their
+        # children and canonical leaves remain interned and structurally
+        # hashable.
+        if kind in {'add', 'remap', 'permutation_sum'}:
             return cls((), reduced=True, node=(kind, args), ndim=ndim, order=tuple(order))
         key = (kind, args)
         path = cls._node_cache.get(key)
         if path is None:
             path = cls((), reduced=True, node=key, ndim=ndim, order=tuple(order))
             cls._node_cache[key] = path
+        else:
+            cls._node_hits += 1
         return path
 
     @property
@@ -1639,6 +1678,8 @@ class PolyPath(ProductPTPolynomialSum):
         cls._node_cache.clear()
         PolyAxis._materialization_count = 0
         cls._construction_count = 0
+        cls._node_requests = 0
+        cls._node_hits = 0
 
     @classmethod
     def cache_info(cls):
@@ -1647,6 +1688,8 @@ class PolyPath(ProductPTPolynomialSum):
             'axes': len(PolyAxis._cache),
             'terms': len(PolyTerm._cache),
             'nodes': len(cls._node_cache),
+            'node_requests': cls._node_requests,
+            'node_hits': cls._node_hits,
             'paths_created': cls._construction_count,
             'axis_materializations': PolyAxis._materialization_count
         }
@@ -1729,6 +1772,27 @@ class PolyPath(ProductPTPolynomialSum):
             for permutation in permutations:
                 eager = eager + child_eager.permute(permutation)
             return eager
+        elif kind == 'project':
+            child, keep, condensed = args
+            eager = child.to_eager()
+            if nput.is_numeric(eager):
+                return eager
+            polys = eager.polys if isinstance(eager, ProductPTPolynomialSum) else [eager]
+            projected = []
+            for poly in polys:
+                scaling = poly.prefactor
+                for index in condensed:
+                    scaling *= poly.coeffs[index][0]
+                projected.append(ProductPTPolynomial(
+                    [poly.coeffs[index] for index in keep],
+                    prefactor=scaling,
+                    steps=poly.steps
+                ))
+            return (
+                projected[0]
+                    if len(projected) == 1 else
+                ProductPTPolynomialSum(projected)
+            )
         elif kind == 'mul':
             left, right, left_inds, right_inds, left_pull, right_pull = args
             left_eager, right_eager = left.to_eager(), right.to_eager()
@@ -1962,6 +2026,15 @@ class PolyPath(ProductPTPolynomialSum):
                     value += child.evaluate_polynomial(
                         substates[:, pull], node_cache, axis_cache
                     )
+            elif kind == 'project':
+                child, keep, condensed = args
+                child_states = np.zeros(
+                    (substates.shape[0], child.ndim), dtype=substates.dtype
+                )
+                child_states[:, keep] = substates[:, :len(keep)]
+                value = child.evaluate_polynomial(
+                    child_states, node_cache, axis_cache
+                )
             elif kind == 'mul':
                 left, right, left_inds, right_inds, left_pull, right_pull = args
                 left_value = left.evaluate_polynomial(
@@ -2093,17 +2166,22 @@ class PolyPath(ProductPTPolynomialSum):
         if inds is None:
             inds = np.arange(self.ndim)
         if check_inds:
-            condensed = np.array([i for i in inds if self.order[i] == 0])
+            condensed = np.array([i for i in inds if self.order[i] == 0], dtype=int)
         else:
-            condensed = np.asanyarray(inds)
-        keep = ProductPTPolynomial.fast_ind_remainder(self.ndim, condensed)
-        if len(condensed) > 0:
-            pull = tuple(int(i) for i in keep)
-            new = type(self)._from_node(
-                'remap', (self, pull, len(pull)), len(pull), tuple(self.order[i] for i in pull)
-            )
-        else:
+            condensed = np.asanyarray(inds, dtype=int)
+        if len(condensed) == 0:
             new = self
+        else:
+            keep = tuple(int(i) for i in ProductPTPolynomial.fast_ind_remainder(
+                self.ndim, condensed
+            ))
+            condensed_key = tuple(int(i) for i in condensed)
+            new = type(self)._from_node(
+                'project',
+                (self, keep, condensed_key),
+                len(keep),
+                tuple(self.order[i] for i in keep)
+            )
         return (condensed, new) if return_inds else new
 
     def constant_rescale(self):
@@ -3577,7 +3655,8 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                                         free_perms, _ = self._get_uperms(perm_idx)
                                         num_prev = num_fixed + num_defd_left + num_defd_right
                                         perm_blocks.append(num_prev + free_perms)
-                                    permutation_groups = {}
+                                    group_permutations = polynomial_uses_path(new_poly)
+                                    permutation_groups = {} if group_permutations else None
                                     for perm_bits in itertools.product(*perm_blocks):
                                         perm = np.concatenate(perm_bits)
                                         inv_map = np.argsort(perm)
@@ -3589,7 +3668,6 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                                             for ci in new_key
                                         )
                                         perm_key = self.canonical_key(perm_key)
-                                        permutation_groups.setdefault(perm_key, []).append(tuple(perm))
 
                                         logger.log_print("{k} [{r}]",
                                                          k=perm_key,
@@ -3597,8 +3675,19 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
                                                          preformatter=lambda **vars: dict(vars, k=self.format_tensor_key(vars['k'])),
                                                          log_level=log_level
                                                          )
+                                        if group_permutations:
+                                            permutation_groups.setdefault(perm_key, []).append(tuple(perm))
+                                        else:
+                                            perm_poly = new_poly.permute(perm)
+                                            logger.log_print("{p}", p=perm_poly,
+                                                             preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
+                                                             log_level=log_level
+                                                             )
+                                            yield perm_key, perm_poly
 
-                                    for perm_key, permutations in permutation_groups.items():
+                                    for perm_key, permutations in (
+                                            permutation_groups.items() if group_permutations else ()
+                                    ):
                                         if hasattr(new_poly, 'permutation_sum'):
                                             perm_poly = new_poly.permutation_sum(permutations)
                                         else:
@@ -4299,7 +4388,7 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                  intermediate_normalization=None,
                  allowed_coefficients=None,
                  disallowed_coefficients=None,
-                 polynomial_representation='eager'):
+                 polynomial_representation='path'):
         self._exprs = None
         self._raw_changes = {}
         self._changes = None
@@ -5913,6 +6002,15 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                                target_inds, remainder_inds, reorgs,
                                simplify=True
                                ):
+        if (
+                gen1.polynomial_representation != 'path'
+                or gen2.polynomial_representation != 'path'
+        ):
+            return cls._build_poly_product_terms(
+                gen1, gen2, change_1, change_2,
+                target_inds, remainder_inds, reorgs,
+                simplify=simplify
+            )
         key = (
             gen1, gen2,
             cls._freeze_product_arg(change_1),

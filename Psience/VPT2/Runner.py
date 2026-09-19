@@ -3374,7 +3374,7 @@ class AnalyticVPTRunner:
                  disallowed_coefficients=None,
                  allowed_energy_changes=None,
                  intermediate_normalization=None,
-                 polynomial_representation='eager',
+                 polynomial_representation='path',
                  local_mode_couplings=None,
                  local_mode_coupling_order=None,
                  parallelizer=None
@@ -3412,6 +3412,8 @@ class AnalyticVPTRunner:
         :type allowed_energy_changes: object | None
         :param intermediate_normalization: whether to use intermediate (rather than full) normalization in the analytic solver
         :type intermediate_normalization: bool | None
+        :param polynomial_representation: ``'path'`` for the canonical DAG backend or ``'eager'`` for the legacy tree backend
+        :type polynomial_representation: str
         :param local_mode_couplings: extra local-mode coupling terms to inject into the Hamiltonian when running VPT
         :type local_mode_couplings: list | None
         :param local_mode_coupling_order: the perturbative order local-mode couplings should be injected at
@@ -3475,13 +3477,14 @@ class AnalyticVPTRunner:
                          allowed_energy_changes=None,
                          take_diagonal_v4_terms=True,
                          intermediate_normalization=None,
-                         polynomial_representation='eager',
+                         polynomial_representation='path',
                          corrected_fundamental_frequencies=None,
                          **opts):
         """
         A driver powered by a classic PerturbationTheoryHamiltonian object
 
         :param ham:
+        :param polynomial_representation: ``'path'`` for the canonical DAG backend or ``'eager'`` for timing/comparison runs
         :return:
         """
         exp_orders = ham._get_expansion_orders(expansion_order, order)
@@ -3563,7 +3566,7 @@ class AnalyticVPTRunner:
                   degeneracy_specs=None,
                   corrected_fundamental_frequencies=None,
                   parallelizer=None,
-                  polynomial_representation='eager',
+                  polynomial_representation='path',
                   **settings
                   ) -> "(AnalyticVPTRunner, VPTMultiStateSpace)":
             """
@@ -3595,6 +3598,8 @@ class AnalyticVPTRunner:
             :type corrected_fundamental_frequencies: np.ndarray | None
             :param parallelizer: parallelization backend for the evaluator
             :type parallelizer: Parallelizer | None
+            :param polynomial_representation: ``'path'`` for the canonical DAG backend or ``'eager'`` for the legacy tree backend
+            :type polynomial_representation: str
             :param settings: extra options forwarded to `VPTRunner.construct`
             :type settings: dict
             :return: the constructed runner, or `(runner, states)` if `states` was given
@@ -3654,7 +3659,7 @@ class AnalyticVPTRunner:
                   disallowed_coefficients=None,
                   allowed_energy_changes=None,
                   expressions_file=None,
-                  polynomial_representation='eager',
+                  polynomial_representation='path',
                   **settings):
         """
         **LLM Docstring**
@@ -3675,6 +3680,8 @@ class AnalyticVPTRunner:
         :type allowed_energy_changes: object | None
         :param expressions_file: checkpoint file for caching the analytic expressions
         :type expressions_file: str | None
+        :param polynomial_representation: ``'path'`` for the canonical DAG backend or ``'eager'`` for the legacy tree backend
+        :type polynomial_representation: str
         :param settings: extra options forwarded to `VPTRunner.construct`
         :type settings: dict
         :return: the constructed runner
