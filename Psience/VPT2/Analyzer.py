@@ -148,13 +148,32 @@ class VPTAnalyzerLogParser(LogParser):
 
         The (cached) parsed block-tree structure of the log file, collapsed down to just the "Computing PT corrections:" subtree (or otherwise condensed) if the raw parse produced multiple top-level blocks.
 
+        Every log produced by `VPTRunner.run_simple(..., logger=...)` is wrapped in exactly one outer
+        named block (`">>--- Starting Perturbation Theory Runner ---<<"`), so `to_tree()` almost always
+        returns a tree with a *single* top-level key. The `len(self._tree) > 1` branch below never used
+        to handle that case at all -- it only unwrapped a tree with *more than one* top-level entry --
+        which meant the named tables underneath that single banner block (`"IR Data"`, `"X/Y/Z Dipole
+        Contributions"`, etc) were never reachable and any log-based lookup of them (`.spectrum`,
+        `.transition_moment_corrections`, ...) failed with a bare `IndexError`, even for the one
+        pre-existing reference log fixture (`methanol_vpt_3.out`) shipped in `ci/tests/TestData`. This
+        now unwraps that single banner block first, before falling through to the pre-existing
+        multi-block handling (which still applies to logs that genuinely have more than one top-level
+        block once unwrapped, or that start directly with a "Computing PT corrections:" block and never
+        had an outer banner to begin with).
+
         :return: the parsed (and condensed) log-file tree
         :rtype: object
         """
         if self._tree is None:
             with self:
                 self._tree = self.to_tree(depth=-1)
-                if len(self._tree) > 1:
+                keys = self._tree.keys()
+                if len(self._tree) == 1 and keys is not None and list(keys)[0] != "Computing PT corrections:":
+                    # unwrap the single outer banner block (e.g. "Starting Perturbation Theory Runner")
+                    # so the named tables nested underneath it become top-level keys
+                    inner = self._tree[list(keys)[0]]
+                    self._tree = inner if isinstance(inner, type(self._tree)) else type(self._tree)(inner)
+                elif len(self._tree) > 1:
                     if (
                                     self._tree.keys() is not None
                                     and list(self._tree.keys())[0] != "Computing PT corrections:"
@@ -411,11 +430,23 @@ class VPTAnalyzerLogParser(LogParser):
             :return: `LineReaderTags.SKIP`, a `(BLOCK_START, label, None)` triple for a new initial-state block, or `None` for ordinary content
             :rtype: object | tuple | None
             """
-            block_tag = ' Initial State:'
+            block_tag = 'Initial State:'
+            stripped = line.strip()
             if len(line) == 0 or line.startswith("State") or line.startswith(" "*5):
                 return self.LineReaderTags.SKIP
-            elif line.startswith(block_tag):
-                return self.LineReaderTags.BLOCK_START, line[len(block_tag):].strip(), None
+            elif stripped.startswith(block_tag):
+                # NOTE: only the *first* "Initial State:" header in a multi-initial-state log
+                # block picks up a leading space from the logger's own indentation --
+                # `VPTWavefunctions.format_spectrum_table`'s later per-block headers (joined in
+                # with a dashed separator line) are emitted with no leading space at all, so this
+                # now strips the line before matching instead of requiring a literal leading space.
+                return self.LineReaderTags.BLOCK_START, stripped[len(block_tag):].strip(), None
+            elif stripped and set(stripped) == {'-'}:
+                # the dashed separator line `format_spectrum_table` inserts between consecutive
+                # per-initial-state sub-blocks; previously fell through and got parsed as a bogus
+                # data row of whichever sub-block was still active, which crashed further downstream
+                # for any log with more than one initial state
+                return self.LineReaderTags.SKIP
         def handle_block_line(self, label, line, depth=0, history:list[str]=None):
             """
             **LLM Docstring**
@@ -520,11 +551,17 @@ class VPTAnalyzerLogParser(LogParser):
             :return: `LineReaderTags.SKIP`, a `(BLOCK_START, label, None)` triple for a new initial-state block, or `None` for ordinary content
             :rtype: object | tuple | None
             """
-            block_tag = ' Initial State:'
+            block_tag = 'Initial State:'
+            stripped = line.strip()
             if len(line) == 0 or line.startswith("State") or line.startswith(" "*5):
                 return self.LineReaderTags.SKIP
-            elif line.startswith(block_tag):
-                return self.LineReaderTags.BLOCK_START, line[len(block_tag):].strip(), None
+            elif stripped.startswith(block_tag):
+                # see the matching note in SpectrumBlockParser.check_tag above -- only the first
+                # "Initial State:" header in the log text has a leading space
+                return self.LineReaderTags.BLOCK_START, stripped[len(block_tag):].strip(), None
+            elif stripped and set(stripped) == {'-'}:
+                # dashed separator between per-initial-state sub-blocks; see the matching note above
+                return self.LineReaderTags.SKIP
         def handle_block_line(self, label, line, depth=0, history:list[str]=None):
             """
             **LLM Docstring**
@@ -553,11 +590,31 @@ class VPTAnalyzerLogParser(LogParser):
         """
         **LLM Docstring**
 
-        Compute how many perturbative-order transition-moment correction terms exist below a given total column count, using a `SymmetricGroupGenerator`'s cumulative term totals as the source of per-order term counts.
+        Compute how many perturbative-order transition-moment correction terms are packed into each
+        column-chunk of a transition-moment data row, using a `SymmetricGroupGenerator`'s cumulative
+        term totals (the running total of `(i, j, k)` triples with `i + j + k <= order`, across
+        increasing `order`) to derive each order's own term count.
+
+        `_indexer._cumtotals` is a list of *cumulative* boundaries (e.g. `[0, 1, 4, 10, 20]` for 3
+        modes: 1 term through order 0, 4 through order 1, 10 through order 2, 20 through order 3).
+        This used to return those cumulative boundaries themselves, filtered to `< nterms`, and
+        `reformat_tm_block` then used each one directly as a *chunk width* -- but a cumulative total
+        is not a per-order width, and the final boundary that actually reaches `nterms` was always
+        excluded by the strict `<` (a row with exactly `nterms` columns needs the boundary *at*
+        `nterms` included, not just those strictly below it). For a `nterms=10` row (all 10 order-0
+        through order-2 correction terms, i.e. `1 + 3 + 6`), this returned `[0, 1, 4]` and got used as
+        chunk widths `0, 1, 4` -- consuming only the first 5 of the row's 10 printed columns and
+        silently dropping the rest, which is why `VPTAnalyzerLogParser`-reconstructed transition
+        moments for combination-band/overtone transitions came out ~5-30% off even once the multi-
+        initial-state parsing bugs elsewhere in this class were fixed (see
+        `claude_drafts/vpt_analyzer_log_parsing_fixes.patch`). This now includes the boundary
+        that reaches `nterms` itself, and converts the cumulative boundaries into genuine per-order
+        term-count *widths* via consecutive differences, so `reformat_tm_block` consumes every printed
+        column.
 
         :param nterms: the total number of numeric columns present in a transition-moment data row
         :type nterms: int
-        :return: the list of cumulative term counts below `nterms`, one entry per perturbative order
+        :return: the number of correction terms belonging to each perturbative order, in order (e.g. `[1, 3, 6]` for a 10-column row)
         :rtype: list[int]
         """
         import McUtils.Combinatorics as comb
@@ -566,7 +623,8 @@ class VPTAnalyzerLogParser(LogParser):
             cls._indexer = comb.SymmetricGroupGenerator(3)
 
         cls._indexer.load_to_size(nterms)
-        return [c for c in cls._indexer._cumtotals if c < nterms]
+        cumulative_boundaries = [c for c in cls._indexer._cumtotals if c <= nterms]
+        return [b - a for a, b in zip(cumulative_boundaries[:-1], cumulative_boundaries[1:])]
 
     @classmethod
     def reformat_tm_block(cls, sb):

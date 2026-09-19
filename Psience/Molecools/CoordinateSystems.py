@@ -122,7 +122,9 @@ class MolecularEmbedding:
         :rtype: None
         """
         if hasattr(self, 'registered_converters') and self.registered_converters is not None:
-            for d in self.registered_converters:
+            registered_converters = self.registered_converters
+            self.registered_converters = None
+            for d in registered_converters:
                 d.deregister()
 
     def register(self):
@@ -173,7 +175,7 @@ class MolecularEmbedding:
             sys = self._coords.system
             coords = CoordinateSet(coords, sys)
         if sys is not self._coords.system:
-            self._regged = False
+            self.cleanup()
         self._jacobians = self._get_jacobian_storage()
         self._frame = None
         self._coords = coords

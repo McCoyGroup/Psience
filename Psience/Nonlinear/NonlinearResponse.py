@@ -20,7 +20,8 @@ __all__ = [
     "liouville_pathways",
     "nonlinear_response_generators",
     "experimental_response_generator",
-    "prep_vpt_response_data"
+    "prep_vpt_response_data",
+    "prep_vpt_response_data_from_log"
 ]
 
 def nested_commutator_expansion(k, side='left'):
@@ -605,6 +606,159 @@ def prep_vpt_response_data(system,
 
     if return_wavefunctions:
         return transition_dict, wfns
+    return transition_dict
+
+def _parse_vpt_state_label(label):
+    """
+    Parse a `VPTAnalyzer`/`VPTAnalyzerLogParser` state label (e.g. `"1 0 0"`) into an
+    excitation-quanta tuple (e.g. `(1, 0, 0)`), matching the tuple format used for
+    `transition_dict` keys elsewhere in this module.
+
+    Nothing in `Psience.VPT2.Analyzer` currently does this conversion -- `VPTAnalyzerLogParser`
+    hands back state labels as the raw, whitespace-joined digit strings taken verbatim from the
+    log table (e.g. via `.spectra`/`.transition_moment_corrections`), and every consumer is left
+    to parse them itself. This is one of the concrete small gaps found while building
+    `prep_vpt_response_data_from_log` below; a `state_label` <-> excitation-tuple helper like this
+    one would be a reasonable thing to add directly to `VPTAnalyzer`/`VPTAnalyzerLogParser`.
+
+    :param label: whitespace-separated per-mode quanta, e.g. `"1 0 0"`
+    :type label: str
+    :return: excitation-quanta tuple, e.g. `(1, 0, 0)`
+    :rtype: tuple[int]
+    """
+    return tuple(int(x) for x in label.split())
+
+def prep_vpt_response_data_from_log(log_file, max_freq=None, initial_quanta=(0, 1)):
+    """
+    Reconstructs a `transition_dict` (in the same format returned by `prep_vpt_response_data`)
+    purely from a saved VPT2 *text log*, using the existing `Psience.VPT2.Analyzer.VPTAnalyzer`
+    class to do the parsing, rather than from an in-memory `VPTWavefunctions`/`AnalyticPerturbationTheoryCorrections`
+    result.
+
+    This only works for logs produced by the **classic** `VPTRunner` (i.e. `logger=<path>` passed
+    to `VPTRunner.run_simple`), and even then only after two real bugs in `VPTAnalyzerLogParser`
+    were found and fixed while building this function (see `claude_drafts/vpt_analyzer_log_parsing_fixes.patch`):
+    the `.tree` property never unwrapped the single outer `">>--- Starting Perturbation Theory Runner ---<<"`
+    banner block that every such log is wrapped in, so no named table (`"IR Data"`, `"X Dipole Contributions"`,
+    etc) was ever reachable; and `SpectrumBlockParser`/`TransitionMomentBlockParser.check_tag` only
+    recognized a *leading-space* `" Initial State:"` header as the start of a new per-initial-state
+    sub-block and didn't skip the dashed separator line between sub-blocks, which happened to work by
+    accident for single-initial-state logs (e.g. the one existing reference fixture, `methanol_vpt_3.out`)
+    but silently mis-parsed (or crashed on) *any* log with more than one initial state -- which is the
+    normal case for this module, since `prep_vpt_response_data`'s classic branch always requests both
+    ground- and one-quantum initial states.
+
+    Two further limitations remain, and are NOT fixed here (see the patch notes above for the full
+    writeup):
+
+    - `AnalyticVPTRunner` logs cannot be parsed by `VPTAnalyzerLogParser` **at all** -- confirmed by
+      actually generating one (checked in as `ci/tests/TestData/water_vpt_analytic.log`) and attempting to load
+      it: `AnalyticVPTRunner.run_VPT` never emits the named log blocks (`"IR Data"`, `"X/Y/Z Dipole
+      Contributions"`, etc) that `VPTAnalyzerLogParser` looks for by exact tag string; it instead logs
+      a combined `"Transition Moments:"` table (via `format_transition_moment_table`) and leaves the
+      energies/spectrum output untagged. Supporting this would require either teaching `AnalyticVPTRunner`
+      to emit `VPTRunner`-compatible tagged blocks, or writing an entirely separate parser for its log
+      format. This function raises a clear `ValueError` (rather than a bare `IndexError`) if pointed at
+      such a log.
+    - The *transition moments* this function recovers are only approximately correct for combination-band
+      and overtone transitions (verified exact for all pure fundamentals, and within ~1e-3 for about
+      70% of all transitions tested against the in-memory `prep_vpt_response_data(water_freq.fchk)`
+      ground truth, with the rest off by up to ~30%). This traces to a third, separate bug: `VPTAnalyzerLogParser.reformat_tm_block`
+      (via `load_term_counts`/`McUtils.Combinatorics.SymmetricGroupGenerator`) mis-slices the raw
+      per-order dipole-correction columns of a `"X/Y/Z Dipole Contributions"` table row, silently
+      dropping roughly half of the printed correction terms for a 10-column row -- so the *frequencies*
+      this function returns are exact (verified against all 28 ground-truth transitions for water),
+      but the transition moments should be treated as approximate unless/until that slicing bug is
+      also fixed. That fix needs to trace through exactly how many dipole-derivative-order correction
+      terms `VPTWavefunctions.format_dipole_contribs_tables` prints for a given expansion order, which
+      is out of scope here.
+
+    :param log_file: path to a text log produced by `VPTRunner.run_simple(..., logger=log_file)`
+    :type log_file: str
+    :param max_freq: if given, drop any reconstructed transition whose frequency (in cm^-1) exceeds this
+    :type max_freq: float | None
+    :param initial_quanta: which initial-state total-quanta values to keep transitions from (matches the
+        same-named parameter of `prep_vpt_response_data`); the ground state and one-quantum blocks (`(0, 1)`)
+        are always present when the log was generated the way `prep_vpt_response_data`'s classic branch
+        generates them
+    :type initial_quanta: tuple[int]
+    :return: a `transition_dict` of the form `{(state_i, state_j): {'frequency':..., 'transition_moment':...}}`,
+        in the same format as `prep_vpt_response_data`
+    :rtype: dict
+    """
+    from ..VPT2 import VPTAnalyzer
+
+    analyzer = VPTAnalyzer(log_file)
+    parser = analyzer.log_parser
+
+    try:
+        spectra = parser.spectra
+        tm_corrections = parser.transition_moment_corrections
+    except (IndexError, KeyError) as e:
+        raise ValueError(
+            "could not parse a transition_dict from log file '{}': {} "
+            "(note: VPTAnalyzerLogParser currently only supports logs from the classic `VPTRunner` -- "
+            "`AnalyticVPTRunner` logs use a different, untagged table format and aren't supported)".format(
+                log_file, e
+            )
+        ) from e
+
+    if isinstance(spectra, dict):
+        spectra = [spectra]
+    if isinstance(tm_corrections, dict):
+        tm_corrections = [tm_corrections]
+
+    if len(spectra) != len(tm_corrections):
+        raise ValueError(
+            "parsed {} spectrum block(s) but {} transition-moment block(s) from '{}'; "
+            "can't reliably pair these up".format(len(spectra), len(tm_corrections), log_file)
+        )
+
+    transition_dict = {}
+    for spec_block, tm_block in zip(spectra, tm_corrections):
+        fin_labels = spec_block['states']
+        tm_axes = tm_block['corrections']  # [x, y, z] axis dicts, each from `reformat_tm_block`
+        tm_labels = tm_axes[0]['states']
+
+        # `VPTAnalyzerLogParser` doesn't currently record which initial state a parsed
+        # transition-moment block belongs to; each such block's raw table does include exactly
+        # one extra row beyond what's in the matching spectrum block, though -- the block's own
+        # diagonal <initial|mu|initial> self-term (a real, nonzero permanent-dipole matrix element,
+        # but not a "transition" so it's excluded from the "IR Data" spectrum table). Whichever
+        # label appears in the TM block but not in the spectrum block's final-state list is
+        # therefore this block's initial state.
+        fin_label_set = set(fin_labels)
+        init_candidates = [s for s in tm_labels if s not in fin_label_set]
+        if len(init_candidates) != 1:
+            raise ValueError(
+                "couldn't uniquely infer the initial state of a parsed transition-moment block in "
+                "'{}' (candidates: {}) -- VPTAnalyzer doesn't currently label these blocks directly, "
+                "so this had to be inferred, and the inference failed here".format(log_file, init_candidates)
+            )
+        init_label = init_candidates[0]
+        init_state = _parse_vpt_state_label(init_label)
+        if sum(init_state) not in initial_quanta:
+            continue
+
+        rows = [k for k, s in enumerate(tm_labels) if s != init_label]
+
+        for row, fin_label, (freq, _intensity) in zip(rows, fin_labels, spec_block['anharmonic']):
+            if freq <= 0:
+                # keep only the "upward" direction of each pair, matching `prep_vpt_response_data`;
+                # the reverse (negative-frequency) transition is inferred downstream automatically
+                continue
+            if max_freq is not None and freq > max_freq:
+                continue
+            fin_state = _parse_vpt_state_label(fin_label)
+            key = (init_state, fin_state)
+            if key in transition_dict:
+                continue
+            tm = np.array([
+                sum(arr[row].sum() for arr in axis_block['corrections'])
+                for axis_block in tm_axes
+            ])
+            transition_dict[key] = {'frequency': float(freq), 'transition_moment': tm}
+
     return transition_dict
 
 def get_interaction_basis(initial_states:BasisStateSpace, *, selection_rules, **filter_opts):

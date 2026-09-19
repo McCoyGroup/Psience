@@ -22,7 +22,11 @@ class MolecularTransformation(GeometricTransformation):
             new = mol.copy()
             new_coords = super().apply(new.coords)
             if isinstance(mol.coords, CoordinateSet):
-                new.coords = CoordinateSet(new_coords, mol.coords.system)
+                # The copied molecule owns its own molecular Cartesian system and the
+                # converters registered for it.  Reusing the source molecule's system
+                # makes the transformed molecule depend on the source's lifetime: when
+                # the source is collected it deregisters the shared converters.
+                new.coords = CoordinateSet(new_coords, new.coords.system)
             else:
                 new.coords = CoordinateSet(new_coords)
         elif isinstance(mol, GeometricTransformation):

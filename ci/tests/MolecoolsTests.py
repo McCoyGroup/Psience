@@ -1,4 +1,5 @@
 import itertools
+import gc
 import os.path
 import pprint
 
@@ -12,7 +13,7 @@ from Psience.Data import DipoleSurface # this will be leaving Zachary very soon 
 from McUtils.GaussianInterface import GaussianFChkReader, GaussianLogReader
 from McUtils.Plots import *
 import McUtils.Plots as plt
-from McUtils.Coordinerds import cartesian_to_zmatrix
+from McUtils.Coordinerds import cartesian_to_zmatrix, CartesianCoordinates3D
 from McUtils.Data import UnitsData
 import numpy as np, scipy
 import McUtils.Numputils as nput
@@ -31,6 +32,28 @@ class MolecoolsTests(TestCase):
 
     def tearDown(self):
         ...
+
+    @validationTest
+    def test_EmbeddedMoleculeOwnsCartesianSystem(self):
+        coords = np.array([
+            [0., 0., 0.],
+            [1., 0., 0.],
+            [0., 1., 0.],
+            [0., 0., 1.],
+            [1., 1., 0.],
+            [1., 0., 1.]
+        ])
+        source = Molecule(["C"] * len(coords), coords, bonds=[])
+        source_system = source.coords.system
+
+        embedded = source.get_embedded_molecule(sel=list(range(len(coords))))
+        self.assertIsNot(embedded.coords.system, source_system)
+
+        del source
+        gc.collect()
+
+        converted = embedded.coords.convert(CartesianCoordinates3D)
+        self.assertTrue(np.allclose(converted, embedded.coords))
 
     @validationTest
     def test_NormalModeRephasing(self):

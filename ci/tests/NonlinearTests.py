@@ -1097,21 +1097,19 @@ class NonlinearTests(TestCase):
         the known-correct ground truth already checked in for the in-memory
         classic branch (`water_freq_response.json`).
 
-        This only works at all because of two real bugs found and fixed in
+        This only works at all because of three real bugs found and fixed in
         `Psience/VPT2/Analyzer.py` while building this function -- see
         `claude_drafts/vpt_analyzer_log_parsing_fixes.patch` for the full
         writeup, and `claude_drafts/prep_vpt_response_data_from_log.patch`
         for `prep_vpt_response_data_from_log` itself. Both patches must be
         merged for this test to pass.
 
-        Frequencies are recovered exactly (they come straight off the log's
-        own printed values). Transition moments are only recovered exactly
-        for pure fundamentals; a third, separate, *not*-fixed bug in
-        `VPTAnalyzerLogParser.reformat_tm_block` (documented in
-        `prep_vpt_response_data_from_log`'s docstring) means combination-band
-        and overtone transition moments come back off by up to ~30% -- so
-        this only asserts a majority (>=60%) of the 28 known transitions
-        match closely, not all of them.
+        With all three fixed, both the frequencies (which come straight off
+        the log's own printed values) and the transition moments (reconstructed
+        by summing every printed per-order dipole-correction term, matching
+        `VPTWavefunctions._compute_tmom_to_order`'s own combination rule) come
+        back exact for all 28 known transitions, fundamentals and combination
+        bands/overtones alike -- not just approximately.
         """
         try:
             from Psience.Nonlinear.NonlinearResponse import prep_vpt_response_data_from_log
@@ -1132,7 +1130,6 @@ class NonlinearTests(TestCase):
         }
         self.assertEqual(set(transition_dict.keys()), set(gt_dict.keys()))
 
-        n_close = 0
         for key, data in transition_dict.items():
             gt_rec = gt_dict[key]
             self.assertAlmostEqual(data['frequency'], gt_rec['frequency'], places=3)
@@ -1141,25 +1138,10 @@ class NonlinearTests(TestCase):
             tm_gt = np.asarray(gt_rec['transition_moment'])
             # the two independent codepaths (in-memory vs. log-reconstructed) can come back
             # with an overall sign flip, same as the classic-vs-analytic comparison above
-            if (
-                np.max(np.abs(tm - tm_gt)) < 1e-3
-                or np.max(np.abs(tm + tm_gt)) < 1e-3
-            ):
-                n_close += 1
-        self.assertGreaterEqual(n_close, int(0.6 * len(gt_dict)))
-
-        # the fundamentals specifically should always be exact-ish, regardless of the
-        # combination-band/overtone slicing bug documented above
-        ground_state = (0, 0, 0)
-        fundamentals = [sj for (si, sj) in transition_dict if si == ground_state and sum(sj) == 1]
-        self.assertEqual(len(fundamentals), 3)
-        for fund in fundamentals:
-            key = (ground_state, fund)
-            tm = np.asarray(transition_dict[key]['transition_moment'])
-            tm_gt = np.asarray(gt_dict[key]['transition_moment'])
             self.assertLess(
                 min(np.max(np.abs(tm - tm_gt)), np.max(np.abs(tm + tm_gt))),
-                1e-3
+                1e-5,
+                msg=f"transition moment mismatch for {key}"
             )
 
     @validationTest
@@ -1208,6 +1190,41 @@ class NonlinearTests(TestCase):
             self.assertGreater(data['frequency'], 1000)
             self.assertLess(data['frequency'], 4200)
             self.assertGreater(np.linalg.norm(data['transition_moment']), 1e-3)
+
+    @validationTest
+    def test_VPTAnalyzerLoadTermCountsConsumesAllColumns(self):
+        """
+        Direct regression test for the `VPTAnalyzerLogParser.load_term_counts` bug
+        documented in `claude_drafts/vpt_analyzer_log_parsing_fixes.patch`: it used to
+        return `SymmetricGroupGenerator`'s *cumulative* term-count boundaries (e.g.
+        `[0, 1, 4]` for a 10-column row) and hand them straight to `reformat_tm_block`
+        as per-order chunk *widths*, and also excluded the boundary that reaches the
+        row's own column count via a strict `<` -- between the two, a 10-column
+        "X/Y/Z Dipole Contributions" row only ever got 5 of its 10 columns read
+        (widths `0, 1, 4`), silently dropping the rest.
+
+        This checks the per-order widths returned for a handful of concrete column
+        counts sum back up to that column count exactly (the property that was
+        violated before the fix), and spot-checks the specific `nterms=10` case
+        (1 + 3 + 6 term/order for 3 modes through 2nd order) against the exact
+        widths that should come out.
+        """
+        try:
+            from Psience.VPT2.Analyzer import VPTAnalyzerLogParser
+        except ImportError:
+            from Psience.Psience.VPT2.Analyzer import VPTAnalyzerLogParser
+
+        self.assertEqual(VPTAnalyzerLogParser.load_term_counts(1), [1])
+        self.assertEqual(VPTAnalyzerLogParser.load_term_counts(4), [1, 3])
+        self.assertEqual(VPTAnalyzerLogParser.load_term_counts(10), [1, 3, 6])
+        self.assertEqual(VPTAnalyzerLogParser.load_term_counts(20), [1, 3, 6, 10])
+
+        for nterms in (1, 4, 10, 20):
+            widths = VPTAnalyzerLogParser.load_term_counts(nterms)
+            self.assertEqual(
+                sum(widths), nterms,
+                msg=f"per-order widths {widths} don't account for all {nterms} columns"
+            )
 
     @validationTest
     def test_VPTResponseDataFromLogRejectsAnalyticLog(self):
