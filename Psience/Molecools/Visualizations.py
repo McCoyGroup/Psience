@@ -142,7 +142,8 @@ class MoleculePlotter:
                 'sphere_options': {'line_thickness': 0.01, 'line_color': 'black'},
                 'line_options': {'line_thickness': 0.05, 'line_color': 'black'},
                 'disk_options': {'line_thickness': 0.05, 'line_color': 'black'},
-                'label_style': {'font_size': '.5px'}
+                'label_style': {'font_size': '.5px'},
+                'mode_vector_origins':'offset'
             },
             'simple': {
                 'bond_radius': .05,
@@ -153,6 +154,7 @@ class MoleculePlotter:
                 'sphere_options': {'line_thickness': 0.01, 'line_color': 'black'},
                 'line_options': {'line_thickness': 0.05, 'line_color': 'black'},
                 'disk_options': {'line_thickness': 0.05, 'line_color': 'black'},
+                'mode_vector_origins':'offset'
             }
         },
         "rdkit": {
@@ -817,7 +819,7 @@ class MoleculePlotter:
                     principle_axes_origin = principle_axes_origin * UnitsData.convert("BohrRadius", units)
         return principle_axes, principle_axes_origin, principle_axes_style
 
-    def _prep_display_mode_vectors(self, geometries, units, mode_vectors, mode_vector_origins):
+    def _prep_display_mode_vectors(self, geometries, radii, units, mode_vectors, mode_vector_origins):
         """
         **LLM Docstring**
 
@@ -844,8 +846,33 @@ class MoleculePlotter:
             if units is not None:
                 mode_vectors = mode_vectors * UnitsData.convert("BohrRadius", units)
 
+
             if mode_vector_origins is not None:
-                mode_vector_origins = np.asanyarray(mode_vector_origins)
+                if not isinstance(mode_vector_origins, str):
+                    mode_vector_origins = np.asanyarray(mode_vector_origins)
+                else:
+                    if mode_vector_origins == 'offset':
+                        units = None
+                        _o_agg = []
+                        _mv_agg = []
+                        norms = np.linalg.norm(mode_vectors, axis=-1)
+                        for gg,mv,nn in zip(geometries, mode_vectors, norms):
+                            _o = []
+                            _mv = []
+                            for v,g,r,norm in zip(mv, gg, radii, nn):
+                                if norm <= r:
+                                    _mv.append([0, 0, 0])
+                                    _o.append(g)
+                                else:
+                                    u = v / norm
+                                    _mv.append(u * (norm - r))
+                                    _o.append(g + u * r)
+                            _o_agg.append(_o)
+                            _mv_agg.append(_mv)
+                        mode_vector_origins = np.array(_o_agg)
+                        mode_vectors = np.array(_mv_agg)
+                    else:
+                        raise NotImplementedError(...)
                 if mode_vector_origins.ndim == 1:
                     mode_vector_origins = np.reshape(mode_vector_origins, (-1, 3))
                 if mode_vector_origins.ndim == 2:
@@ -3508,23 +3535,22 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
         if animate is None:
             animate = geometries.shape[0] > 1 and comparison_styles is None
 
+        geometries = geometries.convert(CartesianCoordinates3D)
+        radii = self._get_atom_radii(atom_radii, atom_radius_scaling, radius_type)
+
         dipole, dipole_origin = self._prep_display_dipole(geometries, dipole, dipole_origin, units)
         principle_axes, principle_axes_origin, principle_axes_style = self._prep_principle_axes(
             geometries, units, principle_axes, principle_axes_origin, principle_axes_style
         )
         mode_vectors, mode_vector_origins = self._prep_display_mode_vectors(
-            geometries, units,
+            geometries, radii, units,
             mode_vectors, mode_vector_origins
         )
 
         draw_coords, draw_coords_style = self._prep_display_draw_coords(
             draw_coords, draw_coords_style
         )
-
-        geometries = geometries.convert(CartesianCoordinates3D)
         draw_bonds = bonds
-
-        radii = self._get_atom_radii(atom_radii, atom_radius_scaling, radius_type)
 
         bonds = [None] * len(geometries)
         atoms = [None] * len(geometries)
@@ -3984,8 +4010,7 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
                     geom,
                     mode_vectors[i],
                     mode_vector_display_cutoff=mode_vector_display_cutoff,
-                    mode_vector_origins=mode_vector_origins[
-                        i] if mode_vector_origins is not None else mode_vector_origins,
+                    mode_vector_origins=mode_vector_origins[i] if mode_vector_origins is not None else mode_vector_origins,
                     mode_vector_origin_mode=mode_vector_origin_mode,
                     arrow_class=arrow_class,
                     theme_function=theme_function,

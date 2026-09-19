@@ -253,20 +253,33 @@ def prep_nonlinear_transition_data(transition_dict: dict,
     return TransitionData(states, frequencies, transition_moments, couplings)
 
 def get_interaction_basis(initial_states:BasisStateSpace, *, selection_rules, **filter_opts):
-    def _apply_rules(space, rules):
+    def _apply_rules(space, rules, filter_opts):
+        # `apply_selection_rules` returns a bare space when it was called without
+        # `filter_space`, but returns a `(space, updated_filter)` tuple whenever
+        # `filter_space` is supplied (see `SelectionRuleStateSpace.from_rules` and
+        # the analogous unpacking in `AbstractStateSpace.get_representation_indices`).
+        # We unpack that here and thread the (progressively narrowed) filter forward
+        # into subsequent calls instead of reusing the caller's original filter_space.
         if hasattr(space, 'representative_space'):
             space = space.to_single(include_representative=False).take_unique()
         if len(space) == 0:
             return None
         else:
-            return space.apply_selection_rules(rules, **filter_opts)
+            new = space.apply_selection_rules(rules, **filter_opts)
+            if not isinstance(new, breps.AbstractStateSpace):
+                new, updated_filter = new
+                if 'filter_space' in filter_opts:
+                    filter_opts = dict(filter_opts, filter_space=updated_filter)
+            return new, filter_opts
 
     if nput.is_int(selection_rules[0][0][0]): # one path supplied
         bases = [initial_states]
         space = initial_states
+        cur_filter_opts = filter_opts
         for rules in selection_rules:
-            new = _apply_rules(bases[-1], rules)
-            if new is None: return None
+            res = _apply_rules(bases[-1], rules, cur_filter_opts)
+            if res is None: return None
+            new, cur_filter_opts = res
             bases.append(new)
             space = space.union(new.to_single())
         total_space = space.to_single().take_unique().as_sorted()
@@ -277,8 +290,11 @@ def get_interaction_basis(initial_states:BasisStateSpace, *, selection_rules, **
         for rule_list in selection_rules:
             basis = [initial_states]
             space = initial_states
+            cur_filter_opts = filter_opts
             for rules in rule_list:
-                new = _apply_rules(basis[-1], rules)
+                res = _apply_rules(basis[-1], rules, cur_filter_opts)
+                if res is None: break
+                new, cur_filter_opts = res
                 basis.append(new)
                 space = space.union(new.to_single())
             bases.append(basis)
