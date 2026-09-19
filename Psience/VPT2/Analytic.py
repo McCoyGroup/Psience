@@ -2,7 +2,7 @@
 Provides a symbolic approach to vibrational perturbation theory based on a Harmonic description
 """
 
-import abc, itertools, collections, enum, math, pickle, weakref
+import abc, itertools, collections, enum, math, pickle, weakref, sys
 import contextlib
 import functools
 
@@ -30,6 +30,7 @@ __all__ = [
     'PolyTerm',
     'PolyPath',
     'PTTensorCoeffProductDAG',
+    'PTTensorCoeffProductDAGEvaluationPlan',
     # 'AnalyticPerturbationTheoryDriver',
     # 'AnalyticPTCorrectionGenerator',
     # 'RaisingLoweringClasses'
@@ -4302,6 +4303,280 @@ class PTTensorCoeffProductDAG(PTTensorCoeffProductSum):
         return self.__mul__(other)
 
 
+class _BoundedEvaluationCache:
+    """A batch-local bounded FIFO shared by tensor and polynomial DAG evaluation."""
+
+    _missing = object()
+
+    class View:
+        def __init__(self, parent, namespace):
+            self.parent = parent
+            self.namespace = namespace
+
+        def get(self, key, default=None):
+            value = self.parent.get((self.namespace, key), self.parent._missing)
+            return default if value is self.parent._missing else value
+
+        def __contains__(self, key):
+            return self.parent.get((self.namespace, key), self.parent._missing) is not self.parent._missing
+
+        def __getitem__(self, key):
+            value = self.parent.get((self.namespace, key), self.parent._missing)
+            if value is self.parent._missing:
+                raise KeyError(key)
+            return value
+
+        def __setitem__(self, key, value):
+            self.parent[(self.namespace, key)] = value
+
+    def __init__(self, max_items=100000, max_bytes=64 * 1024 ** 2):
+        self.max_items = max(0, int(max_items))
+        self.max_bytes = None if max_bytes is None else max(0, int(max_bytes))
+        self._data = collections.OrderedDict()
+        self._sizes = {}
+        self._bytes = 0
+        self.hits = 0
+        self.misses = 0
+        self.evictions = 0
+        self.peak_items = 0
+        self.peak_bytes = 0
+
+    @classmethod
+    def _value_size(cls, value, depth=0):
+        if isinstance(value, np.ndarray):
+            return sys.getsizeof(value) + value.nbytes
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            return sys.getsizeof(value)
+        if isinstance(value, (tuple, list)) and depth < 2:
+            # Cache accounting must itself remain bounded.  The container size
+            # includes all reference slots; recursively sample a short prefix
+            # to account for the most common byte/array payloads without
+            # traversing an entire symbolic key.
+            sample = value[:16]
+            return sys.getsizeof(value) + sum(
+                max(0, cls._value_size(item, depth=depth + 1) - sys.getsizeof(item))
+                for item in sample
+            )
+        return sys.getsizeof(value)
+
+    def view(self, namespace):
+        return self.View(self, namespace)
+
+    def get(self, key, default=None):
+        try:
+            value = self._data[key]
+        except KeyError:
+            self.misses += 1
+            return default
+        self.hits += 1
+        return value
+
+    def __setitem__(self, key, value):
+        if self.max_items == 0 or self.max_bytes == 0:
+            return
+        if key in self._data:
+            self._data.pop(key)
+            self._bytes -= self._sizes.pop(key)
+        size = self._value_size(key) + self._value_size(value)
+        if self.max_bytes is not None and size > self.max_bytes:
+            return
+        self._data[key] = value
+        self._sizes[key] = size
+        self._bytes += size
+        while (
+            len(self._data) > self.max_items
+            or (self.max_bytes is not None and self._bytes > self.max_bytes)
+        ):
+            old_key, _ = self._data.popitem(last=False)
+            self._bytes -= self._sizes.pop(old_key)
+            self.evictions += 1
+        self.peak_items = max(self.peak_items, len(self._data))
+        self.peak_bytes = max(self.peak_bytes, self._bytes)
+
+    def stats(self):
+        return {
+            'cache_items': len(self._data),
+            'cache_bytes': self._bytes,
+            'cache_peak_items': self.peak_items,
+            'cache_peak_bytes': self.peak_bytes,
+            'cache_hits': self.hits,
+            'cache_misses': self.misses,
+            'cache_evictions': self.evictions,
+            'cache_max_items': self.max_items,
+            'cache_max_bytes': self.max_bytes
+        }
+
+
+class PTTensorCoeffProductDAGEvaluationPlan:
+    """Streams canonical tensor terms from a DAG without expanding it globally.
+
+    Small shared subgraphs are replayed from a bounded, batch-local cache.  A
+    node that emits more than ``max_cached_terms`` is deliberately not retained;
+    this prevents a high-order expression from replacing global materialization
+    with an equally unbounded evaluation cache.
+
+    Developer note
+    --------------
+    This is an intentionally conservative bridge to the existing evaluator: it
+    streams symbolic terms in bounded chunks, but each ``mul_along`` still uses
+    the legacy symbolic product machinery.  Consequently it bounds peak storage
+    without removing the dominant high-order Cartesian-product work.
+
+    A genuinely faster evaluator should compile this DAG to numerical blocks
+    whose axes describe open/fixed mode indices.  Leaf blocks should substitute
+    coefficient tensors and evaluate their ``PolyPath`` values once; ``add`` and
+    ``scale`` then operate directly on arrays, while ``permute``, ``shift``, and
+    ``free_up_indices`` transform block metadata/views.  Most importantly,
+    ``mul_along`` should become an indexed relational join/tensor contraction of
+    its child blocks.  That join must preserve equality/distinctness constraints
+    between mode indices, energy-denominator metadata, and final square-root
+    factors; multiplying already-reduced child scalars is not equivalent.
+
+    Keep unsupported nodes on this streaming implementation until their direct
+    kernels have numerical parity tests.  The materialized evaluator must also
+    remain available as the reference/timing implementation.
+    """
+
+    def __init__(self, expression, cache=None, max_cached_terms=256):
+        if not isinstance(expression, PTTensorCoeffProductDAG):
+            raise TypeError(type(expression))
+        self.expression = expression
+        self.cache = cache if cache is not None else _BoundedEvaluationCache()
+        self.term_cache = self.cache.view('tensor_terms')
+        self.operation_cache = self.cache.view('tensor_operations')
+        self.max_cached_terms = max(0, int(max_cached_terms))
+        self.nodes_visited = 0
+        self.node_cache_hits = 0
+        self.terms_emitted = 0
+
+    @staticmethod
+    def _singleton(key, poly):
+        return PTTensorCoeffProductSum({key: poly}, canonicalize=False)
+
+    @staticmethod
+    def _result_terms(result):
+        if nput.is_zero(result):
+            return ()
+        if isinstance(result, PTTensorCoeffProductDAG):
+            result = result.to_eager()
+        if not isinstance(result, PTTensorCoeffProductSum):
+            raise TypeError("tensor DAG operation produced {}".format(type(result)))
+        return tuple(result.terms.items())
+
+    def _cached_operation(self, key, operation):
+        result = self.operation_cache.get(key, _BoundedEvaluationCache._missing)
+        if result is _BoundedEvaluationCache._missing:
+            result = tuple(operation())
+            if len(result) <= self.max_cached_terms:
+                self.operation_cache[key] = result
+        return result
+
+    def _unary(self, method, key, poly, *args, **kwargs):
+        op_key = (method, key, poly, args, tuple(sorted(kwargs.items())))
+        return self._cached_operation(
+            op_key,
+            lambda: self._result_terms(
+                getattr(self._singleton(key, poly), method)(*args, **kwargs)
+            )
+        )
+
+    def _binary(self, method, left, right, *args, **kwargs):
+        left_key, left_poly = left
+        op_key = (method, left_key, left_poly, right, args, tuple(sorted(kwargs.items())))
+
+        def apply():
+            left_sum = self._singleton(left_key, left_poly)
+            right_value = right
+            if isinstance(right_value, tuple) and len(right_value) == 2 and isinstance(right_value[0], tuple):
+                right_value = self._singleton(*right_value)
+            return self._result_terms(getattr(left_sum, method)(right_value, *args, **kwargs))
+
+        return self._cached_operation(op_key, apply)
+
+    def _iter_node(self, node):
+        cached = self.term_cache.get(node, _BoundedEvaluationCache._missing)
+        if cached is not _BoundedEvaluationCache._missing:
+            self.node_cache_hits += 1
+            yield from cached
+            return
+
+        self.nodes_visited += 1
+        buffered = []
+        overflowed = False
+        for term in self._iter_node_uncached(node):
+            if not overflowed:
+                if len(buffered) < self.max_cached_terms:
+                    buffered.append(term)
+                else:
+                    overflowed = True
+                    buffered = None
+            yield term
+        if not overflowed:
+            self.term_cache[node] = tuple(buffered)
+
+    def _iter_node_uncached(self, node):
+        kind, *args = node._node
+        if kind == 'leaf':
+            yield from args[0].terms.items()
+        elif kind == 'add':
+            yield from self._iter_node(args[0])
+            yield from self._iter_node(args[1])
+        elif kind in {
+            'scale', 'shift', 'shift_energies', 'ensure_dimension',
+            'free_up_indices', 'flip_energy_terms', 'filter_coefficients',
+            'filter_energies', 'prune_operators'
+        }:
+            child, *op_args = args
+            for key, poly in self._iter_node(child):
+                yield from self._unary(kind, key, poly, *op_args)
+        elif kind == 'permute':
+            child, permutation, check_perm, allow_padding = args
+            for key, poly in self._iter_node(child):
+                yield from self._unary(
+                    'permute', key, poly, permutation,
+                    check_perm=check_perm, allow_padding=allow_padding
+                )
+        elif kind == 'combine':
+            # All combine modes are algebraic reductions.  Evaluation is linear,
+            # so retaining the unreduced stream is exactly equivalent.
+            yield from self._iter_node(args[0])
+        elif kind in {'mul_along', 'mul_simple'}:
+            left, right, *op_args = args
+            if isinstance(right, PTTensorCoeffProductDAG):
+                for left_term in self._iter_node(left):
+                    for right_term in self._iter_node(right):
+                        yield from self._binary(kind, left_term, right_term, *op_args)
+            else:
+                for left_term in self._iter_node(left):
+                    yield from self._binary(kind, left_term, right, *op_args)
+        elif kind in {'rmul_along', 'rmul_simple'}:
+            left, right, *op_args = args
+            if isinstance(left, PTTensorCoeffProductDAG):
+                for left_term in self._iter_node(left):
+                    for right_term in self._iter_node(right):
+                        yield from self._binary(
+                            kind[1:], right_term, left_term, *op_args
+                        )
+            else:
+                for key, poly in self._iter_node(right):
+                    yield from self._unary(kind, key, poly, left, *op_args)
+        else:
+            raise NotImplementedError("direct tensor DAG evaluation of {}".format(kind))
+
+    def iter_terms(self):
+        for term in self._iter_node(self.expression):
+            self.terms_emitted += 1
+            yield term
+
+    def stats(self):
+        return {
+            'dag_nodes_visited': self.nodes_visited,
+            'dag_node_cache_hits': self.node_cache_hits,
+            'dag_terms_emitted': self.terms_emitted,
+            **self.cache.stats()
+        }
+
+
 class SqrtChangePoly(PolynomialInterface):
     def __init__(self, poly_obj:'PolynomialInterface', change, shift, canonicalize=False):
         if nput.is_numeric(poly_obj): raise ValueError("{} isn't a polynomial".format(poly_obj))
@@ -6723,7 +6998,8 @@ class PerturbationTheoryExpressionEvaluator:
     def _eval_raw_poly(cls,
                        perm_substates, poly, change,
                        baseline_shift, pows,
-                       verbose, logger
+                       verbose, logger,
+                       path_node_cache=None, path_axis_cache=None
                        ):
         log_level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
         if isinstance(poly, PolyPath):
@@ -6746,7 +7022,11 @@ class PerturbationTheoryExpressionEvaluator:
                     ]
                     sqrt_factor = np.sqrt(np.prod(shifts_sqrts, axis=0))
 
-                value = poly.evaluate_polynomial(substates)
+                value = poly.evaluate_polynomial(
+                    substates,
+                    node_cache=path_node_cache,
+                    axis_cache=path_axis_cache
+                )
                 poly_evals.append(value * sqrt_factor)
             if len(poly_evals) == 1:
                 return poly_evals[0][:, np.newaxis]
@@ -6754,7 +7034,11 @@ class PerturbationTheoryExpressionEvaluator:
 
         if isinstance(poly, ProductPTPolynomialSum):
             subvals = [
-                cls._eval_raw_poly(perm_substates, p, change, baseline_shift, pows, verbose, logger)
+                cls._eval_raw_poly(
+                    perm_substates, p, change, baseline_shift, pows, verbose, logger,
+                    path_node_cache=path_node_cache,
+                    path_axis_cache=path_axis_cache
+                )
                 for p in poly.polys
             ]
             return poly.prefactor * np.sum(subvals, axis=0)
@@ -6836,16 +7120,33 @@ class PerturbationTheoryExpressionEvaluator:
     def _eval_poly(cls, cache, tuple_states, perm_substates, pows,
                    poly, change, baseline_shift,
                    verbose, logger):
-        # TODO: this could be way faster but we're being dumb for now
+        # Developer note: the legacy/materialized path caches complete
+        # (polynomial, change, baseline, state) evaluations.  That captures most
+        # exact repeats, but two distinct PolyPaths can still share many internal
+        # nodes and axes.  A faster materialized evaluator should retain this
+        # exact-result cache as its first level and give each evaluation batch a
+        # second, bounded PolyPath node/axis cache.  The second level must be
+        # discarded after the batch (and capped by both entries and estimated
+        # bytes); otherwise high-order state batches can retain every remapped
+        # node and merely move the original expression-growth problem into the
+        # evaluator.  _BoundedEvaluationCache already provides the required
+        # namespace and eviction machinery for that integration.
 
         poly_key = (
             poly,
             None if change is None else tuple(change),
             None if baseline_shift is None else tuple(baseline_shift)
         )
-        if poly_key not in cache:
-            cache[poly_key] = {}
-        cache = cache[poly_key]
+        batch_cache = cache if isinstance(cache, _BoundedEvaluationCache) else None
+        if batch_cache is None:
+            if poly_key not in cache:
+                cache[poly_key] = {}
+            value_cache = cache[poly_key]
+            path_node_cache = path_axis_cache = None
+        else:
+            value_cache = batch_cache.view('polynomial_values')
+            path_node_cache = batch_cache.view('polypath_nodes')
+            path_axis_cache = batch_cache.view('polypath_axes')
 
         eval_pos = []
         eval_keys = []
@@ -6853,12 +7154,16 @@ class PerturbationTheoryExpressionEvaluator:
         vals = np.zeros((len(perm_substates[0]), len(perm_substates)), dtype=float)
         for j,substates in enumerate(tuple_states):
             for i,t in enumerate(substates):
-                if t in cache:
-                    vals[i, j] = cache[t]
-                else:
+                value_key = (poly_key, t) if batch_cache is not None else t
+                cached_value = value_cache.get(
+                    value_key, _BoundedEvaluationCache._missing
+                )
+                if cached_value is _BoundedEvaluationCache._missing:
                     eval_pos.append([i, j])
-                    eval_keys.append(t)
+                    eval_keys.append(value_key)
                     eval_states.append(perm_substates[j][i])
+                else:
+                    vals[i, j] = cached_value
         if len(eval_states) > 0:
             if len(eval_states[0]) == 0:
                 substates = np.empty((len(eval_states), 0), dtype=eval_states[0].dtype)
@@ -6868,9 +7173,13 @@ class PerturbationTheoryExpressionEvaluator:
                                         count=len(eval_states),
                                         dtype=np.dtype((eval_states[0].dtype, (len(eval_states[0]),)))
                                         )
-            evals = cls._eval_raw_poly([substates], poly, change, baseline_shift, pows, verbose, logger)
+            evals = cls._eval_raw_poly(
+                [substates], poly, change, baseline_shift, pows, verbose, logger,
+                path_node_cache=path_node_cache,
+                path_axis_cache=path_axis_cache
+            )
             for t,v,(i,j) in zip(eval_keys, evals[:, 0], eval_pos):
-                cache[t] = v
+                value_cache[t] = v
                 vals[i, j] = v
         return vals
     @classmethod
@@ -7522,7 +7831,17 @@ class PerturbationTheoryExpressionEvaluator:
     _max_cache_size = 1e7
     _poly_cache = MaxSizeCache(_max_cache_size, cache_type='fifo') # temporary hack, but these are in principle shared/reused
     _ecoeff_cache = MaxSizeCache(_max_cache_size, cache_type='fifo')
+    default_tensor_evaluation_mode = 'dag'
+    default_dag_cache_size = 100000
+    default_dag_cache_bytes = 64 * 1024 ** 2
+    default_dag_chunk_size = 256
+    default_dag_node_term_cache_size = 256
+    _last_dag_evaluation_stats = None
     default_zero_cutoff = 1e-18
+
+    @classmethod
+    def get_last_dag_evaluation_stats(cls):
+        return None if cls._last_dag_evaluation_stats is None else dict(cls._last_dag_evaluation_stats)
 
     _parallel_eval_main_args = None
     _cached_expansion = None
@@ -7691,6 +8010,84 @@ class PerturbationTheoryExpressionEvaluator:
         return contrib
 
     @classmethod
+    def _evaluate_tensor_dag_expression(cls,
+                                        state_perms, coeffs, freqs,
+                                        expr, change, baseline_shift,
+                                        num_fixed,
+                                        op=None,
+                                        logger=None,
+                                        parallelizer=None,
+                                        degenerate_changes=None,
+                                        only_degenerate_terms=False,
+                                        zero_cutoff=None,
+                                        verbose=False, log_scaled=True,
+                                        cache_size=None,
+                                        cache_bytes=None,
+                                        chunk_size=None):
+        cache_size = cls.default_dag_cache_size if cache_size is None else cache_size
+        cache_bytes = cls.default_dag_cache_bytes if cache_bytes is None else cache_bytes
+        chunk_size = cls.default_dag_chunk_size if chunk_size is None else max(1, int(chunk_size))
+        evaluation_cache = _BoundedEvaluationCache(cache_size, cache_bytes)
+        plan = PTTensorCoeffProductDAGEvaluationPlan(
+            expr,
+            cache=evaluation_cache,
+            max_cached_terms=cls.default_dag_node_term_cache_size
+        )
+
+        result = tuple(
+            np.zeros([len(coeffs), len(perms)])
+            for state, perms in state_perms
+        )
+        pending = {}
+        chunks = 0
+        materializations_before = PTTensorCoeffProductDAG.cache_info()['tensor_materializations']
+        start = time.perf_counter()
+
+        def evaluate_pending():
+            nonlocal chunks
+            if len(pending) == 0:
+                return
+            chunk = PTTensorCoeffProductSum(
+                dict(pending), canonicalize=False, reduced=False
+            )
+            chunk_result = cls.evaluate_polynomial_expression(
+                state_perms, coeffs, freqs,
+                chunk, change, baseline_shift,
+                num_fixed,
+                op=op,
+                logger=logger,
+                parallelizer=parallelizer,
+                degenerate_changes=degenerate_changes,
+                only_degenerate_terms=only_degenerate_terms,
+                zero_cutoff=zero_cutoff,
+                verbose=verbose, log_scaled=log_scaled,
+                evaluation_mode='materialized',
+                _poly_eval_cache=evaluation_cache
+            )
+            for storage, contribution in zip(result, chunk_result):
+                storage += contribution
+            pending.clear()
+            chunks += 1
+
+        for key, poly in plan.iter_terms():
+            pending[key] = pending.get(key, 0) + poly
+            if len(pending) >= chunk_size:
+                evaluate_pending()
+        evaluate_pending()
+
+        cls._last_dag_evaluation_stats = {
+            **plan.stats(),
+            'dag_chunks': chunks,
+            'dag_chunk_size': chunk_size,
+            'dag_elapsed': time.perf_counter() - start,
+            'dag_materializations': (
+                PTTensorCoeffProductDAG.cache_info()['tensor_materializations']
+                - materializations_before
+            )
+        }
+        return result
+
+    @classmethod
     def evaluate_polynomial_expression(cls,
                                        state_perms, coeffs, freqs,
                                        expr, change, baseline_shift,
@@ -7701,7 +8098,12 @@ class PerturbationTheoryExpressionEvaluator:
                                        degenerate_changes=None,
                                        only_degenerate_terms=False,
                                        zero_cutoff=None,
-                                       verbose=False, log_scaled=True
+                                       verbose=False, log_scaled=True,
+                                       evaluation_mode=None,
+                                       dag_cache_size=None,
+                                       dag_cache_bytes=None,
+                                       dag_chunk_size=None,
+                                       _poly_eval_cache=None
                                        ):
 
         # ensure data is in a format where we can loop over states, perms, and degenerate
@@ -7757,6 +8159,29 @@ class PerturbationTheoryExpressionEvaluator:
             inactive_coefficients = expr.operator_keys.difference(active_coefficients)
             if len(inactive_coefficients) > 0:
                 expr = expr.prune_operators(inactive_coefficients)
+
+            if evaluation_mode is None:
+                evaluation_mode = cls.default_tensor_evaluation_mode
+            if evaluation_mode == 'dag':
+                return cls._evaluate_tensor_dag_expression(
+                    state_perms, coeffs, freqs,
+                    expr, change, baseline_shift,
+                    num_fixed,
+                    op=op,
+                    logger=logger,
+                    parallelizer=parallelizer,
+                    degenerate_changes=degenerate_changes,
+                    only_degenerate_terms=only_degenerate_terms,
+                    zero_cutoff=zero_cutoff,
+                    verbose=verbose, log_scaled=log_scaled,
+                    cache_size=dag_cache_size,
+                    cache_bytes=dag_cache_bytes,
+                    chunk_size=dag_chunk_size
+                )
+            elif evaluation_mode == 'materialized':
+                expr = expr.to_eager()
+            else:
+                raise ValueError("unknown tensor evaluation mode {}".format(evaluation_mode))
 
         # udegs, udeg_inv = np.unique(np.concatenate(degenerate_changes, axis=0), axis=0, return_inverse=True)
 
@@ -7849,7 +8274,9 @@ class PerturbationTheoryExpressionEvaluator:
                     for state, perms in state_perms
                 )
                 counts_cache = cls.get_cache() # so we don't hit some coeff sets too many times
-                poly_cache = cls._poly_cache # so we can avoid redoing the same polynomials a bunch of times
+                poly_cache = (
+                    cls._poly_cache if _poly_eval_cache is None else _poly_eval_cache
+                ) # so we can avoid redoing the same polynomials a bunch of times
                 take_cache = cls.get_cache() # shockingly beneficial...
                 energy_cache = cls.get_cache()
                 with dev.context_wrap(parallelizer):
@@ -7987,7 +8414,11 @@ class PerturbationTheoryExpressionEvaluator:
 
     def evaluate(self, state_perms, coeffs, freqs, degenerate_changes=None, only_degenerate_terms=False,
                  zero_cutoff=None, parallelizer=None,
-                 verbose=False, log_scaled=True
+                 verbose=False, log_scaled=True,
+                 evaluation_mode=None,
+                 dag_cache_size=None,
+                 dag_cache_bytes=None,
+                 dag_chunk_size=None
                  ):
 
         # state = np.asanyarray(state)
@@ -8038,7 +8469,11 @@ class PerturbationTheoryExpressionEvaluator:
                 zero_cutoff=zero_cutoff,
                 degenerate_changes=degenerate_changes,
                 only_degenerate_terms=only_degenerate_terms,
-                verbose=verbose, log_scaled=log_scaled
+                verbose=verbose, log_scaled=log_scaled,
+                evaluation_mode=evaluation_mode,
+                dag_cache_size=dag_cache_size,
+                dag_cache_bytes=dag_cache_bytes,
+                dag_chunk_size=dag_chunk_size
             )
 
         if smol_coeffs: res = [r[0] for r in res]
@@ -8088,7 +8523,11 @@ class PerturbationTheoryEvaluator:
     def get_energy_corrections(self, states, order=None, expansions=None, freqs=None,
                                zero_cutoff=None, degenerate_states=None, verbose=False,
                                logger=None,
-                               parallelizer=None):
+                               parallelizer=None,
+                               evaluation_mode=None,
+                               dag_cache_size=None,
+                               dag_cache_bytes=None,
+                               dag_chunk_size=None):
         expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
         if order is None: order = len(self.expansions) - 1
@@ -8111,7 +8550,11 @@ class PerturbationTheoryEvaluator:
                         [[s, [np.arange(len(s))]] for s in states],
                         expansions, freqs, verbose=verbose,
                         degenerate_changes=degenerate_changes, zero_cutoff=zero_cutoff, log_scaled=True,
-                        parallelizer=parallelizer
+                        parallelizer=parallelizer,
+                        evaluation_mode=evaluation_mode,
+                        dag_cache_size=dag_cache_size,
+                        dag_cache_bytes=dag_cache_bytes,
+                        dag_chunk_size=dag_chunk_size
                     )
 
                     end = time.time()
@@ -8154,7 +8597,11 @@ class PerturbationTheoryEvaluator:
     def get_overlap_corrections(self, states, order=None, expansions=None,
                                 degenerate_states=None, freqs=None,
                                 zero_cutoff=None, verbose=False,
-                                parallelizer=None):
+                                parallelizer=None,
+                                evaluation_mode=None,
+                                dag_cache_size=None,
+                                dag_cache_bytes=None,
+                                dag_chunk_size=None):
         expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
         if order is None: order = len(expansions) - 1
@@ -8178,7 +8625,11 @@ class PerturbationTheoryEvaluator:
                     [[s, [np.arange(len(s))]] for s in states],
                     expansions, freqs, verbose=verbose,
                     degenerate_changes=degenerate_changes, zero_cutoff=zero_cutoff, log_scaled=True,
-                    parallelizer=parallelizer
+                    parallelizer=parallelizer,
+                    evaluation_mode=evaluation_mode,
+                    dag_cache_size=dag_cache_size,
+                    dag_cache_bytes=dag_cache_bytes,
+                    dag_chunk_size=dag_chunk_size
                 )
             )[:, np.newaxis]
             for evaluator in overlap_evaluators

@@ -214,6 +214,59 @@ class AnalyticDAGTests(unittest.TestCase):
         pruned_dag = tensor_dag.prune_operators([excluded_operator]).to_eager()
         self.assertPolynomialEqual(pruned_eager, pruned_dag)
 
+    def test_direct_evaluator_is_bounded_and_matches_materialization(self):
+        Analytic.AnalyticPerturbationTheorySolver.clear_caches()
+        solver = Analytic.AnalyticPerturbationTheorySolver.from_order(
+            4, polynomial_representation='path'
+        )
+        evaluator = solver.energy_correction(2)([])
+        coefficient_keys = {
+            coefficient
+            for product in evaluator.expr.poly_obj.to_eager().terms
+            for coefficient in product
+        }
+        rng = np.random.default_rng(812)
+        coefficient_expansion = [
+            [] for _ in range(max(key[0] for key in coefficient_keys) + 1)
+        ]
+        for coefficient_type, expansion in enumerate(coefficient_expansion):
+            orders = [key[1] for key in coefficient_keys if key[0] == coefficient_type]
+            for order in range(max(orders, default=0) + 1):
+                ranks = [
+                    len(key) - 2
+                    for key in coefficient_keys
+                    if key[:2] == (coefficient_type, order)
+                ]
+                expansion.append(
+                    0 if len(ranks) == 0 else rng.normal(size=(3,) * max(ranks))
+                )
+
+        state_permutations = [
+            np.array([1, 2, 0]),
+            np.array([[0, 1, 2], [1, 0, 2], [2, 1, 0]])
+        ]
+        frequencies = np.array([0.8, 1.3, 1.9])
+        materialized = evaluator.evaluate(
+            state_permutations, coefficient_expansion, frequencies,
+            evaluation_mode='materialized'
+        )
+
+        # Force both item- and byte-pressure so this exercises eviction rather
+        # than merely checking the configured limits.
+        direct = evaluator.evaluate(
+            state_permutations, coefficient_expansion, frequencies,
+            evaluation_mode='dag',
+            dag_cache_size=8,
+            dag_cache_bytes=4096,
+            dag_chunk_size=3
+        )
+        np.testing.assert_allclose(direct, materialized, rtol=2e-12, atol=2e-12)
+        stats = Analytic.PerturbationTheoryExpressionEvaluator.get_last_dag_evaluation_stats()
+        self.assertLessEqual(stats['cache_peak_items'], 8)
+        self.assertLessEqual(stats['cache_peak_bytes'], 4096)
+        self.assertGreater(stats['cache_evictions'], 0)
+        self.assertEqual(stats['dag_materializations'], 0)
+
     def test_fourth_order_derivation_stays_lazy(self):
         Analytic.AnalyticPerturbationTheorySolver.clear_caches()
         solver = Analytic.AnalyticPerturbationTheorySolver.from_order(
