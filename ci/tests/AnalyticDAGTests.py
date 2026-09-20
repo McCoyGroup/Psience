@@ -8,12 +8,100 @@ import numpy as np
 try:
     import Psience.VPT2.Analytic as Analytic
     from Psience.VPT2 import AnalyticVPTRunner
+    from McUtils.Parallelizers import MultiprocessingParallelizer
 except ModuleNotFoundError:
     import Psience.Psience.VPT2.Analytic as Analytic
     from Psience.Psience.VPT2 import AnalyticVPTRunner
+    from McUtils.McUtils.Parallelizers import MultiprocessingParallelizer
 
 
 class AnalyticDAGTests(unittest.TestCase):
+
+    def test_parallel_evaluation_blocks_are_balanced_and_complete(self):
+        partition = (
+            Analytic.PerturbationTheoryExpressionEvaluator
+            ._partition_evaluation_blocks
+        )
+        for combinations, processes in ((0, 4), (3, 5), (66, 4), (741, 4)):
+            blocks = partition(combinations, processes)
+            cursor = 0
+            sizes = []
+            for start, stop in blocks:
+                self.assertEqual(start, cursor)
+                self.assertGreater(stop, start)
+                sizes.append(stop - start)
+                cursor = stop
+            self.assertEqual(cursor, combinations)
+            if sizes:
+                self.assertLessEqual(max(sizes) - min(sizes), 1)
+
+        self.assertEqual(
+            partition(66, 4),
+            [(0, 17), (17, 34), (34, 50), (50, 66)]
+        )
+
+    def test_parallel_dag_evaluation_matches_serial_with_remainder(self):
+        Analytic.AnalyticPerturbationTheorySolver.clear_caches()
+        solver = Analytic.AnalyticPerturbationTheorySolver.from_order(
+            4, polynomial_representation='path'
+        )
+        evaluator = solver.energy_correction(2)([])
+        coefficient_keys = {
+            coefficient
+            for product in evaluator.expr.poly_obj.to_eager().terms
+            for coefficient in product
+        }
+        rng = np.random.default_rng(9417)
+        nmodes = 4
+        coefficient_expansion = [
+            [] for _ in range(max(key[0] for key in coefficient_keys) + 1)
+        ]
+        for coefficient_type, expansion in enumerate(coefficient_expansion):
+            orders = [
+                key[1] for key in coefficient_keys
+                if key[0] == coefficient_type
+            ]
+            for order in range(max(orders, default=0) + 1):
+                ranks = [
+                    len(key) - 2
+                    for key in coefficient_keys
+                    if key[:2] == (coefficient_type, order)
+                ]
+                expansion.append(
+                    0 if len(ranks) == 0 else
+                    rng.normal(scale=.01, size=(nmodes,) * max(ranks))
+                )
+
+        state_permutations = [
+            np.array([1, 0, 2, 0]),
+            np.array([
+                [0, 1, 2, 3],
+                [1, 0, 3, 2],
+                [2, 3, 0, 1]
+            ])
+        ]
+        frequencies = np.array([.8, 1.1, 1.6, 2.0])
+
+        evaluator_cls = Analytic.PerturbationTheoryExpressionEvaluator
+        evaluator_cls._cached_expansion = None
+        evaluator_cls._poly_cache = evaluator_cls.get_cache()
+        serial = evaluator.evaluate(
+            state_permutations, coefficient_expansion, frequencies,
+            evaluation_mode='dag'
+        )
+
+        evaluator_cls._cached_expansion = None
+        evaluator_cls._poly_cache = evaluator_cls.get_cache()
+        with MultiprocessingParallelizer(
+                processes=4, stall_timeout=30
+        ) as parallelizer:
+            parallel = evaluator.evaluate(
+                state_permutations, coefficient_expansion, frequencies,
+                evaluation_mode='dag', parallelizer=parallelizer
+            )
+        np.testing.assert_allclose(
+            parallel, serial, rtol=2e-12, atol=2e-12
+        )
 
     @staticmethod
     def _evaluate(poly, states):

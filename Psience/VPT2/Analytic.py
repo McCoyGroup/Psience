@@ -8214,10 +8214,25 @@ class PerturbationTheoryExpressionEvaluator:
 
         return cls._cached_main_args + (cls._cached_expansion,)
     @classmethod
+    def _partition_evaluation_blocks(cls, ncomb, nproc):
+        """Split combination ranks into complete, balanced half-open ranges."""
+        if nproc < 1:
+            raise ValueError("evaluation requires at least one process")
+        block_size, remainder = divmod(ncomb, nproc)
+        blocks = []
+        start = 0
+        for block_index in range(nproc):
+            stop = start + block_size + (block_index < remainder)
+            if stop > start:
+                blocks.append((start, stop))
+            start = stop
+        return blocks
+
+    @classmethod
     def _run_eval_block(cls,
-                        block_inds,
+                        block_ranges,
                         contrib_shapes,
-                        block_size, free_inds,
+                        free_inds,
                         cind_sets
                         ):
         (
@@ -8241,16 +8256,23 @@ class PerturbationTheoryExpressionEvaluator:
         split_spec = np.cumsum([0] + [len(perms) for state, perms in state_perms])[1:]
 
         contrib = [np.zeros(c) for c in contrib_shapes]
-        # ncomb = math.comb(ndim - num_fixed, free_inds)
-        block_starts = [
-            [block_size*i, block_size*(i+1)]
-            for i in np.sort(block_inds)
-        ]
-        # print("!", free_inds, block_starts)
         comb_iter = itertools.combinations(range(num_fixed, ndim), r=free_inds)
-        for s,e in block_starts:
-            for subset in itertools.islice(comb_iter, s, e):
-                # print(n, math.comb(ndim-num_fixed, free_inds), free_inds, s,e, subset)
+        combination_position = 0
+        for start, stop in sorted(block_ranges):
+            if start < combination_position:
+                # Keep this correct if a future scheduler assigns overlapping
+                # or out-of-order ranges, without penalizing today's ordered
+                # contiguous partition.
+                comb_iter = itertools.combinations(
+                    range(num_fixed, ndim), r=free_inds
+                )
+                combination_position = 0
+            for subset in itertools.islice(
+                    comb_iter,
+                    start - combination_position,
+                    stop - combination_position
+            ):
+                # print(n, math.comb(ndim-num_fixed, free_inds), free_inds, start, stop, subset)
                 if verbose:
                     with logger.block(tag="{b} + {s}", b=tuple(range(num_fixed)), s=subset,
                                       log_level=log_level):
@@ -8277,6 +8299,7 @@ class PerturbationTheoryExpressionEvaluator:
                     )
                 for storage, corr in zip(contrib, subcontrib):
                     storage += corr
+            combination_position = stop
         return contrib
 
     @classmethod
@@ -8695,7 +8718,10 @@ class PerturbationTheoryExpressionEvaluator:
                             num_fixed, degenerate_changes, only_degenerate_terms,
                             zero_cutoff,
                             cls._max_cache_size,
-                            use_materialized_path_cache and _poly_eval_cache is None,
+                            # The parent DAG cache is process-local. Spawned
+                            # workers need their own bounded materialized/path
+                            # cache rather than falling back to scalar lookup.
+                            use_materialized_path_cache,
                             worker_path_cache_size, worker_path_cache_bytes,
                             state_permutation_cache_size,
                             state_permutation_cache_bytes,
@@ -8731,20 +8757,15 @@ class PerturbationTheoryExpressionEvaluator:
 
                                     ncomb = math.comb(ndim-num_fixed, free_inds)
                                     nproc = parallelizer.nprocs
-                                    if ncomb == 0:
-                                        block_size = 1
-                                    else:
-                                        block_size = ncomb // (nproc)
-                                        if block_size == 0:
-                                            block_size = 1
-                                        rem = ncomb % block_size
-                                        block_size = block_size + rem // max(1, nproc - 1)
+                                    block_ranges = cls._partition_evaluation_blocks(
+                                        ncomb, nproc
+                                    )
 
                                     subcontrib = parallelizer.run(
                                         cls._run_eval_blocks,
-                                        list(range(parallelizer.nprocs)),
+                                        block_ranges,
                                         contrib_shapes,
-                                        block_size, free_inds,
+                                        free_inds,
                                         cind_sets,
                                         cleanup=False
                                     )
