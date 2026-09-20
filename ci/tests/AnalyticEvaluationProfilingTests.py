@@ -1,4 +1,4 @@
-"""Manual pyinstrument profiles for the materialized analytic evaluator.
+"""Manual pyinstrument profiles for the analytic evaluator.
 
 These are opt-in because their purpose is to retain a reproducible performance
 workload, not to impose a wall-time threshold on CI.  Run with, for example::
@@ -13,10 +13,25 @@ profiles.  The default only prints the text reports.  Use
 ``PSIENCE_ANALYTIC_PROFILE_COMPONENTS=main`` to isolate the ordinary coupling
 term, or a comma-separated selection of ``main,left,right,both``.  A shortened
 resonance list can be selected with ``PSIENCE_ANALYTIC_PROFILE_CHANGE_LIMIT``.
+``PSIENCE_ANALYTIC_PROFILE_EVALUATION_MODES`` selects the comma-separated
+evaluator variants; it defaults to comparing the legacy and bounded-PolyPath-
+cache materialized implementations.  ``dag_legacy,dag`` compares the DAG
+streamer's original single-level cache with the shared PolyPath cache.
+
+``test_profile_tbhp_sized_evaluator`` is the molecule-sized workload.  The
+available TBHP checkpoint lacks cubic force derivatives, so the test uses its
+actual normal-mode frequencies with deterministic synthetic VPT coefficients.
+Set
+``PSIENCE_ANALYTIC_PROFILE_SECONDS`` to bound each mode (default: five minutes)
+and ``PSIENCE_ANALYTIC_PROFILE_TBHP_STATES`` to control its excitation depth.
+``PSIENCE_ANALYTIC_PROFILE_INTERVAL`` controls the pyinstrument sampling period
+(default: 1 ms); use 10--20 ms for long profiles to bound profiler storage.
+An interrupted profile is still written and reported as an intentional sample.
 """
 
 import os
 import pathlib
+import signal
 import time
 import unittest
 
@@ -29,13 +44,19 @@ except ImportError:
 
 try:
     import Psience.VPT2.Analytic as Analytic
+    from Psience.Molecools import Molecule
 except ModuleNotFoundError:
     import Psience.Psience.VPT2.Analytic as Analytic
+    from Psience.Psience.Molecools import Molecule
 
 
 RUN_PROFILES = os.environ.get('PSIENCE_RUN_ANALYTIC_PROFILES', '').lower() in {
     '1', 'true', 'yes', 'on'
 }
+
+
+class _ProfileTimeout(RuntimeError):
+    pass
 
 
 @unittest.skipUnless(RUN_PROFILES, 'manual pyinstrument profiling workload')
@@ -123,6 +144,14 @@ class AnalyticMaterializedEvaluationProfilingTests(unittest.TestCase):
             'main,left,right,both'
         )
         return tuple(component.strip() for component in components.split(',') if component.strip())
+
+    @classmethod
+    def _profile_evaluation_modes(cls):
+        modes = os.environ.get(
+            'PSIENCE_ANALYTIC_PROFILE_EVALUATION_MODES',
+            'materialized_legacy,materialized'
+        )
+        return tuple(mode.strip() for mode in modes.split(',') if mode.strip())
 
     @classmethod
     def _build_expressions(cls, force=False):
@@ -244,14 +273,35 @@ class AnalyticMaterializedEvaluationProfilingTests(unittest.TestCase):
         return state_perms, expansion, frequencies, degenerate_changes
 
     @staticmethod
-    def _profile(label, function):
-        profiler = Profiler(interval=.001, async_mode='disabled')
+    def _profile_sample(label, function, max_seconds=None):
+        sample_interval = float(os.environ.get(
+            'PSIENCE_ANALYTIC_PROFILE_INTERVAL', .001
+        ))
+        profiler = Profiler(interval=sample_interval, async_mode='disabled')
+        previous_handler = None
+        timed_out = False
+        result = None
+
+        if max_seconds is not None:
+            def timeout_handler(signum, frame):
+                raise _ProfileTimeout(
+                    '{} exceeded {:.1f}s profiling window'.format(label, max_seconds)
+                )
+
+            previous_handler = signal.signal(signal.SIGALRM, timeout_handler)
+            signal.setitimer(signal.ITIMER_REAL, max_seconds)
+
         start = time.perf_counter()
         profiler.start()
         try:
             result = function()
+        except _ProfileTimeout:
+            timed_out = True
         finally:
             profiler.stop()
+            if max_seconds is not None:
+                signal.setitimer(signal.ITIMER_REAL, 0)
+                signal.signal(signal.SIGALRM, previous_handler)
         elapsed = time.perf_counter() - start
         report = profiler.output_text(
             unicode=True,
@@ -259,7 +309,12 @@ class AnalyticMaterializedEvaluationProfilingTests(unittest.TestCase):
             show_all=os.environ.get('PSIENCE_ANALYTIC_PROFILE_SHOW_ALL') == '1',
             timeline=False
         )
-        print('\n{}: {:.3f}s\n{}'.format(label, elapsed, report))
+        print('\n{}: {:.3f}s{}\n{}'.format(
+            label,
+            elapsed,
+            ' (sample timed out)' if timed_out else '',
+            report
+        ))
 
         output_dir = os.environ.get('PSIENCE_ANALYTIC_PROFILE_OUTPUT')
         if output_dir:
@@ -267,6 +322,11 @@ class AnalyticMaterializedEvaluationProfilingTests(unittest.TestCase):
             output_dir.mkdir(parents=True, exist_ok=True)
             (output_dir / '{}.txt'.format(label)).write_text(report)
             profiler.write_html(output_dir / '{}.html'.format(label))
+        return result, report, timed_out
+
+    @classmethod
+    def _profile(cls, label, function):
+        result, report, _ = cls._profile_sample(label, function)
         return result, report
 
     def test_profile_materialized_construction(self):
@@ -289,7 +349,7 @@ class AnalyticMaterializedEvaluationProfilingTests(unittest.TestCase):
             'both': [True, True]
         }
 
-        def evaluate_all():
+        def evaluate_all(evaluation_mode):
             values = {}
             for name, evaluator in expressions.items():
                 values[name] = evaluator.evaluate(
@@ -298,15 +358,187 @@ class AnalyticMaterializedEvaluationProfilingTests(unittest.TestCase):
                     frequencies,
                     degenerate_changes=degenerate_changes,
                     only_degenerate_terms=modes[name],
-                    evaluation_mode='materialized'
+                    evaluation_mode=evaluation_mode
                 )
             return values
 
-        values, report = self._profile(
-            'analytic_materialized_degenerate_evaluation', evaluate_all
+        reference = None
+        for evaluation_mode in self._profile_evaluation_modes():
+            # Do not let exact-result hits from an earlier mode conceal the
+            # amount of work performed by the PolyPath cache under test.
+            Analytic.PerturbationTheoryExpressionEvaluator._poly_cache = (
+                Analytic.PerturbationTheoryExpressionEvaluator.get_cache()
+            )
+            values, report = self._profile(
+                'analytic_{}_degenerate_evaluation'.format(evaluation_mode),
+                lambda mode=evaluation_mode: evaluate_all(mode)
+            )
+            if evaluation_mode in {'materialized', 'materialized_cached'}:
+                print(
+                    'materialized path cache: {}'.format(
+                        Analytic.PerturbationTheoryExpressionEvaluator
+                        .get_last_materialized_evaluation_stats()
+                    )
+                )
+            elif evaluation_mode in {'dag', 'dag_legacy'}:
+                print(
+                    'dag cache: {}'.format(
+                        Analytic.PerturbationTheoryExpressionEvaluator
+                        .get_last_dag_evaluation_stats()
+                    )
+                )
+            self.assertEqual(set(values), set(expressions))
+            self.assertIn('Analytic.py', report)
+            if reference is None:
+                reference = values
+            else:
+                for name in reference:
+                    np.testing.assert_allclose(
+                        values[name], reference[name], rtol=2e-12, atol=2e-12
+                    )
+
+    def test_profile_dag_cache(self):
+        Analytic.AnalyticPerturbationTheorySolver.clear_caches()
+        solver = Analytic.AnalyticPerturbationTheorySolver.from_order(
+            4, polynomial_representation='path'
         )
-        self.assertEqual(set(values), set(expressions))
-        self.assertIn('Analytic.py', report)
+        evaluator = solver.energy_correction(2)([])
+        coefficient_keys = self._leaf_coefficient_keys(evaluator.expr)
+        nmodes = int(os.environ.get('PSIENCE_ANALYTIC_PROFILE_MODES', 4))
+        nstates = int(os.environ.get('PSIENCE_ANALYTIC_PROFILE_STATES', 6))
+        nperms = int(os.environ.get('PSIENCE_ANALYTIC_PROFILE_PERMS', 12))
+        chunk_size = int(os.environ.get('PSIENCE_ANALYTIC_PROFILE_DAG_CHUNK', 32))
+        rng = np.random.default_rng(61492)
+
+        expansion = []
+        for order in range(max(key[0] for key in coefficient_keys) + 1):
+            coefficient_types = [
+                key[1] for key in coefficient_keys if key[0] == order
+            ]
+            order_expansion = []
+            for coefficient_type in range(max(coefficient_types, default=0) + 1):
+                ranks = [
+                    len(key) - 2 for key in coefficient_keys
+                    if key[:2] == (order, coefficient_type)
+                ]
+                order_expansion.append(
+                    0 if len(ranks) == 0 else
+                    rng.normal(scale=.05, size=(nmodes,) * max(ranks))
+                )
+            expansion.append(order_expansion or [0])
+
+        permutations = []
+        seen = set()
+        while len(permutations) < nperms:
+            permutation = tuple(rng.permutation(nmodes))
+            if permutation not in seen:
+                seen.add(permutation)
+                permutations.append(permutation)
+        permutations = np.array(permutations, dtype=int)
+        state_perms = [
+            [rng.integers(0, 7, size=nmodes), permutations]
+            for _ in range(nstates)
+        ]
+        frequencies = np.linspace(.7, 2.3, nmodes)
+
+        reference = None
+        for evaluation_mode in self._profile_evaluation_modes():
+            if evaluation_mode not in {'dag', 'dag_legacy'}:
+                continue
+            Analytic.PerturbationTheoryExpressionEvaluator._poly_cache = (
+                Analytic.PerturbationTheoryExpressionEvaluator.get_cache()
+            )
+            values, report = self._profile(
+                'analytic_{}_cache'.format(evaluation_mode),
+                lambda mode=evaluation_mode: evaluator.evaluate(
+                    state_perms,
+                    expansion,
+                    frequencies,
+                    evaluation_mode=mode,
+                    dag_chunk_size=chunk_size
+                )
+            )
+            print(
+                'dag cache: {}'.format(
+                    Analytic.PerturbationTheoryExpressionEvaluator
+                    .get_last_dag_evaluation_stats()
+                )
+            )
+            self.assertIn('Analytic.py', report)
+            if reference is None:
+                reference = values
+            else:
+                for actual, expected in zip(values, reference):
+                    np.testing.assert_allclose(
+                        actual, expected, rtol=2e-12, atol=2e-12
+                    )
+
+    def test_profile_tbhp_sized_evaluator(self):
+        data_file = pathlib.Path(__file__).with_name('TestData') / 'tbhp_180.fchk'
+        molecule = Molecule.from_file(str(data_file))
+        frequencies = molecule.get_normal_modes().freqs
+        nmodes = min(
+            len(frequencies),
+            int(os.environ.get('PSIENCE_ANALYTIC_PROFILE_TBHP_MODES', len(frequencies)))
+        )
+        frequencies = frequencies[:nmodes]
+        nstates = int(os.environ.get('PSIENCE_ANALYTIC_PROFILE_TBHP_STATES', 4))
+        nperms = int(os.environ.get('PSIENCE_ANALYTIC_PROFILE_TBHP_PERMS', 8))
+        chunk_size = int(os.environ.get('PSIENCE_ANALYTIC_PROFILE_DAG_CHUNK', 256))
+        max_seconds = float(os.environ.get(
+            'PSIENCE_ANALYTIC_PROFILE_SECONDS', 300
+        ))
+        Analytic.AnalyticPerturbationTheorySolver.clear_caches()
+        solver = Analytic.AnalyticPerturbationTheorySolver.from_order(
+            4, polynomial_representation='path'
+        )
+        evaluator = solver.energy_correction(2)([])
+        coefficient_keys = self._leaf_coefficient_keys(evaluator.expr)
+        rng = np.random.default_rng(81173)
+        expansion = []
+        for order in range(max(key[0] for key in coefficient_keys) + 1):
+            coefficient_types = [
+                key[1] for key in coefficient_keys if key[0] == order
+            ]
+            order_expansion = []
+            for coefficient_type in range(max(coefficient_types, default=0) + 1):
+                ranks = [
+                    len(key) - 2 for key in coefficient_keys
+                    if key[:2] == (order, coefficient_type)
+                ]
+                order_expansion.append(
+                    0 if len(ranks) == 0 else
+                    rng.normal(scale=.01, size=(nmodes,) * max(ranks))
+                )
+            expansion.append(order_expansion or [0])
+
+        permutations = np.array([
+            rng.permutation(nmodes) for _ in range(nperms)
+        ], dtype=int)
+        states = np.zeros((nstates, nmodes), dtype=int)
+        for state_index in range(1, nstates):
+            states[state_index, (state_index - 1) % nmodes] = 1
+        state_perms = [[state, permutations] for state in states]
+
+        for evaluation_mode in self._profile_evaluation_modes():
+            if evaluation_mode not in {'dag', 'dag_legacy'}:
+                continue
+            Analytic.PerturbationTheoryExpressionEvaluator._poly_cache = (
+                Analytic.PerturbationTheoryExpressionEvaluator.get_cache()
+            )
+            result, report, timed_out = self._profile_sample(
+                'analytic_tbhp_sized_{}'.format(evaluation_mode),
+                lambda mode=evaluation_mode: evaluator.evaluate(
+                    state_perms,
+                    expansion,
+                    frequencies,
+                    evaluation_mode=mode,
+                    dag_chunk_size=chunk_size
+                ),
+                max_seconds=max_seconds
+            )
+            self.assertIn('Analytic.py', report)
+            self.assertTrue(timed_out or result is not None)
 
 
 if __name__ == '__main__':

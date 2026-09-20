@@ -743,8 +743,8 @@ class MolecularEmbedding:
         carts = ccoords.system
         internals = intcds.system
 
-        generics = 'GenericInternals' in internals.name
-        zmatrix = 'ZMatrix' in internals.name
+        generics = isinstance(internals, GenericInternalCoordinateSystem)
+        zmatrix = isinstance(internals, ZMatrixCoordinateSystem)
 
         if "analytic_derivative_order" in fd_opts:
             fd_opts['analytic_deriv_order'] = fd_opts.pop('analytic_derivative_order')
@@ -911,8 +911,8 @@ class MolecularEmbedding:
             ccoords = type(self.coords)(coords, self.coords.system)
         carts = ccoords.system
         internals = self.internal_coordinates.system
-        generics = 'GenericInternals' in internals.name
-        zmatrix = 'ZMatrix' in internals.name
+        generics = isinstance(internals, GenericInternalCoordinateSystem)
+        zmatrix = isinstance(internals, ZMatrixCoordinateSystem)
 
         if "analytic_derivative_order" in fd_opts:
             fd_opts['analytic_deriv_order'] = fd_opts.pop('analytic_derivative_order')
@@ -1068,7 +1068,7 @@ class MolecularEmbedding:
         """
         if method is None:
             int_sys = self.internal_coordinates.system
-            if "GenericInternals" in int_sys.name:
+            if isinstance(int_sys, GenericInternalCoordinateSystem):
                 method = 'classic'
             else:
                 method = self.cartesian_by_internals_method
@@ -2189,7 +2189,7 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         :rtype: dict
         """
         self.converter_options['masses'] = self.masses
-        if 'ZMatrix' in system.name:
+        if isinstance(system, ZMatrixCoordinateSystem):
             self.set_embedding()
             if opts is None:
                 opts = self.converter_options
@@ -2261,7 +2261,7 @@ class MolecularCartesianCoordinateSystem(CartesianCoordinateSystem):
         :rtype: list[np.ndarray]
         """
 
-        zmat_conv = 'ZMatrix' in system.name
+        zmat_conv = isinstance(system, ZMatrixCoordinateSystem)
 
         if converter_options is None:
             converter_options = {}

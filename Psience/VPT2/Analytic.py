@@ -1989,7 +1989,12 @@ class PolyPath(ProductPTPolynomialSum):
             for term, scaling in self._items:
                 factors = []
                 for state_values, axis in zip(substates.T, term.axes):
-                    axis_key = (axis, state_values.dtype.str, state_values.tobytes())
+                    axis_key = (
+                        axis,
+                        state_values.dtype.str,
+                        state_values.shape,
+                        state_values.tobytes()
+                    )
                     axis_value = axis_cache.get(axis_key)
                     if axis_value is None:
                         axis_value = np.polynomial.polynomial.polyval(state_values, axis.coeffs)
@@ -4404,6 +4409,140 @@ class _BoundedEvaluationCache:
             'cache_evictions': self.evictions,
             'cache_max_items': self.max_items,
             'cache_max_bytes': self.max_bytes
+        }
+
+
+class _StatePermutationBlockIdentity:
+    """Hash-once identity for the concrete quantum states in one block."""
+
+    __slots__ = ('states', '_hash')
+
+    def __init__(self, tuple_states):
+        self.states = tuple(tuple(block) for block in tuple_states)
+        self._hash = hash(self.states)
+
+    def __hash__(self):
+        return self._hash
+
+    def __eq__(self, other):
+        return (
+            self is other
+            or isinstance(other, type(self)) and self.states == other.states
+        )
+
+
+class _StatePermutationCache(_BoundedEvaluationCache):
+    """Byte-bounded cache for concrete state/frequency permutation gathers."""
+
+    @classmethod
+    def _value_size(cls, value, depth=0):
+        # State-permutation values contain nested Python tuples of quantum
+        # numbers as well as NumPy arrays.  The shallow/sampled estimator used
+        # by the general DAG cache intentionally skips most of that structure,
+        # so traverse these relatively small values exactly to make the byte
+        # ceiling meaningful.
+        seen = set()
+
+        def deep_size(item):
+            item_id = id(item)
+            if item_id in seen:
+                return 0
+            seen.add(item_id)
+            size = sys.getsizeof(item)
+            if isinstance(item, dict):
+                size += sum(
+                    deep_size(key) + deep_size(val)
+                    for key, val in item.items()
+                )
+            elif isinstance(item, (tuple, list)):
+                size += sum(deep_size(val) for val in item)
+            return size
+
+        return deep_size(value)
+
+
+class _MaterializedEvaluationCache:
+    """Two-level cache for one materialized numerical evaluation batch.
+
+    ``exact_cache`` is the legacy cache of complete polynomial/state results.
+    The bounded cache holds numerical values for shared ``PolyPath`` nodes and
+    axes only for the lifetime of the current call to
+    :meth:`evaluate_polynomial_expression`.  Keeping these lifetimes separate
+    preserves reuse of exact results without allowing intermediate arrays from
+    successive state batches to accumulate globally.
+    """
+
+    class PathNodeView:
+        """Fast root-local cache layered over reusable canonical DAG nodes."""
+
+        _noncanonical_kinds = {'add', 'remap', 'permutation_sum'}
+
+        def __init__(self, shared):
+            self.local = {}
+            self.shared = shared
+
+        @classmethod
+        def _is_shareable(cls, key):
+            path = key[0]
+            return (
+                path._node is None
+                or path._node[0] not in cls._noncanonical_kinds
+            )
+
+        def get(self, key, default=None):
+            value = self.local.get(key, _BoundedEvaluationCache._missing)
+            if value is not _BoundedEvaluationCache._missing:
+                return value
+            if self._is_shareable(key):
+                value = self.shared.get(key, _BoundedEvaluationCache._missing)
+                if value is not _BoundedEvaluationCache._missing:
+                    self.local[key] = value
+                    return value
+            return default
+
+        def __setitem__(self, key, value):
+            self.local[key] = value
+            if self._is_shareable(key):
+                self.shared[key] = value
+
+    def __init__(self, exact_cache, max_items=100000, max_bytes=64 * 1024 ** 2,
+                 batch_cache=None):
+        self.exact_cache = exact_cache
+        self.batch_cache = (
+            _BoundedEvaluationCache(max_items, max_bytes)
+            if batch_cache is None else batch_cache
+        )
+        self.shared_path_node_cache = self.batch_cache.view('polypath_nodes')
+        self.path_axis_cache = self.batch_cache.view('polypath_axes')
+        self.polynomial_block_cache = self.batch_cache.view('polynomial_blocks')
+        self.exact_hits = 0
+        self.exact_misses = 0
+        self.block_hits = 0
+        self.block_misses = 0
+
+    def lookup_polynomial_block(self, key):
+        value = self.polynomial_block_cache.get(
+            key, _BoundedEvaluationCache._missing
+        )
+        if value is _BoundedEvaluationCache._missing:
+            self.block_misses += 1
+        else:
+            self.block_hits += 1
+        return value
+
+    def store_polynomial_block(self, key, value):
+        self.polynomial_block_cache[key] = value
+
+    def new_path_node_cache(self):
+        return self.PathNodeView(self.shared_path_node_cache)
+
+    def stats(self):
+        return {
+            **self.batch_cache.stats(),
+            'exact_cache_hits': self.exact_hits,
+            'exact_cache_misses': self.exact_misses,
+            'block_cache_hits': self.block_hits,
+            'block_cache_misses': self.block_misses
         }
 
 
@@ -7022,9 +7161,14 @@ class PerturbationTheoryExpressionEvaluator:
                     ]
                     sqrt_factor = np.sqrt(np.prod(shifts_sqrts, axis=0))
 
+                node_cache = (
+                    path_node_cache.new_path_node_cache()
+                    if isinstance(path_node_cache, _MaterializedEvaluationCache) else
+                    path_node_cache
+                )
                 value = poly.evaluate_polynomial(
                     substates,
-                    node_cache=path_node_cache,
+                    node_cache=node_cache,
                     axis_cache=path_axis_cache
                 )
                 poly_evals.append(value * sqrt_factor)
@@ -7117,28 +7261,19 @@ class PerturbationTheoryExpressionEvaluator:
 
 
     @classmethod
-    def _eval_poly(cls, cache, tuple_states, perm_substates, pows,
-                   poly, change, baseline_shift,
-                   verbose, logger):
-        # Developer note: the legacy/materialized path caches complete
-        # (polynomial, change, baseline, state) evaluations.  That captures most
-        # exact repeats, but two distinct PolyPaths can still share many internal
-        # nodes and axes.  A faster materialized evaluator should retain this
-        # exact-result cache as its first level and give each evaluation batch a
-        # second, bounded PolyPath node/axis cache.  The second level must be
-        # discarded after the batch (and capped by both entries and estimated
-        # bytes); otherwise high-order state batches can retain every remapped
-        # node and merely move the original expression-growth problem into the
-        # evaluator.  _BoundedEvaluationCache already provides the required
-        # namespace and eviction machinery for that integration.
-
-        poly_key = (
-            poly,
-            None if change is None else tuple(change),
-            None if baseline_shift is None else tuple(baseline_shift)
-        )
+    def _resolve_poly_evaluation_cache(cls, cache, poly_key):
         batch_cache = cache if isinstance(cache, _BoundedEvaluationCache) else None
-        if batch_cache is None:
+        materialized_cache = (
+            cache if isinstance(cache, _MaterializedEvaluationCache) else None
+        )
+        if materialized_cache is not None:
+            exact_cache = materialized_cache.exact_cache
+            if poly_key not in exact_cache:
+                exact_cache[poly_key] = {}
+            value_cache = exact_cache[poly_key]
+            path_node_cache = materialized_cache
+            path_axis_cache = materialized_cache.path_axis_cache
+        elif batch_cache is None:
             if poly_key not in cache:
                 cache[poly_key] = {}
             value_cache = cache[poly_key]
@@ -7147,40 +7282,104 @@ class PerturbationTheoryExpressionEvaluator:
             value_cache = batch_cache.view('polynomial_values')
             path_node_cache = batch_cache.view('polypath_nodes')
             path_axis_cache = batch_cache.view('polypath_axes')
+        return (
+            value_cache, path_node_cache, path_axis_cache,
+            batch_cache, materialized_cache
+        )
 
+    @classmethod
+    def _lookup_poly_evaluation_cache(cls,
+                                      poly_key, value_cache,
+                                      tuple_states, perm_substates,
+                                      batch_cache, materialized_cache):
         eval_pos = []
         eval_keys = []
         eval_states = []
         vals = np.zeros((len(perm_substates[0]), len(perm_substates)), dtype=float)
-        for j,substates in enumerate(tuple_states):
-            for i,t in enumerate(substates):
-                value_key = (poly_key, t) if batch_cache is not None else t
+        for j, substates in enumerate(tuple_states):
+            for i, state_key in enumerate(substates):
+                value_key = (
+                    (poly_key, state_key) if batch_cache is not None else state_key
+                )
                 cached_value = value_cache.get(
                     value_key, _BoundedEvaluationCache._missing
                 )
                 if cached_value is _BoundedEvaluationCache._missing:
-                    eval_pos.append([i, j])
+                    if materialized_cache is not None:
+                        materialized_cache.exact_misses += 1
+                    eval_pos.append((i, j))
                     eval_keys.append(value_key)
                     eval_states.append(perm_substates[j][i])
                 else:
+                    if materialized_cache is not None:
+                        materialized_cache.exact_hits += 1
                     vals[i, j] = cached_value
+        return vals, eval_pos, eval_keys, eval_states
+
+    @staticmethod
+    def _stack_poly_evaluation_states(eval_states):
+        if len(eval_states[0]) == 0:
+            return np.empty((len(eval_states), 0), dtype=eval_states[0].dtype)
+        return np.fromiter(
+            eval_states,
+            count=len(eval_states),
+            dtype=np.dtype((eval_states[0].dtype, (len(eval_states[0]),)))
+        )
+
+    @staticmethod
+    def _store_poly_evaluation_cache(value_cache, vals, eval_keys, eval_pos, evals):
+        for key, value, (i, j) in zip(eval_keys, evals[:, 0], eval_pos):
+            value_cache[key] = value
+            vals[i, j] = value
+
+    @classmethod
+    def _eval_poly(cls, cache, tuple_states, perm_substates, pows,
+                   poly, change, baseline_shift,
+                   verbose, logger, block_key=None):
+        # Complete (polynomial, change, baseline, state) values remain the first
+        # cache level.  _MaterializedEvaluationCache adds a second, batch-local
+        # level for internal PolyPath nodes and axes shared by nonidentical root
+        # polynomials.  That second level is discarded after the batch and is
+        # capped by entries and estimated bytes; retaining it globally would
+        # merely move high-order expression growth into the evaluator cache.
+
+        poly_key = (
+            poly,
+            None if change is None else tuple(change),
+            None if baseline_shift is None else tuple(baseline_shift)
+        )
+        materialized_cache = (
+            cache if isinstance(cache, _MaterializedEvaluationCache) else None
+        )
+        block_value_key = None
+        if materialized_cache is not None and block_key is not None:
+            block_value_key = (poly_key, block_key)
+            block_value = materialized_cache.lookup_polynomial_block(
+                block_value_key
+            )
+            if block_value is not _BoundedEvaluationCache._missing:
+                return block_value
+        (
+            value_cache, path_node_cache, path_axis_cache,
+            batch_cache, materialized_cache
+        ) = cls._resolve_poly_evaluation_cache(cache, poly_key)
+        vals, eval_pos, eval_keys, eval_states = cls._lookup_poly_evaluation_cache(
+            poly_key, value_cache,
+            tuple_states, perm_substates,
+            batch_cache, materialized_cache
+        )
         if len(eval_states) > 0:
-            if len(eval_states[0]) == 0:
-                substates = np.empty((len(eval_states), 0), dtype=eval_states[0].dtype)
-            else:
-                # substates = np.array(eval_states)
-                substates = np.fromiter(eval_states,
-                                        count=len(eval_states),
-                                        dtype=np.dtype((eval_states[0].dtype, (len(eval_states[0]),)))
-                                        )
+            substates = cls._stack_poly_evaluation_states(eval_states)
             evals = cls._eval_raw_poly(
                 [substates], poly, change, baseline_shift, pows, verbose, logger,
                 path_node_cache=path_node_cache,
                 path_axis_cache=path_axis_cache
             )
-            for t,v,(i,j) in zip(eval_keys, evals[:, 0], eval_pos):
-                value_cache[t] = v
-                vals[i, j] = v
+            cls._store_poly_evaluation_cache(
+                value_cache, vals, eval_keys, eval_pos, evals
+            )
+        if block_value_key is not None:
+            materialized_cache.store_polynomial_block(block_value_key, vals)
         return vals
     @classmethod
     def _compute_energy_weights(cls, energy_changes, perm_freqs):
@@ -7189,6 +7388,48 @@ class PerturbationTheoryExpressionEvaluator:
 
         echange = np.prod(np.dot(perm_freqs, energy_changes[:, 1:].T), axis=-1)
         return echange
+
+    @staticmethod
+    def _compute_coefficient_prefactor_products(perms, cinds, tensors, zero_cutoff):
+        products = np.ones((len(tensors), len(perms)), dtype=float)
+        good_perms = np.full((len(tensors), len(perms)), True)
+        for coefficient_pos, (_, indices) in enumerate(cinds):
+            for tensor_pos, tensor_list in enumerate(tensors):
+                tensor = tensor_list[coefficient_pos]
+                if len(indices) == 0:
+                    base_value = tensor
+                    if abs(base_value) < zero_cutoff:
+                        good_perms[:] = False
+                        break
+                    products[tensor_pos] *= base_value
+                else:
+                    active = np.flatnonzero(good_perms[tensor_pos])
+                    if len(active) == 0:
+                        continue
+                    active_perms = perms[active]
+                    tensor_index = tuple(
+                        active_perms[:, index] for index in indices
+                    )
+                    try:
+                        base_values = tensor[tensor_index]
+                    except Exception:
+                        raise ValueError(tensor, active_perms, tensor_index)
+                    products[tensor_pos, active] *= base_values
+                    good_perms[tensor_pos, active] = (
+                        np.abs(products[tensor_pos, active]) >= zero_cutoff
+                    )
+        return products, np.any(good_perms, axis=0)
+
+    @staticmethod
+    def _store_coefficient_prefactor_products(products, good_perms, cind_pos,
+                                               eval_perms, eval_cinds, prefactors,
+                                               start):
+        active = np.flatnonzero(good_perms)
+        next_pos = start + len(active)
+        eval_perms[start:next_pos] = active
+        eval_cinds[start:next_pos] = cind_pos
+        prefactors[start:next_pos] = products[:, active].T
+        return next_pos
 
     @classmethod
     def _get_prefacs(cls, perms, cinds_remapped, ctensors, counts_cache, facs, zero_cutoff):
@@ -7201,41 +7442,14 @@ class PerturbationTheoryExpressionEvaluator:
             cur_hits = counts_cache.get(cinds, 0)
             if cur_hits < facs[len(cinds)]:
                 counts_cache[cinds] = cur_hits + 1
-                prod = np.ones((len(ctensors[j]), len(perms)), dtype=float)
-                good_perms = np.full((len(ctensors[j]), len(perms)), True)
-                for n, (_, ind) in enumerate(cinds):
-                    for k,tlist in enumerate(ctensors[j]):
-                        t = tlist[n]
-                        if len(ind) == 0:
-                            base_val = t
-                            if abs(base_val) < zero_cutoff:
-                                good_perms[:] = False
-                                break
-                            else:
-                                prod[k] *= base_val
-                        else:
-                            # still_good = False
-                            for i, m in enumerate(good_perms[k]):
-                                if m:
-                                    # still_good = True
-                                    perm = perms[i]
-                                    idx = tuple(perm[x] for x in ind)
-                                    try:
-                                        base_val = t[idx]
-                                    except:
-                                        raise ValueError(t, perm, idx)
-                                    prod[k, i] *= base_val
-                                    if abs(prod[k, i]) < zero_cutoff:  # we assume monotonic b.c. small corrections
-                                        good_perms[k, i] = False
-                        # if not still_good:
-                        #     break
-                good_perms = np.any(good_perms, axis=0)
-                for i, m in enumerate(good_perms):
-                    if m:
-                        eval_perms[nevals] = i
-                        eval_cinds[nevals] = j
-                        prefactors[nevals] = prod[:, i]
-                        nevals += 1
+                products, good_perms = cls._compute_coefficient_prefactor_products(
+                    perms, cinds, ctensors[j], zero_cutoff
+                )
+                nevals = cls._store_coefficient_prefactor_products(
+                    products, good_perms, j,
+                    eval_perms, eval_cinds, prefactors,
+                    nevals
+                )
 
         return eval_perms[:nevals], eval_cinds[:nevals], prefactors[:nevals]
 
@@ -7244,7 +7458,8 @@ class PerturbationTheoryExpressionEvaluator:
                          echanges, perm_freqs,
                          poly_cache, energy_cache,
                          tuple_states, perm_substates, pows,
-                         polys, change, baseline_shift, verbose, logger
+                         polys, change, baseline_shift, verbose, logger,
+                         block_key=None
                          ):
         # if echanges not in energy_cache:
         #     energy_cache[echanges] = np.array(echanges)
@@ -7255,7 +7470,8 @@ class PerturbationTheoryExpressionEvaluator:
         # TODO: check size of energy factor
         poly_factor = cls._eval_poly(poly_cache,
                                      tuple_states, perm_substates, pows,
-                                     polys, change, baseline_shift, verbose, logger)
+                                     polys, change, baseline_shift, verbose, logger,
+                                     block_key=block_key)
         if not nput.is_zero(poly_factor):
             scaled_contrib = poly_factor / energy_factors[np.newaxis, :]
         else:
@@ -7276,7 +7492,7 @@ class PerturbationTheoryExpressionEvaluator:
     def _eval_perm_core(cls,
                         expr, state, tuple_states, perm_substates, which_perms,
                         change, baseline_shift,
-                        prefacs, perm_freqs,
+                        prefacs, perm_freqs, state_block_key,
                         pows, key, perm_subsets, degenerate_changes, only_degenerate_terms,
                         poly_cache, energy_cache,
                         verbose, logger, log_level, log_scaling
@@ -7321,10 +7537,16 @@ class PerturbationTheoryExpressionEvaluator:
                     good_perm_substates = perm_substates
                     good_tuple_states = tuple_states
                 else:
-                    good_perms = tuple(good_perms)
+                    good_perms = tuple(int(p) for p in good_perms)
                     good_freqs = perm_freqs[good_perms,]
                     good_perm_substates = perm_substates[good_perms,]
                     good_tuple_states = [tuple_states[p] for p in good_perms]
+
+                poly_block_key = (
+                    ('full', state_block_key)
+                    if good_perms is None else
+                    ('take', state_block_key, good_perms)
+                )
 
                 if len(good_perm_substates) > 0:
                     if verbose:
@@ -7342,7 +7564,8 @@ class PerturbationTheoryExpressionEvaluator:
                                     echanges, good_freqs,
                                     poly_cache, energy_cache,
                                     good_tuple_states, good_perm_substates, pows,
-                                    polys, change, baseline_shift, verbose, logger
+                                    polys, change, baseline_shift, verbose, logger,
+                                    block_key=poly_block_key
                                 )
                                 if not nput.is_zero(scaled_contrib):
                                     logger.log_print("engs: {ef}", ef=energy_factors.squeeze(), log_level=log_level)
@@ -7355,7 +7578,8 @@ class PerturbationTheoryExpressionEvaluator:
                             echanges, good_freqs,
                             poly_cache, energy_cache,
                             good_tuple_states, good_perm_substates, pows,
-                            polys, change, baseline_shift, verbose, logger
+                            polys, change, baseline_shift, verbose, logger,
+                            block_key=poly_block_key
                         )
 
                     if good_perms is None:
@@ -7370,10 +7594,12 @@ class PerturbationTheoryExpressionEvaluator:
                                   preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
                                   log_level=log_level):
                     subcontrib = cls._eval_poly(poly_cache, tuple_states, perm_substates, pows,
-                                                subexpr, change, baseline_shift, verbose, logger)
+                                                subexpr, change, baseline_shift, verbose, logger,
+                                                block_key=('full', state_block_key))
             else:
                 subcontrib = cls._eval_poly(poly_cache, tuple_states, perm_substates, pows,
-                                            subexpr, change, baseline_shift, verbose, logger)
+                                            subexpr, change, baseline_shift, verbose, logger,
+                                            block_key=('full', state_block_key))
 
                 # if not nput.is_zero(subcontrib):
                 #     subcontrib = subcontrib[:, np.newaxis]
@@ -7381,6 +7607,18 @@ class PerturbationTheoryExpressionEvaluator:
             raise ValueError("degenerate terms requested on {}".format(subexpr.format_expr()))
 
         return subcontrib
+
+    @staticmethod
+    def _gather_state_permutations(state, sub_perms):
+        return np.moveaxis(nput.vector_take(state, sub_perms), 0, 1)
+
+    @staticmethod
+    def _tupleize_state_permutations(perm_substates):
+        return [[tuple(state) for state in state_block] for state_block in perm_substates]
+
+    @staticmethod
+    def _gather_frequency_permutations(freqs, sub_perms):
+        return nput.vector_take(freqs, sub_perms)
 
     @classmethod
     def _get_state_perms(cls, state_idx, state, freqs, fixed, subset, sub_perms, take_cache,
@@ -7396,9 +7634,17 @@ class PerturbationTheoryExpressionEvaluator:
         # arr, inds = take_cache[key]['state_dat']
         # inds = inds[:-1] + (np.broadcast_to(sub_perms[np.newaxis], (len(state),) + sub_perms.shape),)
         # perm_substates = np.moveaxis(arr[inds], 0, 1)
-        perm_substates = np.moveaxis(nput.vector_take(state, sub_perms), 0, 1)
-        tuple_states = [[tuple(s) for s in ps] for ps in perm_substates]
-        perm_freqs = nput.vector_take(freqs, sub_perms)
+        cache_key = ('state_permutations', state_idx, mask_pos, full_set)
+        cached = take_cache.get(cache_key, _BoundedEvaluationCache._missing)
+        if cached is not _BoundedEvaluationCache._missing:
+            return cached
+
+        perm_substates = cls._gather_state_permutations(state, sub_perms)
+        tuple_states = cls._tupleize_state_permutations(perm_substates)
+        perm_freqs = cls._gather_frequency_permutations(freqs, sub_perms)
+        block_identity = _StatePermutationBlockIdentity(tuple_states)
+        cached = perm_substates, tuple_states, perm_freqs, block_identity
+        take_cache[cache_key] = cached
 
         # if 'freq_dat' not in take_cache[key]:
         #     arr, inds = nput.vector_take(freqs, sub_perms, return_spec=True)
@@ -7407,7 +7653,7 @@ class PerturbationTheoryExpressionEvaluator:
         # inds = inds[:-1] + (np.broadcast_to(sub_perms[np.newaxis], inds[-1].shape),)
         # perm_freqs = arr[inds]
 
-        return perm_substates, tuple_states, perm_freqs
+        return cached
     @classmethod
     def _eval_perm(cls,
                    expr, change, baseline_shift,
@@ -7490,7 +7736,7 @@ class PerturbationTheoryExpressionEvaluator:
                 prefacs = prefactors[vps,].T
                 which_perms = a_inds[mask_pos]
                 perm_subsets = aperms[mask_pos,][:, full_set]
-                perm_substates, tuple_states, perm_freqs = cls._get_state_perms(
+                perm_substates, tuple_states, perm_freqs, state_block_key = cls._get_state_perms(
                     state_idx, state, freqs, fixed, subset, perm_subsets, take_cache, tuple(mask_pos), full_set
                 )
 
@@ -7512,7 +7758,7 @@ class PerturbationTheoryExpressionEvaluator:
                         subcontrib = cls._eval_perm_core(
                             expr, state, tuple_states, perm_substates, which_perms,
                             change, baseline_shift,
-                            prefacs, perm_freqs,
+                            prefacs, perm_freqs, state_block_key,
                             pows, g_key, perm_subsets, degenerate_changes, only_degenerate_terms,
                             poly_cache, energy_cache,
                             verbose, logger, log_level, log_scaling
@@ -7531,7 +7777,7 @@ class PerturbationTheoryExpressionEvaluator:
                     subcontrib = cls._eval_perm_core(
                         expr, state, tuple_states, perm_substates, which_perms,
                         change, baseline_shift,
-                        prefacs, perm_freqs,
+                        prefacs, perm_freqs, state_block_key,
                         pows, g_key, perm_subsets, degenerate_changes, only_degenerate_terms,
                         poly_cache, energy_cache,
                         verbose, logger, log_level, log_scaling
@@ -7836,12 +8082,47 @@ class PerturbationTheoryExpressionEvaluator:
     default_dag_cache_bytes = 64 * 1024 ** 2
     default_dag_chunk_size = 256
     default_dag_node_term_cache_size = 256
+    default_state_permutation_cache_size = 100000
+    default_state_permutation_cache_bytes = 64 * 1024 ** 2
+    # A one-state path entry is about 180 bytes in the current representation,
+    # so 350k entries lets the byte limit, rather than an unnecessarily small
+    # item limit, govern the default 64 MiB cache.  Larger state vectors reach
+    # the byte limit with proportionally fewer entries.
+    default_materialized_path_cache_size = 350000
+    default_materialized_path_cache_bytes = 64 * 1024 ** 2
     _last_dag_evaluation_stats = None
+    _last_materialized_evaluation_stats = None
+    _last_state_permutation_cache_stats = None
     default_zero_cutoff = 1e-18
 
     @classmethod
     def get_last_dag_evaluation_stats(cls):
         return None if cls._last_dag_evaluation_stats is None else dict(cls._last_dag_evaluation_stats)
+
+    @classmethod
+    def get_last_materialized_evaluation_stats(cls):
+        return (
+            None
+            if cls._last_materialized_evaluation_stats is None else
+            dict(cls._last_materialized_evaluation_stats)
+        )
+
+    @classmethod
+    def get_last_state_permutation_cache_stats(cls):
+        return (
+            None
+            if cls._last_state_permutation_cache_stats is None else
+            dict(cls._last_state_permutation_cache_stats)
+        )
+
+    @classmethod
+    def _new_state_permutation_cache(cls, max_items=None, max_bytes=None):
+        return _StatePermutationCache(
+            cls.default_state_permutation_cache_size
+            if max_items is None else max_items,
+            cls.default_state_permutation_cache_bytes
+            if max_bytes is None else max_bytes
+        )
 
     _parallel_eval_main_args = None
     _cached_expansion = None
@@ -7870,6 +8151,9 @@ class PerturbationTheoryExpressionEvaluator:
             num_fixed, degenerate_changes, only_degenerate_terms,
             zero_cutoff,
             max_cache_size,
+            use_materialized_path_cache,
+            path_cache_size, path_cache_bytes,
+            state_cache_size, state_cache_bytes,
             # counts_cache, poly_cache, take_cache, energy_cache,
             # pows,
             verbose, logger, log_scaled, log_level,
@@ -7902,8 +8186,18 @@ class PerturbationTheoryExpressionEvaluator:
         max_state = np.max(np.concatenate([state for state, perms in state_perms]))
         pows = np.power(np.arange(max_state + 1)[np.newaxis, :], np.arange(max_order + 1)[:, np.newaxis])
         counts_cache = cls.get_cache()  # so we don't hit some coeff sets too many times
-        poly_cache = cls._poly_cache  # so we can avoid redoing the same polynomials a bunch of times
-        take_cache = cls.get_cache()  # shockingly beneficial...
+        poly_cache = (
+            _MaterializedEvaluationCache(
+                cls._poly_cache,
+                max_items=path_cache_size,
+                max_bytes=path_cache_bytes
+            )
+            if use_materialized_path_cache else
+            cls._poly_cache
+        )
+        take_cache = cls._new_state_permutation_cache(
+            state_cache_size, state_cache_bytes
+        )
         energy_cache = cls.get_cache()
 
         cls._cached_main_args = (
@@ -8023,11 +8317,30 @@ class PerturbationTheoryExpressionEvaluator:
                                         verbose=False, log_scaled=True,
                                         cache_size=None,
                                         cache_bytes=None,
-                                        chunk_size=None):
+                                        chunk_size=None,
+                                        state_cache_size=None,
+                                        state_cache_bytes=None,
+                                        use_path_cache=True):
         cache_size = cls.default_dag_cache_size if cache_size is None else cache_size
         cache_bytes = cls.default_dag_cache_bytes if cache_bytes is None else cache_bytes
         chunk_size = cls.default_dag_chunk_size if chunk_size is None else max(1, int(chunk_size))
         evaluation_cache = _BoundedEvaluationCache(cache_size, cache_bytes)
+        state_permutation_cache = cls._new_state_permutation_cache(
+            state_cache_size, state_cache_bytes
+        )
+        # Keep tensor-plan entries and numerical PolyPath intermediates under
+        # one batch-local bound, while retaining the legacy complete-result
+        # cache as the first lookup level.  This gives DAG chunks the same
+        # shared-node reuse as materialized evaluation without doubling the
+        # configured memory ceiling or retaining intermediates across batches.
+        polynomial_cache = (
+            _MaterializedEvaluationCache(
+                cls._poly_cache,
+                batch_cache=evaluation_cache
+            )
+            if use_path_cache else
+            evaluation_cache
+        )
         plan = PTTensorCoeffProductDAGEvaluationPlan(
             expr,
             cache=evaluation_cache,
@@ -8062,7 +8375,8 @@ class PerturbationTheoryExpressionEvaluator:
                 zero_cutoff=zero_cutoff,
                 verbose=verbose, log_scaled=log_scaled,
                 evaluation_mode='materialized',
-                _poly_eval_cache=evaluation_cache
+                _poly_eval_cache=polynomial_cache,
+                _state_permutation_cache=state_permutation_cache
             )
             for storage, contribution in zip(result, chunk_result):
                 storage += contribution
@@ -8075,15 +8389,26 @@ class PerturbationTheoryExpressionEvaluator:
                 evaluate_pending()
         evaluate_pending()
 
+        state_cache_stats = state_permutation_cache.stats()
+        cls._last_state_permutation_cache_stats = state_cache_stats
         cls._last_dag_evaluation_stats = {
             **plan.stats(),
+            'dag_exact_cache_hits': getattr(polynomial_cache, 'exact_hits', 0),
+            'dag_exact_cache_misses': getattr(polynomial_cache, 'exact_misses', 0),
+            'dag_block_cache_hits': getattr(polynomial_cache, 'block_hits', 0),
+            'dag_block_cache_misses': getattr(polynomial_cache, 'block_misses', 0),
+            'dag_path_cache_enabled': use_path_cache,
             'dag_chunks': chunks,
             'dag_chunk_size': chunk_size,
             'dag_elapsed': time.perf_counter() - start,
             'dag_materializations': (
                 PTTensorCoeffProductDAG.cache_info()['tensor_materializations']
                 - materializations_before
-            )
+            ),
+            **{
+                'state_permutation_' + key: value
+                for key, value in state_cache_stats.items()
+            }
         }
         return result
 
@@ -8103,8 +8428,21 @@ class PerturbationTheoryExpressionEvaluator:
                                        dag_cache_size=None,
                                        dag_cache_bytes=None,
                                        dag_chunk_size=None,
-                                       _poly_eval_cache=None
+                                       path_cache_size=None,
+                                       path_cache_bytes=None,
+                                       state_permutation_cache_size=None,
+                                       state_permutation_cache_bytes=None,
+                                       _poly_eval_cache=None,
+                                       _state_permutation_cache=None
                                        ):
+
+        use_materialized_path_cache = evaluation_mode in {
+            'materialized', 'materialized_cached'
+        }
+        if evaluation_mode in {
+            'materialized', 'materialized_cached', 'materialized_legacy'
+        }:
+            cls._last_materialized_evaluation_stats = None
 
         # ensure data is in a format where we can loop over states, perms, and degenerate
         # blocks all in one go
@@ -8162,7 +8500,7 @@ class PerturbationTheoryExpressionEvaluator:
 
             if evaluation_mode is None:
                 evaluation_mode = cls.default_tensor_evaluation_mode
-            if evaluation_mode == 'dag':
+            if evaluation_mode in {'dag', 'dag_legacy'}:
                 return cls._evaluate_tensor_dag_expression(
                     state_perms, coeffs, freqs,
                     expr, change, baseline_shift,
@@ -8176,9 +8514,14 @@ class PerturbationTheoryExpressionEvaluator:
                     verbose=verbose, log_scaled=log_scaled,
                     cache_size=dag_cache_size,
                     cache_bytes=dag_cache_bytes,
-                    chunk_size=dag_chunk_size
+                    chunk_size=dag_chunk_size,
+                    state_cache_size=state_permutation_cache_size,
+                    state_cache_bytes=state_permutation_cache_bytes,
+                    use_path_cache=evaluation_mode == 'dag'
                 )
-            elif evaluation_mode == 'materialized':
+            elif evaluation_mode in {
+                'materialized', 'materialized_cached', 'materialized_legacy'
+            }:
                 expr = expr.to_eager()
             else:
                 raise ValueError("unknown tensor evaluation mode {}".format(evaluation_mode))
@@ -8274,13 +8617,45 @@ class PerturbationTheoryExpressionEvaluator:
                     for state, perms in state_perms
                 )
                 counts_cache = cls.get_cache() # so we don't hit some coeff sets too many times
-                poly_cache = (
-                    cls._poly_cache if _poly_eval_cache is None else _poly_eval_cache
-                ) # so we can avoid redoing the same polynomials a bunch of times
-                take_cache = cls.get_cache() # shockingly beneficial...
+                if _poly_eval_cache is not None:
+                    poly_cache = _poly_eval_cache
+                elif use_materialized_path_cache:
+                    path_cache_size = (
+                        cls.default_materialized_path_cache_size
+                        if path_cache_size is None else path_cache_size
+                    )
+                    path_cache_bytes = (
+                        cls.default_materialized_path_cache_bytes
+                        if path_cache_bytes is None else path_cache_bytes
+                    )
+                    poly_cache = _MaterializedEvaluationCache(
+                        cls._poly_cache,
+                        max_items=path_cache_size,
+                        max_bytes=path_cache_bytes
+                    )
+                else:
+                    poly_cache = cls._poly_cache
+                # Avoid redoing complete polynomials and, in the cached
+                # materialized mode, their shared PolyPath subexpressions.
+                take_cache = (
+                    cls._new_state_permutation_cache(
+                        state_permutation_cache_size,
+                        state_permutation_cache_bytes
+                    )
+                    if _state_permutation_cache is None else
+                    _state_permutation_cache
+                )
                 energy_cache = cls.get_cache()
                 with dev.context_wrap(parallelizer):
                     if parallelizer is not None:
+                        worker_path_cache_size = (
+                            cls.default_materialized_path_cache_size
+                            if path_cache_size is None else path_cache_size
+                        )
+                        worker_path_cache_bytes = (
+                            cls.default_materialized_path_cache_bytes
+                            if path_cache_bytes is None else path_cache_bytes
+                        )
                         # parallelizer.run(
                         #     cls._initialize_main_eval,
                         #     expr, change, baseline_shift,
@@ -8320,6 +8695,10 @@ class PerturbationTheoryExpressionEvaluator:
                             num_fixed, degenerate_changes, only_degenerate_terms,
                             zero_cutoff,
                             cls._max_cache_size,
+                            use_materialized_path_cache and _poly_eval_cache is None,
+                            worker_path_cache_size, worker_path_cache_bytes,
+                            state_permutation_cache_size,
+                            state_permutation_cache_bytes,
                             # counts_cache, poly_cache, take_cache, energy_cache,
                             # pows,
                             verbose, logger, log_scaled, log_level,
@@ -8405,6 +8784,11 @@ class PerturbationTheoryExpressionEvaluator:
                                             storage += corr
             res = [expr.prefactor * c for c in contrib]
 
+            if isinstance(poly_cache, _MaterializedEvaluationCache):
+                cls._last_materialized_evaluation_stats = poly_cache.stats()
+            if isinstance(take_cache, _StatePermutationCache):
+                cls._last_state_permutation_cache_stats = take_cache.stats()
+
         # if smol_coeffs: res = [r[0] for r in res]
         # if smol: res = res[0]
 
@@ -8418,7 +8802,11 @@ class PerturbationTheoryExpressionEvaluator:
                  evaluation_mode=None,
                  dag_cache_size=None,
                  dag_cache_bytes=None,
-                 dag_chunk_size=None
+                 dag_chunk_size=None,
+                 path_cache_size=None,
+                 path_cache_bytes=None,
+                 state_permutation_cache_size=None,
+                 state_permutation_cache_bytes=None
                  ):
 
         # state = np.asanyarray(state)
@@ -8473,7 +8861,11 @@ class PerturbationTheoryExpressionEvaluator:
                 evaluation_mode=evaluation_mode,
                 dag_cache_size=dag_cache_size,
                 dag_cache_bytes=dag_cache_bytes,
-                dag_chunk_size=dag_chunk_size
+                dag_chunk_size=dag_chunk_size,
+                path_cache_size=path_cache_size,
+                path_cache_bytes=path_cache_bytes,
+                state_permutation_cache_size=state_permutation_cache_size,
+                state_permutation_cache_bytes=state_permutation_cache_bytes
             )
 
         if smol_coeffs: res = [r[0] for r in res]

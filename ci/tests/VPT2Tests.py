@@ -577,7 +577,7 @@ class VPT2Tests(TestCase):
             logger=log_file
         )
 
-    @debugTest
+    @validationTest
     def test_AnalyticWFC(self):
         import pickle
 
@@ -1264,17 +1264,17 @@ class VPT2Tests(TestCase):
             logger=True
         )
 
+        states = states.state_list_pairs[0][1]
         og, _ = runner.construct_classic_runner(
-            TestManager.test_data(file_name),
             states,
             mode_selection=np.arange(len(states[0])),
             logger=False
         )
 
-        # og.print_tables(print_intensities=True)
-        with BlockProfiler(print_options={'show_all':True}):
-            spec = runner.get_spectrum(states, verbose=False)
-        print(np.array(spec).T)
+        og.print_tables(print_intensities=True)
+        # with BlockProfiler(print_options={'show_all':True}):
+        #     spec = runner.get_spectrum(states, verbose=False)
+        # print(np.array(spec).T)
 
     @validationTest
     def test_TrimerMatrix(self):

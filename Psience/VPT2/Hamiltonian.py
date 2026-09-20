@@ -719,7 +719,10 @@ class PerturbationTheoryHamiltonian:
         else:
             raise ValueError("ambiguous what to do with all zeros...")
 
-        ndim = self.modes.basis.coords_by_modes.shape[1]
+        if hasattr(self.modes, 'basis'):
+            ndim = self.modes.basis.coords_by_modes.shape[1]
+        else:
+            ndim = self.modes.coords_by_modes.shape[1]
         exp = [
             np.zeros((ndim,)*(i+1))
             for i in range(coeff_padding)

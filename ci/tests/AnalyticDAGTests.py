@@ -117,6 +117,185 @@ class AnalyticDAGTests(unittest.TestCase):
             projected.evaluate_polynomial(projected_states)
         )
 
+    def test_materialized_path_cache_reuses_shared_nodes_and_is_bounded(self):
+        shared = Analytic.PolyPath.from_coeffs([
+            [1.0, 2.0, -0.25],
+            [0.5, -1.0]
+        ])
+        left = shared.scale(2.0)
+        right = shared.scale(-3.0)
+        states = np.array([
+            [0, 1],
+            [2, 3],
+            [4, 2],
+            [1, 5]
+        ])
+        perm_substates = states[np.newaxis, :, :]
+        tuple_states = [[tuple(state) for state in states]]
+        cache = Analytic._MaterializedEvaluationCache(
+            {}, max_items=4, max_bytes=4096
+        )
+
+        values = []
+        for poly in (left, right):
+            values.append(
+                Analytic.PerturbationTheoryExpressionEvaluator._eval_poly(
+                    cache,
+                    tuple_states,
+                    perm_substates,
+                    None,
+                    poly,
+                    [],
+                    None,
+                    False,
+                    Analytic.Logger.lookup(None)
+                )
+            )
+
+        expected = shared.evaluate_polynomial(states)
+        np.testing.assert_allclose(values[0][:, 0], 2 * expected)
+        np.testing.assert_allclose(values[1][:, 0], -3 * expected)
+        stats = cache.stats()
+        self.assertGreater(stats['cache_hits'], 0)
+        self.assertLessEqual(stats['cache_peak_items'], 4)
+        self.assertLessEqual(stats['cache_peak_bytes'], 4096)
+
+    def test_vectorized_prefactors_match_scalar_reference(self):
+        rng = np.random.default_rng(9182)
+        permutations = np.array([
+            rng.permutation(5) for _ in range(12)
+        ])
+        coefficient_indices = (
+            ((1, 0), (0, 2)),
+            ((2, 0), (1,)),
+            ((0, 0), ())
+        )
+        tensors = [
+            [rng.normal(size=(5, 5)), rng.normal(size=5), 1.25],
+            [rng.normal(size=(5, 5)), rng.normal(size=5), -.75]
+        ]
+        tensors[0][0][0, 0] = 0
+        tensors[1][1][2] = 0
+        cutoff = 1e-12
+
+        expected_products = np.ones((len(tensors), len(permutations)))
+        expected_good = np.full(expected_products.shape, True)
+        for coefficient_pos, (_, indices) in enumerate(coefficient_indices):
+            for tensor_pos, tensor_list in enumerate(tensors):
+                tensor = tensor_list[coefficient_pos]
+                if len(indices) == 0:
+                    expected_products[tensor_pos] *= tensor
+                else:
+                    for perm_pos in range(len(permutations)):
+                        if expected_good[tensor_pos, perm_pos]:
+                            index = tuple(
+                                permutations[perm_pos, axis] for axis in indices
+                            )
+                            expected_products[tensor_pos, perm_pos] *= tensor[index]
+                            if abs(expected_products[tensor_pos, perm_pos]) < cutoff:
+                                expected_good[tensor_pos, perm_pos] = False
+
+        products, good = (
+            Analytic.PerturbationTheoryExpressionEvaluator
+            ._compute_coefficient_prefactor_products(
+                permutations, coefficient_indices, tensors, cutoff
+            )
+        )
+        np.testing.assert_allclose(products, expected_products)
+        np.testing.assert_array_equal(good, np.any(expected_good, axis=0))
+
+    def test_polynomial_block_cache_bypasses_scalar_lookup(self):
+        poly = Analytic.PolyPath.from_coeffs([
+            [1.0, 2.0, -0.25],
+            [0.5, -1.0]
+        ])
+        states = np.array([
+            [0, 1],
+            [2, 3],
+            [4, 2],
+            [1, 5]
+        ])
+        perm_substates = states[np.newaxis, :, :]
+        tuple_states = [[tuple(state) for state in states]]
+        cache = Analytic._MaterializedEvaluationCache(
+            {}, max_items=128, max_bytes=64 * 1024
+        )
+        block_key = (
+            'full', Analytic._StatePermutationBlockIdentity(tuple_states)
+        )
+
+        first = Analytic.PerturbationTheoryExpressionEvaluator._eval_poly(
+            cache, tuple_states, perm_substates, None,
+            poly, [], None, False, Analytic.Logger.lookup(None),
+            block_key=block_key
+        )
+        exact_hits = cache.exact_hits
+        second = Analytic.PerturbationTheoryExpressionEvaluator._eval_poly(
+            cache, tuple_states, perm_substates, None,
+            poly, [], None, False, Analytic.Logger.lookup(None),
+            block_key=(
+                'full', Analytic._StatePermutationBlockIdentity(tuple_states)
+            )
+        )
+
+        self.assertIs(first, second)
+        self.assertEqual(cache.exact_hits, exact_hits)
+        self.assertEqual(cache.block_hits, 1)
+        self.assertEqual(cache.block_misses, 1)
+
+    def test_state_permutation_gathers_are_cached(self):
+        state = np.array([[0, 1, 2, 3, 4]])
+        frequencies = np.linspace(.5, 1.5, 5)
+        permutations = np.array([
+            [0, 2, 4],
+            [4, 1, 3],
+            [2, 3, 0]
+        ])
+        cache = {}
+        args = (
+            0, state, frequencies, 0, (0, 2, 4), permutations, cache,
+            (0, 1, 2), (0, 2, 4)
+        )
+        first = Analytic.PerturbationTheoryExpressionEvaluator._get_state_perms(*args)
+        second = Analytic.PerturbationTheoryExpressionEvaluator._get_state_perms(*args)
+
+        self.assertIs(first, second)
+        np.testing.assert_array_equal(
+            first[0], np.moveaxis(Analytic.nput.vector_take(state, permutations), 0, 1)
+        )
+        np.testing.assert_array_equal(
+            first[2], Analytic.nput.vector_take(frequencies, permutations)
+        )
+        self.assertEqual(len(cache), 1)
+        self.assertIsInstance(first[3], Analytic._StatePermutationBlockIdentity)
+        self.assertEqual(
+            first[3].states,
+            tuple(tuple(block) for block in first[1])
+        )
+
+    def test_state_permutation_cache_is_byte_bounded(self):
+        state = np.array([[0, 1, 2, 3, 4]])
+        frequencies = np.linspace(.5, 1.5, 5)
+        permutations = np.array([
+            [0, 2, 4],
+            [4, 1, 3],
+            [2, 3, 0]
+        ])
+        cache = Analytic._StatePermutationCache(
+            max_items=100,
+            max_bytes=4096
+        )
+        for state_idx in range(12):
+            Analytic.PerturbationTheoryExpressionEvaluator._get_state_perms(
+                state_idx, state, frequencies, 0, (0, 2, 4),
+                permutations, cache, (0, 1, 2), (0, 2, 4)
+            )
+
+        stats = cache.stats()
+        self.assertLessEqual(stats['cache_peak_items'], 100)
+        self.assertLessEqual(stats['cache_peak_bytes'], 4096)
+        self.assertGreater(stats['cache_evictions'], 0)
+
     def test_correction_backend_parity(self):
         builders = [
             ('energy', 4, lambda solver: solver.energy_correction(2)([])),
@@ -246,13 +425,48 @@ class AnalyticDAGTests(unittest.TestCase):
             np.array([[0, 1, 2], [1, 0, 2], [2, 1, 0]])
         ]
         frequencies = np.array([0.8, 1.3, 1.9])
+        materialized_legacy = evaluator.evaluate(
+            state_permutations, coefficient_expansion, frequencies,
+            evaluation_mode='materialized_legacy'
+        )
+
+        Analytic.PerturbationTheoryExpressionEvaluator._poly_cache = (
+            Analytic.PerturbationTheoryExpressionEvaluator.get_cache()
+        )
         materialized = evaluator.evaluate(
             state_permutations, coefficient_expansion, frequencies,
-            evaluation_mode='materialized'
+            evaluation_mode='materialized',
+            path_cache_size=8,
+            path_cache_bytes=4096
+        )
+        np.testing.assert_allclose(
+            materialized, materialized_legacy, rtol=2e-12, atol=2e-12
+        )
+        materialized_stats = (
+            Analytic.PerturbationTheoryExpressionEvaluator
+            .get_last_materialized_evaluation_stats()
+        )
+        self.assertLessEqual(materialized_stats['cache_peak_items'], 8)
+        self.assertLessEqual(materialized_stats['cache_peak_bytes'], 4096)
+
+        Analytic.PerturbationTheoryExpressionEvaluator._poly_cache = (
+            Analytic.PerturbationTheoryExpressionEvaluator.get_cache()
+        )
+        direct_legacy = evaluator.evaluate(
+            state_permutations, coefficient_expansion, frequencies,
+            evaluation_mode='dag_legacy',
+            dag_cache_size=8,
+            dag_cache_bytes=4096,
+            dag_chunk_size=3
         )
 
         # Force both item- and byte-pressure so this exercises eviction rather
-        # than merely checking the configured limits.
+        # than merely checking the configured limits.  Reset the exact cache so
+        # DAG reuse is measured within this evaluation batch rather than being
+        # inherited from the materialized or legacy reference runs above.
+        Analytic.PerturbationTheoryExpressionEvaluator._poly_cache = (
+            Analytic.PerturbationTheoryExpressionEvaluator.get_cache()
+        )
         direct = evaluator.evaluate(
             state_permutations, coefficient_expansion, frequencies,
             evaluation_mode='dag',
@@ -260,11 +474,14 @@ class AnalyticDAGTests(unittest.TestCase):
             dag_cache_bytes=4096,
             dag_chunk_size=3
         )
-        np.testing.assert_allclose(direct, materialized, rtol=2e-12, atol=2e-12)
+        np.testing.assert_allclose(direct_legacy, materialized_legacy, rtol=2e-12, atol=2e-12)
+        np.testing.assert_allclose(direct, materialized_legacy, rtol=2e-12, atol=2e-12)
         stats = Analytic.PerturbationTheoryExpressionEvaluator.get_last_dag_evaluation_stats()
         self.assertLessEqual(stats['cache_peak_items'], 8)
         self.assertLessEqual(stats['cache_peak_bytes'], 4096)
         self.assertGreater(stats['cache_evictions'], 0)
+        self.assertTrue(stats['dag_path_cache_enabled'])
+        self.assertGreater(stats['dag_exact_cache_hits'], 0)
         self.assertEqual(stats['dag_materializations'], 0)
 
     def test_fourth_order_derivation_stays_lazy(self):

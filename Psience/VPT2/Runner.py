@@ -1,6 +1,8 @@
 """
 A little package of utilities for setting up/running VPT jobs
 """
+from __future__ import annotations
+
 
 import numpy as np, sys, os, itertools, scipy, traceback as tb, math
 
@@ -3568,7 +3570,7 @@ class AnalyticVPTRunner:
                   parallelizer=None,
                   polynomial_representation='path',
                   **settings
-                  ) -> "(AnalyticVPTRunner, VPTMultiStateSpace)":
+                  ) -> tuple[AnalyticVPTRunner, MultiVPTStateSpace]:
             """
             **LLM Docstring**
 
