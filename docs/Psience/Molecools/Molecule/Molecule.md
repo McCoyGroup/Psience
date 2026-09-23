@@ -3050,19 +3050,18 @@ Compute the (optionally mass-weighted) root-mean-square displacement between thi
 
 <a id="Psience.Molecools.Molecule.Molecule.align_molecule" class="docs-object-method">&nbsp;</a> 
 ```python
-align_molecule(self, other: "'Molecule'", reindex_bonds=True, permute_atoms=True, align_structures=True, sel=None, embed_properties=True, load_properties=False): 
+align_molecule(self, other: "'Molecule'", permute_atoms=True, align_structures=True, sel=None, embed_properties=True, load_properties=False): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5034)/
 [edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5034?message=Update%20Docs)]
 </div>
-Aligns `other` with `self` by first finding the reindexing of the bonds of `other` that
-lead to the best graph overlap with `self`, then determining which atoms can be permuted based on their graph
-structures, then determining which permutation of equivalent atoms leads to the best agreement between the structures,
-and then finally finding the Eckart/min-RMSD transformation after this transformation has been applied
+Aligns `other` with `self` by first determining which atoms can be permuted based on their graph
+structures, then determining which permutation of equivalent atoms leads to the best agreement between the
+structures (via each molecule's `rdmol` -- this requires RDKit to be installed; we may swap out the backend
+for this later), and then finally finding the Eckart/min-RMSD transformation after this transformation has
+been applied
   - `other`: `Any`
-    > 
-  - `reindex_bonds`: `Any`
     > 
   - `:returns`: `_`
     >
@@ -3074,8 +3073,8 @@ and then finally finding the Eckart/min-RMSD transformation after this transform
 rdmol(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5122)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5122?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5124)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5124?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3089,8 +3088,8 @@ The (cached) attached RDKit molecule representation, built lazily via `RDMolecul
 to_ase(self, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5143)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5143?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5145)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5145?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3107,8 +3106,8 @@ Convert this molecule to an ASE (Atomic Simulation Environment) molecule object,
 from_ase(cls, ase_mol, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L5157)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L5157?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L5159)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L5159?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3127,8 +3126,8 @@ Build a `Molecule` from an ASE molecule object.
 from_zmat(cls, zmat, internals=None, axes=None, origin=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L5181)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L5181?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L5183)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L5183?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3153,8 +3152,8 @@ Build a `Molecule` from a Z-matrix specification (either a Z-matrix string or an
 from_openbabel(cls, mol, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L5211)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L5211?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L5213)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L5213?message=Update%20Docs)]
 </div>
 
   - `mol`: `pybel.mol`
@@ -3168,8 +3167,8 @@ from_openbabel(cls, mol, **opts):
 get_obmol(self, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5230)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5230?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L5232)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L5232?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3186,8 +3185,8 @@ Convert this molecule to an OpenBabel molecule object, via `OBMolecule.from_mol`
 from_rdmol(cls, rdmol, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L5411)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L5411?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L5413)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L5413?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3206,8 +3205,8 @@ Build a `Molecule` from an RDKit molecule (or a raw RDKit `Mol`/owning-mol objec
 from_name(cls, name, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L5961)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L5961?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L5963)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L5963?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3226,8 +3225,8 @@ Build a `Molecule` by looking up a compound name, via `from_string` with format 
 get_atom_strings(cls): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L5978)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L5978?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L5980)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L5980?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3242,8 +3241,8 @@ The (cached) set of up-to-2-character atomic element symbols known to `AtomData`
 get_string_format_dispatchers(cls): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L6074)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L6074?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L6076)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L6076?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3258,8 +3257,8 @@ The mapping from string-format key to the constructor method that parses that fo
 from_string(cls, string, fmt=None, allow_names=False, format_options=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L6099)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L6099?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L6101)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L6101?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3284,8 +3283,8 @@ Build a `Molecule` from a raw string in any supported structural format, inferri
 get_file_format_dispatchers(cls): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L6156)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L6156?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L6158)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L6158?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3300,8 +3299,8 @@ The mapping from file-format key (typically a file extension) to the constructor
 from_file(cls, file, mode=None, format_options=None, use_ob_fallback=False, **opts) -> 'Molecule': 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L6179)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L6179?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L6181)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L6181?message=Update%20Docs)]
 </div>
 In general we'll delegate to pybel except for like Fchk and Log files
   - `file`: `Any`
@@ -3316,8 +3315,8 @@ In general we'll delegate to pybel except for like Fchk and Log files
 get_string_export_dispatchers(cls): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L6441)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L6441?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L6443)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L6443?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3331,8 +3330,8 @@ The mapping from string-export format key to the exporter method that produces t
 to_string(self, fmt, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6463)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L6463?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6465)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L6465?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3351,8 +3350,8 @@ Export this molecule to a string in the given format, dispatching to an in-memor
 get_file_export_dispatchers(cls): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L6500)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L6500?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L6502)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L6502?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3366,8 +3365,8 @@ The mapping from file-export format key to the exporter method that writes that 
 to_file(self, file, mode=None, use_ob_fallback=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6512)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L6512?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6514)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L6514?message=Update%20Docs)]
 </div>
 
   - `file`: `Any`
@@ -3382,8 +3381,8 @@ to_file(self, file, mode=None, use_ob_fallback=False, **opts):
 construct(cls, spec, fmt=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L6579)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L6579?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L6581)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L6581?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3403,8 +3402,8 @@ Universal `Molecule` constructor: builds a molecule from essentially any reasona
 plot(self, *geometries, figure=None, return_objects=False, bonds=None, rings=True, bond_radius=None, atom_radius_scaling=None, atom_style=None, atom_radii=None, atom_text=None, display_atom_numbers=False, radius_type=None, bond_style=None, reconcile_bonds=True, capped_bonds=None, reflectiveness=None, vector_style=None, highlight_atoms=None, highlight_bonds=None, highlight_rings=None, highlight_styles=None, comparison_styles=None, animation_frame_styles=None, mode_vectors=None, mode_vector_origins=None, mode_vector_origin_mode='set', mode_vector_display_cutoff=0.01, principle_axes=None, principle_axes_origin=None, principle_axes_origin_mode='set', principle_axes_style=None, dipole=None, dipole_origin=None, dipole_origin_mode='set', render_multiple_bonds=None, render_fractional_bonds=None, fractional_bond_offset=None, bond_center_radius_offset=None, draw_coords=None, draw_coords_style=None, up_vector=None, multiple_bond_spacing=None, mode=None, backend=None, include_save_buttons=None, objects=False, graphics_class=None, cylinder_class=None, cylinder_options=None, sphere_class=None, sphere_options=None, arrow_class=None, arrow_options=None, line_class=None, line_options=None, disk_class=None, disk_options=None, animate=None, recording_options=None, animation_options=None, jsmol_load_script=None, include_jsmol_script_interface=None, dynamic_loading=None, units='Angstroms', label_style=None, theme='default', theme_function=None, plot_range_padding='auto', annotation_function=None, **plot_ops): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6631)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L6631?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6633)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L6633?message=Update%20Docs)]
 </div>
 Dispatches to the appropriate `MoleculePlotter` for the resolved backend/mode.
 
@@ -3417,8 +3416,8 @@ defaults, and return conventions are unchanged.
 get_animation_geoms(self, which, extent=0.35, steps=8, strip_embedding=True, units=None, coordinate_expansion=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6783)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L6783?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6785)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L6785?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3444,8 +3443,8 @@ Build a back-and-forth looping sequence of displaced geometries for animating a 
 animate_coordinate(self, which, extent=0.5, steps=3, return_objects=False, strip_embedding=True, units='Angstroms', backend=None, mode=None, jsmol_load_script=None, coordinate_expansion=None, **plot_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6824)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L6824?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6826)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L6826?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3481,8 +3480,8 @@ Build an animation of a displaced coordinate and return it as a plottable/displa
 animate_mode(self, which, extent=0.5, steps=3, modes=None, coordinate_expansion=None, order=None, normalize=True, mass_weight=False, mass_scale=True, frequency_scale=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6884)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L6884?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6886)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L6886?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3518,8 +3517,8 @@ Build an animation of a normal mode's displacement, converting the mode into a c
 format_structs(self, geoms, format='xyz'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6982)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L6982?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6984)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L6984?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3537,8 +3536,8 @@ Format a batch of geometries as a concatenated multi-frame string in the given f
 format_animation_file(self, which, format='xyz', extent=0.35, steps=8, strip_embedding=True, units='Angstroms', coordinate_expansion=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L7041)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L7041?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L7043)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L7043?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3566,8 +3565,8 @@ Build a formatted animation string/block for a displaced coordinate, either as a
 to_widget(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L7081)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L7081?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L7083)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L7083?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 

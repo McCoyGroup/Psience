@@ -147,6 +147,39 @@ Finally, the general code flow is detailed below
 [PTTensorCoeffProductDAG](VPT2/Analytic/PTTensorCoeffProductDAG.md)   
 </div>
    <div class="col" markdown="1">
+[PTTensorCoeffProductDAGEvaluationPlan](VPT2/Analytic/PTTensorCoeffProductDAGEvaluationPlan.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[DegeneracyTestPlan](VPT2/Analytic/DegeneracyTestPlan.md)   
+</div>
+   <div class="col" markdown="1">
+[CompactDegeneracyTestPlan](VPT2/Analytic/CompactDegeneracyTestPlan.md)   
+</div>
+   <div class="col" markdown="1">
+[DegeneracyChangeIndex](VPT2/Analytic/DegeneracyChangeIndex.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[DegeneracyIdentificationContext](VPT2/Analytic/DegeneracyIdentificationContext.md)   
+</div>
+   <div class="col" markdown="1">
+[SmallEnergyDenominatorWarning](VPT2/Analytic/SmallEnergyDenominatorWarning.md)   
+</div>
+   <div class="col" markdown="1">
+[SurvivingEnergyDenominatorWarning](VPT2/Analytic/SurvivingEnergyDenominatorWarning.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
+   
+</div>
+   <div class="col" markdown="1">
    
 </div>
 </div>
@@ -302,9 +335,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-4949e2" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-4949e2"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-70c308" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-70c308"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-4949e2" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-70c308" markdown="1">
  - [MultdiDegHOH](#MultdiDegHOH)
 - [HOHAnalytic](#HOHAnalytic)
 - [HOHLocal](#HOHLocal)
@@ -318,6 +351,7 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 - [AnalyticOCHH](#AnalyticOCHH)
 - [AnalyticOCHHOperators](#AnalyticOCHHOperators)
 - [AnalyticHOONO](#AnalyticHOONO)
+- [AnalyticHOONOWavefunctions](#AnalyticHOONOWavefunctions)
 - [AnalyticHOONODeg](#AnalyticHOONODeg)
 - [TrimerAnalytic](#TrimerAnalytic)
 - [TrimerMatrix](#TrimerMatrix)
@@ -370,9 +404,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-000225" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-000225"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-df8afd" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-df8afd"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-000225" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-df8afd" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -1118,6 +1152,26 @@ class VPT2Tests(TestCase):
         """
 
         file_name = "OCHH_freq.fchk"
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #             [
+        #                 [0, 0, 0, 0, 0, 0],
+        #                 [0, 0, 0, 0, 0, 1],
+        #                 [0, 1, 0, 1, 0, 0],
+        #                 [0, 0, 0, 1, 1, 0],
+        #                 [0, 0, 0, 0, 1, 0],
+        #                 [0, 1, 0, 1, 1, 0]
+        #             ],
+        #     initial_states=[
+        #         [0, 0, 0, 0, 0, 0],
+        #         [0, 0, 0, 0, 1, 0]
+        #     ],
+        #     # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+        #     degeneracy_specs=[
+        #         [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+        #     ]
+        # )
+
         AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
             [
@@ -1232,15 +1286,32 @@ class VPT2Tests(TestCase):
         #     ))
         # with par:
         # with BlockProfiler.profiler():
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            # degeneracy_specs=[
+            #     [state(1), state(8, 7)],
+            #     [state(3), state([6, 2])],
+            #     [state(6), state([9, 2])],
+            # ],
+            logger=os.path.expanduser("~/Desktop/hoono_auto_matrix.txt"),
+            degeneracy_specs='auto',
+            # parallelizer='multiprocessing'
+            # parallelizer=par
+            # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+        )
+
         AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
             2,
-            degeneracy_specs=[
-                [state(1), state(8, 7)],
-                [state(3), state([6, 2])],
-                [state(6), state([9, 2])],
-            ],
-            # degeneracy_specs='auto',
+            # degeneracy_specs=[
+            #     [state(1), state(8, 7)],
+            #     [state(3), state([6, 2])],
+            #     [state(6), state([9, 2])],
+            # ],
+            # logger=os.path.expanduser("~/Desktop/hoono_auto.txt"),
+            degeneracy_specs='auto',
             # parallelizer='multiprocessing'
             # parallelizer=par
             # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
@@ -1301,6 +1372,35 @@ class VPT2Tests(TestCase):
         )
 ```
 
+#### <a name="AnalyticHOONOWavefunctions">AnalyticHOONOWavefunctions</a>
+```python
+    def test_AnalyticHOONOWavefunctions(self):
+
+        file_name = "HOONO_freq.fchk"
+        state = VPTStateMaker(9)
+
+        runner, _ = AnalyticVPTRunner.construct(
+            TestManager.test_data(file_name),
+            2,
+            # degeneracy_specs=[
+            #     [state(1), state(8, 7)],
+            #     [state(3), state([6, 2])],
+            #     [state(6), state([9, 2])],
+            # ],
+            # logger=os.path.expanduser("~/Desktop/hoono_auto.txt"),
+            # degeneracy_specs='auto',
+            # parallelizer='multiprocessing'
+            # parallelizer=par
+            # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+        )
+
+        print(
+            runner.get_wavefunction_corrections([
+                [state([6, 2]), [state([9, 4])]]
+            ])
+        )
+```
+
 #### <a name="AnalyticHOONODeg">AnalyticHOONODeg</a>
 ```python
     def test_AnalyticHOONODeg(self):
@@ -1317,9 +1417,9 @@ class VPT2Tests(TestCase):
             # parallelizer=par
             # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
         )
-        runner.print_Nielsen_frequencies()
-
-        return
+        # runner.print_Nielsen_frequencies()
+        #
+        # return
 
 
         # with BlockProfiler():
@@ -1570,17 +1670,14 @@ class VPT2Tests(TestCase):
             logger=True
         )
 
+        states = states.state_list_pairs[0][1]
         og, _ = runner.construct_classic_runner(
-            TestManager.test_data(file_name),
             states,
             mode_selection=np.arange(len(states[0])),
             logger=False
         )
 
-        # og.print_tables(print_intensities=True)
-        with BlockProfiler(print_options={'show_all':True}):
-            spec = runner.get_spectrum(states, verbose=False)
-        print(np.array(spec).T)
+        og.print_tables(print_intensities=True)
 ```
 
 #### <a name="TrimerMatrix">TrimerMatrix</a>

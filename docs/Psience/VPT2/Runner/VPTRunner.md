@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Runner.VPTRunner">VPTRunner</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1283)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1283?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1285)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1285?message=Update%20Docs)]
 </div>
 
 A helper class to make it easier to run jobs by making the inputs/options
@@ -27,8 +27,8 @@ helpers: AnneInputHelpers
 __init__(self, system, states, initial_states=None, hamiltonian_options=None, solver_options=None, runtime_options=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1289)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1289?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1291)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1291?message=Update%20Docs)]
 </div>
 
   - `system`: `VPTSystem`
@@ -46,8 +46,8 @@ __init__(self, system, states, initial_states=None, hamiltonian_options=None, so
 get_Hamiltonian(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTRunner.py#L1334)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTRunner.py#L1334?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTRunner.py#L1336)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTRunner.py#L1336?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -62,8 +62,8 @@ Build a `PerturbationTheoryHamiltonian` for this runner's system, combining the 
 hamiltonian(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTRunner.py#L1349)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTRunner.py#L1349?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTRunner.py#L1351)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTRunner.py#L1351?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -77,8 +77,8 @@ The (cached) `PerturbationTheoryHamiltonian` for this runner, built lazily via `
 get_wavefunctions(self, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTRunner.py#L1363)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTRunner.py#L1363?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTRunner.py#L1365)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTRunner.py#L1365?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -94,8 +94,8 @@ Run the full VPT calculation and return the resulting wavefunctions, combining t
 get_solver(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTRunner.py#L1391)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTRunner.py#L1391?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTRunner.py#L1393)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTRunner.py#L1393?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -110,8 +110,8 @@ Build a `PerturbationTheorySolver` for this runner's target states, without runn
 print_output_tables(cls, wfns=None, file=None, print_intensities=True, print_energies=True, print_energy_corrections=True, print_transition_moments=True, operators=None, logger=None, sep_char='=', sep_len=100): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1410)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1410?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1412)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1412?message=Update%20Docs)]
 </div>
 Prints a bunch of formatted output data from a PT run
   - `wfns`: `Any`
@@ -125,8 +125,8 @@ Prints a bunch of formatted output data from a PT run
 print_tables(self, wfns=None, file=None, print_intensities=True, print_energy_corrections=True, print_transition_moments=True, operators=None, logger=None, sep_char='=', sep_len=100): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTRunner.py#L1543)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTRunner.py#L1543?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTRunner.py#L1545)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTRunner.py#L1545?message=Update%20Docs)]
 </div>
 Prints a bunch of formatted output data from a PT run
   - `wfns`: `Any`
@@ -140,8 +140,8 @@ Prints a bunch of formatted output data from a PT run
 get_Nielsen_energies(self, return_split=False, return_X=False, **potential_params): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTRunner.py#L1582)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTRunner.py#L1582?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTRunner.py#L1584)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTRunner.py#L1584?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -161,8 +161,8 @@ Compute harmonic and anharmonic (Nielsen-formula) vibrational energies for the t
 print_Nielsen_frequencies(self, logger=None, state_formatting='vector', **potential_params): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTRunner.py#L1609)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTRunner.py#L1609?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTRunner.py#L1611)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTRunner.py#L1611?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -183,8 +183,8 @@ Compute the Nielsen-formula harmonic and anharmonic transition frequencies (rela
 construct(cls, system, states, target_property=None, extended_space_target_property=None, basis_filters=None, initial_states=None, corrected_fundamental_frequencies=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1737)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1737?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1739)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1739?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -215,8 +215,8 @@ Top-level constructor that assembles a fully configured `VPTRunner` (and, if tar
 run_simple(cls, system, states, target_property=None, corrected_fundamental_frequencies=None, calculate_intensities=True, plot_spectrum=False, operators=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1882)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1882?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1884)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1884?message=Update%20Docs)]
 </div>
 The standard runner for VPT.
 Makes a runner using the `construct` method and then calls that
@@ -286,7 +286,7 @@ runner's `print_tables` method after printing out run info.
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTRunner.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTRunner.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1283?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1285?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
