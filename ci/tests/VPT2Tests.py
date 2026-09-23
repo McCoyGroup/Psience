@@ -791,7 +791,7 @@ class VPT2Tests(TestCase):
         runner.run_VPT(states)
         raise Exception(...)
 
-    @validationTest
+    @debugTest
     def test_AnalyticOCHH(self):
         """
         Run OCHH, add in the single degeneracy by hand
@@ -799,6 +799,26 @@ class VPT2Tests(TestCase):
         """
 
         file_name = "OCHH_freq.fchk"
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #             [
+        #                 [0, 0, 0, 0, 0, 0],
+        #                 [0, 0, 0, 0, 0, 1],
+        #                 [0, 1, 0, 1, 0, 0],
+        #                 [0, 0, 0, 1, 1, 0],
+        #                 [0, 0, 0, 0, 1, 0],
+        #                 [0, 1, 0, 1, 1, 0]
+        #             ],
+        #     initial_states=[
+        #         [0, 0, 0, 0, 0, 0],
+        #         [0, 0, 0, 0, 1, 0]
+        #     ],
+        #     # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+        #     degeneracy_specs=[
+        #         [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+        #     ]
+        # )
+
         AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
             [
@@ -1003,9 +1023,9 @@ class VPT2Tests(TestCase):
             # parallelizer=par
             # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
         )
-        runner.print_Nielsen_frequencies()
-
-        return
+        # runner.print_Nielsen_frequencies()
+        #
+        # return
 
 
         # with BlockProfiler():

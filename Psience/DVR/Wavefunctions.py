@@ -267,8 +267,10 @@ class DVRWavefunctions(Wavefunctions):
         grid = self.grid
 
         dim = len(grid.shape) # mesh grid...
-        if dim > 1 and grid.shape[-1] == dim-1: # check whether we have a mesh of points that we need to reshape
-            grid = np.moveaxis(grid, grid.ndim, 0)
+        # if dim > 1 and grid.shape[-1] == dim-1: # check whether we have a mesh of points that we need to reshape
+        #     grid = np.moveaxis(grid, grid.ndim, 0)
+        if grid.ndim > 2 and grid.shape[-1] == grid.ndim - 1:
+            grid = grid.reshape(-1, grid.shape[-1])
 
         return super().plot(
             figure=figure,
