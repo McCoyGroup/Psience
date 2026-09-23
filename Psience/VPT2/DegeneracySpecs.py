@@ -771,7 +771,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
     format = DegenerateSpaceInputFormat.StrongCouplings
     default_threshold=.3
     def __init__(self, wfc_threshold=None, state_filter=None, extend_spaces=True, iterations=None,
-                 evaluator=None,
+                 evaluator=None, iterative=False,
                  **opts):
         """
         **LLM Docstring**
@@ -788,6 +788,8 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         :type iterations: int | None
         :param evaluator: an evaluator object used to directly compute wavefunction corrections for the input states, if provided (rather than relying on precomputed `corrs` passed to `get_groups`)
         :type evaluator: object | None
+        :param iterative: identify first-order couplings, then evaluate only second-order corrections with those couplings treated as degenerate (pre-solve evaluator path only)
+        :type iterative: bool
         :param opts: extra options forwarded to the base `DegeneracySpec.__init__`
         :type opts: dict
         :return: None
@@ -803,6 +805,8 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         self.extend_spaces=extend_spaces
         self._iterations = iterations
         self.iterations = iterations
+        self.iterative = iterative
+        self._first_order_pairs = {}
 
     @property
     def application_order(self):
@@ -895,14 +899,42 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         ]
         if len(needs_couplings) > 0:
             needs_coupling_states = input_states.take_subspace(needs_couplings)
+            if self.iterative:
+                self._get_iterative_input_state_couplings(needs_coupling_states)
+                for i in inds:
+                    if i not in self._couplings:
+                        self._couplings[i] = None
+                return {
+                    i:self._couplings[i]
+                    for i in inds
+                    if self._couplings[i] is not None
+                }
             wfcs = self.evaluator.get_test_wfn_corrs(needs_coupling_states, self.energy_cutoff)
-            self.wavefunction_corrections = self._prep_wfc_correction_space(wfcs)
+            self.wavefunction_corrections = (
+                self._prep_wfc_correction_space(wfcs)
+                if wfcs is not None else None
+            )
+            report_rows = []
             if wfcs is not None:
-                for input_state, final_state, corrs in zip(wfcs.initial_states.indices, wfcs.final_states, wfcs.corrections):
-                    coupling_pos = np.where(np.abs(corrs) > self.wfc_threshold)
-                    if len(coupling_pos) > 0 and len(coupling_pos[0]) > 0:
-                        coupling_pos = coupling_pos[1]
-                        self._couplings[input_state] = final_state.take_subspace(coupling_pos)
+                for input_state, source, final_state, corrs in zip(
+                        wfcs.initial_states.indices,
+                        wfcs.initial_states.excitations,
+                        wfcs.final_states, wfcs.corrections):
+                    orders, positions = np.where(np.abs(corrs) > self.wfc_threshold)
+                    if len(orders) > 0:
+                        # Use the very same positions for the report and the
+                        # existing state-space selection; no second threshold
+                        # comparison can disagree with identification.
+                        self._couplings[input_state] = final_state.take_subspace(positions)
+                        by_order = {}
+                        for order, pos in zip(orders, positions):
+                            by_order.setdefault(int(order), []).append(
+                                final_state.excitations[int(pos)]
+                            )
+                        report_rows.append((int(input_state), source, by_order))
+            report = getattr(self.evaluator, 'log_strong_couplings', None)
+            if report is not None and report_rows:
+                report(report_rows, self.wfc_threshold)
             for i in inds:
                 if i not in self._couplings:
                     self._couplings[i] = None
@@ -911,6 +943,101 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
             for i in inds
             if self._couplings[i] is not None
         }
+
+    def _get_iterative_input_state_couplings(self, input_states):
+        """Select first-order links, then re-evaluate order two with those links projected out."""
+        first = self.evaluator.get_test_wfn_corrs(
+            input_states, self.energy_cutoff, order=1, target_orders=(1,)
+        )
+        if first is None:
+            self.wavefunction_corrections = None
+            return
+
+        selected = {}
+        report_rows = {}
+        for state_index, source, finals, corrs in zip(
+                first.initial_states.indices, first.initial_states.excitations,
+                first.final_states, first.corrections):
+            positions = np.flatnonzero(np.abs(corrs[1]) > self.wfc_threshold)
+            if len(positions) == 0:
+                continue
+            index = int(state_index)
+            selected[index] = finals.take_subspace(positions)
+            report_rows[index] = [index, source, {1: list(finals.excitations[positions])}]
+            source_key = tuple(int(x) for x in source)
+            for partner in finals.excitations[positions]:
+                partner_key = tuple(int(x) for x in partner)
+                if source_key != partner_key:
+                    key = tuple(sorted((source_key, partner_key)))
+                    self._first_order_pairs[key] = key
+
+        # The evaluator's existing degenerate_states path projects by quantum
+        # change signature, not by exact state-pair membership. Use the same
+        # semantics as the rest of analytic degeneracy handling here.
+        second = self.evaluator.get_test_wfn_corrs(
+            input_states, self.energy_cutoff, order=2,
+            degenerate_states=self._get_first_order_degenerate_pairs(),
+            target_orders=(2,)
+        )
+        if second is not None:
+            for state_index, source, finals, corrs in zip(
+                    second.initial_states.indices, second.initial_states.excitations,
+                    second.final_states, second.corrections):
+                positions = np.flatnonzero(np.abs(corrs[2]) > self.wfc_threshold)
+                if len(positions) == 0:
+                    continue
+                index = int(state_index)
+                space = finals.take_subspace(positions)
+                selected[index] = selected[index].union(space) if index in selected else space
+                if index not in report_rows:
+                    report_rows[index] = [index, source, {}]
+                report_rows[index][2][2] = list(finals.excitations[positions])
+
+        self._couplings.update(selected)
+        if second is None:
+            self.wavefunction_corrections = self._prep_wfc_correction_space(first)
+        else:
+            # Materialize only the final combined matrix; two temporary dense
+            # pass matrices would double the peak memory for a large search.
+            basis = first.initial_states
+            for wfcs in (first, second):
+                for finals in wfcs.final_states:
+                    basis = basis.union(finals)
+            matrices = np.zeros((3, len(first.initial_states), len(basis)))
+            for order, wfcs in ((1, first), (2, second)):
+                rows = first.initial_states.find(wfcs.initial_states)
+                for row, finals, corrs in zip(rows, wfcs.final_states, wfcs.corrections):
+                    matrices[order, row, basis.find(finals)] = corrs[order]
+            self.wavefunction_corrections = self.PTCorrectionsMatrix(
+                first.initial_states, basis, matrices
+            )
+
+        report = getattr(self.evaluator, 'log_strong_couplings', None)
+        if report is not None and report_rows:
+            report(list(report_rows.values()), self.wfc_threshold)
+
+    def _get_first_order_degenerate_pairs(self):
+        """Include transitive first-order partners in the second-pass projection."""
+        neighbors = {}
+        for left, right in self._first_order_pairs.values():
+            neighbors.setdefault(left, set()).add(right)
+            neighbors.setdefault(right, set()).add(left)
+        pairs = []
+        visited = set()
+        for start in sorted(neighbors):
+            if start in visited:
+                continue
+            component = set()
+            pending = [start]
+            while pending:
+                node = pending.pop()
+                if node in component:
+                    continue
+                component.add(node)
+                pending.extend(neighbors[node] - component)
+            visited.update(component)
+            pairs.extend(itertools.combinations(sorted(component), 2))
+        return pairs
 
     PTCorrectionsMatrix = collections.namedtuple("PTCorrectionsMatrix", ["initial_states", "full_basis", "matrices"])
     @classmethod

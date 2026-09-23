@@ -791,7 +791,7 @@ class VPT2Tests(TestCase):
         runner.run_VPT(states)
         raise Exception(...)
 
-    @debugTest
+    @validationTest
     def test_AnalyticOCHH(self):
         """
         Run OCHH, add in the single degeneracy by hand
@@ -908,7 +908,7 @@ class VPT2Tests(TestCase):
 <::
     """
 
-    @validationTest
+    @debugTest
     def test_AnalyticHOONO(self):
 
         file_name = "HOONO_freq.fchk"
@@ -929,15 +929,32 @@ class VPT2Tests(TestCase):
         #     ))
         # with par:
         # with BlockProfiler.profiler():
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            # degeneracy_specs=[
+            #     [state(1), state(8, 7)],
+            #     [state(3), state([6, 2])],
+            #     [state(6), state([9, 2])],
+            # ],
+            logger=os.path.expanduser("~/Desktop/hoono_auto_matrix.txt"),
+            degeneracy_specs='auto',
+            # parallelizer='multiprocessing'
+            # parallelizer=par
+            # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+        )
+
         AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
             2,
-            degeneracy_specs=[
-                [state(1), state(8, 7)],
-                [state(3), state([6, 2])],
-                [state(6), state([9, 2])],
-            ],
-            # degeneracy_specs='auto',
+            # degeneracy_specs=[
+            #     [state(1), state(8, 7)],
+            #     [state(3), state([6, 2])],
+            #     [state(6), state([9, 2])],
+            # ],
+            # logger=os.path.expanduser("~/Desktop/hoono_auto.txt"),
+            degeneracy_specs='auto',
             # parallelizer='multiprocessing'
             # parallelizer=par
             # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
@@ -1007,6 +1024,33 @@ class VPT2Tests(TestCase):
         # with BlockProfiler():
         #     spec = runner.get_spectrum(states, verbose=False)
         # print(np.array(spec).T)
+
+    @validationTest
+    def test_AnalyticHOONOWavefunctions(self):
+
+        file_name = "HOONO_freq.fchk"
+        state = VPTStateMaker(9)
+
+        runner, _ = AnalyticVPTRunner.construct(
+            TestManager.test_data(file_name),
+            2,
+            # degeneracy_specs=[
+            #     [state(1), state(8, 7)],
+            #     [state(3), state([6, 2])],
+            #     [state(6), state([9, 2])],
+            # ],
+            # logger=os.path.expanduser("~/Desktop/hoono_auto.txt"),
+            # degeneracy_specs='auto',
+            # parallelizer='multiprocessing'
+            # parallelizer=par
+            # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+        )
+
+        print(
+            runner.get_wavefunction_corrections([
+                [state([6, 2]), [state([9, 4])]]
+            ])
+        )
 
     @validationTest
     def test_AnalyticHOONODeg(self):

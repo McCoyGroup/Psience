@@ -35,6 +35,7 @@ __all__ = [
     'PTTensorCoeffProductDAG',
     'PTTensorCoeffProductDAGEvaluationPlan',
     'DegeneracyTestPlan',
+    'CompactDegeneracyTestPlan',
     'DegeneracyChangeIndex',
     'DegeneracyIdentificationContext',
     'SmallEnergyDenominatorWarning',
@@ -57,12 +58,56 @@ class DefaultValues(enum.Enum):
 default = DefaultValues.DEFAULT
 
 
+_QUANTUM_INDEX_LABELS = "ijklmnopqrstuvwxyzabcdefgh"
+
+
+def format_quantum_change(change):
+    """Render a change vector as a polynomial in local mode indices.
+
+    This is a display-only representation: the ordered integer tuple remains
+    the key used by solvers, evaluators, and checkpoints.  In particular, a
+    NumPy scalar is converted to an ordinary integer before formatting.
+    A future solver-owned LOGGER_INDEX_CACHE can substitute D_n labels here
+    without changing the calculation's keys or this algebraic fallback.
+    """
+    terms = []
+    for index, entry in enumerate(change):
+        amount = int(entry)
+        if amount == 0:
+            continue
+        label = (
+            "q_" + _QUANTUM_INDEX_LABELS[index]
+            if index < len(_QUANTUM_INDEX_LABELS) else
+            "q_{{{}}}".format(index)
+        )
+        magnitude = "" if abs(amount) == 1 else str(abs(amount))
+        sign = "-" if amount < 0 else ("+" if terms else "")
+        terms.append(sign + magnitude + label)
+    return "".join(terms) if terms else "0"
+
+
+def format_quantum_change_list(changes):
+    """Render an ordered collection of change vectors for operator labels."""
+    if changes is None:
+        return "None"
+    return "[{}]".format(
+        ", ".join(format_quantum_change(change) for change in changes)
+    )
+
+
 class SmallEnergyDenominatorWarning(RuntimeWarning):
     """An evaluated perturbation term contains a denominator below cutoff."""
 
 
 class SurvivingEnergyDenominatorWarning(SmallEnergyDenominatorWarning):
     """A small denominator retained a numerator after cutoff pruning."""
+
+
+# A distinct type is required: a legacy change list can itself contain two
+# entries, so its length cannot identify side-specific resonance rules.
+SideDegeneracyChanges = collections.namedtuple(
+    'SideDegeneracyChanges', ['left', 'right']
+)
 
 
 class DegeneracyTestPlan:
@@ -293,8 +338,198 @@ class DegeneracyTestPlan:
         return bool(matched)
 
 
+class CompactDegeneracyTestPlan:
+    """Union of linear resonance clauses without expanded pattern rows.
+
+For one energy-change requirement, each compiled inverse mode map projects a
+concrete permutation back into the sorted mode tuple held by
+``DegeneracyChangeIndex``. Membership in that small source index is exactly
+the test that the expanded pattern union performs. In particular, keeping
+the actual mode maps preserves the current all-equal-quanta behavior.
+    """
+
+    default_scalar_state_cutoff = 32
+
+    def __init__(self, clauses, width, mode_index=None):
+        self.clauses = tuple(clauses)
+        self.width = int(width)
+        self.fallback_tests = ()
+        self.pattern_count = sum(clause[5] for clause in self.clauses)
+        self.scalar_state_cutoff = max(
+            self.default_scalar_state_cutoff,
+            2 * sum(len(clause[1]) for clause in self.clauses)
+        )
+        # A shape-only compatibility view for callers that inspect predicate
+        # arity; no Cartesian-product pattern rows are allocated.
+        self.patterns = np.empty((0, self.width), dtype=np.intp)
+        self.checks = np.empty((0, self.width), dtype=bool)
+        self.matches_all = any(
+            len(projections) > 0 and projections.shape[1] == 0
+            and () in mode_set
+            for _, projections, mode_set, _, _, _, _ in self.clauses
+        )
+        self.checked_positions = tuple(sorted({
+            int(position)
+            for _, projections, _, _, _, _, _ in self.clauses
+            for projection in projections
+            for position in projection
+        }))
+        # Quantum-change signatures route to the correct source rows, but two
+        # different signatures can still yield the same final mode predicate.
+        # Intern by the actual projected membership condition, as the expanded
+        # plan did after pattern construction.
+        # A projection is ordered, whereas the resulting pattern checks are
+        # not: (positions 1, 0; modes 2, 7) and (positions 0, 1; modes 7, 2)
+        # are the same predicate.  Canonicalize only the checked columns, not
+        # a full-width pattern array, to preserve the expanded path's content
+        # interning without paying for its wildcard columns.
+        if self.matches_all:
+            self.semantic_key = (self.width, 'all')
+            self.semantic_key_bytes = 32
+        else:
+            groups = collections.defaultdict(list)
+            for signature, projections, _, _, _, _, mode_rows in self.clauses:
+                for projection in projections:
+                    ordering = np.argsort(projection)
+                    positions = tuple(int(position) for position in projection[ordering])
+                    if mode_index is None:
+                        rows = np.ascontiguousarray(mode_rows[:, ordering])
+                        key_dtype = np.dtype((np.void, rows.dtype.itemsize * len(positions)))
+                        encoded = np.unique(rows.view(key_dtype).ravel()).tobytes()
+                    else:
+                        encoded = mode_index.get_canonical_mode_rows(
+                            signature, tuple(int(index) for index in ordering)
+                        )
+                    groups[positions].append(encoded)
+            semantic_groups = []
+            for positions, blocks in groups.items():
+                blocks = tuple(dict.fromkeys(blocks))
+                if len(blocks) == 1:
+                    encoded = blocks[0]
+                else:
+                    key_dtype = np.dtype((np.void, np.dtype(np.intp).itemsize * len(positions)))
+                    rows = np.concatenate([
+                        np.frombuffer(block, dtype=key_dtype) for block in blocks
+                    ])
+                    encoded = np.unique(rows).tobytes()
+                semantic_groups.append((positions, encoded))
+            self.semantic_key = (self.width, frozenset(semantic_groups))
+            self.semantic_key_bytes = sum(
+                len(encoded) + 64 + 8 * len(positions)
+                for positions, encoded in semantic_groups
+            )
+
+    def __call__(self, state):
+        if self.matches_all:
+            return True
+        for _, projections, _, _, mode_trie, _, _ in self.clauses:
+            for projection in projections:
+                subtree = mode_trie
+                for index in projection:
+                    subtree = subtree.get(int(state[int(index)]))
+                    if subtree is None:
+                        break
+                if subtree is True:
+                    return True
+        return False
+
+    def evaluate(self, states):
+        if isinstance(states, np.ndarray) and states.ndim == 1:
+            return self(states)
+        if len(states) <= self.scalar_state_cutoff:
+            return np.fromiter(
+                (self(state) for state in states),
+                dtype=bool,
+                count=len(states)
+            )
+        return self.evaluate_array(states)
+
+    def evaluate_array(self, states):
+        states = np.asarray(states, dtype=np.intp)
+        if states.ndim != 2 or states.shape[1] != self.width:
+            raise ValueError("degeneracy states do not match compact plan width")
+        result = np.zeros(len(states), dtype=bool)
+        if self.matches_all:
+            result[:] = True
+            return result
+        for _, projections, _, mode_keys, _, _, _ in self.clauses:
+            for projection in projections:
+                if len(projection) == 0:
+                    continue
+                if len(projection) == 1:
+                    result |= np.isin(states[:, projection[0]], mode_keys)
+                else:
+                    # Structured row membership avoids a state x mode-row
+                    # broadcast and keeps workspace proportional to the pool.
+                    dtype = np.dtype((np.void, len(projection) * np.dtype(np.intp).itemsize))
+                    projected = np.ascontiguousarray(states[:, projection])
+                    state_keys = projected.view(dtype).ravel()
+                    result |= np.isin(state_keys, mode_keys)
+                if np.all(result):
+                    return result
+        return result
+
+    def evaluate_with_value_cache(self, states, cache):
+        """Reuse predicate results across pools with equal checked values.
+
+        Only the positions this plan inspects enter the key.  In particular,
+        different unchecked mode assignments share one result.  Large pools
+        keep the existing vectorized kernel to avoid Python row-key overhead.
+        """
+        states = np.asarray(states, dtype=np.intp)
+        if states.ndim != 2 or states.shape[1] != self.width:
+            raise ValueError("degeneracy states do not match compact plan width")
+        if self.matches_all:
+            return np.ones(len(states), dtype=bool)
+        if len(states) > cache.max_batch_rows or cache.max_bytes == 0:
+            return self.evaluate_array(states)
+
+        if len(states) >= 4:
+            projected = np.ascontiguousarray(
+                states[:, self.checked_positions]
+            )
+            checked_values = projected.tobytes()
+            found, result = cache.lookup_block(
+                self, len(states), checked_values
+            )
+            if found:
+                return result
+            result = self.evaluate(states)
+            cache.store_block(self, len(states), checked_values, result)
+            cache.stats.degeneracy_value_evaluations += len(states)
+            return result
+
+        result = np.empty(len(states), dtype=bool)
+        missing = {}
+        for index, state in enumerate(states):
+            values = tuple(int(state[position]) for position in self.checked_positions)
+            pending = missing.get(values)
+            if pending is not None:
+                pending.append(index)
+                continue
+            found, value = cache.lookup(self, values)
+            if found:
+                result[index] = value
+            else:
+                missing[values] = [index]
+        if missing:
+            representatives = [indices[0] for indices in missing.values()]
+            if len(representatives) > 32:
+                values = self.evaluate_array(states[representatives])
+            else:
+                values = [self(states[index]) for index in representatives]
+            for (checked_values, indices), value in zip(missing.items(), values):
+                value = bool(value)
+                result[indices] = value
+                cache.store(self, checked_values, value)
+            cache.stats.degeneracy_value_evaluations += len(representatives)
+        return result
+
+
 class DegeneracyChangeIndex:
     """An ordered, immutable index of resonance changes by sorted quanta."""
+
+    canonical_mode_cache_max_bytes = 8 * 1024 ** 2
 
     def __init__(self, changes):
         groups = collections.OrderedDict()
@@ -310,7 +545,15 @@ class DegeneracyChangeIndex:
                 tuple(int(modes[index]) for index in sorting)
             )
         self.groups = {}
+        self.mode_sets = {}
+        self.mode_keys = {}
+        self.mode_tries = {}
+        self.canonical_mode_cache = collections.OrderedDict()
+        self.canonical_mode_cache_bytes = 0
+        self.canonical_mode_cache_hits = 0
+        self.canonical_mode_cache_misses = 0
         self.nbytes = 0
+        self.mode_index_bytes_estimate = 0
         for signature, modes in groups.items():
             block = np.asarray(modes, dtype=np.intp)
             block.setflags(write=False)
@@ -319,6 +562,66 @@ class DegeneracyChangeIndex:
 
     def get(self, signature):
         return self.groups.get(signature)
+
+    def get_canonical_mode_rows(self, signature, ordering):
+        """Canonical sparse row bytes, shared across checked-position maps.
+
+        The bounded cache holds only distinct mode-tuple reorderings.  Thus
+        interning equivalent predicates does not reconstruct the full
+        resonance-mode x projection-map Cartesian product for every plan.
+        """
+        key = (signature, ordering)
+        cached = self.canonical_mode_cache.get(key)
+        if cached is not None:
+            self.canonical_mode_cache.move_to_end(key)
+            self.canonical_mode_cache_hits += 1
+            return cached[0]
+        self.canonical_mode_cache_misses += 1
+        modes = self.groups[signature]
+        rows = np.ascontiguousarray(modes[:, ordering])
+        key_dtype = np.dtype((np.void, rows.dtype.itemsize * len(ordering)))
+        encoded = np.unique(rows.view(key_dtype).ravel()).tobytes()
+        size = len(encoded) + 64 + 8 * len(ordering)
+        if size <= self.canonical_mode_cache_max_bytes:
+            while (self.canonical_mode_cache and
+                   self.canonical_mode_cache_bytes + size > self.canonical_mode_cache_max_bytes):
+                _, (_, removed_size) = self.canonical_mode_cache.popitem(last=False)
+                self.canonical_mode_cache_bytes -= removed_size
+            self.canonical_mode_cache[key] = (encoded, size)
+            self.canonical_mode_cache_bytes += size
+        return encoded
+
+    def get_mode_membership(self, signature):
+        modes = self.groups.get(signature)
+        if modes is None:
+            return None
+        mode_set = self.mode_sets.get(signature)
+        if mode_set is None:
+            mode_set = frozenset(
+                tuple(int(value) for value in row) for row in modes
+            )
+            self.mode_sets[signature] = mode_set
+            mode_trie = {}
+            for mode_row in mode_set:
+                subtree = mode_trie
+                for value in mode_row[:-1]:
+                    subtree = subtree.setdefault(value, {})
+                if mode_row:
+                    subtree[mode_row[-1]] = True
+            self.mode_tries[signature] = mode_trie
+            self.mode_index_bytes_estimate += len(mode_set) * (
+                128 + 32 * modes.shape[1]
+            )
+            if modes.shape[1] == 1:
+                self.mode_keys[signature] = modes[:, 0]
+            elif modes.shape[1] > 1:
+                key_dtype = np.dtype((np.void, modes.dtype.itemsize * modes.shape[1]))
+                self.mode_keys[signature] = np.ascontiguousarray(modes).view(
+                    key_dtype
+                ).ravel()
+            else:
+                self.mode_keys[signature] = np.empty(0, dtype=np.intp)
+        return mode_set, self.mode_keys[signature], self.mode_tries[signature]
 
 
 class DegeneracyIdentificationContext:
@@ -332,9 +635,12 @@ class DegeneracyIdentificationContext:
 
     default_max_items = 4096
     default_max_bytes = 32 * 1024 ** 2
+    # The expanded route remains selectable for accuracy and timing controls.
+    use_compact_index = True
 
     def __init__(self, changes, max_items=None, max_bytes=None):
         self.changes = DegeneracyChangeIndex(changes)
+        self.compact_index = bool(self.use_compact_index)
         self.max_items = self.default_max_items if max_items is None else int(max_items)
         self.max_bytes = self.default_max_bytes if max_bytes is None else int(max_bytes)
         self._cache = collections.OrderedDict()
@@ -455,6 +761,26 @@ class DegeneracyIdentificationContext:
         if offset != len(output):
             raise AssertionError('degeneracy pattern row count changed')
 
+    def _compact_clause(self, echange, requirement, modes):
+        key = ('compact_clause', tuple(echange))
+        cached = self._get(key, 'compact_clause')
+        if cached is not None:
+            return cached
+        signature, maps, _ = requirement
+        checked = np.flatnonzero(maps[0] >= 0)
+        projections = np.stack([
+            checked[np.argsort(mode_map[checked])]
+            for mode_map in maps
+        ])
+        projections.setflags(write=False)
+        mode_set, mode_keys, mode_trie = self.changes.get_mode_membership(signature)
+        clause = (
+            signature, projections, mode_set, mode_keys, mode_trie,
+            len(modes) * len(maps), modes
+        )
+        self._stats['compact_clauses_compiled'] += 1
+        return self._put(key, clause, projections.nbytes)
+
     def _bind_energy_key(self, ekey, nmodes, method):
         key = ('bound', method, int(nmodes), ekey)
         cached = self._get(key, 'bound_plan')
@@ -465,7 +791,7 @@ class DegeneracyIdentificationContext:
             requirement = self._requirement(echange, method)
             modes = self.changes.get(requirement[0])
             if modes is not None:
-                sides[eside].append((requirement, modes))
+                sides[eside].append((echange, requirement, modes))
                 self._stats['resonance_matches'] += len(modes)
         result = []
         size = 0
@@ -476,13 +802,31 @@ class DegeneracyIdentificationContext:
             width = len(ekey[0]) - 1  # leading element is the energy side
             count = sum(
                 self._pattern_count(requirement, modes, nmodes, method)
-                for requirement, modes in requirements
+                for _, requirement, modes in requirements
             )
             if count == 0:
                 result.append(None)
                 continue
+            if self.compact_index and method == 'linear':
+                clauses = [
+                    self._compact_clause(echange, requirement, modes)
+                    for echange, requirement, modes in requirements
+                ]
+                plan = CompactDegeneracyTestPlan(
+                    clauses, width, mode_index=self.changes
+                )
+                result.append(plan)
+                self._stats['pattern_rows_avoided'] += count
+                self._stats['predicate_plans_built'] += 1
+                size += sum(clause[1].nbytes + 256 for clause in clauses)
+                size += plan.semantic_key_bytes
+                continue
             patterns = np.full((count, width), -1, dtype=np.intp)
-            self._fill_patterns(patterns, requirements, nmodes, method)
+            self._fill_patterns(
+                patterns,
+                [(requirement, modes) for _, requirement, modes in requirements],
+                nmodes, method
+            )
             plan = DegeneracyTestPlan(patterns)
             result.append(plan)
             self._stats['pattern_rows_materialized'] += count
@@ -509,6 +853,21 @@ class DegeneracyIdentificationContext:
         if identity is not None and identity() is not None:
             self._stats['predicate_intern_identity_hits'] += 1
             return identity()
+
+        if isinstance(plan, CompactDegeneracyTestPlan):
+            key = ('compact', plan.semantic_key)
+            canonical = by_content.get(key, plan)
+            if canonical is plan:
+                self._stats['predicate_intern_misses'] += 1
+                if len(by_identity) < self.max_items:
+                    by_content[key] = plan
+                else:
+                    self._stats['predicate_intern_skips'] += 1
+            else:
+                self._stats['predicate_intern_content_hits'] += 1
+            if len(by_identity) < self.max_items:
+                by_identity[plan] = weakref.ref(canonical)
+            return canonical
 
         patterns = plan.patterns
         if not patterns.flags.c_contiguous:
@@ -559,7 +918,19 @@ class DegeneracyIdentificationContext:
 
     def stats(self):
         return dict(self._stats, cache_items=len(self._cache),
-                    cache_bytes=self._cache_bytes)
+                    cache_bytes=self._cache_bytes,
+                    mode_index_bytes_estimate=(
+                        self.changes.mode_index_bytes_estimate
+                    ),
+                    canonical_mode_cache_bytes=(
+                        self.changes.canonical_mode_cache_bytes
+                    ),
+                    canonical_mode_cache_hits=(
+                        self.changes.canonical_mode_cache_hits
+                    ),
+                    canonical_mode_cache_misses=(
+                        self.changes.canonical_mode_cache_misses
+                    ))
 
 
 class AnalyticPerturbationTheorySolver:
@@ -6061,7 +6432,9 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
 
         if simplify is None: simplify = self.simplify_by_default
         log_level = Logger.LogLevel.Normal if _DEBUG_PRINT else Logger.LogLevel.MoreDebug
-        with self.logger.block(tag="{s}[{c}]", s=self, c=changes, log_level=log_level):
+        with self.logger.block(
+                tag="{s}[{c}]", s=self, c=format_quantum_change(changes),
+                log_level=log_level):
             og_changes = changes
             with self.debug_logging():
                 change_perm = self.change_sort(np.asanyarray(changes))
@@ -6144,7 +6517,8 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                     if self.allowed_energy_changes is not None:
                         terms = terms.filter_energies(self.allowed_energy_changes, mode='include')
 
-                    self.logger.log_print('{s}[{c}]: {p}', p=terms, s=self, c=og_changes,
+                    self.logger.log_print('{s}[{c}]: {p}', p=terms, s=self,
+                                          c=format_quantum_change(og_changes),
                                           preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
                                           log_level=log_level
                                           )
@@ -6157,7 +6531,8 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
 
     def __call__(self, changes, shift=None, coeffs=None, freqs=None,
                  check_sorting=True, simplify=None, return_evaluator=True):
-        with self.logger.block(tag="Building evaluator {}[{}]".format(self, changes, id(self))):
+        with self.logger.block(tag="Building evaluator {}[{}]".format(
+                self, format_quantum_change(changes))):
             with self.checkpoint: # Open once
                 if coeffs is not None:
                     raise NotImplementedError(...)
@@ -6747,12 +7122,16 @@ class WavefunctionOverlapCorrection(PerturbationTheoryTerm):
         self.change = degenerate_changes
 
     def get_serializer_key(self): # to be overridden
-        return self.__repr__()
+        if self.change is None:
+            return "O[{}]".format(self.order)
+        return "O[{},{}]".format(self.change, self.order)
     def __repr__(self):
         if self.change is None:
             return "O[{}]".format(self.order)
         else:
-            return "O[{},{}]".format(self.change, self.order)
+            return "O[{},{}]".format(
+                format_quantum_change_list(self.change), self.order
+            )
 
     def get_changes(self) -> 'dict[tuple[int], Any]':
         changes = self.change
@@ -6918,8 +7297,16 @@ class OperatorDegenerateCorrection(OperatorCorrection):
         self.right = self.Right(parent, order, self) # hack to minimize code necessary
         self.both = self.Both(parent, order, self) # hack to minimize code necessary
 
+    def get_serializer_key(self):
+        return "<n||{}||m>({},{})".format(
+            self.get_repr_key(), self.degenerate_changes, self.order
+        )
+
     def __repr__(self):
-        return "<n||{}||m>({},{})".format(self.get_repr_key(), self.degenerate_changes,self.order)
+        return "<n||{}||m>({},{})".format(
+            self.get_repr_key(),
+            format_quantum_change_list(self.degenerate_changes), self.order
+        )
 
     def default_wavefunction_generator(self, o:int):
         return self.parent.overlap_correction(o, degenerate_changes=self.degenerate_changes)
@@ -6928,8 +7315,15 @@ class OperatorDegenerateCorrection(OperatorCorrection):
         def __init__(self, parent:OperatorCorrection, order, real_parent):
             super().__init__(parent, order, logger=real_parent.logger)
             self.op = real_parent
+        def get_serializer_key(self):
+            return "<n||{}|m>({},{})".format(
+                self.op.get_repr_key(), self.op.degenerate_changes, self.order
+            )
         def __repr__(self):
-            return "<n||{}|m>({},{})".format(self.op.get_repr_key(), self.op.degenerate_changes, self.order)
+            return "<n||{}|m>({},{})".format(
+                self.op.get_repr_key(),
+                format_quantum_change_list(self.op.degenerate_changes), self.order
+            )
         def get_subexpressions(self):
             woof = self.op.get_left_degenerate_expressions()
             return woof
@@ -6937,16 +7331,30 @@ class OperatorDegenerateCorrection(OperatorCorrection):
         def __init__(self, parent, order, real_parent):
             super().__init__(parent, order, logger=real_parent.logger)
             self.op = real_parent
+        def get_serializer_key(self):
+            return "<n|{}||m>({},{})".format(
+                self.op.get_repr_key(), self.op.degenerate_changes, self.order
+            )
         def __repr__(self):
-            return "<n|{}||m>({},{})".format(self.op.get_repr_key(), self.op.degenerate_changes,self.order)
+            return "<n|{}||m>({},{})".format(
+                self.op.get_repr_key(),
+                format_quantum_change_list(self.op.degenerate_changes), self.order
+            )
         def get_subexpressions(self):
             return self.op.get_right_degenerate_expressions()
     class Both(OperatorCorrection):
         def __init__(self, parent, order, real_parent):
             super().__init__(parent, order, logger=real_parent.logger)
             self.op = real_parent
+        def get_serializer_key(self):
+            return "<n||{}||m>({},{})".format(
+                self.op.get_repr_key(), self.op.degenerate_changes, self.order
+            )
         def __repr__(self):
-            return "<n||{}||m>({},{})".format(self.op.get_repr_key(), self.op.degenerate_changes,self.order)
+            return "<n||{}||m>({},{})".format(
+                self.op.get_repr_key(),
+                format_quantum_change_list(self.op.degenerate_changes), self.order
+            )
         def get_subexpressions(self):
             return self.op.get_both_degenerate_expressions()
     def get_subexpressions(self,
@@ -7611,7 +8019,8 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
         logger = cls.default_logger()
         with logger.block(tag="{gen1}({ch1})[{t1}]x{gen2}({ch2})[{t2}]",
                           gen1=gen1, gen2=gen2,
-                          ch1=change_1, ch2=change_2,
+                          ch1=format_quantum_change(change_1),
+                          ch2=format_quantum_change(change_2),
                           t1=target_inds[0], t2=target_inds[1],
                           log_level=log_level):
             logger.log_print("remainder: {t1} {t2}", t1=remainder_inds[0], t2=remainder_inds[1], log_level=log_level)
@@ -9128,6 +9537,22 @@ class PerturbationTheoryExpressionEvaluator:
     @classmethod
     def _identify_possible_degeneracies(cls, all_perms, sides, expr, changes,
                                         nmodes, method=None, context=None):
+        if isinstance(changes, SideDegeneracyChanges):
+            left = (
+                cls._identify_possible_degeneracies(
+                    all_perms, sides, expr, changes.left, nmodes,
+                    method=method
+                )[0]
+                if changes.left else {}
+            )
+            right = (
+                cls._identify_possible_degeneracies(
+                    all_perms, sides, expr, changes.right, nmodes,
+                    method=method
+                )[1]
+                if changes.right else {}
+            )
+            return [left, right]
         started = time.perf_counter()
         if method is None:
             method = cls.default_deg_id_method
@@ -9157,6 +9582,8 @@ class PerturbationTheoryExpressionEvaluator:
                     'requirement_hits', 'requirement_misses',
                     'energy_requirements_compiled', 'resonance_matches',
                     'pattern_rows_materialized', 'predicate_plans_built',
+                    'compact_clause_hits', 'compact_clause_misses',
+                    'compact_clauses_compiled', 'pattern_rows_avoided',
                     'predicate_intern_identity_hits',
                     'predicate_intern_content_hits',
                     'predicate_intern_misses', 'predicate_intern_skips',
@@ -9165,7 +9592,7 @@ class PerturbationTheoryExpressionEvaluator:
                     after.get(name, 0) - before.get(name, 0)
                 )
             for name in ('max_cache_items', 'max_cache_bytes',
-                         'change_index_bytes'):
+                         'change_index_bytes', 'mode_index_bytes_estimate'):
                 cls._degeneracy_identification_totals[name] = max(
                     cls._degeneracy_identification_totals[name],
                     after.get(name, 0)
@@ -9189,9 +9616,7 @@ class PerturbationTheoryExpressionEvaluator:
     _poly_cache = MaxSizeCache(_max_cache_size, cache_type='fifo') # temporary hack, but these are in principle shared/reused
     _ecoeff_cache = MaxSizeCache(_max_cache_size, cache_type='fifo')
     default_tensor_evaluation_mode = 'dag'
-    # default_tensor_evaluation_mode = 'materialized'
     default_evaluation_backend = 'indexed'
-    # default_evaluation_backend = 'legacy'
     default_dag_cache_size = 100000
     default_dag_cache_bytes = 64 * 1024 ** 2
     default_dag_chunk_size = 256
@@ -9710,6 +10135,7 @@ class PerturbationTheoryExpressionEvaluator:
 
         if (
                 degenerate_changes is not None
+                and not isinstance(degenerate_changes, SideDegeneracyChanges)
                 and _degeneracy_identification_context is None
                 and cls.use_compiled_degeneracy_identification
         ):
@@ -9942,7 +10368,9 @@ class PerturbationTheoryExpressionEvaluator:
             parallel_indexed_stats = []
 
             if op is None: op = expr
-            with logger.block(tag="Evaluating {op}({ch})", op=op, ch=change, log_level=log_level):
+            with logger.block(
+                    tag="Evaluating {op}({ch})", op=op,
+                    ch=format_quantum_change(change), log_level=log_level):
 
                 # contrib = [np.zeros([len(p)]) for p in perms]
                 contrib = tuple(
@@ -10278,6 +10706,10 @@ class PerturbationTheoryExpressionEvaluator:
 
 class PerturbationTheoryEvaluator:
 
+    @staticmethod
+    def _state_degeneracy_pairs(degenerate_states, state):
+        return degenerate_states.get(tuple(int(x) for x in state), [])
+
     def __init__(self, solver:AnalyticPerturbationTheorySolver, expansion, freqs=None, parallelizer=None):
         self.solver = solver
         self.expansions = expansion
@@ -10305,6 +10737,22 @@ class PerturbationTheoryEvaluator:
                                dag_cache_size=None,
                                dag_cache_bytes=None,
                                dag_chunk_size=None):
+        if isinstance(degenerate_states, dict):
+            results = [
+                self.get_energy_corrections(
+                    [state], order=order, expansions=expansions, freqs=freqs,
+                    zero_cutoff=zero_cutoff,
+                    degenerate_states=self._state_degeneracy_pairs(degenerate_states, state),
+                    verbose=verbose, logger=logger, parallelizer=parallelizer,
+                    evaluation_mode=evaluation_mode,
+                    dag_cache_size=dag_cache_size, dag_cache_bytes=dag_cache_bytes,
+                    dag_chunk_size=dag_chunk_size
+                )
+                for state in states
+            ]
+            if not results:
+                raise ValueError("energy corrections require at least one state")
+            return [np.concatenate([result[i] for result in results]) for i in range(len(results[0]))]
         expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
         if order is None: order = len(self.expansions) - 1
@@ -10386,6 +10834,21 @@ class PerturbationTheoryEvaluator:
                                 dag_cache_size=None,
                                 dag_cache_bytes=None,
                                 dag_chunk_size=None):
+        if isinstance(degenerate_states, dict):
+            results = [
+                self.get_overlap_corrections(
+                    [state], order=order, expansions=expansions,
+                    degenerate_states=self._state_degeneracy_pairs(degenerate_states, state),
+                    freqs=freqs, zero_cutoff=zero_cutoff, verbose=verbose,
+                    parallelizer=parallelizer, evaluation_mode=evaluation_mode,
+                    dag_cache_size=dag_cache_size, dag_cache_bytes=dag_cache_bytes,
+                    dag_chunk_size=dag_chunk_size
+                )
+                for state in states
+            ]
+            if not results:
+                raise ValueError("overlap corrections require at least one state")
+            return np.concatenate(results, axis=0)
         expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
         if order is None: order = len(expansions) - 1
@@ -10490,6 +10953,10 @@ class PerturbationTheoryEvaluator:
             final_states = change_final_states[change]
             basis_idx = total_basis.find(initial_states)
             for o in range(order+1):
+                if subcorrs[o] is None:
+                    # A targeted evaluation did not calculate this order. Keep
+                    # the usual rectangular correction layout for callers.
+                    continue
                 for state_pos, finals, exp_corr_vals in zip(basis_idx, final_states, subcorrs[o]):
                     if corrs_map[state_pos][o] is None:
                         if num_expansions is None:
@@ -10510,6 +10977,12 @@ class PerturbationTheoryEvaluator:
                     finals_map[state_pos] = finals.astype(int)
                 else:
                     finals_map[state_pos] = np.concatenate([finals_map[state_pos], finals.astype(int)], axis=0)
+
+        if num_expansions is None:
+            for finals, order_block in zip(finals_map, corrs_map):
+                for o, vals in enumerate(order_block):
+                    if vals is None:
+                        order_block[o] = np.zeros(len(finals))
 
         # all_corrs = [
         #
@@ -10563,13 +11036,23 @@ class PerturbationTheoryEvaluator:
                            include_degenerate_correction_terms,
                            freqs, verbose, logger, zero_cutoff, log_scaled,
                            parallelizer, shared_coefficients=None,
-                           degeneracy_identification_context=None):
+                           degeneracy_identification_context=None,
+                           target_orders=None):
         corrs = {}
         if degenerate_changes is not None:
-            allowed_degenerate_changes = list({PerturbationTheoryTerm.sorted_changes(c) for _,c in degenerate_changes})
+            changes = (
+                list(degenerate_changes.left) + list(degenerate_changes.right)
+                if isinstance(degenerate_changes, SideDegeneracyChanges) else
+                degenerate_changes
+            )
+            allowed_degenerate_changes = list({PerturbationTheoryTerm.sorted_changes(c) for _,c in changes})
         else:
             allowed_degenerate_changes = None
         for o in range(order + 1):
+            if target_orders is not None and o not in target_orders:
+                for change in change_map:
+                    corrs.setdefault(change, []).append(None)
+                continue
             generator = corr_gen(o,
                                  allowed_terms=terms,
                                  allowed_energy_changes=epaths,
@@ -10704,6 +11187,68 @@ class PerturbationTheoryEvaluator:
         return corrs
 
     @classmethod
+    def _build_state_specific_corrections(cls, corr_gen, degenerate_corr_gen,
+                                          expansions, order, terms,
+                                          allowed_coefficients, disallowed_coefficients,
+                                          epaths, change_map, degenerate_states,
+                                          only_degenerate_terms,
+                                          include_degenerate_correction_terms,
+                                          freqs, verbose, logger, zero_cutoff,
+                                          log_scaled, parallelizer,
+                                          shared_coefficients=None,
+                                          target_orders=None):
+        """Evaluate one state/permutation row at a time and restore the old shape."""
+        result = {
+            change: [
+                None if target_orders is not None and o not in target_orders
+                else [None] * len(entries)
+                for o in range(order + 1)
+            ]
+            for change, entries in change_map.items()
+        }
+        change_cache = {}
+        for change, entries in change_map.items():
+            for entry_index, (left_state, permutations) in enumerate(entries):
+                row_values = [[] for _ in range(order + 1)]
+                left_pairs = cls._state_degeneracy_pairs(degenerate_states, left_state)
+                for permutation in permutations:
+                    one_perm = np.asarray(permutation)[np.newaxis, :]
+                    right_state = cls.get_finals(left_state, change, one_perm)[0]
+                    right_pairs = cls._state_degeneracy_pairs(degenerate_states, right_state)
+                    left_key = tuple(int(x) for x in left_state)
+                    right_key = tuple(int(x) for x in right_state)
+                    if left_key not in change_cache:
+                        change_cache[left_key] = cls.get_degenerate_changes(left_pairs) or []
+                    if right_key not in change_cache:
+                        change_cache[right_key] = cls.get_degenerate_changes(right_pairs) or []
+                    left_changes = change_cache[left_key]
+                    right_changes = change_cache[right_key]
+                    side_changes = (
+                        SideDegeneracyChanges(left_changes, right_changes)
+                        if left_changes or right_changes else None
+                    )
+                    one_result = cls._build_corrections(
+                        corr_gen, degenerate_corr_gen, expansions, order,
+                        terms, allowed_coefficients, disallowed_coefficients,
+                        epaths, {change: [[left_state, one_perm]]},
+                        side_changes, only_degenerate_terms,
+                        include_degenerate_correction_terms,
+                        freqs, verbose, logger, zero_cutoff, log_scaled,
+                        parallelizer,
+                        shared_coefficients=shared_coefficients,
+                        target_orders=target_orders
+                    )[change]
+                    for o in range(order + 1):
+                        if result[change][o] is not None:
+                            row_values[o].append(one_result[o][0])
+                for o in range(order + 1):
+                    if result[change][o] is not None:
+                        result[change][o][entry_index] = np.concatenate(
+                            row_values[o], axis=-1
+                        )
+        return result
+
+    @classmethod
     def get_degenerate_changes(cls, degenerate_pairs):
         if degenerate_pairs is None: return None
 
@@ -10747,7 +11292,8 @@ class PerturbationTheoryEvaluator:
                                        zero_cutoff=None,
                                        return_sorted=False,
                                        logger=None,
-                                       parallelizer=None):
+                                       parallelizer=None,
+                                       target_orders=None):
         PerturbationTheoryExpressionEvaluator._cached_expansion = None # to make paralellism work right
 
         spex = expansions is None or self.is_single_expansion(expansions)
@@ -10758,6 +11304,12 @@ class PerturbationTheoryEvaluator:
             expansions = [self._prep_expansions(e) for e in expansions]
             if order is None: order = len(expansions[0]) - 1
         if freqs is None: freqs = self.freqs
+        if target_orders is not None:
+            target_orders = frozenset(target_orders)
+            if not target_orders or min(target_orders) < 0 or max(target_orders) > order:
+                raise ValueError("target_orders must be nonempty orders between 0 and order")
+            if not spex:
+                raise ValueError("target_orders requires a single coefficient expansion")
         if logger is None: logger=self.solver.logger
         logger = Logger.lookup(logger)
         if parallelizer is None: parallelizer=self.parallelizer
@@ -10771,7 +11323,10 @@ class PerturbationTheoryEvaluator:
             ]
         change_map = self.get_diff_map(states)
 
-        degenerate_changes = self.get_degenerate_changes(degenerate_states)
+        state_specific = isinstance(degenerate_states, dict)
+        degenerate_changes = (
+            None if state_specific else self.get_degenerate_changes(degenerate_states)
+        )
 
         degeneracy_identification_context = (
             None if degenerate_changes is None else
@@ -10790,16 +11345,23 @@ class PerturbationTheoryEvaluator:
             )
             PerturbationTheoryExpressionEvaluator._cached_expansion = None
         try:
-            corrs = self._build_corrections(
+            build_corrections = (
+                self._build_state_specific_corrections if state_specific else
+                self._build_corrections
+            )
+            corrs = build_corrections(
                 generator, degenerate_correction_generator, expansions, order,
                 terms, allowed_coefficients, disallowed_coefficients,
-                epaths, change_map, degenerate_changes, only_degenerate_terms,
+                epaths, change_map,
+                degenerate_states if state_specific else degenerate_changes,
+                only_degenerate_terms,
                 include_degenerate_correction_terms,
                 freqs, verbose, logger, zero_cutoff, log_scaled, parallelizer,
                 shared_coefficients=shared_coefficients,
-                degeneracy_identification_context=(
-                    degeneracy_identification_context
-                )
+                target_orders=target_orders,
+                **({} if state_specific else {
+                    'degeneracy_identification_context': degeneracy_identification_context
+                })
             )
         finally:
             if shared_coefficients is not None:
@@ -10828,9 +11390,11 @@ class PerturbationTheoryEvaluator:
                                                    verbose=verbose
                                                    )
     def get_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None,
-                                          zero_cutoff=None, degenerate_states=None, verbose=False):
+                                          zero_cutoff=None, degenerate_states=None, verbose=False,
+                                          target_orders=None):
         return self.get_state_by_state_corrections(self.solver.wavefunction_correction, states, degenerate_states=degenerate_states,
-                                                   order=order, expansions=expansions, freqs=freqs, zero_cutoff=zero_cutoff, verbose=verbose)
+                                                   order=order, expansions=expansions, freqs=freqs, zero_cutoff=zero_cutoff,
+                                                   verbose=verbose, target_orders=target_orders)
 
     @classmethod
     def _prep_ham_corrs(cls, base_corrs):

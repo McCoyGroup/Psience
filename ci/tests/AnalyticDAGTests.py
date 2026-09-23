@@ -1,6 +1,7 @@
 import inspect
 import os
 import tempfile
+import types
 import unittest
 import warnings
 import weakref
@@ -19,6 +20,228 @@ except ModuleNotFoundError:
 
 
 class AnalyticDAGTests(unittest.TestCase):
+
+    def test_iterative_wfc_uses_first_order_pairs_only_for_second_order(self):
+        from Psience.VPT2.DegeneracySpecs import StronglyCoupledDegeneracySpec
+
+        basis = Analytic.HarmonicOscillatorProductBasis(3)
+        initial = Analytic.BasisStateSpace(basis, [[0, 1, 0]])
+        finals = Analytic.BasisStateSpace(basis, [[2, 0, 0], [0, 0, 1]])
+        first = types.SimpleNamespace(
+            initial_states=initial, final_states=[finals],
+            corrections=[np.array([[0., 0.], [.4, .1]])]
+        )
+        second = types.SimpleNamespace(
+            initial_states=initial, final_states=[finals],
+            corrections=[np.array([[0., 0.], [0., 0.], [.8, .35]])]
+        )
+        evaluator = mock.Mock()
+        evaluator.get_test_wfn_corrs.side_effect = [first, second]
+        spec = StronglyCoupledDegeneracySpec(
+            wfc_threshold=.3, evaluator=evaluator, iterative=True
+        )
+        self.assertTrue(spec.iterative)
+        couplings = spec.get_input_state_couplings(initial)
+        self.assertEqual(len(couplings[int(initial.indices[0])]), 2)
+        calls = evaluator.get_test_wfn_corrs.call_args_list
+        self.assertEqual(calls[0].kwargs, {'order': 1, 'target_orders': (1,)})
+        self.assertEqual(calls[1].kwargs['order'], 2)
+        self.assertEqual(calls[1].kwargs['target_orders'], (2,))
+        self.assertEqual(
+            calls[1].kwargs['degenerate_states'],
+            [((0, 1, 0), (2, 0, 0))]
+        )
+        np.testing.assert_array_equal(
+            spec.wavefunction_corrections.matrices[:, 0, :],
+            [[0., 0., 0.], [.0, .4, .1], [.0, .8, .35]]
+        )
+        rows, threshold = evaluator.log_strong_couplings.call_args.args
+        self.assertEqual(threshold, .3)
+        self.assertEqual(set(rows[0][2]), {1, 2})
+        self.assertEqual(spec.get_input_state_couplings(initial), couplings)
+        self.assertEqual(evaluator.get_test_wfn_corrs.call_count, 2)
+
+        spec._first_order_pairs[((2, 0, 0), (0, 0, 1))] = (
+            (2, 0, 0), (0, 0, 1)
+        )
+        self.assertEqual(len(spec._get_first_order_degenerate_pairs()), 3)
+
+    def test_iterative_wfc_with_no_first_order_links_still_checks_second_order(self):
+        from Psience.VPT2.DegeneracySpecs import StronglyCoupledDegeneracySpec
+
+        basis = Analytic.HarmonicOscillatorProductBasis(2)
+        initial = Analytic.BasisStateSpace(basis, [[1, 0]])
+        finals = Analytic.BasisStateSpace(basis, [[0, 1]])
+        evaluator = mock.Mock()
+        evaluator.get_test_wfn_corrs.side_effect = [
+            types.SimpleNamespace(
+                initial_states=initial, final_states=[finals],
+                corrections=[np.array([[0.], [.1]])]
+            ),
+            types.SimpleNamespace(
+                initial_states=initial, final_states=[finals],
+                corrections=[np.array([[0.], [0.], [.4]])]
+            )
+        ]
+        spec = StronglyCoupledDegeneracySpec(
+            wfc_threshold=.3, evaluator=evaluator, iterative=True
+        )
+        couplings = spec.get_input_state_couplings(initial)
+        self.assertEqual(len(couplings[int(initial.indices[0])]), 1)
+        self.assertEqual(
+            evaluator.get_test_wfn_corrs.call_args.kwargs['degenerate_states'], []
+        )
+        rows = evaluator.log_strong_couplings.call_args.args[0]
+        self.assertEqual(set(rows[0][2]), {2})
+
+    def test_targeted_correction_generation_skips_other_orders(self):
+        expression = mock.Mock()
+        expression.evaluate.return_value = [np.array([.5])]
+        generator = mock.Mock(return_value=expression)
+        factory = mock.Mock(return_value=generator)
+        result = Analytic.PerturbationTheoryEvaluator._build_corrections(
+            factory, None, None, 2, None, None, None, None,
+            {(1,): [(np.array([0, 1]), np.array([[0, 1]]))]},
+            None, False, False, None, False, mock.MagicMock(),
+            None, False, None, target_orders=(2,)
+        )
+        self.assertEqual([call.args[0] for call in factory.call_args_list], [2])
+        self.assertIsNone(result[(1,)][0])
+        self.assertIsNone(result[(1,)][1])
+        self.assertEqual(len(result[(1,)][2]), 1)
+
+    def test_targeted_state_specific_correction_generation_preserves_order_layout(self):
+        expression = mock.Mock()
+        expression.evaluate.return_value = [np.array([.5])]
+        factory = mock.Mock(return_value=mock.Mock(return_value=expression))
+        result = Analytic.PerturbationTheoryEvaluator._build_state_specific_corrections(
+            factory, None, None, 2, None, None, None, None,
+            {(1,): [(np.array([0, 1]), np.array([[0, 1]]))]},
+            {}, False, False, None, False, mock.MagicMock(),
+            None, False, None, target_orders=(2,)
+        )
+        self.assertEqual([call.args[0] for call in factory.call_args_list], [2])
+        self.assertIsNone(result[(1,)][0])
+        self.assertIsNone(result[(1,)][1])
+        self.assertEqual(len(result[(1,)][2]), 1)
+
+    def test_analytic_strong_coupling_report_uses_selected_wfc_orders(self):
+        from Psience.VPT2.DegeneracySpecs import StronglyCoupledDegeneracySpec
+        from Psience.VPT2.Runner import AnalyticVPTRunner
+
+        basis = Analytic.HarmonicOscillatorProductBasis(3)
+        initial = Analytic.BasisStateSpace(basis, [[0, 1, 0]])
+        final = Analytic.BasisStateSpace(
+            basis, [[2, 0, 0], [0, 0, 1], [0, 1, 1]]
+        )
+        wfcs = types.SimpleNamespace(
+            initial_states=initial,
+            final_states=[final],
+            corrections=[np.array([
+                [0., 0., 0.],
+                [.29, .31, 0.],
+                [.5, .1, -.4]
+            ])]
+        )
+        evaluator = mock.Mock()
+        evaluator.get_test_wfn_corrs.return_value = wfcs
+        spec = StronglyCoupledDegeneracySpec(
+            wfc_threshold=.3, evaluator=evaluator
+        )
+        couplings = spec.get_input_state_couplings(initial)
+        self.assertIn(initial.indices[0], couplings)
+        self.assertEqual(len(couplings[initial.indices[0]]), 3)
+        report_rows, threshold = evaluator.log_strong_couplings.call_args.args
+        self.assertEqual(threshold, .3)
+        self.assertEqual([list(row) for row in report_rows[0][2][1]], [[0, 0, 1]])
+        self.assertEqual(
+            [list(row) for row in report_rows[0][2][2]],
+            [[2, 0, 0], [0, 1, 1]]
+        )
+        self.assertEqual(
+            AnalyticVPTRunner.format_strong_couplings_report(report_rows, join=False),
+            ["state: 2(1)", " order 1 1(1)",
+             " order 2 3(2)", "         1(1)2(1)"]
+        )
+
+        evaluator.log_strong_couplings.reset_mock()
+        stricter = StronglyCoupledDegeneracySpec(
+            wfc_threshold=.5, evaluator=evaluator
+        )
+        self.assertEqual(stricter.get_input_state_couplings(initial), {})
+        evaluator.log_strong_couplings.assert_not_called()
+        self.assertEqual(
+            AnalyticVPTRunner.format_strong_couplings_report([]), "None"
+        )
+
+        evaluator.get_test_wfn_corrs.return_value = None
+        evaluator.log_strong_couplings.reset_mock()
+        no_candidates = StronglyCoupledDegeneracySpec(
+            wfc_threshold=.3, evaluator=evaluator
+        )
+        self.assertEqual(no_candidates.get_input_state_couplings(initial), {})
+        evaluator.log_strong_couplings.assert_not_called()
+
+    def test_quantum_change_labels_are_algebraic_without_changing_cache_keys(self):
+        change = tuple(np.int8(value) for value in (1, -1, -1, -1))
+        other = tuple(np.int8(value) for value in (-2, 1, -1))
+        self.assertEqual(Analytic.format_quantum_change(change),
+                         "q_i-q_j-q_k-q_l")
+        self.assertEqual(Analytic.format_quantum_change(other),
+                         "-2q_i+q_j-q_k")
+        self.assertEqual(Analytic.format_quantum_change((0, 0)), "0")
+        self.assertEqual(
+            Analytic.format_quantum_change_list([change, other]),
+            "[q_i-q_j-q_k-q_l, -2q_i+q_j-q_k]"
+        )
+
+        degenerate = object.__new__(Analytic.OperatorDegenerateCorrection)
+        degenerate.type = "TM"
+        degenerate.order = 1
+        degenerate.degenerate_changes = [change, other]
+        left = object.__new__(Analytic.OperatorDegenerateCorrection.Left)
+        left.op = degenerate
+        left.order = 1
+        self.assertEqual(
+            repr(left),
+            "<n||M|m>([q_i-q_j-q_k-q_l, -2q_i+q_j-q_k],1)"
+        )
+        self.assertEqual(
+            left.get_serializer_key(),
+            "<n||M|m>({},1)".format(str(degenerate.degenerate_changes))
+        )
+        self.assertEqual(
+            repr(degenerate),
+            "<n||M||m>([q_i-q_j-q_k-q_l, -2q_i+q_j-q_k],1)"
+        )
+        self.assertEqual(
+            degenerate.get_serializer_key(),
+            "<n||M||m>({},1)".format(str(degenerate.degenerate_changes))
+        )
+        for cls, label in (
+            (Analytic.OperatorDegenerateCorrection.Right, "<n|M||m>"),
+            (Analytic.OperatorDegenerateCorrection.Both, "<n||M||m>"),
+        ):
+            subterm = object.__new__(cls)
+            subterm.op = degenerate
+            subterm.order = 1
+            self.assertEqual(
+                repr(subterm),
+                "{}([q_i-q_j-q_k-q_l, -2q_i+q_j-q_k],1)".format(label)
+            )
+            self.assertEqual(
+                subterm.get_serializer_key(),
+                "{}({},1)".format(label, str(degenerate.degenerate_changes))
+            )
+
+        overlap = object.__new__(Analytic.WavefunctionOverlapCorrection)
+        overlap.order = 1
+        overlap.change = [change, other]
+        self.assertEqual(repr(overlap), "O[[q_i-q_j-q_k-q_l, -2q_i+q_j-q_k],1]")
+        self.assertEqual(
+            overlap.get_serializer_key(),
+            "O[{},1]".format(str(overlap.change))
+        )
 
     def test_perturbation_operator_projects_out_reference_state(self):
         Analytic.AnalyticPerturbationTheorySolver.clear_caches()
@@ -1360,6 +1583,175 @@ class AnalyticDAGTests(unittest.TestCase):
             None, None, expression, unmatched, 5, method='linear'
         )
         self.assertEqual(tuple(old), tuple(new))
+
+    def test_compact_linear_predicate_matches_expanded_patterns(self):
+        import itertools
+
+        rng = np.random.default_rng(78021)
+        cases = [
+            (0, -1, -1),  # The existing all-equal block has one mode map.
+            (-1, 1, -1, 0),
+            (2, 0, -2, 2, -2)
+        ]
+        cases.extend(
+            tuple(int(value) for value in rng.choice(
+                [-2, -1, 0, 1, 2], int(rng.integers(2, 6))
+            ))
+            for _ in range(100)
+        )
+        for echange in cases:
+            quanta = tuple(value for value in echange if value != 0)
+            if not quanta:
+                continue
+            nmodes = 7
+            changes = [
+                (tuple(int(value) for value in rng.choice(
+                    nmodes, len(quanta), replace=False
+                )), quanta)
+                for _ in range(3)
+            ]
+            context = Analytic.DegeneracyIdentificationContext(changes)
+            requirement = context._requirement(echange, 'linear')
+            modes = context.changes.get(requirement[0])
+            count = context._pattern_count(
+                requirement, modes, nmodes, 'linear'
+            )
+            patterns = np.full((count, len(echange)), -1, dtype=np.intp)
+            context._fill_patterns(
+                patterns, [(requirement, modes)], nmodes, 'linear'
+            )
+            expanded = Analytic.DegeneracyTestPlan(patterns)
+            compact = Analytic.CompactDegeneracyTestPlan(
+                [context._compact_clause(echange, requirement, modes)],
+                len(echange)
+            )
+            states = np.asarray(list(itertools.permutations(
+                range(nmodes), len(echange)
+            )), dtype=np.intp)
+            np.testing.assert_array_equal(
+                compact.evaluate(states), expanded.evaluate(states)
+            )
+            np.testing.assert_array_equal(
+                compact.evaluate_array(states), expanded.evaluate_array(states)
+            )
+            self.assertEqual(compact.pattern_count, len(patterns))
+
+    def test_compact_predicate_key_normalizes_projection_order(self):
+        def plan(projection, modes):
+            modes = np.asarray(modes, dtype=np.intp)
+            clause = (
+                (), np.asarray([projection], dtype=np.intp),
+                frozenset(map(tuple, modes)), None, {}, len(modes), modes
+            )
+            return Analytic.CompactDegeneracyTestPlan([clause], 3)
+
+        first = plan((1, 0), [(2, 7), (3, 8)])
+        same = plan((0, 1), [(7, 2), (8, 3)])
+        different = plan((0, 1), [(2, 7), (3, 8)])
+        self.assertEqual(first.semantic_key, same.semantic_key)
+        self.assertNotEqual(first.semantic_key, different.semantic_key)
+
+    def test_compact_mode_row_cache_is_byte_bounded(self):
+        index = Analytic.DegeneracyChangeIndex([
+            ((1, 2), (1, -1)), ((3, 4), (1, -1))
+        ])
+        signature = (-1, 1)
+        index.canonical_mode_cache_max_bytes = 120
+        first = index.get_canonical_mode_rows(signature, (0, 1))
+        self.assertEqual(first, index.get_canonical_mode_rows(signature, (0, 1)))
+        second = index.get_canonical_mode_rows(signature, (1, 0))
+        self.assertNotEqual(first, second)
+        self.assertLessEqual(index.canonical_mode_cache_bytes, 120)
+        self.assertEqual(index.canonical_mode_cache_hits, 1)
+        self.assertEqual(index.canonical_mode_cache_misses, 2)
+
+    def test_compact_predicate_value_cache_reuses_checked_positions_and_bounds_memory(self):
+        from Psience.VPT2.IndexedEvaluator import (
+            BoundedPredicateValueCache,
+            IndexedDegeneracyEvaluationContext,
+            IndexedEvaluationStats
+        )
+
+        def plan(allowed):
+            modes = np.asarray([(value,) for value in allowed], dtype=np.intp)
+            clause = (
+                (), np.asarray([[0]], dtype=np.intp),
+                frozenset(map(tuple, modes)), modes[:, 0],
+                {value: True for value in allowed}, len(modes), modes
+            )
+            return Analytic.CompactDegeneracyTestPlan([clause], 3)
+
+        predicate = plan((2, 5))
+        other_predicate = plan((3,))
+        first = np.asarray([[2, 0, 0], [5, 1, 2], [9, 0, 1]], dtype=np.intp)
+        second = np.asarray([[2, 8, 7], [5, 9, 8], [9, 6, 5]], dtype=np.intp)
+        stats = IndexedEvaluationStats()
+        cache = BoundedPredicateValueCache(stats, max_bytes=4096)
+        first_context = IndexedDegeneracyEvaluationContext(
+            first, stats, predicate_value_cache=cache
+        )
+        second_context = IndexedDegeneracyEvaluationContext(
+            second, stats, predicate_value_cache=cache
+        )
+        np.testing.assert_array_equal(
+            first_context.predicate_mask(predicate, True),
+            [True, True, False]
+        )
+        np.testing.assert_array_equal(
+            second_context.predicate_mask(predicate, True),
+            [True, True, False]
+        )
+        self.assertEqual(stats.degeneracy_value_cache_hits, 3)
+        self.assertEqual(stats.degeneracy_value_evaluations, 3)
+        np.testing.assert_array_equal(
+            second_context.predicate_mask(other_predicate, True),
+            [False, False, False]
+        )
+        self.assertEqual(stats.degeneracy_value_evaluations, 6)
+
+        block_first = np.asarray([
+            [2, 0, 0], [5, 1, 2], [9, 0, 1], [2, 3, 4]
+        ], dtype=np.intp)
+        block_second = np.asarray([
+            [2, 9, 9], [5, 8, 8], [9, 7, 7], [2, 6, 6]
+        ], dtype=np.intp)
+        np.testing.assert_array_equal(
+            predicate.evaluate_with_value_cache(block_first, cache),
+            [True, True, False, True]
+        )
+        np.testing.assert_array_equal(
+            predicate.evaluate_with_value_cache(block_second, cache),
+            [True, True, False, True]
+        )
+        self.assertEqual(stats.degeneracy_value_block_cache_hits, 1)
+        self.assertEqual(stats.degeneracy_value_block_cache_misses, 1)
+        local_mask = predicate.evaluate_with_value_cache(block_second, cache)
+        local_mask[:] = False
+        np.testing.assert_array_equal(
+            predicate.evaluate_with_value_cache(block_first, cache),
+            [True, True, False, True]
+        )
+
+        bounded_stats = IndexedEvaluationStats()
+        bounded = BoundedPredicateValueCache(bounded_stats, max_bytes=400)
+        for value in range(10):
+            predicate.evaluate_with_value_cache(
+                np.asarray([[value, 0, 0]], dtype=np.intp), bounded
+            )
+        self.assertLessEqual(bounded.cache_bytes, 400)
+        self.assertGreater(bounded_stats.degeneracy_value_cache_evictions, 0)
+        self.assertLessEqual(bounded_stats.max_degeneracy_value_cache_bytes, 400)
+
+        block_stats = IndexedEvaluationStats()
+        bounded_blocks = BoundedPredicateValueCache(block_stats, max_bytes=512)
+        for value in range(10):
+            predicate.evaluate_with_value_cache(
+                np.asarray([[value, 0, 0]] * 4, dtype=np.intp),
+                bounded_blocks
+            )
+        self.assertLessEqual(bounded_blocks.cache_bytes, 512)
+        self.assertGreater(block_stats.degeneracy_value_cache_evictions, 0)
+        self.assertLessEqual(block_stats.max_degeneracy_value_cache_bytes, 512)
 
     def test_compiled_identification_interns_equal_predicates(self):
         evaluator = Analytic.PerturbationTheoryExpressionEvaluator
