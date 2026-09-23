@@ -2,9 +2,10 @@
 Provides a symbolic approach to vibrational perturbation theory based on a Harmonic description
 """
 
-import abc, itertools, collections, enum, math, pickle, weakref
+import abc, itertools, collections, enum, math, pickle, weakref, sys, warnings
 import contextlib
 import functools
+import hashlib
 
 import numpy as np, scipy.signal, time
 
@@ -14,7 +15,9 @@ import McUtils.Devutils as dev
 import McUtils.Combinatorics as mcomb
 from McUtils.Combinatorics import SymmetricGroupGenerator, IntegerPartitioner, UniquePartitions, UniquePermutations
 from McUtils.Scaffolding import Logger, Checkpointer, MaxSizeCache
-from McUtils.Parallelizers import Parallelizer
+from McUtils.Parallelizers import (
+    Parallelizer, MultiprocessingParallelizer, SharedMemoryArrayTree
+)
 from ..BasisReps import (
     BasisStateSpace, HarmonicOscillatorProductBasis,
     HarmonicOscillatorMatrixGenerator, HarmonicOscillatorRaisingLoweringPolyTerms
@@ -30,6 +33,13 @@ __all__ = [
     'PolyTerm',
     'PolyPath',
     'PTTensorCoeffProductDAG',
+    'PTTensorCoeffProductDAGEvaluationPlan',
+    'DegeneracyTestPlan',
+    'CompactDegeneracyTestPlan',
+    'DegeneracyChangeIndex',
+    'DegeneracyIdentificationContext',
+    'SmallEnergyDenominatorWarning',
+    'SurvivingEnergyDenominatorWarning',
     # 'AnalyticPerturbationTheoryDriver',
     # 'AnalyticPTCorrectionGenerator',
     # 'RaisingLoweringClasses'
@@ -46,6 +56,882 @@ _TAKE_UNIQUE_CHANGES = False
 class DefaultValues(enum.Enum):
     DEFAULT = 'default'
 default = DefaultValues.DEFAULT
+
+
+_QUANTUM_INDEX_LABELS = "ijklmnopqrstuvwxyzabcdefgh"
+
+
+def format_quantum_change(change):
+    """Render a change vector as a polynomial in local mode indices.
+
+    This is a display-only representation: the ordered integer tuple remains
+    the key used by solvers, evaluators, and checkpoints.  In particular, a
+    NumPy scalar is converted to an ordinary integer before formatting.
+    A future solver-owned LOGGER_INDEX_CACHE can substitute D_n labels here
+    without changing the calculation's keys or this algebraic fallback.
+    """
+    terms = []
+    for index, entry in enumerate(change):
+        amount = int(entry)
+        if amount == 0:
+            continue
+        label = (
+            "q_" + _QUANTUM_INDEX_LABELS[index]
+            if index < len(_QUANTUM_INDEX_LABELS) else
+            "q_{{{}}}".format(index)
+        )
+        magnitude = "" if abs(amount) == 1 else str(abs(amount))
+        sign = "-" if amount < 0 else ("+" if terms else "")
+        terms.append(sign + magnitude + label)
+    return "".join(terms) if terms else "0"
+
+
+def format_quantum_change_list(changes):
+    """Render an ordered collection of change vectors for operator labels."""
+    if changes is None:
+        return "None"
+    return "[{}]".format(
+        ", ".join(format_quantum_change(change) for change in changes)
+    )
+
+
+class SmallEnergyDenominatorWarning(RuntimeWarning):
+    """An evaluated perturbation term contains a denominator below cutoff."""
+
+
+class SurvivingEnergyDenominatorWarning(SmallEnergyDenominatorWarning):
+    """A small denominator retained a numerator after cutoff pruning."""
+
+
+# A distinct type is required: a legacy change list can itself contain two
+# entries, so its length cannot identify side-specific resonance rules.
+SideDegeneracyChanges = collections.namedtuple(
+    'SideDegeneracyChanges', ['left', 'right']
+)
+
+
+class DegeneracyTestPlan:
+    """Array-oriented union of mode-pattern degeneracy predicates.
+
+    Negative pattern entries are wildcards.  The object remains callable for
+    the legacy evaluator, while indexed evaluation can test a complete
+    permutation block with :meth:`evaluate` and avoid Python predicate/tree
+    traversal for each state.
+    """
+
+    default_compare_workspace_bytes = 4 * 1024 ** 2
+    default_scalar_state_cutoff = 32
+
+    def __init__(self, patterns=None, checks=None, fallback_tests=(),
+                 compare_workspace_bytes=None):
+        if patterns is None:
+            patterns = np.empty((0, 0), dtype=np.intp)
+        patterns = np.asarray(patterns, dtype=np.intp)
+        if patterns.ndim == 1:
+            patterns = patterns[np.newaxis]
+        if patterns.ndim != 2:
+            raise ValueError("degeneracy patterns must be a two-dimensional array")
+        if checks is None:
+            checks = patterns >= 0
+        checks = np.asarray(checks, dtype=bool)
+        if checks.shape != patterns.shape:
+            raise ValueError("degeneracy checks must match the pattern shape")
+        if len(patterns) > 1:
+            # Duplicate patterns arise naturally from equivalent energy-change
+            # permutations.  Remove them once when the plan is compiled.
+            packed = np.concatenate((patterns, checks.astype(np.intp)), axis=1)
+            _, unique = np.unique(packed, axis=0, return_index=True)
+            unique.sort()
+            patterns = patterns[unique]
+            checks = checks[unique]
+        patterns.setflags(write=False)
+        checks.setflags(write=False)
+        self.patterns = patterns
+        self.checks = checks
+        self.fallback_tests = tuple(fallback_tests)
+        self.scalar_state_cutoff = max(
+            self.default_scalar_state_cutoff,
+            2 * len(patterns)
+        )
+        self.compare_workspace_bytes = (
+            self.default_compare_workspace_bytes
+            if compare_workspace_bytes is None else
+            max(1, int(compare_workspace_bytes))
+        )
+        # The array membership tables are compiled lazily.  Most current VPT
+        # work items contain only one or two permutations.  Indexed evaluation
+        # now combines those items through a shared permutation pool, while the
+        # legacy evaluator still uses the scalar trie.  Build neither form
+        # until its backend actually requests it.
+        self.pattern_groups = None
+        self.scalar_tree = None
+        self.matches_all = bool(np.any(np.logical_not(np.any(checks, axis=1))))
+
+    @property
+    def cache_key(self):
+        return (
+            self.patterns.shape,
+            self.patterns.tobytes(),
+            self.checks.tobytes(),
+            self.fallback_tests
+        )
+
+    def evaluate(self, states):
+        if isinstance(states, np.ndarray) and states.ndim == 1:
+            return self(states)
+        if len(states) <= self.scalar_state_cutoff:
+            return np.fromiter(
+                (self(state) for state in states),
+                dtype=bool,
+                count=len(states)
+            )
+        states = np.asarray(states, dtype=np.intp)
+        if states.ndim != 2:
+            raise ValueError("degeneracy states must be a two-dimensional array")
+        if len(self.patterns) > 0 and states.shape[1] != self.patterns.shape[1]:
+            raise ValueError(
+                "degeneracy state width {} does not match pattern width {}"
+                .format(states.shape[1], self.patterns.shape[1])
+            )
+
+        result = np.zeros(len(states), dtype=bool)
+        if len(self.patterns) > 0 and len(states) > 0:
+            for positions, values, keys in self._get_pattern_groups():
+                if len(positions) == 0:
+                    result[:] = True
+                elif len(positions) == 1:
+                    result |= np.isin(
+                        states[:, positions[0]],
+                        values[:, 0]
+                    )
+                else:
+                    projected = np.ascontiguousarray(states[:, positions])
+                    state_keys = projected.view(keys.dtype).ravel()
+                    result |= np.isin(state_keys, keys)
+                if np.all(result):
+                    break
+        if len(self.fallback_tests) > 0 and not np.all(result):
+            missing = np.flatnonzero(np.logical_not(result))
+            result[missing] = np.fromiter(
+                (
+                    any(test(states[index]) for test in self.fallback_tests)
+                    for index in missing
+                ),
+                dtype=bool,
+                count=len(missing)
+            )
+        return result
+
+    def evaluate_array(self, states):
+        """Evaluate an explicitly batched state/permutation pool.
+
+        Unlike :meth:`evaluate`, this never falls back to the scalar trie for a
+        small batch.  The indexed evaluator uses it after coalescing work-item
+        subsets into one shared permutation pool.
+        """
+        states = np.asarray(states, dtype=np.intp)
+        if states.ndim != 2:
+            raise ValueError("degeneracy states must be a two-dimensional array")
+        if len(self.patterns) > 0 and states.shape[1] != self.patterns.shape[1]:
+            raise ValueError(
+                "degeneracy state width {} does not match pattern width {}"
+                .format(states.shape[1], self.patterns.shape[1])
+            )
+
+        result = np.zeros(len(states), dtype=bool)
+        if len(self.patterns) > 0 and len(states) > 0:
+            for positions, values, keys in self._get_pattern_groups():
+                if len(positions) == 0:
+                    result[:] = True
+                elif len(positions) == 1:
+                    result |= np.isin(states[:, positions[0]], values[:, 0])
+                else:
+                    projected = np.ascontiguousarray(states[:, positions])
+                    state_keys = projected.view(keys.dtype).ravel()
+                    result |= np.isin(state_keys, keys)
+                if np.all(result):
+                    break
+        if len(self.fallback_tests) > 0 and not np.all(result):
+            missing = np.flatnonzero(np.logical_not(result))
+            result[missing] = np.fromiter(
+                (
+                    any(test(states[index]) for test in self.fallback_tests)
+                    for index in missing
+                ),
+                dtype=bool,
+                count=len(missing)
+            )
+        return result
+
+    def _get_scalar_tree(self):
+        scalar_tree = self.scalar_tree
+        if scalar_tree is not None:
+            return scalar_tree
+        scalar_tree = {}
+        for pattern, check in zip(self.patterns, self.checks):
+            positions = tuple(int(index) for index in np.flatnonzero(check))
+            if len(positions) == 0:
+                continue
+            subtree = scalar_tree
+            for position_index, position in enumerate(positions):
+                match_values = subtree.setdefault(position, {})
+                value = int(pattern[position])
+                if position_index == len(positions) - 1:
+                    match_values[value] = True
+                else:
+                    next_tree = match_values.get(value)
+                    if next_tree is True:
+                        break
+                    if next_tree is None:
+                        next_tree = {}
+                        match_values[value] = next_tree
+                    subtree = next_tree
+        self.scalar_tree = scalar_tree
+        return scalar_tree
+
+    def _get_pattern_groups(self):
+        pattern_groups = self.pattern_groups
+        if pattern_groups is not None:
+            return pattern_groups
+        grouped = collections.OrderedDict()
+        for pattern, check in zip(self.patterns, self.checks):
+            positions = tuple(int(index) for index in np.flatnonzero(check))
+            grouped.setdefault(positions, []).append(pattern[list(positions)])
+        compiled = []
+        for positions, values in grouped.items():
+            positions = np.asarray(positions, dtype=np.intp)
+            values = np.stack(values)
+            if len(values) > 1:
+                values = np.unique(values, axis=0)
+            if len(positions) > 1:
+                key_dtype = np.dtype((
+                    np.void,
+                    values.dtype.itemsize * len(positions)
+                ))
+                keys = np.ascontiguousarray(values).view(key_dtype).ravel()
+                keys.setflags(write=False)
+            else:
+                keys = None
+            positions.setflags(write=False)
+            values.setflags(write=False)
+            compiled.append((positions, values, keys))
+        self.pattern_groups = tuple(compiled)
+        return self.pattern_groups
+
+    @classmethod
+    def _evaluate_scalar_tree(cls, state, tree):
+        for position, match_values in tree.items():
+            match = match_values.get(int(state[position]))
+            if isinstance(match, dict):
+                match = cls._evaluate_scalar_tree(state, match)
+            if match:
+                return True
+        return False
+
+    def __call__(self, state):
+        matched = (
+            self.matches_all
+            or self._evaluate_scalar_tree(state, self._get_scalar_tree())
+        )
+        if not matched and len(self.fallback_tests) > 0:
+            matched = any(test(state) for test in self.fallback_tests)
+        return bool(matched)
+
+
+class CompactDegeneracyTestPlan:
+    """Union of linear resonance clauses without expanded pattern rows.
+
+For one energy-change requirement, each compiled inverse mode map projects a
+concrete permutation back into the sorted mode tuple held by
+``DegeneracyChangeIndex``. Membership in that small source index is exactly
+the test that the expanded pattern union performs. In particular, keeping
+the actual mode maps preserves the current all-equal-quanta behavior.
+    """
+
+    default_scalar_state_cutoff = 32
+
+    def __init__(self, clauses, width, mode_index=None):
+        self.clauses = tuple(clauses)
+        self.width = int(width)
+        self.fallback_tests = ()
+        self.pattern_count = sum(clause[5] for clause in self.clauses)
+        self.scalar_state_cutoff = max(
+            self.default_scalar_state_cutoff,
+            2 * sum(len(clause[1]) for clause in self.clauses)
+        )
+        # A shape-only compatibility view for callers that inspect predicate
+        # arity; no Cartesian-product pattern rows are allocated.
+        self.patterns = np.empty((0, self.width), dtype=np.intp)
+        self.checks = np.empty((0, self.width), dtype=bool)
+        self.matches_all = any(
+            len(projections) > 0 and projections.shape[1] == 0
+            and () in mode_set
+            for _, projections, mode_set, _, _, _, _ in self.clauses
+        )
+        self.checked_positions = tuple(sorted({
+            int(position)
+            for _, projections, _, _, _, _, _ in self.clauses
+            for projection in projections
+            for position in projection
+        }))
+        # Quantum-change signatures route to the correct source rows, but two
+        # different signatures can still yield the same final mode predicate.
+        # Intern by the actual projected membership condition, as the expanded
+        # plan did after pattern construction.
+        # A projection is ordered, whereas the resulting pattern checks are
+        # not: (positions 1, 0; modes 2, 7) and (positions 0, 1; modes 7, 2)
+        # are the same predicate.  Canonicalize only the checked columns, not
+        # a full-width pattern array, to preserve the expanded path's content
+        # interning without paying for its wildcard columns.
+        if self.matches_all:
+            self.semantic_key = (self.width, 'all')
+            self.semantic_key_bytes = 32
+        else:
+            groups = collections.defaultdict(list)
+            for signature, projections, _, _, _, _, mode_rows in self.clauses:
+                for projection in projections:
+                    ordering = np.argsort(projection)
+                    positions = tuple(int(position) for position in projection[ordering])
+                    if mode_index is None:
+                        rows = np.ascontiguousarray(mode_rows[:, ordering])
+                        key_dtype = np.dtype((np.void, rows.dtype.itemsize * len(positions)))
+                        encoded = np.unique(rows.view(key_dtype).ravel()).tobytes()
+                    else:
+                        encoded = mode_index.get_canonical_mode_rows(
+                            signature, tuple(int(index) for index in ordering)
+                        )
+                    groups[positions].append(encoded)
+            semantic_groups = []
+            for positions, blocks in groups.items():
+                blocks = tuple(dict.fromkeys(blocks))
+                if len(blocks) == 1:
+                    encoded = blocks[0]
+                else:
+                    key_dtype = np.dtype((np.void, np.dtype(np.intp).itemsize * len(positions)))
+                    rows = np.concatenate([
+                        np.frombuffer(block, dtype=key_dtype) for block in blocks
+                    ])
+                    encoded = np.unique(rows).tobytes()
+                semantic_groups.append((positions, encoded))
+            self.semantic_key = (self.width, frozenset(semantic_groups))
+            self.semantic_key_bytes = sum(
+                len(encoded) + 64 + 8 * len(positions)
+                for positions, encoded in semantic_groups
+            )
+
+    def __call__(self, state):
+        if self.matches_all:
+            return True
+        for _, projections, _, _, mode_trie, _, _ in self.clauses:
+            for projection in projections:
+                subtree = mode_trie
+                for index in projection:
+                    subtree = subtree.get(int(state[int(index)]))
+                    if subtree is None:
+                        break
+                if subtree is True:
+                    return True
+        return False
+
+    def evaluate(self, states):
+        if isinstance(states, np.ndarray) and states.ndim == 1:
+            return self(states)
+        if len(states) <= self.scalar_state_cutoff:
+            return np.fromiter(
+                (self(state) for state in states),
+                dtype=bool,
+                count=len(states)
+            )
+        return self.evaluate_array(states)
+
+    def evaluate_array(self, states):
+        states = np.asarray(states, dtype=np.intp)
+        if states.ndim != 2 or states.shape[1] != self.width:
+            raise ValueError("degeneracy states do not match compact plan width")
+        result = np.zeros(len(states), dtype=bool)
+        if self.matches_all:
+            result[:] = True
+            return result
+        for _, projections, _, mode_keys, _, _, _ in self.clauses:
+            for projection in projections:
+                if len(projection) == 0:
+                    continue
+                if len(projection) == 1:
+                    result |= np.isin(states[:, projection[0]], mode_keys)
+                else:
+                    # Structured row membership avoids a state x mode-row
+                    # broadcast and keeps workspace proportional to the pool.
+                    dtype = np.dtype((np.void, len(projection) * np.dtype(np.intp).itemsize))
+                    projected = np.ascontiguousarray(states[:, projection])
+                    state_keys = projected.view(dtype).ravel()
+                    result |= np.isin(state_keys, mode_keys)
+                if np.all(result):
+                    return result
+        return result
+
+    def evaluate_with_value_cache(self, states, cache):
+        """Reuse predicate results across pools with equal checked values.
+
+        Only the positions this plan inspects enter the key.  In particular,
+        different unchecked mode assignments share one result.  Large pools
+        keep the existing vectorized kernel to avoid Python row-key overhead.
+        """
+        states = np.asarray(states, dtype=np.intp)
+        if states.ndim != 2 or states.shape[1] != self.width:
+            raise ValueError("degeneracy states do not match compact plan width")
+        if self.matches_all:
+            return np.ones(len(states), dtype=bool)
+        if len(states) > cache.max_batch_rows or cache.max_bytes == 0:
+            return self.evaluate_array(states)
+
+        if len(states) >= 4:
+            projected = np.ascontiguousarray(
+                states[:, self.checked_positions]
+            )
+            checked_values = projected.tobytes()
+            found, result = cache.lookup_block(
+                self, len(states), checked_values
+            )
+            if found:
+                return result
+            result = self.evaluate(states)
+            cache.store_block(self, len(states), checked_values, result)
+            cache.stats.degeneracy_value_evaluations += len(states)
+            return result
+
+        result = np.empty(len(states), dtype=bool)
+        missing = {}
+        for index, state in enumerate(states):
+            values = tuple(int(state[position]) for position in self.checked_positions)
+            pending = missing.get(values)
+            if pending is not None:
+                pending.append(index)
+                continue
+            found, value = cache.lookup(self, values)
+            if found:
+                result[index] = value
+            else:
+                missing[values] = [index]
+        if missing:
+            representatives = [indices[0] for indices in missing.values()]
+            if len(representatives) > 32:
+                values = self.evaluate_array(states[representatives])
+            else:
+                values = [self(states[index]) for index in representatives]
+            for (checked_values, indices), value in zip(missing.items(), values):
+                value = bool(value)
+                result[indices] = value
+                cache.store(self, checked_values, value)
+            cache.stats.degeneracy_value_evaluations += len(representatives)
+        return result
+
+
+class DegeneracyChangeIndex:
+    """An ordered, immutable index of resonance changes by sorted quanta."""
+
+    canonical_mode_cache_max_bytes = 8 * 1024 ** 2
+
+    def __init__(self, changes):
+        groups = collections.OrderedDict()
+        for modes, quanta in changes:
+            quanta = np.asanyarray(quanta)
+            sorting = np.argsort(quanta)
+            signature = tuple(
+                quanta[index].item()
+                    if hasattr(quanta[index], 'item') else quanta[index]
+                for index in sorting
+            )
+            groups.setdefault(signature, []).append(
+                tuple(int(modes[index]) for index in sorting)
+            )
+        self.groups = {}
+        self.mode_sets = {}
+        self.mode_keys = {}
+        self.mode_tries = {}
+        self.canonical_mode_cache = collections.OrderedDict()
+        self.canonical_mode_cache_bytes = 0
+        self.canonical_mode_cache_hits = 0
+        self.canonical_mode_cache_misses = 0
+        self.nbytes = 0
+        self.mode_index_bytes_estimate = 0
+        for signature, modes in groups.items():
+            block = np.asarray(modes, dtype=np.intp)
+            block.setflags(write=False)
+            self.groups[signature] = block
+            self.nbytes += block.nbytes
+
+    def get(self, signature):
+        return self.groups.get(signature)
+
+    def get_canonical_mode_rows(self, signature, ordering):
+        """Canonical sparse row bytes, shared across checked-position maps.
+
+        The bounded cache holds only distinct mode-tuple reorderings.  Thus
+        interning equivalent predicates does not reconstruct the full
+        resonance-mode x projection-map Cartesian product for every plan.
+        """
+        key = (signature, ordering)
+        cached = self.canonical_mode_cache.get(key)
+        if cached is not None:
+            self.canonical_mode_cache.move_to_end(key)
+            self.canonical_mode_cache_hits += 1
+            return cached[0]
+        self.canonical_mode_cache_misses += 1
+        modes = self.groups[signature]
+        rows = np.ascontiguousarray(modes[:, ordering])
+        key_dtype = np.dtype((np.void, rows.dtype.itemsize * len(ordering)))
+        encoded = np.unique(rows.view(key_dtype).ravel()).tobytes()
+        size = len(encoded) + 64 + 8 * len(ordering)
+        if size <= self.canonical_mode_cache_max_bytes:
+            while (self.canonical_mode_cache and
+                   self.canonical_mode_cache_bytes + size > self.canonical_mode_cache_max_bytes):
+                _, (_, removed_size) = self.canonical_mode_cache.popitem(last=False)
+                self.canonical_mode_cache_bytes -= removed_size
+            self.canonical_mode_cache[key] = (encoded, size)
+            self.canonical_mode_cache_bytes += size
+        return encoded
+
+    def get_mode_membership(self, signature):
+        modes = self.groups.get(signature)
+        if modes is None:
+            return None
+        mode_set = self.mode_sets.get(signature)
+        if mode_set is None:
+            mode_set = frozenset(
+                tuple(int(value) for value in row) for row in modes
+            )
+            self.mode_sets[signature] = mode_set
+            mode_trie = {}
+            for mode_row in mode_set:
+                subtree = mode_trie
+                for value in mode_row[:-1]:
+                    subtree = subtree.setdefault(value, {})
+                if mode_row:
+                    subtree[mode_row[-1]] = True
+            self.mode_tries[signature] = mode_trie
+            self.mode_index_bytes_estimate += len(mode_set) * (
+                128 + 32 * modes.shape[1]
+            )
+            if modes.shape[1] == 1:
+                self.mode_keys[signature] = modes[:, 0]
+            elif modes.shape[1] > 1:
+                key_dtype = np.dtype((np.void, modes.dtype.itemsize * modes.shape[1]))
+                self.mode_keys[signature] = np.ascontiguousarray(modes).view(
+                    key_dtype
+                ).ravel()
+            else:
+                self.mode_keys[signature] = np.empty(0, dtype=np.intp)
+        return mode_set, self.mode_keys[signature], self.mode_tries[signature]
+
+
+class DegeneracyIdentificationContext:
+    """Compile and bind energy-change predicates within a bounded batch cache.
+
+    Only symbolic requirements and predicate plans are retained.  Concrete
+    state/permutation masks belong to the indexed evaluator's separate batch
+    cache.  Direct callers can create a short-lived context; high-level
+    correction workflows share one across their expressions and DAG chunks.
+    """
+
+    default_max_items = 4096
+    default_max_bytes = 32 * 1024 ** 2
+    # The expanded route remains selectable for accuracy and timing controls.
+    use_compact_index = True
+
+    def __init__(self, changes, max_items=None, max_bytes=None):
+        self.changes = DegeneracyChangeIndex(changes)
+        self.compact_index = bool(self.use_compact_index)
+        self.max_items = self.default_max_items if max_items is None else int(max_items)
+        self.max_bytes = self.default_max_bytes if max_bytes is None else int(max_bytes)
+        self._cache = collections.OrderedDict()
+        self._cache_bytes = 0
+        self._stats = collections.Counter()
+        self._stats['change_index_bytes'] = self.changes.nbytes
+
+    def _get(self, key, kind):
+        entry = self._cache.get(key)
+        if entry is None:
+            self._stats[kind + '_misses'] += 1
+            return None
+        self._cache.move_to_end(key)
+        self._stats[kind + '_hits'] += 1
+        return entry[0]
+
+    def _put(self, key, value, size):
+        size = int(size) + 256  # include a conservative cache-entry allowance
+        if size > self.max_bytes or self.max_items <= 0:
+            self._stats['cache_skips'] += 1
+            return value
+        while self._cache and (
+                len(self._cache) >= self.max_items
+                or self._cache_bytes + size > self.max_bytes):
+            _, (_, removed_size) = self._cache.popitem(last=False)
+            self._cache_bytes -= removed_size
+            self._stats['cache_evictions'] += 1
+        self._cache[key] = (value, size)
+        self._cache_bytes += size
+        self._stats['max_cache_items'] = max(
+            self._stats['max_cache_items'], len(self._cache)
+        )
+        self._stats['max_cache_bytes'] = max(
+            self._stats['max_cache_bytes'], self._cache_bytes
+        )
+        return value
+
+    def _requirement(self, echange, method):
+        echange = tuple(echange)
+        key = ('requirement', method, echange)
+        requirement = self._get(key, 'requirement')
+        if requirement is not None:
+            return requirement
+        nonzero_pos = [i for i, value in enumerate(echange) if value != 0]
+        zero_pos = [i for i, value in enumerate(echange) if value == 0]
+        sub_e = [echange[i] for i in nonzero_pos]
+        sorting = np.argsort(sub_e)
+        signature = tuple(sub_e[index] for index in sorting)
+        inverse = np.argsort(
+            [nonzero_pos[index] for index in sorting] + zero_pos
+        )
+        splits = np.nonzero(np.diff(signature))[0]
+        blocks = (
+            [list(itertools.permutations(block)) for block in
+             np.split(np.arange(len(sub_e)), splits + 1)]
+            if len(splits) > 0 else
+            [[np.arange(len(sub_e))]]
+        )
+        maps = []
+        for parts in itertools.product(*blocks):
+            subperm = (
+                np.concatenate(parts).astype(np.intp, copy=False)
+                if len(parts) > 0 else np.empty(0, dtype=np.intp)
+            )
+            padding = (
+                np.full(len(zero_pos), -1, dtype=np.intp)
+                if method == 'linear' else
+                np.arange(len(sub_e), len(echange), dtype=np.intp)
+            )
+            maps.append(np.concatenate((subperm, padding))[inverse])
+        mode_maps = np.stack(maps)
+        mode_maps.setflags(write=False)
+        requirement = (signature, mode_maps, len(zero_pos))
+        self._stats['energy_requirements_compiled'] += 1
+        return self._put(key, requirement, mode_maps.nbytes)
+
+    @staticmethod
+    def _pattern_count(requirement, modes, nmodes, method):
+        _, mode_maps, num_zero = requirement
+        if method == 'linear':
+            return len(modes) * len(mode_maps)
+        return sum(
+            math.perm(nmodes - len(set(row)), num_zero) * len(mode_maps)
+            for row in modes
+        )
+
+    @classmethod
+    def _fill_patterns(cls, output, requirements, nmodes, method):
+        offset = 0
+        for requirement, modes in requirements:
+            _, maps, num_zero = requirement
+            if method == 'linear':
+                count = len(modes) * len(maps)
+                target = output[offset:offset + count].reshape(
+                    len(modes), len(maps), maps.shape[1]
+                )
+                # Fill by column to avoid a second M x P x W broadcast array.
+                for column in range(maps.shape[1]):
+                    sources = maps[:, column]
+                    checked = sources >= 0
+                    if np.any(checked):
+                        target[:, checked, column] = modes[:, sources[checked]]
+                offset += count
+            else:
+                for row in modes:
+                    available = [
+                        mode for mode in range(nmodes) if mode not in row
+                    ]
+                    pads = (
+                        itertools.permutations(available, num_zero)
+                        if num_zero > 0 else [()]
+                    )
+                    for pad in pads:
+                        base = np.concatenate((row, np.asarray(pad, dtype=np.intp)))
+                        for mode_map in maps:
+                            output[offset] = base[mode_map]
+                            offset += 1
+        if offset != len(output):
+            raise AssertionError('degeneracy pattern row count changed')
+
+    def _compact_clause(self, echange, requirement, modes):
+        key = ('compact_clause', tuple(echange))
+        cached = self._get(key, 'compact_clause')
+        if cached is not None:
+            return cached
+        signature, maps, _ = requirement
+        checked = np.flatnonzero(maps[0] >= 0)
+        projections = np.stack([
+            checked[np.argsort(mode_map[checked])]
+            for mode_map in maps
+        ])
+        projections.setflags(write=False)
+        mode_set, mode_keys, mode_trie = self.changes.get_mode_membership(signature)
+        clause = (
+            signature, projections, mode_set, mode_keys, mode_trie,
+            len(modes) * len(maps), modes
+        )
+        self._stats['compact_clauses_compiled'] += 1
+        return self._put(key, clause, projections.nbytes)
+
+    def _bind_energy_key(self, ekey, nmodes, method):
+        key = ('bound', method, int(nmodes), ekey)
+        cached = self._get(key, 'bound_plan')
+        if cached is not None:
+            return cached
+        sides = ([], [])
+        for eside, echange in PTEnergyChangeProductSum.side_change_iter(ekey):
+            requirement = self._requirement(echange, method)
+            modes = self.changes.get(requirement[0])
+            if modes is not None:
+                sides[eside].append((echange, requirement, modes))
+                self._stats['resonance_matches'] += len(modes)
+        result = []
+        size = 0
+        for requirements in sides:
+            if not requirements:
+                result.append(None)
+                continue
+            width = len(ekey[0]) - 1  # leading element is the energy side
+            count = sum(
+                self._pattern_count(requirement, modes, nmodes, method)
+                for _, requirement, modes in requirements
+            )
+            if count == 0:
+                result.append(None)
+                continue
+            if self.compact_index and method == 'linear':
+                clauses = [
+                    self._compact_clause(echange, requirement, modes)
+                    for echange, requirement, modes in requirements
+                ]
+                plan = CompactDegeneracyTestPlan(
+                    clauses, width, mode_index=self.changes
+                )
+                result.append(plan)
+                self._stats['pattern_rows_avoided'] += count
+                self._stats['predicate_plans_built'] += 1
+                size += sum(clause[1].nbytes + 256 for clause in clauses)
+                size += plan.semantic_key_bytes
+                continue
+            patterns = np.full((count, width), -1, dtype=np.intp)
+            self._fill_patterns(
+                patterns,
+                [(requirement, modes) for _, requirement, modes in requirements],
+                nmodes, method
+            )
+            plan = DegeneracyTestPlan(patterns)
+            result.append(plan)
+            self._stats['pattern_rows_materialized'] += count
+            self._stats['predicate_plans_built'] += 1
+            size += patterns.nbytes + plan.patterns.nbytes + plan.checks.nbytes
+            # The scalar trie is compiled lazily; reserve room for its nodes.
+            size += count * (64 + 16 * width)
+        bound = tuple(result)
+        return self._put(key, bound, size)
+
+    def _intern_predicate(self, plan, by_content, by_identity):
+        """Reuse equal plans within one bind, as the legacy builder did.
+
+        The indexed evaluator caches shared-pool masks by predicate identity.
+        Distinct energy keys can produce the same final pattern set, so the
+        bound-plan cache alone does not preserve that reuse.  Hash the existing
+        read-only pattern buffer without a tuple or byte-array copy, then
+        verify equality before sharing to make digest collisions harmless.
+        Both local tables are capped and disappear after this bind call.
+        """
+        if plan.fallback_tests:
+            return plan
+        identity = by_identity.get(plan)
+        if identity is not None and identity() is not None:
+            self._stats['predicate_intern_identity_hits'] += 1
+            return identity()
+
+        if isinstance(plan, CompactDegeneracyTestPlan):
+            key = ('compact', plan.semantic_key)
+            canonical = by_content.get(key, plan)
+            if canonical is plan:
+                self._stats['predicate_intern_misses'] += 1
+                if len(by_identity) < self.max_items:
+                    by_content[key] = plan
+                else:
+                    self._stats['predicate_intern_skips'] += 1
+            else:
+                self._stats['predicate_intern_content_hits'] += 1
+            if len(by_identity) < self.max_items:
+                by_identity[plan] = weakref.ref(canonical)
+            return canonical
+
+        patterns = plan.patterns
+        if not patterns.flags.c_contiguous:
+            patterns = np.ascontiguousarray(patterns)
+        fingerprint = hashlib.blake2b(patterns.data, digest_size=16).digest()
+        key = (patterns.shape, fingerprint)
+        canonical = plan
+        for candidate in by_content.get(key, ()):
+            if (
+                    candidate.scalar_state_cutoff == plan.scalar_state_cutoff
+                    and candidate.compare_workspace_bytes == plan.compare_workspace_bytes
+                    and np.array_equal(candidate.patterns, plan.patterns)
+                    and np.array_equal(candidate.checks, plan.checks)
+            ):
+                canonical = candidate
+                self._stats['predicate_intern_content_hits'] += 1
+                break
+        else:
+            self._stats['predicate_intern_misses'] += 1
+            if len(by_identity) < self.max_items:
+                by_content.setdefault(key, []).append(plan)
+            else:
+                self._stats['predicate_intern_skips'] += 1
+
+        if len(by_identity) < self.max_items:
+            by_identity[plan] = weakref.ref(canonical)
+        return canonical
+
+    def bind(self, expr, nmodes, method):
+        self._stats['identification_calls'] += 1
+        all_degs = ({}, {})
+        by_content = {}
+        by_identity = weakref.WeakKeyDictionary()
+        for cinds, term in expr.terms.items():
+            if not isinstance(term, PTEnergyChangeProductSum):
+                continue
+            for ekey in term.terms:
+                left, right = self._bind_energy_key(ekey, nmodes, method)
+                if left is not None:
+                    all_degs[0].setdefault(cinds, {})[ekey] = (
+                        self._intern_predicate(left, by_content, by_identity)
+                    )
+                if right is not None:
+                    all_degs[1].setdefault(cinds, {})[ekey] = (
+                        self._intern_predicate(right, by_content, by_identity)
+                    )
+        return all_degs
+
+    def stats(self):
+        return dict(self._stats, cache_items=len(self._cache),
+                    cache_bytes=self._cache_bytes,
+                    mode_index_bytes_estimate=(
+                        self.changes.mode_index_bytes_estimate
+                    ),
+                    canonical_mode_cache_bytes=(
+                        self.changes.canonical_mode_cache_bytes
+                    ),
+                    canonical_mode_cache_hits=(
+                        self.changes.canonical_mode_cache_hits
+                    ),
+                    canonical_mode_cache_misses=(
+                        self.changes.canonical_mode_cache_misses
+                    ))
+
 
 class AnalyticPerturbationTheorySolver:
     """
@@ -282,6 +1168,12 @@ class AnalyticPerturbationTheorySolver:
         OperatorExpansionTerm._poly_cache.clear()
         PerturbationTheoryExpressionEvaluator._poly_cache = PerturbationTheoryExpressionEvaluator.get_cache()
         PerturbationTheoryExpressionEvaluator._ecoeff_cache = PerturbationTheoryExpressionEvaluator.get_cache()
+        try:
+            from .IndexedEvaluator import IndexedBlockEvaluator
+        except ImportError:
+            pass
+        else:
+            IndexedBlockEvaluator.clear_plan_cache()
         PolyPath.clear_caches()
         PTTensorCoeffProductDAG.clear_caches()
 
@@ -1988,7 +2880,12 @@ class PolyPath(ProductPTPolynomialSum):
             for term, scaling in self._items:
                 factors = []
                 for state_values, axis in zip(substates.T, term.axes):
-                    axis_key = (axis, state_values.dtype.str, state_values.tobytes())
+                    axis_key = (
+                        axis,
+                        state_values.dtype.str,
+                        state_values.shape,
+                        state_values.tobytes()
+                    )
                     axis_value = axis_cache.get(axis_key)
                     if axis_value is None:
                         axis_value = np.polynomial.polynomial.polyval(state_values, axis.coeffs)
@@ -4302,6 +5199,539 @@ class PTTensorCoeffProductDAG(PTTensorCoeffProductSum):
         return self.__mul__(other)
 
 
+class _BoundedEvaluationCache:
+    """A batch-local bounded FIFO shared by tensor and polynomial DAG evaluation."""
+
+    _missing = object()
+
+    class View:
+        def __init__(self, parent, namespace):
+            self.parent = parent
+            self.namespace = namespace
+
+        def get(self, key, default=None):
+            value = self.parent.get((self.namespace, key), self.parent._missing)
+            return default if value is self.parent._missing else value
+
+        def __contains__(self, key):
+            return self.parent.get((self.namespace, key), self.parent._missing) is not self.parent._missing
+
+        def __getitem__(self, key):
+            value = self.parent.get((self.namespace, key), self.parent._missing)
+            if value is self.parent._missing:
+                raise KeyError(key)
+            return value
+
+        def __setitem__(self, key, value):
+            self.parent[(self.namespace, key)] = value
+
+    def __init__(self, max_items=100000, max_bytes=64 * 1024 ** 2):
+        self.max_items = max(0, int(max_items))
+        self.max_bytes = None if max_bytes is None else max(0, int(max_bytes))
+        self._data = collections.OrderedDict()
+        self._sizes = {}
+        self._bytes = 0
+        self.hits = 0
+        self.misses = 0
+        self.evictions = 0
+        self.peak_items = 0
+        self.peak_bytes = 0
+
+    @classmethod
+    def _value_size(cls, value, depth=0):
+        if isinstance(value, np.ndarray):
+            return sys.getsizeof(value) + value.nbytes
+        if isinstance(value, (bytes, bytearray, memoryview)):
+            return sys.getsizeof(value)
+        if isinstance(value, (tuple, list)) and depth < 2:
+            # Cache accounting must itself remain bounded.  The container size
+            # includes all reference slots; recursively sample a short prefix
+            # to account for the most common byte/array payloads without
+            # traversing an entire symbolic key.
+            sample = value[:16]
+            return sys.getsizeof(value) + sum(
+                max(0, cls._value_size(item, depth=depth + 1) - sys.getsizeof(item))
+                for item in sample
+            )
+        return sys.getsizeof(value)
+
+    def view(self, namespace):
+        return self.View(self, namespace)
+
+    def get(self, key, default=None):
+        try:
+            value = self._data[key]
+        except KeyError:
+            self.misses += 1
+            return default
+        self.hits += 1
+        return value
+
+    def __setitem__(self, key, value):
+        if self.max_items == 0 or self.max_bytes == 0:
+            return
+        if key in self._data:
+            self._data.pop(key)
+            self._bytes -= self._sizes.pop(key)
+        size = self._value_size(key) + self._value_size(value)
+        if self.max_bytes is not None and size > self.max_bytes:
+            return
+        self._data[key] = value
+        self._sizes[key] = size
+        self._bytes += size
+        while (
+            len(self._data) > self.max_items
+            or (self.max_bytes is not None and self._bytes > self.max_bytes)
+        ):
+            old_key, _ = self._data.popitem(last=False)
+            self._bytes -= self._sizes.pop(old_key)
+            self.evictions += 1
+        self.peak_items = max(self.peak_items, len(self._data))
+        self.peak_bytes = max(self.peak_bytes, self._bytes)
+
+    def stats(self):
+        return {
+            'cache_items': len(self._data),
+            'cache_bytes': self._bytes,
+            'cache_peak_items': self.peak_items,
+            'cache_peak_bytes': self.peak_bytes,
+            'cache_hits': self.hits,
+            'cache_misses': self.misses,
+            'cache_evictions': self.evictions,
+            'cache_max_items': self.max_items,
+            'cache_max_bytes': self.max_bytes
+        }
+
+
+class _HashableNumPyIndex:
+    """Immutable, hash-once identity for a small NumPy index array.
+
+    The compact C-order byte string preserves exact shape/dtype/content
+    equality without retaining a view's potentially much larger base array.
+    This is intended for integer quantum-state and permutation indices; it is
+    deliberately an exact binary identity rather than a numerical comparison.
+    """
+
+    __slots__ = ('shape', 'dtype', 'data', '_hash')
+
+    def __init__(self, values):
+        values = np.asanyarray(values)
+        self.shape = values.shape
+        self.dtype = values.dtype.str
+        self.data = values.tobytes(order='C')
+        self._hash = hash((self.shape, self.dtype, self.data))
+
+    @property
+    def nbytes(self):
+        return len(self.data)
+
+    def tolist(self):
+        return np.frombuffer(
+            self.data,
+            dtype=np.dtype(self.dtype)
+        ).reshape(self.shape).tolist()
+
+    def memory_size(self):
+        return (
+            sys.getsizeof(self)
+            + sys.getsizeof(self.shape)
+            + sys.getsizeof(self.dtype)
+            + sys.getsizeof(self.data)
+        )
+
+    def __hash__(self):
+        return self._hash
+
+    def __eq__(self, other):
+        return (
+            self is other
+            or isinstance(other, type(self))
+            and self._hash == other._hash
+            and self.shape == other.shape
+            and self.dtype == other.dtype
+            and self.data == other.data
+        )
+
+
+class _StatePermutationBlockIdentity:
+    """Hash-once identity for the concrete quantum states in one block."""
+
+    __slots__ = ('states', '_hash')
+
+    def __init__(self, state_keys):
+        self.states = tuple(tuple(block) for block in state_keys)
+        self._hash = hash(self.states)
+
+    def __hash__(self):
+        return self._hash
+
+    def __eq__(self, other):
+        return (
+            self is other
+            or isinstance(other, type(self)) and self.states == other.states
+        )
+
+
+class _StatePermutationCache(_BoundedEvaluationCache):
+    """Byte-bounded cache for concrete state/frequency permutation gathers."""
+
+    _pointer_size = np.dtype(np.intp).itemsize
+    _tuple_base_size = sys.getsizeof(())
+    _list_base_size = sys.getsizeof([])
+    _integer_size = max(sys.getsizeof(0), sys.getsizeof(np.int64(0)))
+
+    @classmethod
+    def _state_value_size(cls, value):
+        """Conservatively size the fixed state-cache value layout in O(1)."""
+        permuted_states, state_keys, permuted_frequencies, identity = value
+        shape = permuted_states.shape
+        permutation_count = shape[0] if len(shape) > 0 else 1
+        if len(shape) >= 3:
+            state_count = shape[-2]
+            mode_count = shape[-1]
+        elif len(shape) == 2:
+            state_count = 1
+            mode_count = shape[-1]
+        else:
+            state_count = 1
+            mode_count = 1
+        quantum_count = permutation_count * state_count * mode_count
+        state_tuple_count = permutation_count * state_count
+
+        # ndarray.nbytes is added even though owned arrays may already include
+        # it in getsizeof.  The deliberate overestimate keeps the byte ceiling
+        # conservative for views without inspecting ownership or base chains.
+        size = sys.getsizeof(value)
+        size += sys.getsizeof(permuted_states) + permuted_states.nbytes
+        size += sys.getsizeof(permuted_frequencies) + permuted_frequencies.nbytes
+
+        # state_keys is list[permutation][state identity]. Charge two pointer
+        # widths per list entry to cover normal list overallocation.
+        size += sys.getsizeof(state_keys)
+        size += permutation_count * (
+            cls._list_base_size + 2 * cls._pointer_size * state_count
+        )
+        first_key = (
+            None
+            if permutation_count == 0 or state_count == 0 else
+            state_keys[0][0]
+        )
+        if isinstance(first_key, _HashableNumPyIndex):
+            # Each key owns only compact bytes, not an ndarray view/base. Use
+            # the first fixed-rank key to account for Python object overhead
+            # and derive the complete payload from the known array shape.
+            overhead = first_key.memory_size() - first_key.nbytes
+            size += state_tuple_count * overhead
+            size += quantum_count * permuted_states.dtype.itemsize
+        else:
+            size += state_tuple_count * (
+                cls._tuple_base_size + cls._pointer_size * mode_count
+            )
+            size += quantum_count * cls._integer_size
+
+        # The identity owns an outer tuple and one tuple per permutation, but
+        # reuses the already charged state tuples and scalar objects.
+        size += sys.getsizeof(identity)
+        size += cls._tuple_base_size + cls._pointer_size * permutation_count
+        size += permutation_count * (
+            cls._tuple_base_size + cls._pointer_size * state_count
+        )
+        return size
+
+    @classmethod
+    def _state_key_size(cls, value):
+        _, state_index, mask_positions, full_set = value
+        if isinstance(mask_positions, _HashableNumPyIndex):
+            mask_size = mask_positions.memory_size()
+        else:
+            mask_size = (
+                sys.getsizeof(mask_positions)
+                + len(mask_positions) * cls._integer_size
+            )
+        return (
+            sys.getsizeof(value)
+            + sys.getsizeof('state_permutations')
+            + sys.getsizeof(state_index)
+            + mask_size
+            + sys.getsizeof(full_set)
+            + len(full_set) * cls._integer_size
+        )
+
+    @classmethod
+    def _value_size(cls, value, depth=0):
+        if (
+            isinstance(value, tuple)
+            and len(value) == 4
+            and isinstance(value[0], str)
+            and value[0] == 'state_permutations'
+        ):
+            return cls._state_key_size(value)
+        if (
+            isinstance(value, tuple)
+            and len(value) == 4
+            and isinstance(value[0], np.ndarray)
+            and isinstance(value[2], np.ndarray)
+            and isinstance(value[3], _StatePermutationBlockIdentity)
+        ):
+            return cls._state_value_size(value)
+        return super()._value_size(value, depth=depth)
+
+
+class _MaterializedEvaluationCache:
+    """Two-level cache for one materialized numerical evaluation batch.
+
+    ``exact_cache`` is the legacy cache of complete polynomial/state results.
+    The bounded cache holds numerical values for shared ``PolyPath`` nodes and
+    axes only for the lifetime of the current call to
+    :meth:`evaluate_polynomial_expression`.  Keeping these lifetimes separate
+    preserves reuse of exact results without allowing intermediate arrays from
+    successive state batches to accumulate globally.
+    """
+
+    class PathNodeView:
+        """Fast root-local cache layered over reusable canonical DAG nodes."""
+
+        _noncanonical_kinds = {'add', 'remap', 'permutation_sum'}
+
+        def __init__(self, shared):
+            self.local = {}
+            self.shared = shared
+
+        @classmethod
+        def _is_shareable(cls, key):
+            path = key[0]
+            return (
+                path._node is None
+                or path._node[0] not in cls._noncanonical_kinds
+            )
+
+        def get(self, key, default=None):
+            value = self.local.get(key, _BoundedEvaluationCache._missing)
+            if value is not _BoundedEvaluationCache._missing:
+                return value
+            if self._is_shareable(key):
+                value = self.shared.get(key, _BoundedEvaluationCache._missing)
+                if value is not _BoundedEvaluationCache._missing:
+                    self.local[key] = value
+                    return value
+            return default
+
+        def __setitem__(self, key, value):
+            self.local[key] = value
+            if self._is_shareable(key):
+                self.shared[key] = value
+
+    def __init__(self, exact_cache, max_items=100000, max_bytes=64 * 1024 ** 2,
+                 batch_cache=None):
+        self.exact_cache = exact_cache
+        self.batch_cache = (
+            _BoundedEvaluationCache(max_items, max_bytes)
+            if batch_cache is None else batch_cache
+        )
+        self.shared_path_node_cache = self.batch_cache.view('polypath_nodes')
+        self.path_axis_cache = self.batch_cache.view('polypath_axes')
+        self.polynomial_block_cache = self.batch_cache.view('polynomial_blocks')
+        self.exact_hits = 0
+        self.exact_misses = 0
+        self.block_hits = 0
+        self.block_misses = 0
+
+    def lookup_polynomial_block(self, key):
+        value = self.polynomial_block_cache.get(
+            key, _BoundedEvaluationCache._missing
+        )
+        if value is _BoundedEvaluationCache._missing:
+            self.block_misses += 1
+        else:
+            self.block_hits += 1
+        return value
+
+    def store_polynomial_block(self, key, value):
+        self.polynomial_block_cache[key] = value
+
+    def new_path_node_cache(self):
+        return self.PathNodeView(self.shared_path_node_cache)
+
+    def stats(self):
+        return {
+            **self.batch_cache.stats(),
+            'exact_cache_hits': self.exact_hits,
+            'exact_cache_misses': self.exact_misses,
+            'block_cache_hits': self.block_hits,
+            'block_cache_misses': self.block_misses
+        }
+
+
+class PTTensorCoeffProductDAGEvaluationPlan:
+    """Streams canonical tensor terms from a DAG without expanding it globally.
+
+    Small shared subgraphs are replayed from a bounded, batch-local cache.  A
+    node that emits more than ``max_cached_terms`` is deliberately not retained;
+    this prevents a high-order expression from replacing global materialization
+    with an equally unbounded evaluation cache.
+
+    Developer note
+    --------------
+    This is an intentionally conservative bridge to the existing evaluator: it
+    streams symbolic terms in bounded chunks, but each ``mul_along`` still uses
+    the legacy symbolic product machinery.  Consequently it bounds peak storage
+    without removing the dominant high-order Cartesian-product work.
+
+    A genuinely faster evaluator should compile this DAG to numerical blocks
+    whose axes describe open/fixed mode indices.  Leaf blocks should substitute
+    coefficient tensors and evaluate their ``PolyPath`` values once; ``add`` and
+    ``scale`` then operate directly on arrays, while ``permute``, ``shift``, and
+    ``free_up_indices`` transform block metadata/views.  Most importantly,
+    ``mul_along`` should become an indexed relational join/tensor contraction of
+    its child blocks.  That join must preserve equality/distinctness constraints
+    between mode indices, energy-denominator metadata, and final square-root
+    factors; multiplying already-reduced child scalars is not equivalent.
+
+    Keep unsupported nodes on this streaming implementation until their direct
+    kernels have numerical parity tests.  The materialized evaluator must also
+    remain available as the reference/timing implementation.
+    """
+
+    def __init__(self, expression, cache=None, max_cached_terms=256):
+        if not isinstance(expression, PTTensorCoeffProductDAG):
+            raise TypeError(type(expression))
+        self.expression = expression
+        self.cache = cache if cache is not None else _BoundedEvaluationCache()
+        self.term_cache = self.cache.view('tensor_terms')
+        self.operation_cache = self.cache.view('tensor_operations')
+        self.max_cached_terms = max(0, int(max_cached_terms))
+        self.nodes_visited = 0
+        self.node_cache_hits = 0
+        self.terms_emitted = 0
+
+    @staticmethod
+    def _singleton(key, poly):
+        return PTTensorCoeffProductSum({key: poly}, canonicalize=False)
+
+    @staticmethod
+    def _result_terms(result):
+        if nput.is_zero(result):
+            return ()
+        if isinstance(result, PTTensorCoeffProductDAG):
+            result = result.to_eager()
+        if not isinstance(result, PTTensorCoeffProductSum):
+            raise TypeError("tensor DAG operation produced {}".format(type(result)))
+        return tuple(result.terms.items())
+
+    def _cached_operation(self, key, operation):
+        result = self.operation_cache.get(key, _BoundedEvaluationCache._missing)
+        if result is _BoundedEvaluationCache._missing:
+            result = tuple(operation())
+            if len(result) <= self.max_cached_terms:
+                self.operation_cache[key] = result
+        return result
+
+    def _unary(self, method, key, poly, *args, **kwargs):
+        op_key = (method, key, poly, args, tuple(sorted(kwargs.items())))
+        return self._cached_operation(
+            op_key,
+            lambda: self._result_terms(
+                getattr(self._singleton(key, poly), method)(*args, **kwargs)
+            )
+        )
+
+    def _binary(self, method, left, right, *args, **kwargs):
+        left_key, left_poly = left
+        op_key = (method, left_key, left_poly, right, args, tuple(sorted(kwargs.items())))
+
+        def apply():
+            left_sum = self._singleton(left_key, left_poly)
+            right_value = right
+            if isinstance(right_value, tuple) and len(right_value) == 2 and isinstance(right_value[0], tuple):
+                right_value = self._singleton(*right_value)
+            return self._result_terms(getattr(left_sum, method)(right_value, *args, **kwargs))
+
+        return self._cached_operation(op_key, apply)
+
+    def _iter_node(self, node):
+        cached = self.term_cache.get(node, _BoundedEvaluationCache._missing)
+        if cached is not _BoundedEvaluationCache._missing:
+            self.node_cache_hits += 1
+            yield from cached
+            return
+
+        self.nodes_visited += 1
+        buffered = []
+        overflowed = False
+        for term in self._iter_node_uncached(node):
+            if not overflowed:
+                if len(buffered) < self.max_cached_terms:
+                    buffered.append(term)
+                else:
+                    overflowed = True
+                    buffered = None
+            yield term
+        if not overflowed:
+            self.term_cache[node] = tuple(buffered)
+
+    def _iter_node_uncached(self, node):
+        kind, *args = node._node
+        if kind == 'leaf':
+            yield from args[0].terms.items()
+        elif kind == 'add':
+            yield from self._iter_node(args[0])
+            yield from self._iter_node(args[1])
+        elif kind in {
+            'scale', 'shift', 'shift_energies', 'ensure_dimension',
+            'free_up_indices', 'flip_energy_terms', 'filter_coefficients',
+            'filter_energies', 'prune_operators'
+        }:
+            child, *op_args = args
+            for key, poly in self._iter_node(child):
+                yield from self._unary(kind, key, poly, *op_args)
+        elif kind == 'permute':
+            child, permutation, check_perm, allow_padding = args
+            for key, poly in self._iter_node(child):
+                yield from self._unary(
+                    'permute', key, poly, permutation,
+                    check_perm=check_perm, allow_padding=allow_padding
+                )
+        elif kind == 'combine':
+            # All combine modes are algebraic reductions.  Evaluation is linear,
+            # so retaining the unreduced stream is exactly equivalent.
+            yield from self._iter_node(args[0])
+        elif kind in {'mul_along', 'mul_simple'}:
+            left, right, *op_args = args
+            if isinstance(right, PTTensorCoeffProductDAG):
+                for left_term in self._iter_node(left):
+                    for right_term in self._iter_node(right):
+                        yield from self._binary(kind, left_term, right_term, *op_args)
+            else:
+                for left_term in self._iter_node(left):
+                    yield from self._binary(kind, left_term, right, *op_args)
+        elif kind in {'rmul_along', 'rmul_simple'}:
+            left, right, *op_args = args
+            if isinstance(left, PTTensorCoeffProductDAG):
+                for left_term in self._iter_node(left):
+                    for right_term in self._iter_node(right):
+                        yield from self._binary(
+                            kind[1:], right_term, left_term, *op_args
+                        )
+            else:
+                for key, poly in self._iter_node(right):
+                    yield from self._unary(kind, key, poly, left, *op_args)
+        else:
+            raise NotImplementedError("direct tensor DAG evaluation of {}".format(kind))
+
+    def iter_terms(self):
+        for term in self._iter_node(self.expression):
+            self.terms_emitted += 1
+            yield term
+
+    def stats(self):
+        return {
+            'dag_nodes_visited': self.nodes_visited,
+            'dag_node_cache_hits': self.node_cache_hits,
+            'dag_terms_emitted': self.terms_emitted,
+            **self.cache.stats()
+        }
+
+
 class SqrtChangePoly(PolynomialInterface):
     def __init__(self, poly_obj:'PolynomialInterface', change, shift, canonicalize=False):
         if nput.is_numeric(poly_obj): raise ValueError("{} isn't a polynomial".format(poly_obj))
@@ -5002,7 +6432,9 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
 
         if simplify is None: simplify = self.simplify_by_default
         log_level = Logger.LogLevel.Normal if _DEBUG_PRINT else Logger.LogLevel.MoreDebug
-        with self.logger.block(tag="{s}[{c}]", s=self, c=changes, log_level=log_level):
+        with self.logger.block(
+                tag="{s}[{c}]", s=self, c=format_quantum_change(changes),
+                log_level=log_level):
             og_changes = changes
             with self.debug_logging():
                 change_perm = self.change_sort(np.asanyarray(changes))
@@ -5085,7 +6517,8 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                     if self.allowed_energy_changes is not None:
                         terms = terms.filter_energies(self.allowed_energy_changes, mode='include')
 
-                    self.logger.log_print('{s}[{c}]: {p}', p=terms, s=self, c=og_changes,
+                    self.logger.log_print('{s}[{c}]: {p}', p=terms, s=self,
+                                          c=format_quantum_change(og_changes),
                                           preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
                                           log_level=log_level
                                           )
@@ -5098,7 +6531,8 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
 
     def __call__(self, changes, shift=None, coeffs=None, freqs=None,
                  check_sorting=True, simplify=None, return_evaluator=True):
-        with self.logger.block(tag="Building evaluator {}[{}]".format(self, changes, id(self))):
+        with self.logger.block(tag="Building evaluator {}[{}]".format(
+                self, format_quantum_change(changes))):
             with self.checkpoint: # Open once
                 if coeffs is not None:
                     raise NotImplementedError(...)
@@ -5403,7 +6837,12 @@ class PerturbationOperator(PerturbationTheoryTerm):
         return "{}|".format(self.subterm)
 
     def get_changes(self) -> 'dict[tuple[int], Any]':
-        return {k:None for k in self.subterm.changes}# if k != ()}
+        # The reduced resolvent acts in the complement of the reference-state
+        # space.  In particular, an intermediate-normalized wavefunction
+        # correction cannot contain the canonical zero-change component; its
+        # diagonal normalization is supplied separately by
+        # WavefunctionOverlapCorrection.
+        return {k: None for k in self.subterm.changes if k != ()}
     def get_core_poly(self, changes, shift=None):
         base_term = self.subterm.get_core_poly(changes)
         if isinstance(base_term, PolynomialInterface):
@@ -5441,16 +6880,20 @@ class PerturbationOperator(PerturbationTheoryTerm):
             prefactor = PTEnergyChangeProductSum.monomial((0,) + energy_shift, 1)
             base_term = base_term.mul_simple(prefactor)
         return base_term
-    # def get_poly_terms(self, changes, shift=None, **opts) -> 'SqrtChangePoly':
-    #     # if shift is not None: # TODO: remove contextual energy baseline
-    #     #     final_change = tuple(c + s for c, s in zip(changes, shift))
-    #     # else:
-    #     #     final_change = tuple(changes)
-    #     # final_change = tuple(c for c in final_change if c != 0)
-    #     # if len(final_change) == 0:
-    #     #     return 0
-    #
-    #     return super().get_poly_terms(changes, shift=shift, **opts)
+    def get_poly_terms(self, changes, shift=None, **opts) -> 'SqrtChangePoly':
+        # Keep the projector check here as well as in get_changes(): callers
+        # may explicitly request a change, and a shifted nonzero change may
+        # land back on the reference state.  Pad rather than zip-truncate so a
+        # shift with a different dimension cannot hide a nonzero component.
+        final_size = max(len(changes), 0 if shift is None else len(shift))
+        final_change = np.pad(changes, (0, final_size - len(changes)))
+        if shift is not None:
+            final_change = final_change + np.pad(
+                shift, (0, final_size - len(shift))
+            )
+        if not np.any(final_change):
+            return 0
+        return super().get_poly_terms(changes, shift=shift, **opts)
 
 class _ShiftedEnergyBaseline(PerturbationTheoryTerm):
     def __init__(self, base_term:'PerturbationTheoryTerm'):
@@ -5679,12 +7122,16 @@ class WavefunctionOverlapCorrection(PerturbationTheoryTerm):
         self.change = degenerate_changes
 
     def get_serializer_key(self): # to be overridden
-        return self.__repr__()
+        if self.change is None:
+            return "O[{}]".format(self.order)
+        return "O[{},{}]".format(self.change, self.order)
     def __repr__(self):
         if self.change is None:
             return "O[{}]".format(self.order)
         else:
-            return "O[{},{}]".format(self.change, self.order)
+            return "O[{},{}]".format(
+                format_quantum_change_list(self.change), self.order
+            )
 
     def get_changes(self) -> 'dict[tuple[int], Any]':
         changes = self.change
@@ -5850,8 +7297,16 @@ class OperatorDegenerateCorrection(OperatorCorrection):
         self.right = self.Right(parent, order, self) # hack to minimize code necessary
         self.both = self.Both(parent, order, self) # hack to minimize code necessary
 
+    def get_serializer_key(self):
+        return "<n||{}||m>({},{})".format(
+            self.get_repr_key(), self.degenerate_changes, self.order
+        )
+
     def __repr__(self):
-        return "<n||{}||m>({},{})".format(self.get_repr_key(), self.degenerate_changes,self.order)
+        return "<n||{}||m>({},{})".format(
+            self.get_repr_key(),
+            format_quantum_change_list(self.degenerate_changes), self.order
+        )
 
     def default_wavefunction_generator(self, o:int):
         return self.parent.overlap_correction(o, degenerate_changes=self.degenerate_changes)
@@ -5860,8 +7315,15 @@ class OperatorDegenerateCorrection(OperatorCorrection):
         def __init__(self, parent:OperatorCorrection, order, real_parent):
             super().__init__(parent, order, logger=real_parent.logger)
             self.op = real_parent
+        def get_serializer_key(self):
+            return "<n||{}|m>({},{})".format(
+                self.op.get_repr_key(), self.op.degenerate_changes, self.order
+            )
         def __repr__(self):
-            return "<n||{}|m>({},{})".format(self.op.get_repr_key(), self.op.degenerate_changes, self.order)
+            return "<n||{}|m>({},{})".format(
+                self.op.get_repr_key(),
+                format_quantum_change_list(self.op.degenerate_changes), self.order
+            )
         def get_subexpressions(self):
             woof = self.op.get_left_degenerate_expressions()
             return woof
@@ -5869,16 +7331,30 @@ class OperatorDegenerateCorrection(OperatorCorrection):
         def __init__(self, parent, order, real_parent):
             super().__init__(parent, order, logger=real_parent.logger)
             self.op = real_parent
+        def get_serializer_key(self):
+            return "<n|{}||m>({},{})".format(
+                self.op.get_repr_key(), self.op.degenerate_changes, self.order
+            )
         def __repr__(self):
-            return "<n|{}||m>({},{})".format(self.op.get_repr_key(), self.op.degenerate_changes,self.order)
+            return "<n|{}||m>({},{})".format(
+                self.op.get_repr_key(),
+                format_quantum_change_list(self.op.degenerate_changes), self.order
+            )
         def get_subexpressions(self):
             return self.op.get_right_degenerate_expressions()
     class Both(OperatorCorrection):
         def __init__(self, parent, order, real_parent):
             super().__init__(parent, order, logger=real_parent.logger)
             self.op = real_parent
+        def get_serializer_key(self):
+            return "<n||{}||m>({},{})".format(
+                self.op.get_repr_key(), self.op.degenerate_changes, self.order
+            )
         def __repr__(self):
-            return "<n||{}||m>({},{})".format(self.op.get_repr_key(), self.op.degenerate_changes,self.order)
+            return "<n||{}||m>({},{})".format(
+                self.op.get_repr_key(),
+                format_quantum_change_list(self.op.degenerate_changes), self.order
+            )
         def get_subexpressions(self):
             return self.op.get_both_degenerate_expressions()
     def get_subexpressions(self,
@@ -6543,7 +8019,8 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
         logger = cls.default_logger()
         with logger.block(tag="{gen1}({ch1})[{t1}]x{gen2}({ch2})[{t2}]",
                           gen1=gen1, gen2=gen2,
-                          ch1=change_1, ch2=change_2,
+                          ch1=format_quantum_change(change_1),
+                          ch2=format_quantum_change(change_2),
                           t1=target_inds[0], t2=target_inds[1],
                           log_level=log_level):
             logger.log_print("remainder: {t1} {t2}", t1=remainder_inds[0], t2=remainder_inds[1], log_level=log_level)
@@ -6723,7 +8200,8 @@ class PerturbationTheoryExpressionEvaluator:
     def _eval_raw_poly(cls,
                        perm_substates, poly, change,
                        baseline_shift, pows,
-                       verbose, logger
+                       verbose, logger,
+                       path_node_cache=None, path_axis_cache=None
                        ):
         log_level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
         if isinstance(poly, PolyPath):
@@ -6746,7 +8224,16 @@ class PerturbationTheoryExpressionEvaluator:
                     ]
                     sqrt_factor = np.sqrt(np.prod(shifts_sqrts, axis=0))
 
-                value = poly.evaluate_polynomial(substates)
+                node_cache = (
+                    path_node_cache.new_path_node_cache()
+                    if isinstance(path_node_cache, _MaterializedEvaluationCache) else
+                    path_node_cache
+                )
+                value = poly.evaluate_polynomial(
+                    substates,
+                    node_cache=node_cache,
+                    axis_cache=path_axis_cache
+                )
                 poly_evals.append(value * sqrt_factor)
             if len(poly_evals) == 1:
                 return poly_evals[0][:, np.newaxis]
@@ -6754,7 +8241,11 @@ class PerturbationTheoryExpressionEvaluator:
 
         if isinstance(poly, ProductPTPolynomialSum):
             subvals = [
-                cls._eval_raw_poly(perm_substates, p, change, baseline_shift, pows, verbose, logger)
+                cls._eval_raw_poly(
+                    perm_substates, p, change, baseline_shift, pows, verbose, logger,
+                    path_node_cache=path_node_cache,
+                    path_axis_cache=path_axis_cache
+                )
                 for p in poly.polys
             ]
             return poly.prefactor * np.sum(subvals, axis=0)
@@ -6833,45 +8324,125 @@ class PerturbationTheoryExpressionEvaluator:
 
 
     @classmethod
+    def _resolve_poly_evaluation_cache(cls, cache, poly_key):
+        batch_cache = cache if isinstance(cache, _BoundedEvaluationCache) else None
+        materialized_cache = (
+            cache if isinstance(cache, _MaterializedEvaluationCache) else None
+        )
+        if materialized_cache is not None:
+            exact_cache = materialized_cache.exact_cache
+            if poly_key not in exact_cache:
+                exact_cache[poly_key] = {}
+            value_cache = exact_cache[poly_key]
+            path_node_cache = materialized_cache
+            path_axis_cache = materialized_cache.path_axis_cache
+        elif batch_cache is None:
+            if poly_key not in cache:
+                cache[poly_key] = {}
+            value_cache = cache[poly_key]
+            path_node_cache = path_axis_cache = None
+        else:
+            value_cache = batch_cache.view('polynomial_values')
+            path_node_cache = batch_cache.view('polypath_nodes')
+            path_axis_cache = batch_cache.view('polypath_axes')
+        return (
+            value_cache, path_node_cache, path_axis_cache,
+            batch_cache, materialized_cache
+        )
+
+    @classmethod
+    def _lookup_poly_evaluation_cache(cls,
+                                      poly_key, value_cache,
+                                      tuple_states, perm_substates,
+                                      batch_cache, materialized_cache):
+        eval_pos = []
+        eval_keys = []
+        eval_states = []
+        vals = np.zeros((len(perm_substates[0]), len(perm_substates)), dtype=float)
+        for j, substates in enumerate(tuple_states):
+            for i, state_key in enumerate(substates):
+                value_key = (
+                    (poly_key, state_key) if batch_cache is not None else state_key
+                )
+                cached_value = value_cache.get(
+                    value_key, _BoundedEvaluationCache._missing
+                )
+                if cached_value is _BoundedEvaluationCache._missing:
+                    if materialized_cache is not None:
+                        materialized_cache.exact_misses += 1
+                    eval_pos.append((i, j))
+                    eval_keys.append(value_key)
+                    eval_states.append(perm_substates[j][i])
+                else:
+                    if materialized_cache is not None:
+                        materialized_cache.exact_hits += 1
+                    vals[i, j] = cached_value
+        return vals, eval_pos, eval_keys, eval_states
+
+    @staticmethod
+    def _stack_poly_evaluation_states(eval_states):
+        if len(eval_states[0]) == 0:
+            return np.empty((len(eval_states), 0), dtype=eval_states[0].dtype)
+        return np.fromiter(
+            eval_states,
+            count=len(eval_states),
+            dtype=np.dtype((eval_states[0].dtype, (len(eval_states[0]),)))
+        )
+
+    @staticmethod
+    def _store_poly_evaluation_cache(value_cache, vals, eval_keys, eval_pos, evals):
+        for key, value, (i, j) in zip(eval_keys, evals[:, 0], eval_pos):
+            value_cache[key] = value
+            vals[i, j] = value
+
+    @classmethod
     def _eval_poly(cls, cache, tuple_states, perm_substates, pows,
                    poly, change, baseline_shift,
-                   verbose, logger):
-        # TODO: this could be way faster but we're being dumb for now
+                   verbose, logger, block_key=None):
+        # Complete (polynomial, change, baseline, state) values remain the first
+        # cache level.  _MaterializedEvaluationCache adds a second, batch-local
+        # level for internal PolyPath nodes and axes shared by nonidentical root
+        # polynomials.  That second level is discarded after the batch and is
+        # capped by entries and estimated bytes; retaining it globally would
+        # merely move high-order expression growth into the evaluator cache.
 
         poly_key = (
             poly,
             None if change is None else tuple(change),
             None if baseline_shift is None else tuple(baseline_shift)
         )
-        if poly_key not in cache:
-            cache[poly_key] = {}
-        cache = cache[poly_key]
-
-        eval_pos = []
-        eval_keys = []
-        eval_states = []
-        vals = np.zeros((len(perm_substates[0]), len(perm_substates)), dtype=float)
-        for j,substates in enumerate(tuple_states):
-            for i,t in enumerate(substates):
-                if t in cache:
-                    vals[i, j] = cache[t]
-                else:
-                    eval_pos.append([i, j])
-                    eval_keys.append(t)
-                    eval_states.append(perm_substates[j][i])
+        materialized_cache = (
+            cache if isinstance(cache, _MaterializedEvaluationCache) else None
+        )
+        block_value_key = None
+        if materialized_cache is not None and block_key is not None:
+            block_value_key = (poly_key, block_key)
+            block_value = materialized_cache.lookup_polynomial_block(
+                block_value_key
+            )
+            if block_value is not _BoundedEvaluationCache._missing:
+                return block_value
+        (
+            value_cache, path_node_cache, path_axis_cache,
+            batch_cache, materialized_cache
+        ) = cls._resolve_poly_evaluation_cache(cache, poly_key)
+        vals, eval_pos, eval_keys, eval_states = cls._lookup_poly_evaluation_cache(
+            poly_key, value_cache,
+            tuple_states, perm_substates,
+            batch_cache, materialized_cache
+        )
         if len(eval_states) > 0:
-            if len(eval_states[0]) == 0:
-                substates = np.empty((len(eval_states), 0), dtype=eval_states[0].dtype)
-            else:
-                # substates = np.array(eval_states)
-                substates = np.fromiter(eval_states,
-                                        count=len(eval_states),
-                                        dtype=np.dtype((eval_states[0].dtype, (len(eval_states[0]),)))
-                                        )
-            evals = cls._eval_raw_poly([substates], poly, change, baseline_shift, pows, verbose, logger)
-            for t,v,(i,j) in zip(eval_keys, evals[:, 0], eval_pos):
-                cache[t] = v
-                vals[i, j] = v
+            substates = cls._stack_poly_evaluation_states(eval_states)
+            evals = cls._eval_raw_poly(
+                [substates], poly, change, baseline_shift, pows, verbose, logger,
+                path_node_cache=path_node_cache,
+                path_axis_cache=path_axis_cache
+            )
+            cls._store_poly_evaluation_cache(
+                value_cache, vals, eval_keys, eval_pos, evals
+            )
+        if block_value_key is not None:
+            materialized_cache.store_polynomial_block(block_value_key, vals)
         return vals
     @classmethod
     def _compute_energy_weights(cls, energy_changes, perm_freqs):
@@ -6880,6 +8451,256 @@ class PerturbationTheoryExpressionEvaluator:
 
         echange = np.prod(np.dot(perm_freqs, energy_changes[:, 1:].T), axis=-1)
         return echange
+
+    @staticmethod
+    def _format_small_denominator_context(evaluation_context, positions,
+                                          energy_factors, energy_changes=None,
+                                          tuple_states=None,
+                                          permutation_substates=None,
+                                          polynomial_factor=None):
+        """Build a bounded diagnostic payload for a small denominator warning."""
+        details = {
+            'evaluation': evaluation_context,
+            'positions': tuple(int(position) for position in positions[:4]),
+            'denominators': tuple(
+                float(energy_factors[position]) for position in positions[:4]
+            )
+        }
+        if energy_changes is not None:
+            details['energy_changes'] = tuple(
+                tuple(int(value) for value in change)
+                for change in np.asanyarray(energy_changes)
+            )
+        if tuple_states is not None:
+            details['states'] = tuple(
+                [
+                    tuple(state.tolist())
+                    if isinstance(state, _HashableNumPyIndex) else state
+                    for state in tuple_states[position]
+                ]
+                for position in positions[:4]
+            )
+        if permutation_substates is not None:
+            details['permutation_states'] = tuple(
+                np.asanyarray(permutation_substates[position]).tolist()
+                for position in positions[:4]
+            )
+        if polynomial_factor is not None:
+            numerator = np.asanyarray(polynomial_factor)
+            details['numerators'] = tuple(
+                np.asanyarray(numerator[..., position]).tolist()
+                for position in positions[:4]
+            )
+        if len(positions) > 4:
+            details['additional_positions'] = len(positions) - 4
+        return details
+
+    @classmethod
+    def _divide_polynomial_by_energy(cls, polynomial_factor, energy_factors,
+                                     zero_cutoff, *, energy_changes=None,
+                                     evaluation_context=None,
+                                     tuple_states=None,
+                                     permutation_substates=None):
+        """Prune evaluated numerators, then divide by numerical denominators.
+
+        A symbolic energy change can vanish for a particular frequency vector.
+        The corresponding numerator is therefore evaluated before deciding
+        whether the term is harmless.  This is deliberately an evaluator-side
+        decision: symbolic prefactors do not contain enough state information
+        to make it safely.
+        """
+        numerator = np.asanyarray(polynomial_factor)
+        denominator = np.asanyarray(energy_factors)
+        cutoff = float(zero_cutoff)
+
+        small_numerators = np.abs(numerator) < cutoff
+        if np.any(small_numerators):
+            numerator = np.where(small_numerators, 0, numerator)
+
+        if numerator.ndim == 0:
+            active_numerators = np.full(
+                denominator.shape, numerator != 0, dtype=bool
+            )
+        else:
+            active_numerators = np.any(
+                numerator != 0,
+                axis=tuple(range(numerator.ndim - 1))
+            )
+
+        small_denominators = np.abs(denominator) < cutoff
+        if np.any(small_denominators):
+            positions = np.flatnonzero(small_denominators)
+            details = cls._format_small_denominator_context(
+                evaluation_context, positions, denominator,
+                energy_changes=energy_changes
+            )
+            warnings.warn(
+                "energy denominator below zero_cutoff={}: {}".format(
+                    cutoff, details
+                ),
+                SmallEnergyDenominatorWarning,
+                stacklevel=3
+            )
+
+            surviving_positions = positions[active_numerators[positions]]
+            if len(surviving_positions) > 0:
+                details = cls._format_small_denominator_context(
+                    evaluation_context, surviving_positions, denominator,
+                    energy_changes=energy_changes,
+                    tuple_states=tuple_states,
+                    permutation_substates=permutation_substates,
+                    polynomial_factor=numerator
+                )
+                warnings.warn(
+                    "term survived numerator pruning at a small energy "
+                    "denominator: {}".format(details),
+                    SurvivingEnergyDenominatorWarning,
+                    stacklevel=3
+                )
+
+        # A pruned numerator over an exact zero is exactly a discarded
+        # contribution, not NaN.  Keep the original small denominator only
+        # where a numerator survived so the diagnostic value remains visible.
+        safe_denominator = np.where(
+            small_denominators & np.logical_not(active_numerators),
+            1,
+            denominator
+        )
+        with np.errstate(divide='ignore', invalid='ignore'):
+            scaled = numerator / safe_denominator[np.newaxis, :]
+        # Ratio pruning belongs here, after both the concrete numerator and
+        # denominator are known.  Doing it while constructing symbolic terms
+        # can incorrectly remove a small numerator amplified by a denominator.
+        return np.where(np.abs(scaled) < cutoff, 0, scaled)
+
+    @classmethod
+    def _divide_polynomial_block_by_energy(cls, polynomial_factors,
+                                           energy_factors, zero_cutoff, *,
+                                           row_diagnostics=None):
+        """Apply the scalar denominator policy to a homogeneous row block.
+
+        ``polynomial_factors`` has shape ``(row, state, permutation)`` and
+        ``energy_factors`` has shape ``(row, permutation)``.  Diagnostic state
+        is supplied lazily because valid production calculations should never
+        pay to format operator/state payloads for the warning-only path.
+        """
+        numerator = np.asanyarray(polynomial_factors)
+        denominator = np.asanyarray(energy_factors)
+        if numerator.ndim != 3 or denominator.ndim != 2:
+            raise ValueError(
+                "block division requires (row,state,permutation) and "
+                "(row,permutation) arrays, got {} and {}".format(
+                    numerator.shape, denominator.shape
+                )
+            )
+        if numerator.shape[0] != denominator.shape[0] or numerator.shape[-1] != denominator.shape[-1]:
+            raise ValueError(
+                "incompatible polynomial/energy block shapes {} and {}".format(
+                    numerator.shape, denominator.shape
+                )
+            )
+
+        cutoff = float(zero_cutoff)
+        numerator = np.where(np.abs(numerator) < cutoff, 0, numerator)
+        active_numerators = np.any(numerator != 0, axis=1)
+        small_denominators = np.abs(denominator) < cutoff
+
+        if np.any(small_denominators):
+            affected_rows = np.flatnonzero(np.any(small_denominators, axis=1))
+            for row in affected_rows:
+                diagnostics = (
+                    {} if row_diagnostics is None else
+                    row_diagnostics(int(row))
+                    if callable(row_diagnostics) else
+                    row_diagnostics[row]
+                )
+                positions = np.flatnonzero(small_denominators[row])
+                details = cls._format_small_denominator_context(
+                    diagnostics.get('evaluation_context'),
+                    positions,
+                    denominator[row],
+                    energy_changes=diagnostics.get('energy_changes')
+                )
+                warnings.warn(
+                    "energy denominator below zero_cutoff={}: {}".format(
+                        cutoff, details
+                    ),
+                    SmallEnergyDenominatorWarning,
+                    stacklevel=3
+                )
+
+                surviving_positions = positions[
+                    active_numerators[row, positions]
+                ]
+                if len(surviving_positions) > 0:
+                    details = cls._format_small_denominator_context(
+                        diagnostics.get('evaluation_context'),
+                        surviving_positions,
+                        denominator[row],
+                        energy_changes=diagnostics.get('energy_changes'),
+                        tuple_states=diagnostics.get('tuple_states'),
+                        permutation_substates=diagnostics.get(
+                            'permutation_substates'
+                        ),
+                        polynomial_factor=numerator[row]
+                    )
+                    warnings.warn(
+                        "term survived numerator pruning at a small energy "
+                        "denominator: {}".format(details),
+                        SurvivingEnergyDenominatorWarning,
+                        stacklevel=3
+                    )
+
+        safe_denominator = np.where(
+            small_denominators & np.logical_not(active_numerators),
+            1,
+            denominator
+        )
+        with np.errstate(divide='ignore', invalid='ignore'):
+            scaled = numerator / safe_denominator[:, np.newaxis, :]
+        return np.where(np.abs(scaled) < cutoff, 0, scaled)
+
+    @staticmethod
+    def _compute_coefficient_prefactor_products(perms, cinds, tensors, zero_cutoff):
+        products = np.ones((len(tensors), len(perms)), dtype=float)
+        good_perms = np.full((len(tensors), len(perms)), True)
+        for coefficient_pos, (_, indices) in enumerate(cinds):
+            for tensor_pos, tensor_list in enumerate(tensors):
+                tensor = tensor_list[coefficient_pos]
+                if len(indices) == 0:
+                    base_value = tensor
+                    if abs(base_value) < zero_cutoff:
+                        good_perms[:] = False
+                        break
+                    products[tensor_pos] *= base_value
+                else:
+                    active = np.flatnonzero(good_perms[tensor_pos])
+                    if len(active) == 0:
+                        continue
+                    active_perms = perms[active]
+                    tensor_index = tuple(
+                        active_perms[:, index] for index in indices
+                    )
+                    try:
+                        base_values = tensor[tensor_index]
+                    except Exception:
+                        raise ValueError(tensor, active_perms, tensor_index)
+                    products[tensor_pos, active] *= base_values
+                    good_perms[tensor_pos, active] = (
+                        np.abs(products[tensor_pos, active]) >= zero_cutoff
+                    )
+        return products, np.any(good_perms, axis=0)
+
+    @staticmethod
+    def _store_coefficient_prefactor_products(products, good_perms, cind_pos,
+                                               eval_perms, eval_cinds, prefactors,
+                                               start):
+        active = np.flatnonzero(good_perms)
+        next_pos = start + len(active)
+        eval_perms[start:next_pos] = active
+        eval_cinds[start:next_pos] = cind_pos
+        prefactors[start:next_pos] = products[:, active].T
+        return next_pos
 
     @classmethod
     def _get_prefacs(cls, perms, cinds_remapped, ctensors, counts_cache, facs, zero_cutoff):
@@ -6892,41 +8713,14 @@ class PerturbationTheoryExpressionEvaluator:
             cur_hits = counts_cache.get(cinds, 0)
             if cur_hits < facs[len(cinds)]:
                 counts_cache[cinds] = cur_hits + 1
-                prod = np.ones((len(ctensors[j]), len(perms)), dtype=float)
-                good_perms = np.full((len(ctensors[j]), len(perms)), True)
-                for n, (_, ind) in enumerate(cinds):
-                    for k,tlist in enumerate(ctensors[j]):
-                        t = tlist[n]
-                        if len(ind) == 0:
-                            base_val = t
-                            if abs(base_val) < zero_cutoff:
-                                good_perms[:] = False
-                                break
-                            else:
-                                prod[k] *= base_val
-                        else:
-                            # still_good = False
-                            for i, m in enumerate(good_perms[k]):
-                                if m:
-                                    # still_good = True
-                                    perm = perms[i]
-                                    idx = tuple(perm[x] for x in ind)
-                                    try:
-                                        base_val = t[idx]
-                                    except:
-                                        raise ValueError(t, perm, idx)
-                                    prod[k, i] *= base_val
-                                    if abs(prod[k, i]) < zero_cutoff:  # we assume monotonic b.c. small corrections
-                                        good_perms[k, i] = False
-                        # if not still_good:
-                        #     break
-                good_perms = np.any(good_perms, axis=0)
-                for i, m in enumerate(good_perms):
-                    if m:
-                        eval_perms[nevals] = i
-                        eval_cinds[nevals] = j
-                        prefactors[nevals] = prod[:, i]
-                        nevals += 1
+                products, good_perms = cls._compute_coefficient_prefactor_products(
+                    perms, cinds, ctensors[j], zero_cutoff
+                )
+                nevals = cls._store_coefficient_prefactor_products(
+                    products, good_perms, j,
+                    eval_perms, eval_cinds, prefactors,
+                    nevals
+                )
 
         return eval_perms[:nevals], eval_cinds[:nevals], prefactors[:nevals]
 
@@ -6935,7 +8729,9 @@ class PerturbationTheoryExpressionEvaluator:
                          echanges, perm_freqs,
                          poly_cache, energy_cache,
                          tuple_states, perm_substates, pows,
-                         polys, change, baseline_shift, verbose, logger
+                         polys, change, baseline_shift, verbose, logger,
+                         block_key=None, zero_cutoff=None,
+                         evaluation_context=None
                          ):
         # if echanges not in energy_cache:
         #     energy_cache[echanges] = np.array(echanges)
@@ -6946,11 +8742,20 @@ class PerturbationTheoryExpressionEvaluator:
         # TODO: check size of energy factor
         poly_factor = cls._eval_poly(poly_cache,
                                      tuple_states, perm_substates, pows,
-                                     polys, change, baseline_shift, verbose, logger)
-        if not nput.is_zero(poly_factor):
-            scaled_contrib = poly_factor / energy_factors[np.newaxis, :]
-        else:
-            scaled_contrib = 0
+                                     polys, change, baseline_shift, verbose, logger,
+                                     block_key=block_key)
+        if zero_cutoff is None:
+            zero_cutoff = cls.default_zero_cutoff
+        # Even an entirely pruned numerator goes through the denominator check:
+        # users asked to be told that the small energy term existed, not only
+        # when it happened to survive this particular state evaluation.
+        scaled_contrib = cls._divide_polynomial_by_energy(
+            poly_factor, energy_factors, zero_cutoff,
+            energy_changes=echanges,
+            evaluation_context=evaluation_context,
+            tuple_states=tuple_states,
+            permutation_substates=perm_substates
+        )
         return scaled_contrib, energy_factors, poly_factor
     @classmethod
     def _test_degs(cls, subchanges, echanges, perm_subsets, only_deg):
@@ -6967,10 +8772,11 @@ class PerturbationTheoryExpressionEvaluator:
     def _eval_perm_core(cls,
                         expr, state, tuple_states, perm_substates, which_perms,
                         change, baseline_shift,
-                        prefacs, perm_freqs,
+                        prefacs, perm_freqs, state_block_key,
                         pows, key, perm_subsets, degenerate_changes, only_degenerate_terms,
                         poly_cache, energy_cache,
-                        verbose, logger, log_level, log_scaling
+                        verbose, logger, log_level, log_scaling,
+                        zero_cutoff, evaluation_context=None
                         ):
         subexpr = expr.terms[key]
         conv_subsets = None
@@ -6990,6 +8796,14 @@ class PerturbationTheoryExpressionEvaluator:
                 # all_subchanges = [None] * len(which_perms)
 
             for echanges, polys in subexpr.terms.items():
+                term_context = {
+                    'operator': repr(expr if evaluation_context is None else evaluation_context),
+                    'coefficient_key': key,
+                    'change': None if change is None else tuple(change),
+                    'baseline_shift': (
+                        None if baseline_shift is None else tuple(baseline_shift)
+                    )
+                }
                 # if all(any(e != 0 for e in ech) for ech in echanges):
                 left_matches = cls._test_degs(left_changes, echanges, perm_subsets, use_degs_left)
                 right_matches = cls._test_degs(right_changes, echanges, perm_subsets, use_degs_right)
@@ -7012,10 +8826,16 @@ class PerturbationTheoryExpressionEvaluator:
                     good_perm_substates = perm_substates
                     good_tuple_states = tuple_states
                 else:
-                    good_perms = tuple(good_perms)
+                    good_perms = tuple(int(p) for p in good_perms)
                     good_freqs = perm_freqs[good_perms,]
                     good_perm_substates = perm_substates[good_perms,]
                     good_tuple_states = [tuple_states[p] for p in good_perms]
+
+                poly_block_key = (
+                    ('full', state_block_key)
+                    if good_perms is None else
+                    ('take', state_block_key, good_perms)
+                )
 
                 if len(good_perm_substates) > 0:
                     if verbose:
@@ -7033,7 +8853,10 @@ class PerturbationTheoryExpressionEvaluator:
                                     echanges, good_freqs,
                                     poly_cache, energy_cache,
                                     good_tuple_states, good_perm_substates, pows,
-                                    polys, change, baseline_shift, verbose, logger
+                                    polys, change, baseline_shift, verbose, logger,
+                                    block_key=poly_block_key,
+                                    zero_cutoff=zero_cutoff,
+                                    evaluation_context=term_context
                                 )
                                 if not nput.is_zero(scaled_contrib):
                                     logger.log_print("engs: {ef}", ef=energy_factors.squeeze(), log_level=log_level)
@@ -7046,7 +8869,10 @@ class PerturbationTheoryExpressionEvaluator:
                             echanges, good_freqs,
                             poly_cache, energy_cache,
                             good_tuple_states, good_perm_substates, pows,
-                            polys, change, baseline_shift, verbose, logger
+                            polys, change, baseline_shift, verbose, logger,
+                            block_key=poly_block_key,
+                            zero_cutoff=zero_cutoff,
+                            evaluation_context=term_context
                         )
 
                     if good_perms is None:
@@ -7061,10 +8887,12 @@ class PerturbationTheoryExpressionEvaluator:
                                   preformatter=lambda **vars: dict(vars, p=vars['p'].format_expr()),
                                   log_level=log_level):
                     subcontrib = cls._eval_poly(poly_cache, tuple_states, perm_substates, pows,
-                                                subexpr, change, baseline_shift, verbose, logger)
+                                                subexpr, change, baseline_shift, verbose, logger,
+                                                block_key=('full', state_block_key))
             else:
                 subcontrib = cls._eval_poly(poly_cache, tuple_states, perm_substates, pows,
-                                            subexpr, change, baseline_shift, verbose, logger)
+                                            subexpr, change, baseline_shift, verbose, logger,
+                                            block_key=('full', state_block_key))
 
                 # if not nput.is_zero(subcontrib):
                 #     subcontrib = subcontrib[:, np.newaxis]
@@ -7072,6 +8900,30 @@ class PerturbationTheoryExpressionEvaluator:
             raise ValueError("degenerate terms requested on {}".format(subexpr.format_expr()))
 
         return subcontrib
+
+    @staticmethod
+    def _gather_state_permutations(state, sub_perms):
+        return np.moveaxis(nput.vector_take(state, sub_perms), 0, 1)
+
+    @staticmethod
+    def _tupleize_state_permutations(perm_substates):
+        return [[tuple(state) for state in state_block] for state_block in perm_substates]
+
+    @classmethod
+    def _index_state_permutations(cls, perm_substates):
+        threshold = cls.hashable_numpy_index_threshold
+        return [
+            [
+                _HashableNumPyIndex(state)
+                if state.size > threshold else tuple(state)
+                for state in state_block
+            ]
+            for state_block in perm_substates
+        ]
+
+    @staticmethod
+    def _gather_frequency_permutations(freqs, sub_perms):
+        return nput.vector_take(freqs, sub_perms)
 
     @classmethod
     def _get_state_perms(cls, state_idx, state, freqs, fixed, subset, sub_perms, take_cache,
@@ -7087,9 +8939,35 @@ class PerturbationTheoryExpressionEvaluator:
         # arr, inds = take_cache[key]['state_dat']
         # inds = inds[:-1] + (np.broadcast_to(sub_perms[np.newaxis], (len(state),) + sub_perms.shape),)
         # perm_substates = np.moveaxis(arr[inds], 0, 1)
-        perm_substates = np.moveaxis(nput.vector_take(state, sub_perms), 0, 1)
-        tuple_states = [[tuple(s) for s in ps] for ps in perm_substates]
-        perm_freqs = nput.vector_take(freqs, sub_perms)
+        if (
+                cls.use_hashable_numpy_mask_indices
+                and len(mask_pos) > cls.hashable_numpy_index_threshold
+        ):
+            mask_key = (
+                mask_pos
+                if isinstance(mask_pos, _HashableNumPyIndex) else
+                _HashableNumPyIndex(mask_pos)
+            )
+        else:
+            mask_key = (
+                mask_pos if isinstance(mask_pos, tuple) else
+                tuple(int(position) for position in mask_pos)
+            )
+        cache_key = ('state_permutations', state_idx, mask_key, full_set)
+        cached = take_cache.get(cache_key, _BoundedEvaluationCache._missing)
+        if cached is not _BoundedEvaluationCache._missing:
+            return cached
+
+        perm_substates = cls._gather_state_permutations(state, sub_perms)
+        tuple_states = (
+            cls._index_state_permutations(perm_substates)
+            if cls.use_hashable_numpy_state_indices else
+            cls._tupleize_state_permutations(perm_substates)
+        )
+        perm_freqs = cls._gather_frequency_permutations(freqs, sub_perms)
+        block_identity = _StatePermutationBlockIdentity(tuple_states)
+        cached = perm_substates, tuple_states, perm_freqs, block_identity
+        take_cache[cache_key] = cached
 
         # if 'freq_dat' not in take_cache[key]:
         #     arr, inds = nput.vector_take(freqs, sub_perms, return_spec=True)
@@ -7098,7 +8976,7 @@ class PerturbationTheoryExpressionEvaluator:
         # inds = inds[:-1] + (np.broadcast_to(sub_perms[np.newaxis], inds[-1].shape),)
         # perm_freqs = arr[inds]
 
-        return perm_substates, tuple_states, perm_freqs
+        return cached
     @classmethod
     def _eval_perm(cls,
                    expr, change, baseline_shift,
@@ -7108,7 +8986,8 @@ class PerturbationTheoryExpressionEvaluator:
                    zero_cutoff,
                    counts_cache, poly_cache, take_cache, energy_cache,
                    facs, pows, split_spec,
-                   verbose, logger, log_scaled
+                   verbose, logger, log_scaled,
+                   evaluation_context=None
                    ):
         log_level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
         log_scaling = 219475.6 if log_scaled else 1
@@ -7181,7 +9060,7 @@ class PerturbationTheoryExpressionEvaluator:
                 prefacs = prefactors[vps,].T
                 which_perms = a_inds[mask_pos]
                 perm_subsets = aperms[mask_pos,][:, full_set]
-                perm_substates, tuple_states, perm_freqs = cls._get_state_perms(
+                perm_substates, tuple_states, perm_freqs, state_block_key = cls._get_state_perms(
                     state_idx, state, freqs, fixed, subset, perm_subsets, take_cache, tuple(mask_pos), full_set
                 )
 
@@ -7203,10 +9082,11 @@ class PerturbationTheoryExpressionEvaluator:
                         subcontrib = cls._eval_perm_core(
                             expr, state, tuple_states, perm_substates, which_perms,
                             change, baseline_shift,
-                            prefacs, perm_freqs,
+                            prefacs, perm_freqs, state_block_key,
                             pows, g_key, perm_subsets, degenerate_changes, only_degenerate_terms,
                             poly_cache, energy_cache,
-                            verbose, logger, log_level, log_scaling
+                            verbose, logger, log_level, log_scaling,
+                            zero_cutoff, evaluation_context
                         )
                         val = prefacs[:, np.newaxis, :] * subcontrib[np.newaxis]
                         logger.log_print("contrib: {e}", e=val,
@@ -7222,10 +9102,11 @@ class PerturbationTheoryExpressionEvaluator:
                     subcontrib = cls._eval_perm_core(
                         expr, state, tuple_states, perm_substates, which_perms,
                         change, baseline_shift,
-                        prefacs, perm_freqs,
+                        prefacs, perm_freqs, state_block_key,
                         pows, g_key, perm_subsets, degenerate_changes, only_degenerate_terms,
                         poly_cache, energy_cache,
-                        verbose, logger, log_level, log_scaling
+                        verbose, logger, log_level, log_scaling,
+                        zero_cutoff, evaluation_context
                     )
                     val = prefacs[:, np.newaxis, :] * subcontrib[np.newaxis]
                     contrib[state_idx][:, mask_pos] += val[:, 0, :]
@@ -7355,19 +9236,53 @@ class PerturbationTheoryExpressionEvaluator:
             ]
         return test
     @classmethod
-    def _make_full_deg_test(cls, tests):
-        if isinstance(tests, set):
-            test = functools.partial(cls._mode_inclusion_direct, tests=tests)
-        else:
+    def _make_full_deg_test(cls, tests, array_oriented=True):
+        if not array_oriented:
+            if isinstance(tests, set):
+                return functools.partial(cls._mode_inclusion_direct, tests=tests)
             test = cls._compile_deg_tests(tests)
             if isinstance(test, list):
                 test = functools.partial(cls._mode_inclusion_multi, tests=test)
-        return test
+            return test
+        patterns = []
+        checks = []
+        fallback_tests = []
+        for test in tests:
+            if isinstance(test, cls._direct_degs):
+                pattern = np.asarray(test.modes, dtype=np.intp)
+                check = np.zeros(len(pattern), dtype=bool)
+                check[np.asarray(test.check_pos, dtype=np.intp)] = True
+                patterns.append(pattern)
+                checks.append(check)
+            elif isinstance(test, np.ndarray):
+                pattern = np.asarray(test, dtype=np.intp)
+                patterns.append(pattern)
+                checks.append(pattern >= 0)
+            elif isinstance(test, tuple) and all(
+                    isinstance(value, (int, np.integer)) for value in test):
+                pattern = np.asarray(test, dtype=np.intp)
+                patterns.append(pattern)
+                checks.append(np.ones(len(pattern), dtype=bool))
+            else:
+                fallback_tests.append(test)
+        if len(patterns) == 0:
+            test = cls._compile_deg_tests(fallback_tests)
+            if isinstance(test, list):
+                test = functools.partial(cls._mode_inclusion_multi, tests=test)
+            return test
+        return DegeneracyTestPlan(
+            np.stack(patterns),
+            np.stack(checks),
+            fallback_tests=fallback_tests
+        )
 
     default_deg_id_method = 'linear'
     deg_id_method_nmodes_switch = 50
+    use_compiled_degeneracy_plans = True
+    use_batched_degeneracy_pattern_construction = True
+    use_compiled_degeneracy_identification = True
     @classmethod
-    def _identify_possible_degeneracies(cls, all_perms, sides, expr, changes, nmodes, method=None):
+    def _identify_possible_degeneracies_legacy(cls, all_perms, sides, expr, changes, nmodes, method=None):
         # changes is stored as `(modes, quanta)` pairs
         # representing a change between degenerate modes
         if method is None:
@@ -7456,6 +9371,44 @@ class PerturbationTheoryExpressionEvaluator:
                             echange_blocks = [
                                 [np.arange(len(sub_e))]
                             ]
+                        subpermutations = [
+                            np.concatenate(parts).astype(np.intp, copy=False)
+                            if len(parts) > 0 else
+                            np.empty(0, dtype=np.intp)
+                            for parts in itertools.product(*echange_blocks)
+                        ]
+                        echange_inverse = np.asarray(echange_inverse, dtype=np.intp)
+                        if (
+                                method == 'linear'
+                                and cls.use_compiled_degeneracy_plans
+                        ):
+                            # A negative source is a wildcard corresponding to
+                            # a zero-energy position.  These maps depend only
+                            # on the energy-change term and are compiled once,
+                            # outside the resonance-mode loop.
+                            mode_maps = []
+                            for subperm in subpermutations:
+                                sources = np.concatenate((
+                                    subperm,
+                                    np.full(num_zero, -1, dtype=np.intp)
+                                ))
+                                mode_maps.append(sources[echange_inverse])
+                            mode_maps = np.stack(mode_maps)
+                        elif method == 'perfect':
+                            mode_maps = []
+                            pad_sources = np.arange(
+                                len(sub_e),
+                                len(sub_e) + num_zero,
+                                dtype=np.intp
+                            )
+                            for subperm in subpermutations:
+                                sources = np.concatenate((
+                                    subperm,
+                                    pad_sources
+                                ))
+                                mode_maps.append(sources[echange_inverse])
+                        else:
+                            mode_maps = None
 
                         for degs,sort_changes in zip(all_degs,all_changes):
                             for modes,side,quanta in sort_changes: # strict ordering preserved
@@ -7468,45 +9421,185 @@ class PerturbationTheoryExpressionEvaluator:
                                     if cinds not in degs: degs[cinds] = {}
 
                                     if method == 'perfect':
-                                        if ekey not in degs[cinds]: degs[cinds][ekey] = set()
-                                        for subperm in itertools.product(*echange_blocks):
-                                            subperm = sum(subperm, ())
-                                            for pad_inds in (
-                                                    itertools.chain(*[
-                                                        itertools.permutations(p) for p in
-                                                            itertools.combinations(
-                                                            [x for x in range(nmodes) if x not in modes],
-                                                            r=num_zero
-                                                        )
-                                                    ])
-                                                    if num_zero > 0 else
-                                                    [()]
-                                            ):
-                                                full_mode = modes + pad_inds
-                                                full_mode = tuple(full_mode[s] for s in subperm) + pad_inds
-                                                # print(num_zero, modes, pad_inds, full_mode, subperm, echange_inverse)
-                                                perm_modes = tuple(full_mode[a] for a in echange_inverse)
-                                                degs[cinds][ekey].add(perm_modes)
+                                        if ekey not in degs[cinds]: degs[cinds][ekey] = []
+                                        available_modes = [
+                                            mode for mode in range(nmodes)
+                                            if mode not in modes
+                                        ]
+                                        pad_sets = (
+                                            itertools.permutations(
+                                                available_modes,
+                                                num_zero
+                                            )
+                                            if num_zero > 0 else
+                                            [()]
+                                        )
+                                        mode_array = np.asarray(modes, dtype=np.intp)
+                                        for pad_inds in pad_sets:
+                                            base_modes = np.concatenate((
+                                                mode_array,
+                                                np.asarray(pad_inds, dtype=np.intp)
+                                            ))
+                                            for mode_map in mode_maps:
+                                                degs[cinds][ekey].append(
+                                                    base_modes[mode_map]
+                                                )
                                     elif method == 'linear':
                                         if ekey not in degs[cinds]: degs[cinds][ekey] = []
-                                        for subperm in itertools.product(*echange_blocks):
-                                            subperm = sum(subperm, ())
-                                            pad_inds = (-1,) * num_zero
-                                            full_mode = modes + pad_inds
-                                            full_mode = tuple(full_mode[s] for s in subperm) + pad_inds
-                                            # print(num_zero, modes, pad_inds, full_mode, subperm, echange_inverse)
-                                            perm_modes = tuple(full_mode[a] for a in echange_inverse)
-                                            degs[cinds][ekey].append(cls._deg_test(perm_modes))
+                                        if (
+                                                cls.use_compiled_degeneracy_plans
+                                                and cls.use_batched_degeneracy_pattern_construction
+                                        ):
+                                            mode_array = np.asarray(modes, dtype=np.intp)
+                                            patterns = np.full(
+                                                mode_maps.shape,
+                                                -1,
+                                                dtype=np.intp
+                                            )
+                                            checked = mode_maps >= 0
+                                            patterns[checked] = mode_array[
+                                                mode_maps[checked]
+                                            ]
+                                            # Retain one dense chunk per
+                                            # resonance match instead of one
+                                            # Python/NumPy object per pattern.
+                                            degs[cinds][ekey].append(patterns)
+                                        elif cls.use_compiled_degeneracy_plans:
+                                            mode_array = np.asarray(modes, dtype=np.intp)
+                                            for mode_map in mode_maps:
+                                                pattern = np.full(
+                                                    len(mode_map),
+                                                    -1,
+                                                    dtype=np.intp
+                                                )
+                                                checked = mode_map >= 0
+                                                pattern[checked] = mode_array[
+                                                    mode_map[checked]
+                                                ]
+                                                degs[cinds][ekey].append(pattern)
+                                        else:
+                                            for subperm in subpermutations:
+                                                pad_inds = (-1,) * num_zero
+                                                full_mode = modes + pad_inds
+                                                full_mode = tuple(
+                                                    full_mode[index]
+                                                    for index in subperm
+                                                ) + pad_inds
+                                                perm_modes = tuple(
+                                                    full_mode[index]
+                                                    for index in echange_inverse
+                                                )
+                                                degs[cinds][ekey].append(
+                                                    cls._deg_test(perm_modes)
+                                                )
                                     else:
                                         if ekey not in degs[cinds]: degs[cinds][ekey] = []
                                         degs[cinds][ekey].append(method(modes, echange)) # TODO: supply more info to custom methods
                     for degs in all_degs:
                         if len(degs.get(cinds, {}).get(ekey, [])) > 0:
-                            dc_key = tuple(degs[cinds][ekey])
+                            raw_tests = degs[cinds][ekey]
+                            array_oriented = (
+                                cls.use_compiled_degeneracy_plans
+                                and method in {'linear', 'perfect'}
+                            )
+                            if (
+                                    array_oriented
+                                    and all(
+                                        isinstance(test, np.ndarray)
+                                        for test in raw_tests
+                                    )
+                            ):
+                                raw_patterns = (
+                                    np.concatenate(raw_tests, axis=0)
+                                    if raw_tests[0].ndim == 2 else
+                                    np.stack(raw_tests)
+                                )
+                                dc_key = (
+                                    'array',
+                                    raw_patterns.shape,
+                                    raw_patterns.tobytes()
+                                )
+                            else:
+                                raw_patterns = None
+                                dc_key = ('callable', tuple(raw_tests))
                             if dc_key not in deg_test_cache:
-                                deg_test_cache[dc_key] = cls._make_full_deg_test(degs[cinds][ekey])
+                                deg_test_cache[dc_key] = (
+                                    DegeneracyTestPlan(raw_patterns)
+                                    if raw_patterns is not None else
+                                    cls._make_full_deg_test(
+                                        raw_tests,
+                                        array_oriented=array_oriented
+                                    )
+                                )
                             degs[cinds][ekey] = deg_test_cache[dc_key]
         return all_degs
+
+    @classmethod
+    def _identify_possible_degeneracies(cls, all_perms, sides, expr, changes,
+                                        nmodes, method=None, context=None):
+        if isinstance(changes, SideDegeneracyChanges):
+            left = (
+                cls._identify_possible_degeneracies(
+                    all_perms, sides, expr, changes.left, nmodes,
+                    method=method
+                )[0]
+                if changes.left else {}
+            )
+            right = (
+                cls._identify_possible_degeneracies(
+                    all_perms, sides, expr, changes.right, nmodes,
+                    method=method
+                )[1]
+                if changes.right else {}
+            )
+            return [left, right]
+        started = time.perf_counter()
+        if method is None:
+            method = cls.default_deg_id_method
+        if method is None:
+            method = (
+                'linear' if nmodes > cls.deg_id_method_nmodes_switch
+                else 'perfect'
+            )
+        if (
+                not cls.use_compiled_degeneracy_identification
+                or not cls.use_compiled_degeneracy_plans
+                or method not in {'linear', 'perfect'}
+        ):
+            result = cls._identify_possible_degeneracies_legacy(
+                all_perms, sides, expr, changes, nmodes, method=method
+            )
+            cls._last_degeneracy_identification_stats = None
+        else:
+            if context is None:
+                context = DegeneracyIdentificationContext(changes)
+            before = context.stats()
+            result = context.bind(expr, nmodes, method)
+            after = context.stats()
+            cls._last_degeneracy_identification_stats = after
+            for name in (
+                    'bound_plan_hits', 'bound_plan_misses',
+                    'requirement_hits', 'requirement_misses',
+                    'energy_requirements_compiled', 'resonance_matches',
+                    'pattern_rows_materialized', 'predicate_plans_built',
+                    'compact_clause_hits', 'compact_clause_misses',
+                    'compact_clauses_compiled', 'pattern_rows_avoided',
+                    'predicate_intern_identity_hits',
+                    'predicate_intern_content_hits',
+                    'predicate_intern_misses', 'predicate_intern_skips',
+                    'cache_evictions', 'cache_skips'):
+                cls._degeneracy_identification_totals[name] += (
+                    after.get(name, 0) - before.get(name, 0)
+                )
+            for name in ('max_cache_items', 'max_cache_bytes',
+                         'change_index_bytes', 'mode_index_bytes_estimate'):
+                cls._degeneracy_identification_totals[name] = max(
+                    cls._degeneracy_identification_totals[name],
+                    after.get(name, 0)
+                )
+        cls._degeneracy_identification_calls += 1
+        cls._degeneracy_identification_seconds += time.perf_counter() - started
+        return result
 
 
     @classmethod
@@ -7522,7 +9615,106 @@ class PerturbationTheoryExpressionEvaluator:
     _max_cache_size = 1e7
     _poly_cache = MaxSizeCache(_max_cache_size, cache_type='fifo') # temporary hack, but these are in principle shared/reused
     _ecoeff_cache = MaxSizeCache(_max_cache_size, cache_type='fifo')
+    default_tensor_evaluation_mode = 'dag'
+    default_evaluation_backend = 'indexed'
+    default_dag_cache_size = 100000
+    default_dag_cache_bytes = 64 * 1024 ** 2
+    default_dag_chunk_size = 256
+    default_dag_node_term_cache_size = 256
+    default_state_permutation_cache_size = 100000
+    default_state_permutation_cache_bytes = 64 * 1024 ** 2
+    use_hashable_numpy_state_indices = True
+    use_hashable_numpy_mask_indices = True
+    # Direct construction benchmarks cross over near eight int64 elements:
+    # tuples are faster below this size, while compact byte identities become
+    # both faster and smaller above it.
+    hashable_numpy_index_threshold = 8
+    # A one-state path entry is about 180 bytes in the current representation,
+    # so 350k entries lets the byte limit, rather than an unnecessarily small
+    # item limit, govern the default 64 MiB cache.  Larger state vectors reach
+    # the byte limit with proportionally fewer entries.
+    default_materialized_path_cache_size = 350000
+    default_materialized_path_cache_bytes = 64 * 1024 ** 2
+    _last_dag_evaluation_stats = None
+    _last_materialized_evaluation_stats = None
+    _last_state_permutation_cache_stats = None
+    _last_indexed_evaluation_stats = None
+    _last_degeneracy_identification_stats = None
+    _degeneracy_identification_calls = 0
+    _degeneracy_identification_seconds = 0.0
+    _degeneracy_identification_totals = collections.Counter()
+    _indexed_evaluation_generation = 0
     default_zero_cutoff = 1e-18
+
+    @classmethod
+    def get_last_dag_evaluation_stats(cls):
+        return None if cls._last_dag_evaluation_stats is None else dict(cls._last_dag_evaluation_stats)
+
+    @classmethod
+    def get_last_materialized_evaluation_stats(cls):
+        return (
+            None
+            if cls._last_materialized_evaluation_stats is None else
+            dict(cls._last_materialized_evaluation_stats)
+        )
+
+    @classmethod
+    def get_last_state_permutation_cache_stats(cls):
+        return (
+            None
+            if cls._last_state_permutation_cache_stats is None else
+            dict(cls._last_state_permutation_cache_stats)
+        )
+
+    @classmethod
+    def get_last_indexed_evaluation_stats(cls):
+        return (
+            None
+            if cls._last_indexed_evaluation_stats is None else
+            dict(cls._last_indexed_evaluation_stats)
+        )
+
+    @classmethod
+    def get_last_degeneracy_identification_stats(cls):
+        return (
+            None if cls._last_degeneracy_identification_stats is None else
+            dict(cls._last_degeneracy_identification_stats)
+        )
+
+    @classmethod
+    def get_degeneracy_identification_totals(cls):
+        return dict(cls._degeneracy_identification_totals)
+
+    @staticmethod
+    def _compare_evaluation_backends(legacy, indexed, rtol=2e-12, atol=2e-12):
+        if len(legacy) != len(indexed):
+            raise AssertionError(
+                "indexed backend returned {} result blocks; legacy returned {}"
+                .format(len(indexed), len(legacy))
+            )
+        for block_index, (legacy_block, indexed_block) in enumerate(zip(legacy, indexed)):
+            if np.shape(legacy_block) != np.shape(indexed_block):
+                raise AssertionError(
+                    "indexed result block {} has shape {}; expected {}"
+                    .format(block_index, np.shape(indexed_block), np.shape(legacy_block))
+                )
+            np.testing.assert_allclose(
+                indexed_block,
+                legacy_block,
+                rtol=rtol,
+                atol=atol,
+                equal_nan=True,
+                err_msg="indexed evaluator mismatch in result block {}".format(block_index)
+            )
+
+    @classmethod
+    def _new_state_permutation_cache(cls, max_items=None, max_bytes=None):
+        return _StatePermutationCache(
+            cls.default_state_permutation_cache_size
+            if max_items is None else max_items,
+            cls.default_state_permutation_cache_bytes
+            if max_bytes is None else max_bytes
+        )
 
     _parallel_eval_main_args = None
     _cached_expansion = None
@@ -7538,7 +9730,10 @@ class PerturbationTheoryExpressionEvaluator:
     @classmethod
     def _extract_main_args(cls):
         if cls._cached_main_args is not None:
-            return cls._cached_main_args + (cls._cached_expansion,)
+            return cls._cached_main_args + (
+                cls._cached_expansion,
+                cls._parallel_eval_main_args[-1]
+            )
 
         if cls._parallel_eval_main_args is None:
             raise ValueError("parallel eval not initialized")
@@ -7551,10 +9746,13 @@ class PerturbationTheoryExpressionEvaluator:
             num_fixed, degenerate_changes, only_degenerate_terms,
             zero_cutoff,
             max_cache_size,
+            use_materialized_path_cache,
+            path_cache_size, path_cache_bytes,
+            state_cache_size, state_cache_bytes,
             # counts_cache, poly_cache, take_cache, energy_cache,
             # pows,
             verbose, logger, log_scaled, log_level,
-            ndim
+            ndim, evaluation_backend
         ) = cls._parallel_eval_main_args
 
         cls.set_cache_size(max_cache_size)
@@ -7583,8 +9781,18 @@ class PerturbationTheoryExpressionEvaluator:
         max_state = np.max(np.concatenate([state for state, perms in state_perms]))
         pows = np.power(np.arange(max_state + 1)[np.newaxis, :], np.arange(max_order + 1)[:, np.newaxis])
         counts_cache = cls.get_cache()  # so we don't hit some coeff sets too many times
-        poly_cache = cls._poly_cache  # so we can avoid redoing the same polynomials a bunch of times
-        take_cache = cls.get_cache()  # shockingly beneficial...
+        poly_cache = (
+            _MaterializedEvaluationCache(
+                cls._poly_cache,
+                max_items=path_cache_size,
+                max_bytes=path_cache_bytes
+            )
+            if use_materialized_path_cache else
+            cls._poly_cache
+        )
+        take_cache = cls._new_state_permutation_cache(
+            state_cache_size, state_cache_bytes
+        )
         energy_cache = cls.get_cache()
 
         cls._cached_main_args = (
@@ -7599,12 +9807,51 @@ class PerturbationTheoryExpressionEvaluator:
             ndim
         )
 
-        return cls._cached_main_args + (cls._cached_expansion,)
+        return cls._cached_main_args + (cls._cached_expansion, evaluation_backend)
+
+    @staticmethod
+    def _aggregate_indexed_evaluation_stats(stats, elapsed_mode='sum'):
+        """Combine independent indexed executors without hiding peak usage.
+
+        Worker-local counters describe disjoint work and are additive.  Peak
+        storage counters describe concurrent process-local bounds and retain
+        their maximum; they must not be reported as if one worker allocated
+        the sum.  Executors within one process group overlap in wall time,
+        whereas successive free-index groups do not.
+        """
+        stats = [entry for entry in stats if entry is not None]
+        if len(stats) == 0:
+            return None
+        aggregate = {}
+        for key in stats[0]:
+            values = [entry[key] for entry in stats]
+            if key.startswith('max_'):
+                aggregate[key] = max(values)
+            elif key.endswith('_seconds') and elapsed_mode == 'max':
+                aggregate[key] = max(values)
+            else:
+                aggregate[key] = sum(values)
+        return aggregate
+    @classmethod
+    def _partition_evaluation_blocks(cls, ncomb, nproc):
+        """Split combination ranks into complete, balanced half-open ranges."""
+        if nproc < 1:
+            raise ValueError("evaluation requires at least one process")
+        block_size, remainder = divmod(ncomb, nproc)
+        blocks = []
+        start = 0
+        for block_index in range(nproc):
+            stop = start + block_size + (block_index < remainder)
+            if stop > start:
+                blocks.append((start, stop))
+            start = stop
+        return blocks
+
     @classmethod
     def _run_eval_block(cls,
-                        block_inds,
+                        block_ranges,
                         contrib_shapes,
-                        block_size, free_inds,
+                        free_inds,
                         cind_sets
                         ):
         (
@@ -7616,8 +9863,15 @@ class PerturbationTheoryExpressionEvaluator:
             counts_cache, poly_cache, take_cache, energy_cache,
             pows,
             verbose, logger, log_scaled, log_level,
-            ndim, coeffs
+            ndim, coeffs, evaluation_backend
         ) = cls._extract_main_args()
+
+        indexed_executor = None
+        eval_perm = cls._eval_perm
+        if evaluation_backend == 'indexed':
+            from .IndexedEvaluator import IndexedBlockEvaluator
+            indexed_executor = IndexedBlockEvaluator(cls, expr)
+            eval_perm = indexed_executor.eval_perm
 
         tensors, cind_specs = cls._prep_coeff_data(cind_sets, coeffs)
 
@@ -7628,20 +9882,27 @@ class PerturbationTheoryExpressionEvaluator:
         split_spec = np.cumsum([0] + [len(perms) for state, perms in state_perms])[1:]
 
         contrib = [np.zeros(c) for c in contrib_shapes]
-        # ncomb = math.comb(ndim - num_fixed, free_inds)
-        block_starts = [
-            [block_size*i, block_size*(i+1)]
-            for i in np.sort(block_inds)
-        ]
-        # print("!", free_inds, block_starts)
         comb_iter = itertools.combinations(range(num_fixed, ndim), r=free_inds)
-        for s,e in block_starts:
-            for subset in itertools.islice(comb_iter, s, e):
-                # print(n, math.comb(ndim-num_fixed, free_inds), free_inds, s,e, subset)
+        combination_position = 0
+        for start, stop in sorted(block_ranges):
+            if start < combination_position:
+                # Keep this correct if a future scheduler assigns overlapping
+                # or out-of-order ranges, without penalizing today's ordered
+                # contiguous partition.
+                comb_iter = itertools.combinations(
+                    range(num_fixed, ndim), r=free_inds
+                )
+                combination_position = 0
+            for subset in itertools.islice(
+                    comb_iter,
+                    start - combination_position,
+                    stop - combination_position
+            ):
+                # print(n, math.comb(ndim-num_fixed, free_inds), free_inds, start, stop, subset)
                 if verbose:
                     with logger.block(tag="{b} + {s}", b=tuple(range(num_fixed)), s=subset,
                                       log_level=log_level):
-                        subcontrib = cls._eval_perm(
+                        subcontrib = eval_perm(
                             expr, change, baseline_shift,
                             subset, state_perms, all_perms, perm_map,
                             freqs, cind_specs, tensors,
@@ -7649,10 +9910,11 @@ class PerturbationTheoryExpressionEvaluator:
                             zero_cutoff,
                             counts_cache, poly_cache, take_cache, energy_cache,
                             facs, pows, split_spec,
-                            verbose, logger, log_scaled
+                            verbose, logger, log_scaled,
+                            evaluation_context=expr
                         )
                 else:
-                    subcontrib = cls._eval_perm(
+                    subcontrib = eval_perm(
                         expr, change, baseline_shift,
                         subset, state_perms, all_perms, perm_map,
                         freqs, cind_specs, tensors,
@@ -7660,11 +9922,15 @@ class PerturbationTheoryExpressionEvaluator:
                         zero_cutoff,
                         counts_cache, poly_cache, take_cache, energy_cache,
                         facs, pows, split_spec,
-                        verbose, logger, log_scaled
+                        verbose, logger, log_scaled,
+                        evaluation_context=expr
                     )
                 for storage, corr in zip(contrib, subcontrib):
                     storage += corr
-        return contrib
+            combination_position = stop
+        return contrib, (
+            None if indexed_executor is None else indexed_executor.finish()
+        )
 
     @classmethod
     def _run_eval_blocks(cls,
@@ -7685,10 +9951,161 @@ class PerturbationTheoryExpressionEvaluator:
         # print(map_res)
         if parallelizer.on_main:
             # print("!!!", np.array(subcontrib).shape, np.array(contrib).shape)
-            for subcontrib in map_res:
+            indexed_stats = []
+            for subcontrib, worker_stats in map_res:
                 for storage, corr in zip(contrib, subcontrib):
                     storage += corr
-        return contrib
+                if worker_stats is not None:
+                    indexed_stats.append(worker_stats)
+            return (
+                contrib,
+                cls._aggregate_indexed_evaluation_stats(
+                    indexed_stats, elapsed_mode='max'
+                )
+            )
+        return contrib, None
+
+    @classmethod
+    def _evaluate_tensor_dag_expression(cls,
+                                        state_perms, coeffs, freqs,
+                                        expr, change, baseline_shift,
+                                        num_fixed,
+                                        op=None,
+                                        logger=None,
+                                        parallelizer=None,
+                                        degenerate_changes=None,
+                                        only_degenerate_terms=False,
+                                        zero_cutoff=None,
+                                        verbose=False, log_scaled=True,
+                                        cache_size=None,
+                                        cache_bytes=None,
+                                        chunk_size=None,
+                                        state_cache_size=None,
+                                        state_cache_bytes=None,
+                                        use_path_cache=True,
+                                        evaluation_backend=None,
+                                        degeneracy_identification_context=None):
+        cache_size = cls.default_dag_cache_size if cache_size is None else cache_size
+        cache_bytes = cls.default_dag_cache_bytes if cache_bytes is None else cache_bytes
+        chunk_size = cls.default_dag_chunk_size if chunk_size is None else max(1, int(chunk_size))
+        evaluation_cache = _BoundedEvaluationCache(cache_size, cache_bytes)
+        state_permutation_cache = cls._new_state_permutation_cache(
+            state_cache_size, state_cache_bytes
+        )
+        # Keep tensor-plan entries and numerical PolyPath intermediates under
+        # one batch-local bound, while retaining the legacy complete-result
+        # cache as the first lookup level.  This gives DAG chunks the same
+        # shared-node reuse as materialized evaluation without doubling the
+        # configured memory ceiling or retaining intermediates across batches.
+        polynomial_cache = (
+            _MaterializedEvaluationCache(
+                cls._poly_cache,
+                batch_cache=evaluation_cache
+            )
+            if use_path_cache else
+            evaluation_cache
+        )
+        plan = PTTensorCoeffProductDAGEvaluationPlan(
+            expr,
+            cache=evaluation_cache,
+            max_cached_terms=cls.default_dag_node_term_cache_size
+        )
+
+        result = tuple(
+            np.zeros([len(coeffs), len(perms)])
+            for state, perms in state_perms
+        )
+        pending = {}
+        chunks = 0
+        indexed_chunk_stats = []
+        materializations_before = PTTensorCoeffProductDAG.cache_info()['tensor_materializations']
+        start = time.perf_counter()
+
+        def evaluate_pending():
+            nonlocal chunks
+            if len(pending) == 0:
+                return
+            chunk = PTTensorCoeffProductSum(
+                dict(pending), canonicalize=False, reduced=False
+            )
+            chunk_result = cls.evaluate_polynomial_expression(
+                state_perms, coeffs, freqs,
+                chunk, change, baseline_shift,
+                num_fixed,
+                op=op,
+                logger=logger,
+                parallelizer=parallelizer,
+                degenerate_changes=degenerate_changes,
+                only_degenerate_terms=only_degenerate_terms,
+                zero_cutoff=zero_cutoff,
+                verbose=verbose, log_scaled=log_scaled,
+                evaluation_mode='materialized',
+                evaluation_backend=evaluation_backend,
+                _poly_eval_cache=polynomial_cache,
+                _state_permutation_cache=state_permutation_cache,
+                _degeneracy_identification_context=(
+                    degeneracy_identification_context
+                )
+            )
+            if evaluation_backend == 'indexed':
+                chunk_stats = cls.get_last_indexed_evaluation_stats()
+                if chunk_stats is not None:
+                    indexed_chunk_stats.append(chunk_stats)
+            for storage, contribution in zip(result, chunk_result):
+                storage += contribution
+            pending.clear()
+            chunks += 1
+
+        for key, poly in plan.iter_terms():
+            pending[key] = pending.get(key, 0) + poly
+            if len(pending) >= chunk_size:
+                evaluate_pending()
+        evaluate_pending()
+
+        state_cache_stats = state_permutation_cache.stats()
+        cls._last_state_permutation_cache_stats = state_cache_stats
+        cls._last_dag_evaluation_stats = {
+            **plan.stats(),
+            'dag_exact_cache_hits': getattr(polynomial_cache, 'exact_hits', 0),
+            'dag_exact_cache_misses': getattr(polynomial_cache, 'exact_misses', 0),
+            'dag_block_cache_hits': getattr(polynomial_cache, 'block_hits', 0),
+            'dag_block_cache_misses': getattr(polynomial_cache, 'block_misses', 0),
+            'dag_path_cache_enabled': use_path_cache,
+            'dag_chunks': chunks,
+            'dag_chunk_size': chunk_size,
+            'dag_elapsed': time.perf_counter() - start,
+            'dag_materializations': (
+                PTTensorCoeffProductDAG.cache_info()['tensor_materializations']
+                - materializations_before
+            ),
+            **{
+                'state_permutation_' + key: value
+                for key, value in state_cache_stats.items()
+            }
+        }
+        if len(indexed_chunk_stats) > 0:
+            cls._last_indexed_evaluation_stats = (
+                cls._aggregate_indexed_evaluation_stats(
+                    indexed_chunk_stats
+                )
+            )
+            cls._indexed_evaluation_generation += 1
+        return result
+
+    @staticmethod
+    def _normalize_coefficient_expansions(coeffs):
+        """Canonicalize coefficient leaves before optional shared allocation."""
+        return [
+            [
+                [
+                    np.asanyarray(coefficient)
+                        if not nput.is_numeric(coefficient) else coefficient
+                    for coefficient in order_expansion
+                ]
+                for order_expansion in expansion
+            ]
+            for expansion in coeffs
+        ]
 
     @classmethod
     def evaluate_polynomial_expression(cls,
@@ -7701,8 +10118,84 @@ class PerturbationTheoryExpressionEvaluator:
                                        degenerate_changes=None,
                                        only_degenerate_terms=False,
                                        zero_cutoff=None,
-                                       verbose=False, log_scaled=True
+                                       verbose=False, log_scaled=True,
+                                       evaluation_mode=None,
+                                       evaluation_backend=None,
+                                       dag_cache_size=None,
+                                       dag_cache_bytes=None,
+                                       dag_chunk_size=None,
+                                       path_cache_size=None,
+                                       path_cache_bytes=None,
+                                       state_permutation_cache_size=None,
+                                       state_permutation_cache_bytes=None,
+                                       _poly_eval_cache=None,
+                                       _state_permutation_cache=None,
+                                       _degeneracy_identification_context=None
                                        ):
+
+        if (
+                degenerate_changes is not None
+                and not isinstance(degenerate_changes, SideDegeneracyChanges)
+                and _degeneracy_identification_context is None
+                and cls.use_compiled_degeneracy_identification
+        ):
+            _degeneracy_identification_context = (
+                DegeneracyIdentificationContext(degenerate_changes)
+            )
+
+        if evaluation_backend is None:
+            evaluation_backend = cls.default_evaluation_backend
+        if evaluation_backend not in {'legacy', 'indexed', 'compare'}:
+            raise ValueError(
+                "unknown analytic evaluation backend {}".format(evaluation_backend)
+            )
+        if evaluation_backend == 'compare':
+            if parallelizer is not None:
+                raise NotImplementedError(
+                    "indexed/legacy comparison currently requires serial evaluation"
+                )
+            common_kwargs = dict(
+                op=op,
+                logger=logger,
+                parallelizer=None,
+                degenerate_changes=degenerate_changes,
+                only_degenerate_terms=only_degenerate_terms,
+                zero_cutoff=zero_cutoff,
+                verbose=verbose,
+                log_scaled=log_scaled,
+                evaluation_mode=evaluation_mode,
+                dag_cache_size=dag_cache_size,
+                dag_cache_bytes=dag_cache_bytes,
+                dag_chunk_size=dag_chunk_size,
+                path_cache_size=path_cache_size,
+                path_cache_bytes=path_cache_bytes,
+                state_permutation_cache_size=state_permutation_cache_size,
+                state_permutation_cache_bytes=state_permutation_cache_bytes,
+                _degeneracy_identification_context=(
+                    _degeneracy_identification_context
+                )
+            )
+            legacy = cls.evaluate_polynomial_expression(
+                state_perms, coeffs, freqs,
+                expr, change, baseline_shift, num_fixed,
+                evaluation_backend='legacy',
+                **common_kwargs
+            )
+            indexed = cls.evaluate_polynomial_expression(
+                state_perms, coeffs, freqs,
+                expr, change, baseline_shift, num_fixed,
+                evaluation_backend='indexed',
+                **common_kwargs
+            )
+            cls._compare_evaluation_backends(legacy, indexed)
+            return legacy
+        use_materialized_path_cache = evaluation_mode in {
+            'materialized', 'materialized_cached'
+        }
+        if evaluation_mode in {
+            'materialized', 'materialized_cached', 'materialized_legacy'
+        }:
+            cls._last_materialized_evaluation_stats = None
 
         # ensure data is in a format where we can loop over states, perms, and degenerate
         # blocks all in one go
@@ -7734,17 +10227,8 @@ class PerturbationTheoryExpressionEvaluator:
 
         # smol_coeffs = PerturbationTheoryEvaluator.is_single_expansion(coeffs)
         # if smol_coeffs: coeffs = [coeffs]
-        coeffs = [
-            [
-                [
-                    np.asanyarray(c)
-                        if not nput.is_numeric(c) else c
-                    for c in order_expansion
-                ]
-                for order_expansion in expansion
-            ]
-            for expansion in coeffs
-        ]
+        if not isinstance(coeffs, SharedMemoryArrayTree):
+            coeffs = cls._normalize_coefficient_expansions(coeffs)
 
         if isinstance(expr, PTTensorCoeffProductDAG):
             active_coefficients = {
@@ -7757,6 +10241,38 @@ class PerturbationTheoryExpressionEvaluator:
             inactive_coefficients = expr.operator_keys.difference(active_coefficients)
             if len(inactive_coefficients) > 0:
                 expr = expr.prune_operators(inactive_coefficients)
+
+            if evaluation_mode is None:
+                evaluation_mode = cls.default_tensor_evaluation_mode
+            if evaluation_mode in {'dag', 'dag_legacy'}:
+                return cls._evaluate_tensor_dag_expression(
+                    state_perms, coeffs, freqs,
+                    expr, change, baseline_shift,
+                    num_fixed,
+                    op=op,
+                    logger=logger,
+                    parallelizer=parallelizer,
+                    degenerate_changes=degenerate_changes,
+                    only_degenerate_terms=only_degenerate_terms,
+                    zero_cutoff=zero_cutoff,
+                    verbose=verbose, log_scaled=log_scaled,
+                    cache_size=dag_cache_size,
+                    cache_bytes=dag_cache_bytes,
+                    chunk_size=dag_chunk_size,
+                    state_cache_size=state_permutation_cache_size,
+                    state_cache_bytes=state_permutation_cache_bytes,
+                    use_path_cache=evaluation_mode == 'dag',
+                    evaluation_backend=evaluation_backend,
+                    degeneracy_identification_context=(
+                        _degeneracy_identification_context
+                    )
+                )
+            elif evaluation_mode in {
+                'materialized', 'materialized_cached', 'materialized_legacy'
+            }:
+                expr = expr.to_eager()
+            else:
+                raise ValueError("unknown tensor evaluation mode {}".format(evaluation_mode))
 
         # udegs, udeg_inv = np.unique(np.concatenate(degenerate_changes, axis=0), axis=0, return_inverse=True)
 
@@ -7796,7 +10312,8 @@ class PerturbationTheoryExpressionEvaluator:
                 #     raise ValueError("each state needs its own block of degeneracies")
                 degenerate_changes = cls._identify_possible_degeneracies(
                     all_perms, change,
-                    expr, degenerate_changes, len(freqs)
+                    expr, degenerate_changes, len(freqs),
+                    context=_degeneracy_identification_context
                 )
                 # import pprint
                 # pprint.pprint([list(d.keys()) for d in degenerate_changes])
@@ -7840,8 +10357,20 @@ class PerturbationTheoryExpressionEvaluator:
             if zero_cutoff is None:
                 zero_cutoff = cls.default_zero_cutoff
 
+            indexed_executor = None
+            eval_perm = cls._eval_perm
+            indexed_evaluation_start = None
+            if evaluation_backend == 'indexed':
+                from .IndexedEvaluator import IndexedBlockEvaluator
+                indexed_executor = IndexedBlockEvaluator(cls, expr)
+                eval_perm = indexed_executor.eval_perm
+                indexed_evaluation_start = time.perf_counter()
+            parallel_indexed_stats = []
+
             if op is None: op = expr
-            with logger.block(tag="Evaluating {op}({ch})", op=op, ch=change, log_level=log_level):
+            with logger.block(
+                    tag="Evaluating {op}({ch})", op=op,
+                    ch=format_quantum_change(change), log_level=log_level):
 
                 # contrib = [np.zeros([len(p)]) for p in perms]
                 contrib = tuple(
@@ -7849,11 +10378,45 @@ class PerturbationTheoryExpressionEvaluator:
                     for state, perms in state_perms
                 )
                 counts_cache = cls.get_cache() # so we don't hit some coeff sets too many times
-                poly_cache = cls._poly_cache # so we can avoid redoing the same polynomials a bunch of times
-                take_cache = cls.get_cache() # shockingly beneficial...
+                if _poly_eval_cache is not None:
+                    poly_cache = _poly_eval_cache
+                elif use_materialized_path_cache:
+                    path_cache_size = (
+                        cls.default_materialized_path_cache_size
+                        if path_cache_size is None else path_cache_size
+                    )
+                    path_cache_bytes = (
+                        cls.default_materialized_path_cache_bytes
+                        if path_cache_bytes is None else path_cache_bytes
+                    )
+                    poly_cache = _MaterializedEvaluationCache(
+                        cls._poly_cache,
+                        max_items=path_cache_size,
+                        max_bytes=path_cache_bytes
+                    )
+                else:
+                    poly_cache = cls._poly_cache
+                # Avoid redoing complete polynomials and, in the cached
+                # materialized mode, their shared PolyPath subexpressions.
+                take_cache = (
+                    cls._new_state_permutation_cache(
+                        state_permutation_cache_size,
+                        state_permutation_cache_bytes
+                    )
+                    if _state_permutation_cache is None else
+                    _state_permutation_cache
+                )
                 energy_cache = cls.get_cache()
                 with dev.context_wrap(parallelizer):
                     if parallelizer is not None:
+                        worker_path_cache_size = (
+                            cls.default_materialized_path_cache_size
+                            if path_cache_size is None else path_cache_size
+                        )
+                        worker_path_cache_bytes = (
+                            cls.default_materialized_path_cache_bytes
+                            if path_cache_bytes is None else path_cache_bytes
+                        )
                         # parallelizer.run(
                         #     cls._initialize_main_eval,
                         #     expr, change, baseline_shift,
@@ -7893,10 +10456,17 @@ class PerturbationTheoryExpressionEvaluator:
                             num_fixed, degenerate_changes, only_degenerate_terms,
                             zero_cutoff,
                             cls._max_cache_size,
+                            # The parent DAG cache is process-local. Spawned
+                            # workers need their own bounded materialized/path
+                            # cache rather than falling back to scalar lookup.
+                            use_materialized_path_cache,
+                            worker_path_cache_size, worker_path_cache_bytes,
+                            state_permutation_cache_size,
+                            state_permutation_cache_bytes,
                             # counts_cache, poly_cache, take_cache, energy_cache,
                             # pows,
                             verbose, logger, log_scaled, log_level,
-                            ndim
+                            ndim, evaluation_backend
                         )
                     # if cls._cached_expansion is None:
                     #     cls._cached_expansion = coeffs
@@ -7916,32 +10486,33 @@ class PerturbationTheoryExpressionEvaluator:
                                 ]
                                 split_spec = np.cumsum([0] + [len(perms) for state, perms in state_perms])[1:]
 
-                                if free_inds > 1 and parallelizer is not None:
+                                ncomb = math.comb(
+                                    ndim - num_fixed, free_inds
+                                )
+                                if ncomb > 1 and parallelizer is not None:
                                     parallelizer: Parallelizer
                                     contrib_shapes = tuple(
                                         [len(coeffs), len(perms)]
                                         for state, perms in state_perms
                                     )
 
-                                    ncomb = math.comb(ndim-num_fixed, free_inds)
                                     nproc = parallelizer.nprocs
-                                    if ncomb == 0:
-                                        block_size = 1
-                                    else:
-                                        block_size = ncomb // (nproc)
-                                        if block_size == 0:
-                                            block_size = 1
-                                        rem = ncomb % block_size
-                                        block_size = block_size + rem // max(1, nproc - 1)
+                                    block_ranges = cls._partition_evaluation_blocks(
+                                        ncomb, nproc
+                                    )
 
-                                    subcontrib = parallelizer.run(
+                                    subcontrib, indexed_stats = parallelizer.run(
                                         cls._run_eval_blocks,
-                                        list(range(parallelizer.nprocs)),
+                                        block_ranges,
                                         contrib_shapes,
-                                        block_size, free_inds,
+                                        free_inds,
                                         cind_sets,
                                         cleanup=False
                                     )
+                                    if indexed_stats is not None:
+                                        parallel_indexed_stats.append(
+                                            indexed_stats
+                                        )
                                     for storage,corr in zip(contrib, subcontrib):
                                         storage += corr
                                 else:
@@ -7953,7 +10524,7 @@ class PerturbationTheoryExpressionEvaluator:
                                         if verbose:
                                             with logger.block(tag="{b} + {s}", b=tuple(range(num_fixed)), s=subset,
                                                               log_level=log_level):
-                                                subcontrib = cls._eval_perm(
+                                                subcontrib = eval_perm(
                                                     expr, change, baseline_shift,
                                                     subset, state_perms, all_perms, perm_map,
                                                     freqs, cind_specs, tensors,
@@ -7961,10 +10532,11 @@ class PerturbationTheoryExpressionEvaluator:
                                                     zero_cutoff,
                                                     counts_cache, poly_cache, take_cache, energy_cache,
                                                     facs, pows, split_spec,
-                                                    verbose, logger, log_scaled
+                                                    verbose, logger, log_scaled,
+                                                    evaluation_context=op
                                                 )
                                         else:
-                                            subcontrib = cls._eval_perm(
+                                            subcontrib = eval_perm(
                                                 expr, change, baseline_shift,
                                                 subset, state_perms, all_perms, perm_map,
                                                 freqs, cind_specs, tensors,
@@ -7972,11 +10544,27 @@ class PerturbationTheoryExpressionEvaluator:
                                                 zero_cutoff,
                                                 counts_cache, poly_cache, take_cache, energy_cache,
                                                 facs, pows, split_spec,
-                                                verbose, logger, log_scaled
+                                                verbose, logger, log_scaled,
+                                                evaluation_context=op
                                             )
                                         for storage,corr in zip(contrib, subcontrib):
                                             storage += corr
             res = [expr.prefactor * c for c in contrib]
+
+            if isinstance(poly_cache, _MaterializedEvaluationCache):
+                cls._last_materialized_evaluation_stats = poly_cache.stats()
+            if isinstance(take_cache, _StatePermutationCache):
+                cls._last_state_permutation_cache_stats = take_cache.stats()
+            if indexed_executor is not None:
+                indexed_stats = [indexed_executor.finish()]
+                indexed_stats.extend(parallel_indexed_stats)
+                cls._last_indexed_evaluation_stats = (
+                    cls._aggregate_indexed_evaluation_stats(indexed_stats)
+                )
+                cls._last_indexed_evaluation_stats['elapsed_seconds'] = (
+                    time.perf_counter() - indexed_evaluation_start
+                )
+                cls._indexed_evaluation_generation += 1
 
         # if smol_coeffs: res = [r[0] for r in res]
         # if smol: res = res[0]
@@ -7987,7 +10575,19 @@ class PerturbationTheoryExpressionEvaluator:
 
     def evaluate(self, state_perms, coeffs, freqs, degenerate_changes=None, only_degenerate_terms=False,
                  zero_cutoff=None, parallelizer=None,
-                 verbose=False, log_scaled=True
+                 verbose=False, log_scaled=True,
+                 evaluation_mode=None,
+                 evaluation_backend=None,
+                 dag_cache_size=None,
+                 dag_cache_bytes=None,
+                 dag_chunk_size=None,
+                 path_cache_size=None,
+                 path_cache_bytes=None,
+                 state_permutation_cache_size=None,
+                 state_permutation_cache_bytes=None,
+                 use_shared_memory=None,
+                 _shared_coefficients=None,
+                 _degeneracy_identification_context=None
                  ):
 
         # state = np.asanyarray(state)
@@ -7999,7 +10599,13 @@ class PerturbationTheoryExpressionEvaluator:
 
 
         smol_coeffs = PerturbationTheoryEvaluator.is_single_expansion(coeffs)
-        if smol_coeffs: coeffs = [coeffs]
+        if _shared_coefficients is not None:
+            # The owner supplies the already-batched tree.  Keep
+            # ``smol_coeffs`` from the public input so the result shape is
+            # unchanged for a single expansion.
+            coeffs = _shared_coefficients
+        elif smol_coeffs:
+            coeffs = [coeffs]
 
         expr = self.expr
         if nput.is_zero(expr):
@@ -8028,18 +10634,52 @@ class PerturbationTheoryExpressionEvaluator:
                     first_ekey = next(iter(first_echange_poly.terms.keys()))
                     change = np.sum([list(k) for k in first_ekey], axis=1)
 
-            res = self.evaluate_polynomial_expression(
-                state_perms, coeffs, freqs,
-                poly_obj, change, shift_start,
-                self.num_fixed,
-                op=self.op,
-                logger=self.logger,
-                parallelizer=parallelizer,
-                zero_cutoff=zero_cutoff,
-                degenerate_changes=degenerate_changes,
-                only_degenerate_terms=only_degenerate_terms,
-                verbose=verbose, log_scaled=log_scaled
-            )
+            shared_coefficients = None
+            evaluator_cls = type(self)
+            if isinstance(parallelizer, MultiprocessingParallelizer):
+                if (
+                        use_shared_memory is not False
+                        and not isinstance(coeffs, SharedMemoryArrayTree)
+                ):
+                    # Standalone evaluator calls own one shared tree. Batch
+                    # callers can pass ``_shared_coefficients`` to reuse a
+                    # single arena across all correction expressions.
+                    evaluator_cls._cached_expansion = None
+                    coeffs = evaluator_cls._normalize_coefficient_expansions(
+                        coeffs
+                    )
+                    shared_coefficients = SharedMemoryArrayTree.create(coeffs)
+                    coeffs = shared_coefficients
+
+            try:
+                res = self.evaluate_polynomial_expression(
+                    state_perms, coeffs, freqs,
+                    poly_obj, change, shift_start,
+                    self.num_fixed,
+                    op=self.op,
+                    logger=self.logger,
+                    parallelizer=parallelizer,
+                    zero_cutoff=zero_cutoff,
+                    degenerate_changes=degenerate_changes,
+                    only_degenerate_terms=only_degenerate_terms,
+                    verbose=verbose, log_scaled=log_scaled,
+                    evaluation_mode=evaluation_mode,
+                    evaluation_backend=evaluation_backend,
+                    dag_cache_size=dag_cache_size,
+                    dag_cache_bytes=dag_cache_bytes,
+                    dag_chunk_size=dag_chunk_size,
+                    path_cache_size=path_cache_size,
+                    path_cache_bytes=path_cache_bytes,
+                    state_permutation_cache_size=state_permutation_cache_size,
+                    state_permutation_cache_bytes=state_permutation_cache_bytes,
+                    _degeneracy_identification_context=(
+                        _degeneracy_identification_context
+                    )
+                )
+            finally:
+                if shared_coefficients is not None:
+                    evaluator_cls._cached_expansion = None
+                    shared_coefficients.dispose()
 
         if smol_coeffs: res = [r[0] for r in res]
         if smol: res = res[0]
@@ -8066,6 +10706,10 @@ class PerturbationTheoryExpressionEvaluator:
 
 class PerturbationTheoryEvaluator:
 
+    @staticmethod
+    def _state_degeneracy_pairs(degenerate_states, state):
+        return degenerate_states.get(tuple(int(x) for x in state), [])
+
     def __init__(self, solver:AnalyticPerturbationTheorySolver, expansion, freqs=None, parallelizer=None):
         self.solver = solver
         self.expansions = expansion
@@ -8088,12 +10732,36 @@ class PerturbationTheoryEvaluator:
     def get_energy_corrections(self, states, order=None, expansions=None, freqs=None,
                                zero_cutoff=None, degenerate_states=None, verbose=False,
                                logger=None,
-                               parallelizer=None):
+                               parallelizer=None,
+                               evaluation_mode=None,
+                               dag_cache_size=None,
+                               dag_cache_bytes=None,
+                               dag_chunk_size=None):
+        if isinstance(degenerate_states, dict):
+            results = [
+                self.get_energy_corrections(
+                    [state], order=order, expansions=expansions, freqs=freqs,
+                    zero_cutoff=zero_cutoff,
+                    degenerate_states=self._state_degeneracy_pairs(degenerate_states, state),
+                    verbose=verbose, logger=logger, parallelizer=parallelizer,
+                    evaluation_mode=evaluation_mode,
+                    dag_cache_size=dag_cache_size, dag_cache_bytes=dag_cache_bytes,
+                    dag_chunk_size=dag_chunk_size
+                )
+                for state in states
+            ]
+            if not results:
+                raise ValueError("energy corrections require at least one state")
+            return [np.concatenate([result[i] for result in results]) for i in range(len(results[0]))]
         expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
         if order is None: order = len(self.expansions) - 1
 
         degenerate_changes = self.get_degenerate_changes(degenerate_states)
+        degeneracy_identification_context = (
+            None if degenerate_changes is None else
+            DegeneracyIdentificationContext(degenerate_changes)
+        )
 
         if logger is None: logger = self.solver.logger
         logger = Logger.lookup(logger)
@@ -8111,7 +10779,14 @@ class PerturbationTheoryEvaluator:
                         [[s, [np.arange(len(s))]] for s in states],
                         expansions, freqs, verbose=verbose,
                         degenerate_changes=degenerate_changes, zero_cutoff=zero_cutoff, log_scaled=True,
-                        parallelizer=parallelizer
+                        parallelizer=parallelizer,
+                        evaluation_mode=evaluation_mode,
+                        dag_cache_size=dag_cache_size,
+                        dag_cache_bytes=dag_cache_bytes,
+                        dag_chunk_size=dag_chunk_size,
+                        _degeneracy_identification_context=(
+                            degeneracy_identification_context
+                        )
                     )
 
                     end = time.time()
@@ -8154,7 +10829,26 @@ class PerturbationTheoryEvaluator:
     def get_overlap_corrections(self, states, order=None, expansions=None,
                                 degenerate_states=None, freqs=None,
                                 zero_cutoff=None, verbose=False,
-                                parallelizer=None):
+                                parallelizer=None,
+                                evaluation_mode=None,
+                                dag_cache_size=None,
+                                dag_cache_bytes=None,
+                                dag_chunk_size=None):
+        if isinstance(degenerate_states, dict):
+            results = [
+                self.get_overlap_corrections(
+                    [state], order=order, expansions=expansions,
+                    degenerate_states=self._state_degeneracy_pairs(degenerate_states, state),
+                    freqs=freqs, zero_cutoff=zero_cutoff, verbose=verbose,
+                    parallelizer=parallelizer, evaluation_mode=evaluation_mode,
+                    dag_cache_size=dag_cache_size, dag_cache_bytes=dag_cache_bytes,
+                    dag_chunk_size=dag_chunk_size
+                )
+                for state in states
+            ]
+            if not results:
+                raise ValueError("overlap corrections require at least one state")
+            return np.concatenate(results, axis=0)
         expansions = self._prep_expansions(expansions)
         if freqs is None: freqs = self.freqs
         if order is None: order = len(expansions) - 1
@@ -8169,6 +10863,10 @@ class PerturbationTheoryEvaluator:
         # ]
 
         degenerate_changes = self.get_degenerate_changes(degenerate_states)
+        degeneracy_identification_context = (
+            None if degenerate_changes is None else
+            DegeneracyIdentificationContext(degenerate_changes)
+        )
         if parallelizer is None: parallelizer = self.parallelizer
         parallelizer = Parallelizer.lookup(parallelizer) if parallelizer is not None else None
 
@@ -8178,7 +10876,14 @@ class PerturbationTheoryEvaluator:
                     [[s, [np.arange(len(s))]] for s in states],
                     expansions, freqs, verbose=verbose,
                     degenerate_changes=degenerate_changes, zero_cutoff=zero_cutoff, log_scaled=True,
-                    parallelizer=parallelizer
+                    parallelizer=parallelizer,
+                    evaluation_mode=evaluation_mode,
+                    dag_cache_size=dag_cache_size,
+                    dag_cache_bytes=dag_cache_bytes,
+                    dag_chunk_size=dag_chunk_size,
+                    _degeneracy_identification_context=(
+                        degeneracy_identification_context
+                    )
                 )
             )[:, np.newaxis]
             for evaluator in overlap_evaluators
@@ -8248,6 +10953,10 @@ class PerturbationTheoryEvaluator:
             final_states = change_final_states[change]
             basis_idx = total_basis.find(initial_states)
             for o in range(order+1):
+                if subcorrs[o] is None:
+                    # A targeted evaluation did not calculate this order. Keep
+                    # the usual rectangular correction layout for callers.
+                    continue
                 for state_pos, finals, exp_corr_vals in zip(basis_idx, final_states, subcorrs[o]):
                     if corrs_map[state_pos][o] is None:
                         if num_expansions is None:
@@ -8268,6 +10977,12 @@ class PerturbationTheoryEvaluator:
                     finals_map[state_pos] = finals.astype(int)
                 else:
                     finals_map[state_pos] = np.concatenate([finals_map[state_pos], finals.astype(int)], axis=0)
+
+        if num_expansions is None:
+            for finals, order_block in zip(finals_map, corrs_map):
+                for o, vals in enumerate(order_block):
+                    if vals is None:
+                        order_block[o] = np.zeros(len(finals))
 
         # all_corrs = [
         #
@@ -8319,13 +11034,25 @@ class PerturbationTheoryEvaluator:
                            epaths,
                            change_map, degenerate_changes, only_degenerate_terms,
                            include_degenerate_correction_terms,
-                           freqs, verbose, logger, zero_cutoff, log_scaled, parallelizer):
+                           freqs, verbose, logger, zero_cutoff, log_scaled,
+                           parallelizer, shared_coefficients=None,
+                           degeneracy_identification_context=None,
+                           target_orders=None):
         corrs = {}
         if degenerate_changes is not None:
-            allowed_degenerate_changes = list({PerturbationTheoryTerm.sorted_changes(c) for _,c in degenerate_changes})
+            changes = (
+                list(degenerate_changes.left) + list(degenerate_changes.right)
+                if isinstance(degenerate_changes, SideDegeneracyChanges) else
+                degenerate_changes
+            )
+            allowed_degenerate_changes = list({PerturbationTheoryTerm.sorted_changes(c) for _,c in changes})
         else:
             allowed_degenerate_changes = None
         for o in range(order + 1):
+            if target_orders is not None and o not in target_orders:
+                for change in change_map:
+                    corrs.setdefault(change, []).append(None)
+                continue
             generator = corr_gen(o,
                                  allowed_terms=terms,
                                  allowed_energy_changes=epaths,
@@ -8408,7 +11135,11 @@ class PerturbationTheoryEvaluator:
                             verbose=verbose,
                             zero_cutoff=zero_cutoff,
                             log_scaled=log_scaled,
-                            parallelizer=parallelizer
+                            parallelizer=parallelizer,
+                            _shared_coefficients=shared_coefficients,
+                            _degeneracy_identification_context=(
+                                degeneracy_identification_context
+                            )
                         )
                         if expr is not None:
                             gen_corrs = cls._compute_corr(
@@ -8456,6 +11187,68 @@ class PerturbationTheoryEvaluator:
         return corrs
 
     @classmethod
+    def _build_state_specific_corrections(cls, corr_gen, degenerate_corr_gen,
+                                          expansions, order, terms,
+                                          allowed_coefficients, disallowed_coefficients,
+                                          epaths, change_map, degenerate_states,
+                                          only_degenerate_terms,
+                                          include_degenerate_correction_terms,
+                                          freqs, verbose, logger, zero_cutoff,
+                                          log_scaled, parallelizer,
+                                          shared_coefficients=None,
+                                          target_orders=None):
+        """Evaluate one state/permutation row at a time and restore the old shape."""
+        result = {
+            change: [
+                None if target_orders is not None and o not in target_orders
+                else [None] * len(entries)
+                for o in range(order + 1)
+            ]
+            for change, entries in change_map.items()
+        }
+        change_cache = {}
+        for change, entries in change_map.items():
+            for entry_index, (left_state, permutations) in enumerate(entries):
+                row_values = [[] for _ in range(order + 1)]
+                left_pairs = cls._state_degeneracy_pairs(degenerate_states, left_state)
+                for permutation in permutations:
+                    one_perm = np.asarray(permutation)[np.newaxis, :]
+                    right_state = cls.get_finals(left_state, change, one_perm)[0]
+                    right_pairs = cls._state_degeneracy_pairs(degenerate_states, right_state)
+                    left_key = tuple(int(x) for x in left_state)
+                    right_key = tuple(int(x) for x in right_state)
+                    if left_key not in change_cache:
+                        change_cache[left_key] = cls.get_degenerate_changes(left_pairs) or []
+                    if right_key not in change_cache:
+                        change_cache[right_key] = cls.get_degenerate_changes(right_pairs) or []
+                    left_changes = change_cache[left_key]
+                    right_changes = change_cache[right_key]
+                    side_changes = (
+                        SideDegeneracyChanges(left_changes, right_changes)
+                        if left_changes or right_changes else None
+                    )
+                    one_result = cls._build_corrections(
+                        corr_gen, degenerate_corr_gen, expansions, order,
+                        terms, allowed_coefficients, disallowed_coefficients,
+                        epaths, {change: [[left_state, one_perm]]},
+                        side_changes, only_degenerate_terms,
+                        include_degenerate_correction_terms,
+                        freqs, verbose, logger, zero_cutoff, log_scaled,
+                        parallelizer,
+                        shared_coefficients=shared_coefficients,
+                        target_orders=target_orders
+                    )[change]
+                    for o in range(order + 1):
+                        if result[change][o] is not None:
+                            row_values[o].append(one_result[o][0])
+                for o in range(order + 1):
+                    if result[change][o] is not None:
+                        result[change][o][entry_index] = np.concatenate(
+                            row_values[o], axis=-1
+                        )
+        return result
+
+    @classmethod
     def get_degenerate_changes(cls, degenerate_pairs):
         if degenerate_pairs is None: return None
 
@@ -8499,7 +11292,8 @@ class PerturbationTheoryEvaluator:
                                        zero_cutoff=None,
                                        return_sorted=False,
                                        logger=None,
-                                       parallelizer=None):
+                                       parallelizer=None,
+                                       target_orders=None):
         PerturbationTheoryExpressionEvaluator._cached_expansion = None # to make paralellism work right
 
         spex = expansions is None or self.is_single_expansion(expansions)
@@ -8510,6 +11304,12 @@ class PerturbationTheoryEvaluator:
             expansions = [self._prep_expansions(e) for e in expansions]
             if order is None: order = len(expansions[0]) - 1
         if freqs is None: freqs = self.freqs
+        if target_orders is not None:
+            target_orders = frozenset(target_orders)
+            if not target_orders or min(target_orders) < 0 or max(target_orders) > order:
+                raise ValueError("target_orders must be nonempty orders between 0 and order")
+            if not spex:
+                raise ValueError("target_orders requires a single coefficient expansion")
         if logger is None: logger=self.solver.logger
         logger = Logger.lookup(logger)
         if parallelizer is None: parallelizer=self.parallelizer
@@ -8523,13 +11323,50 @@ class PerturbationTheoryEvaluator:
             ]
         change_map = self.get_diff_map(states)
 
-        degenerate_changes = self.get_degenerate_changes(degenerate_states)
+        state_specific = isinstance(degenerate_states, dict)
+        degenerate_changes = (
+            None if state_specific else self.get_degenerate_changes(degenerate_states)
+        )
 
-        corrs = self._build_corrections(generator, degenerate_correction_generator, expansions, order,
-                                        terms, allowed_coefficients, disallowed_coefficients,
-                                        epaths, change_map, degenerate_changes, only_degenerate_terms,
-                                        include_degenerate_correction_terms,
-                                        freqs, verbose, logger, zero_cutoff, log_scaled, parallelizer)
+        degeneracy_identification_context = (
+            None if degenerate_changes is None else
+            DegeneracyIdentificationContext(degenerate_changes)
+        )
+
+        shared_coefficients = None
+        if isinstance(parallelizer, MultiprocessingParallelizer):
+            coefficient_batch = expansions if not spex else [expansions]
+            coefficient_batch = (
+                PerturbationTheoryExpressionEvaluator
+                ._normalize_coefficient_expansions(coefficient_batch)
+            )
+            shared_coefficients = SharedMemoryArrayTree.create(
+                coefficient_batch
+            )
+            PerturbationTheoryExpressionEvaluator._cached_expansion = None
+        try:
+            build_corrections = (
+                self._build_state_specific_corrections if state_specific else
+                self._build_corrections
+            )
+            corrs = build_corrections(
+                generator, degenerate_correction_generator, expansions, order,
+                terms, allowed_coefficients, disallowed_coefficients,
+                epaths, change_map,
+                degenerate_states if state_specific else degenerate_changes,
+                only_degenerate_terms,
+                include_degenerate_correction_terms,
+                freqs, verbose, logger, zero_cutoff, log_scaled, parallelizer,
+                shared_coefficients=shared_coefficients,
+                target_orders=target_orders,
+                **({} if state_specific else {
+                    'degeneracy_identification_context': degeneracy_identification_context
+                })
+            )
+        finally:
+            if shared_coefficients is not None:
+                PerturbationTheoryExpressionEvaluator._cached_expansion = None
+                shared_coefficients.dispose()
         new_corrs = self._reformat_corrections(order, corrs, change_map, None if spex else len(expansions))
         if return_sorted:
             if isinstance(new_corrs, BasicAPTCorrections):
@@ -8553,9 +11390,11 @@ class PerturbationTheoryEvaluator:
                                                    verbose=verbose
                                                    )
     def get_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None,
-                                          zero_cutoff=None, degenerate_states=None, verbose=False):
+                                          zero_cutoff=None, degenerate_states=None, verbose=False,
+                                          target_orders=None):
         return self.get_state_by_state_corrections(self.solver.wavefunction_correction, states, degenerate_states=degenerate_states,
-                                                   order=order, expansions=expansions, freqs=freqs, zero_cutoff=zero_cutoff, verbose=verbose)
+                                                   order=order, expansions=expansions, freqs=freqs, zero_cutoff=zero_cutoff,
+                                                   verbose=verbose, target_orders=target_orders)
 
     @classmethod
     def _prep_ham_corrs(cls, base_corrs):

@@ -577,7 +577,7 @@ class VPT2Tests(TestCase):
             logger=log_file
         )
 
-    @debugTest
+    @validationTest
     def test_AnalyticWFC(self):
         import pickle
 
@@ -799,6 +799,26 @@ class VPT2Tests(TestCase):
         """
 
         file_name = "OCHH_freq.fchk"
+        # VPTRunner.run_simple(
+        #     TestManager.test_data(file_name),
+        #             [
+        #                 [0, 0, 0, 0, 0, 0],
+        #                 [0, 0, 0, 0, 0, 1],
+        #                 [0, 1, 0, 1, 0, 0],
+        #                 [0, 0, 0, 1, 1, 0],
+        #                 [0, 0, 0, 0, 1, 0],
+        #                 [0, 1, 0, 1, 1, 0]
+        #             ],
+        #     initial_states=[
+        #         [0, 0, 0, 0, 0, 0],
+        #         [0, 0, 0, 0, 1, 0]
+        #     ],
+        #     # expressions_file=os.path.expanduser("~/Desktop/exprs.hdf5"),
+        #     degeneracy_specs=[
+        #         [[0, 0, 0, 0, 0, 1], [0, 1, 0, 1, 0, 0]]
+        #     ]
+        # )
+
         AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
             [
@@ -888,7 +908,7 @@ class VPT2Tests(TestCase):
 <::
     """
 
-    @validationTest
+    @debugTest
     def test_AnalyticHOONO(self):
 
         file_name = "HOONO_freq.fchk"
@@ -909,15 +929,32 @@ class VPT2Tests(TestCase):
         #     ))
         # with par:
         # with BlockProfiler.profiler():
+
+        VPTRunner.run_simple(
+            TestManager.test_data(file_name),
+            2,
+            # degeneracy_specs=[
+            #     [state(1), state(8, 7)],
+            #     [state(3), state([6, 2])],
+            #     [state(6), state([9, 2])],
+            # ],
+            logger=os.path.expanduser("~/Desktop/hoono_auto_matrix.txt"),
+            degeneracy_specs='auto',
+            # parallelizer='multiprocessing'
+            # parallelizer=par
+            # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+        )
+
         AnalyticVPTRunner.run_simple(
             TestManager.test_data(file_name),
             2,
-            degeneracy_specs=[
-                [state(1), state(8, 7)],
-                [state(3), state([6, 2])],
-                [state(6), state([9, 2])],
-            ],
-            # degeneracy_specs='auto',
+            # degeneracy_specs=[
+            #     [state(1), state(8, 7)],
+            #     [state(3), state([6, 2])],
+            #     [state(6), state([9, 2])],
+            # ],
+            # logger=os.path.expanduser("~/Desktop/hoono_auto.txt"),
+            degeneracy_specs='auto',
             # parallelizer='multiprocessing'
             # parallelizer=par
             # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
@@ -989,6 +1026,33 @@ class VPT2Tests(TestCase):
         # print(np.array(spec).T)
 
     @validationTest
+    def test_AnalyticHOONOWavefunctions(self):
+
+        file_name = "HOONO_freq.fchk"
+        state = VPTStateMaker(9)
+
+        runner, _ = AnalyticVPTRunner.construct(
+            TestManager.test_data(file_name),
+            2,
+            # degeneracy_specs=[
+            #     [state(1), state(8, 7)],
+            #     [state(3), state([6, 2])],
+            #     [state(6), state([9, 2])],
+            # ],
+            # logger=os.path.expanduser("~/Desktop/hoono_auto.txt"),
+            # degeneracy_specs='auto',
+            # parallelizer='multiprocessing'
+            # parallelizer=par
+            # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
+        )
+
+        print(
+            runner.get_wavefunction_corrections([
+                [state([6, 2]), [state([9, 4])]]
+            ])
+        )
+
+    @validationTest
     def test_AnalyticHOONODeg(self):
 
         file_name = "HOONO_freq.fchk"
@@ -1003,9 +1067,9 @@ class VPT2Tests(TestCase):
             # parallelizer=par
             # expressions_file=os.path.expanduser("~/Documents/Postdoc/exprs.hdf5")
         )
-        runner.print_Nielsen_frequencies()
-
-        return
+        # runner.print_Nielsen_frequencies()
+        #
+        # return
 
 
         # with BlockProfiler():
@@ -1264,17 +1328,17 @@ class VPT2Tests(TestCase):
             logger=True
         )
 
+        states = states.state_list_pairs[0][1]
         og, _ = runner.construct_classic_runner(
-            TestManager.test_data(file_name),
             states,
             mode_selection=np.arange(len(states[0])),
             logger=False
         )
 
-        # og.print_tables(print_intensities=True)
-        with BlockProfiler(print_options={'show_all':True}):
-            spec = runner.get_spectrum(states, verbose=False)
-        print(np.array(spec).T)
+        og.print_tables(print_intensities=True)
+        # with BlockProfiler(print_options={'show_all':True}):
+        #     spec = runner.get_spectrum(states, verbose=False)
+        # print(np.array(spec).T)
 
     @validationTest
     def test_TrimerMatrix(self):

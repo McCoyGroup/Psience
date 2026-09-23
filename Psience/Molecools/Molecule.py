@@ -5032,7 +5032,6 @@ class Molecule(AbstractMolecule):
         )
 
     def align_molecule(self, other:'Molecule',
-                       reindex_bonds=True,
                        permute_atoms=True,
                        align_structures=True,
                        sel=None,
@@ -5040,25 +5039,19 @@ class Molecule(AbstractMolecule):
                        load_properties=False
                        ):
         """
-        Aligns `other` with `self` by first finding the reindexing of the bonds of `other` that
-        lead to the best graph overlap with `self`, then determining which atoms can be permuted based on their graph
-        structures, then determining which permutation of equivalent atoms leads to the best agreement between the structures,
-        and then finally finding the Eckart/min-RMSD transformation after this transformation has been applied
+        Aligns `other` with `self` by first determining which atoms can be permuted based on their graph
+        structures, then determining which permutation of equivalent atoms leads to the best agreement between the
+        structures (via each molecule's `rdmol` -- this requires RDKit to be installed; we may swap out the backend
+        for this later), and then finally finding the Eckart/min-RMSD transformation after this transformation has
+        been applied
 
         :param other:
-        :param reindex_bonds:
         :return:
         """
         from .Transformations import MolecularTransformation
 
         if len(itut.dict_diff(itut.counts(other.atoms), itut.counts(self.atoms))) > 0:
             raise ValueError(f"{self} and {other} have different atoms and can't be aligned")
-
-        if reindex_bonds:
-            perm = other.edge_graph.get_reindexing(self.edge_graph)
-            other = other.permute_atoms(perm)
-        else:
-            perm = np.arange(len(self.atoms))
 
         if permute_atoms:
             all_perms = permute_atoms == 'all'
@@ -5076,10 +5069,31 @@ class Molecule(AbstractMolecule):
                 rem = np.setdiff1d(rem, group)
                 if len(group) > 1:
                     permutable_atoms.append(group)
+
+            # find the optimal atom permutation from the molecular graphs directly (via
+            # each molecule's `rdmol`) rather than the ad hoc same-element/same-bonds
+            # grouping above (`permutable_atoms` is kept only for the `align_structures`
+            # rotation fit below -- see the note there). That grouping can mix atoms
+            # across separate, only graph-equivalent branches into an assignment that
+            # isn't a real graph automorphism at all; an actual automorphism search
+            # doesn't have that problem. This needs RDKit to be installed; let it fail
+            # here if it isn't -- we may swap out the backend for this later.
+            perm_2 = self.rdmol.find_alignment_permutation(
+                other.rdmol,
+                masses=self.atomic_masses,
+                sel=sel
+            )
+            other = other.permute_atoms(perm_2)
         else:
             permutable_atoms = None
 
         if align_structures:
+            # atoms are already correctly permuted above (if requested), so this is
+            # fit against the true correspondence; note `permutable_groups` doesn't
+            # actually change the fitted rotation for a fixed correspondence (grouping
+            # just partitions the same weighted-covariance sum), it's only meaningful
+            # for `eckart_permutation`'s own per-group assignment search -- it's passed
+            # through here mainly to keep this call's behavior unsurprising/unchanged.
             embedding_data = nput.eckart_embedding(
                 self.coords,
                 other.coords,
@@ -5096,18 +5110,6 @@ class Molecule(AbstractMolecule):
             other = other.apply_affine_transformation(transf,
                                                       embed_properties=embed_properties,
                                                       load_properties=load_properties)
-
-        if permute_atoms:
-            perm_2 = nput.eckart_permutation(
-                self.coords,
-                other.coords,
-                masses=self.atomic_masses,
-                sel=sel,
-                permutable_groups=permutable_atoms
-            )
-
-            # perm = perm[perm_2]
-            other = other.permute_atoms(perm_2)
 
         # elif align_structures:
         #     other = other.get_embedded_molecule(self,

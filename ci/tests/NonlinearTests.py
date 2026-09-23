@@ -1606,3 +1606,95 @@ class NonlinearTests(TestCase):
                                  "basis", "degenerate_energies"):
             with self.assertRaises(NotImplementedError, msg=dispatcher_name):
                 getattr(analyzer, dispatcher_name)
+
+    @validationTest
+    def test_DensityMatrixPropagationNormalizesAndRestrictsPaths(self):
+        """The complete pulse history is physical; path histories obey masks."""
+        transitions = {
+            pair: dict(data, transition_moment=[data['transition_moment'][1]
+                                                + data['transition_moment'][2], 0., 0.])
+            for pair, data in self.FourStateLiouvilleSystem.four_state_transitions().items()
+        }
+        result = propagate_density_matrix_paths(transitions)
+        self.assertEqual(result.density_matrices.shape[0], 4)
+        self.assertEqual(result.density_matrices.shape[1:], (10, 10))
+        self.assertEqual({name: len(paths) for name, paths in result.path_histories.items()},
+                         {'rephasing': 3, 'non-rephasing': 3})
+        np.testing.assert_allclose(result.populations.sum(axis=1), 1., atol=1e-12)
+        self.assertGreaterEqual(result.populations.min(), -1e-12)
+        for histories in result.path_histories.values():
+            for history in histories:
+                self.assertEqual(history.density_matrices.shape, (4, 10, 10))
+                self.assertFalse(np.any(history.density_matrices[~history.allowed_elements]))
+
+    @validationTest
+    def test_DensityMatrixPropagationUsesSelectedLiouvilleSpace(self):
+        """The filter used by prep_liouville_spaces fixes the matrix basis."""
+        from Psience.BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis
+        transitions = {
+            pair: dict(data, transition_moment=[data['transition_moment'][1]
+                                                + data['transition_moment'][2], 0., 0.])
+            for pair, data in self.FourStateLiouvilleSystem.four_state_transitions().items()
+        }
+        filter_space = BasisStateSpace(
+            HarmonicOscillatorProductBasis(2),
+            [(0, 0), (1, 0), (0, 1), (1, 1)],
+        )
+        result = propagate_density_matrix_paths(
+            transitions, state_filter_opts={'filter_space': filter_space},
+        )
+        actual = {tuple(int(q) for q in state) for state in result.total_space.excitations}
+        self.assertEqual(actual, {(0, 0), (1, 0), (0, 1), (1, 1)})
+        self.assertEqual(result.density_matrices.shape, (4, 4, 4))
+        np.testing.assert_allclose(result.populations.sum(axis=1), 1., atol=1e-12)
+
+    @validationTest
+    def test_DensityMatrixPropagationCallableAndPreparedSpaces(self):
+        """The field callback sees the basis, delays, and zero-based pulse index."""
+        from Psience.BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis
+        from Psience.Nonlinear.NonlinearResponse import experiment_defaults, prep_liouville_spaces
+        transitions = {
+            pair: dict(data, transition_moment=[data['transition_moment'][1]
+                                                + data['transition_moment'][2], 0., 0.])
+            for pair, data in self.FourStateLiouvilleSystem.four_state_transitions().items()
+        }
+        ground = BasisStateSpace(HarmonicOscillatorProductBasis(2), [(0, 0)])
+        defaults = experiment_defaults['2dir']
+        prepared = prep_liouville_spaces(
+            ground, defaults['paths'], phases=defaults['phases'], num_interactions=4,
+        )
+        calls = []
+
+        def field(space, delays, index):
+            calls.append((len(space), delays, index))
+            return [1., 0., 0.]
+
+        result = propagate_density_matrix_paths(
+            transitions, prepared_spaces=prepared,
+            interaction_tensor=field, delay_times=(0., 0.),
+        )
+        reference = propagate_density_matrix_paths(transitions)
+        self.assertEqual(calls, [(10, (0., 0.), index) for index in range(3)])
+        np.testing.assert_allclose(result.density_matrices, reference.density_matrices)
+
+    @validationTest
+    def test_DensityMatrixPropagationPerturbativeSignsAndOrientationGuard(self):
+        """Ket and bra first-order terms have opposite signs."""
+        transitions = {
+            ((0, 0), (1, 0)): {'frequency': 1610., 'transition_moment': [.1, 0., 0.]},
+            ((0, 0), (0, 1)): {'frequency': 1590., 'transition_moment': [.2, 0., 0.]},
+            ((1, 0), (1, 1)): {'frequency': 1590., 'transition_moment': [.2, 0., 0.]},
+            ((0, 1), (1, 1)): {'frequency': 1610., 'transition_moment': [.1, 0., 0.]},
+        }
+        area = 1e-3
+        result = propagate_density_matrix_paths(
+            transitions, pulse_areas=(area, 0., 0.),
+        )
+        states = [tuple(int(q) for q in state) for state in result.total_space.excitations]
+        ground, excited = states.index((0, 0)), states.index((1, 0))
+        rephasing = result.path_histories['rephasing'][0].density_matrices[1]
+        non_rephasing = result.path_histories['non-rephasing'][0].density_matrices[1]
+        np.testing.assert_allclose(rephasing[ground, excited], -1j * area * .1, rtol=1e-6)
+        np.testing.assert_allclose(non_rephasing[excited, ground], 1j * area * .1, rtol=1e-6)
+        with self.assertRaises(NotImplementedError):
+            propagate_density_matrix_paths(transitions, orientational_averaging=True)

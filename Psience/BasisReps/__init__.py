@@ -27,3 +27,5 @@ from .Util import *; from .Util import __all__ as exposed
 __all__ += exposed
 from .ContractedRepresentations import *; from .ContractedRepresentations import __all__ as exposed
 __all__ += exposed
+from .BoundedEigensystems import *; from .BoundedEigensystems import __all__ as exposed
+__all__ += exposed
