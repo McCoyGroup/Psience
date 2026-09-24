@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Analytic.DegeneracyChangeIndex">DegeneracyChangeIndex</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L529)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L529?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L533)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L533?message=Update%20Docs)]
 </div>
 
 An ordered, immutable index of resonance changes by sorted quanta.
@@ -26,8 +26,8 @@ canonical_mode_cache_max_bytes: int
 __init__(self, changes): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L534)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L534?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L538)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L538?message=Update%20Docs)]
 </div>
 
 
@@ -36,8 +36,8 @@ __init__(self, changes):
 get(self, signature): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/DegeneracyChangeIndex.py#L563)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/DegeneracyChangeIndex.py#L563?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/DegeneracyChangeIndex.py#L567)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/DegeneracyChangeIndex.py#L567?message=Update%20Docs)]
 </div>
 
 
@@ -46,8 +46,8 @@ get(self, signature):
 get_canonical_mode_rows(self, signature, ordering): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/DegeneracyChangeIndex.py#L566)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/DegeneracyChangeIndex.py#L566?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/DegeneracyChangeIndex.py#L570)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/DegeneracyChangeIndex.py#L570?message=Update%20Docs)]
 </div>
 Canonical sparse row bytes, shared across checked-position maps.
 
@@ -61,8 +61,8 @@ resonance-mode x projection-map Cartesian product for every plan.
 get_mode_membership(self, signature): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/DegeneracyChangeIndex.py#L594)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/DegeneracyChangeIndex.py#L594?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/DegeneracyChangeIndex.py#L598)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/DegeneracyChangeIndex.py#L598?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -117,7 +117,7 @@ get_mode_membership(self, signature):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Analytic/DegeneracyChangeIndex.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Analytic/DegeneracyChangeIndex.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L529?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L533?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

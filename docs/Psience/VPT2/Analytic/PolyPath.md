@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Analytic.PolyPath">PolyPath</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L2487)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L2487?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L2491)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L2491?message=Update%20Docs)]
 </div>
 
 Canonical DAG-backed representation of a sum of separable polynomial products.
@@ -29,8 +29,8 @@ compatibility boundary for the legacy implementation.
 __init__(self, terms, reduced=False, node=None, ndim=None, order=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L2509)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L2509?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L2513)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L2513?message=Update%20Docs)]
 </div>
 
 
@@ -40,8 +40,8 @@ __init__(self, terms, reduced=False, node=None, ndim=None, order=None):
 is_zero(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2550)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2550?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2554)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2554?message=Update%20Docs)]
 </div>
 
 
@@ -51,8 +51,8 @@ is_zero(self):
 from_coeffs(cls, coeffs, prefactor=1, idx=None, steps=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L2554)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L2554?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L2558)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L2558?message=Update%20Docs)]
 </div>
 
 
@@ -62,8 +62,8 @@ from_coeffs(cls, coeffs, prefactor=1, idx=None, steps=None):
 from_polynomial(cls, poly): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L2559)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L2559?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L2563)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L2563?message=Update%20Docs)]
 </div>
 
 
@@ -73,8 +73,8 @@ from_polynomial(cls, poly):
 clear_caches(cls): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L2577)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L2577?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L2581)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L2581?message=Update%20Docs)]
 </div>
 
 
@@ -84,8 +84,8 @@ clear_caches(cls):
 cache_info(cls): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L2588)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L2588?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L2592)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L2592?message=Update%20Docs)]
 </div>
 
 
@@ -95,8 +95,8 @@ cache_info(cls):
 path_terms(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2601)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2601?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2605)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2605?message=Update%20Docs)]
 </div>
 
 
@@ -106,8 +106,8 @@ path_terms(self):
 polys(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2607)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2607?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2611)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2611?message=Update%20Docs)]
 </div>
 
 
@@ -116,8 +116,8 @@ polys(self):
 to_eager(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2626)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2626?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2630)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2630?message=Update%20Docs)]
 </div>
 
 
@@ -126,8 +126,8 @@ to_eager(self):
 prep_serialization_dict(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2708)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2708?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2712)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2712?message=Update%20Docs)]
 </div>
 
 
@@ -136,8 +136,8 @@ prep_serialization_dict(self):
 mutate(self, polynomials=<DefaultValues.DEFAULT: 'default'>, prefactor=<DefaultValues.DEFAULT: 'default'>, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2716)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2716?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2720)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2720?message=Update%20Docs)]
 </div>
 
 
@@ -147,8 +147,8 @@ mutate(self, polynomials=<DefaultValues.DEFAULT: 'default'>, prefactor=<DefaultV
 ndim(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2726)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2726?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2730)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2730?message=Update%20Docs)]
 </div>
 
 
@@ -158,8 +158,8 @@ ndim(self):
 order(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2732)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2732?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2736)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2736?message=Update%20Docs)]
 </div>
 
 
@@ -168,8 +168,8 @@ order(self):
 __hash__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2741)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2741?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2745)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2745?message=Update%20Docs)]
 </div>
 
 
@@ -178,8 +178,8 @@ __hash__(self):
 __eq__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2746)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2746?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2750)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2750?message=Update%20Docs)]
 </div>
 
 
@@ -188,8 +188,8 @@ __eq__(self, other):
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2753)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2753?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2757)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2757?message=Update%20Docs)]
 </div>
 
 
@@ -198,8 +198,8 @@ __repr__(self):
 format_expr(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2759)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2759?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2763)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2763?message=Update%20Docs)]
 </div>
 
 
@@ -208,8 +208,8 @@ format_expr(self):
 audit(self, target=None, ignore_constants=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2763)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2763?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2767)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2767?message=Update%20Docs)]
 </div>
 
 
@@ -218,8 +218,8 @@ audit(self, target=None, ignore_constants=True):
 ensure_dimension(self, ndim): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2775)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2775?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2779)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2779?message=Update%20Docs)]
 </div>
 
 
@@ -228,8 +228,8 @@ ensure_dimension(self, ndim):
 pad(self, left_right_pads): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2785)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2785?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2789)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2789?message=Update%20Docs)]
 </div>
 
 
@@ -238,8 +238,8 @@ pad(self, left_right_pads):
 permute(self, new_inds, check_perm=True, allow_padding=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2797)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2797?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2801)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2801?message=Update%20Docs)]
 </div>
 
 
@@ -248,8 +248,8 @@ permute(self, new_inds, check_perm=True, allow_padding=False):
 permutation_sum(self, permutations, check_perm=True, allow_padding=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2816)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2816?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2820)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2820?message=Update%20Docs)]
 </div>
 Represent a symmetry sum without constructing each remapped child.
 
@@ -259,8 +259,8 @@ Represent a symmetry sum without constructing each remapped child.
 shift(self, shift): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2852)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2852?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2856)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2856?message=Update%20Docs)]
 </div>
 
 
@@ -269,8 +269,8 @@ shift(self, shift):
 scale(self, scaling): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2859)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2859?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2863)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2863?message=Update%20Docs)]
 </div>
 
 
@@ -279,8 +279,8 @@ scale(self, scaling):
 evaluate_polynomial(self, substates, node_cache=None, axis_cache=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2867)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2867?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L2871)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L2871?message=Update%20Docs)]
 </div>
 
 
@@ -289,8 +289,8 @@ evaluate_polynomial(self, substates, node_cache=None, axis_cache=None):
 combine(self, *args, **kwargs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3033)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3033?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3037)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3037?message=Update%20Docs)]
 </div>
 
 
@@ -299,8 +299,8 @@ combine(self, *args, **kwargs):
 condense(self, inds=None, return_inds=False, check_inds=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3074)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3074?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3078)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3078?message=Update%20Docs)]
 </div>
 
 
@@ -309,8 +309,8 @@ condense(self, inds=None, return_inds=False, check_inds=True):
 constant_rescale(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3096)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3096?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3100)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3100?message=Update%20Docs)]
 </div>
 
 
@@ -319,8 +319,8 @@ constant_rescale(self):
 mul_simple(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3102)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3102?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3106)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3106?message=Update%20Docs)]
 </div>
 
 
@@ -329,8 +329,8 @@ mul_simple(self, other):
 rmul_simple(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3125)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3125?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3129)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3129?message=Update%20Docs)]
 </div>
 
 
@@ -339,8 +339,8 @@ rmul_simple(self, other):
 mul_along(self, other, inds, remainder=None, mapping=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3130)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3130?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3134)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3134?message=Update%20Docs)]
 </div>
 
 
@@ -349,8 +349,8 @@ mul_along(self, other, inds, remainder=None, mapping=None):
 rmul_along(self, other, inds, remainder=None, mapping=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3173)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3173?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3177)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3177?message=Update%20Docs)]
 </div>
 
 
@@ -359,8 +359,8 @@ rmul_along(self, other, inds, remainder=None, mapping=None):
 __mul__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3180)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3180?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3184)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3184?message=Update%20Docs)]
 </div>
 
 
@@ -369,8 +369,8 @@ __mul__(self, other):
 __rmul__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3183)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3183?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3187)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3187?message=Update%20Docs)]
 </div>
 
 
@@ -379,8 +379,8 @@ __rmul__(self, other):
 __add__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3186)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3186?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3190)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3190?message=Update%20Docs)]
 </div>
 
 
@@ -389,8 +389,8 @@ __add__(self, other):
 __radd__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3204)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3204?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyPath.py#L3208)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyPath.py#L3208?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -445,7 +445,7 @@ __radd__(self, other):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Analytic/PolyPath.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Analytic/PolyPath.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L2487?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L2491?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

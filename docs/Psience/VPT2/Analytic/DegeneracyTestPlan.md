@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Analytic.DegeneracyTestPlan">DegeneracyTestPlan</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L113)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L113?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L117)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L117?message=Update%20Docs)]
 </div>
 
 Array-oriented union of mode-pattern degeneracy predicates.
@@ -32,8 +32,8 @@ default_scalar_state_cutoff: int
 __init__(self, patterns=None, checks=None, fallback_tests=(), compare_workspace_bytes=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L125)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L125?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L129)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L129?message=Update%20Docs)]
 </div>
 
 
@@ -43,8 +43,8 @@ __init__(self, patterns=None, checks=None, fallback_tests=(), compare_workspace_
 cache_key(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/DegeneracyTestPlan.py#L170)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/DegeneracyTestPlan.py#L170?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/DegeneracyTestPlan.py#L174)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/DegeneracyTestPlan.py#L174?message=Update%20Docs)]
 </div>
 
 
@@ -53,8 +53,8 @@ cache_key(self):
 evaluate(self, states): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/DegeneracyTestPlan.py#L179)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/DegeneracyTestPlan.py#L179?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/DegeneracyTestPlan.py#L183)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/DegeneracyTestPlan.py#L183?message=Update%20Docs)]
 </div>
 
 
@@ -63,8 +63,8 @@ evaluate(self, states):
 evaluate_array(self, states): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/DegeneracyTestPlan.py#L225)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/DegeneracyTestPlan.py#L225?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/DegeneracyTestPlan.py#L229)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/DegeneracyTestPlan.py#L229?message=Update%20Docs)]
 </div>
 Evaluate an explicitly batched state/permutation pool.
 
@@ -78,8 +78,8 @@ subsets into one shared permutation pool.
 __call__(self, state): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/DegeneracyTestPlan.py#L331)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/DegeneracyTestPlan.py#L331?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/DegeneracyTestPlan.py#L335)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/DegeneracyTestPlan.py#L335?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -134,7 +134,7 @@ __call__(self, state):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Analytic/DegeneracyTestPlan.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Analytic/DegeneracyTestPlan.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L113?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L117?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Analytic.CompactDegeneracyTestPlan">CompactDegeneracyTestPlan</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L341)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L341?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L345)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L345?message=Update%20Docs)]
 </div>
 
 Union of linear resonance clauses without expanded pattern rows.
@@ -32,8 +32,8 @@ default_scalar_state_cutoff: int
 __init__(self, clauses, width, mode_index=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L353)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L353?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L357)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L357?message=Update%20Docs)]
 </div>
 
 
@@ -42,8 +42,8 @@ __init__(self, clauses, width, mode_index=None):
 __call__(self, state): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.py#L422)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.py#L422?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.py#L426)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.py#L426?message=Update%20Docs)]
 </div>
 
 
@@ -52,8 +52,8 @@ __call__(self, state):
 evaluate(self, states): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.py#L436)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.py#L436?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.py#L440)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.py#L440?message=Update%20Docs)]
 </div>
 
 
@@ -62,8 +62,8 @@ evaluate(self, states):
 evaluate_array(self, states): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.py#L447)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.py#L447?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.py#L451)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.py#L451?message=Update%20Docs)]
 </div>
 
 
@@ -72,8 +72,8 @@ evaluate_array(self, states):
 evaluate_with_value_cache(self, states, cache): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.py#L472)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.py#L472?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.py#L476)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.py#L476?message=Update%20Docs)]
 </div>
 Reuse predicate results across pools with equal checked values.
 
@@ -133,7 +133,7 @@ keep the existing vectorized kernel to avoid Python row-key overhead.
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Analytic/CompactDegeneracyTestPlan.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L341?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L345?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
