@@ -110,6 +110,10 @@ SideDegeneracyChanges = collections.namedtuple(
 )
 
 
+class StateDegeneracyPairs(list):
+    """Actual block neighbors, ordered from one reference state to each neighbor."""
+
+
 class DegeneracyTestPlan:
     """Array-oriented union of mode-pattern degeneracy predicates.
 
@@ -11253,8 +11257,10 @@ class PerturbationTheoryEvaluator:
         if degenerate_pairs is None: return None
 
         finals = []
+        directed = isinstance(degenerate_pairs, StateDegeneracyPairs)
         for start,end in degenerate_pairs:
-            for e,s in [[start, end], [end, start]]:
+            orientations = [[end, start]] if directed else [[start, end], [end, start]]
+            for e,s in orientations:
                 diff = np.subtract(e, s)
                 nzp = np.nonzero(diff)
                 if len(nzp) > 0: nzp = nzp[0]
