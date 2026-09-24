@@ -24,7 +24,7 @@ from ..Spectra import DiscreteSpectrum
 
 from .DegeneracySpecs import DegeneracySpec, DegenerateMultiStateSpace
 from .Hamiltonian import PerturbationTheoryHamiltonian
-from .Analytic import PerturbationTheoryEvaluator, AnalyticPerturbationTheorySolver
+from .Analytic import PerturbationTheoryEvaluator, AnalyticPerturbationTheorySolver, StateDegeneracyPairs
 from .Corrections import AnalyticPerturbationTheoryCorrections
 
 VPTStateMaker = StateMaker # alias
@@ -3339,21 +3339,21 @@ class MultiVPTStateSpace:
         self.flat_space.degenerate_states = flat_deg_blocks
         self.flat_space.degenerate_pairs = flat_degs
         self.degenerate_pairs = flat_degs
-        # Keep the relation rules attached to the final merged block that
-        # produced them.  The flat pair list above remains available for the
-        # original, global-degeneracy evaluation path.
+        # A state may only exclude actual neighbors in its final block.
+        # Reduced polyad rules can also match states outside that block.
+        # The flat pair list above remains available for global evaluation.
         self.degenerate_pairs_by_state = {}
         if flat_deg_blocks is not None:
             for group in flat_deg_blocks:
-                pairs = (
-                    DegeneracySpec.get_default_spec().get_polyad_pairs(groups=[group])
-                    if len(group) > 1 else []
-                )
                 for state in group:
                     key = tuple(int(x) for x in state)
                     if key in self.degenerate_pairs_by_state:
                         raise ValueError("state belongs to multiple degenerate blocks: {}".format(key))
-                    self.degenerate_pairs_by_state[key] = pairs
+                    self.degenerate_pairs_by_state[key] = StateDegeneracyPairs(
+                        [state, other]
+                        for other in group
+                        if not np.array_equal(state, other)
+                    )
 
     @property
     def state_list_pairs(self):
