@@ -430,7 +430,8 @@ class MolecularEmbedding:
                 conversion,
                 inverse_conversion=inverse,
                 jacobian=jacobian,
-                inverse_jacobian=inverse_jacobian
+                inverse_jacobian=inverse_jacobian,
+                jacobian_prep=spec.get('converter_options', {}).get('jacobian_prep')
             )
             coords = coords.convert(conv)
 
