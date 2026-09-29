@@ -9,6 +9,7 @@ import McUtils.Devutils as dev
 from McUtils.Data import UnitsData
 
 from ..Molecools import Molecule
+from ..Molecools.CoordinateSystems import MolecularEmbedding
 from ..Molecools.Evaluator import EnergyEvaluator
 
 __all__ = [
@@ -47,6 +48,8 @@ class ProfileGenerator:
         return cls.profile_registry | {
             'interpolate': InterpolatingProfileGenerator,
             'neb': NudgedElasticBand,
+            'string': GrowingString,
+            'growing-string': GrowingString,
             'ase-neb': ASENEBGenerator,
             'ase-dimer': ASEDimerGenerator,
         }
@@ -139,10 +142,11 @@ class InterpolatingProfileGenerator(ProfileGenerator):
         return ints
     def wrap_conversion(self, spec, base_internals):
         def convert(coords):
-            new = self.products.modify(coords=coords, internals=spec)
-            self.prep_cart_coordinate_system(new.coords.system, base_internals)
-            ints = new.internal_coordinates
-            self.prep_int_coordinate_system(ints, new.coords, base_internals)
+            self.prep_cart_coordinate_system(coords.system, base_internals)
+            ints, _ = MolecularEmbedding.convert_to_internals(
+                coords, self.products.atomic_masses, spec
+            )
+            self.prep_int_coordinate_system(ints, coords, base_internals)
             return ints
         convert.system = base_internals.system
         return convert
@@ -162,9 +166,10 @@ class InterpolatingProfileGenerator(ProfileGenerator):
                 if sys is None:
                     max_displacement_step = 1.0
                 elif hasattr(sys, 'name'):
-                    if 'ZMatrix' in sys.name:
+                    system_name = sys.name or ''
+                    if 'ZMatrix' in system_name:
                         max_displacement_step = .5
-                    elif 'Cartesian' in sys.name:
+                    elif 'Cartesian' in system_name:
                         max_displacement_step = 1.0
                     else:
                         max_displacement_step = .5
@@ -336,8 +341,47 @@ class NudgedElasticBand(InterpolatingProfileGenerator):
         else:
             return new_img
 
-class GrowingString(ProfileGenerator):
-    ...
+class GrowingString(NudgedElasticBand):
+    """Relax an interpolated path normal to itself and redistribute its images."""
+
+    def get_step_finder(self, energy_evaluator=None, step_size=.001, **opts):
+        if energy_evaluator is None:
+            energy_evaluator = self.energy_evaluator
+        return nput.StringMethodStepFinder(
+            self._potential(energy_evaluator),
+            self._jacobian(energy_evaluator),
+            step_size=step_size, **opts
+        )
+
+    def generate(self, num_images=None, energy_evaluator=None, return_preopt=False,
+                 embedding_options=None, base_images=None, step_size=.001,
+                 reparametrizer=None, optimizer_settings=None, **opt_opts):
+        if base_images is None:
+            base_images = InterpolatingProfileGenerator.generate(self, num_images=num_images)
+        if len(base_images) < 3:
+            raise ValueError("a string requires at least three images")
+        if energy_evaluator is None:
+            energy_evaluator = self.energy_evaluator
+        if optimizer_settings is not None:
+            opt_opts = optimizer_settings | opt_opts
+        if embedding_options is None:
+            embedding_options = {'masses': self.reactants.masses}
+
+        image_coords = np.array([b.coords.flatten() for b in base_images])
+        (res, _), _, _ = nput.string_method_minimize(
+            image_coords[0], image_coords[-1],
+            self._potential(energy_evaluator), self._jacobian(energy_evaluator),
+            initial_images=image_coords, step_size=step_size,
+            reparametrizer=reparametrizer,
+            embedding_options=embedding_options, **opt_opts
+        )
+        new_images = [
+            image.modify(coords=coords.reshape(-1, 3))
+            for image, coords in zip(base_images, res)
+        ]
+        if return_preopt:
+            return base_images, new_images
+        return new_images
 
 class ASEProfileGenerator(InterpolatingProfileGenerator):
     default_method: str
