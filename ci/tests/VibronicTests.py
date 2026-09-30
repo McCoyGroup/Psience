@@ -156,7 +156,7 @@ class VibronicTests(TestCase):
             embed=False,
             mass_weight=False
         )
-        test_vals = [0.7496767974532862, 0.5782925969208352, 0.26724127584978014, 0.07869565469361299, 0.05403238910624021, -0.0505874828034262, -0.06072786570450098, 0.008309307609240951]
+        test_vals = [0.7496767974532862, 0.5782925969208352, 0.26724127584978014, -0.07869565469361299, 0.05403238910624021, 0.0505874828034262, 0.06072786570450098, 0.008309307609240951]
         self.assertTrue(
             np.allclose(test_fcfs, test_vals),
             msg=f"{test_fcfs} != {test_vals}"
@@ -204,7 +204,7 @@ class VibronicTests(TestCase):
             mass_weight=False,
             rotation_order='gs'
         )
-        test_vals = [0.16796089572281053, -1.0693197339113112e-16, -0.10980392299108514]
+        test_vals = [0.18166475100835383, -0.0322092810666568, 0.09901407518909618]
         self.assertTrue(
             np.allclose(test_fcfs, test_vals),
             msg=f"{test_fcfs} != {test_vals}"

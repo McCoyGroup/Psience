@@ -313,7 +313,7 @@ class ezFCFInterface:
             prefix=prefix, suffix=suffix, delete=delete,
             raise_errors=raise_errors
         ).run(
-            self.format(**job_opts).tostring() + "\n\n",
+            self.format(**job_opts).tostring().replace("><", ">\n<") + "\n\n",
             return_auxiliary_files={"parallel": "{name}.spectrum_parallel", "duschinsky": '{name}.spectrum_dushinsky'}
         )
 
@@ -670,13 +670,15 @@ class ezFCFInterface:
 
     @classmethod
     def prep_normal_modes(cls, atoms, nms):
-        modes = nms.modes_by_coords / UnitsData.convert("BohrRadius", "Angstroms")
-        if nms.mass_weighted:
-            modes = modes / np.sqrt(UnitsData.convert("ElectronMass", "AtomicMassUnits"))
+        if not nms.mass_weighted:
+            nms = nms.make_mass_weighted()
+        # ezFCF's reader uses the supplied vectors directly for "false";
+        # "true" multiplies each atom's components by sqrt(atomic mass).
+        modes = nms.modes_by_coords
         return ezXML.normal_modes(
             atoms=" ".join(atoms),
             text="\n"+cls.format_modes_block(modes) + "\n",
-            if_mass_weighted=str(nms.mass_weighted).lower()
+            if_mass_weighted="false"
         )
 
     @classmethod
