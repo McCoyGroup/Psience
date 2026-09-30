@@ -223,8 +223,8 @@ prep_normal_modes(cls, atoms, nms):
 format_freqs_block(cls, freqs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L682)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L682?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L684)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L684?message=Update%20Docs)]
 </div>
 
 
@@ -234,8 +234,8 @@ format_freqs_block(cls, freqs):
 parse_freqs_block(cls, freqs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L691)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L691?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L693)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L693?message=Update%20Docs)]
 </div>
 
 
@@ -245,8 +245,8 @@ parse_freqs_block(cls, freqs):
 prep_frequencies(cls, nms): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L695)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L695?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L697)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L697?message=Update%20Docs)]
 </div>
 
 
@@ -256,8 +256,8 @@ prep_frequencies(cls, nms):
 parse_state(self, state_xml): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L701)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L701?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L703)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L703?message=Update%20Docs)]
 </div>
 
 
@@ -267,8 +267,8 @@ parse_state(self, state_xml):
 parse_fc_model(cls, input_xml, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L760)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L760?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L762)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L762?message=Update%20Docs)]
 </div>
  </div>
 </div>
