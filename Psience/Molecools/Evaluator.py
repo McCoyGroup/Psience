@@ -4285,6 +4285,14 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
             self.eval._saved_for_grad['coord'] = data['coord']
         with torch.jit.optimized_execution(False):
             data = self.eval.model(data)
+        # Recent AIMNet2 models leave Coulomb and DFTD3 corrections in
+        # calculator-owned modules rather than the Torch model itself.
+        # Match AIMNet2Calculator.eval before taking energy derivatives.
+        if hasattr(self.eval, '_run_external_modules'):
+            data, external_terms = self.eval._run_external_modules(
+                data, forces=forces or hessian, stress=False, hessian=hessian
+            )
+            opts['coulomb_terms'] = external_terms
         data = self.eval.get_derivatives(
             data,
             forces=forces,
