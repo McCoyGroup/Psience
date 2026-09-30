@@ -1070,7 +1070,7 @@ class MoleculePlotter:
                     u_vec = np.cross(disp_vector, geom[atom4] - geom[atom3])
                     found_reference_bond = True
                     break
-                elif atom4 not in {atom1, atom2} and atom3 in {atom1, atom2}:
+                elif atom4 in {atom1, atom2} and atom3 not in {atom1, atom2}:
                     u_vec = np.cross(disp_vector, geom[atom3] - geom[atom4])
                     found_reference_bond = True
                     break

@@ -224,7 +224,7 @@ class FranckCondonModel:
                      ):
         gs_nms, es_nms, rotation_opts = self.prep_modes(
             self.gs_nms, self.es_nms,
-            **rotation_opts
+            **{**dict(embed=False, mass_weight=False, dimensionless=False), **rotation_opts}
         )
 
         excitations = self.prep_state_space(excitations, es_nms)
@@ -663,8 +663,9 @@ class FranckCondonModel:
         # inverse covariance matrices in this coordinate system
 
         # del_E G or del_G E
-        Z_gs = (L_g @ np.diag(freqs_gs) @ L_g.T)
-        Z_es = (L_e @ np.diag(freqs_es) @ L_e.T)
+        # L maps coordinates in the common frame into each state's normal coordinates.
+        Z_gs = (L_g.T @ np.diag(freqs_gs) @ L_g)
+        Z_es = (L_e.T @ np.diag(freqs_es) @ L_e)
         Z_c = Z_gs + Z_es
 
         # X_g = nput.fractional_power(L_g, -1)
@@ -673,8 +674,8 @@ class FranckCondonModel:
         # X_e = nput.fractional_power(L_e, -1)
         X_g = np.linalg.inv(L_g)
         X_e = np.linalg.inv(L_e)
-        S_gs = (X_g.T @ np.diag(1/freqs_gs) @ X_g)
-        S_es = (X_e.T @ np.diag(1/freqs_es) @ X_e)
+        S_gs = (X_g @ np.diag(1/freqs_gs) @ X_g.T)
+        S_es = (X_e @ np.diag(1/freqs_es) @ X_e.T)
         S_c = S_gs + S_es
 
         norm_gs = np.power(np.linalg.eigvalsh(Z_gs), 1/4)
@@ -750,11 +751,13 @@ class FranckCondonModel:
             )
 
         # We now have the space to define the parameters that go into the overlap calculation
-        shift_gs = center - c_gs #- L_gs @ modes_c.T @ center
-        shift_es = center - c_es #- modes_c.T @ center
+        shift_gs = L_gs @ (center - c_gs)
+        shift_es = L_es @ (center - c_es)
 
-        Q_gs = (modes_c @ L_gs)
-        Q_es = (modes_c @ L_es)
+        # Columns of modes_c are central Gaussian eigenvectors. Q has one
+        # central coordinate per row and one normal coordinate per column.
+        Q_gs = (L_gs @ modes_c).T
+        Q_es = (L_es @ modes_c).T
 
         start = time.time()
         with logger.block(tag="Computing base polynomials"):
@@ -860,7 +863,7 @@ class FranckCondonModel:
 
         gs = Molecule(['H'] * len(masses), gs_nms.origin, masses=masses)
 
-        embedding = gs.get_embedding_data(es_nms.origin)
+        embedding = gs.get_embedding_data(np.asarray(es_nms.origin)[np.newaxis])
         ref_coords = embedding.reference_data.coords # embedded in PAF
         emb_ax = 0
         cart_ax = 1
