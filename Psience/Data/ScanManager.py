@@ -160,6 +160,20 @@ def molecule_displaced_geometries_iterator(
         **etc
     )
 
+def _fragment_axes(mol, fragment_indices):
+    """
+    The local axis frame of a fragment, used to orient atom-position scans.
+    Uses `Molecule.fragment_embedding` when the molecule class has one, and
+    `MoleculeBuilder.fragment_embedding` (where it currently lives) otherwise.
+    """
+    if hasattr(mol, "fragment_embedding"):
+        _, _, axes = mol.fragment_embedding(fragment_indices, return_axes=True)
+    else:
+        # imported here: Molecools imports this module while it is initializing
+        from ..Molecools.Builder import MoleculeBuilder
+        _, _, axes = MoleculeBuilder.fragment_embedding(mol, fragment_indices, return_axes=True)
+    return axes
+
 def molecule_atom_position_scan_iterator(mol, atom_indices, domains, which=None, embedding=None,
                                        return_molecules=True,
                                        **iterator_options
@@ -167,9 +181,9 @@ def molecule_atom_position_scan_iterator(mol, atom_indices, domains, which=None,
     if nput.is_int(atom_indices):
         atom_indices = [atom_indices]
     if embedding is None:
-        _, _, embedding = mol.fragment_embedding(atom_indices, return_axes=True)
+        embedding = _fragment_axes(mol, atom_indices)
     elif nput.is_int(embedding[0]):
-        _, _, embedding = mol.fragment_embedding(embedding, return_axes=True)
+        embedding = _fragment_axes(mol, embedding)
     else:
         embedding = np.asanyarray(embedding)
 
@@ -272,12 +286,14 @@ class ScanManager:
             job.write(os.path.join(self.scan_dir, fname))
             steps.append({
                 "index": index.tolist() if hasattr(index, "tolist") else index,
-                "values": values.tolist() if hasattr(values, "tolist") else index,
+                "values": values.tolist() if hasattr(values, "tolist") else values,
                 "file": fname
             })
 
         info = {
             "scan_id": self.scan_id,
+            "job_type": job_type if isinstance(job_type, str) else None,
+            "job_file_ext": job_file_ext,
             "coord_labels": coord_labels,
             "shape": self._infer_shape(steps),
             "steps": steps
@@ -312,20 +328,75 @@ class ScanManager:
         with open(self.scan_info_file) as info_file:
             return json.load(info_file)
 
-    def default_output_file_generator(self, input_file):
+    # job type -> (output file extension, `Molecule.from_file` mode), used when
+    # a subclass doesn't set `output_file_ext` and no loader is given
+    job_output_formats = {
+        "orca": (".out", "orca"),
+        "gaussian": (".log", "log"),
+        "qchem": (".out", "qchem"),
+    }
+    # for scans whose scan_info.json predates the `job_type` field
+    job_file_ext_types = {".inp": "orca", ".gjf": "gaussian", ".com": "gaussian", ".in": "qchem"}
+
+    def scan_job_type(self, scan_info):
+        """
+        The electronic-structure package a scan's jobs were written for: the
+        manifest's `job_type`, or a guess from its job files' extension.
+        """
+        job_type = (scan_info or {}).get("job_type")
+        if job_type is None and (scan_info or {}).get("steps"):
+            _, ext = os.path.splitext(scan_info["steps"][0]["file"])
+            job_type = self.job_file_ext_types.get(ext.lower())
+        return job_type
+
+    def default_output_file_generator(self, input_file, scan_info=None):
         """
         Default `output_file_generator`: swaps the input job file's extension
-        (`self.job_file_ext`) for the electronic-structure output extension
-        (`self.output_file_ext`). Override in a subclass for anything fancier
+        for the electronic-structure output extension: `self.output_file_ext`
+        if the class sets one, otherwise the one for the scan's job type (see
+        `job_output_formats`). Override in a subclass for anything fancier
         (different directories, remote fetches, etc).
 
         :param input_file: path to the input job file, as recorded in
             `scan_info.json`
+        :param scan_info: the scan's manifest, used to find its job type
         :return: path to the corresponding output file
         :rtype: str
         """
+        ext = getattr(self, "output_file_ext", None)
+        if ext is None:
+            ext, _ = self.job_output_formats.get(self.scan_job_type(scan_info), (None, None))
+        if ext is None:
+            raise ValueError(
+                f"can't tell which output file goes with {input_file}; set `output_file_ext` on the "
+                f"ScanManager (sub)class or pass an `output_file_generator`"
+            )
         root, _ = os.path.splitext(input_file)
-        return root + self.output_file_ext
+        return root + ext
+
+    def default_molecule_loader(self, scan_info=None):
+        """
+        Default `molecule_loader`: `Molecule.from_file`, told the output's format
+        when the scan's job type has a known one (ORCA's `.out` files have to be
+        read as mode `"orca"`, for example).
+        """
+        # The module-level `Molecule` here is the `Psience.Molecools.Molecule`
+        # *module*: Molecools imports this file before its class exists. Look
+        # the class up now that everything has loaded.
+        from ..Molecools.Molecule import Molecule as molecule_class
+        _, mode = self.job_output_formats.get(self.scan_job_type(scan_info), (None, None))
+        if mode is None:
+            return molecule_class.from_file
+        return lambda output_file: molecule_class.from_file(output_file, mode)
+
+    def _output_defaults(self, output_file_generator, molecule_loader, scan_info):
+        if scan_info is None:
+            scan_info = self.load_scan_info()
+        if output_file_generator is None:
+            output_file_generator = lambda input_file: self.default_output_file_generator(input_file, scan_info)
+        if molecule_loader is None:
+            molecule_loader = self.default_molecule_loader(scan_info)
+        return output_file_generator, molecule_loader, scan_info
 
     def load_molecules(
             self,
@@ -340,7 +411,7 @@ class ScanManager:
         :param output_file_generator: `input_file_path -> output_file_path`
             callable; defaults to `self.default_output_file_generator`
         :param molecule_loader: `output_file_path -> Molecule` callable;
-            defaults to `Molecule.from_file`
+            defaults to `self.default_molecule_loader(scan_info)`
         :param scan_info: pre-loaded manifest (loaded from disk if omitted)
         :param skip_missing: if `True`, steps whose output is missing/
             unreadable are skipped with a warning rather than raising
@@ -349,12 +420,9 @@ class ScanManager:
         :rtype: dict
         """
 
-        if output_file_generator is None:
-            output_file_generator = self.default_output_file_generator
-        if molecule_loader is None:
-            molecule_loader = Molecule.from_file
-        if scan_info is None:
-            scan_info = self.load_scan_info()
+        output_file_generator, molecule_loader, scan_info = self._output_defaults(
+            output_file_generator, molecule_loader, scan_info
+        )
 
         mols = {}
         for step in scan_info["steps"]:
@@ -391,7 +459,7 @@ class ScanManager:
         :param output_file_generator: `input_file_path -> output_file_path`
             callable; defaults to `self.default_output_file_generator`
         :param molecule_loader: `output_file_path -> Molecule` callable;
-            defaults to `Molecule.from_file`
+            defaults to `self.default_molecule_loader(scan_info)`
         :param scan_info: pre-loaded manifest (loaded from disk if omitted)
         :param skip_missing: if `True`, steps whose output is missing/
             unreadable are skipped (leaving `fill_value` in the corresponding
@@ -403,12 +471,9 @@ class ScanManager:
         :rtype: dict
         """
 
-        if output_file_generator is None:
-            output_file_generator = self.default_output_file_generator
-        if molecule_loader is None:
-            molecule_loader = Molecule.from_file
-        if scan_info is None:
-            scan_info = self.load_scan_info()
+        output_file_generator, molecule_loader, scan_info = self._output_defaults(
+            output_file_generator, molecule_loader, scan_info
+        )
 
         grid_shape = tuple(scan_info["shape"])
 
