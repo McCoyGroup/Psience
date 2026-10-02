@@ -1,7 +1,7 @@
 # <a id="Psience.Data.ScanManager.molecule_atom_position_scan_iterator">molecule_atom_position_scan_iterator</a>
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/ScanManager.py#L163)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/ScanManager.py#L163?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Data/ScanManager.py#L177)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/ScanManager.py#L177?message=Update%20Docs)]
 </div>
 
 ```python
@@ -59,7 +59,7 @@ molecule_atom_position_scan_iterator(mol, atom_indices, domains, which=None, emb
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Data/ScanManager/molecule_atom_position_scan_iterator.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Data/ScanManager/molecule_atom_position_scan_iterator.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/ScanManager.py#L163?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/ScanManager.py#L177?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -52,18 +52,18 @@ Provides basic support for vibronic coupling models
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-eedc36" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-eedc36"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-20a2c2" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-20a2c2"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-eedc36" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-20a2c2" markdown="1">
  - [FCFsAnalytic](#FCFsAnalytic)
 - [FCFsNH3](#FCFsNH3)
 - [FCFsBig](#FCFsBig)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-8c5f12" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-8c5f12"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-f66a66" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-f66a66"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-8c5f12" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-f66a66" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
