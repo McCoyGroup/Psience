@@ -156,6 +156,7 @@ class Molecule(AbstractMolecule):
         self._mode_embedding = None
 
         self._name = name
+        self._pg = None  # point group, computed lazily by the `point_group` property
 
 
         self._src = None
@@ -733,6 +734,7 @@ class Molecule(AbstractMolecule):
         :rtype: CoordinateSet
         """
         self.embedding.coords = coords
+        self._pg = None  # the cached point group belongs to the old geometry
     @property
     def masses(self):
         """
@@ -7098,6 +7100,41 @@ class Molecule(AbstractMolecule):
         return obj
 
     default_display_mode = 'jsmol'
+
+    readout_interface_class = None
+    def get_readout_interface(self):
+        """
+        **LLM Docstring**
+
+        Build the readout interface for this molecule (`Interfaces.MoleculeReadoutInterface` unless
+        `readout_interface_class` is overridden).
+
+        :return: the readout interface
+        :rtype: McUtils.Jupyter.ReadoutInterface
+        """
+        cls = self.readout_interface_class
+        if cls is None:
+            from .Interfaces import MoleculeReadoutInterface as cls
+        return cls(self)
+
+    def to_readout(self, include=None, exclude=None, **opts):
+        """
+        **LLM Docstring**
+
+        Summarize this molecule as a `Readout` that displays in Jupyter and exports to HTML,
+        PowerPoint, `.npz`, pandas and JSON (all in the same display units).
+
+        :param include: section names (`None` for the defaults, `'all'`, a list, or a dict of options);
+            see `MoleculeReadoutInterface.list_readout_sections()`
+        :type include: str | list | dict | None
+        :param exclude: section names to leave out
+        :type exclude: str | list | None
+        :param opts: `units=`, `title=`, `strict=`, and per-section options as `section_name={...}`
+        :return: the readout
+        :rtype: McUtils.Jupyter.Readout
+        """
+        return self.get_readout_interface().to_readout(include=include, exclude=exclude, **opts)
+
     def _ipython_display_(self):
         """
         **LLM Docstring**
