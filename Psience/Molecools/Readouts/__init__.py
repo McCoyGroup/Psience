@@ -1,6 +1,6 @@
 """
-Interfaces that present `Molecule` data in other forms (currently readouts, see
-`McUtils.Jupyter.Readouts`), kept separate from `Molecule.py`.
+Readouts for `Molecule` data (structure, identifiers, normal modes, ...), built on
+`McUtils.Jupyter.Readouts` and kept separate from `Molecule.py`; `Molecule.to_readout` loads them.
 """
 
 __all__ = []

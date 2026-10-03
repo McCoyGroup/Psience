@@ -7106,7 +7106,7 @@ class Molecule(AbstractMolecule):
         """
         **LLM Docstring**
 
-        Build the readout interface for this molecule (`Interfaces.MoleculeReadoutInterface` unless
+        Build the readout interface for this molecule (`Readouts.MoleculeReadoutInterface` unless
         `readout_interface_class` is overridden).
 
         :return: the readout interface
@@ -7114,7 +7114,7 @@ class Molecule(AbstractMolecule):
         """
         cls = self.readout_interface_class
         if cls is None:
-            from .Interfaces import MoleculeReadoutInterface as cls
+            from .Readouts import MoleculeReadoutInterface as cls
         return cls(self)
 
     def to_readout(self, include=None, exclude=None, **opts):
