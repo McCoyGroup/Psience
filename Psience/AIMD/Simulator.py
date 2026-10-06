@@ -9,6 +9,7 @@ from ..Molecools.Properties import PropertyManager
 
 __all__ = [
     "AIMDSimulator",
+    "RMSDBiasPotential",
     "PairwisePotential",
     "MDThermostat",
     "MDStepPredictor"
@@ -108,7 +109,7 @@ class BerendsenThermostat(MDThermostat):
 
 
 class LangevinThermostat(MDThermostat):
-    """BBK-style Langevin thermostat -- proper canonical sampling."""
+    """Euler Langevin velocity update; use friction * timestep much smaller than one."""
     name = 'langevin'
 
     def __init__(self, target_temperature=None, friction=0.01, seed=None, **opts):
@@ -119,7 +120,7 @@ class LangevinThermostat(MDThermostat):
     def apply_thermostat(self, positions, velocities, sim=None):
         gamma = self.friction
         mass = sim._mass
-        sigma = np.sqrt(2 * gamma * self.target_temperature * UnitsData.convert("Kelvins", "Hartrees") * mass / sim.dt)
+        sigma = np.sqrt(2 * gamma * self.target_temperature * UnitsData.convert("Kelvins", "Hartrees") * mass)
         rand = self._rng.normal(size=velocities.shape)
         velocities = velocities + sim.dt * (-gamma * velocities) + np.sqrt(sim.dt) * sigma * rand / mass
         return positions, velocities
@@ -395,13 +396,22 @@ class RMSDBiasPotential:
     gradient reduces to a simple aligned-displacement term -- no extra
     rotation-derivative bookkeeping required.
 
-    ASSUMES `coords` passed in is Cartesian, shaped (n_traj, n_atoms, 3),
-    matching the convention `force_function` is called with elsewhere in
-    AIMDSimulator when `internals=None`. If you're using internal-coordinate
-    force evaluation, wrap this around the Cartesian-facing pipeline (e.g.
-    subclass/adapt AIMDSimulator.get_forces), not the raw internal-coordinate
-    `force_function` -- RMSD is only physically meaningful on Cartesian
-    geometries.
+    Coordinates are Cartesian, shaped (n_traj, n_atoms, 3). The default RMSD
+    is the unweighted per-atom Cartesian RMSD used by CREST. Mass weighting
+    is an optional extension; the weights sum to one in both the alignment
+    and the energy. Only proper rotations are allowed.
+
+    `forces` and `bias_energy` evaluate the current history without depositing.
+    `deposit` explicitly stores structures, and `advance` counts a completed
+    step and deposits on the configured stride. Standalone `__call__` retains
+    the force-wrapper convention: evaluate, then advance once. AIMDSimulator
+    recognizes this wrapper and advances after each completed integration step,
+    independently of how often its forces are queried. Pass `bias.forces` to
+    the simulator instead to use a frozen history.
+
+    This implements the Cartesian Gaussian bias, rather than CREST's complete
+    conformer-search workflow or its optional hill damping. Internal-coordinate
+    force callbacks must be converted to Cartesian forces before wrapping.
     """
 
     def __init__(self,
@@ -411,7 +421,7 @@ class RMSDBiasPotential:
                  width=0.5,
                  stride=1,
                  masses=None,
-                 mass_weighted=True,
+                 mass_weighted=False,
                  shared_history=False):
         """
         :param force_function: unbiased force function, force_function(coords) -> forces,
@@ -421,31 +431,57 @@ class RMSDBiasPotential:
             CREST-typical scale is a few kcal/mol; start small and tune upward if the
             trajectory isn't escaping local minima fast enough.
         :param width: Gaussian width in RMSD units (e.g. Bohr, if coords are atomic units)
-        :param stride: deposit a snapshot every `stride` calls. Default 1 deposits every
-            step, literally giving you "the past k steps." CREST itself typically deposits
-            periodically (stride > 1) to keep Gaussians well-separated and history compact
-            over long runs -- bump this up if you want that behavior instead.
-        :param masses: (n_atoms,) array for mass-weighted alignment/RMSD (recommended --
-            keeps heavy/light atom contributions comparable, consistent with CREST's convention)
+        :param stride: deposit every `stride` completed AIMD steps (or standalone
+            wrapper calls). The initial structure is not automatically deposited;
+            call `deposit` explicitly if it should be included.
+        :param masses: optional positive (n_atoms,) array for mass-weighted alignment/RMSD
         :param mass_weighted: toggle mass weighting even if masses were supplied
         :param shared_history: if True, pool history across all trajectories in a batch
             (multiple-walkers metadynamics, biases shared across walkers); if False
             (default) each trajectory in the batch keeps its own independent history
         """
+        for name, value in [('k', k), ('stride', stride)]:
+            if isinstance(value, (bool, np.bool_)) or not isinstance(value, (int, np.integer)) or value <= 0:
+                raise ValueError(f"{name} must be a positive integer")
+        if not np.isfinite(width) or width <= 0:
+            raise ValueError("width must be finite and positive")
+        if not np.isfinite(height) or height < 0:
+            raise ValueError("height must be finite and nonnegative")
         self.force_function = force_function
         self.k = k
         self.height = height
+        self.width = width
         self.alpha = 1 / (2 * width ** 2)
         self.stride = stride
-        self.masses = None if masses is None else np.asanyarray(masses)
+        self.masses = None if masses is None else np.array(masses, dtype=float, copy=True)
+        if self.masses is not None and (
+                self.masses.ndim != 1 or len(self.masses) == 0
+                or not np.all(np.isfinite(self.masses)) or np.any(self.masses <= 0)):
+            raise ValueError("masses must be a finite, positive one-dimensional array")
         self.mass_weighted = mass_weighted and (self.masses is not None)
         self._weights = None
         self.shared_history = shared_history
 
-        self._full_history = False # whether we've looped back on our ring buffer
-        self._history_pointer = None # which entry to replace
+        self._full_history = False
+        self._history_pointer = 0
         self._histories = None
         self._call_count = 0
+        self._history_version = 0
+
+    def _validate_coords(self, coords):
+        coords = np.asarray(coords, dtype=float)
+        if coords.ndim != 3 or coords.shape[-1] != 3 or 0 in coords.shape:
+            raise ValueError("Cartesian coords must have shape (n_traj, n_atoms, 3) with nonempty axes")
+        if not np.all(np.isfinite(coords)):
+            raise ValueError("coords must be finite")
+        if self.masses is not None and len(self.masses) != coords.shape[-2]:
+            raise ValueError("masses must contain one entry per atom")
+        if self._histories is not None:
+            expected = self._histories.shape[1:]
+            actual = coords.shape[1:] if self.shared_history else coords.shape
+            if actual != expected:
+                raise ValueError("coordinate shape changed; reset the bias before reusing it")
+        return coords
 
     def _init_histories(self, init_coords):
         self._full_history = False
@@ -456,61 +492,108 @@ class RMSDBiasPotential:
         self._histories = np.zeros((self.k,) + base_shape)
 
     def get_weights(self, coords):
+        n_atoms = coords.shape[-2]
+        if self.masses is not None and len(self.masses) != n_atoms:
+            raise ValueError("masses must contain one entry per atom")
         if self._weights is None:
-            self._weights = self.masses if self.mass_weighted else np.ones(coords.shape[-2])
+            w = self.masses if self.mass_weighted else np.ones(n_atoms)
+            self._weights = w / np.sum(w)
+        elif len(self._weights) != n_atoms:
+            raise ValueError("atom count changed; reset the bias before reusing it")
         return self._weights
 
+    @staticmethod
+    def _aligned_displacement(x, h, w):
+        # Align the reference INTO the query frame, so the displacement (and
+        # hence the force) is already in the original Cartesian frame.
+        x = x - np.sum(w[:, np.newaxis] * x, axis=0)
+        h = h - np.sum(w[:, np.newaxis] * h, axis=0)
+        u, _, vt = np.linalg.svd((w[:, np.newaxis] * h).T @ x)
+        if np.linalg.det(u @ vt) < 0:
+            u[:, -1] *= -1
+        return x - h @ (u @ vt)
+
+    def _bias_terms(self, x, history, w):
+        energy = 0.
+        force = np.zeros_like(x, dtype=float)
+        for h in history:
+            diff = self._aligned_displacement(x, h, w)
+            rmsd2 = np.sum(w[:, np.newaxis] * diff**2)
+            gaussian = self.height * np.exp(-self.alpha * rmsd2)
+            energy += gaussian
+            # F = -dV/dx. Using the squared RMSD avoids division by zero at
+            # a deposited geometry, including planar and linear structures.
+            force += 2 * self.alpha * gaussian * w[:, np.newaxis] * diff
+        return energy, force
+
     def _bias_force(self, x, history, w):
-        if len(history) == 0:
-            return np.zeros_like(x)
+        return self._bias_terms(x, history, w)[1]
 
-        bias_force = np.zeros_like(x)
-        for h in history: # loop over k (small)
-            rmsd, diff = nput.eckart_rmsd(x, h,
-                                          masses=self.masses,
-                                          mass_weighted=self.mass_weighted,
-                                          in_paf=True,
-                                          planar_ref_tolerance=-1,
-                                          return_diffs=True)
-            gaussian = self.height * np.exp(-self.alpha * rmsd ** 2)
-            # F = -dV/dx; the RMSD itself cancels (see class docstring derivation)
-            bias_force += 2 * self.alpha * gaussian * w[:, np.newaxis] * diff
-        return bias_force
+    def _history(self, walker):
+        if self._histories is None:
+            return ()
+        history = self._histories if self.shared_history else self._histories[:, walker]
+        return history if self._full_history else history[:self._history_pointer]
 
-    def __call__(self, coords):
-        coords = np.asanyarray(coords)
-        n_traj, n_atoms, _ = coords.shape
+    def bias_energy(self, coords):
+        """Bias energies, one per walker; does not deposit or advance time."""
+        coords = self._validate_coords(coords)
         w = self.get_weights(coords)
+        return np.array([self._bias_terms(x, self._history(i), w)[0]
+                         for i, x in enumerate(coords)])
 
+    def forces(self, coords):
+        """Physical plus bias forces using the current history, without depositing."""
+        coords = self._validate_coords(coords)
+        forces = np.array(self.force_function(coords), dtype=float, copy=True)
+        if forces.shape != coords.shape or not np.all(np.isfinite(forces)):
+            raise ValueError("force_function must return finite forces with the same shape as coords")
+        w = self.get_weights(coords)
+        for i, x in enumerate(coords):
+            forces[i] += self._bias_force(x, self._history(i), w)
+        return forces
+
+    def deposit(self, coords):
+        """Copy all walkers into the ring buffer without advancing the stride counter.
+
+        Independent mode retains k batches (k structures per walker); shared
+        mode retains k structures total, inserting walkers in batch order.
+        """
+        coords = self._validate_coords(coords)
+        self.get_weights(coords)
         if self._histories is None:
             self._init_histories(coords)
-
-        forces = np.asanyarray(self.force_function(coords)).copy()
-
-        self._histories: np.ndarray # assertion for type hints
-        for i in range(n_traj):
-            history = self._histories if self.shared_history else self._histories[i]
-            if not self._full_history:
-                history = history[:self._history_pointer]
-            forces[i] = forces[i] + self._bias_force(coords[i], history, w)
-
-        self._call_count += 1
-        if self._call_count % self.stride == 0:
-            if self.shared_history:
-                self._histories[self._history_pointer] = coords[0]
-            else:
-                self._histories[:, self._history_pointer] = coords[0]
+        snapshots = coords if self.shared_history else coords[np.newaxis]
+        for snapshot in snapshots:
+            self._histories[self._history_pointer] = snapshot
             self._history_pointer += 1
             if self._history_pointer >= self.k:
                 self._full_history = True
                 self._history_pointer = 0
+        self._history_version += 1
 
+    def advance(self, coords):
+        """Count one completed step, deposit on stride, and return whether history changed."""
+        coords = self._validate_coords(coords)
+        self._call_count += 1
+        if self._call_count % self.stride == 0:
+            self.deposit(coords)
+            return True
+        return False
+
+    def __call__(self, coords):
+        forces = self.forces(coords)
+        self.advance(coords)
         return forces
 
     def reset(self):
         """Clear deposited history and call counter (e.g. reusing one instance across runs)."""
         self._histories = None
         self._call_count = 0
+        self._history_pointer = 0
+        self._full_history = False
+        self._weights = None
+        self._history_version += 1
 
 class AIMDSimulator:
     __props__ = (
@@ -572,6 +655,8 @@ class AIMDSimulator:
             velocities = np.full_like(self.coords, velocities)
         velocities = np.asanyarray(velocities)
         self.velocities = velocities
+        if isinstance(force_function, RMSDBiasPotential) and internals is not None:
+            raise ValueError("RMSDBiasPotential requires a Cartesian force callback (internals=None)")
         if internals is not None:
             if not isinstance(internals, MolecularZMatrixCoordinateSystem):
                 base_mol = Molecule(
@@ -586,6 +671,9 @@ class AIMDSimulator:
         self._internals = internals
         self.force_function = force_function
         self._prev_forces = None
+        self._prev_bias_version = (
+            force_function._history_version if isinstance(force_function, RMSDBiasPotential) else None
+        )
 
         self.trajectory = collections.deque()
         self.trajectory.append(self.coords)
@@ -674,7 +762,10 @@ class AIMDSimulator:
             forces = forces.reshape(coords.shape)
             # raise Exception(forces.shape)
         else:
-            forces = self.force_function(coords)
+            if isinstance(self.force_function, RMSDBiasPotential):
+                forces = self.force_function.forces(coords)
+            else:
+                forces = self.force_function(coords)
         return forces
 
     def _recenter(self, coords):
@@ -685,6 +776,9 @@ class AIMDSimulator:
 
     def step(self):
         forces = self._prev_forces
+        bias = self.force_function if isinstance(self.force_function, RMSDBiasPotential) else None
+        if bias is not None and self._prev_bias_version != bias._history_version:
+            forces = None
         coords, vels, forces_new = self.step_predictor.predict_step(
             self.coords, self.velocities, forces, sim=self
         )
@@ -696,6 +790,13 @@ class AIMDSimulator:
         self.velocities = vels
         self.coords = coords
         self.steps += 1
+        if bias is not None:
+            # All force evaluations within this step see one frozen history.
+            # A deposit or eviction can change forces at every walker, so the
+            # next step must recompute them against the new potential.
+            if bias.advance(coords):
+                self._prev_forces = None
+            self._prev_bias_version = bias._history_version
 
         return coords, vels, forces_new
 
@@ -726,6 +827,13 @@ class AIMDSimulator:
         traj = traj.reshape((-1,) + traj.shape[-2:])
 
         vals = [energy_function(traj)]
+        # Interpolate the physical PES: a trajectory-dependent bias cannot
+        # supply derivatives of a single static energy function, and analysis
+        # must not deposit new hills or mix histories across flattened walkers.
+        physical_force_function = (
+            self.force_function.force_function
+            if isinstance(self.force_function, RMSDBiasPotential) else self.force_function
+        )
 
         # if clustering_criterion > ...:
         #     ...
@@ -733,11 +841,11 @@ class AIMDSimulator:
         # TODO: add clustering radius + energy cutoff within disks
 
         if interpolation_order > 0:
-            vals.append(-self.force_function(traj))
+            vals.append(-physical_force_function(traj))
         if interpolation_order > 1:
             cshape = (-1,) + traj.shape[-2:]
             npts = np.prod(traj.shape[-2:], dtype=int)
-            grad = lambda x:-self.force_function(x.reshape(cshape)).reshape(x.shape)
+            grad = lambda x:-physical_force_function(x.reshape(cshape)).reshape(x.shape)
             hess_fun = FiniteDifferenceDerivative(grad, function_shape=(npts, npts))
             hess = np.moveaxis(
                 hess_fun.derivatives(traj.reshape(-1, npts)).derivative_tensor([1])[0],
