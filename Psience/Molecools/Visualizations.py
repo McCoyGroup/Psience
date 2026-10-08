@@ -1049,8 +1049,12 @@ class MoleculePlotter:
         #     b_sty_2['transparency'] = 0
         if b[2] == 0:
             bond_radius = 0
+            # Reconciled absent bonds retain their endpoint geometry. Collapsing
+            # both halves onto p1 makes interpolated cylinders change direction
+            # and pulls the second atom's colored segment toward the first atom.
+            # A zero radius hides the bond without changing its attachment points.
             bond_point_list = [
-                [p1, p1, p1]
+                [p1, p2, midpoint]
             ]
             # b_sty_2['color'] = 'white'
             # b_sty_1['color'] = 'white'
@@ -3141,6 +3145,84 @@ class JSMolMoleculePlotter(MoleculePlotter):
 class RDKitMoleculePlotter(MoleculePlotter):
     modes = ('rdkit', 'rdkit3d')
 
+    def _infer_rdkit_atom_palette(self, atom_style, bond_style):
+        """Infer RDKit's element palette from representable atom/bond styles.
+
+        RDKit colors an atom by atomic number and uses those colors for the
+        adjoining bond segments. It cannot color individual atoms of the same
+        element, or individual bonds, through its atom palette.
+        """
+        rdmol = self.mol.rdmol
+        normalize = rdmol._handle_color
+        atoms = list(rdmol.rdmol.GetAtoms())
+        bonds = list(rdmol.rdmol.GetBonds())
+        element_colors = {}
+        specified_atoms = set()
+        if isinstance(atom_style, dict):
+            base_color = atom_style.get('font_color')
+            for atom in atoms:
+                color = base_color
+                for key in (atom.GetSymbol(), atom.GetIdx()):
+                    style = atom_style.get(key, {})
+                    if isinstance(style, dict):
+                        color = style.get('font_color', color)
+                if color is None:
+                    continue
+                specified_atoms.add(atom.GetIdx())
+                number = atom.GetAtomicNum()
+                color = normalize(color)
+                if number in element_colors and element_colors[number] != color:
+                    raise ValueError(
+                        "RDKit's atom palette cannot give atoms of the same element "
+                        "different font_color values; pass atom_palette explicitly"
+                    )
+                element_colors[number] = color
+            for atom in atoms:
+                number = atom.GetAtomicNum()
+                if number in element_colors and atom.GetIdx() not in specified_atoms:
+                    raise ValueError(
+                        "RDKit's atom palette cannot color only some atoms of an "
+                        "element; pass atom_palette explicitly"
+                    )
+
+        line_color = None
+        if isinstance(bond_style, dict):
+            base_color = bond_style.get('line_color')
+            colored_bonds = 0
+            for bond in bonds:
+                i, j = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
+                color = base_color
+                for key in (bond.GetIdx(), (i, j), (j, i)):
+                    style = bond_style.get(key, {})
+                    if isinstance(style, dict):
+                        color = style.get('line_color', color)
+                if color is None:
+                    continue
+                colored_bonds += 1
+                color = normalize(color)
+                if line_color is not None and line_color != color:
+                    raise ValueError(
+                        "RDKit's atom palette cannot give bonds different "
+                        "line_color values; pass atom_palette explicitly"
+                    )
+                line_color = color
+            if colored_bonds and colored_bonds != len(bonds):
+                raise ValueError(
+                    "RDKit's atom palette cannot color only some bonds; "
+                    "pass atom_palette explicitly"
+                )
+
+            if not bonds and base_color is not None:
+                line_color = normalize(base_color)
+        if line_color is not None:
+            if any(color != line_color for color in element_colors.values()):
+                raise ValueError(
+                    "RDKit's atom palette cannot give atom fonts and bond lines "
+                    "different colors; pass atom_palette explicitly"
+                )
+            return {-1: line_color} | element_colors
+        return element_colors or None
+
     def plot_impl(self, full_opts):
         """
         **LLM Docstring**
@@ -3193,9 +3275,9 @@ class RDKitMoleculePlotter(MoleculePlotter):
 
         :param figure: an existing figure to draw into
         :type figure: object | None
-        :param atom_style: per-atom style overrides (accepted but not directly used in the returned dict)
+        :param atom_style: per-atom style overrides; infer palette entries from ``font_color``
         :type atom_style: dict | None
-        :param bond_style: per-bond style overrides (accepted but not directly used in the returned dict)
+        :param bond_style: per-bond style overrides; infer the fallback palette color from a uniform ``line_color``
         :type bond_style: dict | None
         :param atom_radii: explicit atom radius override(s)
         :type atom_radii: float | dict | None
@@ -3237,6 +3319,9 @@ class RDKitMoleculePlotter(MoleculePlotter):
         if extra_opts is None:
             extra_opts = {}
         use_default_radii = extra_opts.pop('use_default_radii', True)
+        atom_palette = None
+        if 'atom_palette' not in extra_opts:
+            atom_palette = self._infer_rdkit_atom_palette(atom_style, bond_style)
         if highlight_styles is None:
             highlight_styles = self.highlight_styles
 
@@ -3314,6 +3399,7 @@ class RDKitMoleculePlotter(MoleculePlotter):
                 display_atom_numbers=display_atom_numbers,
                 draw_coords=draw_coords,
                 label_style=label_style,
+                atom_palette=atom_palette,
                 highlight_bond_width_multiplier=None
             ) | extra_opts
 
