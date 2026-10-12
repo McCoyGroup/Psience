@@ -12,7 +12,7 @@ from McUtils.Zachary import TensorDerivativeConverter
 from ..Modes import MixtureModes
 
 from .CoordinateSystems import MolecularEmbedding, ModeEmbedding
-from .Properties import PotentialSurfaceManager, DipoleSurfaceManager, NormalModesManager
+from .Properties import PotentialSurfaceManager, DipoleSurfaceManager, NormalModesManager, StructuralProperties
 
 class MolecularHamiltonian:
     """
@@ -122,7 +122,7 @@ class MolecularHamiltonian:
 
         Build the set of Taylor expansions (potential, kinetic/G-matrix, and either Coriolis + Watson or pseudopotential, depending on whether the embedding uses Cartesians or internals) needed for a VPT (vibrational perturbation theory) treatment, optionally re-expressed through an extra coordinate transformation.
 
-        :param order: either a single integer giving the base expansion order (used to derive per-term orders, with Coriolis/Watson/pseudopotential going 2 orders lower), or an explicit dict mapping term name (`'potential'`, `'kinetic'`, `'coriolis'`, `'pseudopotential'`, `'watson'`) to its order
+        :param order: a nonnegative perturbation order n (potential through n+2 derivatives, kinetic through n, and Coriolis/Watson/pseudopotential through n-2 when n >= 2), or an explicit dict of derivative orders mapping term name (`'potential'`, `'kinetic'`, `'coriolis'`, `'pseudopotential'`, `'watson'`) to its order
         :type order: int | dict
         :param coordinate_transformation: an additional forward/reverse coordinate transformation to apply to every expansion, passed through `prep_transformation`
         :type coordinate_transformation: tuple | None
@@ -134,14 +134,16 @@ class MolecularHamiltonian:
         embedding = ModeEmbedding(self.embedding, self.modes, dimensionless=True)
         if isinstance(order, (int, np.integer)):
             n = order
+            if n < 0:
+                raise ValueError("VPT perturbation order must be nonnegative")
             order = {
-                'potential':n,
+                'potential':n+2,
                 'kinetic':n,
             }
-            if carts:
+            if carts and n >= 2:
                 order['coriolis'] = n-2
                 order['watson'] = n-2
-            else:
+            elif not carts and n >= 2:
                 order['pseudopotential'] = n-2
 
         coordinate_transformation = self.prep_transformation(coordinate_transformation)
@@ -158,13 +160,23 @@ class MolecularHamiltonian:
                 post_processor = lambda exp: exp[1:]
             elif k == 'coriolis':
                 generator = self.coriolis_expansion(embedding=embedding)
+                post_processor = lambda exp: [
+                    np.moveaxis(t, list(range(o)), list(range(2, 2+o)))
+                    if not nput.is_zero(t) else 0 for o,t in enumerate(exp)]
             elif k == 'pseudopotential':
-                generator = self.pseudopotential_expansion(embedding)
+                generator = self.pseudopotential_expansion(embedding=embedding)
             elif k == 'watson':
-                generator = self.watson_expansion(embedding)
+                generator = self.watson_expansion(embedding=embedding)
+                post_processor = lambda exp: [
+                    0 if nput.is_zero(t) else -np.trace(t, axis1=-2, axis2=-1)
+                    for t in exp]
             else:
                 raise ValueError("don't know what to do with key {}".format(k))
-            terms = generator.get_terms(o, transformation=coordinate_transformation)
+            if k == 'potential':
+                terms = generator.get_terms(o, transformation=coordinate_transformation,
+                                            mixed_derivative_handling_mode='vpt2')
+            else:
+                terms = generator.get_terms(o, transformation=coordinate_transformation)
             if post_processor is not None:
                 terms = post_processor(terms)
             expansions[k] = terms
@@ -318,7 +330,7 @@ class MolecularHamiltonian:
         :rtype: object
         """
         return nput.optimizing_transformation(
-            self.potential_expansion(order,
+            self.potential_expansion(order+2,
                                      dimensionless=dimensionless,
                                      embedding=embedding,
                                      exclude_gradient=exclude_gradient,
@@ -363,7 +375,7 @@ class MolecularHamiltonian:
 
         exp = cls(embedding)
         if order is not None:
-            exp = exp.get_terms(order, coords=coords)
+            exp = exp.get_terms(order) if coords is None else exp.get_terms(order, coords=coords)
         return exp
     def gmatrix_expansion(self,
                           order=None,
@@ -503,6 +515,60 @@ class MolecularHamiltonian:
                                       embedding=embedding,
                                       **embedding_opts
                                       )
+    def get_pseudopotential_function(self, coordinate_function=None, batch_size=64):
+        """Return V'(q) in Hartrees for an internal-coordinate DVR (hbar = 1).
+
+        By default, q is the embedding's internal coordinates with its fixed
+        embedding coordinates stripped. A coordinate_function may instead map
+        the DVR coordinates to Cartesian geometries in Bohr. It must use the
+        same internal-coordinate chart as the DVR's G matrix.
+
+        Each grid geometry is evaluated directly, using the Hamiltonian's
+        G/inertia expansion machinery; no Taylor approximation to V' is used.
+        The returned function includes the VPT energy prefactor of 1/8.
+        """
+        if self.embedding.internals is None:
+            raise ValueError("V' requires an internal-coordinate embedding")
+        if not isinstance(batch_size, (int, np.integer)) or batch_size < 1:
+            raise ValueError("batch_size must be a positive integer")
+        reference = self.embedding
+        internal_spec = reference.internals
+        if (reference.zmatrix is not None
+                and internal_spec.get('conversion') is None
+                and np.all(reference.masses > 0)):
+            # The stripped Z-matrix is exactly this ordered primitive chart.
+            # Evaluate its physical coordinates directly, so dummy axes used
+            # to embed a Z-matrix are absent from batched derivatives.
+            from McUtils.Coordinerds import extract_zmatrix_internals
+            internal_spec = {'specs': extract_zmatrix_internals(reference.zmatrix, canonicalize=False)}
+        if coordinate_function is None:
+            coordinate_function = lambda q: reference.get_cartesians(coords=q, tol=1e-10)
+
+        def evaluate(grid):
+            carts = np.asarray(coordinate_function(np.asarray(grid)))
+            if carts.shape[-2:] != reference.coords.shape[-2:]:
+                raise ValueError("coordinate_function must return (..., natoms, 3) geometries")
+            shape = carts.shape[:-2]
+            carts = carts.reshape((-1,) + carts.shape[-2:])
+            values = np.empty(len(carts))
+            for start in range(0, len(carts), batch_size):
+                points = carts[start:start + batch_size]
+                # Inertia derivatives are taken about the center of mass.
+                com = StructuralProperties.get_prop_center_of_mass(points, reference.masses)
+                points = points - com[:, np.newaxis, :]
+                embedding = MolecularEmbedding(reference.masses, points, internal_spec,
+                                               internal_fd_opts=reference._internal_fd_opts,
+                                               cartesian_fd_opts=reference._cart_fd_opts)
+                try:
+                    mode_embedding = ModeEmbedding(embedding, None)
+                    raw = PseudopotentialExpansion(mode_embedding).get_terms(0)[0]
+                    values[start:start + len(points)] = np.asarray(raw) / 8
+                finally:
+                    embedding.cleanup()
+            return values.reshape(shape)
+
+        return evaluate
+
     def coriolis_expansion(self,
                            order=None,
                            *,
@@ -653,62 +719,30 @@ class ScalarExpansion:
         self.derivs = derivs
 
     def canonicalize_derivs(self, derivs, shared=0):
-        """
-        **LLM Docstring**
+        """Scale existing mode slots in mixed Cartesian/normal-mode tensors.
 
-        Re-express derivative tensors that are given with respect to mass-weighted Cartesians into the embedding's native coordinate axis, by contracting any axis whose size matches the mass-weighted-inverse transformation's dimension with `self.embedding.mw_inverse()`. Does nothing (returns `derivs` unchanged) if the embedding has no normal modes.
-
-        :param derivs: the derivative tensors to canonicalize
-        :type derivs: list[np.ndarray]
-        :param shared: number of leading axes to skip when looking for axes to transform (e.g. for expansions that share leading axes, such as dipole components)
-        :type shared: int
-        :return: the canonicalized derivative tensors
-        :rtype: list[np.ndarray]
+        Cartesian slots stay in their supplied units: the coordinate
+        Jacobian in get_terms applies their mass weighting. A fully mode
+        expansion is already dimensioned, as in VPT2.Terms. Only mode slots
+        accompanying Cartesian slots need frequency scaling here.
         """
-        if self.embedding.modes is None: return derivs
-        # in_modes = False
-        # for d in derivs:
-        #     if not nput.is_zero(d):
-        #         in_modes = d.shape[0] != d.shape[-1]
-        #         if in_modes: break
-        YX = self.embedding.mw_inverse()
-        _ = []
-        for d in derivs:
-            if not nput.is_zero(d):
-                for i,x in enumerate(d.shape[shared:]):
-                    if x == YX.shape[-1]:
-                        d = np.moveaxis(
-                            np.tensordot(YX, d, axes=[-1, shared+i]),
-                            0,
-                            shared + i
-                        )
-            _.append(d)
-        # if in_modes:
-        #     QX = self.embedding.modes.coords_by_modes @ YX
-        #     Qq = np.diag(1/np.sqrt(self.embedding.modes.freqs))
-        #     _ = []
-        #     for d in derivs:
-        #         if not nput.is_zero(d):
-        #             for j in range(d.ndim):
-        #                 if d.shape[j] == QX.shape[1]:
-        #                     d = np.tensordot(QX, d, axes=[1, j])
-        #                 else:
-        #                     d = np.tensordot(Qq, d, axes=[1, j])
-        #                 d = np.moveaxis(d, 0, j)
-        #             # # symmetrize d
-        #             if symmetrization_mode is not None and symmetrization_mode != 'unhandled':
-        #                 nput.symmetrize_array(d, symmetrization_mode=symmetrization_mode)
-        #                 # n = 0
-        #                 # t = 0
-        #                 # for p in itertools.permutations(range(d.ndim-1)):
-        #                 #     n += 1
-        #                 #     t += d.transpose(p + (d.ndim-1,))
-        #                 # d = t / n
-        #         _.append(d)
-        #     derivs = _
-        # else:
-        #     derivs = nput.tensor_reexpand([YX], derivs, len(derivs))
-        return derivs
+        modes = self.embedding.modes
+        if modes is None or not modes.is_cartesian or not modes.frequency_scaled:
+            return derivs
+        cart_dimension = self.embedding.mw_inverse().shape[-1]
+        mode_dimension = modes.matrix.shape[-1]
+        result = []
+        for derivative in derivs:
+            value = derivative
+            if not nput.is_zero(value) and cart_dimension in value.shape[shared:]:
+                roots = np.sqrt(np.abs(modes.freqs))
+                for axis,size in enumerate(value.shape[shared:],start=shared):
+                    if size == mode_dimension and size != cart_dimension:
+                        shape = [1]*value.ndim
+                        shape[axis] = mode_dimension
+                        value = value/roots.reshape(shape)
+            result.append(value)
+        return result
 
     @classmethod
     def check_mixed_expansion(self, derivs, shared=0):
@@ -752,6 +786,21 @@ class ScalarExpansion:
             base_tf = nput.tensor_reexpand(forward_derivs, base_tf)
             rev_tf = nput.tensor_reexpand(reverse_derivs, rev_tf)
         return base_tf, rev_tf
+
+    @staticmethod
+    def _vpt2_mixed_terms(terms):
+        """Fill only the sampled repeated-index quartic blocks used by VPT2."""
+        terms = list(terms)
+        if len(terms) > 3 and not nput.is_zero(terms[3]):
+            source = terms[3]
+            quartic = np.zeros_like(source)
+            for i in range(len(quartic)):
+                block = source[i, i]
+                quartic[i, :, i, :] = quartic[i, :, :, i] = block
+                quartic[:, i, :, i] = quartic[:, i, i, :] = block
+                quartic[:, :, i, i] = block
+            terms[3] = quartic
+        return terms
 
     def get_terms(self,
                   order=None,
@@ -797,7 +846,9 @@ class ScalarExpansion:
         if len(derivs) < order:
             derivs = tuple(derivs) + (0,) * (order - len(derivs))
 
-        derivs = self.canonicalize_derivs(derivs, shared=shared)
+        derivs = self.canonicalize_derivs(derivs[:order], shared=shared)
+        if all(nput.is_zero(d) for d in derivs):
+            return [0]*order
         is_mixed, num_base = self.check_mixed_expansion(derivs, shared=shared)
 
         zero_derivs = 0
@@ -841,9 +892,12 @@ class ScalarExpansion:
                             [modes.modes_by_coords]
                         )
             if mixed_transformation is None:
-                return canonical_derivs
+                return (self._vpt2_mixed_terms(canonical_derivs)
+                        if mixed_derivative_handling_mode == 'vpt2' else canonical_derivs)
             else:
                 tf_base = nput.tensor_reexpand(mixed_transformation, canonical_derivs, order, axes=[-1, -1])
+                if mixed_derivative_handling_mode == 'vpt2':
+                    return self._vpt2_mixed_terms(tf_base)
                 return [
                     nput.symmetrize_array(t, symmetrization_mode=mixed_derivative_handling_mode)
                     for t in tf_base
@@ -1205,9 +1259,15 @@ class PseudopotentialExpansion:
         :rtype: list[np.ndarray]
         """
 
-        g_exp = [np.trace(t, axis1=-1, axis2=-2) for t in nput.tensordot_deriv(G_expansion[1:], G_inv, order)]
-        i_exp = [np.trace(t, axis1=-1, axis2=-2) for t in nput.tensordot_deriv(I0_expansion[1:], I0_inv, order)]
-        return [ti - tg for ti,tg in zip(i_exp, g_exp)]
+        shared = G_expansion[0].ndim - 2
+        g_exp = [np.trace(t, axis1=-1, axis2=-2) if not nput.is_zero(t) else 0 for t in nput.tensordot_deriv(
+            G_expansion[1:], G_inv, order, axes=[-1, shared], shared=shared)]
+        i_exp = [np.trace(t, axis1=-1, axis2=-2) if not nput.is_zero(t) else 0 for t in nput.tensordot_deriv(
+            I0_expansion[1:], I0_inv, order, axes=[-1, shared], shared=shared)]
+        shape = G_expansion[0].shape[:-2]
+        ndim = G_expansion[0].shape[-1]
+        return [ti - tg if not nput.is_zero(ti - tg) else np.zeros(shape + (ndim,) * (o + 1))
+                for o, (ti, tg) in enumerate(zip(i_exp, g_exp))]
 
     @classmethod
     def get_U(cls, G_expansion, I0_expansion):
@@ -1220,7 +1280,8 @@ class PseudopotentialExpansion:
         :type G_expansion: list[np.ndarray]
         :param I0_expansion: the inertia-tensor expansion terms
         :type I0_expansion: list[np.ndarray]
-        :return: the pseudopotential expansion terms
+        :return: raw pseudopotential tensors, matching VPT2.Terms.PotentialLikeTerm;
+            the energy operator includes hbar**2 / 8
         :rtype: list[np.ndarray]
         """
 
@@ -1228,6 +1289,9 @@ class PseudopotentialExpansion:
         QI0 = I0_expansion
         n = len(QG) - 1
         order = n - 2
+        if order < 0 or len(QI0) < n + 1:
+            raise ValueError("V' requires G and inertia derivatives through order + 2")
+        shared = QG[0].ndim - 2
 
         QU = nput.matinv_deriv(QI0, n)
         QiG = nput.matinv_deriv(G_expansion, n)
@@ -1244,10 +1308,13 @@ class PseudopotentialExpansion:
             l1 + 1/4*l2
             for l1, l2 in zip(L[1:], LxL)
         ]
-        G_contract = nput.tensordot_deriv(G_expansion, inner_exp, order, axes=[[0, 1], [0, 1]])
+        G_contract = nput.tensordot_deriv(
+            G_expansion, inner_exp, order,
+            axes=[[shared, shared + 1], [shared, shared + 1]], shared=shared)
         QG_contract = [
-            np.trace(g, axis1=-1, axis2=-2) for g in
-            nput.tensordot_deriv(G_expansion[1:], L, order, axes=[2, 0])
+            np.trace(g, axis1=-1, axis2=-2) if not nput.is_zero(g) else 0 for g in
+            nput.tensordot_deriv(G_expansion[1:], L, order,
+                                 axes=[shared + 2, shared], shared=shared)
         ]
 
         return [g1 + g2 for g1, g2 in zip(G_contract, QG_contract)]
@@ -1312,52 +1379,24 @@ class ZetaExpansion:
         """
         self.embedding = embedding
     def get_terms(self, order, transformation=None):
+        """Physical Coriolis zetas, with derivative axes preceding (axis, i, j).
+
+        Cartesian displacement modes have constant zetas. Remove frequency
+        scaling before constructing the atom-wise cross products; the q/p
+        frequency ratio belongs to the Coriolis operator, not to these zetas.
         """
-        **LLM Docstring**
-
-        Compute the Coriolis zeta-constant expansion terms: builds the internals-by-Cartesians Jacobian (optionally reexpressed through an extra transformation), projects it into the inertial (principal-axis) frame, forms its self tensor product, and antisymmetrizes over pairs of Cartesian axes to extract the `x`, `y`, `z` zeta-constant components.
-
-        :param order: the derivative order to compute
-        :type order: int
-        :param transformation: an additional forward/reverse coordinate transformation to apply to the internals-by-Cartesians Jacobian first
-        :type transformation: tuple | None
-        :return: the zeta expansion terms, three (x/y/z) entries per order
-        :rtype: list[np.ndarray]
-        """
-
-        QY = self.embedding.get_internals_by_cartesians(order=order)
-        if transformation is not None:
-            forward_derivs, reverse_derivs = MolecularHamiltonian.prep_transformation(transformation)
-            QY = nput.tensor_reexpand(forward_derivs, QY, order)
-        QY = [
-            np.moveaxis(yq, -1, 0) if not nput.is_zero(yq) else 0
-            for yq in QY
-        ]
-
-        B_e, eigs = self.embedding.get_inertial_frame()
-
-        _ = []
-        for J in QY:
-            J = J.reshape(J.shape[:-2] + (-1, 3))
-            J = np.tensordot(eigs, J, axes=[1, 2])
-            _.append(np.moveaxis(J, -2, -1))
-        QY = _
-
-        QYQY = [
-            np.sum(qyqy, axis=-1)
-            for qyqy in nput.tensorprod_deriv(QY, QY, axes=[[0, 1], [0, 1]], order=order)
-        ]
-
-        zeta_expansion = []
-        for qyqy in QYQY:
-            for a in range(3):
-                b = (a + 1) % 3
-                c = (a + 2) % 3
-                if b % 2 == 1:
-                    c, b = b, c
-                zeta_expansion.append(qyqy[..., b, :, c] - qyqy[..., c, :, b])
-
-        return zeta_expansion
+        modes = self.embedding.modes
+        if modes is None or not modes.is_cartesian:
+            raise ValueError("Coriolis zetas require Cartesian displacement modes")
+        matrix = self.embedding.get_modes_by_coords(mass_weighted=True, frequency_scaled=False)
+        vectors = matrix.T.reshape((matrix.shape[-1], -1, 3))
+        _, axes = self.embedding.get_inertial_frame()
+        vectors = vectors @ axes
+        zeta = np.stack([
+            np.einsum('in,jn->ij', vectors[..., (a+1)%3], vectors[..., (a+2)%3])
+            - np.einsum('in,jn->ij', vectors[..., (a+2)%3], vectors[..., (a+1)%3])
+            for a in range(3)])
+        return [zeta] + [0]*order
 
 class ReciprocalInertiaExpansion:
     """
@@ -1377,35 +1416,24 @@ class ReciprocalInertiaExpansion:
         self.embedding = embedding
 
     def get_terms(self, order, transformation=None):
+        """Watson reciprocal inertia derivatives, with derivative slots first.
+
+        Use the VPT2 Watson model u(q) = B(q) I_e B(q), where
+        B(q) = inverse(I_e + I'_e(q)/2). Differentiating the full product
+        preserves mixed-slot symmetry and factorial normalization.
         """
-        **LLM Docstring**
-
-        Compute the expansion of the inverse inertia tensor `u = I0^-1` order by order, using the recursive relation `u^(n) = a @ u^(n-1) @ u` built from the first-order inertia-tensor derivative `a` (optionally re-expressed through an extra coordinate transformation).
-
-        :param order: the highest derivative order to compute
-        :type order: int
-        :param transformation: an additional forward/reverse coordinate transformation to apply to the first-order inertia-tensor derivative
-        :type transformation: tuple | None
-        :return: the reciprocal-inertia expansion terms, `order + 1` entries starting from `u` itself
-        :rtype: list[np.ndarray]
-        """
-        I0, a = self.embedding.get_inertia_tensor_expansion(order=1)
-        if transformation is not None:
-            forward_derivs, reverse_derivs = MolecularHamiltonian.prep_transformation(transformation)
-            a = nput.tensor_reexpand(forward_derivs, [a], 1)[0]
-        u = np.linalg.inv(I0)
-
-        expansion = [u]
-        for _ in range(order):
-            prev = expansion[-1]
-            new = np.tensordot(
-                np.tensordot(a, prev, axes=[-1, -1]),
-                u,
-                axes=[-1, 0]
-            )
-            expansion.append(new)
-
-        return expansion
+        rotational_constants, _ = self.embedding.get_inertial_frame()
+        inertia = np.diag(1/(2*rotational_constants))
+        expansion = [inertia]
+        if order:
+            expansion.append(self.embedding.get_inertia_tensor_expansion(order=1)[1]/2)
+        inverse = nput.matinv_deriv(expansion, order)
+        terms = nput.tensorops_deriv(inverse, [-1, 0], [inertia], [-1, 0],
+                                    inverse, order=order)
+        if transformation is not None and order:
+            forward, _ = MolecularHamiltonian.prep_transformation(transformation)
+            terms = [terms[0]] + nput.tensor_reexpand(forward, terms[1:], order)
+        return terms
 
 class CoriolisRotationExpansion:
     """
@@ -1427,20 +1455,20 @@ class CoriolisRotationExpansion:
         self.us = ReciprocalInertiaExpansion(self.embedding)
 
     def get_terms(self, order, transformation=None):
+        """Axis-collapsed Coriolis coefficients with leading derivative slots.
+
+        The four core axes are (q_i, p_j, q_k, p_l). As in the VPT2
+        Hamiltonian, only the diagonal rotational blocks are summed.
         """
-        **LLM Docstring**
-
-        Compute the Coriolis rotation operator's expansion terms by combining the zeta-constant expansion (contracted with itself) with the reciprocal-inertia expansion.
-
-        :param order: the derivative order to compute
-        :type order: int
-        :param transformation: an additional forward/reverse coordinate transformation forwarded to the zeta and reciprocal-inertia sub-expansions
-        :type transformation: tuple | None
-        :return: the Coriolis rotation expansion terms
-        :rtype: list[np.ndarray]
-        """
-        Z = self.zetas.get_terms(order, transformation=transformation)
-        ZZ = nput.tensorprod_deriv(Z, Z, order, axes=[1, 1]) # x/y/z shared
-        u = self.us.get_terms(order, transformation=transformation)
-
-        return nput.tensordot_deriv(u, ZZ, order, axes=[1, 0])
+        zeta = self.zetas.get_terms(order)
+        modes = self.embedding.modes
+        if modes.frequency_scaled:
+            roots = np.sqrt(np.abs(modes.freqs))
+            zeta[0] = zeta[0] * (roots[None, :]/roots[:, None])[None]
+        products = nput.tensorprod_deriv(zeta, zeta, order,
+                                        axes=[[-2, -1], [-2, -1]])
+        inverse = self.us.get_terms(order, transformation=transformation)
+        diagonal = [0 if nput.is_zero(u) else np.diagonal(u, axis1=-2, axis2=-1)
+                    for u in inverse]
+        return [0 if nput.is_zero(t) else t/2 for t in
+                nput.tensordot_deriv(diagonal, products, order, axes=[-1, 0])]

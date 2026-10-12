@@ -957,7 +957,15 @@ class ExpansionTerms:
             all_derivs.append(u)
 
         # then add in the binomial expansion temrs
+        from McUtils.Numputils.TensorDerivatives import nca_symmetrize
         for i,u in enumerate(all_derivs):
+            # Ordered powers give Taylor coefficients. A derivative also
+            # contains all assignments of its coordinate slots; summing
+            # those assignments supplies both the factorial and mixed symmetry.
+            if i > 0:
+                canonical = np.moveaxis(u, (0, 1), (-2, -1))
+                canonical = nca_symmetrize(canonical, (1,)*i, identical=False)
+                u = np.moveaxis(canonical, (-2, -1), (0, 1))
             all_derivs[i] = (-1)**i * (i+1) / (2**i) * u
 
         return all_derivs

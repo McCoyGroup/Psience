@@ -473,7 +473,7 @@ class DGBEvaluator:
         m = k//2
         s = (-1) ** k
         fac = (-1)**(n) * np.prod(
-            2*np.arange(n+1, m+1, 2) - s
+            2*np.arange(n+1, m+1) - s
         )
         bin = math.comb(m, n)
         return bin * fac
@@ -598,11 +598,11 @@ class DGBEvaluator:
 
                 dcont = d[(slice(None, None, None),)*(fdim+1) + idx] if len(idx) > 0 else d
                 if reweight:
-                    # compute multinomial coefficient for weighting purposes
+                    # Each unique symmetric index represents nd! / prod(counts!) terms.
                     _, counts = np.unique(idx, return_counts=True)
                     multicoeff = 1
                     for x in counts: multicoeff *= math.factorial(x)
-                    multicoeff = multicoeff / math.factorial(len(idx))
+                    multicoeff = math.factorial(len(idx)) / multicoeff
                     scaling = multicoeff / math.factorial(nd)
                     contrib *= scaling * dcont
                     if m_sum is not None:
@@ -613,6 +613,10 @@ class DGBEvaluator:
                         ms_contrib *= dcont
 
                 if m_sum is not None:
+                    # Each odd one-dimensional moment contributes a factor of i.
+                    phase_sign = (-1) ** (sum(n % 2 for n in count_map.values()) // 2)
+                    contrib *= phase_sign
+                    ms_contrib *= phase_sign
                     sum_prefac = overlap_data.decay_factor_sum
                     diff_prefac = overlap_data.decay_factor_diff
 
