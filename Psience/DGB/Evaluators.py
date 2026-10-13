@@ -1227,7 +1227,7 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
     ):
         return (
                 (Xc[:, m] * Xc[:, n] + Sc[:, n, m]) * (Dx[:, v] * Dx[:, u] - Sp[:, u, v])
-                - (Gi[:, m, v]*Gj[:, n, u] + Gi[:, m, u]*Gj[:, n, u])
+                - (Gi[:, m, v]*Gj[:, n, u] + Gi[:, m, u]*Gj[:, n, v])
                 - (Dx[:, v]*Xc[:, n]*DG[:, m, u] + Dx[:, v]*Xc[:, m]*DG[:, n, u])
         )
     @staticmethod
@@ -1239,7 +1239,7 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
             # Gi, Gj, DG
     ):
         return (
-            Jp[:, u]*Jp[:, v]*(Xc[:, m]*Xc[:, n] - r[:, m]*r[:, m] + Sc[:, n, m])
+            Jp[:, u]*Jp[:, v]*(Xc[:, m]*Xc[:, n] - r[:, m]*r[:, n] + Sc[:, n, m])
             -r[:, m]*r[:, n]*(Dx[:, v] * Dx[:, u] - Sp[:, u, v])
             -(Xc[:, n]*r[:, m] + Xc[:, m]*r[:, n])*(Dx[:, v]*Jp[:, u] + Dx[:, u]*Jp[:, v])
             +Jp[:, v]*r[:, n]*DG[:, m, u] + Jp[:, v]*r[:, m]*DG[:, n, u]
@@ -1258,6 +1258,39 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
             +(Jp[:, v]*Xc[:, n]+Dx[:, v]*r[:, n])*DG[:, m, u]
             +(Jp[:, v]*Xc[:, m]+Dx[:, v]*r[:, m])*DG[:, n, u]
         )
+    @staticmethod
+    def coriolis_gaussian_moment(C, q, di, dj, cov, qi, qj, ij):
+        """Contract E[q_n di_u q_m dj_v] using the Gaussian moment rule.
+
+        di and dj are affine Gaussian derivatives. qi, qj and ij are their
+        cross-covariances with q and one another; q may be a complex mean.
+        Pair the four factors in the three possible ways, using their
+        second moments, then subtract two copies of the mean product.
+        """
+        npts, ndim = q.shape
+        q_di = q[:, :, np.newaxis] * di[:, np.newaxis, :]
+        q_dj = q[:, :, np.newaxis] * dj[:, np.newaxis, :]
+        q_q = q[:, :, np.newaxis] * q[:, np.newaxis, :]
+        di_dj = di[:, :, np.newaxis] * dj[:, np.newaxis, :]
+
+        def contract(tensor, left, right):
+            # Flatten each pair of core indices; keep Gaussian pairs batched.
+            left = left.reshape(npts, 1, ndim**2)
+            right = right.reshape(npts, ndim**2, 1)
+            tensor = tensor.reshape(npts, ndim**2, ndim**2)
+            return (left @ tensor @ right).reshape(npts)
+
+        return (
+            # Pair (n,u) with (m,v).
+            contract(C, q_di + qi, q_dj + qj)
+            # Pair (n,m) with (u,v).
+            + contract(C.transpose(0, 1, 3, 2, 4), q_q + cov, di_dj + ij)
+            # Pair (n,v) with (u,m).
+            + contract(C.transpose(0, 1, 4, 2, 3), q_dj + qj,
+                       (q_di + qi).transpose(0, 2, 1))
+            - 2 * contract(C, q_di, q_dj)
+        )
+
     @classmethod
     def evaluate_coriolis_contrib(cls, coriolis_tensors, overlap_data:'OverlapGaussianData'):
 
@@ -1294,72 +1327,28 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
                 contrib += t
 
         if overlap_data.initial_momenta is not None:
-            jp_sum = overlap_data.delta_phase_sum
-            jp_diff = overlap_data.delta_phase_diff
-            rho_sum = overlap_data.rho_sum
-            rho_diff = overlap_data.rho_diff
+            # cos(k_i.q) cos(k_j.q) gives sum/difference Fourier channels.
+            # Completing the square shifts the Gaussian mean by i*Cov*k.
+            # Differentiate each phased Gaussian before taking its moments.
+            def channel(phase_i, phase_j, rho, decay):
+                mean = Xc + 1j*rho
+                ci = overlap_data.initial_centers[rows]
+                cj = overlap_data.initial_centers[cols]
+                di = -(SIi @ (mean-ci)[:, :, np.newaxis])[:, :, 0] + 1j*phase_i
+                dj = -(SIj @ (mean-cj)[:, :, np.newaxis])[:, :, 0] + 1j*phase_j
+                value = cls.coriolis_gaussian_moment(
+                    coriolis_tensors, mean, di, dj, Sc, -Gi, -Gj,
+                    SIi @ Sc @ SIj)
+                correlation = np.sum((phase_i + phase_j)*Xc, axis=-1)
+                return decay*np.exp(1j*correlation)*value
 
-            sum_real_term = lambda n, u, m, v: coriolis_tensors[:, n, u, m, v] * cls.annoying_coriolis_momentum_term(
-                    n, u, m, v,
-
-                    Xc, rho_sum, jp_sum, Dx,
-                    Sc, Sp, DG
-            )
-            sum_imag_term = lambda n, u, m, v: coriolis_tensors[:, n, u, m, v] * cls.annoying_imaginary_momentum_term(
-                n, u, m, v,
-
-                Xc, rho_sum, jp_sum, Dx,
-                Sc, Sp, DG
-            )
-
-            diff_real_term = lambda n, u, m, v: coriolis_tensors[:, n, u, m, v] * cls.annoying_coriolis_momentum_term(
-                n, u, m, v,
-
-                Xc, rho_diff, jp_diff, Dx,
-                Sc, Sp, DG
-            )
-            diff_imag_term = lambda n, u, m, v: coriolis_tensors[:, n, u, m, v] * cls.annoying_imaginary_momentum_term(
-                n, u, m, v,
-
-                Xc, rho_diff, jp_diff, Dx,
-                Sc, Sp, DG
-            )
-
-            sum_real_contrib = np.zeros(Sc.shape[0])
-            sum_imag_contrib = np.zeros(Sc.shape[0])
-            diff_real_contrib = np.zeros(Sc.shape[0])
-            diff_imag_contrib = np.zeros(Sc.shape[0])
-            inds = itertools.product(*[range(ndim)] * 4)
-            for n, u, m, v in inds:
-                if n != u and m != v:
-                    real_cont = sum_real_term(n, u, m, v)
-                    imag_cont = sum_imag_term(n, u, m, v)
-                    # print("Sum I:", (n, u, m, v), 219475*imag_cont)
-                    # print("Sum R:", (n, u, m, v), 219475*real_cont)
-                    sum_real_contrib += real_cont
-                    sum_imag_contrib += imag_cont
-                    real_cont = diff_real_term(n, u, m, v)
-                    imag_cont = diff_imag_term(n, u, m, v)
-                    # print("Diff I:", (n, u, m, v), 219475*imag_cont)
-                    # print("Diff R:", (n, u, m, v), 219475*real_cont)
-                    diff_real_contrib += real_cont
-                    diff_imag_contrib += imag_cont
-
-            cos_sum, sin_sum = overlap_data.correlation_factors_sum
-            cos_diff, sin_diff = overlap_data.correlation_factors_diff
-            sum_prefac = overlap_data.decay_factor_sum
-            diff_prefac = overlap_data.decay_factor_diff
-
-            diff_contrib = (
-                    cos_diff * (contrib + diff_real_contrib)
-                    + sin_diff * diff_imag_contrib
-            )
-            sum_contrib = (
-                    cos_sum * (contrib + sum_real_contrib)
-                    + sin_sum * sum_imag_contrib
-            )
-
-            contrib = diff_prefac * diff_contrib + sum_prefac * sum_contrib
+            phases = overlap_data.initial_phases
+            phase_i, phase_j = phases[rows], phases[cols]
+            sum_channel = channel(phase_i, phase_j, overlap_data.rho_sum,
+                                  overlap_data.decay_factor_sum)
+            diff_channel = channel(phase_i, -phase_j, overlap_data.rho_diff,
+                                   overlap_data.decay_factor_diff)
+            contrib = -np.real(sum_channel + diff_channel)
 
         npts = overlap_data.npts
         ke = np.zeros((npts, npts))
@@ -1378,8 +1367,8 @@ class DGBWatsonEvaluator(DGBKineticEnergyEvaluator):
             sum_prefac = overlap_data.decay_factor_sum
             diff_prefac = overlap_data.decay_factor_diff
 
-            diff_wat = np.cos(phase_diff)
-            sum_wat = np.cos(phase_sum)
+            diff_wat = phase_diff
+            sum_wat = phase_sum
             watson_contrib = B_e * (diff_prefac * diff_wat + sum_prefac * sum_wat)
         else:
             watson_contrib = B_e
@@ -1908,4 +1897,3 @@ class DGBWatsonPairwiseEvaluator(DGBPairwisePotentialEvaluator):
         tf_base = base_mat @ modes
         d0 = np.dot(base_mat, self.coords.modes.origin.reshape(-1))
         return d0, tf_base
-
