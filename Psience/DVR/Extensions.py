@@ -89,6 +89,8 @@ class SelfConsistentDVR(GridSCF):
         pot_data = self.base_dvr.run(result='potential_energy')
         grid = pot_data.grid
         pe = pot_data.potential_energy
+        if pot_data.pseudopotential_energy is not None:
+            pe = pe + pot_data.pseudopotential_energy
         if hasattr(pe, 'diagonal'):
             pe = pe.diagonal()
         else:

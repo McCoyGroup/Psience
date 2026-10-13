@@ -215,7 +215,7 @@ class DGBWavefunction(Wavefunction):
             points = points[np.newaxis]
         elif points.ndim > 2:
             reshape = points.shape[:-1]
-            points.reshape(-1, points.shape[-1])
+            points = points.reshape(-1, points.shape[-1])
 
         centers = self.gaussians.coords.centers
         # if self.mass_weighted:
@@ -252,9 +252,15 @@ class DGBWavefunction(Wavefunction):
                 (momenta.reshape(alphas.shape)**2) / (2 * alphas),
                 axis=-1
             )
-            cos_corr = momenta @ centers[:, np.newaxis, :, np.newaxis]
-            cos_corr = np.reshape(cos_corr, cos_corr.shape[:2])
-            normas /= np.sqrt((1 + np.exp(-sum_term)*np.cos(cos_corr))/2)
+            # Normalizing cos(k.q)^2 requires cos(2*k.c), with the
+            # center expressed in the same local frame as the momentum.
+            center_points = centers
+            if self.gaussians.transformations is not None:
+                center_points = np.reshape(
+                    self.gaussians.transformations[0].transpose(0, 2, 1)
+                    @ centers[:, :, np.newaxis], self.gaussians.alphas.shape)
+            center_phase = np.sum(self.gaussians.momenta * center_points, axis=-1)[:, np.newaxis]
+            normas /= np.sqrt((1 + np.exp(-sum_term)*np.cos(2*center_phase))/2)
 
         vals = np.dot(
             self.data,

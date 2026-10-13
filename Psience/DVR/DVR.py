@@ -63,6 +63,8 @@ class DVRConstructor:
                   scf=False,
                   potential_optimize=False,
                   logger=True,
+                  include_pseudopotential=False,
+                  pseudopotential_function=None,
                   **base_opts
                   ):
         """
@@ -92,12 +94,20 @@ class DVRConstructor:
         :type potential_optimize: bool
         :param logger: logger (or logging flag) to pass through to the constructed DVR(s)
         :type logger: object | bool
+        :param include_pseudopotential: add the V' operator to the Hamiltonian (default False)
+        :type include_pseudopotential: bool
+        :param pseudopotential_function: V'(q) in energy units for hbar = 1, including its factor of 1/8;
+            MolecularHamiltonian.get_pseudopotential_function provides this convention
+        :type pseudopotential_function: callable | None
         :param base_opts: extra options forwarded to the underlying DVR constructor(s), filtered per target class where relevant
         :type base_opts: dict
         :return: the constructed DVR object
         :rtype: object
         :raises ValueError: if `domain` or `divs` is `None`
         """
+
+        base_opts['include_pseudopotential'] = include_pseudopotential
+        base_opts['pseudopotential_function'] = pseudopotential_function
 
         # dispatches based on domain to construct the appropriate DVR
         if domain is None or divs is None:
@@ -183,10 +193,14 @@ def DVR(
         g_deriv=None,
         scf=False,
         potential_optimize=False,
+        include_pseudopotential=False,
+        pseudopotential_function=None,
         **base_opts
 ):
     """
-    Constructs a DVR object
+    Constructs a DVR object. With include_pseudopotential=True,
+    pseudopotential_function supplies V'(q), including its energy prefactor
+    of 1/8 for hbar=1. By default this additional operator is omitted.
 
     :param domain:
     :type domain:
@@ -215,5 +229,7 @@ def DVR(
         g_deriv=g_deriv,
         scf=scf,
         potential_optimize=potential_optimize,
+        include_pseudopotential=include_pseudopotential,
+        pseudopotential_function=pseudopotential_function,
         **base_opts
     )

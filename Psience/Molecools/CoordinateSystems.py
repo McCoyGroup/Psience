@@ -637,7 +637,7 @@ class MolecularEmbedding:
         if strip_embedding:
             ics = self.strip_embedding_coordinates(ics)
         return ics
-    def get_cartesians(self, *, coords=None, strip_embedding=True):
+    def get_cartesians(self, *, coords=None, strip_embedding=True, **conversion_opts):
         """
         **LLM Docstring**
 
@@ -655,12 +655,10 @@ class MolecularEmbedding:
         else:
             if strip_embedding:
                 coords = self.restore_embedding_coordinates(coords)
-            else:
-                coords = type(self.internal_coordinates)(coords,
-                                                         self.internal_coordinates.system,
-                                                         converter_options=self.internal_coordinates.converter_options
-                                                         )
-            return coords.convert(self.coords.system)
+            coords = type(self.internal_coordinates)(coords,
+                                                     self.internal_coordinates.system,
+                                                     converter_options=self.internal_coordinates.converter_options)
+            return coords.convert(self.coords.system, **conversion_opts)
 
 
     @property
@@ -1515,12 +1513,12 @@ class ModeEmbedding:
             if coords is not None:
                 pad_dim = coords.ndim - 2
             else:
-                pad_dim = 0
+                pad_dim = self.embedding.coords.ndim - 2
             for X_tf in XR:
                 for d in range(X_tf.ndim-(1 + pad_dim)):
-                    X_tf = np.tensordot(YX, X_tf, axes=[1, d+pad_dim])
-                    for j in range(pad_dim):
-                        X_tf = np.moveaxis(X_tf, 1+j, 0)
+                    shape = [1] * X_tf.ndim
+                    shape[d + pad_dim] = YX.shape[0]
+                    X_tf = X_tf * np.diag(YX).reshape(shape)
                 YR.append(X_tf)
         else:
             YR = XR
@@ -1571,7 +1569,10 @@ class ModeEmbedding:
                     YR = nput.tensor_reexpand(YR, [RQ], order=order)
                 return YR
             else:
-                tens = self.embedding.get_internals_by_cartesians(order, coords=coords)
+                tens = self.get_internals_by_mw_cartesians(
+                    order, coords=coords, strip_embedding=strip_embedding,
+                    mass_weighted=self.mass_weighted
+                )
                 return nput.tensor_reexpand(
                     tens,
                     [self.modes.modes_by_coords],
@@ -1626,7 +1627,10 @@ class ModeEmbedding:
                     RY = nput.tensor_reexpand([QR], RY, order=order)
                 return RY
             else:
-                tens = self.embedding.get_cartesians_by_internals(order, coords=coords),
+                tens = self.get_mw_cartesians_by_internals(
+                    order, coords=coords, strip_embedding=strip_embedding,
+                    mass_weighted=self.mass_weighted
+                )
                 return nput.tensor_reexpand(
                     [self.modes.coords_by_modes],
                     tens,

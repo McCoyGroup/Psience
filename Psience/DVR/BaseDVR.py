@@ -21,9 +21,13 @@ class BaseDVR(metaclass=abc.ABCMeta):
                  divs=None,
                  potential_function=None,
                  logger=None,
+                 include_pseudopotential=False,
+                 pseudopotential_function=None,
                  **base_opts
                  ):
         """
+        :param include_pseudopotential: include V' in the Hamiltonian (default False)
+        :param pseudopotential_function: grid function returning V' for hbar=1, including the factor of 1/8
         :param base_opts: base opts to use when running
         :type base_opts:
         """
@@ -33,6 +37,8 @@ class BaseDVR(metaclass=abc.ABCMeta):
         base_opts['divs'] = divs
         self.potential_function = potential_function
         base_opts['potential_function'] = potential_function
+        base_opts['include_pseudopotential'] = include_pseudopotential
+        base_opts['pseudopotential_function'] = pseudopotential_function
         self.opts = base_opts
 
         if isinstance(logger, Logger):
@@ -365,7 +371,35 @@ class BaseDVR(metaclass=abc.ABCMeta):
 
         return pot
 
-    def hamiltonian(self, kinetic_energy=None, potential_energy=None, potential_threshold=None, **pars):
+    def pseudopotential_energy(self, grid=None, pseudopotential_function=None, hb=1, **pars):
+        """Build the diagonal V' operator on the DVR grid.
+
+        The function returns energy corrections for hbar = 1, including the
+        factor of 1/8 used by VPT2. MolecularHamiltonian's
+        get_pseudopotential_function supplies a function in this convention.
+        """
+        if pseudopotential_function is None:
+            pseudopotential_function = self.opts.get('pseudopotential_function')
+        if pseudopotential_function is None:
+            raise DVRException("include_pseudopotential=True requires a pseudopotential_function")
+        if grid is None:
+            grid = self.grid()
+        if isinstance(grid, tuple) and len(grid) == 2:
+            grid = grid[0]
+        grid = np.asarray(grid)
+        points = grid.reshape((-1, grid.shape[-1])) if grid.ndim > 1 else grid
+        values = np.asarray(pseudopotential_function(points))
+        if values.ndim == 0:
+            values = np.full(len(points), values)
+        elif values.shape != (len(points),):
+            raise DVRException("pseudopotential_function must return one scalar per grid point")
+        if not np.all(np.isfinite(values)):
+            raise DVRException("pseudopotential_function returned non-finite energies")
+        values = hb**2 * values
+        return sp.diags(values) if grid.ndim > 1 else np.diag(values)
+
+    def hamiltonian(self, kinetic_energy=None, potential_energy=None, potential_threshold=None,
+                    pseudopotential_energy=None, **pars):
         """
         Calculates the total Hamiltonian from the kinetic and potential matrices
 
@@ -381,6 +415,8 @@ class BaseDVR(metaclass=abc.ABCMeta):
         :rtype:
         """
 
+        if pseudopotential_energy is not None:
+            potential_energy = potential_energy + pseudopotential_energy
         if potential_threshold is not None:
             diag = potential_energy.diagonal()
             chops = np.where(diag > 0)
@@ -446,8 +482,13 @@ class BaseDVR(metaclass=abc.ABCMeta):
             wfns *= s[:, np.newaxis]
         return engs, wfns
 
-    def run(self, result='wavefunctions', logger=None, grid=None, potential_energy=None, kinetic_energy=None, hamiltonian=None, **opts):
+    def run(self, result='wavefunctions', logger=None, grid=None, potential_energy=None, kinetic_energy=None,
+            hamiltonian=None, pseudopotential_energy=None, **opts):
         """
+        The PES and V' are stored separately in potential_energy and
+        pseudopotential_energy. Cached matrices may be supplied separately;
+        a supplied hamiltonian is treated as the complete operator.
+
         :return:
         :rtype: DVRResults
         """
@@ -479,8 +520,14 @@ class BaseDVR(metaclass=abc.ABCMeta):
                     if potential_energy is None:
                         potential_energy = self.potential_energy(grid=res.grid, **opts)
                     res.potential_energy = potential_energy
-                    if result == 'potential_energy':
-                        return res
+
+                if opts.get('include_pseudopotential', False):
+                    with logger.block(tag="constructing pseudopotential matrix"):
+                        if pseudopotential_energy is None:
+                            pseudopotential_energy = self.pseudopotential_energy(grid=res.grid, **opts)
+                        res.pseudopotential_energy = pseudopotential_energy
+                if result in ('potential_energy', 'pseudopotential_energy'):
+                    return res
 
 
                 with logger.block(tag="constructing kinetic matrix"):
@@ -496,6 +543,7 @@ class BaseDVR(metaclass=abc.ABCMeta):
                         hamiltonian = self.hamiltonian(
                             kinetic_energy=res.kinetic_energy,
                             potential_energy=res.potential_energy,
+                            pseudopotential_energy=res.pseudopotential_energy,
                             **opts
                         )
                     res.hamiltonian = hamiltonian
@@ -526,6 +574,7 @@ class DVRResults:
                  hamiltonian=None,
                  wavefunctions=None,
                  parent=None,
+                 pseudopotential_energy=None,
                  **opts
                  ):
         """
@@ -543,6 +592,8 @@ class DVRResults:
         :type hamiltonian: np.ndarray | None
         :param wavefunctions: the resulting wavefunctions
         :type wavefunctions: DVRWavefunctions | None
+        :param pseudopotential_energy: the separate V' operator, or None when disabled
+        :type pseudopotential_energy: np.ndarray | sp.spmatrix | None
         :param parent: the `BaseDVR` object that produced these results
         :type parent: BaseDVR | None
         :param opts: extra run options/metadata to store
@@ -555,6 +606,7 @@ class DVRResults:
         self.grid = grid
         self.kinetic_energy = kinetic_energy
         self.potential_energy = potential_energy
+        self.pseudopotential_energy = pseudopotential_energy
         self.parent = parent
         self.wavefunctions = wavefunctions
         self.hamiltonian = hamiltonian

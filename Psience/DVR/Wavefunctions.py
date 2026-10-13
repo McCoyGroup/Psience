@@ -307,6 +307,16 @@ class DVRWavefunctions(Wavefunctions):
         # print("--->", wfs.shape, other.shape, ev.shape)
         return ev
 
+    def overlap(self, other):
+        """Return the overlap matrix of DVR coefficient vectors.
+
+        The identity is constant on the grid; passing the base class
+        identity callback to expectation would evaluate the coordinates.
+        """
+        if not isinstance(other, np.ndarray):
+            other = other.wavefunctions
+        return self.wavefunctions.conj().T @ other
+
     def transform_operator(self, M):
         """
         **LLM Docstring**
