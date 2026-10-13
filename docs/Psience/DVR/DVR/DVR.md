@@ -1,13 +1,15 @@
 # <a id="Psience.DVR.DVR.DVR">DVR</a>
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DVR.py#L177)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DVR.py#L177?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/DVR.py#L187)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DVR.py#L187?message=Update%20Docs)]
 </div>
 
 ```python
-DVR(domain=None, divs=None, classes=None, potential_function=None, g=None, g_deriv=None, scf=False, potential_optimize=False, **base_opts): 
+DVR(domain=None, divs=None, classes=None, potential_function=None, g=None, g_deriv=None, scf=False, potential_optimize=False, include_pseudopotential=False, pseudopotential_function=None, **base_opts): 
 ```
-Constructs a DVR object
+Constructs a DVR object. With include_pseudopotential=True,
+pseudopotential_function supplies V'(q), including its energy prefactor
+of 1/8 for hbar=1. By default this additional operator is omitted.
   - `domain`: `Any`
     > 
   - `divs`: `Any`
@@ -43,9 +45,9 @@ Constructs a DVR object
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-6bd962" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-6bd962"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-e3b543" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e3b543"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-6bd962" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e3b543" markdown="1">
  - [1D](#1D)
 - [energies_1D](#energies_1D)
 - [energies_2D](#energies_2D)
@@ -62,9 +64,9 @@ Constructs a DVR object
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-fa7a6a" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-fa7a6a"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-d8db13" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-d8db13"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-fa7a6a" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-d8db13" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -526,7 +528,7 @@ class DVRTests(TestCase):
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DVR/DVR/DVR.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DVR/DVR/DVR.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DVR.py#L177?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/DVR.py#L187?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

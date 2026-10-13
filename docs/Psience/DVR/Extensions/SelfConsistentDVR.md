@@ -58,8 +58,8 @@ Compute the full grid and potential-energy values for the underlying multi-dimen
 create_solvers(self, grid, pe): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L98)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L98?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L100)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L100?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -77,8 +77,8 @@ Build the per-dimension SCF wavefunction generators, first rebinding each 1D DVR
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L185)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L185?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L187)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DVR/Extensions/SelfConsistentDVR.py#L187?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 

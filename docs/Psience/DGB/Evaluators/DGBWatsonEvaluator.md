@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.Evaluators.DGBWatsonEvaluator">DGBWatsonEvaluator</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators.py#L1203)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L1203?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators.py#L1207)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L1207?message=Update%20Docs)]
 </div>
 
 
@@ -24,8 +24,8 @@
 __init__(self, modes, coriolis_inertia_function): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators.py#L1206)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L1206?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators.py#L1210)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L1210?message=Update%20Docs)]
 </div>
 
 
@@ -35,8 +35,8 @@ __init__(self, modes, coriolis_inertia_function):
 annoying_coriolis_term(n, u, m, v, Xc, Dx, Sc, Sp, Gi, Gj, DG): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L1217)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L1217?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L1221)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L1221?message=Update%20Docs)]
 </div>
 
 
@@ -46,8 +46,8 @@ annoying_coriolis_term(n, u, m, v, Xc, Dx, Sc, Sp, Gi, Gj, DG):
 annoying_coriolis_momentum_term(n, u, m, v, Xc, r, Jp, Dx, Sc, Sp, DG): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L1229)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L1229?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L1233)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L1233?message=Update%20Docs)]
 </div>
 
 
@@ -57,9 +57,26 @@ annoying_coriolis_momentum_term(n, u, m, v, Xc, r, Jp, Dx, Sc, Sp, DG):
 annoying_imaginary_momentum_term(n, u, m, v, Xc, r, Jp, Dx, Sc, Sp, DG): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L1243)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L1243?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L1247)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L1247?message=Update%20Docs)]
 </div>
+
+
+<a id="Psience.DGB.Evaluators.DGBWatsonEvaluator.coriolis_gaussian_moment" class="docs-object-method">&nbsp;</a> 
+```python
+@staticmethod
+coriolis_gaussian_moment(C, q, di, dj, cov, qi, qj, ij): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L1261)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L1261?message=Update%20Docs)]
+</div>
+Contract E[q_n di_u q_m dj_v] using the Gaussian moment rule.
+
+di and dj are affine Gaussian derivatives. qi, qj and ij are their
+cross-covariances with q and one another; q may be a complex mean.
+Pair the four factors in the three possible ways, using their
+second moments, then subtract two copies of the mean product.
 
 
 <a id="Psience.DGB.Evaluators.DGBWatsonEvaluator.evaluate_coriolis_contrib" class="docs-object-method">&nbsp;</a> 
@@ -68,8 +85,8 @@ annoying_imaginary_momentum_term(n, u, m, v, Xc, r, Jp, Dx, Sc, Sp, DG):
 evaluate_coriolis_contrib(cls, coriolis_tensors, overlap_data: 'OverlapGaussianData'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1257)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1257?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1294)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1294?message=Update%20Docs)]
 </div>
 
 
@@ -79,8 +96,8 @@ evaluate_coriolis_contrib(cls, coriolis_tensors, overlap_data: 'OverlapGaussianD
 evaluate_watson_term(cls, B_e, overlap_data: 'OverlapGaussianData'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1367)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1367?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1360)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1360?message=Update%20Docs)]
 </div>
 
 
@@ -89,8 +106,8 @@ evaluate_watson_term(cls, B_e, overlap_data: 'OverlapGaussianData'):
 evaluate_ke(self, overlap_data: 'OverlapGaussianData', logger=None, include_diagonal_contribution=True, include_coriolis_coupling=True, include_watson_term=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators/DGBWatsonEvaluator.py#L1391)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators/DGBWatsonEvaluator.py#L1391?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators/DGBWatsonEvaluator.py#L1384)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators/DGBWatsonEvaluator.py#L1384?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -145,7 +162,7 @@ evaluate_ke(self, overlap_data: 'OverlapGaussianData', logger=None, include_diag
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Evaluators/DGBWatsonEvaluator.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Evaluators/DGBWatsonEvaluator.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L1203?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L1207?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
