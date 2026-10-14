@@ -3,6 +3,7 @@ from __future__ import annotations
 import abc
 import enum
 import functools
+import re
 import tempfile
 import itertools
 import math
@@ -1908,6 +1909,19 @@ class EnergyEvaluator(PropertyEvaluator):
     #         'pyscf': PySCFEnergyEvaluator,
     #         'expansion': PotentialExpansionEnergyEvaluator
     #     }
+    @classmethod
+    def discover_dependencies(cls, **opts):
+        """
+        The packages/programs this evaluator needs, as a `McUtils.ExternalPrograms.JobDependencies`, so an
+        environment can be assembled before the evaluator is built. The base implementation needs nothing extra;
+        evaluators with optional dependencies override it.
+
+        :param opts: the evaluator's construction options, where they influence what is needed
+        :rtype: McUtils.ExternalPrograms.JobDependencies
+        """
+        from McUtils.ExternalPrograms import JobDependencies
+        return JobDependencies()
+
     @classmethod
     def get_evaluators_by_attributes(cls):
         """
@@ -5217,23 +5231,66 @@ class HIPNNEnergyEvaluator(EnergyEvaluator):
             ]
 
 
+def _import_or_explain(module, package, extra=None):
+    """
+    Import an optional dependency, raising an `ImportError` that says how to install it.
+    """
+    import importlib
+    try:
+        return importlib.import_module(module)
+    except ImportError as e:
+        raise ImportError(
+            f"{module!r} is required for this evaluator (install `{package}`)" + (f"; {extra}" if extra else "")
+        ) from e
+
+
 @EnergyEvaluator.register('xtb')
 class XTBEnergyEvaluator(EnergyEvaluator):
     """
-    Uses XTB to calculate
-    """
-    def __init__(self, atoms, method="GFN2-xTB", charge=0, quiet=True, **defaults):
-        super().__init__(**defaults)
+    GFN-xTB energies and gradients through the `xtb` python bindings (conda-forge: `xtb-python`).
 
-        # self.eval = self.setup_aimnet(model)
-        # self.model = model
+    :param atoms: the atom symbols
+    :param method: ``'GFN2-xTB'`` (default), ``'GFN1-xTB'`` or ``'GFN0-xTB'``
+    :param charge: the total charge (default 0)
+    :param multiplicity: the spin multiplicity (default 1); passed to xtb as ``multiplicity - 1`` unpaired electrons
+    :param quiet: silence xtb's output
+    :param accuracy: xtb's numerical accuracy parameter (smaller is tighter), if not the default
+    :param max_iterations: the SCF iteration limit, if not the default
+    :param electronic_temperature: the electronic temperature in Kelvin, if not the default
+    :param solvent: an ALPB solvent name (e.g. ``'water'``)
+    :param retry_iterations: if the SCF fails to converge, try once more with this iteration limit
+        (the electronic temperature and accuracy are never changed behind your back); `None` disables the retry
+    """
+    def __init__(self,
+                 atoms,
+                 method="GFN2-xTB",
+                 charge=None,
+                 multiplicity=None,
+                 quiet=True,
+                 accuracy=None,
+                 max_iterations=None,
+                 electronic_temperature=None,
+                 solvent=None,
+                 retry_iterations=1000,
+                 **defaults):
+        super().__init__(**defaults)
         self.atoms = atoms
         self.numbers = np.array([AtomData[atom, "Number"] for atom in atoms])
-        # self.charge = charge
-        # self.multiplicity = multiplicity
         self.quiet = quiet
         self.method = method
-        self.charge = charge
+        self.charge = 0 if charge is None else charge
+        self.multiplicity = 1 if multiplicity is None else multiplicity
+        self.accuracy = accuracy
+        self.max_iterations = max_iterations
+        self.electronic_temperature = electronic_temperature
+        self.solvent = solvent
+        self.retry_iterations = retry_iterations
+        n_electrons = int(self.numbers.sum()) - int(self.charge)
+        if (n_electrons - (self.multiplicity - 1)) % 2 != 0 or n_electrons < self.multiplicity - 1:
+            raise ValueError(
+                f"charge {self.charge} and multiplicity {self.multiplicity} are inconsistent "
+                f"with {n_electrons} electrons"
+            )
 
     @classmethod
     def handle_specialization(cls, tag):
@@ -5243,35 +5300,92 @@ class XTBEnergyEvaluator(EnergyEvaluator):
     def from_mol(cls, mol, **opts):
         return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
 
-    def get_single_point(self, coords):
-        from xtb.interface import Calculator
-        from xtb.utils import get_method
-        calc = Calculator(get_method(self.method), self.numbers, coords,
-                          charge=self.charge)
+    @classmethod
+    def discover_dependencies(cls, **opts):
+        """
+        The `xtb` python bindings come from conda-forge (``xtb-python``); the PyPI ``xtb`` package needs a
+        separately installed libxtb.
+        """
+        from McUtils.ExternalPrograms import JobDependencies
+        deps = JobDependencies()
+        deps.add('conda', 'xtb-python', import_name='xtb', reason='xtb python bindings')
+        deps.add('conda', 'tblite', '<0.6', reason='xtb-python links tblite; tblite 0.6.0 is ABI-incompatible with the '
+                 'current dftd4 build on conda-forge (undefined symbol `smooth_cutoff` when importing xtb)')
+        deps.add('conda', 'typing_extensions', import_name='typing_extensions',
+                 reason='imported by xtb.interface, but missing from the xtb-python conda package')
+        return deps
+
+    def get_calculator(self, coords):
+        """
+        Build an xtb `Calculator` at the given Cartesians (Bohr) with this evaluator's settings.
+        """
+        interface = _import_or_explain('xtb.interface', 'xtb-python')
+        utils = _import_or_explain('xtb.utils', 'xtb-python')
+        param = utils.get_method(self.method)
+        if param is None:
+            raise ValueError(f"unknown xTB method {self.method!r} (try 'GFN2-xTB', 'GFN1-xTB', 'GFN0-xTB')")
+        calc = interface.Calculator(
+            param, self.numbers, coords,
+            charge=self.charge,
+            uhf=self.multiplicity - 1
+        )
         if self.quiet:
             calc.set_verbosity('muted')
-        return calc.singlepoint()
+        if self.accuracy is not None:
+            calc.set_accuracy(self.accuracy)
+        if self.max_iterations is not None:
+            calc.set_max_iterations(self.max_iterations)
+        if self.electronic_temperature is not None:
+            calc.set_electronic_temperature(self.electronic_temperature)
+        if self.solvent is not None:
+            solvent = utils.get_solvent(self.solvent)
+            if solvent is None:
+                raise ValueError(f"unknown xTB solvent {self.solvent!r}")
+            calc.set_solvent(solvent)
+        return calc
 
+    def get_single_point(self, coords):
+        """
+        Run one xTB single point, retrying once with a larger iteration limit if the SCF doesn't converge.
+        """
+        calc = self.get_calculator(coords)
+        try:
+            return calc.singlepoint()
+        except Exception as e:  # xtb raises `XTBException`, which we can't import without xtb
+            if type(e).__name__ != 'XTBException' or self.retry_iterations is None:
+                raise
+            if self.max_iterations is not None and self.max_iterations >= self.retry_iterations:
+                raise RuntimeError(f"xTB ({self.method}) failed: {e}") from e
+            calc = self.get_calculator(coords)
+            calc.set_max_iterations(self.retry_iterations)
+            try:
+                return calc.singlepoint()
+            except Exception as e2:
+                raise RuntimeError(
+                    f"xTB ({self.method}) failed even with {self.retry_iterations} iterations: {e2}"
+                ) from e2
 
     distance_units = "BohrRadius"
     property_units = 'Hartrees'
     batched_orders = True
     analytic_derivative_order = 1
     def evaluate_term(self, coords, order, **opts):
-        # import torch
-
-        base_shape = coords.shape[:-2]
-        coords = coords.reshape((-1,) + coords.shape[-2:])
+        coords = np.asanyarray(coords, dtype=float)
+        n = len(self.atoms)
+        if coords.shape[-2:] == (n, 3):
+            base_shape = coords.shape[:-2]
+        elif coords.shape[-1] == 3 * n:
+            base_shape = coords.shape[:-1]
+        else:
+            raise ValueError(f"coordinates of shape {coords.shape} don't match {n} atoms")
+        coords = coords.reshape((-1, n, 3))
 
         if order > 1:
             raise NotImplementedError('`xtb` only implements up through gradients')
 
         energies = np.empty(coords.shape[0], dtype=float)
-        if order > 0:
-            grads = np.empty(coords.shape, dtype=float)
-        else:
-            grads = None
-        for i,coord in enumerate(coords):
+        grads = np.empty(coords.shape, dtype=float) if order > 0 else None
+        for i, coord in enumerate(coords):
             res = self.get_single_point(coord)
             energies[i] = res.get_energy()
             if order > 0:
@@ -5279,63 +5393,45 @@ class XTBEnergyEvaluator(EnergyEvaluator):
 
         energies = energies.reshape(base_shape)
         if order > 0:
-            grads = grads.reshape(base_shape +(-1,))
-            return [energies, grads]
+            return [energies, grads.reshape(base_shape + (-1,))]
         else:
             return [energies]
-
-        # if order > 2:
-        # if order > (forces=False, stress=False, hessian=False)
-        # if order == 0:
-        #     return self.rdmol.calculate_energy(coords, **opts)
-        # elif order == 2:
-        #     return self.rdmol.calculate_gradient(coords, **opts)
-        # else:
-        #     raise ValueError(f"order {order} not supported")
-
-        # @staticmethod
-        # def calculate_hessian(forces, coord):
-        #     # here forces have shape (N, 3) and coord has shape (N+1, 3)
-        #     # return hessian with shape (N, 3, N, 3)
-        #     hessian = - torch.stack([
-        #         torch.autograd.grad(_f, coord, retain_graph=True)[0]
-        #         for _f in forces.flatten().unbind()
-        #     ]).view(-1, 3, coord.shape[0], 3)[:-1, :, :-1, :]
-        #     return hessian
-
-    # def optimize(self,
-    #              coords,
-    #              method='quasi-newton',
-    #              tol=1e-8,
-    #              max_iterations=25,
-    #              damping_parameter=None,
-    #              damping_exponent=None,
-    #              restart_interval=None,
-    #              max_displacement=None,
-    #              **opts
-    #              ):
-    #     if method == 'xtb-base':
-    #         ...
-    #     else:
-    #         return super().optimize(
-    #             coords,
-    #             method=method,
-    #             tol=tol,
-    #             max_iterations=max_iterations,
-    #             damping_parameter=damping_parameter,
-    #             damping_exponent=damping_exponent,
-    #             restart_interval=restart_interval,
-    #             **opts
-    #         )
 
 @EnergyEvaluator.register('pyscf')
 class PySCFEnergyEvaluator(EnergyEvaluator):
     """
+    PySCF energies, gradients and (for HF/DFT) Hessians.
+
+    :param atoms: the atom symbols
+    :param level_of_theory: ``'hf'``/``'rhf'``/``'uhf'``/``'rohf'``, ``'mp2'``, or a DFT functional name
+        (``'b3lyp'``, ``'wb97x-d3bj'``, ...; a trailing ``-d3bj``/``-d3zero``/``-d4`` selects a dispersion correction,
+        which needs ``pyscf-dispersion``); or a callable ``caller(molecule, **opts)`` returning a finished calculation
+    :param basis_set: the basis set (``basis`` is accepted as an alias)
+    :param charge: the total charge
+    :param multiplicity: the spin multiplicity; PySCF's own ``spin`` (2S) is set to ``multiplicity - 1``.
+        Open shells use unrestricted references (``'rohf'`` for restricted open-shell HF).
+    :param quiet: silence PySCF's output
+    :param molecule_options: extra options for `gto.Mole` (coordinates are always passed in Bohr)
+    :param level_of_theory_options: extra options for the calculation (``functional_options``, ``restricted``,
+        ``reference`` for MP2, and any SCF attribute such as ``conv_tol`` or ``max_cycle``)
+    :param disp: a dispersion correction (``'d3bj'``, ``'d3zero'``, ``'d4'``) for DFT
+    :param scf_options: SCF attributes to set on every calculation (``{'conv_tol': 1e-10, 'max_cycle': 200}``)
+    :param grid_level: the DFT integration grid level
+    :param density_fit: `True`, or an auxiliary basis name, to use density fitting
+    :param threads: the number of OpenMP threads to use for each calculation
+    :param max_memory: PySCF's memory limit in MB
+    :param soscf_fallback: if the first-order SCF doesn't converge, continue with a second-order (Newton) SCF
+    :param allow_unconverged: warn instead of raising when the SCF still hasn't converged
+    :param reuse_guess: start each SCF from the previous geometry's density (faster along scans and
+        optimizations; fresh guesses are used if that fails)
+    :param analytic_hessian: have the framework treat analytic Hessians as available, so that expansions of order 3
+        and up are built by finite differences of Hessians rather than of gradients
     """
     def __init__(self,
                  atoms, *,
                  level_of_theory,
-                 basis_set,
+                 basis_set=None,
+                 basis=None,
                  caller=None,
                  charge=None,
                  multiplicity=None,
@@ -5343,37 +5439,77 @@ class PySCFEnergyEvaluator(EnergyEvaluator):
                  molecule_options=None,
                  level_of_theory_options=None,
                  disp=None,
+                 scf_options=None,
+                 grid_level=None,
+                 density_fit=None,
+                 threads=None,
+                 max_memory=None,
+                 soscf_fallback=True,
+                 allow_unconverged=False,
+                 reuse_guess=False,
+                 analytic_hessian=False,
                  **defaults):
         super().__init__(**defaults)
 
-        # self.eval = self.setup_aimnet(model)
-        # self.model = model
+        if basis_set is None:
+            basis_set = basis
+        elif basis is not None and basis != basis_set:
+            raise ValueError(f"got two different basis sets: {basis_set!r} and {basis!r}")
+        if basis_set is None:
+            raise ValueError("PySCFEnergyEvaluator needs a `basis_set`")
         self.atoms = atoms
         self.basis_set = basis_set
         self.level_of_theory = level_of_theory
-        if level_of_theory_options is None:
-            level_of_theory_options = {}
-        self.level_of_theory_options = level_of_theory_options.copy()
+        self.level_of_theory_options = dict(level_of_theory_options or {})
         if disp is not None:
             self.level_of_theory_options['disp'] = disp
+        self.scf_options = dict(scf_options or {})
+        self.grid_level = grid_level
+        self.density_fit = density_fit
+        self.threads = threads
+        self.soscf_fallback = soscf_fallback
+        self.allow_unconverged = allow_unconverged
+        self.reuse_guess = reuse_guess
+        self._last_dm = None
+        if analytic_hessian:
+            self.analytic_derivative_order = 2
         self._pyscf_caller_dispatch = dev.uninitialized
         self.caller = self.resolve_caller(caller, level_of_theory)
-        # self.charge = charge
-        # self.multiplicity = multiplicity
-        if molecule_options is None:
-            molecule_options = {}
+        molecule_options = dict(molecule_options or {})
+        if molecule_options.get('unit', 'Bohr').lower() not in ('bohr', 'b', 'au', 'a.u.'):
+            raise ValueError("coordinates are supplied in Bohr; `molecule_options['unit']` can't be changed")
+        molecule_options['unit'] = 'Bohr'
         if charge is not None:
             molecule_options['charge'] = molecule_options.get('charge', charge)
         if multiplicity is not None:
-            molecule_options['spin'] = molecule_options.get('spin', multiplicity)
+            molecule_options['spin'] = molecule_options.get('spin', multiplicity - 1)  # PySCF wants 2S, not 2S+1
         if quiet:
             molecule_options['verbose'] = molecule_options.get('verbose', 0)
+        if max_memory is not None:
+            molecule_options['max_memory'] = max_memory
         self.molecule_options = molecule_options
 
     @classmethod
     def handle_specialization(cls, tag):
+        if '/' not in tag:
+            raise ValueError(f"expected a 'method/basis' tag for pyscf (e.g. 'b3lyp/cc-pvdz'), got {tag!r}")
         lot, basis = tag.split("/", 1)
-        return {'level_of_theory':lot, 'basis':basis}
+        return {'level_of_theory':lot, 'basis_set':basis}
+
+    @classmethod
+    def discover_dependencies(cls, *, disp=None, level_of_theory=None, **opts):
+        """
+        PySCF, plus ``pyscf-dispersion`` if a dispersion correction is requested (via ``disp`` or a ``-d3bj``-style
+        suffix on the level of theory).
+        """
+        from McUtils.ExternalPrograms import JobDependencies
+        deps = JobDependencies()
+        deps.add('pip', 'pyscf', import_name='pyscf', reason='PySCF itself')
+        deps.add('conda', 'pyscf', import_name='pyscf', reason='PySCF itself')
+        lot = level_of_theory if isinstance(level_of_theory, str) else ''
+        if disp is not None or cls._split_dispersion(lot)[1] is not None:
+            deps.add('pip', 'pyscf-dispersion', import_name='pyscf.dispersion', reason='dispersion corrections')
+        return deps
 
     _default_caller = 'dft'
     @property
@@ -5396,6 +5532,7 @@ class PySCFEnergyEvaluator(EnergyEvaluator):
             'hf': self._call_hf,
             'rhf': self._call_rhf,
             'uhf': self._call_uhf,
+            'rohf': self._call_rohf,
             # 'cc': self._call_cc
         }
     def resolve_caller(self, caller, lot):
@@ -5412,7 +5549,7 @@ class PySCFEnergyEvaluator(EnergyEvaluator):
         return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
 
     def get_molecule(self, coords):
-        from pyscf import gto
+        gto = _import_or_explain('pyscf.gto', 'pyscf')
 
         molecule = gto.Mole(
             basis=self.basis_set,
@@ -5426,57 +5563,119 @@ class PySCFEnergyEvaluator(EnergyEvaluator):
 
         return molecule
 
-    def _call_dft(self, molecule, restricted=True, functional_options=None,  disp=None, **opts):
-        from pyscf import dft
+    # -- SCF setup and convergence ------------------------------------------------------------------
+    def _setup_scf(self, mf, attrs=None):
+        if self.density_fit:
+            mf = mf.density_fit(auxbasis=None if self.density_fit is True else self.density_fit)
+        for k, v in dict(self.scf_options, **(attrs or {})).items():
+            setattr(mf, k, v)
+        return mf
 
-        if functional_options is None:
-            functional_options = {}
-        functional_options = functional_options.copy()
-        functional_options['xc'] = self.level_of_theory
+    def _converge(self, mf):
+        """
+        Run the SCF, falling back to a fresh guess and then a second-order solver if it doesn't converge, and
+        refuse to hand back an unconverged result (unless `allow_unconverged`).
+        """
+        dm0 = self._last_dm if self.reuse_guess else None
+        if dm0 is not None and np.shape(dm0)[-1] != mf.mol.nao:
+            dm0 = None
+        mf.kernel(dm0=dm0)
+        if not mf.converged and dm0 is not None:
+            mf.kernel()
+        if not mf.converged and self.soscf_fallback:
+            mf = mf.newton()
+            mf.kernel()
+        if not mf.converged:
+            msg = f"PySCF SCF ({self.level_of_theory}/{self.basis_set}) did not converge"
+            if self.allow_unconverged:
+                warnings.warn(msg)
+            else:
+                raise RuntimeError(msg)
+        if self.reuse_guess:
+            self._last_dm = mf.make_rdm1()
+        return mf
+
+    def _is_restricted(self, molecule, restricted):
+        return (molecule.spin == 0) if restricted is None else restricted
+
+    _dispersion_suffix = re.compile(r"^(.+?)[-_]?(d3bj|d3zero|d3|d4)$", re.I)
+    @classmethod
+    def _split_dispersion(cls, lot):
+        m = cls._dispersion_suffix.match(lot or '')
+        if m is None:
+            return lot, None
+        disp = m.group(2).lower()
+        return m.group(1), 'd3zero' if disp == 'd3' else disp
+
+    def _call_dft(self, molecule, restricted=None, functional_options=None,  disp=None, **opts):
+        dft = _import_or_explain('pyscf.dft', 'pyscf')
+
+        functional_options = dict(functional_options or {})
+        xc, suffix_disp = self._split_dispersion(self.level_of_theory)
+        functional_options['xc'] = xc
         d = functional_options.pop('disp', None)
         if disp is None:
-            disp = d
-        if restricted:
-            calc = dft.RKS(molecule, **functional_options)
+            disp = d if d is not None else suffix_disp
+        if self._is_restricted(molecule, restricted):
+            mf = dft.RKS(molecule, **functional_options)
         else:
-            calc = dft.UKS(molecule, **functional_options)
+            mf = dft.UKS(molecule, **functional_options)
+        if self.grid_level is not None:
+            mf.grids.level = self.grid_level
         if disp is not None:
-            calc.disp = disp
-        return calc.run(**opts)
-        # calc = calc.newton()
-        # calc.kernel()
-        # return calc
+            mf.disp = disp
+        return self._converge(self._setup_scf(mf, opts))
 
-    def _call_hf(self, molecule, restricted=False, **opts):
-        from pyscf import scf
-        if restricted:
-            return scf.HF(molecule).run(**opts)
+    def _call_hf(self, molecule, restricted=None, **opts):
+        scf = _import_or_explain('pyscf.scf', 'pyscf')
+        if self._is_restricted(molecule, restricted):
+            mf = scf.RHF(molecule)
         else:
-            return scf.HF(molecule).run(**opts)
+            mf = scf.UHF(molecule)
+        return self._converge(self._setup_scf(mf, opts))
     def _call_rhf(self, molecule, **opts):
         return self._call_hf(molecule, restricted=True, **opts)
     def _call_uhf(self, molecule, **opts):
         return self._call_hf(molecule, restricted=False, **opts)
+    def _call_rohf(self, molecule, **opts):
+        scf = _import_or_explain('pyscf.scf', 'pyscf')
+        return self._converge(self._setup_scf(scf.ROHF(molecule), opts))
 
     def _call_mp2(self, molecule, reference='hf', **etc):
-        from pyscf import mp
+        mp = _import_or_explain('pyscf.mp', 'pyscf')
         hf_caller, opts = self.caller_dispatch.resolve(reference)
         mf = hf_caller(molecule, **opts)
         return mp.MP2(mf, **etc).run()
 
+    # -- results ------------------------------------------------------------------------------------
     def get_energy_from_calc(self, calc) -> float:
-        if hasattr(calc, 'tot_energy'):
-            return calc.tot_energy()
-        elif hasattr(calc, 'e_tot'):
-            return calc.e_tot
+        if hasattr(calc, 'e_tot'):
+            return float(calc.e_tot)
+        elif hasattr(calc, 'tot_energy'):
+            return float(calc.tot_energy())
         else:
-            return calc.kernel()
+            return float(calc.kernel())
 
     def get_gradient_from_calc(self, calc):
-        return calc.nuc_grad_method().run()
+        grad = calc.nuc_grad_method()
+        grad.verbose = 0
+        return np.asanyarray(grad.kernel(), dtype=float)
+
+    def get_hessian_from_calc(self, calc):
+        if not hasattr(calc, 'Hessian'):
+            raise NotImplementedError(f"PySCF has no analytic Hessian for {type(calc).__name__}")
+        hess = calc.Hessian()
+        hess.verbose = 0
+        h = np.asanyarray(hess.kernel(), dtype=float)  # (natoms, natoms, 3, 3)
+        n = h.shape[0]
+        return h.transpose(0, 2, 1, 3).reshape(3 * n, 3 * n)
 
     def run_calculation(self, coords, **opts):
         molecule = self.get_molecule(coords)
+        if self.threads is not None:
+            lib = _import_or_explain('pyscf.lib', 'pyscf')
+            with lib.with_omp_threads(self.threads):
+                return self.caller(molecule, **(self.level_of_theory_options | opts))
         return self.caller(molecule, **(self.level_of_theory_options | opts))
 
     distance_units = "BohrRadius"
@@ -5484,75 +5683,36 @@ class PySCFEnergyEvaluator(EnergyEvaluator):
     batched_orders = True
     analytic_derivative_order = 1
     def evaluate_term(self, coords, order, **opts):
-        # import torch
+        coords = np.asanyarray(coords, dtype=float)
+        n = len(self.atoms)
+        if coords.shape[-2:] == (n, 3):
+            base_shape = coords.shape[:-2]
+        elif coords.shape[-1] == 3 * n:
+            base_shape = coords.shape[:-1]
+        else:
+            raise ValueError(f"coordinates of shape {coords.shape} don't match {n} atoms")
+        coords = coords.reshape((-1, n, 3))
 
-        base_shape = coords.shape[:-2]
-        coords = coords.reshape((-1,) + coords.shape[-2:])
-
-        if order > 1:
-            raise NotImplementedError('`xtb` only implements up through gradients')
+        if order > 2:
+            raise NotImplementedError('`pyscf` only implements up through Hessians')
 
         energies = np.empty(coords.shape[0], dtype=float)
-        if order > 0:
-            grads = np.empty(coords.shape, dtype=float)
-        else:
-            grads = None
-        for i,coord in enumerate(coords):
+        grads = np.empty((coords.shape[0], 3 * n), dtype=float) if order > 0 else None
+        hessians = np.empty((coords.shape[0], 3 * n, 3 * n), dtype=float) if order > 1 else None
+        for i, coord in enumerate(coords):
             res = self.run_calculation(coord, **opts)
             energies[i] = self.get_energy_from_calc(res)
             if order > 0:
-                grads[i] = self.get_gradient_from_calc(res)
+                grads[i] = self.get_gradient_from_calc(res).reshape(-1)
+            if order > 1:
+                hessians[i] = self.get_hessian_from_calc(res)
 
-        energies = energies.reshape(base_shape)
+        out = [energies.reshape(base_shape)]
         if order > 0:
-            grads = grads.reshape(base_shape +(-1,))
-            return [energies, grads]
-        else:
-            return [energies]
-
-        # if order > 2:
-        # if order > (forces=False, stress=False, hessian=False)
-        # if order == 0:
-        #     return self.rdmol.calculate_energy(coords, **opts)
-        # elif order == 2:
-        #     return self.rdmol.calculate_gradient(coords, **opts)
-        # else:
-        #     raise ValueError(f"order {order} not supported")
-
-        # @staticmethod
-        # def calculate_hessian(forces, coord):
-        #     # here forces have shape (N, 3) and coord has shape (N+1, 3)
-        #     # return hessian with shape (N, 3, N, 3)
-        #     hessian = - torch.stack([
-        #         torch.autograd.grad(_f, coord, retain_graph=True)[0]
-        #         for _f in forces.flatten().unbind()
-        #     ]).view(-1, 3, coord.shape[0], 3)[:-1, :, :-1, :]
-        #     return hessian
-
-    # def optimize(self,
-    #              coords,
-    #              method='quasi-newton',
-    #              tol=1e-8,
-    #              max_iterations=25,
-    #              damping_parameter=None,
-    #              damping_exponent=None,
-    #              restart_interval=None,
-    #              max_displacement=None,
-    #              **opts
-    #              ):
-    #     if method == 'xtb-base':
-    #         ...
-    #     else:
-    #         return super().optimize(
-    #             coords,
-    #             method=method,
-    #             tol=tol,
-    #             max_iterations=max_iterations,
-    #             damping_parameter=damping_parameter,
-    #             damping_exponent=damping_exponent,
-    #             restart_interval=restart_interval,
-    #             **opts
-    #         )
+            out.append(grads.reshape(base_shape + (3 * n,)))
+        if order > 1:
+            out.append(hessians.reshape(base_shape + (3 * n, 3 * n)))
+        return out
 
 # @EnergyEvaluator.register('job')
 class EvaluationServerEnergyEvaluator(EnergyEvaluator):
