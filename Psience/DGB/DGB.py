@@ -430,7 +430,7 @@ class DGB:
             S = np.expand_dims(S, -1)
         return S * pot_mat
 
-    default_solver_mode = 'similarity'
+    default_solver_mode = 'lobpcg'
     def diagonalize(self,
                     *,
                     mode=None,
@@ -444,7 +444,8 @@ class DGB:
                     low_rank_energy_cutoff=None,
                     low_rank_overlap_cutoff=None,
                     low_rank_shift=None,
-                    stable_eigenvalue_epsilon=None
+                    stable_eigenvalue_epsilon=None,
+                    eigensolver_options=None
                     ):
 
         if mode is None:
@@ -485,8 +486,16 @@ class DGB:
                 nodeless_ground_state=nodeless_ground_state
             )
 
-        elif mode == 'fix-heiberger': # Implementation of the Fix-Heiberger algorithm
-            eigs, evecs = DGBEigensolver.fix_heiberger(H, self.S, self, eps=stable_eigenvalue_epsilon)
+        elif mode in {'fix-heiberger', 'pivoted-cholesky', 'random-cholesky',
+                      'accelerated-cholesky', 'lobpcg', 'rank-projection', 'rank-completion'}:
+            from McUtils.Numputils import generalized_eigh
+            options = {} if eigensolver_options is None else dict(eigensolver_options)
+            if mode == 'fix-heiberger':
+                options.setdefault('epsilon', 1e-5 if stable_eigenvalue_epsilon is None
+                                   else stable_eigenvalue_epsilon)
+            method = 'cholesky' if mode == 'pivoted-cholesky' else mode
+            options['return_info'] = True
+            eigs, evecs, self.eigensolver_info = generalized_eigh(H, self.S, method=method, **options)
 
         elif mode == 'similarity':
             eigs, evecs = DGBEigensolver.similarity_mapped_solver(H, self.S, self,
@@ -541,6 +550,7 @@ class DGB:
                           min_singular_value=None,
                           nodeless_ground_state=None,
                           stable_eigenvalue_epsilon=None,
+                          eigensolver_options=None,
                           **wfn_opts
                           ):
         # print("======="*25)
@@ -552,7 +562,8 @@ class DGB:
             subspace_size=subspace_size,
             min_singular_value=min_singular_value,
             nodeless_ground_state=nodeless_ground_state,
-            stable_eigenvalue_epsilon=stable_eigenvalue_epsilon
+            stable_eigenvalue_epsilon=stable_eigenvalue_epsilon,
+            eigensolver_options=eigensolver_options
         )
         ops = {k:v for k,v in ops.items() if v is not None}
         eigs, evecs = self.diagonalize(**ops)

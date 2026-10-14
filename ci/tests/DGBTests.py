@@ -46,9 +46,9 @@ class DGBTests(TestCase):
         npts = int(np.prod(ndivs))
         pts = np.random.uniform(low=[d[0] for d in domain], high=[d[1] for d in domain], size=(npts, ndim) )
 
-        pot = lambda c:np.sum(c**2, axis=-1)/2
+        pot = lambda c, deriv_order=None:np.sum(c**2, axis=-1)/2
 
-        wfns = DGB.run(pts, pot, alphas=1, clustering_radius=.05, min_singular_value=1e-4)
+        wfns = DGB.construct(pts, pot, alphas=1, masses=[1]).get_wavefunctions(min_singular_value=1e-4)
         # wfns = ham.get_wavefunctions()
 
         # wfns[0].project(1).plot().show()
@@ -76,13 +76,13 @@ class DGBTests(TestCase):
         de = (w ** 2) / (4 * wx)
         a = np.sqrt(2 * mu * wx)
 
-        pot = lambda c,de=de,a=a,mu=mu: np.sum(de*(1-np.exp(-a*c))**2, axis=-1)
+        pot = lambda c,de=de,a=a,mu=mu,deriv_order=None: np.sum(de*(1-np.exp(-a*c))**2, axis=-1)
 
         # ham = DGB(pts, pot, alphas=1, optimize_centers=False, clustering_radius=.01, min_singular_value=1e-4)
         #
         # raise Exception(ham.V)
 
-        wfns = DGB.run(pts, pot, alphas=2, optimize_centers=False, clustering_radius=.01, min_singular_value=1e-4)
+        wfns = DGB.construct(pts, pot, alphas=2, masses=[1], optimize_centers=False).get_wavefunctions(min_singular_value=1e-4)
         e = wfns.energies
 
         base_energies = [w*(np.arange(3) + 1 / 2) - wx*(np.arange(3) + 1 / 2)**2] * ndim
@@ -120,7 +120,7 @@ class DGBTests(TestCase):
         ])
 
         def simple_morse(c, de=de, a=a, deriv_order=None):
-            base = c.shape[:-2]
+            base = c.shape[:-1]
             ndim = c.shape[-1]
 
             c = c.reshape(-1, ndim)

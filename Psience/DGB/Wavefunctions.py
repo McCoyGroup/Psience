@@ -385,7 +385,7 @@ class DGBWavefunctions(Wavefunctions):
             quadrature_degree=quadrature_degree
         )
 
-        w1 = self.wavefunctions.T
+        w1 = self.wavefunctions.conj().T
         w2 = other.wavefunctions
         if op_mat.ndim > 2: # lots of shape fuckery to get broacasting right
             op_mat = np.moveaxis(np.moveaxis(op_mat, 0, -1), 0, -1)
