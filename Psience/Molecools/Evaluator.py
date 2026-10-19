@@ -4227,7 +4227,11 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
                                             create_graph=create_graph)[0]
                     grads.append(g)
 
-        deriv = torch.stack(grads).view(shape)
+        # Autograd stacks output components first. Move coordinate axes in
+        # front of them; reshaping alone interleaves vector-property Jacobians.
+        deriv = torch.stack(grads).reshape(expr.shape + coord.shape)
+        axes = tuple(range(expr.ndim, expr.ndim + coord.ndim)) + tuple(range(expr.ndim))
+        deriv = deriv.permute(axes)
         shape_tuple = ((slice(None, -1),) + (slice(None),) * (coord_ndim-1)) * ((len(shape) - npad) // coord_ndim)
         return deriv, shape_tuple
 
@@ -6912,7 +6916,7 @@ class AIMNet2ChargeEvaluator(ChargeEvaluator):
     distance_units = 'Angstroms'
     batched_orders = True
     analytic_derivative_order = 1
-    scaling_factor = 1#0.59667 # necessary to make water work...but I don't know what the actual units are
+    scaling_factor = 1
     def evaluate_term(self, coords, order, **opts):
         if coords.ndim == 2 or order < 2:
             base_shape, coords, data = self.base.prep_eval(coords, order, keep_graph=order > 0, forces=False,
@@ -6926,7 +6930,8 @@ class AIMNet2ChargeEvaluator(ChargeEvaluator):
                 property_shape=(coords.shape[-2] + 1,),
                 output_shape=(coords.shape[-2],)
             )
-            s = self.scaling_factor / np.sqrt(2)
+            # AIMNet2 calculator charges are already in elementary-charge units.
+            s = self.scaling_factor
             expansions = [e * s for e in expansions]
 
             return expansions
@@ -6957,6 +6962,11 @@ class ChargeEvaluatorDipoleEvaluator(DipoleEvaluator):
     def evaluate_term(self, coords, order, **opts):
         coords = np.asanyarray(coords)
         charges = self.evaluator.evaluate(coords, order=order, **opts)
+        # evaluate() returns charges and derivatives in its target units and
+        # per Bohr. The product rule below uses the input distance units.
+        prop_conv = UnitsData.convert(self.evaluator.target_property_units, self.evaluator.property_units)
+        dist_conv = UnitsData.convert(self.distance_units, 'BohrRadius')
+        charges = [c * prop_conv * dist_conv**o for o, c in enumerate(charges)]
         base_shape = coords.shape[:-2]
         coord_deriv = nput.identity_tensors(base_shape, coords.shape[-2]*coords.shape[-1])
         coord_deriv = coord_deriv.reshape(base_shape + (coord_deriv.shape[-2], -1, 3))
