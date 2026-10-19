@@ -4149,8 +4149,53 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
             yield None
 
 
+    @staticmethod
+    def _patch_aimnet_neighbor_list():
+        """Retry native neighbor construction when reported counts exceed storage.
+
+        Some AIMNet/nvalchemi versions return the full neighbor counts without
+        raising an overflow error when the adaptive buffer is too small. Install
+        this check once, retaining the native implementation and its arguments.
+        Legacy aimnet2calc installations do not need this patch.
+        """
+        try:
+            from aimnet.calculators import calculator
+        except ImportError:
+            return False
+
+        neighbor_type = getattr(calculator, "AdaptiveNeighborList", None)
+        if neighbor_type is None:
+            return False
+        original = neighbor_type.__call__
+        if getattr(original, "__psience_neighbor_completeness__", False):
+            return True
+
+        @functools.wraps(original)
+        def checked_neighbors(self, *args, **kwargs):
+            while True:
+                allocated = self.max_neighbors
+                nbmat, counts, shifts = original(self, *args, **kwargs)
+                required = int(counts.max().item()) if counts.numel() else 0
+                if required <= nbmat.shape[1]:
+                    return nbmat, counts, shifts
+                if required <= allocated:
+                    raise RuntimeError(
+                        "AIMNet returned an incomplete neighbor matrix despite "
+                        "sufficient allocation: "
+                        f"{required} neighbors, {nbmat.shape[1]} columns, "
+                        f"{allocated} allocated"
+                    )
+                self.max_neighbors = self._round_to_16(
+                    max(required, int(self.max_neighbors * 1.5))
+                )
+
+        checked_neighbors.__psience_neighbor_completeness__ = True
+        neighbor_type.__call__ = checked_neighbors
+        return True
+
     @classmethod
     def setup_aimnet(cls, model, device=None, model_dir=None):
+        cls._patch_aimnet_neighbor_list()
         if isinstance(model, str):
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
