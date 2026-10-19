@@ -2979,9 +2979,16 @@ class Molecule(AbstractMolecule):
             **optimizer_opts
         )
         if not opt:
+            msg = 'failed to optimize molecule (not converged in max_iterations={} at tol={})'.format(
+                max_iterations if max_iterations is not None else evaluator.optimizer_defaults['max_iterations'],
+                tol if tol is not None else evaluator.optimizer_defaults['tol']
+            )
             if logger is not None:
                 logger = Logger.lookup(logger)
-                logger.log_print('WARNING: failed to optimize molecule')
+                logger.log_print('WARNING: ' + msg)
+            else:
+                import warnings
+                warnings.warn(msg, RuntimeWarning, stacklevel=2)
         settings['optimized'] = opt
         no_traj = isinstance(opt_coords, np.ndarray)
         if no_traj: opt_coords = (opt_coords, [])
