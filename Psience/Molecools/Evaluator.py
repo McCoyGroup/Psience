@@ -3259,14 +3259,14 @@ class EnergyEvaluator(PropertyEvaluator):
                     #TODO: decide if I want to apply the region bounds as an offset or not...
                     min_ops['bounds'] = [
                         (
-                            (c + cons[i][0] if b1 is None else b1)
-                            (c + cons[i][1] if b1 is None else b2)
+                            (c + cons[i][0] if b1 is None else b1),
+                            (c + cons[i][1] if b2 is None else b2)
                         )
                             if i in cons else
                         (b1, b2)
                         for i,(c, (b1, b2)) in enumerate(zip(
                             coords.flatten(),
-                            min_ops.get('bonds', [None] * len(coords))
+                            min_ops.get('bounds', [(None, None)] * len(coords))
                         ))
                     ]
 
@@ -3324,14 +3324,18 @@ class EnergyEvaluator(PropertyEvaluator):
                         :return: `(step_size, None, None, old_fval, old_old_fval, None)`, matching the tuple shape `scipy.optimize`'s line search would return
                         :rtype: tuple
                         """
+                        # scipy expects `(alpha, fc, gc, new_fval, old_fval, new_grad)`; `new_fval` has to be the
+                        # value at the *new* point, and the step is capped at (not forced to) `max_displacement`
                         if line_search_step is not None:
-                            return line_search_step
+                            alpha = line_search_step
                         else:
                             max_pk = np.max(np.abs(pk))
                             if max_pk < 1e-6:
-                                return max_displacement, None, None, old_fval, old_old_fval, None
+                                alpha = 1.0
                             else:
-                                return max_displacement/max_pk, None, None, old_fval, old_old_fval, None
+                                alpha = min(1.0, max_displacement/max_pk)
+                        new_fval = f(xk + alpha * pk, *args)
+                        return alpha, 1, 0, new_fval, old_fval, None
                     _optimize.line_search_wolfe1 = _find_max_displacement_step
                 min = minimize(sfunc,
                                coords.flatten(),
@@ -4289,6 +4293,12 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
 
         if self.multiplicity is not None:
             arg_dict['mult'] = torch.tensor(self.multiplicity, dtype=torch.float32, device=self.eval.device)
+        elif 'nse' in str(self.model).lower():
+            # NSE (open-shell, two-channel) models need an explicit spin key; don't guess one
+            raise ValueError(
+                f"AIMNet2 model {self.model!r} is a spin-aware (NSE) model but no spin multiplicity was supplied; "
+                "set `multiplicity` on the molecule (`mol.spin`) or pass `multiplicity=` explicitly"
+            )
 
         data = self.eval.prepare_input(arg_dict)
         if hessian and data['mol_idx'][-1] > 0:
@@ -4778,7 +4788,7 @@ class MACEEnergyEvaluator(ASECalcEnergyEvaluator):
                 elif model_type == 'anicc':
                     from mace.calculators import mace_anicc as model_type
                 elif model_type == 'polar':
-                    from mace.calculators import mace_anicc as model_type
+                    from mace.calculators import mace_polar as model_type
                 elif model_type == 'off':
                     from mace.calculators import mace_off as model_type
                 else:
@@ -4798,6 +4808,22 @@ class MACEEnergyEvaluator(ASECalcEnergyEvaluator):
             calc = cls._mace_cache[(model, device)]
 
         return calc
+
+def _hf_authenticate(hf_token=None):
+    """
+    Make a HuggingFace token available to `huggingface_hub` for this process.
+
+    `huggingface_hub.login` writes the token to `$HF_HOME/stored_tokens`, which races when many jobs share an `HF_HOME`;
+    when a token is available we instead export it as `HF_TOKEN` (which `huggingface_hub` reads directly) and never touch the disk.
+    An interactive `login()` is only used when there is no token at all.
+    """
+    if hf_token is None:
+        hf_token = os.environ.get("HF_TOKEN")
+    if hf_token is not None:
+        os.environ["HF_TOKEN"] = hf_token
+    else:
+        from huggingface_hub import login
+        login()
 
 @EnergyEvaluator.register('uma')
 class UMAEnergyEvaluator(ASECalcEnergyEvaluator):
@@ -4827,10 +4853,7 @@ class UMAEnergyEvaluator(ASECalcEnergyEvaluator):
                 hf_token = os.environ.get("HF_TOKEN")
             login = hf_token is not None
         if login:
-            if hf_token is None:
-                hf_token = os.environ.get("HF_TOKEN")
-            from huggingface_hub import login
-            login(token=hf_token)
+            _hf_authenticate(hf_token)
 
         model = cls.model_types.get(model, model)
         if task_name is None:
@@ -4917,10 +4940,7 @@ class UPETEnergyEvaluator(ASECalcEnergyEvaluator):
                     hf_token = os.environ.get("HF_TOKEN")
                 login = hf_token is not None
             if login:
-                if hf_token is None:
-                    hf_token = os.environ.get("HF_TOKEN")
-                from huggingface_hub import login
-                login(token=hf_token)
+                _hf_authenticate(hf_token)
 
             model = model.lower()
             with cls.quiet_mode():
