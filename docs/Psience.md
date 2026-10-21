@@ -20,40 +20,40 @@ and spectrum handling.
 [Molecools](Psience/Molecools.md)   
 </div>
    <div class="col" markdown="1">
-[DVR](Psience/DVR.md)   
+[ElectronicStructure](Psience/ElectronicStructure.md)   
 </div>
    <div class="col" markdown="1">
-[VPT2](Psience/VPT2.md)   
+[DVR](Psience/DVR.md)   
 </div>
 </div>
   <div class="row">
+   <div class="col" markdown="1">
+[VPT2](Psience/VPT2.md)   
+</div>
    <div class="col" markdown="1">
 [DGB](Psience/DGB.md)   
 </div>
    <div class="col" markdown="1">
 [Modes](Psience/Modes.md)   
 </div>
+</div>
+  <div class="row">
    <div class="col" markdown="1">
 [Plots](Psience/Plots.md)   
 </div>
-</div>
-  <div class="row">
    <div class="col" markdown="1">
 [Vibronic](Psience/Vibronic.md)   
 </div>
    <div class="col" markdown="1">
 [Spectra](Psience/Spectra.md)   
 </div>
-   <div class="col" markdown="1">
-[Data](Psience/Data.md)   
-</div>
 </div>
   <div class="row">
    <div class="col" markdown="1">
-[AnalyticModels](Psience/AnalyticModels.md)   
+[Data](Psience/Data.md)   
 </div>
    <div class="col" markdown="1">
-   
+[AnalyticModels](Psience/AnalyticModels.md)   
 </div>
    <div class="col" markdown="1">
    

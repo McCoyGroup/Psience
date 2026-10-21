@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Terms.KineticTerms">KineticTerms</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L2826)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2826?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L2824)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2824?message=Update%20Docs)]
 </div>
 
 Represents the KE coefficients
@@ -24,8 +24,8 @@ Represents the KE coefficients
 __init__(self, molecule, g_derivative_threshold=0.001, gmatrix_tolerance=1e-06, use_cartesian_kinetic_energy=False, check_input_gmatrix=True, freq_tolerance=0.002, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L2836)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2836?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L2834)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2834?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -53,8 +53,8 @@ Set up a G-matrix (kinetic-energy coefficient) expansion generator for a molecul
 get_terms(self, order=None, logger=None, return_expressions=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/KineticTerms.py#L2874)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/KineticTerms.py#L2874?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/KineticTerms.py#L2872)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/KineticTerms.py#L2872?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -75,8 +75,8 @@ Compute the G-matrix (kinetic-energy coefficient) Taylor-expansion terms in the 
 reexpress_G(self, G_expansion, forward_derivs, reverse_derivs=None, order=2): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L3143)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L3143?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L3141)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L3141?message=Update%20Docs)]
 </div>
 Apply a coordinate transformation to the G-matrix
   - `forward_derivs`: `Any`
@@ -94,8 +94,8 @@ Apply a coordinate transformation to the G-matrix
 reexpress(self, forward_derivs, reverse_derivs=None, order=2): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/KineticTerms.py#L3184)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/KineticTerms.py#L3184?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/KineticTerms.py#L3182)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/KineticTerms.py#L3182?message=Update%20Docs)]
 </div>
 Finds a coordinate transformation the give 0 contribution to the G-matrix
   - `forward_derivs`: `Any`
@@ -114,8 +114,8 @@ Finds a coordinate transformation the give 0 contribution to the G-matrix
 get_kinetic_optimized_coordinates(cls, G_expansion, order=2): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L3197)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L3197?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L3195)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L3195?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -133,8 +133,8 @@ Intended to iteratively find the coordinate transformation that eliminates as mu
 optimize_coordinates(self, order=2): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/KineticTerms.py#L3249)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/KineticTerms.py#L3249?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/KineticTerms.py#L3247)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/KineticTerms.py#L3247?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -196,7 +196,7 @@ Build the kinetic-energy-optimized coordinate transformation for this G-matrix e
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Terms/KineticTerms.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Terms/KineticTerms.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2826?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L2824?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -254,28 +254,19 @@ agree with the analytic dipole derivatives as pulled from a Gaussian FChk file
 get_partial_cubic_based_rephasing(cls, modes, partial_cubics: numpy.ndarray, degenerate_freq_threshold=1e-06, equivalent_threshold=0.01, nonzero_threshold=4.5e-06, ignore_single_zeros=False, frequency_scale=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L3449)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L3449?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L3466)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L3466?message=Update%20Docs)]
 </div>
-**LLM Docstring**
+Return the rotation aligning the modes with Gaussian's cubic axes.
 
-Derive a rephasing (sign/permutation) matrix for a set of nearly-degenerate normal modes using consistency of the partial cubic force constants: transforms `partial_cubics` into the mode basis (optionally frequency-scaled), groups modes into degenerate blocks by frequency, resolves pairwise sign/swap ambiguities within each block by comparing triples of cubic force constants that should agree up to the rephasing, and returns the resulting rephasing transformation.
-  - `modes`: `MolecularNormalModes`
-    > the normal modes to rephase
-  - `partial_cubics`: `np.ndarray`
-    > the partial cubic force-constant tensor used to disambiguate the phase/ordering of degenerate modes
-  - `degenerate_freq_threshold`: `float`
-    > maximum frequency difference for two modes to be treated as degenerate
-  - `equivalent_threshold`: `float`
-    > relative-difference threshold for treating two cubic force-constant magnitudes as equal
-  - `nonzero_threshold`: `float`
-    > absolute magnitude below which a cubic force constant is treated as zero
-  - `ignore_single_zeros`: `bool`
-    > accepted parameter but not referenced in the current method body
-  - `frequency_scale`: `bool`
-    > whether to frequency-scale the cubic tensor before comparing terms
-  - `:returns`: `np.ndarray`
-    > the rephasing (sign/permutation) matrix to apply to the modes
+The result is applied as old_modes.rotate(rotation), or as
+new_modes.apply_transformation((rotation, rotation.T)). Only degenerate
+frequency blocks can mix. equivalent_threshold bounds the relative
+Frobenius norm of the complete cubic permutation residual, including
+repeated indices. Cubics alone leave global/component signs undetermined.
+
+nonzero_threshold and ignore_single_zeros remain accepted for call
+compatibility; the fit uses all coefficients without a magnitude cutoff.
 
 
 <a id="Psience.Molecools.Properties.NormalModesManager.apply_transformation" class="docs-object-method">&nbsp;</a> 
@@ -283,8 +274,8 @@ Derive a rephasing (sign/permutation) matrix for a set of nearly-degenerate norm
 apply_transformation(self, transf): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L3955)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L3955?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L3511)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L3511?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -300,8 +291,8 @@ Apply a coordinate transformation to a copy of this normal-modes manager by embe
 insert_atoms(self, atoms, coords, where): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L3975)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L3975?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L3531)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L3531?message=Update%20Docs)]
 </div>
 Handles the insertion of new atoms into the structure
   - `atoms`: `tuple[str]`
@@ -319,8 +310,8 @@ Handles the insertion of new atoms into the structure
 delete_atoms(self, where): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L3998)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L3998?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Properties/NormalModesManager.py#L3554)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Properties/NormalModesManager.py#L3554?message=Update%20Docs)]
 </div>
 Handles the deletion from the structure
   - `atoms`: `tuple[str]`

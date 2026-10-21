@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Terms.CoriolisTerm">CoriolisTerm</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L3272)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L3272?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L3270)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L3270?message=Update%20Docs)]
 </div>
 
 Calculates the Coriolis coupling term
@@ -24,8 +24,8 @@ Calculates the Coriolis coupling term
 get_zetas_and_momi(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/CoriolisTerm.py#L3276)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/CoriolisTerm.py#L3276?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/CoriolisTerm.py#L3274)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/CoriolisTerm.py#L3274?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -39,8 +39,8 @@ Compute the Coriolis zeta constants and the inertial-frame moments of inertia: m
 get_zetas(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/CoriolisTerm.py#L3316)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/CoriolisTerm.py#L3316?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/CoriolisTerm.py#L3314)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/CoriolisTerm.py#L3314?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -54,8 +54,8 @@ The Coriolis zeta-constant tensor alone, via `get_zetas_and_momi`.
 get_terms(self, order=None, J=0): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/CoriolisTerm.py#L3330)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/CoriolisTerm.py#L3330?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/CoriolisTerm.py#L3328)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/CoriolisTerm.py#L3328?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -119,7 +119,7 @@ Compute the Coriolis rotational-coupling operator's Taylor-expansion terms by co
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Terms/CoriolisTerm.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Terms/CoriolisTerm.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L3272?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L3270?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

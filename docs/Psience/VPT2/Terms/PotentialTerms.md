@@ -61,8 +61,8 @@ Property getter/setter for the canonicalized potential-energy derivative tensors
 get_terms(self, order=None, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/PotentialTerms.py#L2439)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/PotentialTerms.py#L2439?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/PotentialTerms.py#L2431)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/PotentialTerms.py#L2431?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -81,8 +81,8 @@ Compute the potential-energy expansion terms in the molecule's normal-mode coord
 get_potential_optimized_coordinates(cls, V_expansion, order=2): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L2773)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L2773?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L2771)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L2771?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -100,8 +100,8 @@ Find, order by order, the coordinate transformation that eliminates as much of t
 optimize_coordinates(self, order=2): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/PotentialTerms.py#L2805)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/PotentialTerms.py#L2805?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/PotentialTerms.py#L2803)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/PotentialTerms.py#L2803?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
