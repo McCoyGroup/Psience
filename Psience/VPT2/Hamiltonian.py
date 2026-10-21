@@ -130,7 +130,8 @@ class PerturbationTheoryHamiltonian:
                         cubics,
                         frequency_scale=True
                     )
-                    modes = modes.apply_transformation((phases, phases))
+                    if phases is not None:
+                        modes = modes.apply_transformation((phases, phases.T))
 
         full_modes = modes
         if isinstance(mode_selection, dict):
@@ -146,7 +147,8 @@ class PerturbationTheoryHamiltonian:
                 else:
                     modes:MixtureModes
                     phases = self.molecule.normal_modes.get_fchk_normal_mode_rephasing(self.molecule, modes)
-                    modes = modes.apply_transformation((phases, phases))
+                    if phases is not None:
+                        modes = modes.apply_transformation((phases, phases.T))
             mode_selection = mode_selection.get('derivatives', None)
 
         if mode_selection is not None:
