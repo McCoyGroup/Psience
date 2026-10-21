@@ -16,7 +16,7 @@ import warnings
 import subprocess
 
 from McUtils.Data import AtomData, UnitsData
-from McUtils.Zachary import TensorDerivativeConverter, FiniteDifferenceDerivative, CoordinateFunction
+from McUtils.Zachary import TensorDerivativeConverter, FiniteDifferenceDerivative, CoordinateFunction, MultipoleExpansion
 import McUtils.Numputils as nput
 import McUtils.Devutils as dev
 import McUtils.Coordinerds as coordops
@@ -27,17 +27,43 @@ from McUtils.ExternalPrograms import SingularityLauncher
 from ..Data import PotentialSurface, DipoleSurface
 from .CoordinateSystems import MolecularEmbedding
 from .Properties import NormalModesManager
+from ..ElectronicStructure import (
+    ElectronicStructureBackend, FluctuatingChargeResponse,
+    AIMNet2Backend, HIPNNBackend, ASECalculatorBackend, MACEBackend, MACEPolarBackend, UMABackend, UPETBackend, OrbBackend,
+    XTBBackend, PySCFBackend
+)
 
 __all__ = [
     "MolecularEvaluator",
     "EnergyEvaluator",
     "RDKitEnergyEvaluator",
+    "ElectronicStructureBackendEvaluator",
     "AIMNet2EnergyEvaluator",
+    "ASECalcEnergyEvaluator",
+    "MACEEnergyEvaluator",
+    "UMAEnergyEvaluator",
+    "UPETEnergyEvaluator",
+    "OrbModelEnergyEvaluator",
+    "HIPNNEnergyEvaluator",
     "XTBEnergyEvaluator",
     "PySCFEnergyEvaluator",
     "PotentialFunctionEnergyEvaluator",
     "DipoleEvaluator",
     "DipoleFunctionDipoleEvaluator",
+    "ChargeEvaluator",
+    "AIMNet2ChargeEvaluator",
+    "XTBChargeEvaluator",
+    "PySCFChargeEvaluator",
+    "HIPNNDipoleEvaluator",
+    "XTBDipoleEvaluator",
+    "PySCFDipoleEvaluator",
+    "DipolePolarizabilityEvaluator",
+    "AIMNet2DipolePolarizabilityEvaluator",
+    "PySCFDipolePolarizabilityEvaluator",
+    "ElectrostaticPotentialEvaluator",
+    "ElectrostaticPotentialFunctionEvaluator",
+    "ElectrostaticMultipoleExpansionEvaluator",
+    "MACEPolarElectrostaticPotentialEvaluator",
     "ReducedDimensionalPotentialHandler"
 ]
 
@@ -4029,28 +4055,116 @@ class RDKitEnergyEvaluator(EnergyEvaluator):
                 **opts
             )
 
-@EnergyEvaluator.register('aimnet2')
-class AIMNet2EnergyEvaluator(EnergyEvaluator):
+class ElectronicStructureBackendEvaluator:
     """
-    Borrows structure from AIMNet2ASE to call appropriately
+    Mixin for `PropertyEvaluator`s that are thin wrappers over a
+    `Psience.ElectronicStructure` backend: the backend evaluates `backend_property` and its
+    analytic derivatives (in its native units, which become this evaluator's `property_units`
+    and `distance_units`); the evaluator adds unit conversion, finite differences beyond the
+    backend's analytic order, embeddings, and (for energies) optimization.
+
+    Construction options are split between the backend (the names its constructor takes, or
+    everything that isn't an evaluator option if it takes arbitrary model settings) and the
+    evaluator; leftovers become evaluation defaults, as before.
     """
-    def __init__(self, atoms, model='aimnet2', charge=0, device=None, model_dir=None, multiplicity=None, quiet=True, **defaults):
-        super().__init__(**defaults)
-        self.eval = self.setup_aimnet(model, device=device, model_dir=model_dir)
-        self.model = model
-        self.atoms = atoms
-        self.numbers = [AtomData[atom, "Number"] for atom in atoms]
-        self.charge = charge
-        self.multiplicity = multiplicity
-        self.quiet = quiet
+    backend_type: 'type[ElectronicStructureBackend]' = None
+    backend_property: str = None
+    batched_orders = True
+    _evaluator_option_names = frozenset([
+        'embedding', 'permutation', 'use_internals', 'strip_embedding', 'flatten_internals',
+        'reembed_cartesians', 'supports_internals', 'analytic_derivative_order', 'batched_orders',
+    ])
+
+    def __init__(self, atoms=None, *backend_args, backend=None, **opts):
+        """
+        :param atoms: atom symbols (unused if `backend` is given)
+        :param backend_args: positional arguments for the backend constructor
+        :param backend: an existing backend to wrap
+        :type backend: ElectronicStructureBackend | None
+        :param opts: backend options and evaluator options
+        """
+        if backend is None:
+            backend_opts, opts = self.split_backend_options(opts)
+            backend = self.backend_type(atoms, *backend_args, **backend_opts)
+        elif len(backend_args) > 0:
+            raise ValueError("got positional backend arguments along with a `backend`")
+        self.backend = backend
+        super().__init__(**opts)
+        self.distance_units = backend.distance_units
+        self.property_units = backend.get_property_units(self.backend_property)
+        self.analytic_derivative_order = backend.get_analytic_derivative_order(self.backend_property)
+
+    @classmethod
+    def split_backend_options(cls, opts):
+        """
+        Split construction options into `(backend_options, evaluator_options)`.
+        """
+        opts = dict(opts)
+        names, takes_settings = cls.backend_type.get_init_options()
+        backend_opts = {
+            k: opts.pop(k) for k in list(opts)
+            if k in names and k not in cls._evaluator_option_names
+        }
+        if takes_settings:
+            fd_names = set(dev.OptionsSet(opts).filter(FiniteDifferenceDerivative).keys())
+            for k in list(opts):
+                if k not in cls._evaluator_option_names and k not in fd_names:
+                    backend_opts[k] = opts.pop(k)
+        return backend_opts, opts
 
     @classmethod
     def handle_specialization(cls, tag):
-        return {'model':tag}
+        return cls.backend_type.handle_specialization(tag)
+
+    @classmethod
+    def discover_dependencies(cls, **opts):
+        return cls.backend_type.discover_dependencies(**opts)
 
     @classmethod
     def from_mol(cls, mol, **opts):
         return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
+
+    @property
+    def eval(self):
+        """the backend's underlying model/calculator object"""
+        return self.backend.model
+
+    @property
+    def atoms(self):
+        return self.backend.atoms
+
+    @property
+    def numbers(self):
+        return list(self.backend.numbers)
+
+    @property
+    def charge(self):
+        return self.backend.charge
+
+    @property
+    def multiplicity(self):
+        return self.backend.multiplicity
+
+    @property
+    def quiet(self):
+        return self.backend.quiet
+
+    def evaluate_term(self, coords, order, **opts):
+        return self.backend.evaluate_property(coords, self.backend_property, order, **opts)
+
+
+@EnergyEvaluator.register('aimnet2')
+class AIMNet2EnergyEvaluator(ElectronicStructureBackendEvaluator, EnergyEvaluator):
+    """
+    AIMNet2 energies (`Psience.ElectronicStructure.AIMNet2Backend`)
+    """
+    backend_type = AIMNet2Backend
+    backend_property = 'energy'
+
+    @property
+    def model(self):
+        """the AIMNet2 model name"""
+        return self.backend.model_name
 
     def to_ase(self,
                gradient_modification_function=None,
@@ -4118,541 +4232,17 @@ class AIMNet2EnergyEvaluator(EnergyEvaluator):
             **( opts | dict(model=base_calc.model, charge=base_calc.charge, mult=base_calc.mult, out_dir=base_calc.out_dir))
         )
 
-    def _maybe_download_asset(self, file:str, url:str):
-        ...
-
-
-    @classmethod
-    @contextlib.contextmanager
-    def _overload_aimnet_modeldir(cls, root_dir):
-        if root_dir is None:
-            root_dir = os.environ.get("MODEL_CACHE_DIR")
-
-        if root_dir is not None:
-            import aimnet.calculators.model_registry as reg
-            cur = reg._maybe_download_asset
-            try:
-                def _maybe_download_asset(file: str, url: str) -> str:
-                    import requests
-                    filename = os.path.join(root_dir, 'aimnet', file)
-                    if not os.path.exists(filename):
-                        print(f"Downloading {url} -> {filename}")
-                        with open(filename, "wb") as f:
-                            response = requests.get(url, timeout=60)
-                            f.write(response.content)
-                    return filename
-                reg._maybe_download_asset = _maybe_download_asset
-                yield _maybe_download_asset
-            finally:
-                reg._maybe_download_asset = cur
-        else:
-            yield None
-
-
-    @staticmethod
-    def _patch_aimnet_neighbor_list():
-        """Retry native neighbor construction when reported counts exceed storage.
-
-        Some AIMNet/nvalchemi versions return the full neighbor counts without
-        raising an overflow error when the adaptive buffer is too small. Install
-        this check once, retaining the native implementation and its arguments.
-        Legacy aimnet2calc installations do not need this patch.
-        """
-        try:
-            from aimnet.calculators import calculator
-        except ImportError:
-            return False
-
-        neighbor_type = getattr(calculator, "AdaptiveNeighborList", None)
-        if neighbor_type is None:
-            return False
-        original = neighbor_type.__call__
-        if getattr(original, "__psience_neighbor_completeness__", False):
-            return True
-
-        @functools.wraps(original)
-        def checked_neighbors(self, *args, **kwargs):
-            while True:
-                allocated = self.max_neighbors
-                nbmat, counts, shifts = original(self, *args, **kwargs)
-                required = int(counts.max().item()) if counts.numel() else 0
-                if required <= nbmat.shape[1]:
-                    return nbmat, counts, shifts
-                if required <= allocated:
-                    raise RuntimeError(
-                        "AIMNet returned an incomplete neighbor matrix despite "
-                        "sufficient allocation: "
-                        f"{required} neighbors, {nbmat.shape[1]} columns, "
-                        f"{allocated} allocated"
-                    )
-                self.max_neighbors = self._round_to_16(
-                    max(required, int(self.max_neighbors * 1.5))
-                )
-
-        checked_neighbors.__psience_neighbor_completeness__ = True
-        neighbor_type.__call__ = checked_neighbors
-        return True
-
-    @classmethod
-    def setup_aimnet(cls, model, device=None, model_dir=None):
-        cls._patch_aimnet_neighbor_list()
-        if isinstance(model, str):
-            with warnings.catch_warnings():
-                warnings.simplefilter('ignore')
-                with dev.OutputRedirect():
-                    try:
-                        with cls._overload_aimnet_modeldir(model_dir):
-                            from aimnet.calculators import AIMNet2Calculator
-                    except ImportError:
-                        from aimnet2calc import AIMNet2Calculator
-
-            with cls.quiet_mode():
-                device = cls._resolve_torch_device(device)
-
-                try:
-                    calc = AIMNet2Calculator(model, device=device)
-                except TypeError:
-                    calc = AIMNet2Calculator(model) # can't set device in older aimnet
-
-        else:
-            calc = model
-
-        return calc
-
-    @staticmethod
-    def autodiff(expr, coord, pad_dim, base_shape=None, create_graph=False, retain_graph=False):
-        import torch
-        # here forces have shape (N, 3) and coord has shape (N+1, 3)
-        # return hessian with shape (N, 3, N, 3)
-        coord_ndim = len(coord.shape)
-        if base_shape is not None:
-            coord = coord.reshape(base_shape + (-1, 3))
-        shape = coord.shape + expr.shape
-        grads = []
-        # N = coord.shape[0] - 1
-        # for p in itertools.combinations(coord.shape, expr.ndim):
-        npad = len(pad_dim)
-        rav_shape = tuple(
-            np.prod([expr.shape[coord_ndim*i+k] for k in range(coord_ndim)], dtype=int)
-            for i in range((expr.ndim - npad) // coord_ndim)
-        ) + pad_dim
-        if len(rav_shape) > 0:
-            cache = {}
-            inds = np.array(np.unravel_index(np.arange(np.prod(expr.shape, dtype=int)), rav_shape)).T
-            if npad == 0:
-                shinds = np.sort(inds, axis=1)
-            else:
-                shinds = np.concatenate([np.sort(inds[:, :-(npad)], axis=1), inds[:, -npad:]], axis=-1)
-            for i,_f in enumerate(expr.flatten()):
-                ravioli = tuple(inds[i])
-                key = tuple(shinds[i])
-                if ravioli == key:
-                    g = torch.autograd.grad(_f,
-                                            coord,
-                                            # allow_unused=True,
-                                            retain_graph=True,
-                                            create_graph=create_graph)
-                    g = g[0]
-                    grads.append(g)
-                    cache[key] = g
-                else:
-                    grads.append(cache[key])
-        else:
-            grads = []
-            if len(expr.shape) == 0:
-                grads.append(
-                    torch.autograd.grad(expr,
-                                        coord,
-                                        # allow_unused=True,
-                                        retain_graph=True,
-                                        create_graph=create_graph)[0]
-                )
-            else:
-                for n, _f in enumerate(expr):
-                    g = torch.autograd.grad(_f,
-                                            coord,
-                                            # allow_unused=True,
-                                            retain_graph=True,
-                                            create_graph=create_graph)[0]
-                    grads.append(g)
-
-        # Autograd stacks output components first. Move coordinate axes in
-        # front of them; reshaping alone interleaves vector-property Jacobians.
-        deriv = torch.stack(grads).reshape(expr.shape + coord.shape)
-        axes = tuple(range(expr.ndim, expr.ndim + coord.ndim)) + tuple(range(expr.ndim))
-        deriv = deriv.permute(axes)
-        shape_tuple = ((slice(None, -1),) + (slice(None),) * (coord_ndim-1)) * ((len(shape) - npad) // coord_ndim)
-        return deriv, shape_tuple
-
-    # def calculate(self, atoms=None, properties=['energy'], system_changes=all_changes):
-    #     super().calculate(atoms, properties, system_changes)
-    #     self.update_tensors()
-    #
-    #     if self.atoms.cell is not None and self.atoms.pbc.any():
-    #         # assert self.base_calc.cutoff_lr < float('inf'), 'Long-range cutoff must be finite for PBC'
-    #         cell = self.atoms.cell.array
-    #     else:
-    #         cell = None
-    #
-    #     results = self.base_calc({
-    #         'coord': torch.tensor(self.atoms.positions, dtype=torch.float32, device=self.base_calc.device),
-    #         'numbers': self._t_numbers,
-    #         'cell': cell,
-    #         'mol_idx': self._t_mol_idx,
-    #         'charge': self._t_charge,
-    #         'mult': self._t_mult,
-    #     }, forces='forces' in properties, stress='stress' in properties)
-
-    property_units = 'ElectronVolts'
-    batched_orders = True
-    analytic_derivative_order = 2
-    def prep_eval(self, coords, order, keep_graph=None, forces=None, hessian=None, **opts):
-        import torch
-
-        base_shape = coords.shape[:-2]
-        coords = coords.reshape((-1,) + coords.shape[-2:])
-        # numbers = np.broadcast_to(
-        #     np.array(self.numbers)[np.newaxis],
-        #     (len(coords), len(self.numbers))
-        # )
-
-        if forces is None:
-            forces = order > 0
-        if hessian is None:
-            hessian = order > 1
-
-        arg_dict = {
-            'coord': torch.tensor(coords.reshape(-1, 3), dtype=torch.float32, device=self.eval.device),
-            'numbers': torch.tensor(
-                np.repeat(np.array([self.numbers]), coords.shape[0], axis=0).flatten(),
-                dtype=torch.int64, device=self.eval.device
-            ),
-            'charge': torch.tensor(self.charge, dtype=torch.float32, device=self.eval.device),
-            'cell': None,
-            'mol_idx': torch.tensor(
-                np.repeat(np.arange(coords.shape[0]), coords.shape[1]).flatten(),
-                dtype=torch.int64,
-                device=self.eval.device
-            )
-        }
-
-        if self.multiplicity is not None:
-            arg_dict['mult'] = torch.tensor(self.multiplicity, dtype=torch.float32, device=self.eval.device)
-        elif 'nse' in str(self.model).lower():
-            # NSE (open-shell, two-channel) models need an explicit spin key; don't guess one
-            raise ValueError(
-                f"AIMNet2 model {self.model!r} is a spin-aware (NSE) model but no spin multiplicity was supplied; "
-                "set `multiplicity` on the molecule (`mol.spin`) or pass `multiplicity=` explicitly"
-            )
-
-        data = self.eval.prepare_input(arg_dict)
-        if hessian and data['mol_idx'][-1] > 0:
-            raise NotImplementedError('higher-derivative calculation is not supported for multiple molecules')
-        data = self.eval.set_grad_tensors(data,
-                                          forces=keep_graph or forces,
-                                          stress=False,
-                                          hessian=keep_graph or hessian
-                                          )
-        if keep_graph and not (forces or hessian):
-            data['coord'].requires_grad_(True)
-            self.eval._saved_for_grad['coord'] = data['coord']
-        with torch.jit.optimized_execution(False):
-            data = self.eval.model(data)
-        # Recent AIMNet2 models leave Coulomb and DFTD3 corrections in
-        # calculator-owned modules rather than the Torch model itself.
-        # Match AIMNet2Calculator.eval before taking energy derivatives.
-        if hasattr(self.eval, '_run_external_modules'):
-            data, external_terms = self.eval._run_external_modules(
-                data, forces=forces or hessian, stress=False, hessian=hessian
-            )
-            opts['coulomb_terms'] = external_terms
-        data = self.eval.get_derivatives(
-            data,
-            forces=forces,
-            hessian=hessian,
-            **opts
-        )
-
-        return base_shape, coords, data
-
-    def _apply_autodiff(self, data, root_key, deriv_key, order, property_shape,
-                        diff_var=None,
-                        key_tag='deriv',
-                        pad_coord=1,
-                        base_shape=None,
-                        create_graph=None,
-                        retain_graph=None):
-        if pad_coord != 1:
-            raise NotImplementedError("all AIMNet coordinates are padded by 1, need to relax this condition")
-        keys = []
-        if order > 0:
-            if diff_var is None:
-                diff_var = self.eval._saved_for_grad['coord']
-            if deriv_key is not None:
-                keys.append(f'{key_tag}_1')
-                data[f'{key_tag}_1'] = (-data[deriv_key], (slice(None), slice(None)))
-                for o in range(2, order + 1):
-                    keys.append(f'{key_tag}_{o}')
-                    data[f'{key_tag}_{o}'] = self.autodiff(data[f'{key_tag}_{o - 1}'][0],
-                                                           diff_var,
-                                                           property_shape,
-                                                           base_shape=base_shape,
-                                                           create_graph=create_graph if create_graph is not None else (
-                                                                       (o == 1) or (o < order)),
-                                                           retain_graph=retain_graph if retain_graph is not None else (
-                                                                       o < order)
-                                                           )
-            else:
-                if 'forces' in data: data['forces'].unbind()
-                data[f'{key_tag}_0'] = (data[root_key], (slice(None),))
-                for o in range(1, order + 1):
-                    keys.append(f'{key_tag}_{o}')
-                    data[f'{key_tag}_{o}'] = self.autodiff(data[f'{key_tag}_{o - 1}'][0],
-                                                           diff_var,
-                                                           property_shape,
-                                                           base_shape=base_shape,
-                                                           create_graph=create_graph if create_graph is not None else (
-                                                                       (o == 1) or (o < order)),
-                                                           retain_graph=retain_graph if retain_graph is not None else (
-                                                                       o < order)
-                                                           )
-        return keys
-    def _replace_nans(self, e, replacement):
-        if replacement is True: replacement = 1e8
-        if replacement is False or not nput.is_numeric(replacement):
-            return e
-        else:
-            e = np.asanyarray(e)
-            if e.ndim == 0:
-                if np.isnan(e):
-                    return replacement
-                else:
-                    return e
-            else:
-                e[np.isnan(e)] = replacement
-            return e
-    def process_aimnet_derivs(self, base_shape, coords, data, root_key, order,
-                              extra_deriv_coord=None,
-                              deriv_key=None,
-                              property_shape=(),
-                              pad_coord=1,
-                              replace_nans=True,
-                              output_shape=None):
-        if extra_deriv_coord is not None:
-            deriv_keys = []
-            root_keys = []
-            if deriv_key is not None: raise ValueError("mixed derivatives with a deriv_key not supported")
-            var, suborder = extra_deriv_coord
-            self._apply_autodiff(data, root_key, deriv_key, suborder, property_shape,
-                                 diff_var=var,
-                                 pad_coord=pad_coord,
-                                 base_shape=base_shape,
-                                 retain_graph=True,
-                                 create_graph=True
-                                 )
-            for n in range(suborder+1):
-                deriv, subshape = data[f"deriv_{n}"]
-                if len(subshape) > 0 and len(deriv.shape) > 0:
-                    deriv = deriv.__getitem__(subshape)
-                data[f"subderiv_{n}"] = deriv
-                dkeys = self._apply_autodiff(data, f"subderiv_{n}", None, suborder,
-                                             data[f"subderiv_{n}"].shape,
-                                             key_tag=f"deriv_{n}",
-                                             pad_coord=pad_coord,
-                                             base_shape=base_shape
-                                             )
-                deriv_keys += dkeys
-                root_keys.append(f"subderiv_{n}")
-        else:
-            deriv_keys = self._apply_autodiff(data, root_key, deriv_key, order, property_shape,
-                                              diff_var=None, pad_coord=pad_coord)
-            root_keys = [root_key]
-
-        if output_shape is None:
-            output_shape = property_shape
-        else:
-            output_shape = tuple(output_shape)
-        slice_shape = tuple(slice(None, o) for o in output_shape)
-        for key in deriv_keys:
-            deriv,subshape = data[key]
-            if len(subshape + slice_shape) > 0:
-                deriv = deriv.__getitem__(subshape + slice_shape)
-            data[key] = deriv
-
-        ko = self.eval.keys_out
-        afk = self.eval.atom_feature_keys
-        try:
-            self.eval.keys_out = self.eval.keys_out + root_keys + deriv_keys
-            if root_key not in self.eval.keys_out:
-                self.eval.keys_out.append(root_key)
-            self.eval.atom_feature_keys = self.eval.atom_feature_keys + deriv_keys
-            expansion = self.eval.process_output(data)
-        finally:
-            self.eval.keys_out = ko
-            self.eval.atom_feature_keys = afk
-
-        ndim = np.prod(coords.shape[-2:], dtype=int)
-
-        if extra_deriv_coord is None:
-            expansion = [
-                self._replace_nans(
-                    expansion[k].detach().cpu().numpy().reshape(
-                        base_shape + (ndim,) * o + output_shape
-                    ),
-                    replace_nans
-                )
-                for o,k in enumerate(root_keys + deriv_keys)
-            ]
-        else:
-            var, nsub = extra_deriv_coord
-            targ_shape = list(var.shape[len(base_shape):])
-            targ_shape[0] -= pad_coord
-            vdim = np.prod(targ_shape, dtype=int)
-            _ = []
-            for n in range(extra_deriv_coord[1]+1):
-                subexpansion = []
-                for i in range(order + 1):
-                    esub = expansion[f"subderiv_{n}" if i == 0 else f"deriv_{n}_{i}"].detach().cpu().numpy()
-                    e_new = esub.reshape(
-                        base_shape + (ndim,) * i + (vdim,) * n + output_shape
-                    )
-                    e_new = self._replace_nans(e_new, replace_nans)
-                    subexpansion.append(e_new)
-                _.append(subexpansion)
-            expansion = _
-
-        return expansion
-    def evaluate_term(self, coords, order, **opts):
-        if coords.ndim == 2 or order < 2:
-            base_shape, coords, data = self.prep_eval(coords, order, **opts)
-
-            return self.process_aimnet_derivs(
-                base_shape, coords, data,
-                'energy',
-                order,
-                deriv_key='forces'
-            )
-        else:
-            base_shape = coords.shape[:-2]
-            coords = coords.reshape((-1,) + coords.shape[-2:])
-            expansions = [
-                self.evaluate_term(c, order, **opts)
-                for c in coords
-            ]
-            return [
-                np.array(e).reshape(base_shape + e[0].shape)
-                for e in zip(*expansions)
-            ]
-
-    # def optimize(self,
-    #              coords,
-    #              method=None,
-    #              mode=None,
-    #              initialization_function=None,
-    #              gradient_modification_function=None,
-    #              gradient_modification_mode='shift',
-    #              convert_modification_distances=True,
-    #              convert_modification_energies=True,
-    #              return_trajectory=False,
-    #              **opts
-    #              ):
-    #     tol, max_iterations, max_displacement = [
-    #         opts.pop(k, self.optimizer_defaults[k])
-    #         for k in ["tol", "max_iterations", "max_displacement"]
-    #     ]
-    #     if mode == 'ase':
-    #         from McUtils.ExternalPrograms import ASEMolecule
-    #         # calc = self.to_ase()
-    #
-    #         calc = self.to_ase(
-    #             gradient_modification_function=gradient_modification_function,
-    #             gradient_modification_mode=gradient_modification_mode,
-    #             convert_modification_distances = convert_modification_distances,
-    #             convert_modification_energies = convert_modification_energies,
-    #         )
-    #
-    #         if initialization_function is not None:
-    #             d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
-    #             coords = initialization_function(d_conv * coords)
-    #             coords = coords / d_conv
-    #
-    #         if return_trajectory:
-    #             traj = tempfile.NamedTemporaryFile().name
-    #         else:
-    #             traj = None
-    #
-    #         mol = ASEMolecule.from_coords(
-    #             self.atoms,
-    #             coords.reshape((-1,) + coords.shape[-2:])[0],
-    #             calculator=calc
-    #         )
-    #         # if gradient_modification_function is not None:
-    #         #     old_get_forces = calc.get_forces
-    #         #     def prep_coords(atoms=None):
-    #         #         if atoms is None: atoms = mol.mol
-    #         #         return atoms.positions
-    #         #     calc.get_forces = self._modify_gradient(
-    #         #         calc.get_forces,
-    #         #         gradient_modification_function,
-    #         #         modification_mode=gradient_modification_mode,
-    #         #         convert_modification_distances=convert_modification_distances,
-    #         #         convert_modification_energies=convert_modification_energies,
-    #         #         coord_prep=prep_coords
-    #         #     )
-    #         #
-    #         # try:
-    #         new_opt = mol.optimize_structure(coords,
-    #                                          fmax=tol, steps=max_iterations,
-    #                                          maxstep=max_displacement,
-    #                                          trajectory=traj,
-    #                                          method=method)
-    #         # finally:
-    #         #     if gradient_modification_function is not None:
-    #         #         calc.get_forces = old_get_forces
-    #         if return_trajectory:
-    #             from ase.io.trajectory import Trajectory
-    #             try:
-    #                 with Trajectory(traj, mode='r') as reader:
-    #                     traj_data = [
-    #                         a.positions for a in reader
-    #                     ]
-    #             except FileNotFoundError:
-    #                 ...
-    #             else:
-    #                 os.remove(traj)
-    #             cond, coords, d = new_opt
-    #             new_opt = (cond, (coords, traj_data), d)
-    #         return new_opt
-    #     else:
-    #         return super().optimize(
-    #             coords,
-    #             method=method,
-    #             tol=tol,
-    #             mode=mode,
-    #             max_iterations=max_iterations,
-    #             max_displacement=max_displacement,
-    #             return_trajectory=return_trajectory,
-    #             initialization_function=initialization_function,
-    #             gradient_modification_function=gradient_modification_function,
-    #             gradient_modification_mode=gradient_modification_mode,
-    #             convert_modification_distances=convert_modification_distances,
-    #             convert_modification_energies=convert_modification_energies,
-    #             **opts
-    #         )
-
 @EnergyEvaluator.register('ase')
-class ASECalcEnergyEvaluator(EnergyEvaluator):
-    def __init__(self, atoms, charge=0, multiplicity=1, quiet=True, embedding=None, **defaults):
-        d = defaults.copy()
-        d.pop('calc', None)
-        super().__init__(**d)
-        self.eval = self.setup_calc(**defaults)
-        self.atoms = atoms
-        self.numbers = [AtomData[atom, "Number"] for atom in atoms]
-        self.charge = 0 if charge is None else charge
-        self.multiplicity = 1 if multiplicity is None else multiplicity
-        self.quiet = quiet
-        self.embedding = embedding
+class ASECalcEnergyEvaluator(ElectronicStructureBackendEvaluator, EnergyEvaluator):
+    """
+    Energies from any ASE calculator (`Psience.ElectronicStructure.ASECalculatorBackend`)
+    """
+    backend_type = ASECalculatorBackend
+    backend_property = 'energy'
+
+    @classmethod
+    def setup_calc(cls, **settings):
+        return cls.backend_type.setup_calculator(**settings)
 
     def to_ase(self,
                gradient_modification_function=None,
@@ -4670,1118 +4260,78 @@ class ASECalcEnergyEvaluator(EnergyEvaluator):
                                      orthogonal_projection_generator=orthogonal_projection_generator)
         return calc
 
-    @classmethod
-    def from_mol(cls, mol, **opts):
-        return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
-
-    @classmethod
-    def setup_calc(cls, *, calc, **settings):
-        return calc
-
-    property_units = 'ElectronVolts'
-    batched_orders = True
-    analytic_derivative_order = 2
     def prep_ase(self, coords):
-        from McUtils.ExternalPrograms import ASEMolecule
-        atoms = ASEMolecule.from_coords(
-            self.atoms,
-            coords.reshape((-1,) + coords.shape[-2:])[0],
-            calculator=self.eval,
-            charge=self.charge,
-            spin=self.multiplicity
-        )
-        return atoms
-
-    def evaluate_term(self, coords, order, **opts):
-        coords = np.asanyarray(coords)
-        n = len(self.atoms)
-        if coords.shape[-1] == (n * 3):
-            base_shape = coords.shape[:-1]
-        else:
-            base_shape = coords.shape[:-2]
-        coords = coords.reshape((-1, n, 3))
-        mol = self.prep_ase(coords)
-        return [
-            r.reshape(base_shape + r.shape[1:])
-            for r in mol.calculate_energy(coords, order=order)
-        ]
-
-    # def optimize(self,
-    #              coords,
-    #              mode=None,
-    #              initialization_function=None,
-    #              gradient_modification_function=None,
-    #              return_trajectory=False,
-    #              **opts
-    #              ):
-    #     tol, max_iterations, max_displacement = [
-    #         opts.pop(k, self.optimizer_defaults[k])
-    #         for k in ["tol", "max_iterations", "max_displacement"]
-    #     ]
-    #     if mode == 'ase':
-    #         coords = np.asanyarray(coords)
-    #         mol = self.prep_ase(coords.reshape((-1,) + coords.shape[-2:])[0])
-    #         if initialization_function is not None:
-    #             d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
-    #             coords = initialization_function(d_conv * coords)
-    #             coords = coords / d_conv
-    #
-    #         if gradient_modification_function is not None:
-    #             calc = mol.mol.calc
-    #             import scipy.optimize as opt
-    #             opt.minimize()
-    #             old_get_forces = calc.get_forces
-    #             d_conv = UnitsData.convert(self.distance_units, "BohrRadius")
-    #             e_conv = UnitsData.convert(self.property_units, "Hartrees")
-    #             def jacobian(atoms=None):
-    #                 res = old_get_forces(atoms)
-    #                 if atoms is None: atoms = mol.mol
-    #                 crds = atoms.positions
-    #                 return -gradient_modification_function(crds * d_conv, -res * e_conv) * d_conv / e_conv
-    #             calc.get_forces = jacobian
-    #
-    #         if return_trajectory:
-    #             traj = tempfile.NamedTemporaryFile().name
-    #         else:
-    #             traj = None
-    #
-    #         try:
-    #             new_opt = mol.optimize_structure(coords,
-    #                                              fmax=tol, steps=max_iterations,
-    #                                              maxstep=max_displacement,
-    #                                              trajectory=traj,
-    #                                              method=method)
-    #         finally:
-    #             if gradient_modification_function is not None:
-    #                 calc.get_forces = old_get_forces
-    #         if return_trajectory:
-    #             from ase.io.trajectory import Trajectory
-    #             try:
-    #                 with Trajectory(traj, mode='r') as reader:
-    #                     traj_data = [
-    #                         a.positions for a in reader
-    #                     ]
-    #             except FileNotFoundError:
-    #                 ...
-    #             else:
-    #                 os.remove(traj)
-    #             cond, coords, d = new_opt
-    #             new_opt = (cond, (coords, traj_data), d)
-    #         return new_opt
-    #     else:
-    #         return super().optimize(
-    #             coords,
-    #             mode=mode,
-    #             tol=tol,
-    #             max_iterations=max_iterations,
-    #             max_displacement=max_displacement,
-    #             return_trajectory=return_trajectory,
-    #             initialization_function=initialization_function,
-    #             gradient_modification_function=gradient_modification_function,
-    #             **opts
-    #         )
+        return self.backend.prep_ase(np.asanyarray(coords))
 
 @EnergyEvaluator.register('mace')
 class MACEEnergyEvaluator(ASECalcEnergyEvaluator):
-    analytic_derivative_order = 2
-    @classmethod
-    def handle_specialization(cls, tag):
-        return {'model':tag}
-
-    @classmethod
-    @contextlib.contextmanager
-    def _overload_mace_modeldir(cls, root_dir):
-        cur_xdg = os.environ.get("XDG_CACHE_HOME")
-        if root_dir is None:
-            root_dir = os.environ.get("MODEL_CACHE_DIR")
-
-        if root_dir is not None:
-            try:
-                os.environ["XDG_CACHE_HOME"] = root_dir
-                yield root_dir
-            finally:
-                if cur_xdg is not None:
-                    os.environ["XDG_CACHE_HOME"] = cur_xdg
-                else:
-                    os.environ.pop("XDG_CACHE_HOME")
-        else:
-            yield None
-
-    model_types = {
-        'extra_large':'omol/extra_large',
-        "small":'off/small',
-        "medium":'off/medium',
-        "large":'off/large',
-        'anicc':'anicc/none',
-        'off':'off/large',
-        'mp':'mp/medium-mpa-0',
-        'polar':'polar/polar-1-l'
-    }
-    _mace_cache = {} # weird OOM errors...
-    @classmethod
-    def setup_calc(cls, model='extra_large', model_type=None, device=None, model_dir=None, **settings):
-        model = model.lower()
-        model = cls.model_types.get(model, model)
-        if model_type is None:
-            model_type, model = model.split('/', 1)
-        if isinstance(model_type, str):
-            with cls.quiet_mode():
-                if model_type == 'omol':
-                    from mace.calculators import mace_omol as model_type
-                elif model_type == 'mp':
-                    from mace.calculators import mace_mp as model_type
-                elif model_type == 'anicc':
-                    from mace.calculators import mace_anicc as model_type
-                elif model_type == 'polar':
-                    from mace.calculators import mace_polar as model_type
-                elif model_type == 'off':
-                    from mace.calculators import mace_off as model_type
-                else:
-                    import mace.calculators
-                    model_type = getattr(mace.calculators, model_type)
-
-        if len(settings) > 0 or ((model, device) not in cls._mace_cache):
-            with cls.quiet_mode(), cls._overload_mace_modeldir(model_dir):
-                device = cls._resolve_torch_device(device)
-                if model == 'none':
-                    calc = model_type(model=model, device=device, **settings)
-                else:
-                    calc = model_type(model=model, device=device, **settings)
-            if len(settings) == 0:
-                cls._mace_cache[(model, device)] = calc
-        else:
-            calc = cls._mace_cache[(model, device)]
-
-        return calc
-
-def _hf_authenticate(hf_token=None):
     """
-    Make a HuggingFace token available to `huggingface_hub` for this process.
-
-    `huggingface_hub.login` writes the token to `$HF_HOME/stored_tokens`, which races when many jobs share an `HF_HOME`;
-    when a token is available we instead export it as `HF_TOKEN` (which `huggingface_hub` reads directly) and never touch the disk.
-    An interactive `login()` is only used when there is no token at all.
+    MACE energies (`Psience.ElectronicStructure.MACEBackend`)
     """
-    if hf_token is None:
-        hf_token = os.environ.get("HF_TOKEN")
-    if hf_token is not None:
-        os.environ["HF_TOKEN"] = hf_token
-    else:
-        from huggingface_hub import login
-        login()
+    backend_type = MACEBackend
+    model_types = MACEBackend.model_types
 
 @EnergyEvaluator.register('uma')
 class UMAEnergyEvaluator(ASECalcEnergyEvaluator):
-    @classmethod
-    def handle_specialization(cls, tag):
-        return {'model':tag}
-
-    model_types = {
-        'medium':'uma-m-1p1/omol',
-        'small':'uma-s-1p2/omol',
-        'crystals':'uma-s-1p2/omc',
-        'crystals/small':'uma-s-1p2/omc',
-        'crystals/medium':'uma-m-1p1/omc',
-        'inorganics/small':'uma-s-1p2/omat',
-        'inorganics/medium':'uma-m-1p1/omat',
-    }
-    @classmethod
-    def setup_calc(cls, model="uma-s-1p2",
-                   device=None, task_name=None, model_dir=None,
-                   login=None,
-                   hf_token=None,
-                   predict_unit_options=None, **settings):
-        from fairchem.core import pretrained_mlip, FAIRChemCalculator
-
-        if login is None:
-            if hf_token is None:
-                hf_token = os.environ.get("HF_TOKEN")
-            login = hf_token is not None
-        if login:
-            _hf_authenticate(hf_token)
-
-        model = cls.model_types.get(model, model)
-        if task_name is None:
-            if '/' in model:
-                model, task_name = model.split('/', 1)
-            else:
-                task_name = 'omol'
-
-        if predict_unit_options is None:
-            predict_unit_options = {}
-        predict_unit_options = predict_unit_options.copy()
-        if model_dir is None:
-            model_dir = os.environ.get("MODEL_CACHE_DIR")
-        if model_dir is not None and 'cache_dir' not in predict_unit_options:
-            predict_unit_options['cache_dir'] = os.path.join(model_dir, 'fairchem')
-
-        model = model.lower()
-        with cls.quiet_mode():
-            if 'device' not in predict_unit_options:
-                device = cls._resolve_torch_device(device)
-                predict_unit_options['device'] = device
-            predictor = pretrained_mlip.get_predict_unit(model, **predict_unit_options)
-            calc = FAIRChemCalculator(predictor, task_name=task_name, **settings)
-
-        return calc
+    """
+    FAIRChem UMA energies (`Psience.ElectronicStructure.UMABackend`)
+    """
+    backend_type = UMABackend
+    model_types = UMABackend.model_types
 
 @EnergyEvaluator.register('upet')
 class UPETEnergyEvaluator(ASECalcEnergyEvaluator):
-    @classmethod
-    def handle_specialization(cls, tag):
-        return {'model': tag}
-
-    model_types = {
-        # --- Current / recommended ---
-        "mad": "pet-mad-s",
-        "mad-xs": "pet-mad-xs",
-
-        "oam": "pet-oam-xl",
-        "oam-l": "pet-oam-l",
-
-        "omat-xs": "pet-omat-xs",
-        "omat-s": "pet-omat-s",
-        "omat-m": "pet-omat-m",
-        "omat-l": "pet-omat-l",
-        "omat-xl": "pet-omat-xl",
-
-        "omatpes": "pet-omatpes-l",
-
-        "spice": "pet-spice-s",
-        "spice-l": "pet-spice-l",
-
-        # --- Legacy ---
-        "omad-xs": "pet-omad-xs",
-        "omad-s": "pet-omad-s",
-        "omad-l": "pet-omad-l",
-    }
-
-    @classmethod
-    def setup_calc(cls, model="pet-mad-s", device=None, version=None, login=None,
-                   hf_token=None,
-                   model_dir=None,
-                   **settings):
-        from upet.calculator import UPETCalculator
-
-        if model_dir is None:
-            model_dir = os.environ.get("MODEL_CACHE_DIR")
-
-        model = cls.model_types.get(model, model)
-        if version is None:
-            if '/' in model:
-                model, version = model.split('/', 1)
-            else:
-                version = 'lastest'
-
-        if model_dir is not None:
-            cur_cache = os.environ.get('HF_HUB_CACHE')
-            os.environ['HF_HUB_CACHE'] = model_dir
-        else:
-            cur_cache = False
-
-        try:
-            if login is None:
-                if hf_token is None:
-                    hf_token = os.environ.get("HF_TOKEN")
-                login = hf_token is not None
-            if login:
-                _hf_authenticate(hf_token)
-
-            model = model.lower()
-            with cls.quiet_mode():
-                if device is None:
-                    device = cls._resolve_torch_device(device)
-                calc = UPETCalculator(model=model, version=version, device=device, **settings)
-        finally:
-            if cur_cache is not False:
-                if cur_cache is None:
-                    del os.environ['HF_HUB_CACHE']
-                else:
-                    os.environ['HF_HUB_CACHE'] = cur_cache
-
-        return calc
+    """
+    UPET energies (`Psience.ElectronicStructure.UPETBackend`)
+    """
+    backend_type = UPETBackend
+    model_types = UPETBackend.model_types
 
 @EnergyEvaluator.register('orb')
 class OrbModelEnergyEvaluator(ASECalcEnergyEvaluator):
-    @classmethod
-    def handle_specialization(cls, tag):
-        return {'model': tag}
-
-    model_types = {
-        'v1':"orbmol-v1-conservative",
-        'v2':"orbmol-v2",
-        'omol':"orbmol-v3-conservative-omol",
-        'v3':"orbmol-v3-conservative-omol",
-        'v3-direct':"orbmol-v3-direct-omol",
-        'v1-direct':"orbmol-v1-direct",
-        'omat':"orb-v3-conservative-inf-omat",
-        'v3-omat':"orb-v3-conservative-inf-omat",
-        'v3-omat-direct':"orb-v3-direct-inf-omat",
-        'v3-omat20':"orb-v3-conservative-20-omat",
-        'v3-omat20-direct':"orb-v3-direct-20-omat",
-        'd3':"separate-d3-5layer",
-        'd3-3layer':"separate-d3-3layer",
-        'd4':"separate-d3-5layer",
-        'd4-3layer':"separate-d4-3layer"
-    }
-    @classmethod
-    def setup_calc(cls, model='omol', device=None, version=None, login=None, **model_opts):
-        from orb_models.forcefield import pretrained, ORB_PRETRAINED_MODELS
-        from orb_models.forcefield.inference.calculator import ORBCalculator
-
-        model = cls.model_types.get(model, model)
-        model = ORB_PRETRAINED_MODELS.get(cls.model_types.get(model, model), model)
-
-        device = "cpu"  # or device="cuda"
-        orbff, atoms_adapter = ORB_PRETRAINED_MODELS[model](
-            device=device,
-            **model_opts,
-        )
-
-        calc = ORBCalculator(orbff, atoms_adapter=atoms_adapter, device=device)
-        return calc
+    """
+    Orb energies (`Psience.ElectronicStructure.OrbBackend`)
+    """
+    backend_type = OrbBackend
+    model_types = OrbBackend.model_types
 
 @EnergyEvaluator.register('hipnn')
-class HIPNNEnergyEvaluator(EnergyEvaluator):
-    property_key = 'energies'
-    gradient_key = 'Grad'
-    def __init__(self, atoms, model_dir,
-                 property_key=dev.default,
-                 gradient_key=dev.default,
-                 charge=0, multiplicity=None, quiet=True, **defaults):
-        super().__init__(**defaults)
-        self.eval = self.setup_model(model_dir)
-        self.atoms = atoms
-        self.numbers = [AtomData[atom, "Number"] for atom in atoms]
-        self.charge = charge
-        self.multiplicity = multiplicity
-        self.quiet = quiet
-        if dev.is_default(property_key, allow_None=False):
-            property_key = self.property_key
-        self.property_key = property_key
-        if dev.is_default(gradient_key, allow_None=False):
-            gradient_key = self.gradient_key
-        self.gradient_key = gradient_key
+class HIPNNEnergyEvaluator(ElectronicStructureBackendEvaluator, EnergyEvaluator):
+    """
+    `hippynn` model energies (`Psience.ElectronicStructure.HIPNNBackend`); `property_key` is
+    accepted as an alias for the backend's `energy_key`
+    """
+    backend_type = HIPNNBackend
+    backend_property = 'energy'
 
-    @classmethod
-    def handle_specialization(cls, tag):
-        return {'model_dir':tag}
+    def __init__(self, atoms=None, *backend_args, property_key=dev.default, **opts):
+        if not dev.is_default(property_key, allow_None=False):
+            opts['energy_key'] = property_key
+        super().__init__(atoms, *backend_args, **opts)
 
     @classmethod
     def from_mol(cls, mol, *, model_dir, **opts):
         return cls(mol.atoms, model_dir=model_dir, **cls.prep_mol_opts(mol, **opts))
 
-    @staticmethod
-    def autodiff(expr, coord_list, pad_dim, create_graph=False, retain_graph=False):
-        import torch
-        # here forces have shape (N, 3) and coord has shape (N+1, 3)
-        # return hessian with shape (N, 3, N, 3)
-        shape = coord_list.shape + expr.shape[1:]
-        grads = []
-        # N = coord.shape[0] - 1
-        # for p in itertools.combinations(coord.shape, expr.ndim):
-        npad = len(pad_dim)
-        rav_shape = tuple(
-            (expr.shape[1+2*i]*expr.shape[2+2*i])
-            for i in range((expr.ndim - 1 - npad) // 2)
-        )
-        cache = {}
-        if len(rav_shape) > 0:
-            inds = np.array(np.unravel_index(np.arange(np.prod(expr.shape[1:-npad], dtype=int)), rav_shape)).T
-            shinds = np.sort(inds, axis=1)
-            for n,subexpr in enumerate(expr):
-                for i,_f in enumerate(subexpr.flatten()):
-                    ravioli = tuple(inds[i])
-                    key = tuple(shinds[i])
-                    if ravioli == key:
-                        g = torch.autograd.grad(_f,
-                                                coord_list,
-                                                # allow_unused=True,
-                                                retain_graph=True,
-                                                create_graph=create_graph)
-                        g = g[0][n]
-                        grads.append(g)
-                        cache[key] = g
-                    else:
-                        grads.append(cache[key])
-        else:
-            for n,_f in enumerate(expr):
-                g = torch.autograd.grad(_f,
-                                        coord_list,
-                                        # allow_unused=True,
-                                        retain_graph=True,
-                                        create_graph=create_graph)[0]
-                grads.append(g[n])
-
-        deriv = torch.stack(grads).view(shape)
-        shape_tuple = (slice(None),) #+ (slice(None, None), slice(None)) * (len(expr.shape - 1) // 2)
-        return deriv, shape_tuple
-
-    def process_derivatives(self, expr, coords, order):
-        terms = [(expr, slice(None,))]
-        pad_dim = expr.shape[1:]
-        for o in range(1, order + 1):
-            terms.append(
-                self.autodiff(terms[-1][0],
-                              coords,
-                              pad_dim,
-                              # create_graph=(o==1),
-                              create_graph=(o < order),
-                              retain_graph=(o < order)
-                              )
-            )
-        return [
-            deriv.__getitem__(subshape)
-            for deriv, subshape in terms
-        ]
-
-    def setup_model(cls, model_dir, *, device=None, **opts):
-        import torch
-        import hippynn.graphs
-        import hippynn.experiment.serialization
-        cur_dir = os.getcwd()
-
-        device = cls._resolve_torch_device(device)
-        try:
-            os.chdir(model_dir)
-            with torch.no_grad():
-                model = hippynn.experiment.serialization.load_model_from_cwd(model_device=device)
-        finally:
-            os.chdir(cur_dir)
-
-        predictor = hippynn.graphs.Predictor.from_graph(model)
-        return predictor
-
     def print_model_properties(self):
-        self.eval.graph.print_structure()
-
-    property_units = 'Kilocalories/Mole'
-    batched_orders = True
-    analytic_derivative_order = 1
-    def process_results(self, base_shape, coords, outputs, order,
-                        property_key=None,
-                        gradient_key=None,
-                        property_shape=(),
-                        output_shape=None,
-                        **etc):
-        if property_key is None:
-            property_key = self.property_key
-        if gradient_key is None:
-            gradient_key = self.gradient_key
-        property_shape = tuple(property_shape)
-        terms = [outputs[property_key]]
-        if order > 0:
-            if gradient_key is not None:
-                g = outputs[gradient_key]
-                terms.append(g)
-                order = order - 1
-            if order > 0:
-                terms.extend(
-                    self.process_derivatives(
-                        terms[-1],
-                        coords,
-                        order
-                    )[1:]
-                )
-
-        n = coords.shape[-1] * coords.shape[-2]
-        if output_shape is None:
-            output_shape = property_shape
-        else:
-            output_shape = tuple(output_shape)
-        return [
-            e.detach().numpy().reshape(base_shape + (n,)*i + output_shape)
-            for i,e in enumerate(terms)
-        ]
-
-        g.reshape(base_shape + (g.shape[-(1 + nshape)] * g.shape[-(2 + nshape)],) + property_shape)
-        # # total molecular energy [kcal/mol]
-        # outputs['Grad']  # forces [kcal/mol/Å]
-        # outputs['dipole']  # dipole moment [e∙Å]
-    def prep_eval(self, coords, order, **opts):
-        import torch
-
-        base_shape = coords.shape[:-2]
-        coords = coords.reshape((-1,) + coords.shape[-2:])
-        # numbers = np.broadcast_to(
-        #     np.array(self.numbers)[np.newaxis],
-        #     (len(coords), len(self.numbers))
-        # )
-
-        torch_coords = torch.tensor(coords, dtype=torch.float32, device=self.eval.model_device)
-        arg_dict = {
-            'coordinates': torch_coords,
-            'species': torch.tensor(
-                np.repeat(np.array([self.numbers]), coords.shape[0], axis=0),
-                dtype=torch.int64, device=self.eval.model_device
-            )
-            # 'charge': torch.tensor(self.charge, dtype=torch.float32, device=self.eval.device),
-            # 'cell': None,
-            # 'mol_idx': torch.tensor(
-            #     np.repeat(np.arange(coords.shape[0]), coords.shape[1]).flatten(),
-            #     dtype=torch.int64,
-            #     device=self.eval.device
-            # )
-        }
-        # if self.multiplicity is not None:
-        #     arg_dict['mult'] = torch.tensor(self.multiplicity, dtype=torch.float32, device=self.eval.device)
-        # data = self.eval.prepare_input(arg_dict)
-        # if hessian and data['mol_idx'][-1] > 0:
-        #     raise NotImplementedError('higher-derivative calculation is not supported for multiple molecules')
-        # data = self.eval.set_grad_tensors(data,
-        #                                   forces=forces,
-        #                                   stress=False,
-        #                                   hessian=hessian
-        #                                   )
-
-        req_grad = self.eval.requires_grad
-        prop_key = self.property_key
-        grad_key = self.gradient_key
-        outputs = None
-        output_names = None
-        output_dbnames = None
-        try:
-            self.eval.requires_grad = order > 0
-            if prop_key is not None and prop_key not in self.eval.out_names:
-                prop = self.eval.graph.node_from_name(prop_key)
-                prop.bname = prop.db_name
-                if outputs is None:
-                    outputs = list(self.eval.outputs)
-                    output_names = list(self.eval.out_names)
-                    output_dbnames = list(self.eval.out_dbnames)
-                self.eval.add_output(prop)
-            if grad_key is not None and grad_key not in self.eval.out_names:
-                prop = self.eval.graph.node_from_name(grad_key)
-                prop.bname = prop.db_name
-                if outputs is None:
-                    outputs = list(self.eval.outputs)
-                    output_names = list(self.eval.out_names)
-                    output_dbnames = list(self.eval.out_dbnames)
-                self.eval.add_output(grad_key)
-
-            if self.quiet:
-                with self.quiet_mode():
-                    with torch.jit.optimized_execution(False):
-                        data = self.eval(**arg_dict, **opts)
-            else:
-                with torch.jit.optimized_execution(False):
-                    data = self.eval(**arg_dict, **opts)
-        finally:
-            self.eval.requires_grad = req_grad
-            if outputs is not None:
-                self.eval.outputs[:] = outputs
-                self.eval.out_names[:] = output_names
-                self.eval.out_dbnames[:] = output_dbnames
-
-        return base_shape, torch_coords, data
-    def evaluate_term(self, coords, order, **opts):
-        if coords.ndim == 2 or order < 2:
-            base_shape, coords, data = self.prep_eval(coords, order, **opts)
-            data = self.process_results(
-                base_shape,
-                coords,
-                data,
-                order,
-                property_shape=()
-                # hessian=hessian,
-                # **opts
-            )
-            return data
-        else:
-            base_shape = coords.shape[:-2]
-            coords = coords.reshape((-1,) + coords.shape[-2:])
-            expansions = [
-                self.evaluate_term(c, order, **opts)
-                for c in coords
-            ]
-            return [
-                np.array(e).reshape(base_shape + e[0].shape)
-                for e in zip(*expansions)
-            ]
-
-
-def _import_or_explain(module, package, extra=None):
-    """
-    Import an optional dependency, raising an `ImportError` that says how to install it.
-    """
-    import importlib
-    try:
-        return importlib.import_module(module)
-    except ImportError as e:
-        raise ImportError(
-            f"{module!r} is required for this evaluator (install `{package}`)" + (f"; {extra}" if extra else "")
-        ) from e
-
+        self.backend.print_model_properties()
 
 @EnergyEvaluator.register('xtb')
-class XTBEnergyEvaluator(EnergyEvaluator):
+class XTBEnergyEvaluator(ElectronicStructureBackendEvaluator, EnergyEvaluator):
     """
-    GFN-xTB energies and gradients through the `xtb` python bindings (conda-forge: `xtb-python`).
-
-    :param atoms: the atom symbols
-    :param method: ``'GFN2-xTB'`` (default), ``'GFN1-xTB'`` or ``'GFN0-xTB'``
-    :param charge: the total charge (default 0)
-    :param multiplicity: the spin multiplicity (default 1); passed to xtb as ``multiplicity - 1`` unpaired electrons
-    :param quiet: silence xtb's output
-    :param accuracy: xtb's numerical accuracy parameter (smaller is tighter), if not the default
-    :param max_iterations: the SCF iteration limit, if not the default
-    :param electronic_temperature: the electronic temperature in Kelvin, if not the default
-    :param solvent: an ALPB solvent name (e.g. ``'water'``)
-    :param retry_iterations: if the SCF fails to converge, try once more with this iteration limit
-        (the electronic temperature and accuracy are never changed behind your back); `None` disables the retry
+    GFN-xTB energies and gradients (`Psience.ElectronicStructure.XTBBackend`, which documents the options)
     """
-    def __init__(self,
-                 atoms,
-                 method="GFN2-xTB",
-                 charge=None,
-                 multiplicity=None,
-                 quiet=True,
-                 accuracy=None,
-                 max_iterations=None,
-                 electronic_temperature=None,
-                 solvent=None,
-                 retry_iterations=1000,
-                 **defaults):
-        super().__init__(**defaults)
-        self.atoms = atoms
-        self.numbers = np.array([AtomData[atom, "Number"] for atom in atoms])
-        self.quiet = quiet
-        self.method = method
-        self.charge = 0 if charge is None else charge
-        self.multiplicity = 1 if multiplicity is None else multiplicity
-        self.accuracy = accuracy
-        self.max_iterations = max_iterations
-        self.electronic_temperature = electronic_temperature
-        self.solvent = solvent
-        self.retry_iterations = retry_iterations
-        n_electrons = int(self.numbers.sum()) - int(self.charge)
-        if (n_electrons - (self.multiplicity - 1)) % 2 != 0 or n_electrons < self.multiplicity - 1:
-            raise ValueError(
-                f"charge {self.charge} and multiplicity {self.multiplicity} are inconsistent "
-                f"with {n_electrons} electrons"
-            )
-
-    @classmethod
-    def handle_specialization(cls, tag):
-        return {'method':tag}
-
-    @classmethod
-    def from_mol(cls, mol, **opts):
-        return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
-
-    @classmethod
-    def discover_dependencies(cls, **opts):
-        """
-        The `xtb` python bindings come from conda-forge (``xtb-python``); the PyPI ``xtb`` package needs a
-        separately installed libxtb.
-        """
-        from McUtils.ExternalPrograms import JobDependencies
-        deps = JobDependencies()
-        deps.add('conda', 'xtb-python', import_name='xtb', reason='xtb python bindings')
-        deps.add('conda', 'tblite', '<0.6', reason='xtb-python links tblite; tblite 0.6.0 is ABI-incompatible with the '
-                 'current dftd4 build on conda-forge (undefined symbol `smooth_cutoff` when importing xtb)')
-        deps.add('conda', 'typing_extensions', import_name='typing_extensions',
-                 reason='imported by xtb.interface, but missing from the xtb-python conda package')
-        return deps
-
-    def get_calculator(self, coords):
-        """
-        Build an xtb `Calculator` at the given Cartesians (Bohr) with this evaluator's settings.
-        """
-        interface = _import_or_explain('xtb.interface', 'xtb-python')
-        utils = _import_or_explain('xtb.utils', 'xtb-python')
-        param = utils.get_method(self.method)
-        if param is None:
-            raise ValueError(f"unknown xTB method {self.method!r} (try 'GFN2-xTB', 'GFN1-xTB', 'GFN0-xTB')")
-        calc = interface.Calculator(
-            param, self.numbers, coords,
-            charge=self.charge,
-            uhf=self.multiplicity - 1
-        )
-        if self.quiet:
-            calc.set_verbosity('muted')
-        if self.accuracy is not None:
-            calc.set_accuracy(self.accuracy)
-        if self.max_iterations is not None:
-            calc.set_max_iterations(self.max_iterations)
-        if self.electronic_temperature is not None:
-            calc.set_electronic_temperature(self.electronic_temperature)
-        if self.solvent is not None:
-            solvent = utils.get_solvent(self.solvent)
-            if solvent is None:
-                raise ValueError(f"unknown xTB solvent {self.solvent!r}")
-            calc.set_solvent(solvent)
-        return calc
-
-    def get_single_point(self, coords):
-        """
-        Run one xTB single point, retrying once with a larger iteration limit if the SCF doesn't converge.
-        """
-        calc = self.get_calculator(coords)
-        try:
-            return calc.singlepoint()
-        except Exception as e:  # xtb raises `XTBException`, which we can't import without xtb
-            if type(e).__name__ != 'XTBException' or self.retry_iterations is None:
-                raise
-            if self.max_iterations is not None and self.max_iterations >= self.retry_iterations:
-                raise RuntimeError(f"xTB ({self.method}) failed: {e}") from e
-            calc = self.get_calculator(coords)
-            calc.set_max_iterations(self.retry_iterations)
-            try:
-                return calc.singlepoint()
-            except Exception as e2:
-                raise RuntimeError(
-                    f"xTB ({self.method}) failed even with {self.retry_iterations} iterations: {e2}"
-                ) from e2
-
-    distance_units = "BohrRadius"
-    property_units = 'Hartrees'
-    batched_orders = True
-    analytic_derivative_order = 1
-    def evaluate_term(self, coords, order, **opts):
-        coords = np.asanyarray(coords, dtype=float)
-        n = len(self.atoms)
-        if coords.shape[-2:] == (n, 3):
-            base_shape = coords.shape[:-2]
-        elif coords.shape[-1] == 3 * n:
-            base_shape = coords.shape[:-1]
-        else:
-            raise ValueError(f"coordinates of shape {coords.shape} don't match {n} atoms")
-        coords = coords.reshape((-1, n, 3))
-
-        if order > 1:
-            raise NotImplementedError('`xtb` only implements up through gradients')
-
-        energies = np.empty(coords.shape[0], dtype=float)
-        grads = np.empty(coords.shape, dtype=float) if order > 0 else None
-        for i, coord in enumerate(coords):
-            res = self.get_single_point(coord)
-            energies[i] = res.get_energy()
-            if order > 0:
-                grads[i] = res.get_gradient()
-
-        energies = energies.reshape(base_shape)
-        if order > 0:
-            return [energies, grads.reshape(base_shape + (-1,))]
-        else:
-            return [energies]
+    backend_type = XTBBackend
+    backend_property = 'energy'
 
 @EnergyEvaluator.register('pyscf')
-class PySCFEnergyEvaluator(EnergyEvaluator):
+class PySCFEnergyEvaluator(ElectronicStructureBackendEvaluator, EnergyEvaluator):
     """
-    PySCF energies, gradients and (for HF/DFT) Hessians.
-
-    :param atoms: the atom symbols
-    :param level_of_theory: ``'hf'``/``'rhf'``/``'uhf'``/``'rohf'``, ``'mp2'``, or a DFT functional name
-        (``'b3lyp'``, ``'wb97x-d3bj'``, ...; a trailing ``-d3bj``/``-d3zero``/``-d4`` selects a dispersion correction,
-        which needs ``pyscf-dispersion``); or a callable ``caller(molecule, **opts)`` returning a finished calculation
-    :param basis_set: the basis set (``basis`` is accepted as an alias)
-    :param charge: the total charge
-    :param multiplicity: the spin multiplicity; PySCF's own ``spin`` (2S) is set to ``multiplicity - 1``.
-        Open shells use unrestricted references (``'rohf'`` for restricted open-shell HF).
-    :param quiet: silence PySCF's output
-    :param molecule_options: extra options for `gto.Mole` (coordinates are always passed in Bohr)
-    :param level_of_theory_options: extra options for the calculation (``functional_options``, ``restricted``,
-        ``reference`` for MP2, and any SCF attribute such as ``conv_tol`` or ``max_cycle``)
-    :param disp: a dispersion correction (``'d3bj'``, ``'d3zero'``, ``'d4'``) for DFT
-    :param scf_options: SCF attributes to set on every calculation (``{'conv_tol': 1e-10, 'max_cycle': 200}``)
-    :param grid_level: the DFT integration grid level
-    :param density_fit: `True`, or an auxiliary basis name, to use density fitting
-    :param threads: the number of OpenMP threads to use for each calculation
-    :param max_memory: PySCF's memory limit in MB
-    :param soscf_fallback: if the first-order SCF doesn't converge, continue with a second-order (Newton) SCF
-    :param allow_unconverged: warn instead of raising when the SCF still hasn't converged
-    :param reuse_guess: start each SCF from the previous geometry's density (faster along scans and
-        optimizations; fresh guesses are used if that fails)
-    :param analytic_hessian: have the framework treat analytic Hessians as available, so that expansions of order 3
-        and up are built by finite differences of Hessians rather than of gradients
+    PySCF energies, gradients and (with `analytic_hessian=True`, for HF/DFT) Hessians
+    (`Psience.ElectronicStructure.PySCFBackend`, which documents the options)
     """
-    def __init__(self,
-                 atoms, *,
-                 level_of_theory,
-                 basis_set=None,
-                 basis=None,
-                 caller=None,
-                 charge=None,
-                 multiplicity=None,
-                 quiet=True,
-                 molecule_options=None,
-                 level_of_theory_options=None,
-                 disp=None,
-                 scf_options=None,
-                 grid_level=None,
-                 density_fit=None,
-                 threads=None,
-                 max_memory=None,
-                 soscf_fallback=True,
-                 allow_unconverged=False,
-                 reuse_guess=False,
-                 analytic_hessian=False,
-                 **defaults):
-        super().__init__(**defaults)
-
-        if basis_set is None:
-            basis_set = basis
-        elif basis is not None and basis != basis_set:
-            raise ValueError(f"got two different basis sets: {basis_set!r} and {basis!r}")
-        if basis_set is None:
-            raise ValueError("PySCFEnergyEvaluator needs a `basis_set`")
-        self.atoms = atoms
-        self.basis_set = basis_set
-        self.level_of_theory = level_of_theory
-        self.level_of_theory_options = dict(level_of_theory_options or {})
-        if disp is not None:
-            self.level_of_theory_options['disp'] = disp
-        self.scf_options = dict(scf_options or {})
-        self.grid_level = grid_level
-        self.density_fit = density_fit
-        self.threads = threads
-        self.soscf_fallback = soscf_fallback
-        self.allow_unconverged = allow_unconverged
-        self.reuse_guess = reuse_guess
-        self._last_dm = None
-        if analytic_hessian:
-            self.analytic_derivative_order = 2
-        self._pyscf_caller_dispatch = dev.uninitialized
-        self.caller = self.resolve_caller(caller, level_of_theory)
-        molecule_options = dict(molecule_options or {})
-        if molecule_options.get('unit', 'Bohr').lower() not in ('bohr', 'b', 'au', 'a.u.'):
-            raise ValueError("coordinates are supplied in Bohr; `molecule_options['unit']` can't be changed")
-        molecule_options['unit'] = 'Bohr'
-        if charge is not None:
-            molecule_options['charge'] = molecule_options.get('charge', charge)
-        if multiplicity is not None:
-            molecule_options['spin'] = molecule_options.get('spin', multiplicity - 1)  # PySCF wants 2S, not 2S+1
-        if quiet:
-            molecule_options['verbose'] = molecule_options.get('verbose', 0)
-        if max_memory is not None:
-            molecule_options['max_memory'] = max_memory
-        self.molecule_options = molecule_options
-
-    @classmethod
-    def handle_specialization(cls, tag):
-        if '/' not in tag:
-            raise ValueError(f"expected a 'method/basis' tag for pyscf (e.g. 'b3lyp/cc-pvdz'), got {tag!r}")
-        lot, basis = tag.split("/", 1)
-        return {'level_of_theory':lot, 'basis_set':basis}
-
-    @classmethod
-    def discover_dependencies(cls, *, disp=None, level_of_theory=None, **opts):
-        """
-        PySCF, plus ``pyscf-dispersion`` if a dispersion correction is requested (via ``disp`` or a ``-d3bj``-style
-        suffix on the level of theory).
-        """
-        from McUtils.ExternalPrograms import JobDependencies
-        deps = JobDependencies()
-        deps.add('pip', 'pyscf', import_name='pyscf', reason='PySCF itself')
-        deps.add('conda', 'pyscf', import_name='pyscf', reason='PySCF itself')
-        lot = level_of_theory if isinstance(level_of_theory, str) else ''
-        if disp is not None or cls._split_dispersion(lot)[1] is not None:
-            deps.add('pip', 'pyscf-dispersion', import_name='pyscf.dispersion', reason='dispersion corrections')
-        return deps
-
-    _default_caller = 'dft'
-    @property
-    def caller_dispatch(self) -> dev.OptionsMethodDispatch:
-        self._pyscf_caller_dispatch = dev.handle_uninitialized(
-            self._pyscf_caller_dispatch,
-            dev.OptionsMethodDispatch,
-            args=(self.get_callers,),
-            kwargs=dict(
-                default_method=self._default_caller,
-                # attributes_map=cls.get_evaluators_by_attributes()
-            )
-        )
-        return self._pyscf_caller_dispatch
-
-    def get_callers(self):
-        return {
-            'mp2': self._call_mp2,
-            'dft': self._call_dft,
-            'hf': self._call_hf,
-            'rhf': self._call_rhf,
-            'uhf': self._call_uhf,
-            'rohf': self._call_rohf,
-            # 'cc': self._call_cc
-        }
-    def resolve_caller(self, caller, lot):
-        if caller is None:
-            if callable(lot):
-                caller = lot
-            else:
-                caller, opts = self.caller_dispatch.resolve(lot)
-                self.level_of_theory_options.update(opts)
-        return caller
-
-    @classmethod
-    def from_mol(cls, mol, **opts):
-        return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
-
-    def get_molecule(self, coords):
-        gto = _import_or_explain('pyscf.gto', 'pyscf')
-
-        molecule = gto.Mole(
-            basis=self.basis_set,
-            **self.molecule_options
-        )
-        molecule.atom = [
-            (a, crd)
-            for a,crd in zip(self.atoms, coords)
-        ]
-        molecule.build()
-
-        return molecule
-
-    # -- SCF setup and convergence ------------------------------------------------------------------
-    def _setup_scf(self, mf, attrs=None):
-        if self.density_fit:
-            mf = mf.density_fit(auxbasis=None if self.density_fit is True else self.density_fit)
-        for k, v in dict(self.scf_options, **(attrs or {})).items():
-            setattr(mf, k, v)
-        return mf
-
-    def _converge(self, mf):
-        """
-        Run the SCF, falling back to a fresh guess and then a second-order solver if it doesn't converge, and
-        refuse to hand back an unconverged result (unless `allow_unconverged`).
-        """
-        dm0 = self._last_dm if self.reuse_guess else None
-        if dm0 is not None and np.shape(dm0)[-1] != mf.mol.nao:
-            dm0 = None
-        mf.kernel(dm0=dm0)
-        if not mf.converged and dm0 is not None:
-            mf.kernel()
-        if not mf.converged and self.soscf_fallback:
-            mf = mf.newton()
-            mf.kernel()
-        if not mf.converged:
-            msg = f"PySCF SCF ({self.level_of_theory}/{self.basis_set}) did not converge"
-            if self.allow_unconverged:
-                warnings.warn(msg)
-            else:
-                raise RuntimeError(msg)
-        if self.reuse_guess:
-            self._last_dm = mf.make_rdm1()
-        return mf
-
-    def _is_restricted(self, molecule, restricted):
-        return (molecule.spin == 0) if restricted is None else restricted
-
-    _dispersion_suffix = re.compile(r"^(.+?)[-_]?(d3bj|d3zero|d3|d4)$", re.I)
-    @classmethod
-    def _split_dispersion(cls, lot):
-        m = cls._dispersion_suffix.match(lot or '')
-        if m is None:
-            return lot, None
-        disp = m.group(2).lower()
-        return m.group(1), 'd3zero' if disp == 'd3' else disp
-
-    def _call_dft(self, molecule, restricted=None, functional_options=None,  disp=None, **opts):
-        dft = _import_or_explain('pyscf.dft', 'pyscf')
-
-        functional_options = dict(functional_options or {})
-        xc, suffix_disp = self._split_dispersion(self.level_of_theory)
-        functional_options['xc'] = xc
-        d = functional_options.pop('disp', None)
-        if disp is None:
-            disp = d if d is not None else suffix_disp
-        if self._is_restricted(molecule, restricted):
-            mf = dft.RKS(molecule, **functional_options)
-        else:
-            mf = dft.UKS(molecule, **functional_options)
-        if self.grid_level is not None:
-            mf.grids.level = self.grid_level
-        if disp is not None:
-            mf.disp = disp
-        return self._converge(self._setup_scf(mf, opts))
-
-    def _call_hf(self, molecule, restricted=None, **opts):
-        scf = _import_or_explain('pyscf.scf', 'pyscf')
-        if self._is_restricted(molecule, restricted):
-            mf = scf.RHF(molecule)
-        else:
-            mf = scf.UHF(molecule)
-        return self._converge(self._setup_scf(mf, opts))
-    def _call_rhf(self, molecule, **opts):
-        return self._call_hf(molecule, restricted=True, **opts)
-    def _call_uhf(self, molecule, **opts):
-        return self._call_hf(molecule, restricted=False, **opts)
-    def _call_rohf(self, molecule, **opts):
-        scf = _import_or_explain('pyscf.scf', 'pyscf')
-        return self._converge(self._setup_scf(scf.ROHF(molecule), opts))
-
-    def _call_mp2(self, molecule, reference='hf', **etc):
-        mp = _import_or_explain('pyscf.mp', 'pyscf')
-        hf_caller, opts = self.caller_dispatch.resolve(reference)
-        mf = hf_caller(molecule, **opts)
-        return mp.MP2(mf, **etc).run()
-
-    # -- results ------------------------------------------------------------------------------------
-    def get_energy_from_calc(self, calc) -> float:
-        if hasattr(calc, 'e_tot'):
-            return float(calc.e_tot)
-        elif hasattr(calc, 'tot_energy'):
-            return float(calc.tot_energy())
-        else:
-            return float(calc.kernel())
-
-    def get_gradient_from_calc(self, calc):
-        grad = calc.nuc_grad_method()
-        grad.verbose = 0
-        return np.asanyarray(grad.kernel(), dtype=float)
-
-    def get_hessian_from_calc(self, calc):
-        if not hasattr(calc, 'Hessian'):
-            raise NotImplementedError(f"PySCF has no analytic Hessian for {type(calc).__name__}")
-        hess = calc.Hessian()
-        hess.verbose = 0
-        h = np.asanyarray(hess.kernel(), dtype=float)  # (natoms, natoms, 3, 3)
-        n = h.shape[0]
-        return h.transpose(0, 2, 1, 3).reshape(3 * n, 3 * n)
-
-    def run_calculation(self, coords, **opts):
-        molecule = self.get_molecule(coords)
-        if self.threads is not None:
-            lib = _import_or_explain('pyscf.lib', 'pyscf')
-            with lib.with_omp_threads(self.threads):
-                return self.caller(molecule, **(self.level_of_theory_options | opts))
-        return self.caller(molecule, **(self.level_of_theory_options | opts))
-
-    distance_units = "BohrRadius"
-    property_units = 'Hartrees'
-    batched_orders = True
-    analytic_derivative_order = 1
-    def evaluate_term(self, coords, order, **opts):
-        coords = np.asanyarray(coords, dtype=float)
-        n = len(self.atoms)
-        if coords.shape[-2:] == (n, 3):
-            base_shape = coords.shape[:-2]
-        elif coords.shape[-1] == 3 * n:
-            base_shape = coords.shape[:-1]
-        else:
-            raise ValueError(f"coordinates of shape {coords.shape} don't match {n} atoms")
-        coords = coords.reshape((-1, n, 3))
-
-        if order > 2:
-            raise NotImplementedError('`pyscf` only implements up through Hessians')
-
-        energies = np.empty(coords.shape[0], dtype=float)
-        grads = np.empty((coords.shape[0], 3 * n), dtype=float) if order > 0 else None
-        hessians = np.empty((coords.shape[0], 3 * n, 3 * n), dtype=float) if order > 1 else None
-        for i, coord in enumerate(coords):
-            res = self.run_calculation(coord, **opts)
-            energies[i] = self.get_energy_from_calc(res)
-            if order > 0:
-                grads[i] = self.get_gradient_from_calc(res).reshape(-1)
-            if order > 1:
-                hessians[i] = self.get_hessian_from_calc(res)
-
-        out = [energies.reshape(base_shape)]
-        if order > 0:
-            out.append(grads.reshape(base_shape + (3 * n,)))
-        if order > 1:
-            out.append(hessians.reshape(base_shape + (3 * n, 3 * n)))
-        return out
+    backend_type = PySCFBackend
+    backend_property = 'energy'
 
 # @EnergyEvaluator.register('job')
 class EvaluationServerEnergyEvaluator(EnergyEvaluator):
@@ -6352,6 +4902,8 @@ class DipoleEvaluator(PropertyEvaluator):
             'hipnn': HIPNNDipoleEvaluator,
             'aimnet2': AIMNet2DipoleEvaluator,
             'rdkit': RDKitDipoleEvaluator,
+            'xtb': XTBDipoleEvaluator,
+            'pyscf': PySCFDipoleEvaluator,
         }
     @classmethod
     def get_default_function_evaluator_type(cls):
@@ -6753,37 +5305,31 @@ class DipoleExpansionDipoleEvaluator(DipoleFunctionDipoleEvaluator):
                                                )
         return expansion, ignored
 
-class HIPNNDipoleEvaluator(DipoleEvaluator):
-
-    def __init__(self, atoms, model_dir, charge=0, multiplicity=None, quiet=True, **defaults):
-        super().__init__(**defaults)
-        self.base = HIPNNEnergyEvaluator(atoms, model_dir, charge=charge, multiplicity=multiplicity, quiet=quiet,
-                                         property_key='dipole')
-        self.base.gradient_key = None
+class HIPNNDipoleEvaluator(ElectronicStructureBackendEvaluator, DipoleEvaluator):
+    """
+    `hippynn` model dipoles (`Psience.ElectronicStructure.HIPNNBackend`)
+    """
+    backend_type = HIPNNBackend
+    backend_property = 'dipole'
 
     @classmethod
     def from_mol(cls, mol, *, model_dir, **opts):
         return cls(mol.atoms, model_dir=model_dir, **cls.prep_mol_opts(mol, **opts))
 
-    property_units = ("ElementaryCharge", "Angstroms")
-    distance_units = 'Angstroms'
-    batched_orders = True
-    analytic_derivative_order = 0
-    def evaluate_term(self, coords, order, **opts):
-        base_shape, coords, data = self.base.prep_eval(coords, order, **opts)
+class XTBDipoleEvaluator(ElectronicStructureBackendEvaluator, DipoleEvaluator):
+    """
+    GFN-xTB dipoles (`Psience.ElectronicStructure.XTBBackend`)
+    """
+    backend_type = XTBBackend
+    backend_property = 'dipole'
 
-        expansions = self.base.process_results(
-            base_shape,
-            coords,
-            data,
-            order,
-            forces=order > 0,
-            property_key='dipole',
-            gradient_key='dipole_grad',
-            property_shape=(coords.shape[-1],)
-        )
+class PySCFDipoleEvaluator(ElectronicStructureBackendEvaluator, DipoleEvaluator):
+    """
+    PySCF SCF dipoles (`Psience.ElectronicStructure.PySCFBackend`)
+    """
+    backend_type = PySCFBackend
+    backend_property = 'dipole'
 
-        return expansions
 
 class ChargeEvaluator(PropertyEvaluator):
     evaluator_registry = {}
@@ -6803,7 +5349,9 @@ class ChargeEvaluator(PropertyEvaluator):
         """
         return {
             'rdkit': RDKitChargeEvaluator,
-            'aimnet2': AIMNet2ChargeEvaluator
+            'aimnet2': AIMNet2ChargeEvaluator,
+            'xtb': XTBChargeEvaluator,
+            'pyscf': PySCFChargeEvaluator,
         }
     @classmethod
     def get_default_function_evaluator_type(cls):
@@ -6963,55 +5511,27 @@ class RDKitChargeEvaluator(ChargeEvaluator):
             self.rdmol.evaluate_charges(coords, model=model, **opts)
         ) / np.sqrt(2) # TODO: I think my base dipoles are just scaled incorrectly...
 
-class AIMNet2ChargeEvaluator(ChargeEvaluator):
+class AIMNet2ChargeEvaluator(ElectronicStructureBackendEvaluator, ChargeEvaluator):
+    """
+    AIMNet2 charges (`Psience.ElectronicStructure.AIMNet2Backend`)
+    """
+    backend_type = AIMNet2Backend
+    backend_property = 'charges'
 
-    @classmethod
-    def handle_specialization(cls, tag):
-        return AIMNet2EnergyEvaluator.handle_specialization(tag)
+class XTBChargeEvaluator(ElectronicStructureBackendEvaluator, ChargeEvaluator):
+    """
+    GFN-xTB Mulliken charges (`Psience.ElectronicStructure.XTBBackend`)
+    """
+    backend_type = XTBBackend
+    backend_property = 'charges'
 
-    def __init__(self, atoms, model='aimnet2', charge=0, multiplicity=None, quiet=True, **defaults):
-        super().__init__(**defaults)
-        self.base = AIMNet2EnergyEvaluator(atoms, model=model, charge=charge, multiplicity=multiplicity, quiet=quiet)
-
-    @classmethod
-    def from_mol(cls, mol, **opts):
-        return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
-
-    property_units = 'ElementaryCharge'
-    distance_units = 'Angstroms'
-    batched_orders = True
-    analytic_derivative_order = 1
-    scaling_factor = 1
-    def evaluate_term(self, coords, order, **opts):
-        if coords.ndim == 2 or order < 2:
-            base_shape, coords, data = self.base.prep_eval(coords, order, keep_graph=order > 0, forces=False,
-                                                           hessian=False, **opts)
-            # nx = np.prod(coords.shape[:-2], dtype=int)
-
-            expansions = self.base.process_aimnet_derivs(
-                base_shape, coords, data,
-                'charges',
-                order,
-                property_shape=(coords.shape[-2] + 1,),
-                output_shape=(coords.shape[-2],)
-            )
-            # AIMNet2 calculator charges are already in elementary-charge units.
-            s = self.scaling_factor
-            expansions = [e * s for e in expansions]
-
-            return expansions
-        else:
-            base_shape = coords.shape[:-2]
-            coords = coords.reshape((-1,) + coords.shape[-2:])
-            expansions = [
-                self.evaluate_term(c, order, **opts)
-                for c in coords
-            ]
-            cat = [
-                np.array(e).reshape(base_shape + e[0].shape)
-                for e in zip(*expansions)
-            ]
-            return cat
+class PySCFChargeEvaluator(ElectronicStructureBackendEvaluator, ChargeEvaluator):
+    """
+    PySCF population charges (`Psience.ElectronicStructure.PySCFBackend`; `charge_model` picks
+    Mulliken or meta-Lowdin)
+    """
+    backend_type = PySCFBackend
+    backend_property = 'charges'
 
 
 class ChargeEvaluatorDipoleEvaluator(DipoleEvaluator):
@@ -7077,6 +5597,7 @@ class DipolePolarizabilityEvaluator(PropertyEvaluator):
         return {
             'aimnet2': AIMNet2DipolePolarizabilityEvaluator,
             'hipnn': HIPNNDipolePolarizabilityEvaluator,
+            'pyscf': PySCFDipolePolarizabilityEvaluator,
         }
 
     @classmethod
@@ -7135,25 +5656,16 @@ class PolarizabilityFunctionDipolePolarizabilityEvaluator(DipolePolarizabilityEv
     ...
 
 class FluctuatingChargeDipolePolarizabilityEvaluator(DipolePolarizabilityEvaluator):
+    """
+    Polarizabilities of charge-equilibration models from the derivatives of their electrostatic
+    energy with respect to the atomic charges (`Psience.ElectronicStructure.FluctuatingChargeResponse`)
+    """
 
-    @classmethod
-    def mu_factor(cls, total_charge, X, J_inv):
-        return (total_charge + np.sum(np.dot(J_inv, X), axis=0)) / np.sum(J_inv)
-
-    @classmethod
-    def dipole_factor_expansion(cls, coords, total_charge, X, J_inv):
-
-        charge_factor = np.dot(J_inv, X) + cls.mu_factor(total_charge, X, J_inv) * np.sum(J_inv, axis=-1)
-        return np.tensordot(coords, charge_factor, axes=[-2, 0])
-
-    @classmethod
-    def polarizability_factor(cls, coords, J_inv):
-        coord_factor = np.tensordot(coords, J_inv, axes=[-2, -1])
-        sum_factor = np.sum(coord_factor, axis=0)
-        return (
-                np.tensordot(coord_factor, coords, axes=[-1, -2])
-                + sum_factor[:, np.newaxis] * sum_factor[np.newaxis, :] / np.sum(J_inv)
-        )
+    mu_factor = FluctuatingChargeResponse.mu_factor
+    dipole_factor_expansion = FluctuatingChargeResponse.dipole_factor_expansion
+    polarizability_factor = FluctuatingChargeResponse.polarizability_factor
+    expand_electrostatic_potential = FluctuatingChargeResponse.expand
+    _distorted_harmonic_polarizabilities = FluctuatingChargeResponse.distorted_harmonic_polarizabilities
 
     @abc.abstractmethod
     def evaluate_electrostatic_potential_derivatives(self, coords, coord_order, electrostatic_order, **opts):
@@ -7166,186 +5678,508 @@ class FluctuatingChargeDipolePolarizabilityEvaluator(DipolePolarizabilityEvaluat
             charge, coords, potential_by_charges_by_coords
         )
 
-    @classmethod
-    def expand_electrostatic_potential(cls, total_charge, coords, potential_by_charges_by_coords):
-        expansion = []
-        es_order = len(potential_by_charges_by_coords) - 1
-        order = len(potential_by_charges_by_coords[0]) - 1
-        if es_order > 2:
-            raise NotImplementedError("hyperpolarizabilities require more electrostatic derivatives than I currently have")
-        if es_order > 0:
-            # pull electrostatic derivatives
-            chi_expansion = [e.astype('float64') for e in potential_by_charges_by_coords[1]]
-            J_expansion = [e.astype('float64') for e in potential_by_charges_by_coords[2]]
-            J_inv_expansion = nput.matinv_deriv(J_expansion, order=order)
-            # prep coordinate expansion
-            coords = np.asanyarray(coords)
-            coord_deriv = nput.identity_tensors(coords.shape[:-2], coords.shape[-2]*coords.shape[-1])
-            coord_deriv = coord_deriv.reshape(coord_deriv.shape[:-2] + (coord_deriv.shape[-2], -1, 3))
-            coord_expansion = [coords, coord_deriv]
-            # construct terms that are common throughout expansions
-            J_inv_sum_1 = [np.sum(e, axis=-1) for e in J_inv_expansion]
-            J_inv_tot = [np.sum(e, axis=-1) for e in J_inv_sum_1]
-            J_inv_tot_inv = nput.scalarinv_deriv(J_inv_tot, order=order)
+class BackendDipolePolarizabilityEvaluator(ElectronicStructureBackendEvaluator, DipolePolarizabilityEvaluator):
+    """
+    Dipole/polarizability expansions from a backend's `evaluate_field_response`
+    """
+    backend_property = 'polarizability'
+    evaluate_term = DipolePolarizabilityEvaluator.evaluate_term
 
-            # (total_charge + np.sum(np.dot(J_inv, X), axis=0)) / np.sum(J_inv)
-            # charge_factor = np.dot(J_inv, X) + cls.mu_factor(total_charge, X, J_inv) * np.sum(J_inv, axis=-1)
-            # return np.tensordot(coords, charge_factor, axes=[-2, 0])
-            J_inv_chi_expansion = nput.tensordot_deriv(chi_expansion, J_inv_expansion, order=order, axes=[-1, -1])
-            J_inv_chi_sum_expansion = nput.tensordot_deriv(J_inv_sum_1, chi_expansion, order=order, axes=[-1, -1])
-            mu_expansion =  nput.scalarprod_deriv(J_inv_chi_sum_expansion, J_inv_tot_inv, order=order)
-            mu_expansion[0] +=  total_charge * J_inv_tot_inv[0]
+    def evaluate_polarizability_term(self, coords, coord_order, electrostatic_order, *, charge=None, **opts):
+        return self.backend.evaluate_field_response(coords, coord_order, electrostatic_order, charge=charge, **opts)
 
-            mu_prod_expansion = nput.scalarprod_deriv(mu_expansion, J_inv_sum_1, order=order)
-            dipole_expansion_charge_factor = nput.add_expansions(J_inv_chi_expansion, mu_prod_expansion)
-            dipole_expansion = nput.tensordot_deriv(dipole_expansion_charge_factor, coord_expansion, axes=[-1, -2], order=order)
-            expansion.append(dipole_expansion)
+class AIMNet2DipolePolarizabilityEvaluator(BackendDipolePolarizabilityEvaluator, FluctuatingChargeDipolePolarizabilityEvaluator):
+    """
+    AIMNet2 fluctuating-charge polarizabilities (`Psience.ElectronicStructure.AIMNet2Backend`)
+    """
+    backend_type = AIMNet2Backend
+    evaluate_polarizability_term = BackendDipolePolarizabilityEvaluator.evaluate_polarizability_term
 
-            if es_order > 1:
-                # pad_j = [
-                #     np.repeat(np.expand_dims(np.moveaxis(j, -1, 0), 0), 3, axis=0)
-                #     for j in J_inv_expansion
-                # ]
-                # pad_c = [
-                #     np.moveaxis(np.repeat(np.expand_dims(c, 0), len(J_expansion[0]), axis=0), -1, 0)
-                #     for c in coord_expansion
-                # ]
-                # print([j.shape for j in pad_j], [c.shape for c in pad_c])
-                J_inv_X_expansion = nput.tensordot_deriv(
-                    J_inv_expansion,
-                    coord_expansion,
-                    order=order,
-                    axes=[-1, -2],
-                    shared=coords.ndim-2
-                )
-                X_J_inv_X_expansion = nput.tensordot_deriv(
-                    J_inv_X_expansion,
-                    coord_expansion,
-                    order=order,
-                    axes=[-2, -2]
-                )
+    def evaluate_electrostatic_potential_derivatives(self, coords, coord_order, electrostatic_order, **opts):
+        return self.backend.evaluate_electrostatic_potential_derivatives(coords, coord_order, electrostatic_order, **opts)
 
-                J_inv_X_1_expansion = [np.sum(jj, axis=-2) for jj in J_inv_X_expansion]
-                JX_x_JX_expansion = nput.tensorprod_deriv(J_inv_X_1_expansion, J_inv_X_1_expansion, order=order,
-                                                          axes=[-1, -1]
-                                                          )
-                outer_expansion = nput.scalarprod_deriv(JX_x_JX_expansion, J_inv_tot_inv, order=order)
-                polarizability_expansion = nput.add_expansions(
-                    X_J_inv_X_expansion,
-                    outer_expansion
-                )
-                expansion.append(polarizability_expansion)
+class HIPNNDipolePolarizabilityEvaluator(BackendDipolePolarizabilityEvaluator, FluctuatingChargeDipolePolarizabilityEvaluator):
+    """
+    `hippynn` charge-equilibration polarizabilities (`Psience.ElectronicStructure.HIPNNBackend`; not implemented yet)
+    """
+    backend_type = HIPNNBackend
+    evaluate_polarizability_term = BackendDipolePolarizabilityEvaluator.evaluate_polarizability_term
 
-        return expansion
+    def __init__(self, atoms=None, *backend_args, backend=None, **opts):
+        super().__init__(atoms, *backend_args, backend=backend, **opts)
+        self.backend.enable_charge_equilibration_outputs()
 
     @classmethod
-    def _distorted_harmonic_polarizabilities(cls, charges, dipole_expansion, coords, hessians):
-        coords = np.asanyarray(coords)
-        charges = np.asanyarray(charges)
-        hessians = np.asanyarray(hessians)
-        x = charges[..., :, np.newaxis] * coords
-        nats = charges.shape[-1]
-        hessians = hessians.reshape(hessians.shape[:-2] + (nats, 3, nats, 3))
-        f_factors = np.array([
-            np.sum(x[..., i] ** 2) /
-            nput.vec_tensordot(
-                nput.vec_tensordot(
-                    hessians[..., :, i, :, i],
-                    x[..., i],
-                    axes=[-1, -1],
-                    shared=x.ndim - 2
-                ),
-                x[..., i],
-                axes=[-1, -1],
-                shared=x.ndim - 2
-            )
-            for i in range(3)
-        ])
-        dx_f = x * np.moveaxis(f_factors, 0, -1)[..., np.newaxis, :]
-        pad_derivs = np.zeros(x.shape[:-2] + (x.shape[-1] * x.shape[-2], 3))
-        for i in range(3):
-            pad_derivs[..., i::3, i] = dx_f[..., i]
-        dx_expansion = [pad_derivs]
-        return nput.tensordot_deriv(dx_expansion, dipole_expansion[1:], axes=[-2, -2], order=len(dipole_expansion) - 2)
+    def from_mol(cls, mol, *, model_dir, **opts):
+        return cls(mol.atoms, model_dir=model_dir, **cls.prep_mol_opts(mol, **opts))
 
-class AIMNet2DipolePolarizabilityEvaluator(FluctuatingChargeDipolePolarizabilityEvaluator):
-    def __init__(self, atoms, model='aimnet2', charge=0, multiplicity=None, quiet=True, **defaults):
+    def evaluate_electrostatic_potential_derivatives(self, coords, coord_order, electrostatic_order, **opts):
+        raise NotImplementedError("fluctuating-charge responses aren't implemented for HIPNN models yet")
+
+class PySCFDipolePolarizabilityEvaluator(BackendDipolePolarizabilityEvaluator):
+    """
+    PySCF SCF dipoles and static polarizabilities (`Psience.ElectronicStructure.PySCFBackend`;
+    polarizabilities need `pyscf-properties`)
+    """
+    backend_type = PySCFBackend
+
+
+class ElectrostaticPotentialEvaluator(PropertyEvaluator):
+    """
+    Evaluates the electrostatic potential a molecule generates at a set of probe points, as a
+    function of the nuclear coordinates.
+
+    The property is selected by `quantity`: the potential `V` (`(..., N)`, Hartree/e), the field
+    `E = -grad V` (`(..., N, 3)`, Hartree/(e Bohr)), or the field gradient `-grad grad V`
+    (`(..., N, 3, 3)`, Hartree/(e Bohr^2)), always in atomic units. Probe points are given in the
+    evaluator's `distance_units`, like the nuclear coordinates. Derivatives with respect to the
+    nuclear coordinates follow the usual `PropertyEvaluator` expansion machinery.
+    """
+    evaluator_registry = {}
+    property_units = None  # evaluated directly in atomic units
+    target_property_units = None
+    distance_units = 'Angstroms'
+    default_evaluator_type = 'multipoles'
+    batched_orders = True
+    analytic_derivative_order = 0
+    quantities = {'potential': 0, 'field': 1, 'field_gradient': 2}
+
+    def __init__(self, points=None, quantity='potential', **defaults):
+        """
+        :param points: default probe points, `(N, 3)` or `(..., N, 3)`, in `distance_units`
+        :type points: np.ndarray | None
+        :param quantity: `'potential'`, `'field'`, or `'field_gradient'`
+        :type quantity: str
+        """
         super().__init__(**defaults)
-        self.base = AIMNet2EnergyEvaluator(atoms, model=model, charge=charge, multiplicity=multiplicity, quiet=quiet)
+        self.points = None if points is None else np.asanyarray(points, dtype=float)
+        self.quantity = self.canonicalize_quantity(quantity)
+
+    @classmethod
+    def canonicalize_quantity(cls, quantity):
+        quantity = quantity.lower().replace(' ', '_')
+        if quantity not in cls.quantities:
+            raise ValueError(f"unknown electrostatic quantity '{quantity}', expected one of {list(cls.quantities)}")
+        return quantity
+
+    @property
+    def property_ndim(self):
+        return 1 + self.quantities[self.quantity]
+
+    @classmethod
+    def get_evaluators(cls):
+        """
+        The built-in named electrostatic-potential evaluators: distributed multipole expansions
+        (from a charge evaluator or explicit site multipoles) and MACE-POLAR.
+        """
+        return {
+            'multipoles': ElectrostaticMultipoleExpansionEvaluator,
+            'expansion': ElectrostaticMultipoleExpansionEvaluator,
+            'mace-polar': MACEPolarElectrostaticPotentialEvaluator,
+            'mace_polar': MACEPolarElectrostaticPotentialEvaluator,
+        }
+
+    @classmethod
+    def get_default_function_evaluator_type(cls):
+        return ElectrostaticPotentialFunctionEvaluator
+
+    def resolve_points(self, points):
+        if points is None:
+            points = self.points
+        if points is None:
+            raise ValueError(f"{type(self).__name__} needs probe `points`, either at construction or evaluation")
+        return np.asanyarray(points, dtype=float)
+
+    @abc.abstractmethod
+    def evaluate_electrostatics(self, coords, points=None, deriv_order=0, **opts):
+        """
+        Evaluates the potential and its derivatives with respect to the probe positions.
+
+        :param coords: nuclear coordinates, `(..., natoms, 3)`, in `distance_units`
+        :type coords: np.ndarray
+        :param points: probe points, `(N, 3)` or `(..., N, 3)`, in `distance_units`
+        :type points: np.ndarray | None
+        :param deriv_order: number of probe-position derivatives
+        :type deriv_order: int
+        :return: `[V, grad V, grad grad V, ...]` in atomic units (Hartree/e per Bohr^k)
+        :rtype: list[np.ndarray]
+        """
+        ...
+
+    @contextlib.contextmanager
+    def _evaluation_state(self, points, quantity):
+        # finite-difference derivatives call `evaluate_term` without the caller's options,
+        # so per-call probe points/quantities are held on the instance for the duration of a call
+        old = (self.points, self.quantity)
+        try:
+            if points is not None:
+                self.points = np.asanyarray(points, dtype=float)
+            if quantity is not None:
+                self.quantity = self.canonicalize_quantity(quantity)
+            yield self
+        finally:
+            self.points, self.quantity = old
+
+    def evaluate(self, coords, order=0, points=None, quantity=None, **opts):
+        """
+        Evaluates the electrostatic `quantity` at `points` (both defaulting to the evaluator's
+        settings) and its derivatives with respect to the nuclear coordinates up to `order`.
+        """
+        with self._evaluation_state(points, quantity):
+            return super().evaluate(coords, order=order, **opts)
+
+    def evaluate_term(self, coords, order, points=None, quantity=None, **opts):
+        quantity = self.quantity if quantity is None else self.canonicalize_quantity(quantity)
+        k = self.quantities[quantity]
+        res = self.evaluate_electrostatics(coords, points=points, deriv_order=k, **opts)[k]
+        return [res if k == 0 else -res]
+
+
+class ElectrostaticPotentialFunctionEvaluator(ElectrostaticPotentialEvaluator):
+    """
+    Wraps a bare function `f(coords, order=..., points=..., quantity=..., **opts)` as an
+    `ElectrostaticPotentialEvaluator`.
+    """
+
+    def __init__(self, potential_function, property_units=None, distance_units='BohrRadius',
+                 points=None, quantity='potential', **opts):
+        PropertyFunctionEvaluator.__init__(
+            self,
+            potential_function,
+            property_units=property_units,
+            distance_units=distance_units,
+            **opts
+        )
+        self.points = None if points is None else np.asanyarray(points, dtype=float)
+        self.quantity = self.canonicalize_quantity(quantity)
+
+    def embed_coords(self, coords, **kwargs):
+        return PropertyFunctionEvaluator.embed_coords(self, coords, **kwargs)
+
+    def unembed_coords(self, coords, **kwargs):
+        return PropertyFunctionEvaluator.unembed_coords(self, coords, **kwargs)
+
+    def unembed_derivs(self, base_coords, coords, derivs, **kwargs):
+        return PropertyFunctionEvaluator.unembed_derivs(self, base_coords, coords, derivs, **kwargs)
+
+    def evaluate_electrostatics(self, coords, points=None, deriv_order=0, **opts):
+        raise NotImplementedError("function-based electrostatic evaluators only expose `evaluate_term`")
+
+    def evaluate_term(self, coords, order, points=None, quantity=None, **opts):
+        quantity = self.quantity if quantity is None else self.canonicalize_quantity(quantity)
+        return self.property_function(coords, order=order, points=self.resolve_points(points), quantity=quantity, **opts)
+
+    def evaluate(self, coords, order=0, logger=None, points=None, quantity=None, **opts):
+        with self._evaluation_state(points, quantity):
+            return PropertyFunctionEvaluator.evaluate(self, coords, order, **opts)
+
+    @classmethod
+    def get_property_function(cls, prop_func, mol, **opts):
+        return (prop_func, opts)
+
+    @classmethod
+    def from_mol(cls, mol, property_function=None, potential_function=None, **opts):
+        if property_function is None:
+            property_function = potential_function
+        return PropertyFunctionEvaluator.initialize_from_mol(cls, mol, property_function=property_function, **opts)
+
+    default_property_function = None
+
+    @classmethod
+    def bind_default(cls, potential):
+        cls.default_property_function = potential
+
+
+class ElectrostaticMultipoleExpansionEvaluator(ElectrostaticPotentialEvaluator):
+    """
+    The electrostatic potential of a distributed (atom-centered) multipole expansion, built on
+    `McUtils.Zachary.MultipoleExpansion`.
+
+    Site multipoles come from (in order of precedence) a subclass's `evaluate_site_multipoles`,
+    an explicit `multipoles` array or function, or a `ChargeEvaluator`. Multipoles are real
+    Racah-normalized moments ordered `m = -l..l` per `l` (so `[q, mu_y, mu_z, mu_x, ...]`), in
+    units of `ElementaryCharge * distance_units^l`. Sites may be Gaussian-smeared
+    (`smearing`, in `distance_units`), as in MACE-POLAR.
+
+    By default the potential is the exact sum over sites. With `expansion_order` set, the sites
+    are first collapsed into one multipole expansion of that order about `expansion_center`,
+    which is much cheaper for many distant probe points (and ignores smearing, which is
+    negligible there).
+
+    When the multipoles are point charges from a `ChargeEvaluator` with analytic first
+    derivatives, first derivatives of the potential with respect to the nuclear coordinates are
+    analytic too (`dV/dx_j = sum_i dq_i/dx_j / |p - x_i| + q_j (p - x_j)/|p - x_j|^3`).
+    """
+
+    def __init__(self,
+                 multipoles=None,
+                 charge_evaluator: 'ChargeEvaluator' = None,
+                 smearing=None,
+                 expansion_order=None,
+                 expansion_center=None,
+                 points=None,
+                 quantity='potential',
+                 distance_units=None,
+                 **defaults):
+        """
+        :param multipoles: site multipoles, `(natoms, (L+1)^2)` or `(..., natoms, (L+1)^2)`,
+            or a function `coords -> multipoles`
+        :type multipoles: np.ndarray | callable | None
+        :param charge_evaluator: a charge evaluator supplying point-charge sites
+        :type charge_evaluator: ChargeEvaluator | None
+        :param smearing: Gaussian smearing width(s) for the sites, in `distance_units`
+        :type smearing: float | np.ndarray | None
+        :param expansion_order: if given, collapse the sites into one expansion of this order
+        :type expansion_order: int | None
+        :param expansion_center: center for the collapsed expansion, `(3,)` in `distance_units`,
+            or `'centroid'` (default)
+        :type expansion_center: np.ndarray | str | None
+        """
+        super().__init__(points=points, quantity=quantity, **defaults)
+        self.multipoles = multipoles
+        self.charge_evaluator = charge_evaluator
+        if distance_units is None and charge_evaluator is not None:
+            distance_units = charge_evaluator.distance_units
+        if distance_units is not None:
+            self.distance_units = distance_units
+        self.smearing = smearing
+        self.expansion_order = expansion_order
+        self.expansion_center = expansion_center
+        if (
+                charge_evaluator is not None
+                and multipoles is None
+                and type(self).evaluate_site_multipoles is ElectrostaticMultipoleExpansionEvaluator.evaluate_site_multipoles
+                and expansion_order is None
+                and smearing is None
+        ):
+            self.analytic_derivative_order = min(1, charge_evaluator.analytic_derivative_order)
+
+    @classmethod
+    def from_mol(cls, mol, charge_evaluator=None, multipoles=None, **opts):
+        opts = cls.prep_mol_opts(mol, **opts)
+        opts.pop('charge', None)
+        opts.pop('multiplicity', None)
+        if multipoles is None and not isinstance(charge_evaluator, ChargeEvaluator):
+            charge_evaluator = mol.get_charge_evaluator(charge_evaluator)
+        return cls(multipoles=multipoles, charge_evaluator=charge_evaluator, **opts)
+
+    # region site multipoles
+
+    def _charge_conversions(self):
+        ev = self.charge_evaluator
+        prop_conv = UnitsData.convert(ev.target_property_units, ev.property_units)
+        dist_conv = UnitsData.convert(self.distance_units, 'BohrRadius')
+        return prop_conv, dist_conv
+
+    def evaluate_site_multipoles(self, coords, **opts):
+        """
+        Site multipoles at the given nuclear coordinates.
+
+        :param coords: nuclear coordinates, `(..., natoms, 3)`, in `distance_units`
+        :type coords: np.ndarray
+        :return: `(multipoles, smearing)`: real multipoles `(..., natoms, (L+1)^2)` in
+            `ElementaryCharge * distance_units^l` and Gaussian widths in `distance_units` (or `None`)
+        :rtype: (np.ndarray, np.ndarray | None)
+        """
+        if self.multipoles is not None:
+            mps = self.multipoles(coords) if callable(self.multipoles) else self.multipoles
+            mps = np.asanyarray(mps, dtype=float)
+        elif self.charge_evaluator is not None:
+            charges = self.charge_evaluator.evaluate(coords, order=0, **opts)[0]
+            prop_conv, _ = self._charge_conversions()
+            mps = (charges * prop_conv)[..., np.newaxis]
+        else:
+            raise ValueError(f"{type(self).__name__} needs `multipoles` or a `charge_evaluator`")
+        return mps, self.smearing
+
+    def get_multipole_expansion(self, coords, **opts):
+        """
+        The distributed multipole expansion at the given nuclear coordinates, in atomic units
+        (centers and smearing in Bohr), with sites along the last batch axis.
+
+        :param coords: nuclear coordinates, `(..., natoms, 3)`, in `distance_units`
+        :type coords: np.ndarray
+        :rtype: MultipoleExpansion
+        """
+        coords = np.asanyarray(coords, dtype=float)
+        mps, smearing = self.evaluate_site_multipoles(coords, **opts)
+        conv = UnitsData.convert(self.distance_units, 'BohrRadius')
+        L = int(round(np.sqrt(mps.shape[-1]))) - 1
+        ls = np.concatenate([np.full(2 * l + 1, l) for l in range(L + 1)])
+        mps = mps * conv ** ls
+        if smearing is not None:
+            smearing = np.asanyarray(smearing, dtype=float) * conv
+        return MultipoleExpansion.from_real(mps, center=coords * conv, smearing=smearing)
+
+    def get_collapsed_expansion(self, coords, order=None, center=None, **opts):
+        """
+        The sites collapsed into one multipole expansion per structure (atomic units).
+
+        :param order: expansion order (defaults to `expansion_order`)
+        :type order: int | None
+        :param center: expansion center in `distance_units` (defaults to `expansion_center`/centroid)
+        :type center: np.ndarray | str | None
+        :rtype: MultipoleExpansion
+        """
+        if order is None:
+            order = self.expansion_order
+        if center is None:
+            center = self.expansion_center
+        sites = self.get_multipole_expansion(coords, **opts)
+        if sites.is_smeared:
+            sites = sites.modify(drop_smearing=True)
+        if center is None or dev.str_is(center, 'centroid'):
+            center = np.mean(sites.center, axis=-2)
+        else:
+            center = np.asanyarray(center, dtype=float) * UnitsData.convert(self.distance_units, 'BohrRadius')
+        return sites.sum(axis=-1, center=center, order=max(order, sites.order))
+
+    # endregion
+
+    def evaluate_electrostatics(self, coords, points=None, deriv_order=0, **opts):
+        points = self.resolve_points(points) * UnitsData.convert(self.distance_units, 'BohrRadius')
+        if self.expansion_order is not None:
+            expansion = self.get_collapsed_expansion(coords, **opts)
+            res = expansion.evaluate(points, deriv_order=deriv_order)
+        else:
+            expansion = self.get_multipole_expansion(coords, **opts)
+            res = expansion.evaluate(points, deriv_order=deriv_order, sum_axis=-1)
+        return [res] if deriv_order == 0 else res
+
+    def evaluate_term(self, coords, order, points=None, quantity=None, **opts):
+        quantity = self.quantity if quantity is None else self.canonicalize_quantity(quantity)
+        if order == 0 or self.analytic_derivative_order < 1 or quantity != 'potential':
+            return super().evaluate_term(coords, 0, points=points, quantity=quantity, **opts)
+        # analytic first derivatives for point charges from a charge evaluator
+        coords = np.asanyarray(coords, dtype=float)
+        prop_conv, dist_conv = self._charge_conversions()
+        q, dq = self.charge_evaluator.evaluate(coords, order=1, **opts)[:2]
+        q = q * prop_conv  # (..., n)
+        dq = dq * prop_conv * dist_conv  # (..., 3n, n), per distance_units
+        pts = self.resolve_points(points) * dist_conv
+        x = coords * dist_conv
+        disp = pts[..., np.newaxis, :, :] - x[..., :, np.newaxis, :]  # (..., n, N, 3), Bohr
+        r = np.linalg.norm(disp, axis=-1)
+        K = 1 / r
+        V = np.sum(q[..., np.newaxis] * K, axis=-2)
+        dV_q = np.einsum('...ki,...in->...kn', dq, K)
+        dV_x = q[..., :, np.newaxis, np.newaxis] * disp / r[..., np.newaxis] ** 3 * dist_conv  # (..., n, N, 3)
+        dV_x = np.moveaxis(dV_x, -1, -2)  # (..., n, 3, N)
+        dV_x = dV_x.reshape(dV_x.shape[:-3] + (-1, dV_x.shape[-1]))
+        return [V, dV_q + dV_x]
+
+
+class MACEPolarElectrostaticPotentialEvaluator(ElectrostaticMultipoleExpansionEvaluator):
+    """
+    The total electrostatic potential of the Gaussian-smeared atomic multipoles predicted by
+    MACE-POLAR (`density_coefficients`, real `m = -l..l` moments in the `graph_longrange` GTO
+    normalization, i.e. exact multipole moments, in e Angstrom^l, with the model's
+    `atomic_multipoles_smearing_width` in Angstrom), evaluated through
+    `Psience.ElectronicStructure.MACEPolarBackend`.
+
+    Near the nuclei this is the potential of the smeared model density, which is finite, not
+    the true (divergent) all-electron potential. Nuclear-coordinate derivatives use finite
+    differences.
+    """
+    model_types = MACEPolarBackend.model_types
+    distance_units = 'Angstroms'
+    default_model = MACEPolarBackend.default_model
+
+    @classmethod
+    def handle_specialization(cls, tag):
+        return MACEPolarBackend.handle_specialization(tag)
+
+    def __init__(self, atoms=None, model=None, charge=0, multiplicity=1, external_field=None,
+                 device=None, model_dir=None, default_dtype='float64', quiet=True,
+                 energy_evaluator=None, smearing=None, points=None, quantity='potential',
+                 expansion_order=None, expansion_center=None, backend=None, **defaults):
+        """
+        :param atoms: atom symbols
+        :type atoms: list[str]
+        :param model: `'polar-1-s'`/`'polar-1-m'`/`'polar-1-l'` (or `'small'`/`'medium'`/`'large'`)
+        :type model: str | None
+        :param charge: total charge (`atoms.info["charge"]`)
+        :type charge: int
+        :param multiplicity: spin multiplicity (`atoms.info["spin"]`)
+        :type multiplicity: int
+        :param external_field: uniform external field passed as `atoms.info["external_field"]`,
+            in the model's native units
+        :type external_field: np.ndarray | None
+        :param energy_evaluator: an existing `MACEEnergyEvaluator` (or anything exposing `.eval`, an
+            ASE MACE-POLAR calculator) whose calculator to reuse
+        :type energy_evaluator: MACEEnergyEvaluator | None
+        :param smearing: override for the model's smearing width (Angstrom)
+        :type smearing: float | None
+        :param backend: an existing `MACEPolarBackend` to use
+        :type backend: MACEPolarBackend | None
+        """
+        super().__init__(
+            smearing=smearing, points=points, quantity=quantity,
+            expansion_order=expansion_order, expansion_center=expansion_center,
+            distance_units='Angstroms',
+            **defaults
+        )
+        if backend is None:
+            calculator = None if energy_evaluator is None else energy_evaluator.eval
+            backend = MACEPolarBackend(
+                atoms, model=model, charge=charge, multiplicity=multiplicity, external_field=external_field,
+                calculator=calculator, device=device, model_dir=model_dir, default_dtype=default_dtype, quiet=quiet
+            )
+        self.backend = backend
+        self._energy_evaluator = energy_evaluator
 
     @classmethod
     def from_mol(cls, mol, **opts):
         return cls(mol.atoms, **cls.prep_mol_opts(mol, **opts))
 
-    def evaluate_polarizability_term(self, coords, coord_order, electrostatic_order, *, charge=None, **opts):
-        if charge is None:
-            charge = self.base.charge
-        return super().evaluate_polarizability_term(
-            coords, coord_order, electrostatic_order, charge=charge, **opts
-        )
+    @property
+    def atoms(self):
+        return self.backend.atoms
 
-    def evaluate_electrostatic_potential_derivatives(self, coords, coord_order, electrostatic_order, **opts):
-        self.base.eval.model.outputs.lrcoulomb.key_out = 'coul_energy'
-        base_shape, coords, data = self.base.prep_eval(coords, 0,
-                                                       keep_graph=electrostatic_order>0 or coord_order>0,
-                                                       **opts)
-        data['coul_energy'] = data['coul_energy'].sum()
+    @property
+    def charge(self):
+        return self.backend.charge
 
-        electrostatic_expansions = self.base.process_aimnet_derivs(
-            base_shape, coords, data,
-            'coul_energy',
-            coord_order,
-            property_shape=data['coul_energy'].shape[len(base_shape):],
-            extra_deriv_coord=(data['charges'], electrostatic_order)
-        )
+    @property
+    def multiplicity(self):
+        return self.backend.multiplicity
 
-        return electrostatic_expansions
+    @property
+    def external_field(self):
+        return self.backend.external_field
 
-class HIPNNDipolePolarizabilityEvaluator(FluctuatingChargeDipolePolarizabilityEvaluator):
-    def __init__(self, atoms, model_dir, **defaults):
-        super().__init__()
-        self.base = HIPNNEnergyEvaluator(atoms, model_dir, **defaults)
-        self._set_extra_outputs(self.base)
+    @property
+    def energy_evaluator(self):
+        """a `MACEEnergyEvaluator` sharing this evaluator's calculator"""
+        if self._energy_evaluator is None:
+            self._energy_evaluator = MACEEnergyEvaluator(backend=self.backend)
+        return self._energy_evaluator
 
-    @classmethod
-    def _set_extra_outputs(cls, base):
-        import hippynn.graphs
-        predictor = hippynn.graphs.Predictor.from_graph(base.eval.graph,
-                                                        additional_outputs=[
-                                                            'ChEQ.coul_energy'
-                                                        ]
-                                                        )
-        cheq = predictor.graph.node_from_name('ChEQ')
-        predictor.outputs.extend(cheq.parents[-2:])
-        base.eval = predictor
+    @property
+    def calculator(self):
+        return self.backend.model
 
-    @classmethod
-    def from_mol(cls, mol, *, model_dir, embedding=None, charge=None, multiplicity=None, **opts):
-        return cls(mol.atoms, model_dir=model_dir, **cls.prep_mol_opts(mol, opts))
+    @property
+    def model_smearing(self):
+        """the smearing width the loaded model uses (Angstrom)"""
+        return self.backend.model_smearing
 
-    def evaluate_polarizability_term(self, coords, coord_order, electrostatic_order, *, charge=None, **opts):
-        if charge is None:
-            charge = self.base.charge
-        return super().evaluate_polarizability_term(
-            coords, coord_order, electrostatic_order, charge=charge, **opts
-        )
+    polar_properties = MACEPolarBackend.polar_properties
 
-    def evaluate_electrostatic_potential_derivatives(self, coords, coord_order, electrostatic_order, **opts):
-        self.base.eval.model.outputs.lrcoulomb.key_out = 'coul_energy'
-        base_shape, coords, data = self.base.prep_eval(coords, 0,
-                                                       keep_graph=electrostatic_order>0 or coord_order>0,
-                                                       **opts)
-        data['coul_energy'] = data['coul_energy'].sum()
+    def evaluate_polar_properties(self, coords, properties=None, charge=None, multiplicity=None):
+        """
+        Runs the MACE-POLAR calculator and returns its raw results
+        (`MACEPolarBackend.evaluate_polar_properties`).
+        """
+        return self.backend.evaluate_polar_properties(coords, properties=properties, charge=charge, multiplicity=multiplicity)
 
-        electrostatic_expansions = self.base.process_aimnet_derivs(
-            base_shape, coords, data,
-            'coul_energy',
-            coord_order,
-            property_shape=data['coul_energy'].shape[len(base_shape):],
-            extra_deriv_coord=(data['charges'], electrostatic_order)
-        )
+    def evaluate_site_multipoles(self, coords, **opts):
+        res = self.evaluate_polar_properties(coords, properties=['density_coefficients'])
+        smearing = self.smearing if self.smearing is not None else self.model_smearing
+        if smearing is None:
+            raise ValueError("couldn't determine the MACE-POLAR smearing width; pass `smearing`")
+        return res['density_coefficients'], smearing
 
-        return electrostatic_expansions
 
 class ReducedDimensionalPotentialHandler:
 

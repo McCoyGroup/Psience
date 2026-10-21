@@ -2226,6 +2226,45 @@ class PotentialTerms(ExpansionTerms):
 
 
     @classmethod
+    def _warn_mixed_derivatives(cls, derivs, mode_axes, *, logger, term_id=None,
+                                warning_diff=-1, handle_zeros=True,
+                                diagonal=True, val_axes=0):
+        """Compare available, common-basis samples before symmetry repair."""
+        shape = derivs.shape[val_axes:]
+        # Internal *_pre tensors still mix mode and Cartesian derivative slots.
+        if (warning_diff is None or warning_diff <= 0
+                or str(term_id).endswith('_pre')
+                or not shape or not shape[0] or len(set(shape)) != 1):
+            return
+        # Gaussian samples repeated numerical displacements, not their cross terms.
+        sample_order = len(shape) - (mode_axes - 1 if diagonal else 0)
+        indices = np.indices((shape[0],) * sample_order).reshape(sample_order, -1)
+        if diagonal and mode_axes > 1:
+            indices = np.concatenate([
+                np.repeat(indices[:1], mode_axes, axis=0), indices[1:]
+            ], axis=0)
+        keys = np.ravel_multi_index(np.sort(indices, axis=0), shape)
+        for value_pos in np.ndindex(derivs.shape[:val_axes]):
+            values = derivs[value_pos][tuple(indices)]
+            available = (np.flatnonzero(np.abs(values) > 1e-12) if handle_zeros
+                         else np.arange(len(values)))
+            if len(available) < 2:
+                continue
+            ordered = available[np.lexsort((values[available], keys[available]))]
+            bounds = np.r_[0, np.flatnonzero(np.diff(keys[ordered])) + 1, len(ordered)]
+            low, high = ordered[bounds[:-1]], ordered[bounds[1:] - 1]
+            bad = values[high] - values[low] >= warning_diff
+            for lo, hi in zip(low[bad], high[bad]):
+                logger.log_print(
+                    "WARNING: large difference for term {term_id}, {val:.3f} cm-1 [{pos}] vs {rval:.3f} cm-1 [{rpos}]",
+                    term_id=term_id,
+                    pos=value_pos + tuple(map(int, indices[:, hi])),
+                    rpos=value_pos + tuple(map(int, indices[:, lo])),
+                    val=values[hi] * UnitsData.hartrees_to_wavenumbers,
+                    rval=values[lo] * UnitsData.hartrees_to_wavenumbers
+                )
+
+    @classmethod
     def _symmetrize_mixed_derivatives(cls, derivs, handling_mode, mode_axes, *, logger,
                                       zero_rest=True,
                                       diagonal=True, restricted_diagonal=False, term_id=None, val_axes=0,
@@ -2264,6 +2303,12 @@ class PotentialTerms(ExpansionTerms):
         :raises ValueError: if `handling_mode` is `Old` and no `term_id` is given
         """
 
+        cls._warn_mixed_derivatives(
+            derivs, mode_axes, logger=logger, term_id=term_id,
+            warning_diff=warning_diff, handle_zeros=handle_zeros,
+            diagonal=diagonal, val_axes=val_axes
+        )
+
         if handling_mode == MixedDerivativeHandlingModes.Old:
             if term_id is None: raise ValueError(';_;')
             if term_id in {'v4_cart', 'v4_int'}:
@@ -2293,43 +2338,16 @@ class PotentialTerms(ExpansionTerms):
                             inds, _ = UniquePermutations(pos).permutations(return_indices=True)
                             ups[key] = inds
                         prev_val = None
-                        prev_pos = None
                         for idx in inds:
                             new_pos = tuple(pos[p] for p in idx)
                             v = vals[new_pos]
-                            if warning_diff > 0 and prev_val is not None:
-                                if not handle_zeros or (abs(v) > 1e-12 and abs(prev_val) > 1e-12):
-                                    if abs(v - prev_val) >= warning_diff:
-                                        logger.log_print(
-                                            "WARNING: large difference for term {term_id}, {val:.3f} cm-1 [{pos}] vs {rval:.3f} cm-1 [{rpos}]",
-                                            term_id=term_id,
-                                            pos=new_pos,
-                                            rpos=prev_pos,
-                                            val=v * UnitsData.hartrees_to_wavenumbers,
-                                            rval=prev_val * UnitsData.hartrees_to_wavenumbers
-                                        )
                             if handle_zeros and abs(v) < 1e-12:
                                 if prev_val is not None:
                                     v = prev_val
                             else:
                                 prev_val = v
-                                prev_pos = new_pos
                             derivs[new_pos] = v
 
-                elif warning_diff > 0:
-                    v3 = derivs
-                    for pos in itertools.combinations(range(v3.shape[0]), 3):
-                        v1 = v3[tuple(reversed(pos))]
-                        v2 = v3[pos]
-                        if abs(v1 - v2) >= warning_diff:
-                            logger.log_print(
-                                "WARNING: large difference for term {term_id}, {val:.3f} cm-1 [{pos}] vs {rval:.3f} cm-1 [{rpos}]",
-                                term_id=term_id,
-                                pos=pos,
-                                rpos=tuple(reversed(pos)),
-                                val=v1 * UnitsData.hartrees_to_wavenumbers,
-                                rval=v2 * UnitsData.hartrees_to_wavenumbers
-                            )
         else:
 
             # v3 = terms[2]
@@ -2367,42 +2385,16 @@ class PotentialTerms(ExpansionTerms):
                         inds, _ = UniquePermutations(pos).permutations(return_indices=True)
                         ups[key] = inds
                     prev_val = None
-                    prev_pos = None
                     for idx in inds:
                         new_pos = tuple(pos[p] for p in idx)
                         v = vals[new_pos]
-                        if warning_diff > 0 and prev_val is not None:
-                            if not handle_zeros or (abs(v) > 1e-12 and abs(prev_val) > 1e-12):
-                                if abs(v - prev_val) >= warning_diff:
-                                    logger.log_print(
-                                        "WARNING: large difference for term {term_id}, {val:.3f} cm-1 [{pos}] vs {rval:.3f} cm-1 [{rpos}]",
-                                        term_id=term_id,
-                                        pos=new_pos,
-                                        rpos=prev_pos,
-                                        val=v * UnitsData.hartrees_to_wavenumbers,
-                                        rval=prev_val * UnitsData.hartrees_to_wavenumbers
-                                    )
                         if handle_zeros and abs(v) < 1e-12:
                             if prev_val is not None:
                                 v = prev_val
                         else:
                             prev_val = v
-                            prev_pos = new_pos
                         derivs[new_pos] = v
                 else:
-                    if warning_diff > 0:
-                        v1 = vals[tuple(reversed(pos))]
-                        v2 = vals[pos]
-                        if not handle_zeros or (abs(v1) > 1e-12 and abs(v2) > 1e-12):
-                            if abs(v1 - v2) >= warning_diff:
-                                logger.log_print(
-                                    "WARNING: large difference for term {term_id}, {val:.3f} cm-1 [{pos}] vs {rval:.3f} cm-1 [{rpos}]",
-                                    term_id=term_id,
-                                    pos=pos,
-                                    rpos=tuple(reversed(pos)),
-                                    val=v1 * UnitsData.hartrees_to_wavenumbers,
-                                    rval=v2 * UnitsData.hartrees_to_wavenumbers
-                                )
                     if handling_mode == MixedDerivativeHandlingModes.Numerical:
                         val = vals[tuple(reversed(pos))]
                         if handle_zeros and abs(val) < 1e-12:
@@ -2530,6 +2522,7 @@ class PotentialTerms(ExpansionTerms):
                                                                   mode_axes=2,
                                                                   restricted_diagonal=True,
                                                                   term_id='v4_cart',
+                                                                  warning_diff=self.mixed_derivative_warning_threshold,
                                                                   logger=self.logger,
                                                                    handle_zeros=self.mixed_derivative_handle_zeros
                                                                   )
@@ -2573,6 +2566,7 @@ class PotentialTerms(ExpansionTerms):
                                                                            mode_axes=2,
                                                                            restricted_diagonal=True,
                                                                            term_id='v4_cart',
+                                                                           warning_diff=self.mixed_derivative_warning_threshold,
                                                                            logger=self.logger,
                                                                            handle_zeros=self.mixed_derivative_handle_zeros
                                                                            )
@@ -2602,12 +2596,14 @@ class PotentialTerms(ExpansionTerms):
                                                                        self.mixed_derivative_handling_mode,
                                                                        mode_axes=1,
                                                                        term_id='v3_int_pre',
+                                                                       warning_diff=self.mixed_derivative_warning_threshold,
                                                                        logger=self.logger)
                         v_ders[3] = self._symmetrize_mixed_derivatives(V_derivs[3],
                                                                        self.mixed_derivative_handling_mode,
                                                                        mode_axes=2,
                                                                        restricted_diagonal=True,
                                                                        term_id='v4_int_pre',
+                                                                       warning_diff=self.mixed_derivative_warning_threshold,
                                                                        logger=self.logger)
 
                         f43 = np.tensordot(qQQ, v_ders[2], axes=[2, 0])
@@ -2625,11 +2621,13 @@ class PotentialTerms(ExpansionTerms):
                                                                       self.mixed_derivative_handling_mode,
                                                                       mode_axes=1,
                                                                       term_id='v3_int',
+                                                                      warning_diff=self.mixed_derivative_warning_threshold,
                                                                       logger=self.logger)
                         terms[3] = self._symmetrize_mixed_derivatives(terms[3],
                                                                       self.mixed_derivative_handling_mode,
                                                                       mode_axes=2,
                                                                       term_id='v4_int',
+                                                                      warning_diff=self.mixed_derivative_warning_threshold,
                                                                       logger=self.logger)
 
                     else:
@@ -3940,10 +3938,12 @@ class DipoleTerms(ExpansionTerms):
                             v2 = PotentialTerms._symmetrize_mixed_derivatives(v2,
                                                                               self.mixed_derivative_handling_mode, 1,
                                                                               term_id='u2_cart',
+                                                                              warning_diff=self.mixed_derivative_warning_threshold,
                                                                               logger=self.logger)
                             v3 = PotentialTerms._symmetrize_mixed_derivatives(v3,
                                                                               self.mixed_derivative_handling_mode, 2,
                                                                               term_id='u3_cart',
+                                                                              warning_diff=self.mixed_derivative_warning_threshold,
                                                                               logger=self.logger)
 
                             Qx = self.modes.modes_by_coords
@@ -3961,17 +3961,27 @@ class DipoleTerms(ExpansionTerms):
                                                       values_name="U"
                                                       ).convert(order=order)  # , check_arrays=True)
                     terms = list(terms)
+                    if self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Unhandled:
+                        for i, term in enumerate(terms[1:3], 1):
+                            PotentialTerms._warn_mixed_derivatives(
+                                term, i, logger=self.logger,
+                                term_id='u{}_{}'.format(i + 1, 'cart' if intcds is None else 'int'),
+                                warning_diff=self.mixed_derivative_warning_threshold,
+                                handle_zeros=self.mixed_derivative_handle_zeros
+                            )
                     if (
                             self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled
                             and order > 1
                     ):
                         terms[1] = PotentialTerms._symmetrize_mixed_derivatives(terms[1],
                                                                                 self.mixed_derivative_handling_mode, 1,
-                                                                                term_id='u2_int',
+                                                                                term_id='u2_int' if intcds is not None else 'u2_cart',
+                                                                                warning_diff=self.mixed_derivative_warning_threshold,
                                                                                 logger=self.logger)
                         terms[2] = PotentialTerms._symmetrize_mixed_derivatives(terms[2],
                                                                                 self.mixed_derivative_handling_mode, 2,
-                                                                                term_id='u3_int',
+                                                                                term_id='u3_int' if intcds is not None else 'u3_cart',
+                                                                                warning_diff=self.mixed_derivative_warning_threshold,
                                                                                 logger=self.logger)
 
                     if intcds is not None and self.backpropagate_internals:

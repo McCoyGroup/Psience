@@ -3390,62 +3390,79 @@ class NormalModesManager(PropertyManager):
                 mol.potential_derivatives[2]
             )
 
+    @staticmethod
+    def _get_degenerate_mode_blocks(freqs, threshold):
+        blocks = []
+        for i in nput.argsort(freqs):
+            if not blocks or abs(freqs[i] - freqs[blocks[-1][0]]) > threshold:
+                blocks.append([i])
+            else:
+                blocks[-1].append(i)
+        return blocks
+
+    @staticmethod
+    def _cubic_rephasing_residual(coeffs, basis, constraints):
+        rotation = nput.vec_tensordot(coeffs, basis, axes=[0, 0], shared=0)
+        return np.concatenate([
+            (rotation @ rotation.T - np.eye(len(rotation))).ravel(),
+            constraints @ coeffs
+        ])
+
     @classmethod
-    def _handle_rephasing_update(cls, together, opposite, rephasing_targets, non_rephased, strict=True):
-        """
-        **LLM Docstring**
+    def _get_cubic_rephasing_rotation(cls, tensor, blocks, tolerance):
+        """Find a block-orthogonal first-slot correction from full cubic symmetry."""
+        n = len(tensor)
+        norm = nput.vec_norms(tensor, axis=None)
+        if norm == 0:
+            return np.eye(n)
+        if nput.vec_norms(tensor - tensor.swapaxes(1, 2), axis=None) > tolerance * norm:
+            raise ValueError("the two Cartesian-contracted cubic slots are not symmetric")
+        row_i, row_j = nput.combination_indices(n, 2).T
+        indices = np.array([(i, a) for b in blocks for i in b for a in b])
+        equations = np.zeros((len(row_i), n, len(indices)))
+        for col, (i, a) in enumerate(indices):
+            left, right = row_i == i, row_j == i
+            equations[left, :, col] = tensor[a, row_j[left], :]
+            equations[right, :, col] -= tensor[a, row_i[right], :]
+        equations = equations.reshape(-1, len(indices)) / norm
+        eigenvalues, vectors = np.linalg.eigh(equations.T @ equations)
+        cutoff = max(1e-14, tolerance**2 / (2 * n))
+        vectors = vectors[:, :max(1, np.count_nonzero(eigenvalues <= cutoff))]
+        basis = np.zeros((vectors.shape[1], n, n))
+        basis[:, indices[:, 0], indices[:, 1]] = vectors.T
+        starts = [np.trace(basis, axis1=1, axis2=2)]
+        if len(basis) > 1:
+            from scipy.optimize import least_squares
+            constraints = np.sqrt(n) * equations @ vectors
+            starts.extend(np.random.default_rng(812).normal(size=(8, len(basis))))
+        best, best_error = None, np.inf
+        for start in starts:
+            if len(basis) == 1:
+                rotation = basis[0].copy()
+            else:
+                if nput.vec_norms(start) < 1e-10:
+                    start = np.ones(len(basis))
+                start = np.sqrt(n) * nput.vec_normalize(start, zero_thresh=1e-10)
+                fit = least_squares(cls._cubic_rephasing_residual, start,
+                                    args=(basis, constraints), max_nfev=1000,
+                                    ftol=1e-12, xtol=1e-12, gtol=1e-12)
+                rotation = nput.vec_tensordot(fit.x, basis, axes=[0, 0], shared=0)
+            for block in blocks:
+                idx = np.ix_(block, block)
+                rotation[idx] = nput.unitarize_transformation(rotation[idx])
+            # Choose the global sign with the smaller change to the input modes.
+            if np.trace(rotation) < 0:
+                rotation = -rotation
+            corrected = nput.vec_tensordot(rotation, tensor, axes=[1, 0], shared=0)
+            error = nput.vec_norms(corrected - corrected.swapaxes(0, 1), axis=None) / norm
+            if error < best_error:
+                best, best_error = rotation, error
+            if error < min(tolerance / 10, 1e-10):
+                break
+        if best_error > tolerance:
+            raise ValueError(f"could not fit a consistent cubic rotation: {best_error:.6g} > {tolerance:.6g}")
+        return best
 
-        Update the running record of which modes must be rephased together versus oppositely, merging the new `together`/`opposite` constraint sets into `rephasing_targets` for every mode involved (skipping modes already marked as non-rephased).
-
-        :param together: mode indices that must share the same sign correction as each other
-        :type together: list[int]
-        :param opposite: mode indices that must have the opposite sign correction to `together`
-        :type opposite: list[int]
-        :param rephasing_targets: mapping from mode index to a `(same_sign_set, opposite_sign_set)` pair, updated in place
-        :type rephasing_targets: dict
-        :param non_rephased: set of mode indices already excluded from rephasing
-        :type non_rephased: set
-        :param strict: accepted for interface consistency but not used in this method's current body (the contradiction-checking logic that used it is commented out)
-        :type strict: bool
-        :return: None (updates `rephasing_targets` in place)
-        :rtype: None
-        """
-        for a in together + opposite:
-            if a not in rephasing_targets and a not in non_rephased:
-                rephasing_targets[a] = (set(), set())
-
-        for x in together:
-            rephasing_targets[x][0].update(together)
-            rephasing_targets[x][1].update(opposite)
-            # dead_spots = rephasing_targets[x][1] & rephasing_targets[x][0]
-            # if len(dead_spots) > 0:
-            #     if strict:
-            #         if len(rephasing_targets[x][1] & rephasing_targets[x][0]) > 0:
-            #             raise ValueError(
-            #                 f"rephasing contradiction for {x} ({together} - {opposite}): "
-            #                 f"must flip {rephasing_targets[x][0]}, can't flip {rephasing_targets[x][1]}")
-            #     else:
-            #         non_rephased.update(dead_spots)
-            #         for d in dead_spots:
-            #             if d in rephasing_targets: del rephasing_targets[d]
-            #         for v1, v2 in rephasing_targets.values():
-            #             v1.difference_update(dead_spots)
-        for y in opposite:
-            rephasing_targets[y][0].update(opposite)
-            rephasing_targets[y][1].update(together)
-            # dead_spots = rephasing_targets[y][1] & rephasing_targets[y][0]
-            # if len(dead_spots) > 0:
-            #     if strict:
-            #         if len(rephasing_targets[y][1] & rephasing_targets[y][0]) > 0:
-            #             raise ValueError(
-            #                 f"rephasing contradiction for {y} ({together} - {opposite}): "
-            #                 f"can't flip {rephasing_targets[y][0]}, must flip {rephasing_targets[y][1]}")
-            #     else:
-            #         non_rephased.update(dead_spots)
-            #         for d in dead_spots:
-            #             if d in rephasing_targets: del rephasing_targets[d]
-            #         for v1, v2 in rephasing_targets.values():
-            #             v1.difference_update(dead_spots)
     @classmethod
     def get_partial_cubic_based_rephasing(cls, modes, partial_cubics: np.ndarray,
                                           degenerate_freq_threshold=1e-6,
@@ -3453,504 +3470,43 @@ class NormalModesManager(PropertyManager):
                                           nonzero_threshold=4.5e-6,
                                           ignore_single_zeros=False,
                                           frequency_scale=True):
+        """Return the rotation aligning the modes with Gaussian's cubic axes.
+
+        The result is applied as old_modes.rotate(rotation), or as
+        new_modes.apply_transformation((rotation, rotation.T)). Only degenerate
+        frequency blocks can mix. equivalent_threshold bounds the relative
+        Frobenius norm of the complete cubic permutation residual, including
+        repeated indices. Cubics alone leave global/component signs undetermined.
+
+        nonzero_threshold and ignore_single_zeros remain accepted for call
+        compatibility; the fit uses all coefficients without a magnitude cutoff.
         """
-        **LLM Docstring**
-
-        Derive a rephasing (sign/permutation) matrix for a set of nearly-degenerate normal modes using consistency of the partial cubic force constants: transforms `partial_cubics` into the mode basis (optionally frequency-scaled), groups modes into degenerate blocks by frequency, resolves pairwise sign/swap ambiguities within each block by comparing triples of cubic force constants that should agree up to the rephasing, and returns the resulting rephasing transformation.
-
-        :param modes: the normal modes to rephase
-        :type modes: MolecularNormalModes
-        :param partial_cubics: the partial cubic force-constant tensor used to disambiguate the phase/ordering of degenerate modes
-        :type partial_cubics: np.ndarray
-        :param degenerate_freq_threshold: maximum frequency difference for two modes to be treated as degenerate
-        :type degenerate_freq_threshold: float
-        :param equivalent_threshold: relative-difference threshold for treating two cubic force-constant magnitudes as equal
-        :type equivalent_threshold: float
-        :param nonzero_threshold: absolute magnitude below which a cubic force constant is treated as zero
-        :type nonzero_threshold: float
-        :param ignore_single_zeros: accepted parameter but not referenced in the current method body
-        :type ignore_single_zeros: bool
-        :param frequency_scale: whether to frequency-scale the cubic tensor before comparing terms
-        :type frequency_scale: bool
-        :return: the rephasing (sign/permutation) matrix to apply to the modes
-        :rtype: np.ndarray
-        :raises ValueError: if a degenerate block can't be resolved with a single pairwise swap, or if inconsistent (asymmetric) rephasing requirements are detected among a triple of modes
-        """
-        tf = modes.coords_by_modes
-        ord_perm = np.argsort(modes.freqs)
-        freqs = modes.freqs[ord_perm,]
-        tf = tf[ord_perm, :]
-        og_cubics = partial_cubics
-        partial_cubics = partial_cubics[ord_perm,]
-        v3 = np.tensordot(
-            np.tensordot(partial_cubics, tf, axes=[1, -1]),
-            tf,
-            axes=[1, -1]
+        if hasattr(modes, 'to_new_modes'):
+            modes = modes.to_new_modes()
+        modes = modes.remove_mass_weighting().remove_frequency_scaling()
+        rows, freqs = modes.coords_by_modes, np.asarray(modes.freqs)
+        cubics = np.asarray(partial_cubics)
+        n = len(freqs)
+        if n == 0 or cubics.shape != (n, rows.shape[1], rows.shape[1]):
+            raise ValueError("expected all displaced modes and two Cartesian cubic axes")
+        if not np.all(np.isfinite(cubics)) or not np.all(np.isfinite(freqs)):
+            raise ValueError("cubic derivatives and frequencies must be finite")
+        if degenerate_freq_threshold < 0 or equivalent_threshold <= 0:
+            raise ValueError("invalid cubic rephasing tolerance")
+        blocks = cls._get_degenerate_mode_blocks(freqs, degenerate_freq_threshold)
+        tensor = nput.vec_tensordot(
+            nput.vec_tensordot(cubics, rows, axes=[1, -1], shared=0),
+            rows, axes=[1, -1], shared=0
         )
         if frequency_scale:
-            ftf = np.diag(1 / np.sqrt(np.abs(freqs)))
-            v3 = np.tensordot(np.tensordot(np.tensordot(v3, ftf, axes=[0, -1]), ftf, axes=[0, -1]), ftf, axes=[0, -1])
-
-        # import McUtils.Formatters as mfmt
-        # print(mfmt.format_symmetric_tensor_elements(
-        #     freqs * UnitsData.hartrees_to_wavenumbers,
-        #     allowed_indices=[(0, 1, 4,25, 26)]*3,
-        #     cutoff=1
-        # ))
-        #
-        # print(mfmt.format_symmetric_tensor_elements(
-        #     v3 * UnitsData.hartrees_to_wavenumbers,
-        #     allowed_indices=[(0, 1, 4, 25, 26)]*3,
-        #     symmetries=[(1,2)],
-        #     cutoff=0.01
-        # ))
-        #
-        # print(mfmt.format_symmetric_tensor_elements(
-        #     v3 * UnitsData.hartrees_to_wavenumbers,
-        #     allowed_indices=[None] + [(0, 1, 25, 26)] * 2,
-        #     symmetries=[(1, 2)],
-        #     cutoff=0.01,
-        #     filter=lambda x:np.abs(x[1] - x[2]) > 20
-        # ))
-
-        swap_blocks = []
-        swap_found = set()
-        for i,f in enumerate(freqs):
-            if i not in swap_found:
-                freq_diffs = freqs - f
-                pos = np.where(np.abs(freq_diffs) < degenerate_freq_threshold)[0]
-                swap_found.update(pos)
-                swap_blocks.append(pos)
-
-        base_perm = np.arange(v3.shape[0])
-        for swap_set in swap_blocks:
-            swap_targs = {}
-            for i in swap_set:
-                for j in swap_set:
-                    if i == j: continue
-                    for k,l in itertools.combinations(range(min([i,j])), 2):
-                        t1 = abs(v3[i, k, l])
-                        t2 = abs(v3[k, i, l])
-                        e1 = abs(v3[j, k, l])
-                        e2 = abs(v3[k, j, l])
-                        if t1 > nonzero_threshold and e1 > nonzero_threshold:
-                            # h2w = UnitsData.hartrees_to_wavenumbers
-                            # print(f"testing ({i},{j}): ({(i,k,l)} = {t1*h2w}, {(k,i,l)} = {t2*h2w} and {(j,k,l)} = {e1*h2w}), {(k,j,l)} = {e2*h2w})")
-                            diff_qi = abs(t1 - t2) / max([t1, t2]) > equivalent_threshold
-                            diff_qj = abs(e1 - e2) / max([e1, e2]) > equivalent_threshold
-                            eq_ij = abs(t1 - e2) / min([t1, e2]) < equivalent_threshold or abs(t2 - e1) / min([t2, e1]) < equivalent_threshold
-                            # print(diff_qi, diff_qj, eq_ij)
-                            if (
-                                    diff_qi
-                                    and diff_qj
-                                    and eq_ij
-                            ):
-                                if i not in swap_targs: swap_targs[i] = []
-                                swap_targs[i].append(j)
-                                # h2w = UnitsData.hartrees_to_wavenumbers
-                                # print(f"swapping ({i},{j}) in {swap_set} ({(i,j,k)} = {t1*h2w}  and {(j,i,k)} = {t2*h2w})")
-                                # needs_swaps.append(i)
-                            break
-            if len(swap_targs) == 1:
-                raise ValueError(f"mode {swap_targs} not symmetric, but no other degenerate mode disordered in {swap_set}")
-            elif len(swap_targs) == 2:
-                i,j = list(swap_targs.keys())
-                if (
-                        swap_targs[i] != [j]
-                        or swap_targs[j] != [i]
-                ):
-                    raise ValueError(f"{swap_targs} don't map to each other")
-                base = sorted([i,j])
-                perm = list(reversed(base))
-                base_perm[base,] = perm
-
-                #TODO: make this less overkill, targeted swaps require too much brain for now
-                tf2 = tf[base_perm,]
-                v3 = np.tensordot(
-                    np.tensordot(partial_cubics, tf2, axes=[1, -1]),
-                    tf2,
-                    axes=[1, -1]
-                )
-                if frequency_scale:
-                    ftf = np.diag(1 / np.sqrt(np.abs(freqs[base_perm,])))
-                    v3 = np.tensordot(np.tensordot(np.tensordot(v3, ftf, axes=[0, -1]), ftf, axes=[0, -1]), ftf,
-                                      axes=[0, -1])
-
-                # i, j = base
-                # for k,l in itertools.combinations(np.setdiff1d(base_perm, [i,j]), 2):
-                #     # # t1 = v3[i, k, l]
-                #     # t2 = v3[k, i, l]
-                #     # # e1 = v3[j, k, l]
-                #     # e2 = v3[k, j, l]
-                #     # v3[k, i, l] = v3[k, l, i] = e2
-                #     # v3[k, j, l] = v3[k, l, j] = t2
-                #
-                #     t1 = abs(v3[i, k, l])
-                #     t2 = abs(v3[k, i, l])
-                #     e1 = abs(v3[j, k, l])
-                #     e2 = abs(v3[k, j, l])
-                #     if t1 > 4.5e-6 and e1 > 4.5e-6:
-                #         h2w = UnitsData.hartrees_to_wavenumbers
-                #         if k < i and l < i and k < j and l < j:
-                #             diff_qi = abs(t1 - t2) / max([t1, t2]) > 1e-2
-                #             diff_qj = abs(e1 - e2) / max([e1, e2]) > 1e-2
-                #             eq_ij = abs(t1 - e2) / min([t1, e2]) < 1e-2 or abs(t2 - e1) / min([t2, e1]) < 1e-2
-                #             # print(diff_qi, diff_qj, eq_ij)
-                #             if (
-                #                     diff_qi
-                #                     and diff_qj
-                #                     and eq_ij
-                #             ):
-                #                 print(
-                #                     f"failed ({i},{j}): ({(i, k, l)} = {t1 * h2w}, {(k, i, l)} = {t2 * h2w} and "
-                #                     f"{(j, k, l)} = {e1 * h2w}), {(k, j, l)} = {e2 * h2w})"
-                #                 )
-                #                 raise ValueError(f"swapping {i,j} broke {k,l}")
-                #             else:
-                #                 print(
-                #                     f"resolved ({i},{j}): ({(i, k, l)} = {t1 * h2w}, {(k, i, l)} = {t2 * h2w} and "
-                #                     f"{(j, k, l)} = {e1 * h2w}), {(k, j, l)} = {e2 * h2w})"
-                #                 )
-            elif len(swap_targs) > 2:
-                raise ValueError("triply degenerate swaps not yet handled for rephasing")
-
-        # recompute after dust has settled
-        v3 = np.tensordot(
-            np.tensordot(partial_cubics, tf[base_perm,], axes=[1, -1]),
-            tf[base_perm,],
-            axes=[1, -1]
-        )
-        if frequency_scale:
-            ftf = np.diag(1 / np.sqrt(np.abs(freqs[base_perm,])))
-            v3 = np.tensordot(np.tensordot(np.tensordot(v3, ftf, axes=[0, -1]), ftf, axes=[0, -1]), ftf, axes=[0, -1])
-
-
-        # rephasing_targets: 'dict[int, tuple[set[int], set[int]]]' = {}
-        # # possible_zeros = {i:set() for i in range(v3.shape[0])}
-        # # definite_non_zeros = {i:set() for i in range(v3.shape[0])}
-        # non_rephased = set()
-        phase_graphs = []
-        mod_terms = {}
-        for i, j, k in ip.combinations_with_replacement(range(v3.shape[0]), 3): #TODO: see if I want combinations_with_replacement
-            if i != j and i != k and j != k: # isn't this assured by ip.comb?
-                t1 = v3[i, j, k]
-                t2 = v3[j, i, k]
-                t3 = v3[k, i, j]
-
-                s1 = np.sign(t1)
-                s2 = np.sign(t2)
-                s3 = np.sign(t3)
-
-                t1 = abs(t1)
-                t2 = abs(t2)
-                t3 = abs(t3)
-
-                nonzero_1 = t1 > nonzero_threshold
-                nonzero_2 = t2 > nonzero_threshold
-                nonzero_3 = t3 > nonzero_threshold
-
-                if nonzero_1:
-                    if nonzero_2:
-                        if nonzero_3:
-                            if (
-                                    # nearly equivalent
-                                    abs(t1 - t2) / max([t1, t2]) < equivalent_threshold
-                                    and abs(t1 - t3) / max([t1, t3]) < equivalent_threshold
-                                    and abs(t2 - t3) / max([t2, t3]) < equivalent_threshold
-                            ):
-                                d12 = s1 != s2
-                                d23 = s2 != s3
-                                d13 = s1 != s3
-                                x = None
-                                if d12:
-                                    if d13:
-                                        if d23:
-                                            raise ValueError(
-                                                f"rephasing asymmetry ({i},{j},{k})!=({j},{i},{k})!=({k},{i},{j})), {t1:.3f}!={t2:.3f}!={t3:.3f}")
-                                        x = i
-                                        y, z = j, k
-                                    elif d23:
-                                        x = j
-                                        y, z = i, k
-                                    else:
-                                        t1 = t1 * UnitsData.hartrees_to_wavenumbers
-                                        t2 = t2 * UnitsData.hartrees_to_wavenumbers
-                                        t3 = t3 * UnitsData.hartrees_to_wavenumbers
-                                        raise ValueError(
-                                            f"rephasing asymmetry ({i},{j},{k})=-({j},{i},{k})!=({k},{i},{j})), {t1:.3f}=-{t2:.3f}!={t3:.3f}")
-                                elif d13:
-                                    if d23:
-                                        x = k
-                                        y, z = j, i
-                                    else:
-                                        t1 = t1 * UnitsData.hartrees_to_wavenumbers
-                                        t2 = t2 * UnitsData.hartrees_to_wavenumbers
-                                        t3 = t3 * UnitsData.hartrees_to_wavenumbers
-                                        raise ValueError(
-                                            f"rephasing asymmetry ({k},{i},{j})=-({i},{j},{k})!=({j},{i},{k})), {t3:.3f}=-{t1:.3f}!={t2:.3f}")
-                                elif d23:
-                                    t1 = t1 * UnitsData.hartrees_to_wavenumbers
-                                    t2 = t2 * UnitsData.hartrees_to_wavenumbers
-                                    t3 = t3 * UnitsData.hartrees_to_wavenumbers
-                                    raise ValueError(
-                                        f"rephasing asymmetry ({j},{i},{k})=-({k},{i},{j})!=({i},{j},{k})), {t2:.3f}=-{t3:.3f}!={t1:.3f}")
-
-                                if x is not None:
-                                    same = {x}
-                                    opp = {y,z}
-                                else:
-                                    same = {i,j,k}
-                                    opp = set()
-
-                                for a in same | opp:
-                                    if a not in mod_terms:
-                                        mod_terms[a] = []
-                                    mod_terms[a].append((same, opp))
-                                for g in phase_graphs:
-                                    if len(same & g) > 0:
-                                        g.update(same)
-                                        break
-                                else:
-                                    phase_graphs.append(same)
-                                if len(opp) > 0:
-                                    for g in phase_graphs:
-                                        if len(opp & g) > 0:
-                                            g.update(opp)
-                                            break
-                                    else:
-                                        phase_graphs.append(opp)
-                        elif ignore_single_zeros and abs(t1 - t2) / max([t1, t2]) < equivalent_threshold:
-                            if s1 != s2:
-                                same = {i}
-                                opp = {j}
-                            else:
-                                same = {i, j}
-                                opp = set()
-
-                            for a in same | opp:
-                                if a not in mod_terms:
-                                    mod_terms[a] = []
-                                mod_terms[a].append((same, opp))
-                            for g in phase_graphs:
-                                if len(same & g) > 0:
-                                    g.update(same)
-                                    break
-                            else:
-                                phase_graphs.append(same)
-                            if len(opp) > 0:
-                                for g in phase_graphs:
-                                    if len(opp & g) > 0:
-                                        g.update(opp)
-                                        break
-                                else:
-                                    phase_graphs.append(opp)
-                    elif nonzero_3:
-                        if ignore_single_zeros and abs(t1 - t3) / max([t1, t3]) < equivalent_threshold:
-                            if s1 != s3:
-                                same = {i}
-                                opp = {k}
-                            else:
-                                same = {i, k}
-                                opp = set()
-
-                            for a in same | opp:
-                                if a not in mod_terms:
-                                    mod_terms[a] = []
-                                mod_terms[a].append((same, opp))
-                            for g in phase_graphs:
-                                if len(same & g) > 0:
-                                    g.update(same)
-                                    break
-                            else:
-                                phase_graphs.append(same)
-                            if len(opp) > 0:
-                                for g in phase_graphs:
-                                    if len(opp & g) > 0:
-                                        g.update(opp)
-                                        break
-                                else:
-                                    phase_graphs.append(opp)
-                elif nonzero_2:
-                    if ignore_single_zeros and  nonzero_3:
-                        if abs(t2 - t3) / max([t2, t3]) < equivalent_threshold:
-                            if s2 != s3:
-                                same = {j}
-                                opp = {k}
-                            else:
-                                same = {j,k}
-                                opp = set()
-
-                            for a in same | opp:
-                                if a not in mod_terms:
-                                    mod_terms[a] = []
-                                mod_terms[a].append((same, opp))
-                            for g in phase_graphs:
-                                if len(same & g) > 0:
-                                    g.update(same)
-                                    break
-                            else:
-                                phase_graphs.append(same)
-                            if len(opp) > 0:
-                                for g in phase_graphs:
-                                    if len(opp & g) > 0:
-                                        g.update(opp)
-                                        break
-                                else:
-                                    phase_graphs.append(opp)
-
-                # elif not (
-                #         nonzero_1
-                #         or nonzero_2
-                #         or nonzero_3
-                # ): # no phase relationships possible to determine, so write that down
-                #     for x,y,z in [(i,j,k), (j,i,k), (k,i,j)]:
-                #         possible_zeros[x].update({y, z} - definite_non_zeros[x])
-            else:
-                if i == k:
-                    if i == j: continue
-                    j, k = k, j
-                elif j == k:
-                    i, j, k = j, k, i
-                elif i != j:
-                    continue  # need two to be equivalent at least
-
-                t1 = v3[k, i, i]
-                t2 = v3[i, i, k]
-                s1 = np.sign(t1)
-                s2 = np.sign(t2)
-                if (
-                        # large enough
-                        t1 > nonzero_threshold
-                        and t2 > nonzero_threshold
-                ) and (
-                        # nearly equivalent
-                        abs(t1 - t2) / t1 < 1e-3
-                ):
-                    if s1 != s2:
-                        same = {i}
-                        opp = {k}
-                    else:
-                        same = {i,k}
-                        opp = set()
-
-                    for a in same | opp:
-                        if a not in mod_terms:
-                            mod_terms[a] = []
-                        mod_terms[a].append((same, opp))
-                    for g in phase_graphs:
-                        if len(same & g) > 0:
-                            g.update(same)
-                            break
-                    else:
-                        phase_graphs.append(same)
-                    if len(opp) > 0:
-                        for g in phase_graphs:
-                            if len(opp & g) > 0:
-                                g.update(opp)
-                                break
-                        else:
-                            phase_graphs.append(opp)
-
-        cur_graphs = 0
-        while cur_graphs != len(phase_graphs):
-            cur_graphs = len(phase_graphs)
-            new_graphs = []
-            for gg in phase_graphs:
-                for g in new_graphs:
-                    if len(gg & g) > 0:
-                        g.update(gg)
-                        break
-                else:
-                    new_graphs.append(gg)
-            phase_graphs = new_graphs
-
-        if len(phase_graphs) == 0:
-            return np.eye(tf.shape[0])
-
-        # determine which clusters are complement to eachother
-        # and just take one
-        include_graph = [True] * len(phase_graphs)
-        for n,g in enumerate(phase_graphs):
-            if include_graph[n]:
-                for i in g:
-                    for (included, excluded) in mod_terms[i]:
-                        for m,f in enumerate(phase_graphs[n+1:]):
-                            m = n + 1 + m
-                            if include_graph[m] and len(f & excluded) > 0:
-                                include_graph[m] = False
-                                break
-
-        minimal_rephasing = np.concatenate([list(phase_graphs[n]) for n,i in enumerate(include_graph) if i])
-        rephasing_tf = np.eye(tf.shape[0])
-        rephasing_tf[minimal_rephasing, minimal_rephasing] = -1
-
-        op_tf = nput.permutation_matrix(ord_perm)
-        total_rephasing = op_tf.T @ rephasing_tf @ nput.permutation_matrix(base_perm) @ op_tf
-
-        tf = modes.coords_by_modes
-        freqs = modes.freqs[ord_perm,]
-        v3 = np.tensordot(
-            np.tensordot(og_cubics, total_rephasing @ tf, axes=[1, -1]),
-            total_rephasing @ tf,
-            axes=[1, -1]
-        )
-        if frequency_scale:
-            ftf = np.diag(1 / np.sqrt(np.abs(freqs[base_perm,])))
-            v3 = np.tensordot(np.tensordot(np.tensordot(v3, ftf, axes=[0, -1]), ftf, axes=[0, -1]), ftf, axes=[0, -1])
-
-        #check rephasing
-        for i, j, k in ip.combinations(range(v3.shape[0]), 3): #TODO: see if I want combinations_with_replacement
-            if i != j and i != k and j != k: # isn't this assured by ip.comb?
-                t1 = v3[i, j, k]
-                t2 = v3[j, i, k]
-                t3 = v3[k, i, j]
-
-                s1 = np.sign(t1)
-                s2 = np.sign(t2)
-                s3 = np.sign(t3)
-
-                t1 = abs(t1)
-                t2 = abs(t2)
-                t3 = abs(t3)
-
-                nonzero_1 = t1 > nonzero_threshold
-                nonzero_2 = t2 > nonzero_threshold
-                nonzero_3 = t3 > nonzero_threshold
-
-                if (
-                        # large enough
-                    nonzero_1
-                    and nonzero_2
-                    and nonzero_3
-                ):
-                    # for x,y,z in [(i,j,k), (j,i,k), (k,i,j)]:
-                    #     if y in possible_zeros[x]: del possible_zeros[x][y]
-                    #     if z in possible_zeros[x]: del possible_zeros[x][z]
-                    #     definite_non_zeros[x].update([y, z])
-                    if (
-                            # nearly equivalent
-                            abs(t1 - t2) / max([t1, t2]) < equivalent_threshold
-                            and abs(t1 - t3) / max([t1, t3]) < equivalent_threshold
-                            and abs(t2 - t3) / max([t2, t3]) < equivalent_threshold
-                    ):
-                        d12 = s1 != s2
-                        d23 = s2 != s3
-                        d13 = s1 != s3
-
-                        if d12 or d23 or d13:
-                            h2w = UnitsData.hartrees_to_wavenumbers
-                            raise ValueError(f"failed ({i},{j},{k}): ({s1*t1*h2w}, {s2*t2*h2w}, {s3*t3*h2w})")
-                    # else:
-                    #     h2w = UnitsData.hartrees_to_wavenumbers
-                    #     print(f"failed different ({i},{j},{k}): ({s1*t1*h2w}, {s2*t2*h2w}, {s3*t3*h2w})")
-
-        # print(v3[(0, 4, 25)] * UnitsData.hartrees_to_wavenumbers,
-        #       v3[(4, 0, 25)] * UnitsData.hartrees_to_wavenumbers,
-        #       v3[(25, 4, 0)] * UnitsData.hartrees_to_wavenumbers,
-        #       v3[(25, 0, 4)] * UnitsData.hartrees_to_wavenumbers)
-
-        return total_rephasing.T
-        # return tf
+            if np.any(freqs == 0):
+                raise ValueError("cannot frequency-scale zero-frequency modes")
+            scales = np.empty(n)
+            for block in blocks:
+                # A common block scale commutes with degenerate rotations.
+                scales[block] = np.sqrt(np.mean(np.abs(freqs[block])))
+            tensor = tensor / scales[:, None, None] / scales[None, :, None] / scales[None, None, :]
+        return cls._get_cubic_rephasing_rotation(tensor, blocks, equivalent_threshold)
 
     def apply_transformation(self, transf):
         """

@@ -13,6 +13,8 @@ __all__ = []
 
 from . import Molecools
 __all__ += ["Molecools"]
+from . import ElectronicStructure
+__all__ += ["ElectronicStructure"]
 from . import DVR
 __all__ += ["DVR"]
 from . import VPT2

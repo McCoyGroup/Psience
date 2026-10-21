@@ -33,7 +33,8 @@ from .MoleculeInterface import *
 from .CoordinateSystems import MolecularEmbedding, ModeEmbedding
 from .Evaluator import (
     MolecularEvaluator, EnergyEvaluator, DipoleEvaluator, ChargeEvaluator,
-    ReducedDimensionalPotentialHandler, DipolePolarizabilityEvaluator
+    ReducedDimensionalPotentialHandler, DipolePolarizabilityEvaluator,
+    ElectrostaticPotentialEvaluator
 )
 from .Hamiltonian import MolecularHamiltonian
 from .Properties import *
@@ -925,6 +926,62 @@ class Molecule(AbstractMolecule):
         )
         if smol: expansion = expansion[0]
         return expansion
+    def get_electrostatic_potential_evaluator(self, evaluator=None, **opts):
+        """
+        Resolve (and, if needed, instantiate from this molecule) an electrostatic-potential
+        evaluator, defaulting to a distributed multipole expansion over this molecule's charge
+        evaluator.
+
+        :param evaluator: an evaluator, evaluator name (e.g. `'multipoles'`, `'mace-polar:medium'`), or spec
+        :type evaluator: Any
+        :param opts: extra construction options (e.g. `points`, `quantity`, `multipoles`, `charge_evaluator`)
+        :type opts: dict
+        :return: the evaluator
+        :rtype: ElectrostaticPotentialEvaluator
+        :raises ValueError: if the evaluator type can't be resolved
+        """
+        if evaluator is None:
+            evaluator = ElectrostaticPotentialEvaluator.default_evaluator_type
+        eval_type, new_opts = ElectrostaticPotentialEvaluator.resolve_evaluator(evaluator)
+        if eval_type is None:
+            raise ValueError(f"can't resolve electrostatic potential evaluator type for {evaluator}")
+        if hasattr(eval_type, 'from_mol') and isinstance(eval_type, type):
+            return eval_type.from_mol(self, **dict(opts, **new_opts))
+        else:
+            return eval_type
+
+    def calculate_electrostatic_potential(self, points, evaluator=None, quantity='potential', order=None, **opts):
+        """
+        Compute the electrostatic potential (or field, or field gradient) this molecule generates
+        at `points` (Bohr), in atomic units, optionally with derivatives with respect to the
+        nuclear coordinates.
+
+        :param points: probe points in Bohr, `(N, 3)`
+        :type points: np.ndarray
+        :param evaluator: an evaluator or evaluator spec (see `get_electrostatic_potential_evaluator`)
+        :type evaluator: Any
+        :param quantity: `'potential'`, `'field'`, or `'field_gradient'`
+        :type quantity: str
+        :param order: nuclear-coordinate derivative order (`None` for just the value)
+        :type order: int | None
+        :param opts: extra options forwarded to `get_electrostatic_potential_evaluator`
+        :type opts: dict
+        :return: the value, or the expansion `[value, d/dx, ...]` if `order` is given
+        :rtype: np.ndarray | list[np.ndarray]
+        """
+        evaluator = self.get_electrostatic_potential_evaluator(evaluator, **opts)
+        conv = UnitsData.convert("BohrRadius", evaluator.distance_units)
+        smol = order is None
+        if smol: order = 0
+        expansion = evaluator.evaluate(
+            self.coords * conv,
+            order=order,
+            points=np.asanyarray(points) * conv,
+            quantity=quantity
+        )
+        if smol: expansion = expansion[0]
+        return expansion
+
     @internals.setter
     def internals(self, spec):
         """
