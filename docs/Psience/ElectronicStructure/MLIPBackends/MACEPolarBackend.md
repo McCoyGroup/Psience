@@ -1,8 +1,8 @@
 ## <a id="Psience.ElectronicStructure.MLIPBackends.MACEPolarBackend">MACEPolarBackend</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends.py#L1007)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1007?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends.py#L1022)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1022?message=Update%20Docs)]
 </div>
 
 MACE-POLAR: energies plus the Gaussian-smeared atomic multipoles it predicts
@@ -33,8 +33,8 @@ polar_properties: tuple
 __init__(self, atoms, model=None, charge=None, multiplicity=None, external_field=None, calculator=None, device=None, model_dir=None, default_dtype='float64', quiet=True, smearing=None, info=None, **settings): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends.py#L1030)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1030?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends.py#L1045)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1045?message=Update%20Docs)]
 </div>
 
   - `model`: `Any`
@@ -53,8 +53,8 @@ __init__(self, atoms, model=None, charge=None, multiplicity=None, external_field
 handle_specialization(cls, tag): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1051)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1051?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1066)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1066?message=Update%20Docs)]
 </div>
 
 
@@ -64,8 +64,8 @@ handle_specialization(cls, tag):
 model_smearing(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/MACEPolarBackend.py#L1055)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/MACEPolarBackend.py#L1055?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/MACEPolarBackend.py#L1070)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/MACEPolarBackend.py#L1070?message=Update%20Docs)]
 </div>
 the smearing width the loaded model uses (Angstrom)
 
@@ -76,8 +76,8 @@ the smearing width the loaded model uses (Angstrom)
 smearing(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/MACEPolarBackend.py#L1063)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/MACEPolarBackend.py#L1063?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/MACEPolarBackend.py#L1078)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/MACEPolarBackend.py#L1078?message=Update%20Docs)]
 </div>
 the smearing width in use (Angstrom): the override, else the model's
 
@@ -87,8 +87,8 @@ the smearing width in use (Angstrom): the override, else the model's
 evaluate_polar_properties(self, coords, properties=None, charge=None, multiplicity=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/MACEPolarBackend.py#L1070)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/MACEPolarBackend.py#L1070?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/MACEPolarBackend.py#L1085)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/MACEPolarBackend.py#L1085?message=Update%20Docs)]
 </div>
 Runs the MACE-POLAR calculator and returns its raw results.
   - `coords`: `Any`
@@ -154,7 +154,7 @@ Runs the MACE-POLAR calculator and returns its raw results.
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/ElectronicStructure/MLIPBackends/MACEPolarBackend.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/ElectronicStructure/MLIPBackends/MACEPolarBackend.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1007?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1022?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

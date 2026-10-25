@@ -1,8 +1,8 @@
 ## <a id="Psience.ElectronicStructure.MLIPBackends.UMABackend">UMABackend</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends.py#L1086)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1086?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends.py#L1101)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1101?message=Update%20Docs)]
 </div>
 
 FAIRChem UMA models (`'uma-s-1p2'` on the `omol` task by default)
@@ -27,8 +27,8 @@ model_types: dict
 handle_specialization(cls, tag): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1101)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1101?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1116)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1116?message=Update%20Docs)]
 </div>
 
 
@@ -38,8 +38,8 @@ handle_specialization(cls, tag):
 setup_calculator(cls, model='uma-s-1p2', device=None, task_name=None, model_dir=None, login=None, hf_token=None, predict_unit_options=None, **settings): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1105)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1105?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1120)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1120?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -94,7 +94,7 @@ setup_calculator(cls, model='uma-s-1p2', device=None, task_name=None, model_dir=
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/ElectronicStructure/MLIPBackends/UMABackend.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/ElectronicStructure/MLIPBackends/UMABackend.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1086?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1101?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

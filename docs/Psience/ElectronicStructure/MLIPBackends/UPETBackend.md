@@ -1,8 +1,8 @@
 ## <a id="Psience.ElectronicStructure.MLIPBackends.UPETBackend">UPETBackend</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends.py#L1146)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1146?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends.py#L1161)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1161?message=Update%20Docs)]
 </div>
 
 UPET (PET-MAD and relatives) models through `upet.calculator`
@@ -27,8 +27,8 @@ model_types: dict
 handle_specialization(cls, tag): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1176)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1176?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1191)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1191?message=Update%20Docs)]
 </div>
 
 
@@ -38,8 +38,8 @@ handle_specialization(cls, tag):
 setup_calculator(cls, model='pet-mad-s', device=None, version=None, login=None, hf_token=None, model_dir=None, **settings): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1180)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1180?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1195)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1195?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -94,7 +94,7 @@ setup_calculator(cls, model='pet-mad-s', device=None, version=None, login=None, 
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/ElectronicStructure/MLIPBackends/UPETBackend.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/ElectronicStructure/MLIPBackends/UPETBackend.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1146?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1161?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
