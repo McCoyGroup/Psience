@@ -6848,7 +6848,7 @@ class Molecule(AbstractMolecule):
                                              annotation_function=annotation_function,
                                              **plot_ops)
 
-    def get_animation_geoms(self, which, extent=.35, steps=8, strip_embedding=True, units=None,
+    def get_animation_geoms(self, which, extent=.35, steps=2, strip_embedding=True, units=None,
                             coordinate_expansion=None):
         """
         **LLM Docstring**
@@ -6859,7 +6859,7 @@ class Molecule(AbstractMolecule):
         :type which: int | np.ndarray | list[np.ndarray]
         :param extent: the maximum displacement magnitude in each direction
         :type extent: float
-        :param steps: number of steps from the equilibrium geometry out to `extent`
+        :param steps: samples from `-extent` to `+extent`, before appending the reverse sweep
         :type steps: int
         :param strip_embedding: whether to strip the fixed embedding coordinates from the default Cartesians-by-internals expansion
         :type strip_embedding: bool
@@ -6889,12 +6889,14 @@ class Molecule(AbstractMolecule):
         if units is not None:
             geoms = geoms * UnitsData.convert("BohrRadius", units)
         return geoms
-    def animate_coordinate(self, which, extent=.5, steps=3, return_objects=False, strip_embedding=True,
+    def animate_coordinate(self, which, extent=.5, steps=2, return_objects=False, strip_embedding=True,
                            units="Angstroms",
                            backend=None,
                            mode=None,
                            jsmol_load_script=None,
                            coordinate_expansion=None,
+                           include_arrows=False,
+                           allow_adjustments=False,
                            **plot_opts
                            ):
         """
@@ -6906,7 +6908,7 @@ class Molecule(AbstractMolecule):
         :type which: int | np.ndarray | list[np.ndarray]
         :param extent: the maximum displacement magnitude
         :type extent: float
-        :param steps: number of steps out to `extent`
+        :param steps: samples from `-extent` to `+extent`; defaults to the two extrema for interpolation
         :type steps: int
         :param return_objects: whether to return the constructed graphics objects alongside the figure (non-JSMol path only)
         :type return_objects: bool
@@ -6922,16 +6924,25 @@ class Molecule(AbstractMolecule):
         :type jsmol_load_script: str | list[str] | None
         :param coordinate_expansion: an explicit coordinate-transformation expansion to animate along
         :type coordinate_expansion: list[np.ndarray] | np.ndarray | None
+        :param include_arrows: draw fixed arrows spanning each atom's minimum and maximum sampled motion; X3D arrows are double-sided by default (set ``vector_style={'double_sided': False}`` to override)
+        :type include_arrows: bool
+        :param allow_adjustments: include browser-side amplitude controls for an X3D animation
+        :type allow_adjustments: bool
         :param plot_opts: extra options forwarded to `plot`
         :type plot_opts: dict
         :return: the resulting animation figure/widget
         :rtype: Any
         """
         if backend is None:
-            backend = self.display_mode
+            backend = ('x3d' if (include_arrows or allow_adjustments) and mode in (None, 'x3d')
+                       else self.display_mode)
         if mode is None:
             mode = backend
+        if allow_adjustments and (backend != 'x3d' or mode == 'jsmol'):
+            raise ValueError("amplitude adjustments require backend='x3d'")
         if mode == 'jsmol':
+            if include_arrows:
+                raise ValueError("displacement arrows require a graphics animation backend")
             disps = self.format_animation_file(which,
                                                format="jmol",
                                                extent=extent, steps=steps, strip_embedding=strip_embedding,
@@ -6947,12 +6958,27 @@ class Molecule(AbstractMolecule):
         else:
             geoms = self.get_animation_geoms(which, extent=extent, steps=steps, strip_embedding=strip_embedding, units=units,
                                              coordinate_expansion=coordinate_expansion)
+            if allow_adjustments or (include_arrows and backend == 'x3d'):
+                from .Visualizations import MoleculePlotter
+                return MoleculePlotter.animate_coordinate_frames(
+                    self, [geoms],
+                    include_arrows=include_arrows,
+                    allow_adjustments=allow_adjustments,
+                    units=units,
+                    return_objects=return_objects,
+                    plot_options=dict(plot_opts, backend=backend)
+                )
+            if include_arrows:
+                from .Visualizations import MoleculePlotter
+                starts, ends = MoleculePlotter._scan_arrow_extents(geoms)
+                plot_opts.update(mode_vectors=ends - starts, mode_vector_origins=starts,
+                                 mode_vector_origin_mode='set')
             return self.plot(geoms, return_objects=return_objects, units=None, backend=backend, **plot_opts)
 
     def animate_mode(self,
                      which,
                      extent=.5,
-                     steps=3,
+                     steps=2,
                      modes=None,
                      coordinate_expansion=None,
                      order=None,
@@ -6960,18 +6986,23 @@ class Molecule(AbstractMolecule):
                      mass_weight=False,
                      mass_scale=True,
                      frequency_scale=False,
+                     include_arrows=False,
+                     allow_adjustments=False,
                      **opts
                      ):
         """
         **LLM Docstring**
 
-        Build an animation of a normal mode's displacement, converting the mode into a coordinate-expansion direction (with optional normalization, mass-weighting/scaling, and frequency scaling of the displacement extent) and delegating to `animate_coordinate`.
+        Build an animation of one normal mode, or a switchable X3D animation of several modes.
+        Each selected mode follows the ordinary coordinate scan, including any higher-order
+        coordinate expansion. Optional amplitude controls scale the scanned frame differences
+        in JavaScript, without requiring a Python kernel after export.
 
-        :param which: the mode index to animate
-        :type which: int
+        :param which: a mode index, or a nonempty one-dimensional sequence of mode indices
+        :type which: int | list[int] | np.ndarray
         :param extent: the base displacement extent, before any mass/frequency scaling
         :type extent: float
-        :param steps: number of steps out to `extent`
+        :param steps: samples from `-extent` to `+extent`; defaults to the two extrema for interpolation
         :type steps: int
         :param modes: the normal modes to animate; defaults to this molecule's own (converted to a fresh mode basis)
         :type modes: Any | None
@@ -6987,6 +7018,10 @@ class Molecule(AbstractMolecule):
         :type mass_scale: bool
         :param frequency_scale: whether to scale the displacement extent relative to the mode's frequency
         :type frequency_scale: bool
+        :param include_arrows: draw fixed arrows spanning each atom's minimum and maximum sampled motion; X3D arrows are double-sided by default (set ``vector_style={'double_sided': False}`` to override)
+        :type include_arrows: bool
+        :param allow_adjustments: include browser-side amplitude controls (X3D only)
+        :type allow_adjustments: bool
         :param opts: extra options forwarded to `animate_coordinate`
         :type opts: dict
         :return: the resulting animation figure/widget
@@ -6994,9 +7029,31 @@ class Molecule(AbstractMolecule):
         """
         from ..Modes import NormalModes
 
+        multiple = not nput.is_int(which)
+        if multiple:
+            indices = np.asanyarray(which)
+            if (indices.ndim != 1 or len(indices) == 0
+                    or not np.issubdtype(indices.dtype, np.integer)):
+                raise ValueError("which must be an integer or a nonempty one-dimensional sequence of integers")
+            indices = [int(i) for i in indices]
+        else:
+            indices = [which]
+        if multiple or allow_adjustments:
+            backend = opts.get('backend')
+            if backend is None:
+                backend = 'x3d' if opts.get('mode') in (None, 'x3d') else self.display_mode
+            if backend != 'x3d' or opts.get('mode') == 'jsmol':
+                raise ValueError("switchable modes and amplitude adjustments require backend='x3d'")
+            opts['backend'] = backend
+
         if modes is None:
             modes = self.normal_modes.modes.basis.to_new_modes()
         modes = NormalModes.prep_modes(modes)
+        if multiple:
+            mode_count = modes.coords_by_modes.shape[0]
+            if any(index < -mode_count or index >= mode_count for index in indices):
+                raise ValueError("which contains an out-of-range mode index")
+            indices = [index % mode_count for index in indices]
         base_expansion = [modes.coords_by_modes]
         if normalize:
             base_expansion = [nput.vec_normalize(base_expansion[0])]
@@ -7004,20 +7061,53 @@ class Molecule(AbstractMolecule):
             modes = modes.make_mass_weighted()
         else:
             modes = modes.remove_mass_weighting()
-            if mass_scale:
-                extent /= np.sqrt(
-                    np.dot(np.repeat(self.atomic_masses, 3), base_expansion[0][which]**2)
+        extents = []
+        for index in indices:
+            mode_extent = extent
+            if not mass_weight and mass_scale:
+                mode_extent /= np.sqrt(
+                    np.dot(np.repeat(self.atomic_masses, 3), base_expansion[0][index]**2)
                         * UnitsData.convert("ElectronMass", "AtomicMassUnits")
                 )
-        if frequency_scale:
-            freqs = np.abs(modes.freqs)
-            extent *= np.sqrt(np.min(freqs) / freqs[which])
+            if frequency_scale:
+                freqs = np.abs(modes.freqs)
+                mode_extent *= np.sqrt(np.min(freqs) / freqs[index])
+            extents.append(mode_extent)
         if order is not None:
             base_expansion = ModeEmbedding(self.embedding, modes).get_cartesians_by_internals(order=order)
         if coordinate_expansion is not None:
             base_expansion = nput.tensor_reexpand(coordinate_expansion, base_expansion)
+        if multiple or allow_adjustments:
+            from .Visualizations import MoleculePlotter
+            plot_options = dict(opts)
+            backend = plot_options.pop('backend', None)
+            if backend is None:
+                backend = self.display_mode
+            units = plot_options.pop('units', "Angstroms")
+            return_objects = plot_options.pop('return_objects', False)
+            strip_embedding = plot_options.pop('strip_embedding', True)
+            plot_options.pop('jsmol_load_script', None)
+            scans = [
+                self.get_animation_geoms(
+                    index, extent=mode_extent, steps=steps,
+                    strip_embedding=strip_embedding, units=units,
+                    coordinate_expansion=base_expansion
+                )
+                for index, mode_extent in zip(indices, extents)
+            ]
+            return MoleculePlotter.animate_coordinate_frames(
+                self, scans,
+                mode_indices=[int(index) % modes.coords_by_modes.shape[0] for index in indices],
+                include_arrows=include_arrows,
+                allow_adjustments=allow_adjustments,
+                units=units,
+                return_objects=return_objects,
+                plot_options=dict(plot_options, backend=backend)
+            )
+        if include_arrows:
+            opts['include_arrows'] = True
         return self.animate_coordinate(which,
-                                       extent=extent, steps=steps,
+                                       extent=extents[0], steps=steps,
                                        coordinate_expansion=base_expansion,
                                        **opts
                                        )

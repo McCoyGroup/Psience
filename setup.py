@@ -39,7 +39,7 @@ setup(
     # Optional include package data to ship with your package
     # Customize MANIFEST.in if the general case does not suit your needs
     # Comment out this line to prevent the files from being packaged with your software
-    # include_package_data=True
+    include_package_data=True,
     python_requires=">=3.9",
     install_requires=[
         'mccoygroup-mcutils>=1.7.5'

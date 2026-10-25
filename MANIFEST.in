@@ -1,0 +1,2 @@
+# Browser components
+recursive-include Psience/Molecools/scripts *.js
