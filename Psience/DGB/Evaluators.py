@@ -3,7 +3,7 @@ import abc, math, gc, time
 
 import numpy as np, itertools, functools
 
-from McUtils.Zachary import DensePolynomial, TensorDerivativeConverter
+from McUtils.Zachary import DensePolynomial, SparsePolynomial, TensorDerivativeConverter
 from McUtils.Scaffolding import Logger
 from McUtils.Parallelizers import Parallelizer
 import McUtils.Numputils as nput
@@ -491,13 +491,119 @@ class DGBEvaluator:
     def simple_poly_int(cls, n):
         return np.prod(np.arange(1, n, 2)) / 2**(n/2) # double factorial/gamma/whatever
     @classmethod
+    def _grouped_tensor_expansion_integrate(cls, npts, derivs, overlap_data,
+                                            expansion_type, reweight, expansion_degree):
+        """Integrate canonical monomials using grouped Gaussian moments.
+
+        Derivative axes follow the operator value axes. SparsePolynomial
+        coefficients are ordinary monomial coefficients; ``taylor`` denotes
+        a polynomial in absolute coordinates, otherwise in displacements
+        from each product center. A degree cutoff is local to that center.
+        """
+        centers = overlap_data.centers
+        npairs, ndim = centers.shape
+        if expansion_degree is not None and (not nput.is_int(expansion_degree) or expansion_degree < 0):
+            raise ValueError('expansion_degree must be a nonnegative integer')
+        covariance = overlap_data.covariance_matrices
+        powers, coefficients = [], []
+        rotated = False
+        if isinstance(derivs, SparsePolynomial):
+            terms = list(derivs.terms.items())
+            values = [np.asarray(v) * derivs.scaling for _, v in terms]
+            fshape = np.broadcast_shapes(*(v.shape[1:] for v in values if v.ndim))
+            for (slots, _), value in zip(terms, values):
+                if any(not nput.is_int(i) or i < 0 or i >= ndim for i in slots):
+                    raise ValueError('polynomial coordinate indices must be in range')
+                if value.ndim == 0:
+                    value = value.reshape((1,) * (len(fshape) + 1))
+                else:
+                    value = value.reshape((value.shape[0],) + (1,) * (len(fshape) - value.ndim + 1)
+                                          + value.shape[1:])
+                coefficients.append(np.broadcast_to(value, (npairs,) + fshape))
+                powers.append(np.bincount(slots, minlength=ndim) if slots else np.zeros(ndim, dtype=int))
+        else:
+            derivs = list(derivs)
+            if expansion_degree is not None and expansion_type != 'taylor':
+                derivs = derivs[:expansion_degree + 1]
+            shapes = [np.shape(d)[:np.ndim(d) - order] for order, d in enumerate(derivs)
+                      if np.ndim(d)]
+            fshape = np.broadcast_shapes(*(shape[1:] for shape in shapes))
+            rotated = not reweight and expansion_type != 'taylor'
+            if rotated:
+                covariance = np.eye(ndim) / (2 * overlap_data.alphas[:, :, np.newaxis])
+            for order, derivative in enumerate(derivs):
+                derivative = np.asarray(derivative)
+                if derivative.ndim == 0 and derivative == 0:
+                    continue
+                if derivative.shape != (npairs,) + fshape + (ndim,) * order:
+                    raise ValueError('derivatives must have pair, operator, then derivative axes')
+                if rotated:
+                    for _ in range(order):
+                        derivative = nput.vec_tensordot(derivative, overlap_data.rotations,
+                                                       axes=[len(fshape) + 1, 1], shared=1)
+                for slots in itertools.combinations_with_replacement(range(ndim), order):
+                    value = derivative[(slice(None),) * (len(fshape) + 1) + slots]
+                    if not np.any(value):
+                        continue
+                    counts = np.bincount(slots, minlength=ndim) if slots else np.zeros(ndim, dtype=int)
+                    if reweight:
+                        value = value / math.prod(math.factorial(int(n)) for n in counts)
+                    powers.append(counts)
+                    coefficients.append(value)
+
+        if not coefficients:
+            return np.zeros((npts, npts) + fshape)
+        coefficients = np.stack(coefficients, axis=-1)
+        powers = np.asarray(powers, dtype=int)
+        base = centers if expansion_type == 'taylor' else np.zeros_like(centers)
+        coordinate_shape = (npairs,) + (1,) * len(fshape)
+        base = base.reshape(coordinate_shape + (ndim,))
+        covariance = covariance.reshape(coordinate_shape + (ndim, ndim))
+
+        def integrate(values, shift):
+            return nput.gaussian_polynomial_integral(
+                powers, values, base + shift, covariance,
+                expansion_center=base, expansion_degree=expansion_degree)
+
+        if overlap_data.momenta_sum is None:
+            values = integrate(coefficients, 0)
+        else:
+            values = 0
+            for channel in ('sum', 'diff'):
+                rho = (getattr(overlap_data, 'momenta_' + channel) / (2 * overlap_data.alphas)
+                       if rotated else getattr(overlap_data, 'rho_' + channel))
+                shift = 1j * rho.reshape(coordinate_shape + (ndim,))
+                phase = (getattr(overlap_data, 'cos_correlation_' + channel)
+                         + 1j * getattr(overlap_data, 'sin_correlation_' + channel))
+                phase = phase.reshape(coordinate_shape)
+                # Project the basis phase, preserving complex operator coefficients.
+                contribution = np.real(phase * integrate(coefficients.real, shift))
+                if np.iscomplexobj(coefficients):
+                    contribution = contribution + 1j * np.real(phase * integrate(coefficients.imag, shift))
+                values = values + getattr(overlap_data, 'decay_factor_' + channel).reshape(coordinate_shape) * contribution
+
+        result = np.zeros((npts, npts) + fshape, dtype=values.dtype)
+        rows, cols = overlap_data.row_indices, overlap_data.col_indices
+        result[rows, cols] = values
+        result[cols, rows] = values
+        return result
+
+
+    @classmethod
     def tensor_expansion_integrate(cls,
                                    npts, derivs, overlap_data:'OverlapGaussianData',
                                    expansion_type='multicenter',
-                                   logger=None, reweight=True
+                                   logger=None, reweight=True, method="direct", expansion_degree=None
                                    ):
         """
-        provides an integral from a polynomial expansion with derivs as an expansion in tensors
+        Integrate a derivative-tensor expansion over Gaussian products.
+
+        ``method="direct"`` preserves the principal-axis moment implementation.
+        ``method="grouped"`` groups moments by local Taylor degree and also accepts
+        SparsePolynomial monomial coefficients (no factorial rescaling). For a
+        global polynomial use ``expansion_type="taylor"``; expansion_degree then
+        truncates its local expansion, retaining the input polynomial's terms.
+        Both methods return Gaussian averages; overlap factors are separate.
 
         :param npts:
         :param derivs:
@@ -509,6 +615,16 @@ class DGBEvaluator:
         :param logger:
         :return:
         """
+
+        if method == "grouped":
+            return cls._grouped_tensor_expansion_integrate(
+                npts, derivs, overlap_data, expansion_type, reweight, expansion_degree)
+        if method != "direct":
+            raise ValueError("unknown tensor expansion integration method {!r}".format(method))
+        if expansion_degree is not None:
+            if not nput.is_int(expansion_degree) or expansion_degree < 0:
+                raise ValueError("expansion_degree must be a nonnegative integer")
+            derivs = derivs[:expansion_degree + 1]
 
         centers = overlap_data.centers
         ndim = centers.shape[-1]
@@ -1446,12 +1562,14 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
                  expansion_type=None,
                  quadrature_degree=None,
                  pairwise_functions=None,
-                 logger=None
+                 logger=None,
+                 expansion_method="direct"
                  ):
         self.potential_function = potential_function
         self.handler = integral_handler
         self.expansion_degree = expansion_degree
         self.expansion_type = expansion_type
+        self.expansion_method = expansion_method
         self.quadrature_degree = quadrature_degree
         self.pairwise_handler = pairwise_functions
 
@@ -1474,8 +1592,16 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
                             expansion_type,
                             expansion_degree=2,
                             pairwise_functions=None,
-                            logger=None
+                            logger=None,
+                            method="direct"
                             ):
+
+        if isinstance(function, SparsePolynomial):
+            if method != "grouped" or pairwise_functions is not None:
+                raise ValueError("sparse polynomial integration requires method='grouped' without pairwise functions")
+            return cls.tensor_expansion_integrate(
+                overlap_data.npts, function, overlap_data, expansion_type='taylor',
+                method=method, expansion_degree=expansion_degree, logger=logger)
 
         if pairwise_functions is not None:
             logger.log_print("evaluating pairwise potential contributions...")
@@ -1540,7 +1666,8 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
                 overlap_data,
                 reweight=True,
                 expansion_type=expansion_type,
-                logger=logger
+                logger=logger,
+                method=method
             )
 
         else:
@@ -1573,7 +1700,8 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
             expansion_type=None,
             quadrature_degree=None,
             pairwise_functions=None,
-            logger=None
+            logger=None,
+            expansion_method="direct"
     ):
 
         if integral_handler is None:
@@ -1615,7 +1743,8 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
                                               expansion_degree=expansion_degree,
                                               expansion_type=expansion_type,
                                               pairwise_functions=pairwise_functions,
-                                              logger=logger
+                                              logger=logger,
+                                              method=expansion_method
                                               )
             end = time.time()
             logger.log_print('took {e:.3f}s', e=end - start)
@@ -1643,6 +1772,7 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
             expansion_degree=self.expansion_degree,
             expansion_type=self.expansion_type,
             pairwise_functions=self.pairwise_handler,
+            expansion_method=self.expansion_method,
             logger=logger
         )
         # end = time.time()
@@ -1657,7 +1787,8 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
                     expansion_type=None,
                     quadrature_degree=None,
                     pairwise_functions=None,
-                    logger=None
+                    logger=None,
+                    expansion_method=None
                     ):
         no_type_passed = expansion_degree is None and quadrature_degree is None
         return self.evaluate_multiplicative(
@@ -1668,6 +1799,7 @@ class DGBPotentialEnergyEvaluator(DGBEvaluator):
             expansion_degree=self.expansion_degree if no_type_passed else expansion_degree,
             expansion_type=self.expansion_type if expansion_type is None else expansion_type,
             pairwise_functions=pairwise_functions,
+            expansion_method=self.expansion_method if expansion_method is None else expansion_method,
             logger=self.logger if logger is None else logger
         )
 

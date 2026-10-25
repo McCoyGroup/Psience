@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import copy
 import itertools
+from pathlib import Path
+import uuid
 import numpy as np
 
 from McUtils.Coordinerds import CoordinateSet, CartesianCoordinates3D
@@ -8,6 +11,8 @@ from McUtils.Data import UnitsData, AtomData
 import McUtils.Numputils as nput
 import McUtils.Devutils as dev
 import McUtils.Plots as plt
+from McUtils.Jupyter import JHTML, X3DHTML
+from McUtils.Plots import X3DComponent, X3DScript, X3DSwitch
 
 __all__ = [
     "MoleculePlotter",
@@ -16,6 +21,223 @@ __all__ = [
     "RDKitMoleculePlotter",
     "JupyterMoleculePlotter",
 ]
+
+
+def _animation_vector(value, default):
+    if value is None:
+        value = default
+    if isinstance(value, str):
+        value = value.replace(',', ' ').split()
+    return np.asarray(value, dtype=float)
+
+
+def _animation_segment_points(options):
+    center = _animation_vector(options.get('translation'), [0, 0, 0])
+    rotation = _animation_vector(options.get('rotation'), [0, 0, 1, 0])
+    scale = _animation_vector(options.get('scale'), [1, 1, 1])
+    axis, angle = rotation[:3], rotation[3]
+    norm = np.linalg.norm(axis)
+    direction = np.array([0., 1., 0.])
+    if norm > 1.e-12 and abs(angle) > 1.e-12:
+        axis = axis / norm
+        direction = (direction * np.cos(angle)
+                     + np.cross(axis, direction) * np.sin(angle)
+                     + axis * np.dot(axis, direction) * (1 - np.cos(angle)))
+    half = direction * float(options.get('height', 2)) * scale[1] / 2
+    return np.array([center - half, center + half])
+
+
+def _animation_leaves(objects):
+    """Flatten only primitive instances, retaining their parent tree for rendering."""
+    result = []
+    def visit(obj, path):
+        if isinstance(obj, (list, tuple)):
+            for index, child in enumerate(obj):
+                visit(child, path + (index,))
+        elif hasattr(obj, 'geometry_opts'):
+            options = obj.geometry_opts
+            if isinstance(options, dict):
+                options = [options]
+            for index, item in enumerate(options):
+                result.append((path + (index,), obj, item))
+        elif hasattr(obj, 'children'):
+            for index, child in enumerate(obj.children):
+                visit(child, path + (index,))
+        else:
+            raise TypeError("scan animations require X3D plotting primitives")
+    visit(objects, ())
+    return result
+
+
+def _animation_kind(obj, options):
+    tag = getattr(obj, 'tag_class', None)
+    name = getattr(tag, '__name__', '')
+    if name in {'Cylinder', 'Cone'}:
+        return 'segment'
+    if 'point' in options:
+        return 'coordinates'
+    if 'translation' in options:
+        return 'position'
+    return 'static'
+
+
+def _animation_points(kind, options):
+    if kind == 'segment':
+        return _animation_segment_points(options)
+    if kind == 'coordinates':
+        return _animation_vector(options['point'], []).reshape(-1, 3)
+    if kind == 'position':
+        return _animation_vector(options['translation'], [0, 0, 0]).reshape(1, 3)
+    return np.empty((0, 3))
+
+
+def _animation_same(left, right):
+    if isinstance(left, dict) or isinstance(right, dict):
+        return (isinstance(left, dict) and isinstance(right, dict)
+                and left.keys() == right.keys()
+                and all(_animation_same(value, right[key]) for key, value in left.items()))
+    try:
+        return np.allclose(np.asarray(left, dtype=float), np.asarray(right, dtype=float), equal_nan=True)
+    except (TypeError, ValueError):
+        try:
+            return bool(np.all(np.asarray(left) == np.asarray(right)))
+        except (TypeError, ValueError):
+            return False
+
+
+def _animation_check_static(kind, left, right):
+    moving = {'translation', 'rotation', 'height', 'scale'} if kind == 'segment' else (
+        {'point'} if kind == 'coordinates' else {'translation'} if kind == 'position' else set()
+    )
+    for key in (left.keys() | right.keys()) - moving - {'id', 'DEF', 'def'}:
+        if not _animation_same(left.get(key), right.get(key)):
+            raise ValueError("scan animation cannot adjust changing primitive property {!r}".format(key))
+
+
+def _animation_elements(node):
+    yield node
+    for child in getattr(node, 'elems', ()):
+        if isinstance(child, (list, tuple)):
+            for entry in child:
+                yield from _animation_elements(entry)
+        else:
+            yield from _animation_elements(child)
+
+
+def _animation_render_tree(objects, replacements):
+    """Render copies so normalization never mutates the returned plot objects."""
+    def visit(obj, path):
+        if isinstance(obj, (list, tuple)):
+            return [visit(child, path + (index,)) for index, child in enumerate(obj)]
+        if hasattr(obj, 'geometry_opts'):
+            instances = [value for key, value in replacements.items() if key[:-1] == path]
+            return instances[0] if len(instances) == 1 else X3DHTML.Group(*instances)
+        clone = copy.copy(obj)
+        clone.opts = dict(obj.opts)
+        clone.children = [visit(child, path + (index,)) for index, child in enumerate(obj.children)]
+        return clone.to_x3d()
+    return visit(objects, ())
+
+
+def _animation_pack_frames(objects, prefix):
+    reference_leaves = _animation_leaves(objects[0])
+    all_leaves = [_animation_leaves(frame) for frame in objects]
+    packed = [[] for _ in objects]
+    bindings, replacements = [], {}
+    for leaf_index, (path, leaf, options) in enumerate(reference_leaves):
+        kind = _animation_kind(leaf, options)
+        offset = len(packed[0])
+        for frame_index, leaves in enumerate(all_leaves):
+            if len(leaves) != len(reference_leaves):
+                raise ValueError("scan animation primitives change topology between frames")
+            frame_path, frame_leaf, frame_options = leaves[leaf_index]
+            if frame_path != path or type(frame_leaf) is not type(leaf):
+                raise ValueError("scan animation primitives change type between frames")
+            _animation_check_static(kind, options, frame_options)
+            if not _animation_same(leaf.material_opts, frame_leaf.material_opts):
+                raise ValueError("scan animation primitive appearances change between frames")
+            if kind == 'segment' and not np.allclose(
+                    _animation_vector(options.get('scale'), [1, 1, 1])[[0, 2]],
+                    _animation_vector(frame_options.get('scale'), [1, 1, 1])[[0, 2]]):
+                raise ValueError("scan animation segment radial scale changes between frames")
+            values = _animation_points(kind, frame_options)
+            if frame_index and len(values) != len(_animation_points(kind, options)):
+                raise ValueError("scan animation primitive point count changes between frames")
+            packed[frame_index].extend(values.tolist())
+
+        clone = copy.copy(leaf)
+        clone.opts = dict(leaf.opts)
+        clone.id = '{}-primitive-{}'.format(prefix, leaf_index)
+        instance_options = dict(options)
+        instance_options['id'] = clone.id
+        clone.geometry_opts = [instance_options] if isinstance(leaf.geometry_opts, list) else instance_options
+        rendered = clone.to_x3d()
+        transform_id = clone.id + '-transform'
+        if kind == 'position':
+            bindings.append(dict(kind=kind, id=transform_id, point=offset))
+        elif kind == 'coordinates':
+            bindings.append(dict(kind=kind, id=clone.id + '-coord', point=offset,
+                                 count=len(_animation_points(kind, options))))
+        elif kind == 'segment':
+            radius = float(options.get('radius', options.get('bottomRadius', 1)))
+            scale = _animation_vector(options.get('scale'), [1, 1, 1])
+            length = float(options.get('height', 2)) * scale[1]
+            bindings.append(dict(kind=kind, id=transform_id, start=offset, end=offset + 1,
+                                 radius=radius, radialScale=scale[[0, 2]].tolist()))
+            for node in _animation_elements(rendered):
+                if getattr(node, 'attrs', {}).get('id') == transform_id:
+                    node.attrs = dict(node.attrs, scale=np.array([radius * scale[0], length, radius * scale[2]]))
+                if isinstance(node, X3DHTML.Cylinder):
+                    node.attrs = dict(node.attrs, radius=1, height=1)
+                elif isinstance(node, X3DHTML.Cone):
+                    top = options.get('topRadius')
+                    node.attrs = dict(node.attrs, bottomRadius=1, height=1)
+                    if top is not None:
+                        node.attrs = dict(node.attrs, topRadius=float(top) / radius if radius else 0)
+        replacements[path] = rendered
+    if not packed[0]:
+        raise ValueError("scan animation contains no coordinate-bearing primitives")
+    return _animation_render_tree(objects[0], replacements), packed[0], packed[1:], bindings
+
+
+def _animation_objects(atoms, bonds, arrows):
+    return ((atoms or [])
+            + [part for bond in (bonds or []) for part in bond]
+            + (arrows or []))
+
+
+def _animation_static_scan_arrows(molecule, scan, equilibrium, plot_options, figure, prefix):
+    """Render full-span arrows independently of coordinate-interpolator frames."""
+    starts, ends = MoleculePlotter._scan_arrow_extents(scan)
+    vectors = ends - starts
+    options = {key: value for key, value in plot_options.items() if key in {
+        'mode', 'vector_style', 'mode_vector_display_cutoff', 'arrow_class',
+        'arrow_options', 'graphics_class', 'theme', 'theme_function', 'reflectiveness'
+    }}
+    # This path only renders X3D primitives.  Keep the option local to these
+    # stationary arrows, and copy the style so callers can reuse it unchanged.
+    options['vector_style'] = dict(options.get('vector_style') or {})
+    options['vector_style'].setdefault('double_sided', True)
+    _, _, _, arrows = molecule.plot(
+        equilibrium, figure=figure, atom_style=False, bonds=False, rings=False,
+        mode_vectors=vectors, mode_vector_origins=starts, mode_vector_origin_mode='set',
+        animate=False, return_objects=True, units=None, backend='x3d', **options
+    )
+    arrows = arrows[0] or []
+    if not arrows:
+        return [], [], [], [], arrows
+    branch, reference, _, bindings = _animation_pack_frames([arrows, arrows], prefix)
+    cutoff = options.get('mode_vector_display_cutoff', 1.e-2)
+    visible = np.flatnonzero(np.linalg.norm(vectors, axis=-1) > cutoff)
+    anchors = []
+    for atom, arrow in zip(visible, arrows):
+        for _, leaf, settings in _animation_leaves([arrow]):
+            count = len(_animation_points(_animation_kind(leaf, settings), settings))
+            anchors.extend([equilibrium[atom].tolist()] * count)
+    if len(anchors) != len(reference):
+        raise ValueError("scan animation arrows cannot be associated with their atoms")
+    return branch, reference, bindings, anchors, arrows
+
 
 class MoleculePlotter:
     """
@@ -2222,6 +2444,151 @@ class MoleculePlotter:
                 )
                 mode_arrows.append(mode_arrow)
         return mode_arrows
+
+    # ==================================================================== #
+    #  Coordinate-scan animation
+    # ==================================================================== #
+    @staticmethod
+    def _scan_arrow_extents(scan):
+        """Choose actual sampled extrema along each atom's signed scan direction.
+
+        A normal back-and-forth scan starts at its negative extent and reaches its
+        positive extent halfway through. Projecting onto that direction preserves
+        the sign of each atom's motion, including negative Cartesian components.
+        Every sample participates, so a nonlinear scan can attain either extremum
+        between its endpoints. Degenerate endpoint directions use the farthest
+        sampled pair, ordered in scan order, to define their direction instead.
+        """
+        scan = np.asarray(scan, dtype=float)
+        direction = scan[(len(scan) - 1) // 2] - scan[0]
+        norms = np.linalg.norm(direction, axis=-1)
+        for atom in np.flatnonzero(norms <= 1.e-12):
+            differences = scan[:, atom, None, :] - scan[None, :, atom, :]
+            distances = np.sum(differences**2, axis=-1)
+            first, last = np.unravel_index(np.argmax(distances), distances.shape)
+            first, last = sorted((first, last))
+            direction[atom] = scan[last, atom] - scan[first, atom]
+        projections = np.einsum('fai,ai->fa', scan - scan[0], direction)
+        atom_indices = np.arange(scan.shape[1])
+        return (scan[np.argmin(projections, axis=0), atom_indices],
+                scan[np.argmax(projections, axis=0), atom_indices])
+
+    @classmethod
+    def animate_coordinate_frames(cls, molecule, scans, *, mode_indices=None, include_arrows=False,
+                                  allow_adjustments=False, units='Angstroms', return_objects=False,
+                                  plot_options=None):
+        """Attach browser controls to actual, already unit-converted scan trajectories.
+
+        Displacement adjustment scales the differences of the sampled Cartesian
+        trajectory. It does not reevaluate a nonlinear coordinate expansion beyond
+        its original scan domain.
+        """
+        plot_options = dict(plot_options or {})
+        backend = plot_options.pop('backend', 'x3d')
+        mode = plot_options.pop('mode', None)
+        if backend != 'x3d' or mode == 'jsmol':
+            raise ValueError("switchable or adjustable scan animations require backend='x3d'")
+        if mode is not None:
+            plot_options['mode'] = mode
+        animation_options = dict(plot_options.pop('animation_options', None) or {})
+        duration = animation_options.pop('animation_duration', 2)
+        running = animation_options.pop('running', True)
+        # These options select the old frame animator rather than scene geometry.
+        animation_options.pop('mode', None)
+        animation_options.pop('allow_fallback', None)
+        if animation_options:
+            raise ValueError("unsupported interactive animation options: {}".format(', '.join(animation_options)))
+        if not np.isfinite(duration) or duration <= 0:
+            raise ValueError("animation_duration must be positive")
+        for key in ('animate', 'return_objects', 'units'):
+            plot_options.pop(key, None)
+        if plot_options.get('objects', False):
+            raise ValueError("interactive scan animations require rendered X3D objects")
+        equilibrium = np.asarray(molecule.coords, dtype=float)
+        if units is not None:
+            equilibrium = equilibrium * UnitsData.convert('BohrRadius', units)
+        identifier = 'scan-animation-' + uuid.uuid4().hex
+        clock_id, switch_id = identifier + '-clock', identifier + '-switch'
+        branches, drivers, modes = [], [], []
+        all_atoms, all_bonds, all_arrows = [], [], []
+        first_plot = None
+        for which, scan in enumerate(scans):
+            scan = np.asarray(scan, dtype=float)
+            if scan.ndim != 3 or scan.shape[1:] != equilibrium.shape or len(scan) < 2 or not np.all(np.isfinite(scan)):
+                raise ValueError("scan trajectories require at least two finite (atom, 3) frames")
+            options = dict(plot_options)
+            if include_arrows:
+                # Generated full-span mode arrows belong to their own static tree.
+                options.pop('mode_vectors', None)
+                options.pop('mode_vector_origins', None)
+            for key in ('mode_vectors', 'mode_vector_origins'):
+                value = options.get(key)
+                if value is not None and not isinstance(value, str):
+                    value = np.asanyarray(value)
+                    if value.ndim == 3 and len(value) == len(scan):
+                        options[key] = np.concatenate([value[:1], value])
+            figure, atoms, bonds, arrows = molecule.plot(
+                np.concatenate([equilibrium[np.newaxis], scan]),
+                animate=False, return_objects=True, units=None, backend='x3d', **options
+            )
+            if first_plot is None:
+                first_plot = figure
+            frame_objects = [_animation_objects(a, b, r) for a, b, r in zip(atoms, bonds, arrows)]
+            branch, reference, frames, bindings = _animation_pack_frames(frame_objects, identifier + '-mode-' + str(which))
+            arrow_branch, arrow_reference, arrow_bindings, arrow_anchor, static_arrows = (
+                _animation_static_scan_arrows(molecule, scan, equilibrium, plot_options, figure,
+                                    identifier + '-mode-' + str(which) + '-arrows')
+                if include_arrows else ([], [], [], [], [])
+            )
+            branches.append(X3DHTML.Group(*branch, *arrow_branch))
+            keys = np.linspace(0, 1, len(scan)).tolist()
+            interp_id = identifier + '-interpolator-' + str(which)
+            drivers.extend([
+                X3DHTML.CoordinateInterpolator(id=interp_id, DEF=interp_id, key=keys,
+                                               keyValue=np.asarray(frames).reshape(-1, 3)),
+                X3DHTML.Route(fromNode=clock_id, fromField='fraction_changed',
+                               toNode=interp_id, toField='set_fraction')
+            ])
+            index = None if mode_indices is None else int(mode_indices[which])
+            label = 'Coordinate scan' if index is None else 'Mode {}'.format(index + 1)
+            modes.append(dict(index=index, label=label, keys=keys, reference=reference,
+                              frames=frames, bindings=bindings, arrowReference=arrow_reference,
+                              arrowBindings=arrow_bindings, arrowAnchor=arrow_anchor))
+            all_atoms.append(atoms[1:])
+            all_bonds.append(bonds[1:])
+            all_arrows.append([(frame or []) + static_arrows for frame in arrows[1:]])
+        if first_plot is None:
+            raise ValueError("at least one scan trajectory must be supplied")
+        switch = X3DSwitch(*branches, id=switch_id, whichChoice=0)
+        clock = X3DHTML.TimeSensor(id=clock_id, DEF=clock_id, cycleInterval=duration, loop=True, enabled=bool(running))
+        first_plot.figure.axes[0].children = [switch, clock] + drivers
+        controls = []
+        if len(modes) > 1:
+            controls.append(JHTML.Label('Mode ', JHTML.Select(
+                *[JHTML.Option(item['label'], value=str(index)) for index, item in enumerate(modes)],
+                **{'data-role': 'mode'})))
+        if allow_adjustments:
+            controls.append(JHTML.Label('Displacement scale ', JHTML.Input(
+                type='range', name='displacement_scale', min='0', max='3', step='.01', value='1',
+                **{'data-role': 'scale'})))
+        controls.extend([plt.X3D.get_playback_controls(),
+                         JHTML.Span(modes[0]['label'], **{'data-role': 'label'})])
+        scripts = Path(__file__).with_name('scripts')
+        source = (plt.X3D.get_playback_script() + '\n'
+                  + (scripts / 'displacement_scale.js').read_text() + '\n'
+                  + (scripts / 'animate_modes.js').read_text())
+        component = X3DComponent(*controls, id=identifier + '-controls', script=X3DScript(source),
+                                 nodes=dict(clock=clock_id, switch=switch_id,
+                                            **{'interpolator' + str(index): identifier + '-interpolator-' + str(index)
+                                               for index in range(len(modes))}),
+                                 data=dict(duration=float(duration), running=bool(running),
+                                           allowAdjustments=bool(allow_adjustments), modes=modes))
+        scene = first_plot.figure.to_x3d(components=[component])
+        if return_objects:
+            if len(modes) == 1:
+                return scene, all_atoms[0], all_bonds[0], all_arrows[0]
+            return scene, all_atoms, all_bonds, all_arrows
+        return scene
 
     # ==================================================================== #
     #  Dispatch -- the plot entry point `Molecule.plot` forwards to

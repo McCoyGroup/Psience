@@ -1,12 +1,12 @@
 
-import numpy as np, scipy as sp, itertools as it, collections, math, time, enum
+import numpy as np, scipy as sp, itertools as it, collections, math, time, enum, functools
 import scipy.linalg
 
 import McUtils.Numputils as nput
 from McUtils.Scaffolding import Logger
 from McUtils.Formatters import TableFormatter
 from McUtils.Zachary import DensePolynomial
-from McUtils.Combinatorics import IntegerPartitioner, IntegerPartitioner2D, UniquePermutations
+from McUtils.Combinatorics import IntegerPartitioner, IntegerPartitioner2D, UniquePermutations, UniquePartitions
 
 from ..BasisReps import StateMaker
 from ..Modes import NormalModes
@@ -323,6 +323,11 @@ class FranckCondonModel:
                 good_parts = np.all(parts % 2 == 0, axis=1) # only even order partitions make sense
                 parts = parts[good_parts]
                 if len(parts) == 0: continue
+                # Coordinate subsets are ordered; assign every distinct ordering
+                # of their powers. Equal powers must not introduce duplicates.
+                parts = np.concatenate([
+                    UniquePermutations(part).permutations() for part in parts
+                ], axis=0)
 
                 # find the different numbers of ways to split the terms up
                 term_classes = [
@@ -384,10 +389,11 @@ class FranckCondonModel:
 
             ncoords = len(alphas)
             nperms = math.comb(ncoords, ndim)
-            # try to split evenly into k batches
-            num_batches = 1 + (nperms // batch_size)
-            real_batch_size = nperms // num_batches
-            batch_remainder = nperms % real_batch_size
+            if nperms == 0:
+                return 0
+            # Split every coordinate subset across nonempty batches.
+            num_batches = 1 + ((nperms - 1) // batch_size)
+            real_batch_size, batch_remainder = divmod(nperms, num_batches)
             # # see how well we can split the remainder over the batches
             # subremainder = batch_remainder % num_batches
             # real_batch_size += batch_remainder // num_batches
@@ -569,6 +575,49 @@ class FranckCondonModel:
 
         return contrib
 
+    pairing_max_degree = 8
+    pairing_cache_size = 65536
+    @classmethod
+    @functools.lru_cache(maxsize=128)
+    def get_pairing_evaluation_plan(cls, exponents):
+        """Pair polynomial slots using existing block-partition enumeration."""
+        order = sum(exponents)
+        blocks = UniquePartitions(np.arange(order)).partitions([2] * (order // 2), split=False)[0]
+        blocks = blocks.reshape(-1, order // 2, 2)
+        # Blocks are internally ordered. Keep one ordering of equal-size blocks.
+        blocks = blocks[np.all(np.diff(blocks[:, :, 0], axis=1) > 0, axis=1)]
+        slots = np.repeat(np.arange(len(exponents)), exponents)
+        return slots[blocks]
+
+    @classmethod
+    def evaluate_paired_poly_overlap(cls, poly, covariance, zpe_prod, moments,
+                                     duschinsky_cutoff=None):
+        """Integrate shifted Hermite terms with a precontracted covariance.
+
+        ``moments`` belongs to this covariance and can be reused across states.
+        Sixth-degree terms use 15 pair partitions, independent of mode count.
+        """
+        if duschinsky_cutoff is None:
+            duschinsky_cutoff = cls.duschinsky_cutoff
+        value = 0.
+        for exponents, coefficient, inds in poly.term_iter(filter=lambda x, nz, _: sum(x[i] for i in nz) % 2 == 0):
+            if abs(coefficient) <= duschinsky_cutoff:
+                continue
+            if inds:
+                key = tuple(sorted(zip(inds, exponents)))
+                if key not in moments:
+                    if len(moments) >= cls.pairing_cache_size:
+                        moments.clear()
+                    pairs = cls.get_pairing_evaluation_plan(tuple(exponents))
+                    indices = np.asarray(inds)
+                    moments[key] = np.prod(covariance[indices[pairs[:, :, 0]], indices[pairs[:, :, 1]]], axis=1).sum()
+                moment = moments[key]
+            else:
+                moment = 1.
+            value += coefficient * moment
+        return zpe_prod * value
+
+
     @classmethod
     def df_weights(cls, n):
         # gives double factorial weights up to order n
@@ -707,6 +756,7 @@ class FranckCondonModel:
                           excitations_es, freqs_es, modes_es, inv_es, center_es,
                           duschinsky_cutoff=None,
                           logger=None,
+                          integration_method="partitions",
                           **rotation_opts
                           ):
         """
@@ -715,6 +765,8 @@ class FranckCondonModel:
         the modes and centers are in an Eckart fream
         """
 
+        if integration_method not in ("partitions", "pairings"):
+            raise ValueError("unknown FCF integration method {!r}".format(integration_method))
         logger = Logger.lookup(logger)
 
         # The steps to this process
@@ -773,6 +825,9 @@ class FranckCondonModel:
             logger.log_print("   took: {e:.3f}s", e=(end-start))
 
         Q = np.concatenate([Q_gs, Q_es], axis=1)
+        # Contract the Gaussian axes once; moment caching is local to this geometry.
+        covariance = (Q.T / alphas) @ Q if integration_method == "pairings" else None
+        moments = {}
 
 
         with logger.block(tag="Evaluating Overlaps"):
@@ -817,12 +872,18 @@ class FranckCondonModel:
                             subcounter += 1
                         n += 1
                         poly = spoly_gs.concat(spoly_es)
-                        ov = self.evaluate_shifted_poly_overlap(
-                            poly, Q,
-                            alphas,
-                            zpe_prod,
-                            duschinsky_cutoff=duschinsky_cutoff
-                        )
+                        degree = sum(p.coeffs.shape[0] - 1 for p in poly.polys.values())
+                        if integration_method == "pairings" and degree <= self.pairing_max_degree:
+                            ov = self.evaluate_paired_poly_overlap(
+                                poly, covariance, zpe_prod, moments, duschinsky_cutoff=duschinsky_cutoff)
+                        else:
+                            # Bound pair-plan storage for higher-quanta hot bands.
+                            ov = self.evaluate_shifted_poly_overlap(
+                                poly, Q,
+                                alphas,
+                                zpe_prod,
+                                duschinsky_cutoff=duschinsky_cutoff
+                            )
                         # print("<::", scaling, ov/scaling, ov)
                         subovs.append(ov)
                 logger.log_print(

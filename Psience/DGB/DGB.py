@@ -46,6 +46,7 @@ class DGB:
             quadrature_degree=None,
             expansion_degree=None,
             expansion_type=None,
+            expansion_method="direct",
             # reference_structure=None,
             pairwise_potential_functions=None, # we can integrate this cleanly, not sure about anything else
             dipole_function=None
@@ -67,6 +68,7 @@ class DGB:
             quadrature_degree=quadrature_degree,
             expansion_degree=expansion_degree,
             expansion_type=expansion_type,
+            expansion_method=expansion_method,
             # reference_structure=reference_structure,
             pairwise_potential_functions=pairwise_potential_functions,
             dipole_function=dipole_function
@@ -139,6 +141,7 @@ class DGB:
         "quadrature_degree",
         "expansion_degree",
         "expansion_type",
+        "expansion_method",
         "momenta",
         "poly_coeffs",
         "pairwise_potential_functions",
@@ -172,7 +175,8 @@ class DGB:
                   poly_coeffs=None,
                   pairwise_potential_functions=None,
                   dipole_function=None,
-                  kinetic_options=None
+                  kinetic_options=None,
+                  expansion_method="direct"
                   ):
         logger = Logger.lookup(logger, construct=True)
         parallelizer = Parallelizer.lookup(parallelizer)
@@ -209,6 +213,7 @@ class DGB:
             quadrature_degree=quadrature_degree,
             expansion_degree=expansion_degree,
             expansion_type=expansion_type,
+            expansion_method=expansion_method,
             # reference_structure=reference_structure,
             pairwise_potential_functions=pairwise_potential_functions,
             logger=logger
@@ -297,13 +302,15 @@ class DGB:
                             # reference_structure=None,
                             pairwise_potential_functions=None,
                             logger=None,
-                            parallelizer=None
+                            parallelizer=None,
+                            expansion_method="direct"
                             ):
         return DGBPotentialEnergyEvaluator(
             potential_function,
             quadrature_degree=quadrature_degree,
             expansion_degree=expansion_degree,
             expansion_type=expansion_type,
+            expansion_method=expansion_method,
             # reference_structure=reference_structure,
             pairwise_functions=(
                 None

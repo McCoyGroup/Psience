@@ -681,10 +681,11 @@ class BasisStateSpace(AbstractStateSpace):
         if fixed_modes is not None:
             fixed_mask[fixed_modes,] = False
 
-        for states,min_quanta,(min_freq, max_freq) in zip(window_states, min_quantas, windows):
+        for states,min_quanta,max_quanta,(min_freq, max_freq) in zip(window_states, min_quantas, max_quantas, windows):
             if (
-                    (base_freq >= min_freq)
-                    and (min_quanta is None or 0 >= base_quant)
+                    (min_freq <= base_freq <= max_freq)
+                    and (min_quanta is None or base_quant >= min_quanta)
+                    and (max_quanta is None or base_quant <= max_quanta)
             ):
                 states.append(base_state)
         queue.append([base_freq, 0, base_quant, base_state])
@@ -718,7 +719,7 @@ class BasisStateSpace(AbstractStateSpace):
                     if (# could preoptimize this with an initial dispatch over tests that we store
                         (enew <= max_freq and enew >= min_freq)
                         and (min_quanta is None or q >= min_quanta)
-                        and (max_quanta is None or q < max_quanta)
+                        and (max_quanta is None or q <= max_quanta)
                     ):
                         if ss is None:
                             ss = s.copy()
@@ -727,7 +728,7 @@ class BasisStateSpace(AbstractStateSpace):
                 if enqueue:
                     queue.append([enew, n, q, ss])
 
-        return [np.array(states) for states in window_states]
+        return [np.array(states, dtype=int).reshape((len(states), ndim)) for states in window_states]
 
     @classmethod
     def states_under_freq_threshold(cls, freqs, max_freq,
