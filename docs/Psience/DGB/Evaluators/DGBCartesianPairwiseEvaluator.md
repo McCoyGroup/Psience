@@ -84,10 +84,10 @@ get_coordinate_bond_length_projection(self, i, j):
 [Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/DGB/Evaluators/DGBCartesianPairwiseEvaluator.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/DGB/Evaluators/DGBCartesianPairwiseEvaluator.md)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/examples/Psience/DGB/Evaluators/DGBCartesianPairwiseEvaluator.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/examples/Psience/DGB/Evaluators/DGBCartesianPairwiseEvaluator.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Evaluators/DGBCartesianPairwiseEvaluator.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Evaluators/DGBCartesianPairwiseEvaluator.md)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience/DGB/Evaluators/DGBCartesianPairwiseEvaluator.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/DGB/Evaluators/DGBCartesianPairwiseEvaluator.md)   
 </div>
    <div class="col" markdown="1">
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L2008?message=Update%20Docs)   

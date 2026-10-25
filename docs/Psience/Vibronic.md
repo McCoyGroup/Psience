@@ -52,18 +52,18 @@ Provides basic support for vibronic coupling models
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-a9dba1" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-a9dba1"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-e41459" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-e41459"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-a9dba1" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-e41459" markdown="1">
  - [FCFsAnalytic](#FCFsAnalytic)
 - [FCFsNH3](#FCFsNH3)
 - [FCFsBig](#FCFsBig)
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-2387c2" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-2387c2"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-c1bf67" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-c1bf67"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-2387c2" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-c1bf67" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -506,10 +506,10 @@ class VibronicTests(TestCase):
 [Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/Vibronic.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/Vibronic.md)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/examples/Psience/Vibronic.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/examples/Psience/Vibronic.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Vibronic.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Vibronic.md)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience/Vibronic.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/Vibronic.md)   
 </div>
    <div class="col" markdown="1">
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/__init__.py#L1?message=Update%20Docs)   

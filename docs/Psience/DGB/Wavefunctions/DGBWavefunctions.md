@@ -155,10 +155,10 @@ __repr__(self):
 [Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/DGB/Wavefunctions/DGBWavefunctions.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/DGB/Wavefunctions/DGBWavefunctions.md)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/examples/Psience/DGB/Wavefunctions/DGBWavefunctions.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/examples/Psience/DGB/Wavefunctions/DGBWavefunctions.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Wavefunctions/DGBWavefunctions.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Wavefunctions/DGBWavefunctions.md)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience/DGB/Wavefunctions/DGBWavefunctions.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/DGB/Wavefunctions/DGBWavefunctions.md)   
 </div>
    <div class="col" markdown="1">
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Wavefunctions.py#L295?message=Update%20Docs)   

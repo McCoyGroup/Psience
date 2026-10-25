@@ -106,10 +106,10 @@ and spectrum handling.
 [Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience.md)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/examples/Psience.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/examples/Psience.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience.md)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience.md)   
 </div>
    <div class="col" markdown="1">
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/__init__.py#L1?message=Update%20Docs)   

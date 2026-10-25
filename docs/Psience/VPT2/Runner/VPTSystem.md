@@ -126,9 +126,9 @@ Intended to build a `VPTSystem` from a harmonic potential-energy scan array. Not
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-64ba67" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-64ba67"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Details-555d49" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-555d49"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Details-64ba67" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Details-555d49" markdown="1">
  When using functions of internal (Z-matrix/polyspherical) coordinates, a sample form of the conversion function is
 ```python
 def conv(r, t, f, **kwargs):
@@ -185,10 +185,10 @@ and then the inverse function will take the output of `conv` and return the orig
 [Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/VPT2/Runner/VPTSystem.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/VPT2/Runner/VPTSystem.md)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/examples/Psience/VPT2/Runner/VPTSystem.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/examples/Psience/VPT2/Runner/VPTSystem.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/VPT2/Runner/VPTSystem.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTSystem.md)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience/VPT2/Runner/VPTSystem.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTSystem.md)   
 </div>
    <div class="col" markdown="1">
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L45?message=Update%20Docs)   

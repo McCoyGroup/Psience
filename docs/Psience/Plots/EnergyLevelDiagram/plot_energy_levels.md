@@ -53,10 +53,10 @@ plot_energy_levels(energy_list, figure: McUtils.Plots.Graphics.Graphics = None, 
 [Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/Plots/EnergyLevelDiagram/plot_energy_levels.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/Plots/EnergyLevelDiagram/plot_energy_levels.md)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/examples/Psience/Plots/EnergyLevelDiagram/plot_energy_levels.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/examples/Psience/Plots/EnergyLevelDiagram/plot_energy_levels.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Plots/EnergyLevelDiagram/plot_energy_levels.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Plots/EnergyLevelDiagram/plot_energy_levels.md)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience/Plots/EnergyLevelDiagram/plot_energy_levels.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/Plots/EnergyLevelDiagram/plot_energy_levels.md)   
 </div>
    <div class="col" markdown="1">
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Plots/EnergyLevelDiagram.py#L11?message=Update%20Docs)   

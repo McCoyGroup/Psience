@@ -77,9 +77,9 @@ We also have expressions for G-matrix elements from Frederick and Woywood to use
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-12d795" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-12d795"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-69be2e" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-69be2e"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-12d795" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-69be2e" markdown="1">
  - [FChkFileDipoleSurface](#FChkFileDipoleSurface)
 - [LogFileDipoleSurface](#LogFileDipoleSurface)
 - [LogFilePotentialSurface](#LogFilePotentialSurface)
@@ -87,9 +87,9 @@ We also have expressions for G-matrix elements from Frederick and Woywood to use
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-ef3c3e" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-ef3c3e"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-d5cbd3" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-d5cbd3"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-ef3c3e" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-d5cbd3" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -267,10 +267,10 @@ class DataTests(TestCase):
 [Bug](https://github.com/McCoyGroup/Psience/issues/new?title=Documentation%20Improvement%20Needed)/[Request](https://github.com/McCoyGroup/Psience/issues/new?title=Example%20Request)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/examples/Psience/Data.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/examples/Psience/Data.md)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/examples/Psience/Data.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/examples/Psience/Data.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/Data.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/Data.md)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience/Data.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/Data.md)   
 </div>
    <div class="col" markdown="1">
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Data/__init__.py#L1?message=Update%20Docs)   
