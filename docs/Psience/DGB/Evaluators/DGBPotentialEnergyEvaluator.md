@@ -1,8 +1,8 @@
 ## <a id="Psience.DGB.Evaluators.DGBPotentialEnergyEvaluator">DGBPotentialEnergyEvaluator</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators.py#L1437)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L1437?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators.py#L1553)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L1553?message=Update%20Docs)]
 </div>
 
 An evaluator designed
@@ -21,11 +21,11 @@ An evaluator designed
  
 <a id="Psience.DGB.Evaluators.DGBPotentialEnergyEvaluator.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
-__init__(self, potential_function, integral_handler=None, expansion_degree=None, expansion_type=None, quadrature_degree=None, pairwise_functions=None, logger=None): 
+__init__(self, potential_function, integral_handler=None, expansion_degree=None, expansion_type=None, quadrature_degree=None, pairwise_functions=None, logger=None, expansion_method='direct'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators.py#L1442)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L1442?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators.py#L1558)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L1558?message=Update%20Docs)]
 </div>
 
 
@@ -34,30 +34,30 @@ __init__(self, potential_function, integral_handler=None, expansion_degree=None,
 analytic_integrate(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators/DGBPotentialEnergyEvaluator.py#L1460)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators/DGBPotentialEnergyEvaluator.py#L1460?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators/DGBPotentialEnergyEvaluator.py#L1578)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators/DGBPotentialEnergyEvaluator.py#L1578?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.DGB.Evaluators.DGBPotentialEnergyEvaluator.expansion_integrate" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-expansion_integrate(cls, function, overlap_data: 'OverlapGaussianData', expansion_type, expansion_degree=2, pairwise_functions=None, logger=None): 
+expansion_integrate(cls, function, overlap_data: 'OverlapGaussianData', expansion_type, expansion_degree=2, pairwise_functions=None, logger=None, method='direct'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1470)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1470?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1588)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1588?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.DGB.Evaluators.DGBPotentialEnergyEvaluator.evaluate_multiplicative" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-evaluate_multiplicative(cls, function, overlap_data: 'OverlapGaussianData', integral_handler=None, expansion_degree=None, expansion_type=None, quadrature_degree=None, pairwise_functions=None, logger=None): 
+evaluate_multiplicative(cls, function, overlap_data: 'OverlapGaussianData', integral_handler=None, expansion_degree=None, expansion_type=None, quadrature_degree=None, pairwise_functions=None, logger=None, expansion_method='direct'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1566)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1566?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1693)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1693?message=Update%20Docs)]
 </div>
 
 
@@ -66,18 +66,18 @@ evaluate_multiplicative(cls, function, overlap_data: 'OverlapGaussianData', inte
 evaluate_pe(self, overlap_data: 'OverlapGaussianData', logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators/DGBPotentialEnergyEvaluator.py#L1633)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators/DGBPotentialEnergyEvaluator.py#L1633?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators/DGBPotentialEnergyEvaluator.py#L1762)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators/DGBPotentialEnergyEvaluator.py#L1762?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.DGB.Evaluators.DGBPotentialEnergyEvaluator.evaluate_op" class="docs-object-method">&nbsp;</a> 
 ```python
-evaluate_op(self, operator, overlap_data: 'OverlapGaussianData', integral_handler=None, expansion_degree=None, expansion_type=None, quadrature_degree=None, pairwise_functions=None, logger=None): 
+evaluate_op(self, operator, overlap_data: 'OverlapGaussianData', integral_handler=None, expansion_degree=None, expansion_type=None, quadrature_degree=None, pairwise_functions=None, logger=None, expansion_method=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators/DGBPotentialEnergyEvaluator.py#L1652)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators/DGBPotentialEnergyEvaluator.py#L1652?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/DGB/Evaluators/DGBPotentialEnergyEvaluator.py#L1782)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators/DGBPotentialEnergyEvaluator.py#L1782?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -132,7 +132,7 @@ evaluate_op(self, operator, overlap_data: 'OverlapGaussianData', integral_handle
 [Edit](https://github.com/McCoyGroup/Psience/edit/gh-pages/ci/docs/Psience/DGB/Evaluators/DGBPotentialEnergyEvaluator.md)/[New](https://github.com/McCoyGroup/Psience/new/gh-pages/?filename=ci/docs/templates/Psience/DGB/Evaluators/DGBPotentialEnergyEvaluator.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L1437?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/DGB/Evaluators.py#L1553?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -3458,7 +3458,7 @@ defaults, and return conventions are unchanged.
 
 <a id="Psience.Molecools.Molecule.Molecule.get_animation_geoms" class="docs-object-method">&nbsp;</a> 
 ```python
-get_animation_geoms(self, which, extent=0.35, steps=8, strip_embedding=True, units=None, coordinate_expansion=None): 
+get_animation_geoms(self, which, extent=0.35, steps=2, strip_embedding=True, units=None, coordinate_expansion=None): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6851)/
@@ -3472,7 +3472,7 @@ Build a back-and-forth looping sequence of displaced geometries for animating a 
   - `extent`: `float`
     > the maximum displacement magnitude in each direction
   - `steps`: `int`
-    > number of steps from the equilibrium geometry out to `extent`
+    > samples from `-extent` to `+extent`, before appending the reverse sweep
   - `strip_embedding`: `bool`
     > whether to strip the fixed embedding coordinates from the default Cartesians-by-internals expansion
   - `units`: `str | None`
@@ -3485,7 +3485,7 @@ Build a back-and-forth looping sequence of displaced geometries for animating a 
 
 <a id="Psience.Molecools.Molecule.Molecule.animate_coordinate" class="docs-object-method">&nbsp;</a> 
 ```python
-animate_coordinate(self, which, extent=0.5, steps=3, return_objects=False, strip_embedding=True, units='Angstroms', backend=None, mode=None, jsmol_load_script=None, coordinate_expansion=None, **plot_opts): 
+animate_coordinate(self, which, extent=0.5, steps=2, return_objects=False, strip_embedding=True, units='Angstroms', backend=None, mode=None, jsmol_load_script=None, coordinate_expansion=None, include_arrows=False, allow_adjustments=False, **plot_opts): 
 ```
 <div class="docs-source-link" markdown="1">
 [[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6892)/
@@ -3499,7 +3499,7 @@ Build an animation of a displaced coordinate and return it as a plottable/displa
   - `extent`: `float`
     > the maximum displacement magnitude
   - `steps`: `int`
-    > number of steps out to `extent`
+    > samples from `-extent` to `+extent`; defaults to the two extrema for interpolation
   - `return_objects`: `bool`
     > whether to return the constructed graphics objects alongside the figure (non-JSMol path only)
   - `strip_embedding`: `bool`
@@ -3514,6 +3514,10 @@ Build an animation of a displaced coordinate and return it as a plottable/displa
     > extra JSMol load-script text, used only in the JSMol path
   - `coordinate_expansion`: `list[np.ndarray] | np.ndarray | None`
     > an explicit coordinate-transformation expansion to animate along
+  - `include_arrows`: `bool`
+    > draw fixed arrows spanning each atom's minimum and maximum sampled motion; X3D arrows are double-sided by default (set ``vector_style={'double_sided': False}`` to override)
+  - `allow_adjustments`: `bool`
+    > include browser-side amplitude controls for an X3D animation
   - `plot_opts`: `dict`
     > extra options forwarded to `plot`
   - `:returns`: `Any`
@@ -3522,21 +3526,24 @@ Build an animation of a displaced coordinate and return it as a plottable/displa
 
 <a id="Psience.Molecools.Molecule.Molecule.animate_mode" class="docs-object-method">&nbsp;</a> 
 ```python
-animate_mode(self, which, extent=0.5, steps=3, modes=None, coordinate_expansion=None, order=None, normalize=True, mass_weight=False, mass_scale=True, frequency_scale=False, **opts): 
+animate_mode(self, which, extent=0.5, steps=2, modes=None, coordinate_expansion=None, order=None, normalize=True, mass_weight=False, mass_scale=True, frequency_scale=False, include_arrows=False, allow_adjustments=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6952)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L6952?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L6978)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L6978?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
-Build an animation of a normal mode's displacement, converting the mode into a coordinate-expansion direction (with optional normalization, mass-weighting/scaling, and frequency scaling of the displacement extent) and delegating to `animate_coordinate`.
-  - `which`: `int`
-    > the mode index to animate
+Build an animation of one normal mode, or a switchable X3D animation of several modes.
+Each selected mode follows the ordinary coordinate scan, including any higher-order
+coordinate expansion. Optional amplitude controls scale the scanned frame differences
+in JavaScript, without requiring a Python kernel after export.
+  - `which`: `int | list[int] | np.ndarray`
+    > a mode index, or a nonempty one-dimensional sequence of mode indices
   - `extent`: `float`
     > the base displacement extent, before any mass/frequency scaling
   - `steps`: `int`
-    > number of steps out to `extent`
+    > samples from `-extent` to `+extent`; defaults to the two extrema for interpolation
   - `modes`: `Any | None`
     > the normal modes to animate; defaults to this molecule's own (converted to a fresh mode basis)
   - `coordinate_expansion`: `list[np.ndarray] | None`
@@ -3551,6 +3558,10 @@ Build an animation of a normal mode's displacement, converting the mode into a c
     > whether to scale the displacement extent by the mode's effective mass (only applied when not mass-weighted)
   - `frequency_scale`: `bool`
     > whether to scale the displacement extent relative to the mode's frequency
+  - `include_arrows`: `bool`
+    > draw fixed arrows spanning each atom's minimum and maximum sampled motion; X3D arrows are double-sided by default (set ``vector_style={'double_sided': False}`` to override)
+  - `allow_adjustments`: `bool`
+    > include browser-side amplitude controls (X3D only)
   - `opts`: `dict`
     > extra options forwarded to `animate_coordinate`
   - `:returns`: `Any`
@@ -3562,8 +3573,8 @@ Build an animation of a normal mode's displacement, converting the mode into a c
 format_structs(self, geoms, format='xyz'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L7050)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L7050?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L7140)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L7140?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3581,8 +3592,8 @@ Format a batch of geometries as a concatenated multi-frame string in the given f
 format_animation_file(self, which, format='xyz', extent=0.35, steps=8, strip_embedding=True, units='Angstroms', coordinate_expansion=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L7109)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L7109?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L7199)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L7199?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3610,8 +3621,8 @@ Build a formatted animation string/block for a displaced coordinate, either as a
 to_widget(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L7149)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L7149?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L7239)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L7239?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3625,8 +3636,8 @@ Build a displayable widget for this molecule, either a JSMol applet or an X3D sc
 get_readout_interface(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L7169)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L7169?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L7259)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L7259?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -3641,8 +3652,8 @@ Build the readout interface for this molecule (`Readouts.MoleculeReadoutInterfac
 to_readout(self, include=None, exclude=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L7184)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L7184?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Molecools/Molecule/Molecule.py#L7274)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Molecools/Molecule/Molecule.py#L7274?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 

@@ -28,6 +28,8 @@ OverlapData: OverlapData
 Embedding: Embedding
 duschinsky_cutoff: float
 evaluator_plans: dict
+pairing_max_degree: int
+pairing_cache_size: int
 integral_block_size: int
 state_space_prep_registry: dict
 ```
@@ -143,8 +145,8 @@ permutation of indices that could lead to a non-zero contribution
 zero_point_alpha_contrib(cls, alphas): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L363)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L363?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L368)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L368?message=Update%20Docs)]
 </div>
 
 
@@ -154,8 +156,8 @@ zero_point_alpha_contrib(cls, alphas):
 term_evaluator(self, exponents_list, splits_list, splits_inds_list, weights_list, gammas, alphas=None, zpe_prod=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L366)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L366?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L371)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L371?message=Update%20Docs)]
 </div>
 
 
@@ -165,8 +167,8 @@ term_evaluator(self, exponents_list, splits_list, splits_inds_list, weights_list
 evaluate_poly_chunks(cls, poly_coeffs, exps, splits, split_inds, weights, alphas, include_baseline=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L452)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L452?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L458)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L458?message=Update%20Docs)]
 </div>
 
 
@@ -176,8 +178,8 @@ evaluate_poly_chunks(cls, poly_coeffs, exps, splits, split_inds, weights, alphas
 evaluate_poly_contrib_chunk(self, inds, exponents_list, splits_list, splits_inds_list, weights_list, alphas, coeffs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L471)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L471?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L477)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L477?message=Update%20Docs)]
 </div>
 
 
@@ -187,9 +189,36 @@ evaluate_poly_contrib_chunk(self, inds, exponents_list, splits_list, splits_inds
 evaluate_shifted_poly_overlap(self, poly: 'HermiteProductPolynomial', Q, alphas, zpe_prod, duschinsky_cutoff=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L514)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L514?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L520)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L520?message=Update%20Docs)]
 </div>
+
+
+<a id="Psience.Vibronic.FCFs.FranckCondonModel.get_pairing_evaluation_plan" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+get_pairing_evaluation_plan(cls, exponents): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L?message=Update%20Docs)]
+</div>
+Pair polynomial slots using existing block-partition enumeration.
+
+
+<a id="Psience.Vibronic.FCFs.FranckCondonModel.evaluate_paired_poly_overlap" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+evaluate_paired_poly_overlap(cls, poly, covariance, zpe_prod, moments, duschinsky_cutoff=None): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L592)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L592?message=Update%20Docs)]
+</div>
+Integrate shifted Hermite terms with a precontracted covariance.
+
+``moments`` belongs to this covariance and can be reused across states.
+Sixth-degree terms use 15 pair partitions, independent of mode count.
 
 
 <a id="Psience.Vibronic.FCFs.FranckCondonModel.df_weights" class="docs-object-method">&nbsp;</a> 
@@ -198,8 +227,8 @@ evaluate_shifted_poly_overlap(self, poly: 'HermiteProductPolynomial', Q, alphas,
 df_weights(cls, n): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L572)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L572?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L621)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L621?message=Update%20Docs)]
 </div>
 
 
@@ -209,19 +238,19 @@ df_weights(cls, n):
 get_overlap_gaussian_data(cls, freqs_gs, modes_gs, inv_gs, center_gs, freqs_es, modes_es, inv_es, center_es, rotation_method=None, rotation_order=None, rotation_center=None, include_rotation=None, rotation_blocks=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L581)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L581?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L630)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L630?message=Update%20Docs)]
 </div>
 
 
 <a id="Psience.Vibronic.FCFs.FranckCondonModel.eval_fcf_overlaps" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-eval_fcf_overlaps(self, excitations_gs, freqs_gs, modes_gs, inv_gs, center_gs, excitations_es, freqs_es, modes_es, inv_es, center_es, duschinsky_cutoff=None, logger=None, **rotation_opts): 
+eval_fcf_overlaps(self, excitations_gs, freqs_gs, modes_gs, inv_gs, center_gs, excitations_es, freqs_es, modes_es, inv_es, center_es, duschinsky_cutoff=None, logger=None, integration_method='partitions', **rotation_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L704)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L704?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L753)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L753?message=Update%20Docs)]
 </div>
 Evaluates the Gaussian overlaps between two H.O. wave functions defined by
 a set of polynomial coefficients, broadening factors, and centers, assuming
@@ -234,8 +263,8 @@ the modes and centers are in an Eckart fream
 embed_modes(cls, gs_nms: 'NormalModes', es_nms, ref=None, masses=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L841)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L841?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L902)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L902?message=Update%20Docs)]
 </div>
 
 
@@ -245,8 +274,8 @@ embed_modes(cls, gs_nms: 'NormalModes', es_nms, ref=None, masses=None):
 mass_weight_nms(cls, nms, masses=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L931)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L931?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L992)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L992?message=Update%20Docs)]
 </div>
 
 
@@ -256,8 +285,8 @@ mass_weight_nms(cls, nms, masses=None):
 make_dimensionless(cls, nms, freqs=None, masses=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L937)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L937?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L998)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L998?message=Update%20Docs)]
 </div>
 
 
@@ -267,8 +296,8 @@ make_dimensionless(cls, nms, freqs=None, masses=None):
 prep_states_from_threshold_and_quanta(cls, nms, *, threshold=None, min_freq=None, max_state=None, min_quanta=None, max_quanta=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L943)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L943?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1004)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1004?message=Update%20Docs)]
 </div>
 
 
@@ -278,8 +307,8 @@ prep_states_from_threshold_and_quanta(cls, nms, *, threshold=None, min_freq=None
 prep_states_from_excitations(cls, nms, *, states, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L966)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L966?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1027)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1027?message=Update%20Docs)]
 </div>
 
 
@@ -289,8 +318,8 @@ prep_states_from_excitations(cls, nms, *, states, **opts):
 state_space_prep_dispatchers(cls): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L976)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L976?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1037)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1037?message=Update%20Docs)]
 </div>
 
 
@@ -300,8 +329,8 @@ state_space_prep_dispatchers(cls):
 dispatch_state_space_prep(cls, spec, nms): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L985)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L985?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1046)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1046?message=Update%20Docs)]
 </div>
 
 
@@ -311,8 +340,8 @@ dispatch_state_space_prep(cls, spec, nms):
 prep_state_space(cls, excitations, nms, check=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1015)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1015?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1076)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1076?message=Update%20Docs)]
 </div>
 Dispatcher to get appropriate state spaces
   - `excitations`: `Any`
@@ -329,8 +358,8 @@ Dispatcher to get appropriate state spaces
 get_fcfs(cls, gs_nms: 'NormalModes', es_nms: 'NormalModes', excitations, ground_states=None, duschinsky_cutoff=None, logger=None, **rotation_embedding_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1059)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1059?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1120)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1120?message=Update%20Docs)]
 </div>
 
 
@@ -340,8 +369,8 @@ get_fcfs(cls, gs_nms: 'NormalModes', es_nms: 'NormalModes', excitations, ground_
 format_overlap_tables(cls, es, overlaps, include_headers=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1085)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1085?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1146)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1146?message=Update%20Docs)]
 </div>
 
 
@@ -351,8 +380,8 @@ format_overlap_tables(cls, es, overlaps, include_headers=True):
 get_fcf_spectrum(self, gs_nms: 'NormalModes', es_nms: 'NormalModes', excitations, ground_states=None, logger=None, duschinsky_cutoff=None, return_states=False, **rotation_embedding_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1096)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1096?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1157)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1157?message=Update%20Docs)]
 </div>
 
 
@@ -361,8 +390,8 @@ get_fcf_spectrum(self, gs_nms: 'NormalModes', es_nms: 'NormalModes', excitations
 prep_opts(self, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Vibronic/FCFs/FranckCondonModel.py#L1144)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/FCFs/FranckCondonModel.py#L1144?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Vibronic/FCFs/FranckCondonModel.py#L1205)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/FCFs/FranckCondonModel.py#L1205?message=Update%20Docs)]
 </div>
 
 
@@ -371,8 +400,8 @@ prep_opts(self, **opts):
 get_spectrum(self, excitations, *, ground_states=None, return_states=False, duschinsky_cutoff=None, **rotation_embedding_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Vibronic/FCFs/FranckCondonModel.py#L1163)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/FCFs/FranckCondonModel.py#L1163?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Vibronic/FCFs/FranckCondonModel.py#L1224)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/FCFs/FranckCondonModel.py#L1224?message=Update%20Docs)]
 </div>
 
 
@@ -381,8 +410,8 @@ get_spectrum(self, excitations, *, ground_states=None, return_states=False, dusc
 get_ezFCF_input(self, excitations, atoms=None, ground_states=None, **rotation_embedding_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Vibronic/FCFs/FranckCondonModel.py#L1181)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/FCFs/FranckCondonModel.py#L1181?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/Vibronic/FCFs/FranckCondonModel.py#L1242)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/Vibronic/FCFs/FranckCondonModel.py#L1242?message=Update%20Docs)]
 </div>
  </div>
 </div>

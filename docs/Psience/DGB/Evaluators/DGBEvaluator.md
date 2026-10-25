@@ -149,13 +149,20 @@ simple_poly_int(cls, n):
 <a id="Psience.DGB.Evaluators.DGBEvaluator.tensor_expansion_integrate" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-tensor_expansion_integrate(cls, npts, derivs, overlap_data: 'OverlapGaussianData', expansion_type='multicenter', logger=None, reweight=True): 
+tensor_expansion_integrate(cls, npts, derivs, overlap_data: 'OverlapGaussianData', expansion_type='multicenter', logger=None, reweight=True, method='direct', expansion_degree=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L493)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L493?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L592)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L592?message=Update%20Docs)]
 </div>
-provides an integral from a polynomial expansion with derivs as an expansion in tensors
+Integrate a derivative-tensor expansion over Gaussian products.
+
+``method="direct"`` preserves the principal-axis moment implementation.
+``method="grouped"`` groups moments by local Taylor degree and also accepts
+SparsePolynomial monomial coefficients (no factorial rescaling). For a
+global polynomial use ``expansion_type="taylor"``; expansion_degree then
+truncates its local expansion, retaining the input polynomial's terms.
+Both methods return Gaussian averages; overlap factors are separate.
   - `npts`: `Any`
     > 
   - `derivs`: `Any`
@@ -182,8 +189,8 @@ provides an integral from a polynomial expansion with derivs as an expansion in 
 quad_weight_eval(cls, function, d_chunk, w_chunk, ndim, centers, squa): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L652)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L652?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L768)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L768?message=Update%20Docs)]
 </div>
 
 
@@ -193,8 +200,8 @@ quad_weight_eval(cls, function, d_chunk, w_chunk, ndim, centers, squa):
 quad_nd(cls, centers, alphas, function, flatten=False, degree=3, chunk_size=1000000, normalize=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L671)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L671?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L787)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L787?message=Update%20Docs)]
 </div>
 N-dimensional quadrature
   - `centers`: `Any`
@@ -215,8 +222,8 @@ N-dimensional quadrature
 rotated_gaussian_quadrature(cls, function, alphas, centers, rotations, inverse, momenta, normalize=True, degree=2): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L788)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L788?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L904)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L904?message=Update%20Docs)]
 </div>
 
 
@@ -226,8 +233,8 @@ rotated_gaussian_quadrature(cls, function, alphas, centers, rotations, inverse, 
 quad_integrate(cls, function, overlap_data: 'OverlapGaussianData', degree=2, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L825)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L825?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L941)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L941?message=Update%20Docs)]
 </div>
 Integrate potential over all pairs of Gaussians at once
   - `degree`: `Any`
@@ -242,8 +249,8 @@ Integrate potential over all pairs of Gaussians at once
 evaluate_overlap(cls, overlap_data: 'OverlapGaussianData', logger=None, return_prefactor=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L930)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L930?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1046)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1046?message=Update%20Docs)]
 </div>
  </div>
 </div>
