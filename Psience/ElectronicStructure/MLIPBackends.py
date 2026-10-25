@@ -968,13 +968,18 @@ class MACEBackend(ASECalculatorBackend):
     def _overload_mace_modeldir(cls, root_dir):
         if root_dir is None:
             root_dir = os.environ.get("MODEL_CACHE_DIR")
+        if root_dir is not None:
+            root_dir = os.fspath(root_dir)
         return environment_override(XDG_CACHE_HOME=root_dir)
 
     @classmethod
     def setup_calculator(cls, model='extra_large', model_type=None, device=None, model_dir=None, **settings):
-        model = model.lower()
-        model = cls.model_types.get(model, model)
+        model = os.fspath(model)
         if model_type is None:
+            model = model.lower()
+            model = cls.model_types.get(model, model)
+            if '/' not in model or os.path.isabs(model):
+                raise ValueError("set model_type when supplying a MACE checkpoint path or an unqualified model")
             model_type, model = model.split('/', 1)
         if isinstance(model_type, str):
             with quiet_mode():
@@ -992,14 +997,24 @@ class MACEBackend(ASECalculatorBackend):
                     import mace.calculators
                     model_type = getattr(mace.calculators, model_type)
 
-        if len(settings) > 0 or ((model, device) not in cls._mace_cache):
-            with quiet_mode(), cls._overload_mace_modeldir(model_dir):
-                device = resolve_torch_device(device)
+        device = resolve_torch_device(device)
+        with quiet_mode(), cls._overload_mace_modeldir(model_dir):
+            cache_root = os.path.abspath(os.environ.get(
+                'XDG_CACHE_HOME', os.path.join(os.path.expanduser('~'), '.cache')
+            ))
+            cache_key = (model_type, model, str(device), cache_root)
+            try:
+                hash(cache_key)
+            except TypeError:
+                cacheable = False
+            else:
+                cacheable = len(settings) == 0
+            if not cacheable or cache_key not in cls._mace_cache:
                 calc = model_type(model=model, device=device, **settings)
-            if len(settings) == 0:
-                cls._mace_cache[(model, device)] = calc
-        else:
-            calc = cls._mace_cache[(model, device)]
+                if cacheable:
+                    cls._mace_cache[cache_key] = calc
+            else:
+                calc = cls._mace_cache[cache_key]
 
         return calc
 
