@@ -119,9 +119,9 @@ extending an implementation by Jeremy Park
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-a3f885" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-a3f885"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-116520" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-116520"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-a3f885" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-116520" markdown="1">
  - [Harmonic](#Harmonic)
 - [Morse](#Morse)
 - [SampleRotated](#SampleRotated)
@@ -146,9 +146,9 @@ extending an implementation by Jeremy Park
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-1c2f99" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-1c2f99"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-9f4ae7" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-9f4ae7"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-1c2f99" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-9f4ae7" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
@@ -445,8 +445,8 @@ class DGBTests(TestCase):
             )
         else:
             if domain is None:
-                from McUtils.Zachary import Mesh
-                domain = Mesh(coords.centers).bounding_box
+                from McUtils.Zachary import PointMesh
+                domain = PointMesh(coords.centers).bounding_box
             points = DGBWavefunction.prep_plot_grid(
                 domain,
                 domain_padding=domain_padding,
