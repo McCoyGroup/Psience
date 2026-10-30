@@ -4,7 +4,7 @@ Provides a DVRWavefunction class that inherits from the base Psience wavefunctio
 
 import numpy as np
 
-from McUtils.Zachary import Mesh
+from McUtils.Zachary import PointMesh
 import McUtils.Plots as plt
 
 from Psience.Wavefun import Wavefunction, Wavefunctions
@@ -35,7 +35,7 @@ class DGBWavefunction(Wavefunction):
 
         centers = self.gaussians.coords.centers
         if domain is None:
-            domain = Mesh(centers).bounding_box
+            domain = PointMesh(centers).bounding_box
 
         fig = super().plot(figure=figure, domain=domain, return_values=return_values, **opts)
         if isinstance(plot_centers, dict):

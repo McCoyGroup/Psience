@@ -1,5 +1,5 @@
 import abc, dataclasses, typing, numpy as np
-from McUtils.Zachary import Mesh
+from McUtils.Zachary import PointMesh
 
 __all__ = [
     "SelfConsistentOptimizer",
@@ -110,7 +110,7 @@ class GridSCF(SelfConsistentOptimizer):
     values at those points to construct the averaged potential
     """
     def __init__(self, mesh, potential_values, solvers, **opts):
-        self.grid = Mesh(mesh)
+        self.grid = PointMesh(mesh)
         self.vals = potential_values
         super().__init__(None, solvers, **opts)
     def get_initial_point(self, vals=None):

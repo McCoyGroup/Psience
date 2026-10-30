@@ -21,7 +21,7 @@ import McUtils.Iterators as itut
 import McUtils.Devutils as dev
 import McUtils.Coordinerds as coordops
 import McUtils.Zachary as zach
-from McUtils.Zachary import Mesh
+from McUtils.Zachary import PointMesh
 from McUtils.Graphs import EdgeGraph
 import McUtils.Plots as plt
 from McUtils.ExternalPrograms import RDMolecule, ExternalProgramJob, build_templated_smiles, parse_smiles_and_atom_map
@@ -3728,7 +3728,7 @@ class Molecule(AbstractMolecule):
             raise ValueError("can only plot up to 2 axes at a time")
 
         if domain is None:
-            domain = Mesh(self.coords[:, axes]).bounding_box
+            domain = PointMesh(self.coords[:, axes]).bounding_box
             if domain_padding is not None:
                 if isinstance(domain_padding, (int, float, np.integer, np.floating)):
                     domain_padding = [-domain_padding, domain_padding]
