@@ -923,8 +923,8 @@ class DGBTests(TestCase):
             )
         else:
             if domain is None:
-                from McUtils.Zachary import Mesh
-                domain = Mesh(coords.centers).bounding_box
+                from McUtils.Zachary import PointMesh
+                domain = PointMesh(coords.centers).bounding_box
             points = DGBWavefunction.prep_plot_grid(
                 domain,
                 domain_padding=domain_padding,
