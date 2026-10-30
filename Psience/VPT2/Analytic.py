@@ -11017,7 +11017,7 @@ class PerturbationTheoryEvaluator:
         return all_corrs
     @classmethod
     def _compute_corr(cls,  gen_corrs, only_degs, key, gen, expr, *args, only_degenerate_terms=None, **kwargs):
-        new_corrs = expr.evaluate(*args, **kwargs)
+        new_corrs = expr.evaluate(*args, only_degenerate_terms=only_degenerate_terms, **kwargs)
         if only_degenerate_terms is True or only_degenerate_terms is False:
             only_degenerate_terms = [only_degenerate_terms, only_degenerate_terms]
         other_degs = only_degenerate_terms[0] is only_degenerate_terms[1]
