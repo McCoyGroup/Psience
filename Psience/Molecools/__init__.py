@@ -18,3 +18,5 @@ from .CoordinateSystems import __all__ as exposed
 __all__ += exposed
 from .Builder import *; from .Builder import __all__ as exposed
 __all__ += exposed
+from .PeriodicSystem import *; from .PeriodicSystem import __all__ as exposed
+__all__ += exposed
