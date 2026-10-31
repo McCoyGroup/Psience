@@ -508,6 +508,9 @@ class IndexedEvaluationStats:
     plan_terms: int = 0
     calls: int = 0
     work_items: int = 0
+    batched_state_blocks: int = 0
+    batched_source_states: int = 0
+    unmasked_selection_fast_paths: int = 0
     contraction_groups: int = 0
     contraction_blocks: int = 0
     contraction_rows: int = 0
@@ -969,6 +972,10 @@ class IndexedBlockEvaluator:
     default_plan_cache_size = 128
     default_degeneracy_selection_plan_cache_size = 2048
     default_degeneracy_group_plan_cache_size = 4096
+    use_batched_state_routing = True
+    max_batched_states = 128
+    use_unmasked_selection = True
+    use_jit_energy_contractions = False
     use_compiled_permutation_routing = True
     use_shared_degeneracy_pool = True
     use_compiled_degeneracy_selection = True
@@ -1354,6 +1361,13 @@ class IndexedBlockEvaluator:
     def _select_energy_groups(self, blocks, block_index, degenerate_changes,
                               only_degenerate_terms,
                               degeneracy_context=None):
+        if self.use_unmasked_selection and degenerate_changes is None:
+            use_left,use_right,join=only_degenerate_terms
+            selected=join(not use_left,not use_right)
+            if isinstance(selected,(bool,np.bool_)):
+                self.stats.unmasked_selection_fast_paths += 1
+                return (tuple((shape,None,terms) for shape,terms in blocks.plans[block_index].groups)
+                        if selected else ())
         if self.use_compiled_degeneracy_selection:
             return self._select_energy_groups_compiled(
                 blocks,
@@ -1530,9 +1544,17 @@ class IndexedBlockEvaluator:
             mask = entry[1]
         return mask if only_degenerate else np.logical_not(mask)
 
-    @staticmethod
-    def _contract_energy_rows(energy_changes, frequency_blocks):
-        """Contract row x permutation x mode frequency blocks in one call."""
+    @classmethod
+    def _contract_energy_rows(cls, energy_changes, frequency_blocks):
+        """Contract ordinary harmonic denominator rows; projected masks stay separate."""
+        if (cls.use_jit_energy_contractions
+                and frequency_blocks.dtype == np.dtype('float64')
+                and energy_changes.dtype.kind in 'biuf'):
+            from ._IndexedKernels import get_energy_row_kernel
+            kernel=get_energy_row_kernel()
+            if kernel is not None:
+                return kernel(np.ascontiguousarray(energy_changes,dtype=float),
+                              np.ascontiguousarray(frequency_blocks))
         linear_factors = np.einsum(
             'rpm,rfm->rpf',
             frequency_blocks,
@@ -1591,7 +1613,7 @@ class IndexedBlockEvaluator:
                              pows, polynomial_cache, degenerate_changes,
                              only_degenerate_terms, zero_cutoff, logger,
                              evaluation_context=None,
-                             degeneracy_context=None):
+                             degeneracy_context=None, uniform_output=None):
         evaluator = self.evaluator_type
         row_groups = collections.OrderedDict()
 
@@ -1794,9 +1816,17 @@ class IndexedBlockEvaluator:
                 blocks.prefactors[block_index][:, np.newaxis, :]
                 * contribution[np.newaxis]
             )
-            output[blocks.state_indices[block_index]][
-                :, blocks.mask_positions[block_index]
-            ] += value[:, 0, :]
+            state_indices=blocks.state_indices[block_index]
+            if isinstance(state_indices,tuple):
+                if uniform_output is not None:
+                    # A routed batch has one shared permutation and distinct
+                    # target states. Preserve coefficient/term accumulation order.
+                    uniform_output[np.asarray(state_indices),:,0] += value[:,:,0].T
+                else:
+                    for row,state_index in enumerate(state_indices):
+                        output[state_index][:,blocks.mask_positions[block_index]] += value[:,row,:]
+            else:
+                output[state_indices][:,blocks.mask_positions[block_index]] += value[:,0,:]
 
     def _append_routed_work_item(
             self, work_items, state_index, mask_positions, value_positions,
@@ -1805,8 +1835,12 @@ class IndexedBlockEvaluator:
             num_fixed, subset, full_set, state_permutation_cache,
             degenerate_changes):
         evaluator = self.evaluator_type
-        state, permutations = state_permutations[state_index]
-        state_block = state[np.newaxis]
+        if isinstance(state_index,tuple):
+            state_block=np.asarray([state_permutations[i][0] for i in state_index])
+            permutations=state_permutations[state_index[0]][1]
+        else:
+            state,permutations=state_permutations[state_index]
+            state_block=state[np.newaxis]
         block_prefactors = prefactors[value_positions].T
         permutation_subsets = permutations[
             mask_positions,
@@ -1909,6 +1943,32 @@ class IndexedBlockEvaluator:
             coefficient_specs, frequencies, num_fixed, subset, full_set,
             state_permutation_cache, degenerate_changes):
         """Join coefficient rows directly to compiled state destinations."""
+        if (self.use_batched_state_routing and degenerate_changes is None
+                and len(state_permutations)>1 and len(all_permutations)==1
+                and all(len(permutations)==1 for _,permutations in state_permutations)
+                and np.all(np.asarray(permutation_map)==0)
+                and np.all(np.asarray(eval_permutations)==0)
+                and np.all(np.diff(eval_coefficients)>0)):
+            plans=[self.plan.subexpressions[coefficient_specs[i]] for i in eval_coefficients]
+            # Conditional/finite-state endpoint masks currently bind one source
+            # row. Keep their original evaluator unless all terms prove ordinary.
+            if all(not any(term.projected for _,terms in plan.groups for term in terms)
+                   for plan in plans):
+                work_items=ConcreteBlockTable()
+                single=np.array([0],dtype=np.intp)
+                maximum=max(1,int(self.max_batched_states))
+                for position,coefficient_group in enumerate(eval_coefficients):
+                    for first in range(0,len(state_permutations),maximum):
+                        indices=tuple(range(first,min(first+maximum,len(state_permutations))))
+                        self._append_routed_work_item(work_items,indices,single,
+                            np.array([position],dtype=np.intp),single,
+                            coefficient_specs[coefficient_group],state_permutations,
+                            prefactors,frequencies,num_fixed,subset,full_set,
+                            state_permutation_cache,degenerate_changes)
+                        self.stats.batched_state_blocks += 1
+                        self.stats.batched_source_states += len(indices)
+                self.stats.routing_matches += len(eval_permutations)*len(state_permutations)
+                return work_items
         routing_plan = IndexedPermutationRoutingPlan.compile(
             permutation_map,
             [len(permutations) for _, permutations in state_permutations],
@@ -1971,10 +2031,16 @@ class IndexedBlockEvaluator:
             zero_cutoff,
             self.stats
         )
-        output = [
-            np.zeros((prefactors.shape[1], len(permutations)))
-            for _, permutations in state_permutations
-        ]
+        uniform_output=None
+        if (self.use_batched_state_routing and len(state_permutations)>1
+                and all(len(permutations)==1 for _,permutations in state_permutations)):
+            uniform_output=np.zeros((len(state_permutations),prefactors.shape[1],1))
+            output=[uniform_output[i] for i in range(len(state_permutations))]
+        else:
+            output = [
+                np.zeros((prefactors.shape[1], len(permutations)))
+                for _, permutations in state_permutations
+            ]
         if prefactors.shape[0] == 0:
             return output
 
@@ -2037,6 +2103,7 @@ class IndexedBlockEvaluator:
             zero_cutoff,
             logger,
             evaluation_context=evaluation_context,
-            degeneracy_context=degeneracy_context
+            degeneracy_context=degeneracy_context,
+            uniform_output=uniform_output
         )
         return output

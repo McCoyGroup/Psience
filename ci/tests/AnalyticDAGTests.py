@@ -1123,7 +1123,7 @@ class AnalyticDAGTests(unittest.TestCase):
         self.assertGreater(stats['work_items'], 0)
         self.assertGreater(stats['contraction_rows'], 0)
         self.assertGreater(stats['contraction_segments'], 0)
-        self.assertGreater(stats['degeneracy_selection_hits'], 0)
+        self.assertGreater(stats['degeneracy_selection_hits'] + stats.get('unmasked_selection_fast_paths', 0), 0)
         self.assertGreater(stats['routing_plans_compiled'], 0)
         self.assertGreater(stats['routing_matches'], 0)
         self.assertLessEqual(stats['max_rows_per_block'], 64)

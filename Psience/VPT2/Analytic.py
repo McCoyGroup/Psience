@@ -9105,6 +9105,10 @@ class PerturbationTheoryExpressionEvaluator:
 
     @staticmethod
     def _gather_state_permutations(state, sub_perms):
+        if (isinstance(state,np.ndarray) and state.ndim==2
+                and isinstance(sub_perms,np.ndarray) and sub_perms.ndim==2
+                and sub_perms.dtype.kind in 'iu'):
+            return np.moveaxis(state[:,sub_perms],0,1)
         return np.moveaxis(nput.vector_take(state, sub_perms), 0, 1)
 
     @staticmethod
@@ -9125,6 +9129,10 @@ class PerturbationTheoryExpressionEvaluator:
 
     @staticmethod
     def _gather_frequency_permutations(freqs, sub_perms):
+        if (isinstance(freqs,np.ndarray) and freqs.ndim==1
+                and isinstance(sub_perms,np.ndarray) and sub_perms.ndim==2
+                and sub_perms.dtype.kind in 'iu'):
+            return freqs[sub_perms]
         return nput.vector_take(freqs, sub_perms)
 
     @classmethod
