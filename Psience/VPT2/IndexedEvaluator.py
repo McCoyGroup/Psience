@@ -1698,7 +1698,7 @@ class IndexedBlockEvaluator:
                         source_rows.append(blocks.reference_states[block_index])
                     projected_mask,energy_factors = projected_energy_rows(
                         tuple(term.energy_changes for term in terms),source_rows,permutation_rows,
-                        np.stack([selection[0] for selection in selections]))
+                        np.stack([selection[0] for selection in selections]),baseline_shift)
                     energy_factors = np.where(projected_mask, energy_factors, 1.)
                 else:
                     energy_changes = np.asarray([term.energy_changes for term in terms])

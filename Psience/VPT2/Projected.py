@@ -156,8 +156,11 @@ def _projection_reference_data(factor, state):
     return differences, counts, gap
 
 
-def projected_path_factors(energy_key, state, permutations, perm_freqs):
+def projected_path_factors(energy_key, state, permutations, perm_freqs, baseline_shift=None):
     """Return a projector mask and allowed denominators before any division."""
+    if any(getattr(row[0],'_conditional_endpoint',False) for row in energy_key):
+        from .Conditional import conditional_path_factors
+        return conditional_path_factors(energy_key,state,permutations,perm_freqs,baseline_shift)
     state = np.asarray(state)[0]
     permutations = np.asarray(permutations, dtype=int)
     good = np.ones(len(permutations), dtype=bool)
@@ -199,8 +202,11 @@ def _bound_projection_row(energy_key, state, model_size):
     return deltas,kinds,gaps,differences,counts
 
 
-def projected_energy_rows(energy_keys, source_states, permutations, frequency_blocks):
+def projected_energy_rows(energy_keys, source_states, permutations, frequency_blocks, baseline_shift=None):
     """Contract a bounded indexed row batch, retaining all projector tests."""
+    if any(getattr(row[0],'_conditional_endpoint',False) for key in energy_keys for row in key):
+        from .Conditional import conditional_energy_rows
+        return conditional_energy_rows(energy_keys,source_states,permutations,frequency_blocks,baseline_shift)
     model_size = max(1,max(len(row[0].states) for key in energy_keys for row in key
                           if isinstance(row[0],StateProjectionFactor)))
     # Bound the projector-comparison scratch independently of the native
