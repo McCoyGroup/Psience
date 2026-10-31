@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Analytic.PolyTerm">PolyTerm</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L1350)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L1350?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L1408)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L1408?message=Update%20Docs)]
 </div>
 
 One separable product in a :class:`PolyPath` sum.
@@ -25,8 +25,8 @@ One separable product in a :class:`PolyPath` sum.
 __new__(cls, axes, steps=0): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L1355)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L1355?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L1413)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L1413?message=Update%20Docs)]
 </div>
 
 
@@ -36,8 +36,8 @@ __new__(cls, axes, steps=0):
 order(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyTerm.py#L1365)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyTerm.py#L1365?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyTerm.py#L1423)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyTerm.py#L1423?message=Update%20Docs)]
 </div>
 
 
@@ -46,8 +46,8 @@ order(self):
 __hash__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyTerm.py#L1369)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyTerm.py#L1369?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyTerm.py#L1427)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyTerm.py#L1427?message=Update%20Docs)]
 </div>
 
 
@@ -56,8 +56,8 @@ __hash__(self):
 __eq__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyTerm.py#L1372)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyTerm.py#L1372?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyTerm.py#L1430)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyTerm.py#L1430?message=Update%20Docs)]
 </div>
 
 
@@ -66,8 +66,8 @@ __eq__(self, other):
 __reduce__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyTerm.py#L1379)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyTerm.py#L1379?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyTerm.py#L1437)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyTerm.py#L1437?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -122,7 +122,7 @@ __reduce__(self):
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience/VPT2/Analytic/PolyTerm.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/VPT2/Analytic/PolyTerm.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L1350?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L1408?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Analytic.PolyAtom">PolyAtom</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L1258)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L1258?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L1316)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L1316?message=Update%20Docs)]
 </div>
 
 An immutable, interned one-dimensional polynomial factor.
@@ -25,8 +25,8 @@ An immutable, interned one-dimensional polynomial factor.
 __new__(cls, coeffs, shift=0): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L1263)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L1263?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L1321)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L1321?message=Update%20Docs)]
 </div>
 
 
@@ -36,8 +36,8 @@ __new__(cls, coeffs, shift=0):
 coeffs(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyAtom.py#L1277)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyAtom.py#L1277?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyAtom.py#L1335)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyAtom.py#L1335?message=Update%20Docs)]
 </div>
 
 
@@ -47,8 +47,8 @@ coeffs(self):
 order(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyAtom.py#L1287)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyAtom.py#L1287?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyAtom.py#L1345)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyAtom.py#L1345?message=Update%20Docs)]
 </div>
 
 
@@ -57,8 +57,8 @@ order(self):
 shifted(self, shift): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyAtom.py#L1291)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyAtom.py#L1291?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyAtom.py#L1349)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyAtom.py#L1349?message=Update%20Docs)]
 </div>
 
 
@@ -67,8 +67,8 @@ shifted(self, shift):
 __hash__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyAtom.py#L1294)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyAtom.py#L1294?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyAtom.py#L1352)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyAtom.py#L1352?message=Update%20Docs)]
 </div>
 
 
@@ -77,8 +77,8 @@ __hash__(self):
 __eq__(self, other): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyAtom.py#L1297)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyAtom.py#L1297?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyAtom.py#L1355)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyAtom.py#L1355?message=Update%20Docs)]
 </div>
 
 
@@ -87,8 +87,8 @@ __eq__(self, other):
 __reduce__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyAtom.py#L1300)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyAtom.py#L1300?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PolyAtom.py#L1358)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PolyAtom.py#L1358?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -143,7 +143,7 @@ __reduce__(self):
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience/VPT2/Analytic/PolyAtom.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/VPT2/Analytic/PolyAtom.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L1258?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L1316?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
