@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Terms.OperatorTerms">OperatorTerms</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L4017)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L4017?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L4025)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L4025?message=Update%20Docs)]
 </div>
 
 Literally as simple as it comes for an operator expansion.
@@ -25,8 +25,8 @@ One dimensional, no mixed derivative stuff.
 __init__(self, molecule, operator_derivatives=None, modes=None, mode_selection=None, logger=None, parallelizer=None, checkpointer=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L4025)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L4025?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L4033)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L4033?message=Update%20Docs)]
 </div>
 
   - `molecule`: `Molecule`
@@ -44,8 +44,8 @@ __init__(self, molecule, operator_derivatives=None, modes=None, mode_selection=N
 get_terms(self, order=None, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/OperatorTerms.py#L4142)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/OperatorTerms.py#L4142?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/OperatorTerms.py#L4150)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/OperatorTerms.py#L4150?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -109,7 +109,7 @@ Compute the operator's Taylor-expansion terms in the molecule's normal-mode coor
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience/VPT2/Terms/OperatorTerms.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/VPT2/Terms/OperatorTerms.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L4017?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L4025?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

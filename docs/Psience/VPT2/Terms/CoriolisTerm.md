@@ -49,13 +49,24 @@ The Coriolis zeta-constant tensor alone, via `get_zetas_and_momi`.
     > the zeta-constant tensor
 
 
+<a id="Psience.VPT2.Terms.CoriolisTerm.get_quadratic_factors" class="docs-object-method">&nbsp;</a> 
+```python
+get_quadratic_factors(self): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/CoriolisTerm.py#L3325)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/CoriolisTerm.py#L3325?message=Update%20Docs)]
+</div>
+Return the exact principal-axis factors of the leading Coriolis term.
+
+
 <a id="Psience.VPT2.Terms.CoriolisTerm.get_terms" class="docs-object-method">&nbsp;</a> 
 ```python
 get_terms(self, order=None, J=0): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/CoriolisTerm.py#L3325)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/CoriolisTerm.py#L3325?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/CoriolisTerm.py#L3333)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/CoriolisTerm.py#L3333?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
