@@ -250,10 +250,10 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
 
                     bra_space = None
                     for nb, bras in enumerate(bra_spaces.spaces):
-                        if ket_space is None:
+                        if bra_space is None:
                             bra_space = bras[i]
                         else:
-                            bra_space = ket_space.union(bras[i])
+                            bra_space = bra_space.union(bras[i])
 
                     # self.logger.log_print("<{bras}|{k}|{kets}>", bras=bra_space, kets=ket_space, k=k)
 

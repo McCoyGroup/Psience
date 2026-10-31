@@ -3392,6 +3392,7 @@ class AnalyticVPTRunner:
                  allowed_energy_changes=None,
                  intermediate_normalization=None,
                  polynomial_representation='path',
+                 resonance_condition=None,
                  local_mode_couplings=None,
                  local_mode_coupling_order=None,
                  parallelizer=None
@@ -3459,7 +3460,8 @@ class AnalyticVPTRunner:
                     disallowed_coefficients=disallowed_coefficients,
                     allowed_energy_changes=allowed_energy_changes,
                     intermediate_normalization=intermediate_normalization,
-                    polynomial_representation=polynomial_representation
+                    polynomial_representation=polynomial_representation,
+                    resonance_condition=resonance_condition
                 ),
                 expansions,
                 freqs=freqs,
@@ -3495,6 +3497,7 @@ class AnalyticVPTRunner:
                          take_diagonal_v4_terms=True,
                          intermediate_normalization=None,
                          polynomial_representation='path',
+                         resonance_condition=None,
                          corrected_fundamental_frequencies=None,
                          **opts):
         """
@@ -3564,6 +3567,7 @@ class AnalyticVPTRunner:
             allowed_energy_changes=allowed_energy_changes,
             intermediate_normalization=intermediate_normalization,
             polynomial_representation=polynomial_representation,
+            resonance_condition=resonance_condition,
             local_mode_couplings=ham.local_mode_couplings,
             local_mode_coupling_order=ham.local_mode_coupling_order
         )
@@ -3584,6 +3588,7 @@ class AnalyticVPTRunner:
                   corrected_fundamental_frequencies=None,
                   parallelizer=None,
                   polynomial_representation='path',
+                  resonance_condition=None,
                   **settings
                   ) -> tuple[AnalyticVPTRunner, MultiVPTStateSpace]:
             """
@@ -3645,6 +3650,7 @@ class AnalyticVPTRunner:
                 disallowed_coefficients=disallowed_coefficients,
                 allowed_energy_changes=allowed_energy_changes,
                 polynomial_representation=polynomial_representation,
+                resonance_condition=resonance_condition,
                 intermediate_normalization=opts.get('intermediate_normalization', None),
                 corrected_fundamental_frequencies=corrected_fundamental_frequencies
             )
@@ -4016,6 +4022,7 @@ class AnalyticVPTRunner:
             states.flat_space.state_list,
             order=order,
             degenerate_states=self._eval_degeneracies(states, state_specific_degeneracies),
+            degenerate_blocks=states.flat_space.degenerate_states,
             verbose=verbose,
             zero_cutoff=zero_cutoff
         )
@@ -4047,7 +4054,8 @@ class AnalyticVPTRunner:
         return self.eval.get_overlap_corrections(
             states.flat_space.state_list,
             order=order,
-            degenerate_states=self._eval_degeneracies(states, state_specific_degeneracies), verbose=verbose,
+            degenerate_states=self._eval_degeneracies(states, state_specific_degeneracies),
+            degenerate_blocks=states.flat_space.degenerate_states, verbose=verbose,
             zero_cutoff=zero_cutoff
         )
     @classmethod
@@ -4096,6 +4104,7 @@ class AnalyticVPTRunner:
             self.prep_eval_state_pairs(states),
             order=order,
             degenerate_states=self._eval_degeneracies(states, state_specific_degeneracies),
+            degenerate_blocks=states.flat_space.degenerate_states,
             verbose=verbose,
             zero_cutoff=zero_cutoff
         )
@@ -4128,7 +4137,8 @@ class AnalyticVPTRunner:
         return self.eval.get_wavefunction_corrections(
             self.prep_eval_state_pairs(states),
             order=order,
-            degenerate_states=self._eval_degeneracies(states, state_specific_degeneracies), verbose=verbose,
+            degenerate_states=self._eval_degeneracies(states, state_specific_degeneracies),
+            degenerate_blocks=states.flat_space.degenerate_states, verbose=verbose,
             zero_cutoff=zero_cutoff
         )
 
@@ -4231,6 +4241,7 @@ class AnalyticVPTRunner:
             order=order, terms=terms,
             verbose=verbose,
             degenerate_states=self._eval_degeneracies(states, state_specific_degeneracies),
+            degenerate_blocks=states.flat_space.degenerate_states,
             operator_type=operator_type,
             check_single=False,
             **opts
@@ -4451,6 +4462,7 @@ class AnalyticVPTRunner:
                 group,
                 order=order,
                 degenerate_states=degs,
+                degenerate_blocks=deg_groups,
                 only_degenerate_terms=only_degenerate_terms,
                 hamiltonian_corrections=hamiltonian_corrections,
                 verbose=verbose, **opts
