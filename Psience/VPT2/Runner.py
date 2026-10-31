@@ -24,6 +24,7 @@ from ..Spectra import DiscreteSpectrum
 
 from .DegeneracySpecs import DegeneracySpec, DegenerateMultiStateSpace
 from .Hamiltonian import PerturbationTheoryHamiltonian
+from .Terms import ExpansionTerms
 from .Analytic import PerturbationTheoryEvaluator, AnalyticPerturbationTheorySolver, StateDegeneracyPairs
 from .Corrections import AnalyticPerturbationTheoryCorrections
 
@@ -3495,6 +3496,7 @@ class AnalyticVPTRunner:
                          disallowed_coefficients=None,
                          allowed_energy_changes=None,
                          take_diagonal_v4_terms=True,
+                         two_mode_only=False,
                          intermediate_normalization=None,
                          polynomial_representation='path',
                          resonance_condition=None,
@@ -3504,6 +3506,8 @@ class AnalyticVPTRunner:
         A driver powered by a classic PerturbationTheoryHamiltonian object
 
         :param ham:
+        :param take_diagonal_v4_terms: retain all repeated-index iijk terms in V4 and G2
+        :param two_mode_only: select the stricter legacy iiii/iijj subset instead
         :param polynomial_representation: ``'path'`` for the canonical DAG backend or ``'eager'`` for timing/comparison runs
         :return:
         """
@@ -3531,24 +3535,8 @@ class AnalyticVPTRunner:
                 else:
                     V, G, Z, U = e
                     e = [V, G, U, Z, 0]
-            if n == 2 and take_diagonal_v4_terms:
-                V, G, U, Z, W = e
-                v4 = np.zeros_like(V)
-                do_G = not nput.is_numeric(G)
-                if do_G:
-                    g2 = np.zeros_like(G)
-                else:
-                    g2 = G
-                for i, j in itertools.combinations(range(V.shape[0]), 2):
-                    for k in (i, j):
-                        v4[k, k, k, k] = V[k, k, k, k]
-                        if do_G:
-                            g2[k, k, k, k] = G[k, k, k, k]
-                    for p in itertools.permutations([i, i, j, j]):
-                        v4[p] = V[p]
-                        if do_G:
-                            g2[p] = G[p]
-                e = [v4, g2, U, Z, W]
+            if n == 2 and (take_diagonal_v4_terms or two_mode_only):
+                e = ExpansionTerms.restrict_quartic_expansion(e, two_mode_only=two_mode_only)
             _.append(e)
 
         exps = _
@@ -3589,6 +3577,8 @@ class AnalyticVPTRunner:
                   parallelizer=None,
                   polynomial_representation='path',
                   resonance_condition=None,
+                  take_diagonal_v4_terms=True,
+                  two_mode_only=False,
                   **settings
                   ) -> tuple[AnalyticVPTRunner, MultiVPTStateSpace]:
             """
@@ -3651,6 +3641,8 @@ class AnalyticVPTRunner:
                 allowed_energy_changes=allowed_energy_changes,
                 polynomial_representation=polynomial_representation,
                 resonance_condition=resonance_condition,
+                take_diagonal_v4_terms=take_diagonal_v4_terms,
+                two_mode_only=two_mode_only,
                 intermediate_normalization=opts.get('intermediate_normalization', None),
                 corrected_fundamental_frequencies=corrected_fundamental_frequencies
             )
@@ -3683,6 +3675,8 @@ class AnalyticVPTRunner:
                   allowed_energy_changes=None,
                   expressions_file=None,
                   polynomial_representation='path',
+                  take_diagonal_v4_terms=True,
+                  two_mode_only=False,
                   **settings):
         """
         **LLM Docstring**
@@ -3727,7 +3721,9 @@ class AnalyticVPTRunner:
             allowed_coefficients=allowed_coefficients,
             disallowed_coefficients=disallowed_coefficients,
             allowed_energy_changes=allowed_energy_changes,
-            polynomial_representation=polynomial_representation
+            polynomial_representation=polynomial_representation,
+            take_diagonal_v4_terms=take_diagonal_v4_terms,
+            two_mode_only=two_mode_only
         )
 
     def construct_classic_runner(self,

@@ -367,6 +367,40 @@ class ExpansionTerms:
         "imaginary_frequency_handling_mode"
     )
     _cached_jacobians = {}
+    @staticmethod
+    @fp.lru_cache(maxsize=8)
+    def _quartic_mode_mask(nmodes, two_mode_only):
+        axes = [np.arange(nmodes).reshape((1,) * axis + (nmodes,) + (1,) * (3 - axis))
+                for axis in range(4)]
+        mask = np.zeros((nmodes,) * 4, dtype=bool)
+        if two_mode_only:
+            for a, b, c, d in [(0, 1, 2, 3), (0, 2, 1, 3), (0, 3, 1, 2)]:
+                mask |= (axes[a] == axes[b]) & (axes[c] == axes[d])
+        else:
+            for a, b in itertools.combinations(range(4), 2):
+                mask |= axes[a] == axes[b]
+        mask.setflags(write=False)
+        return mask
+
+    @classmethod
+    def restrict_quartic_expansion(cls, expansion, *, two_mode_only=False):
+        """Filter V4/G2 without changing their index ordering or coefficients.
+
+        Keep every iijk pattern by default. ``two_mode_only=True`` selects
+        the legacy iiii/iijj subset. Scalar zero terms pass through.
+        """
+        result = list(expansion)
+        for slot in range(min(2, len(result))):
+            tensor = result[slot]
+            if nput.is_numeric(tensor):
+                continue
+            tensor = np.asanyarray(tensor)
+            if tensor.ndim != 4 or len(set(tensor.shape)) != 1:
+                raise ValueError("quartic mode filtering requires four equal-sized mode axes")
+            result[slot] = np.where(cls._quartic_mode_mask(tensor.shape[0], two_mode_only), tensor, 0)
+        return result
+
+
     def __init__(self,
                  molecule,
                  modes=None,
@@ -2264,169 +2298,135 @@ class PotentialTerms(ExpansionTerms):
                     rval=values[lo] * UnitsData.hartrees_to_wavenumbers
                 )
 
+    @staticmethod
+    @fp.lru_cache(maxsize=8)
+    def _mixed_derivative_orbits(nmodes, rank, mode_axes, diagonal, two_mode_only):
+        """Permutation orbits and their actually sampled representatives."""
+        if not 1 <= mode_axes <= rank:
+            raise ValueError("mode_axes must lie between one and the derivative rank")
+        orbits = {}
+        if diagonal or two_mode_only:
+            remainder = rank - mode_axes
+            for mode in range(nmodes):
+                tails = ((other,) * remainder for other in range(nmodes)) if two_mode_only else (
+                    itertools.combinations_with_replacement(range(nmodes), remainder)
+                )
+                for tail in tails:
+                    sample = (mode,) * mode_axes + tail
+                    orbit = orbits.setdefault(tuple(sorted(sample)), set())
+                    orbit.add(sample)
+                    orbit.add((mode,) * mode_axes + tail[::-1])
+        else:
+            for key in itertools.combinations_with_replacement(range(nmodes), rank):
+                orbits[key] = None
+        result = []
+        for key, samples in sorted(orbits.items()):
+            permutations = UniquePermutations(key).permutations()
+            samples = (np.asarray(sorted(samples), dtype=int) if samples is not None
+                       else permutations[np.lexsort(permutations.T[::-1])])
+            samples.setflags(write=False)
+            permutations.setflags(write=False)
+            result.append((samples, permutations))
+        return tuple(result)
+
+    @staticmethod
+    def _select_mixed_derivative_sample(samples, handling_mode, handle_zeros):
+        """Select low/high available samples, independently for each value axis."""
+        first, last = samples[0], samples[-1]
+        if handle_zeros:
+            available = np.abs(samples) > 1e-12
+            any_available = np.any(available, axis=0)
+            first_index = np.argmax(available, axis=0)
+            last_index = len(samples) - 1 - np.argmax(available[::-1], axis=0)
+            first = np.where(any_available,
+                np.take_along_axis(samples, first_index[None], axis=0)[0], first)
+            last = np.where(any_available,
+                np.take_along_axis(samples, last_index[None], axis=0)[0], last)
+        if handling_mode == MixedDerivativeHandlingModes.Analytical:
+            return first
+        if handling_mode == MixedDerivativeHandlingModes.Numerical:
+            return last
+        if handling_mode == MixedDerivativeHandlingModes.Averaged:
+            return (first + last) / 2
+        raise ValueError("unknown mixed derivative handling mode {}".format(handling_mode))
+
     @classmethod
     def _symmetrize_mixed_derivatives(cls, derivs, handling_mode, mode_axes, *, logger,
-                                      zero_rest=True,
-                                      diagonal=True, restricted_diagonal=False, term_id=None, val_axes=0,
-                                      handle_zeros=True,
-                                      warning_diff=-1
-                                      ):
+                                      zero_rest=True, diagonal=True, two_mode_only=False,
+                                      term_id=None, val_axes=0, handle_zeros=True,
+                                      warning_diff=-1):
+        """Complete symmetry from available mixed-derivative samples.
+
+        ``diagonal`` means the first ``mode_axes`` sampled indices coincide;
+        the remaining indices may take ANY values. In particular, a sampled
+        2213 supplies every permutation of 1223. ``two_mode_only`` requests
+        the legacy two-block restriction (iiii/iijj for quartics).
+
+        Analytical/numerical handling selects the lexicographically first/
+        last available sample, and averaged handling averages those extremes.
+        ``handle_zeros`` retains the existing zero-as-missing policy. Leading
+        ``val_axes`` are values, not derivative indices. ``*_pre`` tensors
+        still have different derivative bases and are symmetrized within
+        their separate mode and coordinate blocks only.
         """
-        **LLM Docstring**
-
-        Enforce/repair the expected symmetry of a mixed-derivative tensor (one computed with some axes in a different coordinate basis than others), either applying special-cased treatments for known problematic term types (`'v4_cart'`/`'v4_int'`/`'u3_cart'`/`'u3_int'` under the legacy `Old` handling mode) or, in the general case, replacing every permutation of each set of symmetry-equivalent tensor indices with a single representative value (optionally warning when the differing raw values disagree by more than `warning_diff`, and optionally treating near-zero entries specially via `handle_zeros`).
-
-        :param derivs: the (potentially asymmetric) mixed-derivative tensor to symmetrize
-        :type derivs: np.ndarray
-        :param handling_mode: which symmetrization strategy to use
-        :type handling_mode: MixedDerivativeHandlingModes
-        :param mode_axes: accepted for interface consistency but not used directly in this method's body
-        :type mode_axes: object
-        :param logger: logger used to report large symmetry-violating differences
-        :type logger: Logger
-        :param zero_rest: accepted for interface consistency but not used directly in this method's body
-        :type zero_rest: bool
-        :param diagonal: accepted for interface consistency but not used directly in this method's body
-        :type diagonal: bool
-        :param restricted_diagonal: accepted for interface consistency but not used directly in this method's body
-        :type restricted_diagonal: bool
-        :param term_id: an identifying label for the term being symmetrized, used both to select the legacy special-case handling and in warning messages
-        :type term_id: str | None
-        :param val_axes: number of leading "value" axes (not subject to the mode-index symmetrization) in `derivs`
-        :type val_axes: int
-        :param handle_zeros: whether near-zero raw entries should be treated as missing/overridable by a nonzero symmetry-equivalent value rather than triggering symmetry-violation warnings
-        :type handle_zeros: bool
-        :param warning_diff: minimum absolute difference between two nominally-equal symmetry-related values (in Hartrees) that triggers a logged warning; disabled if not positive
-        :type warning_diff: float
-        :return: the symmetrized derivative tensor
-        :rtype: np.ndarray
-        :raises ValueError: if `handling_mode` is `Old` and no `term_id` is given
-        """
-
-        cls._warn_mixed_derivatives(
-            derivs, mode_axes, logger=logger, term_id=term_id,
+        handling_mode = MixedDerivativeHandlingModes(handling_mode)
+        derivs = np.asanyarray(derivs)
+        rank = derivs.ndim - val_axes
+        if not 1 <= mode_axes <= rank:
+            raise ValueError("mode_axes must lie between one and the derivative rank")
+        cls._warn_mixed_derivatives(derivs, mode_axes, logger=logger, term_id=term_id,
             warning_diff=warning_diff, handle_zeros=handle_zeros,
-            diagonal=diagonal, val_axes=val_axes
-        )
-
+            diagonal=diagonal, val_axes=val_axes)
+        if handling_mode == MixedDerivativeHandlingModes.Unhandled and str(term_id).endswith('_pre'):
+            return derivs.copy()
+        if str(term_id).endswith('_pre'):
+            blocks = [list(range(val_axes, val_axes + mode_axes)),
+                      list(range(val_axes + mode_axes, derivs.ndim))]
+            modes = {MixedDerivativeHandlingModes.Analytical:'high',
+                     MixedDerivativeHandlingModes.Numerical:'low',
+                     MixedDerivativeHandlingModes.Averaged:'average',
+                     MixedDerivativeHandlingModes.Old:'high'}
+            return nput.symmetrize_array(derivs, axes=[block for block in blocks if block],
+                                         symmetrization_mode=modes[handling_mode])
         if handling_mode == MixedDerivativeHandlingModes.Old:
-            if term_id is None: raise ValueError(';_;')
+            if term_id is None:
+                raise ValueError("legacy mixed derivative handling requires term_id")
             if term_id in {'v4_cart', 'v4_int'}:
-                v4 = np.zeros_like(derivs)
-                for i in range(v4.shape[0]):
-                    v4[i, :, i, :] = v4[i, :, :, i] = v4[:, i, :, i] = v4[:, i, i, :] = v4[:, :, i, i] = derivs[i, i, :, :]
-                derivs = v4
-            elif term_id in {'u3_cart', 'u3_int'}: # dipole terms only partially sampled
-                v3 = derivs.copy()
-                for i,j,k in itertools.combinations(range(v3.shape[0]), 3):
-                    for p in itertools.permutations([i, j, k]):
-                        v3[p] = 0
-                derivs = v3
+                handling_mode = MixedDerivativeHandlingModes.Analytical
             else:
-                if handle_zeros:
-                    vals = derivs
-                    derivs = derivs.copy()
-                    ups = {}
-                    nmodes = derivs.shape[0]
-                    pos_spec = itertools.combinations_with_replacement(range(nmodes), derivs.ndim - val_axes)
-                    for pos in pos_spec:
-                        _, counts = np.unique(pos, return_counts=True)
-                        key = tuple(counts)
-                        if key in ups:
-                            inds = ups[key]
-                        else:
-                            inds, _ = UniquePermutations(pos).permutations(return_indices=True)
-                            ups[key] = inds
-                        prev_val = None
-                        for idx in inds:
-                            new_pos = tuple(pos[p] for p in idx)
-                            v = vals[new_pos]
-                            if handle_zeros and abs(v) < 1e-12:
-                                if prev_val is not None:
-                                    v = prev_val
-                            else:
-                                prev_val = v
-                            derivs[new_pos] = v
+                # Preserve the legacy non-quartic selection convention.
+                result = derivs.copy()
+                if term_id in {'u3_cart', 'u3_int'}:
+                    for key in itertools.combinations(range(derivs.shape[val_axes]), 3):
+                        for pos in itertools.permutations(key):
+                            result[(slice(None),) * val_axes + pos] = 0
+                    return result
+                for key in itertools.combinations_with_replacement(range(derivs.shape[val_axes]), rank):
+                    previous = None
+                    for pos in UniquePermutations(key).permutations():
+                        index = (slice(None),) * val_axes + tuple(pos)
+                        value = derivs[index]
+                        if handle_zeros and previous is not None:
+                            value = np.where(np.abs(value) < 1e-12, previous, value)
+                        result[index] = value
+                        previous = value
+                return result
+        shape = derivs.shape[val_axes:]
+        if len(set(shape)) != 1:
+            raise ValueError("mixed derivative permutation symmetry requires a common basis")
+        dtype = np.result_type(derivs.dtype, float) if handling_mode == MixedDerivativeHandlingModes.Averaged else derivs.dtype
+        result = np.zeros_like(derivs, dtype=dtype) if zero_rest else derivs.astype(dtype, copy=True)
+        padding = (slice(None),) * val_axes
+        for samples, permutations in cls._mixed_derivative_orbits(shape[0], rank,
+                                                                   mode_axes, diagonal, two_mode_only):
+            if handling_mode == MixedDerivativeHandlingModes.Unhandled:
+                result[padding + tuple(permutations.T)] = derivs[padding + tuple(permutations.T)]
+                continue
+            values = np.moveaxis(derivs[padding + tuple(samples.T)], -1, 0)
+            selected = cls._select_mixed_derivative_sample(values, handling_mode, handle_zeros)
+            result[padding + tuple(permutations.T)] = np.asarray(selected)[..., None]
+        return result
 
-        else:
-
-            # v3 = terms[2]
-            rem_axes = derivs.ndim - mode_axes - val_axes
-            nmodes = derivs.shape[0]
-            # s = slice(None)
-
-            vals = derivs
-            if zero_rest:
-                derivs = np.zeros_like(derivs)
-
-            ups = {}
-            if restricted_diagonal:
-                pos_spec = (
-                    (i,) * mode_axes + (j,) * rem_axes
-                    for i in range(nmodes)
-                    for j in range(i, nmodes)
-                )
-            elif diagonal:
-                pos_spec = (
-                    (i,) * mode_axes + p
-                    for i in range(nmodes)
-                    for p in itertools.combinations_with_replacement(range(i, nmodes), rem_axes)
-                )
-            else:
-                pos_spec = itertools.combinations_with_replacement(range(nmodes), derivs.ndim - val_axes)
-
-            for pos in pos_spec:
-                if handling_mode == MixedDerivativeHandlingModes.Unhandled:
-                    _, counts = np.unique(pos, return_counts=True)
-                    key = tuple(counts)
-                    if key in ups:
-                        inds = ups[key]
-                    else:
-                        inds, _ = UniquePermutations(pos).permutations(return_indices=True)
-                        ups[key] = inds
-                    prev_val = None
-                    for idx in inds:
-                        new_pos = tuple(pos[p] for p in idx)
-                        v = vals[new_pos]
-                        if handle_zeros and abs(v) < 1e-12:
-                            if prev_val is not None:
-                                v = prev_val
-                        else:
-                            prev_val = v
-                        derivs[new_pos] = v
-                else:
-                    if handling_mode == MixedDerivativeHandlingModes.Numerical:
-                        val = vals[tuple(reversed(pos))]
-                        if handle_zeros and abs(val) < 1e-12:
-                            val = vals[pos]
-                    elif handling_mode == MixedDerivativeHandlingModes.Analytical:
-                        val = vals[pos]
-                        if handle_zeros and abs(val) < 1e-12:
-                            val = vals[tuple(reversed(pos))]
-                    elif handling_mode == MixedDerivativeHandlingModes.Averaged:
-                        v1 = vals[tuple(reversed(pos))]
-                        v2 = vals[pos]
-                        if handle_zeros and abs(v1) < 1e-12:
-                            val = v2
-                        elif handle_zeros and abs(v2) < 1e-12:
-                            val = v1
-                        else:
-                            val = (v1 + v2) / 2
-                    else:
-                        raise ValueError("don't know what to do with `mixed_derivative_handling_mode` {} ".format(handling_mode))
-
-                    _, counts = np.unique(pos, return_counts=True)
-                    key = tuple(counts)
-                    if key in ups:
-                        inds = ups[key]
-                    else:
-                        inds, _ = UniquePermutations(pos).permutations(return_indices=True)
-                        ups[key] = inds
-                    for idx in inds:
-                        new_pos = tuple(pos[p] for p in idx)
-                        derivs[new_pos] = val
-
-        return derivs
 
     def get_terms(self, order=None, logger=None):
         """
@@ -2520,7 +2520,6 @@ class PotentialTerms(ExpansionTerms):
                     terms[3] = self._symmetrize_mixed_derivatives(terms[3],
                                                                   self.mixed_derivative_handling_mode,
                                                                   mode_axes=2,
-                                                                  restricted_diagonal=True,
                                                                   term_id='v4_cart',
                                                                   warning_diff=self.mixed_derivative_warning_threshold,
                                                                   logger=self.logger,
@@ -2564,7 +2563,6 @@ class PotentialTerms(ExpansionTerms):
                         cart_terms[3] = self._symmetrize_mixed_derivatives(cart_terms[3],
                                                                            self.mixed_derivative_handling_mode,
                                                                            mode_axes=2,
-                                                                           restricted_diagonal=True,
                                                                            term_id='v4_cart',
                                                                            warning_diff=self.mixed_derivative_warning_threshold,
                                                                            logger=self.logger,
@@ -2601,7 +2599,6 @@ class PotentialTerms(ExpansionTerms):
                         v_ders[3] = self._symmetrize_mixed_derivatives(V_derivs[3],
                                                                        self.mixed_derivative_handling_mode,
                                                                        mode_axes=2,
-                                                                       restricted_diagonal=True,
                                                                        term_id='v4_int_pre',
                                                                        warning_diff=self.mixed_derivative_warning_threshold,
                                                                        logger=self.logger)
