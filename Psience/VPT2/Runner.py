@@ -4016,6 +4016,7 @@ class AnalyticVPTRunner:
             states.flat_space.state_list,
             order=order,
             degenerate_states=self._eval_degeneracies(states, state_specific_degeneracies),
+            degenerate_blocks=states.flat_space.degenerate_states,
             verbose=verbose,
             zero_cutoff=zero_cutoff
         )
@@ -4047,7 +4048,8 @@ class AnalyticVPTRunner:
         return self.eval.get_overlap_corrections(
             states.flat_space.state_list,
             order=order,
-            degenerate_states=self._eval_degeneracies(states, state_specific_degeneracies), verbose=verbose,
+            degenerate_states=self._eval_degeneracies(states, state_specific_degeneracies),
+            degenerate_blocks=states.flat_space.degenerate_states, verbose=verbose,
             zero_cutoff=zero_cutoff
         )
     @classmethod
@@ -4096,6 +4098,7 @@ class AnalyticVPTRunner:
             self.prep_eval_state_pairs(states),
             order=order,
             degenerate_states=self._eval_degeneracies(states, state_specific_degeneracies),
+            degenerate_blocks=states.flat_space.degenerate_states,
             verbose=verbose,
             zero_cutoff=zero_cutoff
         )
@@ -4128,7 +4131,8 @@ class AnalyticVPTRunner:
         return self.eval.get_wavefunction_corrections(
             self.prep_eval_state_pairs(states),
             order=order,
-            degenerate_states=self._eval_degeneracies(states, state_specific_degeneracies), verbose=verbose,
+            degenerate_states=self._eval_degeneracies(states, state_specific_degeneracies),
+            degenerate_blocks=states.flat_space.degenerate_states, verbose=verbose,
             zero_cutoff=zero_cutoff
         )
 
@@ -4231,6 +4235,7 @@ class AnalyticVPTRunner:
             order=order, terms=terms,
             verbose=verbose,
             degenerate_states=self._eval_degeneracies(states, state_specific_degeneracies),
+            degenerate_blocks=states.flat_space.degenerate_states,
             operator_type=operator_type,
             check_single=False,
             **opts
@@ -4451,6 +4456,7 @@ class AnalyticVPTRunner:
                 group,
                 order=order,
                 degenerate_states=degs,
+                degenerate_blocks=deg_groups,
                 only_degenerate_terms=only_degenerate_terms,
                 hamiltonian_corrections=hamiltonian_corrections,
                 verbose=verbose, **opts

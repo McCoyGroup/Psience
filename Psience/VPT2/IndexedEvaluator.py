@@ -186,6 +186,7 @@ class IndexedEnergyTerm:
     energy_changes: tuple
     polynomial: object
     contraction_shape: tuple
+    projected: bool = False
 
 
 @dataclasses.dataclass(frozen=True)
@@ -245,7 +246,7 @@ class ConcreteBlockTable:
         'prefactors', 'expression_keys',
         'plans', 'permutation_subsets', 'permutation_substates',
         'tuple_states', 'permutation_frequencies', 'state_block_identities',
-        'contributions'
+        'contributions', 'reference_states'
     )
 
     def __init__(self):
@@ -261,11 +262,13 @@ class ConcreteBlockTable:
         self.permutation_frequencies = []
         self.state_block_identities = []
         self.contributions = []
+        self.reference_states = []
 
     def append(self, state_index, mask_positions, global_permutation_indices,
                prefactors, expression_key,
                plan, permutation_subsets, permutation_substates, tuple_states,
-               permutation_frequencies, state_block_identity, contribution):
+               permutation_frequencies, state_block_identity, contribution,
+               reference_state=None):
         index = len(self.state_indices)
         self.state_indices.append(state_index)
         self.mask_positions.append(mask_positions)
@@ -279,6 +282,7 @@ class ConcreteBlockTable:
         self.permutation_frequencies.append(permutation_frequencies)
         self.state_block_identities.append(state_block_identity)
         self.contributions.append(contribution)
+        self.reference_states.append(reference_state)
         return index
 
     def __len__(self):
@@ -1009,7 +1013,8 @@ class IndexedBlockEvaluator:
                     ordinal,
                     energy_changes,
                     polynomial,
-                    contraction_shape
+                    contraction_shape,
+                    any(getattr(row[0], '_state_projection_factor', False) for row in energy_changes)
                 )
                 grouped.setdefault(contraction_shape, []).append(term)
             groups = tuple(
@@ -1678,16 +1683,27 @@ class IndexedBlockEvaluator:
                         ))
 
                 tick = time.perf_counter()
-                energy_changes = np.asarray([
-                    term.energy_changes for term in terms
-                ])
-                frequency_blocks = np.stack([
-                    selection[0] for selection in selections
-                ])
-                energy_factors = self._contract_energy_rows(
-                    energy_changes,
-                    frequency_blocks
-                )
+                projected_mask = None
+                if any(term.projected for term in terms):
+                    from .Projected import projected_energy_rows
+                    permutation_rows = []
+                    source_rows = []
+                    for block_index, selected, term, selection in zip(
+                            block_indices, selected_rows, terms, selections):
+                        block_index = int(block_index)
+                        permutations = blocks.permutation_subsets[block_index]
+                        if selected is not None:
+                            permutations = np.asarray(permutations)[selected]
+                        permutation_rows.append(permutations)
+                        source_rows.append(blocks.reference_states[block_index])
+                    projected_mask,energy_factors = projected_energy_rows(
+                        tuple(term.energy_changes for term in terms),source_rows,permutation_rows,
+                        np.stack([selection[0] for selection in selections]))
+                    energy_factors = np.where(projected_mask, energy_factors, 1.)
+                else:
+                    energy_changes = np.asarray([term.energy_changes for term in terms])
+                    frequency_blocks = np.stack([selection[0] for selection in selections])
+                    energy_factors = self._contract_energy_rows(energy_changes, frequency_blocks)
                 self.stats.energy_seconds += time.perf_counter() - tick
 
                 tick = time.perf_counter()
@@ -1717,6 +1733,8 @@ class IndexedBlockEvaluator:
                     state_count,
                     permutation_count
                 )
+                if projected_mask is not None:
+                    polynomial_block = np.where(projected_mask[:, None, :], polynomial_block, 0.)
                 operator_repr = [None]
 
                 def row_diagnostics(row_index):
@@ -1826,7 +1844,8 @@ class IndexedBlockEvaluator:
             tuple_states,
             permutation_frequencies,
             state_block_identity,
-            np.zeros((len(state_block), len(permutation_subsets)))
+            np.zeros((len(state_block), len(permutation_subsets))),
+            reference_state=state_block
         )
 
     def _build_work_items_legacy_routing(
