@@ -1152,7 +1152,7 @@ class ContractedOperator(Operator):
         self.axes = axes
         if (
                 skipped_indices is None
-                and not getattr(coeffs, "_quadratic_product", False)
+                and not getattr(coeffs, "_factorized_coefficients", False)
                 and skipped_coefficient_threshold is not None
                 and not (isinstance(self.coeffs, (int, float, np.integer, np.floating)) and self.coeffs == 0)
         ):
@@ -1251,11 +1251,11 @@ class ContractedOperator(Operator):
         if isinstance(c, (int, np.integer, float, np.floating)) and c == 0:
             return 0
 
-        if self.contraction_method in {"direct", "auto"} or getattr(c, "_quadratic_product", False):
+        if self.contraction_method in {"direct", "auto"} or getattr(c, "_factorized_coefficients", False):
             try:
                 return self._get_direct_elements(idx)
             except (TypeError, ValueError):
-                if self.contraction_method == "direct" or getattr(c, "_quadratic_product", False):
+                if self.contraction_method == "direct" or getattr(c, "_factorized_coefficients", False):
                     raise
         self._last_contraction_method = "tensor"
 
