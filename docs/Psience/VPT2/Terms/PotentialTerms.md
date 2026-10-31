@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Terms.PotentialTerms">PotentialTerms</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1819)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1819?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1853)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1853?message=Update%20Docs)]
 </div>
 
 A helper class that can transform the derivatives of the potential from Cartesian to normal coordinates
@@ -24,8 +24,8 @@ A helper class that can transform the derivatives of the potential from Cartesia
 __init__(self, molecule, mixed_derivs=None, modes=None, potential_derivatives=None, mode_selection=None, mode_transformation=None, full_surface_mode_selection=None, logger=None, parallelizer=None, checkpointer=None, check_input_force_constants=True, allow_higher_potential_terms=False, hessian_tolerance=0.0001, grad_tolerance=0.0001, freq_tolerance=0.002, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1830)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1830?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L1864)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1864?message=Update%20Docs)]
 </div>
 
   - `molecule`: `Molecule`
@@ -44,8 +44,8 @@ __init__(self, molecule, mixed_derivs=None, modes=None, potential_derivatives=No
 v_derivs(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/PotentialTerms.py#L1878)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/PotentialTerms.py#L1878?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/PotentialTerms.py#L1912)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/PotentialTerms.py#L1912?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -81,8 +81,8 @@ Compute the potential-energy expansion terms in the molecule's normal-mode coord
 get_potential_optimized_coordinates(cls, V_expansion, order=2): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L2771)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L2771?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L2768)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L2768?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -100,8 +100,8 @@ Find, order by order, the coordinate transformation that eliminates as much of t
 optimize_coordinates(self, order=2): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/PotentialTerms.py#L2803)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/PotentialTerms.py#L2803?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/PotentialTerms.py#L2800)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/PotentialTerms.py#L2800?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -163,7 +163,7 @@ Build the potential-optimized coordinate transformation for this potential expan
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience/VPT2/Terms/PotentialTerms.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/VPT2/Terms/PotentialTerms.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1819?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L1853?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    
