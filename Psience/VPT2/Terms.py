@@ -3322,6 +3322,14 @@ class CoriolisTerm(ExpansionTerms):
 
         return z
 
+    def get_quadratic_factors(self):
+        """Return the exact principal-axis factors of the leading Coriolis term."""
+        zeta, _ = self.get_zetas_and_momi()
+        roots = self._freq_sqrt(self.freqs)
+        factors = zeta * (roots[np.newaxis,:] / roots[:,np.newaxis])[np.newaxis]
+        weights = np.diag(self.moment_of_inertia_derivs(0)[0]) / 2
+        return factors, weights
+
     def get_terms(self, order=None, J=0):
         """
         **LLM Docstring**
