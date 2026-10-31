@@ -398,7 +398,7 @@ class VPTRuntimeOptions:
     """
     __props__ = ('operator_chunk_size', 'matrix_element_threshold', 'logger', 'verbose', 'checkpoint', 'results', 'memory_constrained', 'checkpoint_keys', 'use_cached_representations', 'use_cached_basis', 'nondeg_hamiltonian_precision')
 
-    def __init__(self, operator_chunk_size=None, matrix_element_threshold=None, nondeg_hamiltonian_precision=None, logger=None, verbose=None, checkpoint=None, results=None, parallelizer=None, memory_constrained=None, checkpoint_keys=None, use_cached_representations=None, use_cached_basis=None):
+    def __init__(self, operator_chunk_size=None, operator_contraction_method=None, factorized_coriolis=None, matrix_element_threshold=None, nondeg_hamiltonian_precision=None, logger=None, verbose=None, checkpoint=None, results=None, parallelizer=None, memory_constrained=None, state_space_storage=None, state_space_scratch=None, hamiltonian_storage=None, checkpoint_keys=None, use_cached_representations=None, use_cached_basis=None):
         """
         :param operator_chunk_size: the number of representation matrix elements to calculate in at one time
         :type operator_chunk_size: int|None default:None

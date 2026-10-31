@@ -66,6 +66,9 @@ class PerturbationTheorySolver:
                  zero_order_energy_corrections=None,
                  nondeg_hamiltonian_precision=3,
                  memory_constrained=False,
+                 state_space_storage="memory",
+                 state_space_scratch=None,
+                 hamiltonian_storage=None,
                  keep_hamiltonians=None,
                  logger=None,
                  parallelizer=None,
@@ -196,6 +199,11 @@ class PerturbationTheorySolver:
         self.gaussian_resonance_handling = gaussian_resonance_handling
         self.zero_element_warning = zero_element_warning
 
+        if state_space_storage not in {"memory", "external"}:
+            raise ValueError("state_space_storage must be memory or external")
+        self.state_space_storage = state_space_storage
+        self.state_space_scratch = state_space_scratch
+        self.hamiltonian_storage = hamiltonian_storage
         self.memory_constrained=memory_constrained
         self.keep_hamiltonians=keep_hamiltonians
 
@@ -514,7 +522,9 @@ class PerturbationTheorySolver:
                                     H[i + 1] = h.get_representation_matrix(cs, self.flat_total_space,
                                                                            zero_element_warning=self.zero_element_warning,
                                                                            diagonal=False,
-                                                                           memory_constrained=self.memory_constrained
+                                                                           memory_constrained=self.memory_constrained,
+                                                                           deduplication_method=self.state_space_storage,
+                                                                           deduplication_directory=self.state_space_scratch
                                                                            )
                                     h.clear_cache()
                                     end = time.time()
@@ -528,6 +538,17 @@ class PerturbationTheorySolver:
                             checkpointer['representations'] = H
                         except KeyError:
                             pass
+
+            if self.hamiltonian_storage is not None:
+                from pathlib import Path
+                from McUtils.Numputils import save_sparse_matrix, load_sparse_matrix
+                directory = Path(self.hamiltonian_storage)
+                directory.mkdir(parents=True, exist_ok=True)
+                for order, matrix in enumerate(H):
+                    if isinstance(matrix, SparseArray):
+                        path = directory / "H{}.npz".format(order)
+                        save_sparse_matrix(path, matrix)
+                        H[order] = load_sparse_matrix(path)
 
             return H
     def extend_VPT_representations(self, new_flat_space, new_states):
@@ -824,12 +845,28 @@ class PerturbationTheorySolver:
 
                 space_list = [self.states] + [s for s in self._coupled_states if s is not None]
                 self._total_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
-                flat_space = self.states.take_unique().to_single(track_excitations=False)
-                for s in self._coupled_states:
-                    if s is not None:
-                        flat_space = flat_space.union(s.to_single(track_excitations=False), track_excitations=False)
-                # flat_space = self._total_space.to_single()
-                self._flat_space = flat_space.take_unique(track_excitations=False)
+                if self.state_space_storage == "external":
+                    from McUtils.Numputils import external_unique
+                    def index_blocks():
+                        yield self.states.indices
+                        for space in self._coupled_states:
+                            if space is not None:
+                                if isinstance(space, BasisMultiStateSpace):
+                                    yield from space.iter_index_blocks()
+                                else:
+                                    yield space.indices
+                    indices = external_unique(index_blocks(), sort=False,
+                                              directory=self.state_space_scratch)
+                    flat_space = BasisStateSpace(self.states.basis, indices,
+                        mode=BasisStateSpace.StateSpaceSpec.Indices, full_basis=self.full_basis)
+                    self._flat_space = flat_space
+                else:
+                    flat_space = self.states.take_unique().to_single(track_excitations=False)
+                    for s in self._coupled_states:
+                        if s is not None:
+                            flat_space = flat_space.union(s.to_single(track_excitations=False), track_excitations=False)
+                    # flat_space = self._total_space.to_single()
+                    self._flat_space = flat_space.take_unique(track_excitations=False)
                 # raise Exception(
                 #     self._flat_space.find(
                 #         space_list[1].get_representation_brakets(other=None).bras

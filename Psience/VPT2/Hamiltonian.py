@@ -59,6 +59,8 @@ class PerturbationTheoryHamiltonian:
                  dipole_terms=None,
                  selection_rules=None,
                  operator_chunk_size=None,
+                 operator_contraction_method="tensor",
+                 factorized_coriolis=False,
                  operator_coefficient_threshold=None,
                  matrix_element_threshold=None,
                  logger=None,
@@ -278,8 +280,10 @@ class PerturbationTheoryHamiltonian:
 
         self.expansion_options = expansion_options
 
+        self.factorized_coriolis = factorized_coriolis
         self.operator_settings = {
             'chunk_size': operator_chunk_size,
+            'contraction_method': operator_contraction_method,
             'zero_threshold': matrix_element_threshold,
             'logger': self.logger,
             'parallelizer': self.parallelizer,
@@ -397,6 +401,13 @@ class PerturbationTheoryHamiltonian:
         #                 z = np.take(z, self.mode_selection, axis=i)
         #             zz.append(z)
         #         return zz
+        def get_factored_term(self, order):
+            if order != 0 or self.base_terms is None or self.input_terms is not None:
+                return None
+            from ..BasisReps.DirectContractions import QuadraticProductCoefficients
+            factors, weights = self.base_terms.get_quadratic_factors()
+            return QuadraticProductCoefficients(factors, weights)
+
         def adjust_base_term(self, Z):
             """
             **LLM Docstring**
@@ -624,7 +635,11 @@ class PerturbationTheoryHamiltonian:
                 oz = o - 2
                 if include_coriolis:
                     #TODO: nail down exactly how the 4-th and higher-order extensions of this really work...
-                    Z = self.coriolis_terms[oz]
+                    Z = (self.coriolis_terms.get_factored_term(oz)
+                         if (self.factorized_coriolis and return_reps and excluded_modes is None
+                             and self.operator_settings['skipped_coefficient_threshold'] is None) else None)
+                    if Z is None:
+                        Z = self.coriolis_terms[oz]
                     if Z is not None:
                         if o > 0 and  isinstance(Z, np.ndarray) and excluded_modes is not None:
                             Z = Z.copy()

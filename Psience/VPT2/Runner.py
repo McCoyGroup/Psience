@@ -998,12 +998,15 @@ class VPTRuntimeOptions:
 
     __props__ = (
         "operator_chunk_size",
+        "operator_contraction_method",
+        "factorized_coriolis",
         'matrix_element_threshold',
         "logger",
         "verbose",
         "checkpoint",
         "results",
         "memory_constrained",
+        "state_space_storage", "state_space_scratch", "hamiltonian_storage",
         "checkpoint_keys",
         "use_cached_representations",
         "use_cached_basis",
@@ -1011,6 +1014,8 @@ class VPTRuntimeOptions:
     )
     def __init__(self,
                  operator_chunk_size=None,
+                 operator_contraction_method=None,
+                 factorized_coriolis=None,
                  matrix_element_threshold=None,
                  nondeg_hamiltonian_precision=None,
                  logger=None,
@@ -1019,6 +1024,9 @@ class VPTRuntimeOptions:
                  results=None,
                  parallelizer=None,
                  memory_constrained=None,
+                 state_space_storage=None,
+                 state_space_scratch=None,
+                 hamiltonian_storage=None,
                  checkpoint_keys=None,
                  use_cached_representations=None,
                  use_cached_basis=None
@@ -1049,6 +1057,8 @@ class VPTRuntimeOptions:
         """
         ham_run_opts = dict(
             operator_chunk_size=operator_chunk_size,
+            operator_contraction_method=operator_contraction_method,
+            factorized_coriolis=factorized_coriolis,
             logger=logger,
             checkpoint=checkpoint,
             results=results,
@@ -1064,6 +1074,9 @@ class VPTRuntimeOptions:
         solver_run_opts = dict(
             # operator_chunk_size=operator_chunk_size,
             memory_constrained=memory_constrained,
+            state_space_storage=state_space_storage,
+            state_space_scratch=state_space_scratch,
+            hamiltonian_storage=hamiltonian_storage,
             verbose=verbose,
             checkpoint_keys=checkpoint_keys,
             # results=results,

@@ -527,7 +527,7 @@ class BasisStateSpace(AbstractStateSpace):
         self._max_sum = None # for full basis approaches
         if len(self._init_states) > 0:
             if self.infer_state_inds_type() == self.StateSpaceSpec.Indices:
-                self._indices = self._init_states.astype(int)
+                self._indices = self._init_states.astype(self.indices_dtype)
                 if self._indices.ndim != 1:
                     raise ValueError("excitations shape {} is incompatible with {}".format(
                         self._indices.shape,
@@ -836,9 +836,9 @@ class BasisStateSpace(AbstractStateSpace):
                                                                 )
             self._uinds = np.sort(uinds)
             raw_inds = self.basis.ravel_state_inds(np.reshape(states, (-1, self.ndim)))
-            return raw_inds[inv]
+            return raw_inds[inv].astype(self.indices_dtype, copy=False)
         elif states_type is self.StateSpaceSpec.Indices:
-            return states.flatten()
+            return states.flatten().astype(self.indices_dtype, copy=False)
         else:
             raise ValueError("don't know what to do with state spec {}".format(
                 states_type
@@ -2139,6 +2139,16 @@ class BasisMultiStateSpace(AbstractStateSpace):
 
         for x in self.spaces.flat:
             x.check_indices()
+
+    def iter_index_blocks(self):
+        """Yield rank-index arrays in the same order as as_indices()."""
+        if isinstance(self, SelectionRuleStateSpace):
+            yield self.representative_space.indices
+        for space in self.spaces.flat:
+            if isinstance(space, BasisMultiStateSpace):
+                yield from space.iter_index_blocks()
+            else:
+                yield space.indices
 
     def to_single(self,
                   track_excitations=True,
@@ -3761,19 +3771,22 @@ class BraKetSpace:
         )
 
     def __len__(self):
-        if len(self.state_pairs) > 0:
-            if len(self.state_pairs[0]) == 0:
-                return 0
-            return len(self.state_pairs[0][0])
-        else:
-            return 0
+        # Both state counts were checked at construction; no excitations needed.
+        return len(self.bras)
 
     def __repr__(self):
         return "{}(nstates={})".format(type(self).__name__, len(self))
 
 
-    def remove_duplicates(self, assume_symmetric=True):
+    def remove_duplicates(self, assume_symmetric=True, *, method="memory",
+                          directory=None, chunk_size=262144):
 
+        if method == "external":
+            if not assume_symmetric:
+                raise NotImplementedError("non-symmetric deduplication is not implemented")
+            return self._remove_duplicates_external(directory, chunk_size)
+        if method != "memory":
+            raise ValueError("unknown pair deduplication method: {}".format(method))
         if not assume_symmetric:
             raise NotImplementedError("only symmetric stuff currently implemented")
         else:
@@ -3802,6 +3815,40 @@ class BraKetSpace:
             full_sel = np.concatenate([og_sel, flip_sel])
 
             return self.take_subspace(full_sel)
+
+    def _remove_duplicates_external(self, directory, chunk_size):
+        import tempfile
+        from pathlib import Path
+        from McUtils.Numputils import external_unique
+        rows, cols = self.bras.indices, self.kets.indices
+        if directory is not None:
+            Path(directory).mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=directory, prefix="braket_merge_") as work:
+            count = 0
+            for flipped in [False, True]:
+                for start in range(0, len(rows), chunk_size):
+                    r, c = rows[start:start+chunk_size], cols[start:start+chunk_size]
+                    count += np.count_nonzero(c <= r if flipped else r <= c)
+            if not count:
+                return self.take_subspace(np.empty(0, dtype=int))
+            origins = np.lib.format.open_memmap(Path(work)/"origins.npy", mode="w+",
+                                                dtype=np.int64, shape=(count,))
+            def blocks():
+                offset = 0
+                for flipped in [False, True]:
+                    for start in range(0, len(rows), chunk_size):
+                        r, c = rows[start:start+chunk_size], cols[start:start+chunk_size]
+                        mask = c <= r if flipped else r <= c
+                        origin = np.arange(start, start+len(r), dtype=np.int64)[mask]
+                        origins[offset:offset+len(origin)] = origin
+                        offset += len(origin)
+                        yield np.column_stack((c[mask], r[mask]) if flipped else (r[mask], c[mask]))
+            _, first = external_unique(blocks(), sort=False, return_index=True, return_values=False,
+                                       directory=work, chunk_size=chunk_size)
+            selected = np.array(origins[first], copy=True)
+            origins._mmap.close()
+            del origins
+        return self.take_subspace(selected)
 
     def load_space_diffs(self):
         if self._state_diffs is None:
@@ -4299,7 +4346,7 @@ class BraKetSpace:
             self.kets.take_subspace(sel),
             changes=changes
         )
-        if len(self) > 0:
+        if self._state_pairs is not None:
             sub.state_pairs = (
                 self.state_pairs[0][:, sel],
                 self.state_pairs[1][:, sel]

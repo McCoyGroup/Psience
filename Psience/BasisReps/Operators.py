@@ -35,7 +35,8 @@ class Operator:
                  logger=None,
                  zero_threshold=None,
                  skipped_indices=None,
-                 chunk_size=None
+                 chunk_size=None,
+                 contraction_method="tensor", direct_block_size=65536
                  ):
         """
         :param funcs: The functions use to calculate representation
@@ -1111,7 +1112,9 @@ class ContractedOperator(Operator):
                  skipped_coefficient_threshold=None,
                  chunk_size=None,
                  parallelizer=None,
-                 logger=None
+                 logger=None,
+                 contraction_method="tensor",
+                 direct_block_size=65536
                  ):
         """
 
@@ -1138,10 +1141,18 @@ class ContractedOperator(Operator):
         :param chunk_size: number of elements that can be evaluated at once (for memory reasons)
         :type chunk_size: int | None
         """
+        if contraction_method not in {"tensor", "direct", "auto"}:
+            raise ValueError("unknown contraction method: {}".format(contraction_method))
+        self.contraction_method = contraction_method
+        self.direct_block_size = int(direct_block_size)
+        if self.direct_block_size < 1:
+            raise ValueError("direct_block_size must be positive")
+        self.coefficient_threshold = skipped_coefficient_threshold
         self.coeffs = coeffs
         self.axes = axes
         if (
                 skipped_indices is None
+                and not getattr(coeffs, "_quadratic_product", False)
                 and skipped_coefficient_threshold is not None
                 and not (isinstance(self.coeffs, (int, float, np.integer, np.floating)) and self.coeffs == 0)
         ):
@@ -1166,6 +1177,23 @@ class ContractedOperator(Operator):
     @property
     def is_zero(self):
         return (isinstance(self.coeffs, (int, float, np.integer, np.floating)) and self.coeffs == 0)
+
+    def _get_direct_elements(self, idx):
+        from .DirectContractions import HarmonicDirectContraction
+        if not isinstance(idx, BraKetSpace):
+            idx = BraKetSpace.from_indices(idx, quanta=self.quanta)
+        plan = HarmonicDirectContraction(self)
+        size = len(idx.bras)
+        result = np.empty((size,) + plan.component_shape)
+        block_size = self.direct_block_size if self.chunk_size is None else int(self.chunk_size)
+        for start in range(0, size, block_size):
+            sel = slice(start, min(start+block_size,size))
+            block = BraKetSpace(
+                idx.bras.take_subspace(sel, track_excitations=False),
+                idx.kets.take_subspace(sel, track_excitations=False))
+            result[sel] = plan.evaluate(block)
+        self._last_contraction_method = "direct"
+        return result
 
     def _get_element_block(self, idx, parallelizer=None, check_orthogonality=True, memory_constrained=False):
         c = self.coeffs
@@ -1222,6 +1250,14 @@ class ContractedOperator(Operator):
         c = self.coeffs
         if isinstance(c, (int, np.integer, float, np.floating)) and c == 0:
             return 0
+
+        if self.contraction_method in {"direct", "auto"} or getattr(c, "_quadratic_product", False):
+            try:
+                return self._get_direct_elements(idx)
+            except (TypeError, ValueError):
+                if self.contraction_method == "direct" or getattr(c, "_quadratic_product", False):
+                    raise
+        self._last_contraction_method = "tensor"
 
         idx_splits = self._split_idx(idx)
 
