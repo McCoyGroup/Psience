@@ -3330,6 +3330,20 @@ class CoriolisTerm(ExpansionTerms):
         weights = np.diag(self.moment_of_inertia_derivs(0)[0]) / 2
         return factors, weights
 
+    def get_coefficient_factors(self, order=0):
+        """Exact factors matching the existing rotational-diagonal collapse.
+
+        The inertia derivative carries only the additional coordinate axes;
+        the two frequency-scaled zeta tensors stay quadratic at every order.
+        """
+        zeta,_=self.get_zetas_and_momi()
+        roots=self._freq_sqrt(self.freqs)
+        factors=zeta*(roots[np.newaxis,:]/roots[:,np.newaxis])[np.newaxis]
+        inertia=self.moment_of_inertia_derivs(order)[order]
+        middle=np.stack([inertia[a,a] for a in range(len(factors))])/2
+        return ((factors,middle,factors),
+                ((0,1),tuple(range(2,order+2)),(order+2,order+3)))
+
     def get_terms(self, order=None, J=0):
         """
         **LLM Docstring**

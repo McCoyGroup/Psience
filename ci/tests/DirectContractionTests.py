@@ -60,7 +60,7 @@ class DirectTests(unittest.TestCase):
         actual=getter.get_factored_term(0).asarray()
         raw=terms.get_terms(0)[0];expected=raw[0,0]+raw[1,1]+raw[2,2]
         np.testing.assert_allclose(actual,expected,atol=1e-15)
-        self.assertIsNone(getter.get_factored_term(1))
+        self.assertIsNone(PerturbationTheoryHamiltonian.CoriolisTermGetter(terms, []).get_factored_term(1))
 
     def test_empty_and_lazy_braket_length(self):
         basis=HarmonicOscillatorProductBasis(2)

@@ -10,24 +10,21 @@ import numpy as np
 from numba import njit
 from McUtils.Combinatorics import UniquePermutations
 
-__all__ = ['HarmonicDirectContraction', 'QuadraticProductCoefficients']
+from .FactorizedContractions import FactorizedCoefficients, FactorizedHarmonicContraction
+
+__all__ = ['HarmonicDirectContraction', 'QuadraticProductCoefficients', 'FactorizedCoefficients']
 
 
-class QuadraticProductCoefficients:
+class QuadraticProductCoefficients(FactorizedCoefficients):
     """Exact sum_r weights[r] factors[r,i,j] factors[r,k,l]."""
     _quadratic_product = True
     def __init__(self, factors, weights):
-        self.factors = np.ascontiguousarray(factors, dtype=float)
-        self.weights = np.ascontiguousarray(weights, dtype=float)
-        if self.factors.ndim != 3 or self.factors.shape[1] != self.factors.shape[2]:
+        factors=np.asanyarray(factors)
+        if factors.ndim!=3 or factors.shape[1]!=factors.shape[2]:
             raise ValueError('quadratic factors must have shape (rank, modes, modes)')
-        if len(self.weights) != len(self.factors):
-            raise ValueError('one weight is required per factor')
-        self.shape = (self.factors.shape[1],) * 4
-        self.ndim = 4
-
-    def asarray(self):
-        return np.einsum('r,rij,rkl->ijkl', self.weights, self.factors, self.factors)
+        super().__init__((factors,factors),((0,1),(2,3)),weights)
+        # Preserve the public leading-Coriolis adapter's factor attribute.
+        self.factors=self.factor_tensors[0]
 
 
 @njit(cache=True)
@@ -49,7 +46,7 @@ def _canonical_coefficients(coefficients, nmodes, degree):
 
 
 @njit(cache=True)
-def _contract(bras, kets, coefficients, factors, weights, tables, permutations,
+def _contract(bras, kets, coefficients, tables, permutations,
               permutation_counts, degree, phase, threshold, symmetric):
     size, nmodes = bras.shape
     result = np.zeros((size, coefficients.shape[1]))
@@ -59,7 +56,6 @@ def _contract(bras, kets, coefficients, factors, weights, tables, permutations,
     choices = np.empty(degree//2, dtype=np.int64)
     unique_modes = np.empty(degree, dtype=np.int64)
     masks = np.empty(degree, dtype=np.int64)
-    factored = len(weights) > 0
     for pair in range(size):
         used = 0
         possible = True
@@ -94,19 +90,11 @@ def _contract(bras, kets, coefficients, factors, weights, tables, permutations,
                     mode = slots[j] if symmetric else slots[permutations[equality, perm, j]]
                     ordered[j] = mode
                     code = code * nmodes + mode
-                if factored:
-                    coefficient = 0.
-                    for r in range(len(weights)):
-                        coefficient += (weights[r]*factors[r,ordered[0],ordered[1]]
-                                        *factors[r,ordered[2],ordered[3]])
-                    if coefficient == 0:
-                        continue
-                else:
-                    nonzero = False
-                    for c in range(coefficients.shape[1]):
-                        nonzero |= coefficients[code,c] != 0
-                    if not nonzero:
-                        continue
+                nonzero = False
+                for c in range(coefficients.shape[1]):
+                    nonzero |= coefficients[code,c] != 0
+                if not nonzero:
+                    continue
                 count = 0
                 for j in range(degree):
                     mode = ordered[j]
@@ -126,11 +114,8 @@ def _contract(bras, kets, coefficients, factors, weights, tables, permutations,
                     mode = unique_modes[u]
                     value *= tables[masks[u], bras[pair,mode], kets[pair,mode]]
                 if abs(value) >= threshold:
-                    if factored:
-                        result[pair,0] += value*coefficient
-                    else:
-                        for c in range(coefficients.shape[1]):
-                            result[pair,c] += value*coefficients[code,c]
+                    for c in range(coefficients.shape[1]):
+                        result[pair,c] += value*coefficients[code,c]
             if extra == 0:
                 finished = True
             else:
@@ -149,6 +134,11 @@ def _contract(bras, kets, coefficients, factors, weights, tables, permutations,
 class HarmonicDirectContraction:
     """A per-call numerical plan; coefficient arrays are never cached across calls."""
     def __init__(self, operator):
+        self.factor_plan=None
+        if isinstance(operator.coeffs,FactorizedCoefficients):
+            self.factor_plan=FactorizedHarmonicContraction(operator)
+            self.component_shape=self.factor_plan.component_shape
+            return
         from .HarmonicOscillator import HarmonicProductOperatorTermEvaluator
         if not isinstance(operator.funcs, HarmonicProductOperatorTermEvaluator):
             raise TypeError('direct contraction requires the native harmonic term evaluator')
@@ -160,8 +150,10 @@ class HarmonicDirectContraction:
             self.component_shape = c.shape
             self.coefficients = c.reshape(1,-1)
             return
-        if not 1 <= self.degree <= 6:
-            raise ValueError('direct harmonic contractions support product degree 1 through 6')
+        if self.degree > 6:
+            self.factor_plan=FactorizedHarmonicContraction.from_dense_operator(operator)
+            self.component_shape=self.factor_plan.component_shape
+            return
         self.nmodes = operator.mode_n
         self.threshold = operator.zero_threshold
         self.phase = operator.funcs.i_phase
@@ -169,39 +161,29 @@ class HarmonicDirectContraction:
         self.symmetric = len(set(self.word)) == 1
         self.tables = None
         self.table_size = 0
-        if isinstance(operator.coeffs, QuadraticProductCoefficients):
-            if operator.skipped_indices is not None or operator.coefficient_threshold is not None:
-                raise ValueError('factorized coefficients require exact unfiltered support')
-            if self.word != ('x','p','x','p') or operator.axes is not None:
-                raise ValueError('quadratic products require ordered x,p,x,p and identity axes')
-            self.factors, self.weights = operator.coeffs.factors, operator.coeffs.weights
-            self.coefficients = np.zeros((1,1))
-            self.symmetric = False
-        else:
-            c = np.asanyarray(operator.coeffs)
-            if np.iscomplexobj(c):
-                raise TypeError('direct contraction requires real coefficients')
-            axes = operator.axes
-            if axes is None:
-                axes = (tuple(range(c.ndim)),)*2
-            left, right = tuple(axes[0]), tuple(axes[1])
-            if len(left) != self.degree or sorted(left) != list(range(self.degree)):
-                raise ValueError('direct contractions must contract every operator axis')
-            ordered_axes = [right[left.index(i)] % c.ndim for i in range(self.degree)]
-            remaining = [i for i in range(c.ndim) if i not in ordered_axes]
-            c = np.transpose(c, ordered_axes+remaining)
-            if c.shape[:self.degree] != (self.nmodes,)*self.degree:
-                raise ValueError('coefficient mode axes do not match the oscillator basis')
-            self.component_shape = c.shape[self.degree:]
-            c = np.ascontiguousarray(c.reshape((self.nmodes**self.degree,-1)), dtype=float)
-            # Respect explicitly requested coefficient exclusions before grouping.
-            if operator.skipped_indices is not None:
-                c = c.copy()
-                for pos in operator.skipped_indices:
-                    c[np.ravel_multi_index(pos,(self.nmodes,)*self.degree)] = 0
-            self.coefficients = (_canonical_coefficients(c,self.nmodes,self.degree)
-                                 if self.symmetric else c)
-            self.factors, self.weights = np.zeros((0,1,1)), np.zeros(0)
+        c = np.asanyarray(operator.coeffs)
+        if np.iscomplexobj(c):
+            raise TypeError('direct contraction requires real coefficients')
+        axes = operator.axes
+        if axes is None:
+            axes = (tuple(range(c.ndim)),)*2
+        left, right = tuple(axes[0]), tuple(axes[1])
+        if len(left) != self.degree or sorted(left) != list(range(self.degree)):
+            raise ValueError('direct contractions must contract every operator axis')
+        ordered_axes = [right[left.index(i)] % c.ndim for i in range(self.degree)]
+        remaining = [i for i in range(c.ndim) if i not in ordered_axes]
+        c = np.transpose(c, ordered_axes+remaining)
+        if c.shape[:self.degree] != (self.nmodes,)*self.degree:
+            raise ValueError('coefficient mode axes do not match the oscillator basis')
+        self.component_shape = c.shape[self.degree:]
+        c = np.ascontiguousarray(c.reshape((self.nmodes**self.degree,-1)), dtype=float)
+        # Respect explicitly requested coefficient exclusions before grouping.
+        if operator.skipped_indices is not None:
+            c = c.copy()
+            for pos in operator.skipped_indices:
+                c[np.ravel_multi_index(pos,(self.nmodes,)*self.degree)] = 0
+        self.coefficients = (_canonical_coefficients(c,self.nmodes,self.degree)
+                             if self.symmetric else c)
         patterns = 1 << (self.degree-1)
         nperms = math.factorial(self.degree)
         self.permutations = np.zeros((patterns,nperms,self.degree),dtype=np.int64)
@@ -215,6 +197,8 @@ class HarmonicDirectContraction:
             self.permutation_counts[equality] = len(permutations)
 
     def evaluate(self, pairs):
+        if self.factor_plan is not None:
+            return self.factor_plan.evaluate(pairs)
         from .HarmonicOscillator import HarmonicOscillatorMatrixGenerator
         bras,kets = pairs.state_pairs
         bras,kets = np.ascontiguousarray(bras.T),np.ascontiguousarray(kets.T)
@@ -234,7 +218,7 @@ class HarmonicDirectContraction:
                 gen = HarmonicOscillatorMatrixGenerator.load_cached(word)
                 tables[mask] = gen.evaluate_state_terms((i.ravel(),j.ravel())).reshape(extent,extent)
             self.tables,self.table_size = tables,extent
-        result = _contract(bras,kets,self.coefficients,self.factors,self.weights,self.tables,
+        result = _contract(bras,kets,self.coefficients,self.tables,
                            self.permutations,self.permutation_counts,self.degree,self.phase,
                            self.threshold,self.symmetric)
         return result.reshape((len(bras),)+self.component_shape)

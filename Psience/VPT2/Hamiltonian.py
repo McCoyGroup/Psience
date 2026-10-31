@@ -402,11 +402,14 @@ class PerturbationTheoryHamiltonian:
         #             zz.append(z)
         #         return zz
         def get_factored_term(self, order):
-            if order != 0 or self.base_terms is None or self.input_terms is not None:
+            if self.base_terms is None or self.input_terms is not None:
                 return None
-            from ..BasisReps.DirectContractions import QuadraticProductCoefficients
-            factors, weights = self.base_terms.get_quadratic_factors()
-            return QuadraticProductCoefficients(factors, weights)
+            from ..BasisReps.DirectContractions import QuadraticProductCoefficients, FactorizedCoefficients
+            if order == 0:
+                factors,weights=self.base_terms.get_quadratic_factors()
+                return QuadraticProductCoefficients(factors,weights)
+            factors,axes=self.base_terms.get_coefficient_factors(order)
+            return FactorizedCoefficients(factors,axes)
 
         def adjust_base_term(self, Z):
             """
