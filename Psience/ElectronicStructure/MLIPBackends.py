@@ -6,6 +6,7 @@ calculator (MACE, MACE-POLAR, UMA, UPET, Orb)
 import contextlib
 import functools
 import os
+import threading
 import warnings
 
 import numpy as np
@@ -958,7 +959,34 @@ class MACEBackend(ASECalculatorBackend):
         'mp':'mp/medium-mpa-0',
         'polar':'polar/polar-1-l'
     }
-    _mace_cache = {}  # weird OOM errors...
+    # Retain one calculator per configuration: rebuilding MACE models can exhaust memory.
+    _mace_cache = {}
+    _mace_cache_lock = threading.RLock()
+
+    @classmethod
+    def _mace_setting_key(cls, value):
+        """Snapshot common model settings into immutable, type-preserving cache keys.
+
+        Mapping order and array layout do not affect reuse. Unsupported unhashable
+        objects raise TypeError so that setup can safely bypass the cache.
+        """
+        value_type = type(value)
+        if value_type is dict:
+            return (value_type, frozenset(
+                (cls._mace_setting_key(k), cls._mace_setting_key(v))
+                for k, v in value.items()
+            ))
+        elif value_type in (list, tuple):
+            return (value_type, tuple(cls._mace_setting_key(v) for v in value))
+        elif value_type in (set, frozenset):
+            return (value_type, frozenset(cls._mace_setting_key(v) for v in value))
+        elif value_type is np.ndarray:
+            if value.dtype.hasobject:
+                raise TypeError("object arrays cannot be used as MACE cache keys")
+            return (value_type, value.dtype, value.shape, value.tobytes())
+        else:
+            hash(value)
+            return (value_type, value)
 
     @classmethod
     def handle_specialization(cls, tag):
@@ -981,40 +1009,43 @@ class MACEBackend(ASECalculatorBackend):
             if '/' not in model or os.path.isabs(model):
                 raise ValueError("set model_type when supplying a MACE checkpoint path or an unqualified model")
             model_type, model = model.split('/', 1)
-        if isinstance(model_type, str):
-            with quiet_mode():
-                if model_type == 'omol':
-                    from mace.calculators import mace_omol as model_type
-                elif model_type == 'mp':
-                    from mace.calculators import mace_mp as model_type
-                elif model_type == 'anicc':
-                    from mace.calculators import mace_anicc as model_type
-                elif model_type == 'polar':
-                    from mace.calculators import mace_polar as model_type
-                elif model_type == 'off':
-                    from mace.calculators import mace_off as model_type
-                else:
-                    import mace.calculators
-                    model_type = getattr(mace.calculators, model_type)
+        # Serialize lookup and construction, including their process-wide output and
+        # environment overrides, so simultaneous callers cannot load duplicate models.
+        with cls._mace_cache_lock:
+            if isinstance(model_type, str):
+                with quiet_mode():
+                    if model_type == 'omol':
+                        from mace.calculators import mace_omol as model_type
+                    elif model_type == 'mp':
+                        from mace.calculators import mace_mp as model_type
+                    elif model_type == 'anicc':
+                        from mace.calculators import mace_anicc as model_type
+                    elif model_type == 'polar':
+                        from mace.calculators import mace_polar as model_type
+                    elif model_type == 'off':
+                        from mace.calculators import mace_off as model_type
+                    else:
+                        import mace.calculators
+                        model_type = getattr(mace.calculators, model_type)
 
-        device = resolve_torch_device(device)
-        with quiet_mode(), cls._overload_mace_modeldir(model_dir):
-            cache_root = os.path.abspath(os.environ.get(
-                'XDG_CACHE_HOME', os.path.join(os.path.expanduser('~'), '.cache')
-            ))
-            cache_key = (model_type, model, str(device), cache_root)
-            try:
-                hash(cache_key)
-            except TypeError:
-                cacheable = False
-            else:
-                cacheable = len(settings) == 0
-            if not cacheable or cache_key not in cls._mace_cache:
-                calc = model_type(model=model, device=device, **settings)
-                if cacheable:
-                    cls._mace_cache[cache_key] = calc
-            else:
-                calc = cls._mace_cache[cache_key]
+            device = resolve_torch_device(device)
+            with quiet_mode(), cls._overload_mace_modeldir(model_dir):
+                cache_root = os.path.abspath(os.environ.get(
+                    'XDG_CACHE_HOME', os.path.join(os.path.expanduser('~'), '.cache')
+                ))
+                try:
+                    cache_key = (model_type, model, str(device), cache_root, cls._mace_setting_key(settings))
+                    hash(cache_key)
+                except (TypeError, RecursionError):
+                    cacheable = False
+                else:
+                    cacheable = True
+                if not cacheable or cache_key not in cls._mace_cache:
+                    calc = model_type(model=model, device=device, **settings)
+                    if cacheable:
+                        cls._mace_cache[cache_key] = calc
+                else:
+                    calc = cls._mace_cache[cache_key]
 
         return calc
 
