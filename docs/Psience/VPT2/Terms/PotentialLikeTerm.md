@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Terms.PotentialLikeTerm">PotentialLikeTerm</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L3381)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L3381?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms.py#L3395)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L3395?message=Update%20Docs)]
 </div>
 
 This accounts for the potential-like term.
@@ -26,8 +26,8 @@ In proper internals, this is the V' term.
 get_terms(self, order=None, logger=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/PotentialLikeTerm.py#L3388)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/PotentialLikeTerm.py#L3388?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/PotentialLikeTerm.py#L3402)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/PotentialLikeTerm.py#L3402?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -91,7 +91,7 @@ Compute the potential-like (Watson `U` / internal-coordinate `V'`) correction te
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience/VPT2/Terms/PotentialLikeTerm.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/VPT2/Terms/PotentialLikeTerm.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L3381?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms.py#L3395?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

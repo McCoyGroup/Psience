@@ -60,13 +60,27 @@ get_quadratic_factors(self):
 Return the exact principal-axis factors of the leading Coriolis term.
 
 
+<a id="Psience.VPT2.Terms.CoriolisTerm.get_coefficient_factors" class="docs-object-method">&nbsp;</a> 
+```python
+get_coefficient_factors(self, order=0): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/CoriolisTerm.py#L3333)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/CoriolisTerm.py#L3333?message=Update%20Docs)]
+</div>
+Exact factors matching the existing rotational-diagonal collapse.
+
+The inertia derivative carries only the additional coordinate axes;
+the two frequency-scaled zeta tensors stay quadratic at every order.
+
+
 <a id="Psience.VPT2.Terms.CoriolisTerm.get_terms" class="docs-object-method">&nbsp;</a> 
 ```python
 get_terms(self, order=None, J=0): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/CoriolisTerm.py#L3333)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/CoriolisTerm.py#L3333?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Terms/CoriolisTerm.py#L3347)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Terms/CoriolisTerm.py#L3347?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
