@@ -68,3 +68,7 @@ from .Conditional import (OperatorCondition, SameStateCondition,
 __all__ += ['OperatorCondition','SameStateCondition','PolynomialInvariantCondition',
             'PolynomialRelationshipCondition','EnergyWindowCondition',
             'IntegerLatticeCondition','ConditionalTransformationStack']
+
+from .CompiledExpressions import *
+from .CompiledExpressions import __all__ as exposed
+__all__ += exposed

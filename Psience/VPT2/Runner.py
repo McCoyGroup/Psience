@@ -4,6 +4,7 @@ A little package of utilities for setting up/running VPT jobs
 from __future__ import annotations
 
 
+from McUtils.Parallelizers import Parallelizer
 import numpy as np, sys, os, itertools, scipy, traceback as tb, math
 
 from McUtils.Data import UnitsData, AtomData
@@ -3436,7 +3437,10 @@ class AnalyticVPTRunner:
                  resonance_condition=None,
                  local_mode_couplings=None,
                  local_mode_coupling_order=None,
-                 parallelizer=None
+                 parallelizer=None,
+                 expressions_folder=None,
+                 compilation_options=None,
+                 evaluation_options=None
                  ):
         """
         **LLM Docstring**
@@ -3479,6 +3483,9 @@ class AnalyticVPTRunner:
         :type local_mode_coupling_order: int | None
         :param parallelizer: parallelization backend for the evaluator
         :type parallelizer: Parallelizer | None
+        :param expressions_folder: directory of reusable compiled expression shards and resumable numerical tasks
+        :param compilation_options: bounded compilation settings (max_terms, max_bytes, cache_size, cache_bytes)
+        :param evaluation_options: task/batch sizes, numerical cutoffs and shared-memory options for compiled evaluation
         :return: None
         :rtype: None
         """
@@ -3506,10 +3513,17 @@ class AnalyticVPTRunner:
                 ),
                 expansions,
                 freqs=freqs,
-                parallelizer=parallelizer
+                parallelizer=parallelizer,
+                expressions_folder=expressions_folder,
+                compilation_options=compilation_options,
+                evaluation_options=evaluation_options
             )
         else:
             self.eval = expansions
+            if expressions_folder is not None:self.eval.expressions_folder = expressions_folder
+            if compilation_options is not None:self.eval.compilation_options = dict(compilation_options)
+            if evaluation_options is not None:self.eval.evaluation_options = dict(evaluation_options)
+            if parallelizer is not None:self.eval.parallelizer = Parallelizer.lookup(parallelizer)
         if dipole_expansion is None and self.ham is not None:
             if expansion_order is None:
                 expansion_order = {}
@@ -3541,6 +3555,9 @@ class AnalyticVPTRunner:
                          polynomial_representation='path',
                          resonance_condition=None,
                          corrected_fundamental_frequencies=None,
+                         expressions_folder=None,
+                         compilation_options=None,
+                         evaluation_options=None,
                          **opts):
         """
         A driver powered by a classic PerturbationTheoryHamiltonian object
@@ -3589,6 +3606,9 @@ class AnalyticVPTRunner:
             logger=ham.logger if logger is None else logger,
             parallelizer=parallelizer,
             checkpoint=ham.checkpointer if checkpoint is None else checkpoint,
+            expressions_folder=expressions_folder,
+            compilation_options=compilation_options,
+            evaluation_options=evaluation_options,
             allowed_terms=allowed_terms,
             allowed_coefficients=allowed_coefficients,
             disallowed_coefficients=disallowed_coefficients,
@@ -3607,6 +3627,9 @@ class AnalyticVPTRunner:
                   *,
                   order=2,
                   expressions_file=None,
+                  expressions_folder=None,
+                  compilation_options=None,
+                  evaluation_options=None,
                   allowed_terms=None,
                   allowed_coefficients=None,
                   disallowed_coefficients=None,
@@ -3634,6 +3657,9 @@ class AnalyticVPTRunner:
             :type order: int
             :param expressions_file: checkpoint file for caching the analytic expressions
             :type expressions_file: str | None
+        :param expressions_folder: compiled expression cache, independent of the intermediate expressions_file checkpoint
+        :param compilation_options: settings for bounded final-expression compilation
+        :param evaluation_options: settings for resumable subset tasks and native numerical evaluation
             :param allowed_terms: restrict the analytic solver to only these perturbation term types
             :type allowed_terms: object | None
             :param allowed_coefficients: restrict the analytic solver to only these expansion coefficients
@@ -3673,6 +3699,9 @@ class AnalyticVPTRunner:
                 runner.hamiltonian,
                 opts.get('order', order),
                 checkpoint=expressions_file,
+                expressions_folder=expressions_folder,
+                compilation_options=compilation_options,
+                evaluation_options=evaluation_options,
                 parallelizer=parallelizer,
                 expansion_order=opts.get('expansion_order', None),
                 allowed_terms=allowed_terms,
@@ -3717,6 +3746,10 @@ class AnalyticVPTRunner:
                   polynomial_representation='path',
                   take_diagonal_v4_terms=True,
                   two_mode_only=False,
+                  expressions_folder=None,
+                  compilation_options=None,
+                  evaluation_options=None,
+                  parallelizer=None,
                   **settings):
         """
         **LLM Docstring**
@@ -3737,6 +3770,9 @@ class AnalyticVPTRunner:
         :type allowed_energy_changes: object | None
         :param expressions_file: checkpoint file for caching the analytic expressions
         :type expressions_file: str | None
+        :param expressions_folder: compiled expression cache, independent of the intermediate expressions_file checkpoint
+        :param compilation_options: settings for bounded final-expression compilation
+        :param evaluation_options: settings for resumable subset tasks and native numerical evaluation
         :param polynomial_representation: ``'path'`` for the canonical DAG backend or ``'eager'`` for the legacy tree backend
         :type polynomial_representation: str
         :param settings: extra options forwarded to `VPTRunner.construct`
@@ -3756,6 +3792,10 @@ class AnalyticVPTRunner:
             runner.hamiltonian,
             opts.get('order', order),
             checkpoint=expressions_file,
+            parallelizer=parallelizer,
+            expressions_folder=expressions_folder,
+            compilation_options=compilation_options,
+            evaluation_options=evaluation_options,
             expansion_order=opts.get('expansion_order', None),
             allowed_terms=allowed_terms,
             allowed_coefficients=allowed_coefficients,
@@ -3765,6 +3805,19 @@ class AnalyticVPTRunner:
             take_diagonal_v4_terms=take_diagonal_v4_terms,
             two_mode_only=two_mode_only
         )
+
+    def precompile(self, correction='energy', order=None, **options):
+        """Compile final analytic expressions; numerical inputs remain late-bound."""
+        return self.eval.precompile(correction=correction, order=self.order if order is None else order, **options)
+
+    def precompile_frequency_corrections(self, initial_state, final_state, order=None, **options):
+        return self.eval.precompile_frequency_corrections(initial_state, final_state,
+            order=self.order if order is None else order, **options)
+
+    def get_frequency_corrections(self, initial_state, final_state, order=None, **options):
+        """Return per-order transition-frequency corrections using compiled expressions."""
+        return self.eval.get_frequency_corrections(initial_state, final_state,
+            order=self.order if order is None else order, **options)
 
     def construct_classic_runner(self,
                                  # system,
@@ -5357,12 +5410,25 @@ class AnalyticVPTRunner:
                    only_degenerate_terms=True,
                    state_specific_degeneracies=False,
                    force_return_on_crash=True,
+                   *,
+                   expressions_file=None,
+                   expressions_folder=None,
+                   compilation_options=None,
+                   evaluation_options=None,
+                   parallelizer=None,
                    **opts
                    ):
         """
         **LLM Docstring**
 
         Convenience one-shot entry point: builds an `AnalyticVPTRunner` for the given system (via `construct`) and immediately runs the full VPT calculation on it (via `run_VPT`).
+
+        Supplying expressions_folder enables bounded final-expression compilation
+        followed by numerical dispatch through parallelizer. Matching shards and
+        completed task checkpoints are reused on subsequent calls. Energy,
+        transition-moment and additional operator requests keep their normal
+        result format and native resonance handling. No separate precompile call
+        is required. expressions_file can still cache intermediate expressions.
 
         :param system: the molecule or system specification to run VPT on
         :type system: str | list | Molecule | VPTSystem
@@ -5398,6 +5464,11 @@ class AnalyticVPTRunner:
         :type state_specific_degeneracies: bool
         :param force_return_on_crash: whether to catch exceptions during the run and still return partial results
         :type force_return_on_crash: bool
+        :param expressions_file: legacy intermediate-expression checkpoint, independent of expressions_folder
+        :param expressions_folder: persistent compiled-expression shards and resumable numerical tasks; enables compilation in the controller before dispatching each correction
+        :param compilation_options: bounded compilation settings forwarded to the analytic evaluator
+        :param evaluation_options: compiled task/batch sizes, resume, numerical and shared-memory settings
+        :param parallelizer: existing McUtils parallelizer used for numerical workers
         :param opts: extra options forwarded to `construct`
         :return: the computed VPT results, or `(runner, results)` if `return_runner` is set
         :rtype: object | tuple
@@ -5405,9 +5476,18 @@ class AnalyticVPTRunner:
         if degeneracy_states is not None:
             raise ValueError("expect `degeneracy_specs`, not `degeneracy_states`")
 
-        runner, states = cls.construct(system, states, degeneracy_specs=degeneracy_specs, **opts)
+        runner, states = cls.construct(
+            system, states, degeneracy_specs=degeneracy_specs,
+            expressions_file=expressions_file,
+            expressions_folder=expressions_folder,
+            compilation_options=compilation_options,
+            evaluation_options=evaluation_options,
+            parallelizer=parallelizer,
+            **opts
+        )
 
         res = runner.run_VPT(states,
+                             order=runner.order,
                              calculate_intensities=calculate_intensities,
                              operator_expansions=operator_expansions,
                              operator_terms=operator_terms,
