@@ -801,12 +801,12 @@ class Representation:
             rows, cols = full_inds.T
             full_inds = np.empty(
                 (len(shape), len(full_dat)),
-                dtype=nput.infer_inds_dtype(len(full_dat))
+                dtype=nput.infer_inds_dtype(max(shape) - 1)
             )
 
             # create a tensor of indices that will be used to appropriately tile
             # the system
-            stride = len(shape)
+            stride = int(np.prod(ext_shape))
             # print(len(shape), len(full_dat)/len(rows))
             # row_repeats = np.broadcast_to(rows[:, np.newaxis], (len(rows), len(ext_shape))).flatten()
             # del rows

@@ -610,17 +610,10 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
             for a in range(3):
                 mu_basic_terms = [r[:, :, a] for r in mu_reps]
                 if partitioning == self.DipolePartitioningMethod.Intuitive:
-                    mu_terms = [mu_basic_terms[0]]
-                    if order > 1:
-                        mu_terms.append(mu_basic_terms[1])
-                    if order > 2:
-                        mu_terms.append(mu_basic_terms[2])
+                    mu_terms = mu_basic_terms[:order]
                 elif partitioning == self.DipolePartitioningMethod.Standard:
-                    mu_terms = [mu_basic_terms[0] + mu_basic_terms[1]]
-                    if order > 1:
-                        mu_terms.append(mu_basic_terms[2])
-                    if order > 2:
-                        mu_terms.append(mu_basic_terms[3])
+                    mu_terms = ([mu_basic_terms[0] + mu_basic_terms[1]]
+                                + mu_basic_terms[2:order + 1])
                 else:
                     raise ValueError("don't know how to interpret dipole partitioning {}".format(partitioning))
 
@@ -1097,7 +1090,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         if self._tm_dat is None:
             self._tm_dat = self._transition_moments(*self.dipole_terms)
         elif self._tm_dat[0] is None:
-            self._tm_dat = self._transition_moments(*self._tm_dat[2], correction_terms=self._tm_dat[3])
+            self._tm_dat = self._transition_moments(*self.dipole_terms, correction_terms=self._tm_dat[3])
 
     @property
     def transition_moments(self):
