@@ -1138,6 +1138,7 @@ class VPTSolverOptions:
         "gaussian_resonance_handling",
         "ignore_odd_order_energies",
         "intermediate_normalization",
+        "use_block_recurrence",
         "zero_element_warning",
         "degenerate_states",
         "zero_order_energy_corrections",
@@ -1176,7 +1177,8 @@ class VPTSolverOptions:
                  strong_coupling_zero_order_energy_cutoff=None,
                  low_frequency_mode_cutoff=None,
                  zero_order_energy_corrections=None,
-                 check_overlap=None
+                 check_overlap=None,
+                 use_block_recurrence=None
                  ):
         """
         :param order: the order of perturbation theory to apply
@@ -1223,6 +1225,9 @@ class VPTSolverOptions:
         :type zero_order_energy_corrections: dict
         :param check_overlap: whether or not to ensure states are normalized in the VPT
         :type check_overlap: bool default:True
+        :param use_block_recurrence: use the matrix recurrence for resonance blocks (default True
+            in the solver); False selects the original scalar recurrence
+        :type use_block_recurrence: bool
         """
         """
         
@@ -1255,7 +1260,8 @@ class VPTSolverOptions:
             intermediate_normalization=intermediate_normalization,
             zero_element_warning=zero_element_warning,
             zero_order_energy_corrections=zero_order_energy_corrections,
-            check_overlap=check_overlap
+            check_overlap=check_overlap,
+            use_block_recurrence=use_block_recurrence
         )
 
         real_opts = {}
