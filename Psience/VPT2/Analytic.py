@@ -10951,7 +10951,11 @@ class PerturbationTheoryEvaluator:
     def __init__(self, solver:AnalyticPerturbationTheorySolver, expansion, freqs=None, parallelizer=None):
         self.solver = solver
         self.expansions = expansion
-        if freqs is None: freqs = 2*np.diag(self.expansions[0][0])
+        if freqs is None:
+            # Match the harmonic diagonal used by the classic solver.
+            potential, kinetic = self.expansions[0][:2]
+            kinetic_diagonal = np.diag(kinetic) if np.ndim(kinetic) == 2 else kinetic
+            freqs = np.diag(potential) + kinetic_diagonal
         self.freqs = freqs
         self.parallelizer = Parallelizer.lookup(parallelizer) if parallelizer is not None else None
 

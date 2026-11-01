@@ -76,7 +76,8 @@ class PerturbationTheorySolver:
                  results=None,
                  checkpoint_keys=None,
                  use_cached_representations=False,
-                 use_cached_basis=False
+                 use_cached_basis=False,
+                 use_block_recurrence=True
                  ):
         """
 
@@ -92,6 +93,9 @@ class PerturbationTheorySolver:
         :type degenerate_states:
         :param degeneracy_mode:
         :type degeneracy_mode:
+        :param use_block_recurrence: use the matrix recurrence for multi-state resonance blocks;
+            False retains the original scalar recurrence and reorthogonalization path
+        :type use_block_recurrence: bool
         :param logger:
         :type logger:
         :param parallelizer:
@@ -195,6 +199,7 @@ class PerturbationTheorySolver:
         if reorthogonalize_degenerate_states is None:
             reorthogonalize_degenerate_states = not intermediate_normalization
         self.reorthogonalize_degenerate_states = reorthogonalize_degenerate_states
+        self.use_block_recurrence = use_block_recurrence
         self.check_overlap = check_overlap
         self.gaussian_resonance_handling = gaussian_resonance_handling
         self.zero_element_warning = zero_element_warning
@@ -1967,6 +1972,17 @@ class PerturbationTheorySolver:
                             deg_engs = zero_order_states = subspaces = main_subspace = [None]
 
                         res_inds = states.find(deg_group.indices, missing_val=-1)
+                        if self.use_block_recurrence and len(deg_group) > 1:
+                            energies, overlaps, corrs, ecorrs = self.apply_VPT_block_equations(
+                                deg_group, perturbations=perturbations,
+                                non_zero_cutoff=non_zero_cutoff
+                            )
+                            present = res_inds > -1
+                            all_energies[res_inds[present]] = energies[present]
+                            all_energy_corrs[res_inds[present]] = ecorrs[present]
+                            all_corrs[res_inds[present]] = corrs[present]
+                            all_overlaps[res_inds[present]] = overlaps[present]
+                            continue
                         for n, res_index, de, zo, s in zip(deg_group.indices, res_inds, deg_engs, zero_order_states, subspaces):
                             if res_index > -1:
                                 energies, overlaps, corrs, ecorrs = self.apply_VPT_equations(
@@ -2208,6 +2224,69 @@ class PerturbationTheorySolver:
                                                intermediate_normalization=intermediate_normalization,
                                                perturbations=perturbations
                                                )
+
+    def apply_VPT_block_equations(self, group, perturbations=None, non_zero_cutoff=None):
+        """Apply the same recurrence to all columns of one projected block.
+
+        Corrections are stored as (order, reference state, basis state), so
+        right multiplication of ket columns by F is F.T @ C in this layout.
+        F is constructed from HY = YF; higher-order normalization is imposed
+        before advancing the recurrence. No denominator is inverted inside P.
+        """
+        if non_zero_cutoff is None:
+            non_zero_cutoff = Settings.non_zero_cutoff
+        H = self.representations if perturbations is None else perturbations
+        inds = self.flat_total_space.find(group)
+        nstates, nbasis = len(inds), len(self.flat_total_space)
+        order = self.order
+        e0 = self.zero_order_energies[inds]
+        C = np.zeros((order + 1, nstates, nbasis), dtype=float)
+        C[0, np.arange(nstates), inds] = 1
+        F = np.zeros((order + 1, nstates, nstates), dtype=float)
+        F[0] = np.diag(e0)
+        energies = np.zeros((nstates, order + 1), dtype=float)
+        energies[:, 0] = e0
+        overlaps = np.zeros_like(energies)
+        overlaps[:, 0] = 1
+        energy_terms = np.full((nstates, order + 1), None, dtype=object)
+        # Reuse the existing denominator checks and sign convention for Pi0.
+        resolvents = [self._get_Pi0(inds, E0=e, non_zero_cutoff=non_zero_cutoff) for e in e0]
+        dot = self._safe_dot
+        for k in range(1, order + 1):
+            if self.intermediate_normalization or k == 1:
+                normalizer = np.zeros((nstates, nstates))
+            else:
+                normalizer = -.5 * sum(C[i].conj() @ C[k-i].T for i in range(1, k))
+                if not self.reorthogonalize_degenerate_states:
+                    normalizer = np.diag(np.diag(normalizer))
+            # PH0 Yk - P Yk F0, including unequal unperturbed energies in P.
+            F[k] = e0[:, None] * normalizer - normalizer * e0[None, :]
+            rhs = np.zeros((nstates, nbasis))
+            terms = []
+            for s in range(k, 0, -1):
+                t = k - s
+                hc = dot(H[s], C[t].T)
+                if isinstance(hc, (int, float, np.integer, np.floating)):
+                    hc = np.zeros((nstates, nbasis))
+                else:
+                    hc = np.asarray(hc).T
+                rhs -= hc
+                term = hc[:, inds].T
+                if t > 0:
+                    rhs += F[s].T @ C[t]
+                    term = term - C[t][:, inds].T @ F[s]
+                F[k] += term
+                terms.append(np.diag(term))
+            # F[k] is a matrix even when its odd-order diagonal vanishes.
+            energies[:, k] = np.diag(F[k])
+            if self.ignore_odd_orders and k % 2:
+                energies[:, k] = 0
+            for a in range(nstates):
+                C[k, a] = dot(resolvents[a], rhs[a])
+                energy_terms[a, k] = np.asarray([term[a] for term in terms])
+            C[k][:, inds] = normalizer.T
+            overlaps[:, k] = np.diag(normalizer)
+        return energies, overlaps, C.transpose(1, 0, 2), energy_terms
 
     def apply_VPT_nondeg_equations(self,
                                    state_index,
