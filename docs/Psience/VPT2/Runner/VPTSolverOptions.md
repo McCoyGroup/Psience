@@ -22,11 +22,11 @@ for configuring the way the perturbation theory is applied
  
 <a id="Psience.VPT2.Runner.VPTSolverOptions.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
-__init__(self, order=2, expansion_order=None, coupled_states=None, total_space=None, flat_total_space=None, state_space_iterations=None, state_space_terms=None, state_space_filters=None, extended_state_space_filter_generator=None, extended_state_space_postprocessor=None, allow_post_PT_calc=None, modify_degenerate_perturbations=None, gaussian_resonance_handling=None, ignore_odd_order_energies=None, intermediate_normalization=None, zero_element_warning=None, degenerate_states=None, handle_strong_couplings=None, strong_coupling_test_modes=None, strong_couplings_state_filter=None, strongly_coupled_group_filter=None, extend_strong_coupling_spaces=None, strong_coupling_zero_order_energy_cutoff=None, low_frequency_mode_cutoff=None, zero_order_energy_corrections=None, check_overlap=None): 
+__init__(self, order=2, expansion_order=None, coupled_states=None, total_space=None, flat_total_space=None, state_space_iterations=None, state_space_terms=None, state_space_filters=None, extended_state_space_filter_generator=None, extended_state_space_postprocessor=None, allow_post_PT_calc=None, modify_degenerate_perturbations=None, gaussian_resonance_handling=None, ignore_odd_order_energies=None, intermediate_normalization=None, zero_element_warning=None, degenerate_states=None, handle_strong_couplings=None, strong_coupling_test_modes=None, strong_couplings_state_filter=None, strongly_coupled_group_filter=None, extend_strong_coupling_spaces=None, strong_coupling_zero_order_energy_cutoff=None, low_frequency_mode_cutoff=None, zero_order_energy_corrections=None, check_overlap=None, use_block_recurrence=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1153)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1153?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1154)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1154?message=Update%20Docs)]
 </div>
 
   - `order`: `int`
@@ -72,6 +72,9 @@ expansion_order = {
     > energies to use for the zero-order states instead of the diagonal of `H(0)`
   - `check_overlap`: `bool default:True`
     > whether or not to ensure states are normalized in the VPT
+  - `use_block_recurrence`: `bool`
+    > use the matrix recurrence for resonance blocks (default True
+    in the solver); False selects the original scalar recurrence
 
 
 <a id="Psience.VPT2.Runner.VPTSolverOptions.get_zero_order_energies" class="docs-object-method">&nbsp;</a> 
@@ -80,8 +83,8 @@ expansion_order = {
 get_zero_order_energies(corrected_fundamental_freqs, states): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L1282)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L1282?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L1288)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L1288?message=Update%20Docs)]
 </div>
 
   - `corrected_fundamental_freqs`: `Any`
@@ -97,9 +100,9 @@ get_zero_order_energies(corrected_fundamental_freqs, states):
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-835816" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-835816"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Details-883b96" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-883b96"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Details-835816" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Details-883b96" markdown="1">
  The `basis_postfilters` have multiple possible values.
 Here are the currently supported cases
 
