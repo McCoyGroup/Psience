@@ -5710,6 +5710,20 @@ class _MaterializedEvaluationCache:
         }
 
 
+class _StreamRetainedEvaluationCache(_BoundedEvaluationCache):
+    def trim_retained_graph(self):
+        # Measure once at a batch boundary, not on every numerical cache store.
+        from .BoundedStream import retained_size
+        measured = retained_size(self._data)
+        while self.max_bytes is not None and measured > self.max_bytes and self._data:
+            for _ in range(max(1, len(self._data)//2)):
+                key, _ = self._data.popitem(last=False)
+                self._bytes -= self._sizes.pop(key)
+                self.evictions += 1
+            measured = retained_size(self._data)
+        return measured
+
+
 class _BalancedPolynomialAccumulator:
     """Add native polynomials in a balanced tree without changing any terms.
 
@@ -5769,19 +5783,53 @@ class PTTensorCoeffProductDAGEvaluationPlan:
     remain available as the reference/timing implementation.
     """
 
+    coalesce_combine_nodes = False
+    combine_chunk_size = 32768
+    progress_callback = None
+
     def __init__(self, expression, cache=None, max_cached_terms=256, max_mode_indices=None):
         if not isinstance(expression, PTTensorCoeffProductDAG):
             raise TypeError(type(expression))
         self.expression = expression
         self.cache = cache if cache is not None else _BoundedEvaluationCache()
         self.max_mode_indices = max_mode_indices
-        self.term_cache = self.cache.view(('tensor_terms',max_mode_indices))
-        self.operation_cache = self.cache.view(('tensor_operations',max_mode_indices))
+        self.term_cache = self.cache.view(('tensor_terms',max_mode_indices,self.coalesce_combine_nodes))
+        self.operation_cache = self.cache.view(('tensor_operations',max_mode_indices,self.coalesce_combine_nodes))
         self.max_cached_terms = max(0, int(max_cached_terms))
         self.nodes_visited = 0
         self.node_cache_hits = 0
         self.terms_emitted = 0
         self.mode_terms_pruned = 0
+        self.coalesce_input_terms = self.coalesce_output_terms = self.coalesce_batches = 0
+
+    def _coalesced_combine(self, child, combine_coeffs, combine_subterms, combine_energies):
+        pending = {}
+        count = 0
+        def flush():
+            compact = PTTensorCoeffProductSum(
+                {key:value.total() for key,value in pending.items()},
+                canonicalize=False, reduced=False
+            ).combine(combine_coeffs=combine_coeffs, combine_subterms=combine_subterms,
+                      combine_energies=combine_energies)
+            result = self._result_terms(compact)
+            self.coalesce_output_terms += len(result)
+            self.coalesce_batches += 1
+            pending.clear()
+            if self.progress_callback is not None:
+                self.progress_callback(self)
+            return result
+        for key,poly in self._iter_node(child):
+            accumulator = pending.get(key)
+            if accumulator is None:
+                accumulator = pending[key] = _BalancedPolynomialAccumulator()
+            accumulator.append(poly)
+            self.coalesce_input_terms += 1
+            count += 1
+            if count >= self.combine_chunk_size:
+                yield from flush()
+                count = 0
+        if pending:
+            yield from flush()
 
     @staticmethod
     def _singleton(key, poly):
@@ -5882,9 +5930,10 @@ class PTTensorCoeffProductDAGEvaluationPlan:
                     check_perm=check_perm, allow_padding=allow_padding
                 )
         elif kind == 'combine':
-            # All combine modes are algebraic reductions.  Evaluation is linear,
-            # so retaining the unreduced stream is exactly equivalent.
-            yield from self._iter_node(args[0])
+            if self.coalesce_combine_nodes:
+                yield from self._coalesced_combine(*args)
+            else:
+                yield from self._iter_node(args[0])
         elif kind in {'mul_along', 'mul_simple'}:
             left, right, *op_args = args
             if isinstance(right, PTTensorCoeffProductDAG):
@@ -5919,6 +5968,9 @@ class PTTensorCoeffProductDAGEvaluationPlan:
             'dag_node_cache_hits': self.node_cache_hits,
             'dag_terms_emitted': self.terms_emitted,
             'dag_terms_pruned_for_modes': self.mode_terms_pruned,
+            'dag_coalesce_input_terms': self.coalesce_input_terms,
+            'dag_coalesce_output_terms': self.coalesce_output_terms,
+            'dag_coalesce_batches': self.coalesce_batches,
             **self.cache.stats()
         }
 
@@ -6621,16 +6673,10 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
         return Logger.lookup(cls.default_filters)
 
     def get_core_poly(self, changes, shift=None):
-        terms = (term.get_poly_terms(changes, shift=shift)
-                 for term in self.expressions)
-        if self.polynomial_representation == 'path':
-            # Balance construction as well as numerical evaluation chunks:
-            # a left-folded sum gives the lazy tensor DAG linear depth.
-            accumulator = _BalancedPolynomialAccumulator()
-            for term in terms:
-                accumulator.append(term)
-            return accumulator.total()
-        return sum(terms)
+        return sum(
+            term.get_poly_terms(changes, shift=shift)
+            for term in self.expressions
+        )
 
     simplify_by_default = True
     caching_enabled = True
@@ -8354,8 +8400,6 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
         base_changes = self.changes.get(changes, 0)
         if isinstance(base_changes, list):
             poly_changes = 0
-            accumulator = (_BalancedPolynomialAccumulator()
-                           if self.polynomial_representation == 'path' else None)
             for change_1, change_2, contact_1, contact_2, rem_1, rem_2, reorg in base_changes:
                 # try:
                 new_polys = self.get_poly_product_terms(
@@ -8374,12 +8418,7 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                             self.gen2, change_2, contact_2
                         ))
 
-                if accumulator is None:
-                    poly_changes += new_polys
-                else:
-                    accumulator.append(new_polys)
-            if accumulator is not None:
-                poly_changes = accumulator.total()
+                poly_changes += new_polys
 
             # if not nput.is_numeric(poly_changes):
             #
@@ -9980,6 +10019,7 @@ class PerturbationTheoryExpressionEvaluator:
         # parallelizer.print("wat {l}", l=len(args))
 
     _cached_main_args = None
+    _cached_stream_preparation = None
     @classmethod
     def _extract_main_args(cls):
         if cls._cached_main_args is not None:
@@ -10005,8 +10045,14 @@ class PerturbationTheoryExpressionEvaluator:
             # counts_cache, poly_cache, take_cache, energy_cache,
             # pows,
             verbose, logger, log_scaled, log_level,
-            ndim, evaluation_backend
+            stream_preparation_entries, ndim, evaluation_backend
         ) = cls._parallel_eval_main_args
+
+        cls._cached_stream_preparation = None
+        if stream_preparation_entries is not None:
+            from .BoundedStream import StreamPreparationContext
+            cls._cached_stream_preparation = StreamPreparationContext(
+                cls._cached_expansion, stream_preparation_entries)
 
         cls.set_cache_size(max_cache_size)
 
@@ -10035,6 +10081,10 @@ class PerturbationTheoryExpressionEvaluator:
         pows = np.power(np.arange(max_state + 1)[np.newaxis, :], np.arange(max_order + 1)[:, np.newaxis])
         counts_cache = cls.get_cache()  # so we don't hit some coeff sets too many times
         poly_cache = (
+            _StreamRetainedEvaluationCache(
+                path_cache_size or cls.default_materialized_path_cache_size,
+                path_cache_bytes if path_cache_bytes is not None else cls.default_materialized_path_cache_bytes)
+            if stream_preparation_entries is not None else
             _MaterializedEvaluationCache(
                 cls._poly_cache,
                 max_items=path_cache_size,
@@ -10105,7 +10155,7 @@ class PerturbationTheoryExpressionEvaluator:
                         block_ranges,
                         contrib_shapes,
                         free_inds,
-                        cind_sets
+                        cind_sets, mode_subset_selector=None
                         ):
         (
             expr, change, baseline_shift,
@@ -10123,10 +10173,12 @@ class PerturbationTheoryExpressionEvaluator:
         eval_perm = cls._eval_perm
         if evaluation_backend == 'indexed':
             from .IndexedEvaluator import IndexedBlockEvaluator
-            indexed_executor = IndexedBlockEvaluator(cls, expr)
+            indexed_executor = IndexedBlockEvaluator(cls, expr, preparation_context=cls._cached_stream_preparation)
             eval_perm = indexed_executor.eval_perm
 
-        tensors, cind_specs = cls._prep_coeff_data(cind_sets, coeffs)
+        tensors, cind_specs = (cls._prep_coeff_data(cind_sets, coeffs)
+            if cls._cached_stream_preparation is None else
+            cls._cached_stream_preparation.prepare(cls, cind_sets))
 
         facs = [
             math.factorial(n)
@@ -10135,16 +10187,18 @@ class PerturbationTheoryExpressionEvaluator:
         split_spec = np.cumsum([0] + [len(perms) for state, perms in state_perms])[1:]
 
         contrib = [np.zeros(c) for c in contrib_shapes]
-        comb_iter = itertools.combinations(range(num_fixed, ndim), r=free_inds)
+        def combinations():
+            return (itertools.combinations(range(num_fixed, ndim), r=free_inds)
+                    if mode_subset_selector is None else
+                    mode_subset_selector.iter_subsets(ndim,num_fixed,free_inds))
+        comb_iter = combinations()
         combination_position = 0
         for start, stop in sorted(block_ranges):
             if start < combination_position:
                 # Keep this correct if a future scheduler assigns overlapping
                 # or out-of-order ranges, without penalizing today's ordered
                 # contiguous partition.
-                comb_iter = itertools.combinations(
-                    range(num_fixed, ndim), r=free_inds
-                )
+                comb_iter = combinations()
                 combination_position = 0
             for subset in itertools.islice(
                     comb_iter,
@@ -10237,11 +10291,22 @@ class PerturbationTheoryExpressionEvaluator:
                                         state_cache_bytes=None,
                                         use_path_cache=True,
                                         evaluation_backend=None,
-                                        degeneracy_identification_context=None):
+                                        degeneracy_identification_context=None,
+                                        mode_subset_selector=None,
+                                        stream_options=None):
         cache_size = cls.default_dag_cache_size if cache_size is None else cache_size
         cache_bytes = cls.default_dag_cache_bytes if cache_bytes is None else cache_bytes
         chunk_size = cls.default_dag_chunk_size if chunk_size is None else max(1, int(chunk_size))
-        evaluation_cache = _BoundedEvaluationCache(cache_size, cache_bytes)
+        budget = preparation = None
+        if stream_options is not None:
+            from .BoundedStream import StreamBudget, StreamPreparationContext
+            budget = StreamBudget(stream_options)
+            preparation = StreamPreparationContext(
+                coeffs, budget.preparation_entries if budget.reuse_preparation else 0)
+        cache_type = (_StreamRetainedEvaluationCache
+                      if budget is not None and budget.account_cache_graphs
+                      else _BoundedEvaluationCache)
+        evaluation_cache = cache_type(cache_size, cache_bytes)
         state_permutation_cache = cls._new_state_permutation_cache(
             state_cache_size, state_cache_bytes
         )
@@ -10255,8 +10320,8 @@ class PerturbationTheoryExpressionEvaluator:
                 cls._poly_cache,
                 batch_cache=evaluation_cache
             )
-            if use_path_cache else
-            evaluation_cache
+            if use_path_cache and budget is None else
+            _BoundedEvaluationCache(cache_size, cache_bytes) if budget is not None else evaluation_cache
         )
         plan = PTTensorCoeffProductDAGEvaluationPlan(
             expr,
@@ -10273,12 +10338,19 @@ class PerturbationTheoryExpressionEvaluator:
         balanced_sums = cls.use_balanced_chunk_sums
         maximum_sum_levels = 0
         chunks = 0
-        indexed_chunk_stats = []
+        generation_seconds = accumulation_seconds = evaluation_seconds = 0.
+        numerical_sums = [_BalancedPolynomialAccumulator() for _ in result]
+        indexed_chunk_stats = None
         materializations_before = PTTensorCoeffProductDAG.cache_info()['tensor_materializations']
         start = time.perf_counter()
 
-        def evaluate_pending():
-            nonlocal chunks
+        def evaluate_pending(reason='end'):
+            nonlocal chunks, evaluation_seconds, indexed_chunk_stats, polynomial_cache
+            if len(pending) == 0:
+                return
+            if budget is not None:
+                budget.event('evaluate_start', reason, len(pending))
+            tick = time.perf_counter()
             if len(pending) == 0:
                 return
             chunk = PTTensorCoeffProductSum(
@@ -10303,18 +10375,38 @@ class PerturbationTheoryExpressionEvaluator:
                 _state_permutation_cache=state_permutation_cache,
                 _degeneracy_identification_context=(
                     degeneracy_identification_context
-                )
+                ),
+                mode_subset_selector=mode_subset_selector,
+                _stream_preparation=preparation
             )
             if evaluation_backend == 'indexed':
                 chunk_stats = cls.get_last_indexed_evaluation_stats()
                 if chunk_stats is not None:
-                    indexed_chunk_stats.append(chunk_stats)
-            for storage, contribution in zip(result, chunk_result):
-                storage += contribution
+                    indexed_chunk_stats = cls._aggregate_indexed_evaluation_stats(
+                        [indexed_chunk_stats, chunk_stats])
+            for index, (storage, contribution) in enumerate(zip(result, chunk_result)):
+                if budget is None:
+                    storage += contribution
+                else:
+                    numerical_sums[index].append(contribution)
             pending.clear()
+            if budget is not None:
+                # Numerical roots belong to this batch. Preparation and state
+                # routes persist separately without keeping polynomial roots.
+                polynomial_cache = _BoundedEvaluationCache(cache_size, cache_bytes)
+                if budget.account_cache_graphs:
+                    evaluation_cache.trim_retained_graph()
             chunks += 1
+            elapsed = time.perf_counter() - tick
+            evaluation_seconds += elapsed
+            if budget is not None:
+                budget.event('evaluate_end', reason, 0, evaluation_seconds=elapsed)
+                budget.flushed(reason)
 
+        previous = time.perf_counter()
         for key, poly in plan.iter_terms():
+            tick = time.perf_counter()
+            generation_seconds += tick - previous
             if balanced_sums:
                 accumulator = pending.get(key)
                 if accumulator is None:
@@ -10323,9 +10415,17 @@ class PerturbationTheoryExpressionEvaluator:
                 maximum_sum_levels = max(maximum_sum_levels, len(accumulator.blocks))
             else:
                 pending[key] = pending.get(key, 0) + poly
-            if len(pending) >= chunk_size:
-                evaluate_pending()
+            reason = budget.incoming(pending) if budget is not None else None
+            if reason is None and len(pending) >= chunk_size:
+                reason = 'keys'
+            accumulation_seconds += time.perf_counter() - tick
+            if reason is not None:
+                evaluate_pending(reason)
+            previous = time.perf_counter()
         evaluate_pending()
+        if budget is not None:
+            result = tuple(total.total() if total.blocks else zero
+                           for total, zero in zip(numerical_sums, result))
 
         state_cache_stats = state_permutation_cache.stats()
         cls._last_state_permutation_cache_stats = state_cache_stats
@@ -10341,6 +10441,11 @@ class PerturbationTheoryExpressionEvaluator:
             'dag_accumulation_maximum_levels': maximum_sum_levels,
             'dag_chunk_size': chunk_size,
             'dag_elapsed': time.perf_counter() - start,
+            'dag_generation_seconds': generation_seconds,
+            'dag_accumulation_seconds': accumulation_seconds,
+            'dag_numerical_seconds': evaluation_seconds,
+            **({} if budget is None else budget.stats()),
+            **({} if preparation is None else preparation.stats()),
             'dag_materializations': (
                 PTTensorCoeffProductDAG.cache_info()['tensor_materializations']
                 - materializations_before
@@ -10350,11 +10455,9 @@ class PerturbationTheoryExpressionEvaluator:
                 for key, value in state_cache_stats.items()
             }
         }
-        if len(indexed_chunk_stats) > 0:
+        if indexed_chunk_stats is not None:
             cls._last_indexed_evaluation_stats = (
-                cls._aggregate_indexed_evaluation_stats(
-                    indexed_chunk_stats
-                )
+                indexed_chunk_stats
             )
             cls._indexed_evaluation_generation += 1
         return result
@@ -10397,7 +10500,10 @@ class PerturbationTheoryExpressionEvaluator:
                                        state_permutation_cache_bytes=None,
                                        _poly_eval_cache=None,
                                        _state_permutation_cache=None,
-                                       _degeneracy_identification_context=None
+                                       _degeneracy_identification_context=None,
+                                       mode_subset_selector=None,
+                                       dag_stream_options=None,
+                                       _stream_preparation=None
                                        ):
 
         if (
@@ -10440,7 +10546,9 @@ class PerturbationTheoryExpressionEvaluator:
                 state_permutation_cache_bytes=state_permutation_cache_bytes,
                 _degeneracy_identification_context=(
                     _degeneracy_identification_context
-                )
+                ),
+                mode_subset_selector=mode_subset_selector,
+                dag_stream_options=dag_stream_options
             )
             legacy = cls.evaluate_polynomial_expression(
                 state_perms, coeffs, freqs,
@@ -10532,7 +10640,9 @@ class PerturbationTheoryExpressionEvaluator:
                     evaluation_backend=evaluation_backend,
                     degeneracy_identification_context=(
                         _degeneracy_identification_context
-                    )
+                    ),
+                    mode_subset_selector=mode_subset_selector,
+                    stream_options=dag_stream_options
                 )
             elif evaluation_mode in {
                 'materialized', 'materialized_cached', 'materialized_legacy'
@@ -10629,7 +10739,7 @@ class PerturbationTheoryExpressionEvaluator:
             indexed_evaluation_start = None
             if evaluation_backend == 'indexed':
                 from .IndexedEvaluator import IndexedBlockEvaluator
-                indexed_executor = IndexedBlockEvaluator(cls, expr)
+                indexed_executor = IndexedBlockEvaluator(cls, expr, preparation_context=_stream_preparation)
                 eval_perm = indexed_executor.eval_perm
                 indexed_evaluation_start = time.perf_counter()
             parallel_indexed_stats = []
@@ -10713,9 +10823,7 @@ class PerturbationTheoryExpressionEvaluator:
                         ], axis=0))
                         parallelizer.set_initializer(
                             cls._initialize_main_eval,
-                            coeffs
-                                if cls._cached_expansion is None else
-                            None,
+                            coeffs,  # Every lazy initializer generation must be self-contained.
                             expr, change, baseline_shift,
                             # state_perms, #all_perms, perm_map,
                             compressed_states, perm_lens, compressed_perms,
@@ -10733,6 +10841,7 @@ class PerturbationTheoryExpressionEvaluator:
                             # counts_cache, poly_cache, take_cache, energy_cache,
                             # pows,
                             verbose, logger, log_scaled, log_level,
+                            (None if _stream_preparation is None else _stream_preparation.max_items),
                             ndim, evaluation_backend
                         )
                     # if cls._cached_expansion is None:
@@ -10744,7 +10853,9 @@ class PerturbationTheoryExpressionEvaluator:
                         # excluding replacement (since that corresponds to a different coeff/poly)
                         # from McUtils.Profilers import Timer
                         # with Timer(free_inds):
-                            tensors, cind_specs = cls._prep_coeff_data(cind_sets, coeffs)
+                            tensors, cind_specs = (cls._prep_coeff_data(cind_sets, coeffs)
+                                if _stream_preparation is None else
+                                _stream_preparation.prepare(cls, cind_sets))
                             if len(tensors) > 0:
 
                                 facs = [
@@ -10753,9 +10864,11 @@ class PerturbationTheoryExpressionEvaluator:
                                 ]
                                 split_spec = np.cumsum([0] + [len(perms) for state, perms in state_perms])[1:]
 
-                                ncomb = math.comb(
-                                    ndim - num_fixed, free_inds
-                                )
+                                ncomb = (math.comb(ndim-num_fixed,free_inds)
+                                    if mode_subset_selector is None else
+                                    mode_subset_selector.count(ndim,num_fixed,free_inds))
+                                if ncomb == 0:
+                                    continue
                                 if ncomb > 1 and parallelizer is not None:
                                     parallelizer: Parallelizer
                                     contrib_shapes = tuple(
@@ -10774,6 +10887,7 @@ class PerturbationTheoryExpressionEvaluator:
                                         contrib_shapes,
                                         free_inds,
                                         cind_sets,
+                                        mode_subset_selector,
                                         cleanup=False
                                     )
                                     if indexed_stats is not None:
@@ -10784,9 +10898,9 @@ class PerturbationTheoryExpressionEvaluator:
                                         storage += corr
                                 else:
                                     for subset in (
-                                            itertools.combinations(range(num_fixed, ndim), r=free_inds)
-                                                if free_inds > 0 else
-                                            [()]
+                                            mode_subset_selector.iter_subsets(ndim,num_fixed,free_inds)
+                                                if mode_subset_selector is not None else
+                                            itertools.combinations(range(num_fixed,ndim),r=free_inds)
                                     ):
                                         if verbose:
                                             with logger.block(tag="{b} + {s}", b=tuple(range(num_fixed)), s=subset,
@@ -10854,12 +10968,21 @@ class PerturbationTheoryExpressionEvaluator:
                  state_permutation_cache_bytes=None,
                  use_shared_memory=None,
                  _shared_coefficients=None,
-                 _degeneracy_identification_context=None
+                 _degeneracy_identification_context=None,
+                 mode_subset_selector=None,
+                 dag_stream_options=None
                  ):
 
         # state = np.asanyarray(state)
         smol = nput.is_numeric(state_perms[0][0])
         if smol: state_perms = [state_perms]
+
+        if mode_subset_selector is not None:
+            if self.num_fixed != 0 or any(
+                    not np.all(np.asarray(perms)==np.arange(len(state)))
+                    for state,perms in state_perms):
+                raise NotImplementedError(
+                    "mode-subset selection requires diagonal requests in original mode order")
 
         if parallelizer is not None:
             parallelizer = Parallelizer.lookup(parallelizer)
@@ -10901,6 +11024,30 @@ class PerturbationTheoryExpressionEvaluator:
                     first_ekey = next(iter(first_echange_poly.terms.keys()))
                     change = np.sum([list(k) for k in first_ekey], axis=1)
 
+            from .CompiledExpressions import current_compilation
+            compiled_context = current_compilation()
+            if compiled_context is not None and evaluation_mode in {None, 'compiled'}:
+                store, compile_options, task_options, default_parallelizer = compiled_context
+                compile_options = dict(compile_options)
+                compile_options.setdefault('mode_dimension', len(freqs))
+                active = tuple(sorted({(n,k) for expansion in coeffs for n,row in enumerate(expansion)
+                    for k,c in enumerate(row) if np.any(c)}))
+                compiled = store.compile(self, context=dict(operator=self.op if self.op is not None else poly_obj,
+                    change=tuple(change), baseline=None if shift_start is None else tuple(shift_start)), active_operators=active, **compile_options)
+                numerical = dict(zero_cutoff=zero_cutoff, degenerate_changes=degenerate_changes,
+                    only_degenerate_terms=only_degenerate_terms, verbose=verbose, log_scaled=log_scaled)
+                for key,value in dict(evaluation_backend=evaluation_backend,path_cache_size=path_cache_size,
+                        path_cache_bytes=path_cache_bytes,state_permutation_cache_size=state_permutation_cache_size,
+                        state_permutation_cache_bytes=state_permutation_cache_bytes).items():
+                    if value is not None:numerical[key] = value
+                numerical.update(task_options)
+                numerical.setdefault('use_shared_memory', use_shared_memory)
+                res = compiled.evaluate(state_perms, coeffs, freqs,
+                    parallelizer=parallelizer if parallelizer is not None else default_parallelizer, **numerical)
+                if smol_coeffs:res = [r[0] for r in res]
+                if smol:res = res[0]
+                return res
+
             shared_coefficients = None
             evaluator_cls = type(self)
             if isinstance(parallelizer, MultiprocessingParallelizer):
@@ -10941,7 +11088,9 @@ class PerturbationTheoryExpressionEvaluator:
                     state_permutation_cache_bytes=state_permutation_cache_bytes,
                     _degeneracy_identification_context=(
                         _degeneracy_identification_context
-                    )
+                    ),
+                    mode_subset_selector=mode_subset_selector,
+                    dag_stream_options=dag_stream_options
                 )
             finally:
                 if shared_coefficients is not None:
@@ -10970,6 +11119,21 @@ class PerturbationTheoryExpressionEvaluator:
     #     return type(self)(new_terms)
     #
     # def substitute_freqs(self, freqs):
+
+
+def _compiled_evaluation_context(method):
+    import functools
+    @functools.wraps(method)
+    def wrapped(self, *args, **kwargs):
+        if self.expressions_folder is None:
+            return method(self, *args, **kwargs)
+        from .CompiledExpressions import compiled_evaluation_context, current_compilation, AnalyticExpressionStore
+        if current_compilation() is not None:
+            return method(self, *args, **kwargs)
+        with compiled_evaluation_context(AnalyticExpressionStore(self.expressions_folder),
+                self.compilation_options, self.evaluation_options, self.parallelizer):
+            return method(self, *args, **kwargs)
+    return wrapped
 
 class PerturbationTheoryEvaluator:
 
@@ -11004,7 +11168,11 @@ class PerturbationTheoryEvaluator:
     def _state_degeneracy_pairs(degenerate_states, state):
         return degenerate_states.get(tuple(int(x) for x in state), [])
 
-    def __init__(self, solver:AnalyticPerturbationTheorySolver, expansion, freqs=None, parallelizer=None):
+    def __init__(self, solver:AnalyticPerturbationTheorySolver, expansion, freqs=None, parallelizer=None,
+                 expressions_folder=None, compilation_options=None, evaluation_options=None):
+        self.expressions_folder = expressions_folder
+        self.compilation_options = dict(compilation_options or {})
+        self.evaluation_options = dict(evaluation_options or {})
         self.solver = solver
         self.expansions = expansion
         if freqs is None:
@@ -11014,6 +11182,24 @@ class PerturbationTheoryEvaluator:
             freqs = np.diag(potential) + kinetic_diagonal
         self.freqs = freqs
         self.parallelizer = Parallelizer.lookup(parallelizer) if parallelizer is not None else None
+
+    def precompile(self, correction='energy', order=None, **options):
+        from .CompiledExpressions import AnalyticCorrectionCompiler
+        if self.expressions_folder is None:
+            raise ValueError('precompile requires expressions_folder')
+        return AnalyticCorrectionCompiler(self).precompile(correction=correction, order=order, **options)
+
+    def precompile_frequency_corrections(self, initial_state, final_state, order=None, **options):
+        from .CompiledExpressions import AnalyticCorrectionCompiler
+        if self.expressions_folder is None:
+            raise ValueError('frequency compilation requires expressions_folder')
+        return AnalyticCorrectionCompiler(self).precompile_frequencies(initial_state, final_state, order=order, **options)
+
+    def get_frequency_corrections(self, initial_state, final_state, order=None, **options):
+        from .CompiledExpressions import AnalyticCorrectionCompiler
+        if self.expressions_folder is None:
+            raise ValueError('compiled frequency corrections require expressions_folder')
+        return AnalyticCorrectionCompiler(self).frequencies(initial_state, final_state, order=order, **options)
 
     def modify_hamiltonian(self, hamiltonian_corrections):
         if hamiltonian_corrections is None:
@@ -11027,6 +11213,7 @@ class PerturbationTheoryEvaluator:
             exps,
         )
 
+    @_compiled_evaluation_context
     def get_energy_corrections(self, states, order=None, expansions=None, freqs=None,
                                zero_cutoff=None, degenerate_states=None, verbose=False,
                                logger=None,
@@ -11135,6 +11322,7 @@ class PerturbationTheoryEvaluator:
             ]
             for order_expansion in expansions
         ]
+    @_compiled_evaluation_context
     def get_overlap_corrections(self, states, order=None, expansions=None,
                                 degenerate_states=None, freqs=None,
                                 zero_cutoff=None, verbose=False,
@@ -11603,6 +11791,7 @@ class PerturbationTheoryEvaluator:
 
         return BasicAPTCorrections(initial_basis, new_finals, new_corrs)
 
+    @_compiled_evaluation_context
     def get_state_by_state_corrections(self, generator, states, order=None,
                                        terms=None, epaths=None,
                                        expansions=None, freqs=None, verbose=False,

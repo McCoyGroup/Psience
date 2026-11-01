@@ -187,6 +187,7 @@ class IndexedEnergyTerm:
     polynomial: object
     contraction_shape: tuple
     projected: bool = False
+    constant_numerator: object = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -976,12 +977,14 @@ class IndexedBlockEvaluator:
     max_batched_states = 128
     use_unmasked_selection = True
     use_jit_energy_contractions = False
+    use_constant_numerators = True
     use_compiled_permutation_routing = True
     use_shared_degeneracy_pool = True
     use_compiled_degeneracy_selection = True
     _plan_cache = IndexedExpressionPlanCache(default_plan_cache_size)
 
-    def __init__(self, evaluator_type, expression, chunk_size=None):
+    def __init__(self, evaluator_type, expression, chunk_size=None, preparation_context=None):
+        self.preparation_context = preparation_context
         self.evaluator_type = evaluator_type
         self.expression = expression
         self.chunk_size = (
@@ -999,7 +1002,7 @@ class IndexedBlockEvaluator:
         cls._plan_cache.clear()
 
     def get_plan(self, expression):
-        plan = self._plan_cache.get(expression)
+        plan = None if self.preparation_context is not None else self._plan_cache.get(expression)
         if plan is not None:
             self.stats.plan_cache_hits += 1
             return plan
@@ -1007,7 +1010,8 @@ class IndexedBlockEvaluator:
         plan = self.compile_plan(expression)
         self.stats.plans_compiled += 1
         self.stats.plan_terms += plan.term_count
-        self._plan_cache.store(expression, plan)
+        if self.preparation_context is None:
+            self._plan_cache.store(expression, plan)
         return plan
 
     @staticmethod
@@ -1021,7 +1025,11 @@ class IndexedBlockEvaluator:
                     energy_changes,
                     polynomial,
                     contraction_shape,
-                    any(getattr(row[0], '_state_projection_factor', False) for row in energy_changes)
+                    any(getattr(row[0], '_state_projection_factor', False) for row in energy_changes),
+                    (np.asarray(polynomial.evaluate_polynomial(
+                        np.zeros((1,polynomial.ndim),dtype=int))).reshape(-1)[0]
+                     if isinstance(polynomial,analytic.PolyPath) and not any(polynomial.order)
+                     else None)
                 )
                 grouped.setdefault(contraction_shape, []).append(term)
             groups = tuple(
@@ -1064,6 +1072,18 @@ class IndexedBlockEvaluator:
         return self.stats.as_dict()
 
     def get_coefficient_plan(self, coefficient_specs, coefficient_tensors):
+        if self.preparation_context is not None:
+            def create():
+                return IndexedCoefficientGatherPlan(coefficient_specs, coefficient_tensors,
+                    0 if not coefficient_tensors else len(coefficient_tensors[0]))
+            plan, hit = self.preparation_context.coefficient_plan(
+                coefficient_specs, coefficient_tensors, create)
+            if hit:
+                self.stats.coefficient_plan_hits += 1
+            else:
+                self.stats.coefficient_plan_misses += 1
+                self.stats.coefficient_plans_compiled += 1
+            return plan
         key = (id(coefficient_specs), id(coefficient_tensors))
         entry = self._coefficient_plans.get(key)
         if (
@@ -1730,6 +1750,9 @@ class IndexedBlockEvaluator:
 
                 tick = time.perf_counter()
                 polynomial_factors = [
+                    term.constant_numerator
+                    if (self.use_constant_numerators and term.constant_numerator is not None
+                        and change is not None and len(change)==0 and baseline_shift is None) else
                     evaluator._eval_poly(
                         polynomial_cache,
                         selection[2],
