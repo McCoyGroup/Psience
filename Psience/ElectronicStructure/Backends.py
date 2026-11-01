@@ -385,6 +385,11 @@ class ElectronicStructureBackend(metaclass=abc.ABCMeta):
         each a list over coordinate-derivative orders through `coord_order`. Backends with their own
         response models (charge equilibration) override this.
 
+        Each field order uses its own ``get_property_units('dipole')`` or
+        ``get_property_units('polarizability')``. Nuclear derivative axes remain
+        in ``distance_units``. Response-model selection is backend-specific;
+        molecular evaluators forward constructor defaults and per-call options.
+
         :rtype: list[list[np.ndarray]]
         """
         props = ('dipole', 'polarizability')[:field_order]

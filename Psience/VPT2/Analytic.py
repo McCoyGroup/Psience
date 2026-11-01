@@ -5710,6 +5710,35 @@ class _MaterializedEvaluationCache:
         }
 
 
+class _BalancedPolynomialAccumulator:
+    """Add native polynomials in a balanced tree without changing any terms.
+
+    One block per occupied binary level bounds the number of partial sums.
+    Equal-sized blocks merge as they arrive; final blocks retain stream order.
+    This avoids quadratic dictionary copying in large symbolic DAG chunks.
+    """
+    def __init__(self):
+        self.blocks = []
+
+    def append(self, value):
+        level = 0
+        while level < len(self.blocks) and self.blocks[level] is not None:
+            value = self.blocks[level] + value
+            self.blocks[level] = None
+            level += 1
+        if level == len(self.blocks):
+            self.blocks.append(value)
+        else:
+            self.blocks[level] = value
+
+    def total(self):
+        result = None
+        for value in reversed(self.blocks):
+            if value is not None:
+                result = value if result is None else result + value
+        return 0 if result is None else result
+
+
 class PTTensorCoeffProductDAGEvaluationPlan:
     """Streams canonical tensor terms from a DAG without expanding it globally.
 
@@ -6592,10 +6621,16 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
         return Logger.lookup(cls.default_filters)
 
     def get_core_poly(self, changes, shift=None):
-        return sum(
-            term.get_poly_terms(changes, shift=shift)
-            for term in self.expressions
-        )
+        terms = (term.get_poly_terms(changes, shift=shift)
+                 for term in self.expressions)
+        if self.polynomial_representation == 'path':
+            # Balance construction as well as numerical evaluation chunks:
+            # a left-folded sum gives the lazy tensor DAG linear depth.
+            accumulator = _BalancedPolynomialAccumulator()
+            for term in terms:
+                accumulator.append(term)
+            return accumulator.total()
+        return sum(terms)
 
     simplify_by_default = True
     caching_enabled = True
@@ -8319,6 +8354,8 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
         base_changes = self.changes.get(changes, 0)
         if isinstance(base_changes, list):
             poly_changes = 0
+            accumulator = (_BalancedPolynomialAccumulator()
+                           if self.polynomial_representation == 'path' else None)
             for change_1, change_2, contact_1, contact_2, rem_1, rem_2, reorg in base_changes:
                 # try:
                 new_polys = self.get_poly_product_terms(
@@ -8337,7 +8374,12 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                             self.gen2, change_2, contact_2
                         ))
 
-                poly_changes += new_polys
+                if accumulator is None:
+                    poly_changes += new_polys
+                else:
+                    accumulator.append(new_polys)
+            if accumulator is not None:
+                poly_changes = accumulator.total()
 
             # if not nput.is_numeric(poly_changes):
             #
@@ -9825,6 +9867,7 @@ class PerturbationTheoryExpressionEvaluator:
     _max_cache_size = 1e7
     _poly_cache = MaxSizeCache(_max_cache_size, cache_type='fifo') # temporary hack, but these are in principle shared/reused
     _ecoeff_cache = MaxSizeCache(_max_cache_size, cache_type='fifo')
+    use_balanced_chunk_sums = True
     default_tensor_evaluation_mode = 'dag'
     default_evaluation_backend = 'indexed'
     default_dag_cache_size = 100000
@@ -10227,6 +10270,8 @@ class PerturbationTheoryExpressionEvaluator:
             for state, perms in state_perms
         )
         pending = {}
+        balanced_sums = cls.use_balanced_chunk_sums
+        maximum_sum_levels = 0
         chunks = 0
         indexed_chunk_stats = []
         materializations_before = PTTensorCoeffProductDAG.cache_info()['tensor_materializations']
@@ -10237,7 +10282,9 @@ class PerturbationTheoryExpressionEvaluator:
             if len(pending) == 0:
                 return
             chunk = PTTensorCoeffProductSum(
-                dict(pending), canonicalize=False, reduced=False
+                {key: value.total() for key, value in pending.items()}
+                    if balanced_sums else dict(pending),
+                canonicalize=False, reduced=False
             )
             chunk_result = cls.evaluate_polynomial_expression(
                 state_perms, coeffs, freqs,
@@ -10268,7 +10315,14 @@ class PerturbationTheoryExpressionEvaluator:
             chunks += 1
 
         for key, poly in plan.iter_terms():
-            pending[key] = pending.get(key, 0) + poly
+            if balanced_sums:
+                accumulator = pending.get(key)
+                if accumulator is None:
+                    accumulator = pending[key] = _BalancedPolynomialAccumulator()
+                accumulator.append(poly)
+                maximum_sum_levels = max(maximum_sum_levels, len(accumulator.blocks))
+            else:
+                pending[key] = pending.get(key, 0) + poly
             if len(pending) >= chunk_size:
                 evaluate_pending()
         evaluate_pending()
@@ -10283,6 +10337,8 @@ class PerturbationTheoryExpressionEvaluator:
             'dag_block_cache_misses': getattr(polynomial_cache, 'block_misses', 0),
             'dag_path_cache_enabled': use_path_cache,
             'dag_chunks': chunks,
+            'dag_balanced_chunk_sums': balanced_sums,
+            'dag_accumulation_maximum_levels': maximum_sum_levels,
             'dag_chunk_size': chunk_size,
             'dag_elapsed': time.perf_counter() - start,
             'dag_materializations': (

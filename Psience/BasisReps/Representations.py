@@ -395,7 +395,7 @@ class Representation:
         else:
             return None
 
-    def get_transformed_space(self, space, parallelizer=None, logger=None, **opts):
+    def get_transformed_space(self, space, parallelizer=None, logger=None, rules=None, **opts):
         """
         Returns the state space obtained by using the
         held operator to transform `space`
@@ -410,11 +410,11 @@ class Representation:
             parallelizer = self.parallelizer
 
         if self.operator is not None:
-            return self.operator.get_transformed_space(space, rules=self.selection_rules, parallelizer=parallelizer, logger=logger,
+            return self.operator.get_transformed_space(space, rules=self.selection_rules if rules is None else rules, parallelizer=parallelizer, logger=logger,
                                                        **opts
                                                        )
-        elif self.selection_rules is not None:
-            new = space.apply_selection_rules(self.selection_rules, parallelizer=parallelizer, logger=logger,
+        elif rules is not None or self.selection_rules is not None:
+            new = space.apply_selection_rules(self.selection_rules if rules is None else rules, parallelizer=parallelizer, logger=logger,
                                                **opts
                                                )
             skips = Operator._get_skip_trans(self.skipped_indices, space.ndim)
@@ -614,6 +614,11 @@ class Representation:
 
         if not assume_symmetric:
             raise NotImplementedError("don't have non-symmetric representations implemented")
+        if hasattr(total_space,'store'):
+            from .ExternalStateSpaces import disk_representation
+            return disk_representation(self,coupled_space,total_space,
+                                       diagonal=diagonal,filter_space=filter_space,
+                                       zero_element_warning=zero_element_warning)
 
         if memory_constrained is None:
             memory_constrained = self.memory_constrained
@@ -801,12 +806,12 @@ class Representation:
             rows, cols = full_inds.T
             full_inds = np.empty(
                 (len(shape), len(full_dat)),
-                dtype=nput.infer_inds_dtype(len(full_dat))
+                dtype=nput.infer_inds_dtype(max(shape) - 1)
             )
 
             # create a tensor of indices that will be used to appropriately tile
             # the system
-            stride = len(shape)
+            stride = int(np.prod(ext_shape))
             # print(len(shape), len(full_dat)/len(rows))
             # row_repeats = np.broadcast_to(rows[:, np.newaxis], (len(rows), len(ext_shape))).flatten()
             # del rows

@@ -1,5 +1,5 @@
 
-import numpy as np, abc
+import numpy as np, abc, math, collections
 from .StateSpaces import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace
 
 __all__ = [
@@ -316,6 +316,71 @@ class BasisStateSpaceFilter:
         return final_filters
 
     @classmethod
+    def estimate_property_storage(cls, initial_space, target_space, perturbation_rules,
+                                  property_rules, order=2, filtered=True, postfilters=None,
+                                  compact=False, **opts):
+        """Conservative state/adjacency RAM estimate, without generating states.
+
+        The filtered case uses exactly the target property's rule tree. Counts
+        of complete quanta manifolds and signed rule permutations are upper
+        bounds; explicit filters and numerical zeros may reduce the actual work.
+        """
+        initial = initial_space.excitations if isinstance(initial_space, BasisStateSpace) else np.asarray(initial_space)
+        targets = target_space.excitations if isinstance(target_space, BasisStateSpace) else np.asarray(target_space)
+        ndim = targets.shape[-1]
+        actual = collections.Counter(int(q) for q in np.sum(targets,axis=1))
+        for q in np.sum(initial,axis=1):
+            actual[int(q)] = max(actual[int(q)], 1)
+        if filtered:
+            rules = cls._create_prop_rules_tree(initial, targets, perturbation_rules,
+                                                property_rules, order=order, **opts)
+        else:
+            reachable = [set(actual)]
+            rules = {}
+            for k in range(1,order+1):
+                next_q = set().union(*reachable)
+                for h in range(1,min(k,len(perturbation_rules))+1):
+                    by_q = {}
+                    for q in reachable[k-h]:
+                        allowed = [r for r in perturbation_rules[h-1]
+                                   if q >= -sum(x for x in r if x < 0)]
+                        by_q[q] = allowed
+                        next_q.update(q+sum(r) for r in allowed)
+                    rules[(h,k-h)] = by_q
+                reachable.append(next_q)
+        all_quanta = set(actual)
+        pairs = 0
+        largest_step = 0
+        for (h,y),by_q in rules.items():
+            step = 0
+            for q,changes in by_q.items():
+                sources = actual.get(int(q),0) if y == 0 else math.comb(ndim+int(q)-1,int(q))
+                permutations = 0
+                signatures = {tuple(sorted(int(x) for x in r if x)) for r in changes}
+                for signature in signatures:
+                    if len(signature) > ndim:
+                        continue
+                    all_quanta.add(int(q+sum(signature)))
+                    counts = collections.Counter(signature)
+                    count = math.factorial(ndim)//math.factorial(ndim-len(signature))
+                    for c in counts.values():
+                        count //= math.factorial(c)
+                    permutations += count
+                step += sources*permutations
+            largest_step = max(largest_step,step)
+            pairs += step
+        nstates = sum(math.comb(ndim+q-1,q) for q in all_quanta if q >= 0)
+        # Occupation rows, ranks, change ids, masks, and direct-sum count/offset
+        # arrays, plus canonical frontier data. This estimates state-space RAM,
+        # not operator tensors, Hamiltonian values or wavefunction amplitudes.
+        per_pair = ndim*np.dtype(BasisStateSpace.excitations_dtype).itemsize + 8*4 + 1
+        cost = pairs*per_pair + nstates*(ndim+8)
+        return dict(estimated_states=int(nstates), estimated_pairs=int(pairs),
+                    largest_step_pairs=int(largest_step), estimated_bytes=int(cost),
+                    quanta=sorted(int(q) for q in all_quanta if q >= 0),
+                    estimate_kind='property-rule upper bound' if filtered else 'unfiltered-rule upper bound')
+
+    @classmethod
     def from_property_rules(cls,
                             initial_space,
                             target_space,
@@ -323,6 +388,7 @@ class BasisStateSpaceFilter:
                             property_rules,
                             order=2,
                             postfilters=None
+                            , compact=False
                             , **opts
                             ):
         """
@@ -367,9 +433,12 @@ class BasisStateSpaceFilter:
                     for k in postfilters
                 )
 
+        if compact:
+            from .ExternalStateSpaces import QuantaStateSpace
+        make_quanta = (lambda q: QuantaStateSpace(basis,q)) if compact else (lambda q: BasisStateSpace.from_quanta(basis,[q]))
         full_rules = {
             k:{
-                'prefilters':tuple((BasisStateSpace.from_quanta(basis, [i]), r) for i,r in v.items()),
+                'prefilters':tuple((make_quanta(i), r) for i,r in v.items()),
                 'postfilters':(postfilters if single_post else (None if k not in postfilters else postfilters[k]))
             } for k,v in int_rules.items()
         }

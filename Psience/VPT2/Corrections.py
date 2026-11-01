@@ -251,8 +251,10 @@ class PerturbationTheoryCorrections:
 
                     if len(nonzi) > 0:
                         # we attempt to filter out things that can't touch based on our filter rules
-                        target_quanta = np.sum(flat_total_space.take_subspace(nonzi).excitations, axis=1)
                         if nquanta_rules is not None and len(nquanta_rules) > 0:
+                            target_quanta = (flat_total_space.quanta_for_positions(nonzi)
+                                             if hasattr(flat_total_space,'quanta_for_positions') else
+                                             np.sum(flat_total_space.take_subspace(nonzi).excitations,axis=1))
                             # from .Solver import PerturbationTheoryStateSpaceFilter
                             mask = None
                             for f in nquanta_rules:
