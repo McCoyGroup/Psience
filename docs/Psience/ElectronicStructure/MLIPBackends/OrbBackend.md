@@ -1,8 +1,8 @@
 ## <a id="Psience.ElectronicStructure.MLIPBackends.OrbBackend">OrbBackend</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends.py#L1260)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1260?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends.py#L1476)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1476?message=Update%20Docs)]
 </div>
 
 Orb models through `orb_models` (`'omol'` = `orbmol-v3-conservative-omol` by default)
@@ -27,8 +27,8 @@ model_types: dict
 handle_specialization(cls, tag): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1283)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1283?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1499)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1499?message=Update%20Docs)]
 </div>
 
 
@@ -38,8 +38,8 @@ handle_specialization(cls, tag):
 setup_calculator(cls, model='omol', device=None, version=None, login=None, **model_opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1287)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1287?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L1503)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L1503?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -94,7 +94,7 @@ setup_calculator(cls, model='omol', device=None, version=None, login=None, **mod
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience/ElectronicStructure/MLIPBackends/OrbBackend.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/ElectronicStructure/MLIPBackends/OrbBackend.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1260?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L1476?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Runner.VPTRuntimeOptions">VPTRuntimeOptions</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L993)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L993?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1004)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1004?message=Update%20Docs)]
 </div>
 
 Provides a helper to keep track of the options available
@@ -22,11 +22,11 @@ for configuring the way the code runs
  
 <a id="Psience.VPT2.Runner.VPTRuntimeOptions.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
-__init__(self, operator_chunk_size=None, operator_contraction_method=None, factorized_coriolis=None, matrix_element_threshold=None, nondeg_hamiltonian_precision=None, logger=None, verbose=None, checkpoint=None, results=None, parallelizer=None, memory_constrained=None, state_space_storage=None, state_space_scratch=None, hamiltonian_storage=None, checkpoint_keys=None, use_cached_representations=None, use_cached_basis=None): 
+__init__(self, operator_chunk_size=None, operator_contraction_method=None, factorized_coriolis=None, matrix_element_threshold=None, nondeg_hamiltonian_precision=None, logger=None, verbose=None, checkpoint=None, results=None, parallelizer=None, memory_constrained=None, state_space_storage=None, state_space_memory_limit=None, state_space_block_size=None, state_space_scratch=None, hamiltonian_storage=None, checkpoint_keys=None, use_cached_representations=None, use_cached_basis=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1015)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1015?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L1027)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1027?message=Update%20Docs)]
 </div>
 
   - `operator_chunk_size`: `int|None default:None`
@@ -43,6 +43,14 @@ __init__(self, operator_chunk_size=None, operator_contraction_method=None, facto
     > the `Parallelizer` to use for parallelizing the evaluation of matrix elements
   - `memory_constrained`: `bool|None`
     > whether or not to attempt memory optimizations (`None` means attempt for >20D problems)
+  - `state_space_storage`: `Any`
+    > 'auto' (default), 'memory', or 'external'; auto
+    selects mapped state generation above the property-rule RAM estimate.
+  - `state_space_memory_limit`: `Any`
+    > estimated state-space RAM cutoff in bytes;
+    default 5_000_000_000. None disables automatic switching.
+  - `state_space_block_size`: `Any`
+    > maximum generated pair block, default 65536.
   - `checkpoint`: `str|Checkpointer|None default:None`
     > the `Checkpointer` to write Hamiltonians and other bits out to
   - `checkpoint_keys`: `Iterable[str]|None`
@@ -104,7 +112,7 @@ __init__(self, operator_chunk_size=None, operator_contraction_method=None, facto
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience/VPT2/Runner/VPTRuntimeOptions.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/VPT2/Runner/VPTRuntimeOptions.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L993?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L1004?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

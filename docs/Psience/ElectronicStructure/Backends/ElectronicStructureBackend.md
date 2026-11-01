@@ -319,6 +319,11 @@ evaluate_field_response(self, coords, coord_order=0, field_order=2, **opts):
 The response to a uniform electric field, `[dipole_expansion, polarizability_expansion][:field_order]`,
 each a list over coordinate-derivative orders through `coord_order`. Backends with their own
 response models (charge equilibration) override this.
+
+Each field order uses its own ``get_property_units('dipole')`` or
+``get_property_units('polarizability')``. Nuclear derivative axes remain
+in ``distance_units``. Response-model selection is backend-specific;
+molecular evaluators forward constructor defaults and per-call options.
   - `:returns`: `list[list[np.ndarray]]`
     >
 
@@ -328,8 +333,8 @@ response models (charge equilibration) override this.
 __repr__(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/Backends/ElectronicStructureBackend.py#L396)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/Backends/ElectronicStructureBackend.py#L396?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/Backends/ElectronicStructureBackend.py#L401)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/Backends/ElectronicStructureBackend.py#L401?message=Update%20Docs)]
 </div>
  </div>
 </div>

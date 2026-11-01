@@ -143,8 +143,8 @@ Build a callable that produces a state-space filter for a given target property,
 get_filter(self, target_property, order=2, initial_states=None, postfilters=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTStateSpace.py#L687)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTStateSpace.py#L687?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/VPTStateSpace.py#L691)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/VPTStateSpace.py#L691?message=Update%20Docs)]
 </div>
 Obtains a state space filter for the given target property
 using the states we want to get corrections for
@@ -159,11 +159,11 @@ using the states we want to get corrections for
 <a id="Psience.VPT2.Runner.VPTStateSpace.get_state_space_filter" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-get_state_space_filter(cls, states, initial_states=None, n_modes=None, order=2, target='wavefunctions', postfilters=None, **opts): 
+get_state_space_filter(cls, states, initial_states=None, n_modes=None, order=2, target='wavefunctions', postfilters=None, estimate=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L705)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L705?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L709)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L709?message=Update%20Docs)]
 </div>
 Gets `state_space_filters` for the input `states` targeting some property
   - `states`: `Any`
@@ -181,9 +181,9 @@ Gets `state_space_filters` for the input `states` targeting some property
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Details-faef0f" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-faef0f"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Details-18432c" markdown="1"> Details</a> <a class="float-right" data-toggle="collapse" href="#Details-18432c"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Details-faef0f" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Details-18432c" markdown="1">
  
 There are multiple possible values for the `degeneracy_specs`.
 The simplest is to use the automatic approach, in which we supply a numeric type (`int`, `float`, etc.) to use as the `WFC` threshold.

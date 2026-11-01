@@ -1,8 +1,8 @@
 ## <a id="Psience.ElectronicStructure.MLIPBackends.HIPNNBackend">HIPNNBackend</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends.py#L566)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L566?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends.py#L782)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L782?message=Update%20Docs)]
 </div>
 
 A `hippynn` model loaded from a training directory, with energies (`energy_key`, gradients
@@ -34,8 +34,8 @@ dipole_gradient_key: str
 __init__(self, atoms, model_dir, energy_key=<McUtils.Devutils.core.DefaultType instance>, gradient_key=<McUtils.Devutils.core.DefaultType instance>, dipole_key=<McUtils.Devutils.core.DefaultType instance>, charge=None, multiplicity=None, device=None, quiet=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends.py#L588)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L588?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends.py#L804)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L804?message=Update%20Docs)]
 </div>
 
   - `model_dir`: `Any`
@@ -54,8 +54,8 @@ __init__(self, atoms, model_dir, energy_key=<McUtils.Devutils.core.DefaultType i
 handle_specialization(cls, tag): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L609)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L609?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L825)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L825?message=Update%20Docs)]
 </div>
 
 
@@ -65,8 +65,8 @@ handle_specialization(cls, tag):
 setup_model(cls, model_dir, *, device=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L613)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L613?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L829)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L829?message=Update%20Docs)]
 </div>
 
 
@@ -75,8 +75,8 @@ setup_model(cls, model_dir, *, device=None, **opts):
 print_model_properties(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L631)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L631?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L847)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L847?message=Update%20Docs)]
 </div>
 
 
@@ -85,8 +85,8 @@ print_model_properties(self):
 enable_charge_equilibration_outputs(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L634)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L634?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L850)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L850?message=Update%20Docs)]
 </div>
 Rebuild the predictor so it also exposes the charge-equilibration (`ChEQ`) Coulomb energy
 and its inputs, for fluctuating-charge responses.
@@ -98,8 +98,8 @@ and its inputs, for fluctuating-charge responses.
 autodiff(expr, coord_list, pad_dim, create_graph=False, retain_graph=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L649)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L649?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L865)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L865?message=Update%20Docs)]
 </div>
 
 
@@ -108,8 +108,8 @@ autodiff(expr, coord_list, pad_dim, create_graph=False, retain_graph=False):
 process_derivatives(self, expr, coords, order): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L689)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L689?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L905)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L905?message=Update%20Docs)]
 </div>
 
 
@@ -118,8 +118,8 @@ process_derivatives(self, expr, coords, order):
 process_results(self, base_shape, coords, outputs, order, property_key=None, gradient_key=None, property_shape=(), output_shape=None, **etc): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L706)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L706?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L922)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L922?message=Update%20Docs)]
 </div>
 
 
@@ -128,8 +128,8 @@ process_results(self, base_shape, coords, outputs, order, property_key=None, gra
 prep_eval(self, coords, order, property_key=<McUtils.Devutils.core.DefaultType instance>, gradient_key=<McUtils.Devutils.core.DefaultType instance>, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L740)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L740?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L956)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L956?message=Update%20Docs)]
 </div>
 Run the predictor on `coords` (`(..., natoms, 3)`, Angstrom), adding `property_key` and
 `gradient_key` to its outputs if needed.
@@ -142,8 +142,8 @@ Run the predictor on `coords` (`(..., natoms, 3)`, Angstrom), adding `property_k
 evaluate_energy(self, coords, order, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L801)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L801?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L1017)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L1017?message=Update%20Docs)]
 </div>
 
 
@@ -152,8 +152,8 @@ evaluate_energy(self, coords, order, **opts):
 evaluate_dipole(self, coords, order, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L808)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L808?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L1024)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L1024?message=Update%20Docs)]
 </div>
 
 
@@ -162,8 +162,8 @@ evaluate_dipole(self, coords, order, **opts):
 evaluate_field_response(self, coords, coord_order=0, field_order=2, charge=None, multiplicity=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L815)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L815?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L1031)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L1031?message=Update%20Docs)]
 </div>
 
 
@@ -172,8 +172,8 @@ evaluate_field_response(self, coords, coord_order=0, field_order=2, charge=None,
 evaluate_properties(self, coords, orders, charge, multiplicity, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L822)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L822?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L1038)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.py#L1038?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -228,7 +228,7 @@ evaluate_properties(self, coords, orders, charge, multiplicity, **opts):
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/ElectronicStructure/MLIPBackends/HIPNNBackend.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L566?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L782?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

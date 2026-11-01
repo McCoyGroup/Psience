@@ -22,14 +22,33 @@ derivatives), `expand` returns the coordinate expansions of both.
  </div>
  <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
  
+<a id="Psience.ElectronicStructure.ChargeResponse.FluctuatingChargeResponse.constrained_polarizability" class="docs-object-method">&nbsp;</a> 
+```python
+@classmethod
+constrained_polarizability(cls, coords, hardness, hardness_derivatives=None, *, allow_indefinite=False, return_diagnostics=False, stability_tolerance=1e-10, solver='constrained'): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L23)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L23?message=Update%20Docs)]
+</div>
+Charge-conserving static response and its first Cartesian derivative.
+
+``hardness`` has shape (..., N, N), in energy/charge**2. Coordinate
+derivatives have shape (..., 3*N, N, N). Outputs are in the corresponding
+charge**2 * distance**2 / energy units. No hardness regularization is
+applied. ``solver="inverse"`` instead projects a full inverse and needs
+a nonsingular full hardness. ``allow_indefinite`` permits evaluation of unstable
+response models; singular constrained systems always raise.
+
+
 <a id="Psience.ElectronicStructure.ChargeResponse.FluctuatingChargeResponse.mu_factor" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
 mu_factor(cls, total_charge, X, J_inv): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L23)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L23?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L99)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L99?message=Update%20Docs)]
 </div>
 
 
@@ -39,8 +58,8 @@ mu_factor(cls, total_charge, X, J_inv):
 dipole_factor_expansion(cls, coords, total_charge, X, J_inv): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L27)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L27?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L103)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L103?message=Update%20Docs)]
 </div>
 
 
@@ -50,8 +69,8 @@ dipole_factor_expansion(cls, coords, total_charge, X, J_inv):
 polarizability_factor(cls, coords, J_inv): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L32)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L32?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L108)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L108?message=Update%20Docs)]
 </div>
 
 
@@ -61,8 +80,8 @@ polarizability_factor(cls, coords, J_inv):
 expand(cls, total_charge, coords, potential_by_charges_by_coords): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L41)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L41?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L117)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L117?message=Update%20Docs)]
 </div>
 
   - `total_charge`: `Any`
@@ -83,8 +102,8 @@ expand(cls, total_charge, coords, potential_by_charges_by_coords):
 distorted_harmonic_polarizabilities(cls, charges, dipole_expansion, coords, hessians): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L110)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L110?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L186)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L186?message=Update%20Docs)]
 </div>
  </div>
 </div>

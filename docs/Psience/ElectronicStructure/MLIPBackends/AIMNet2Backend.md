@@ -24,14 +24,15 @@ distance_units: str
 property_units: dict
 analytic_derivative_orders: dict
 property_shapes: dict
+polarizability_modes: tuple
 ```
 <a id="Psience.ElectronicStructure.MLIPBackends.AIMNet2Backend.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
-__init__(self, atoms, model='aimnet2', charge=None, device=None, model_dir=None, multiplicity=None, quiet=True): 
+__init__(self, atoms, model='aimnet2', charge=None, device=None, model_dir=None, multiplicity=None, quiet=True, polarizability_mode='coulomb', response_solver='constrained', allow_indefinite=False, stability_tolerance=1e-10): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends.py#L61)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L61?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends.py#L64)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends.py#L64?message=Update%20Docs)]
 </div>
 
   - `model`: `Any`
@@ -40,6 +41,14 @@ __init__(self, atoms, model='aimnet2', charge=None, device=None, model_dir=None,
     > the torch device (default: CUDA if available)
   - `model_dir`: `Any`
     > a cache directory for downloaded weights (default `$MODEL_CACHE_DIR`)
+  - `polarizability_mode`: `Any`
+    > 'coulomb', 'net_coulomb', or experimental 'total_energy'
+  - `response_solver`: `Any`
+    > 'constrained' (null-space solve) or 'inverse' (full inverse)
+  - `allow_indefinite`: `Any`
+    > permit unstable curvature for diagnostics; singular kernels still fail
+  - `stability_tolerance`: `Any`
+    > relative threshold for near-zero constrained eigenvalues
 
 
 <a id="Psience.ElectronicStructure.MLIPBackends.AIMNet2Backend.handle_specialization" class="docs-object-method">&nbsp;</a> 
@@ -48,8 +57,8 @@ __init__(self, atoms, model='aimnet2', charge=None, device=None, model_dir=None,
 handle_specialization(cls, tag): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L71)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L71?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L89)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L89?message=Update%20Docs)]
 </div>
 
 
@@ -59,8 +68,8 @@ handle_specialization(cls, tag):
 setup_model(cls, model, device=None, model_dir=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L155)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L155?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L173)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L173?message=Update%20Docs)]
 </div>
 Load an `AIMNet2Calculator` (or return `model` if it already is one).
 
@@ -71,8 +80,8 @@ Load an `AIMNet2Calculator` (or return `model` if it already is one).
 autodiff(expr, coord, pad_dim, base_shape=None, create_graph=False, retain_graph=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L191)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L191?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L209)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L209?message=Update%20Docs)]
 </div>
 
 
@@ -81,13 +90,9 @@ autodiff(expr, coord, pad_dim, base_shape=None, create_graph=False, retain_graph
 prep_eval(self, coords, order, charge=None, multiplicity=None, keep_graph=None, forces=None, hessian=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L251)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L251?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L269)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L269?message=Update%20Docs)]
 </div>
-Run the model on `coords` (`(..., natoms, 3)`, Angstrom), setting up autograd for
-`order` energy derivatives.
-  - `:returns`: `_`
-    > `(base_shape, flat_coords, data)`
 
 
 <a id="Psience.ElectronicStructure.MLIPBackends.AIMNet2Backend.process_aimnet_derivs" class="docs-object-method">&nbsp;</a> 
@@ -95,8 +100,8 @@ Run the model on `coords` (`(..., natoms, 3)`, Angstrom), setting up autograd fo
 process_aimnet_derivs(self, base_shape, coords, data, root_key, order, extra_deriv_coord=None, deriv_key=None, property_shape=(), pad_coord=1, replace_nans=True, output_shape=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L382)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L382?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L408)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L408?message=Update%20Docs)]
 </div>
 Collect `data[root_key]` and its coordinate derivatives through `order` (and, with
 `extra_deriv_coord=(var, n)`, mixed derivatives through order `n` in `var`) as numpy arrays.
@@ -107,8 +112,8 @@ Collect `data[root_key]` and its coordinate derivatives through `order` (and, wi
 evaluate_energy(self, coords, order, charge=None, multiplicity=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L482)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L482?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L508)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L508?message=Update%20Docs)]
 </div>
 `[E, dE/dx, ...]` on a flat batch `(nstruct, natoms, 3)` (Hessians are taken one structure at a time)
 
@@ -118,8 +123,8 @@ evaluate_energy(self, coords, order, charge=None, multiplicity=None, **opts):
 evaluate_charges(self, coords, order, charge=None, multiplicity=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L494)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L494?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L520)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L520?message=Update%20Docs)]
 </div>
 `[q, dq/dx, ...]` on a flat batch `(nstruct, natoms, 3)` (derivatives are taken one
 structure at a time: the padded per-atom autograd doesn't separate batched molecules)
@@ -127,29 +132,76 @@ structure at a time: the padded per-atom autograd doesn't separate batched molec
 
 <a id="Psience.ElectronicStructure.MLIPBackends.AIMNet2Backend.evaluate_electrostatic_potential_derivatives" class="docs-object-method">&nbsp;</a> 
 ```python
-evaluate_electrostatic_potential_derivatives(self, coords, coord_order, electrostatic_order, charge=None, multiplicity=None, **opts): 
+evaluate_electrostatic_potential_derivatives(self, coords, coord_order=0, electrostatic_order=2, charge=None, multiplicity=None, polarizability_mode=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L515)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L515?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L658)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L658?message=Update%20Docs)]
 </div>
-The model's Coulomb energy and its derivatives with respect to the atomic charges (through
-`electrostatic_order`) and coordinates (through `coord_order`), as
-`[[E, dE/dx, ...], [dE/dq, ...], [d2E/dq2, ...]]`
+Independent-charge derivatives of the selected AIMNet2 energy.
+
+Returns ``[[E, dE/dR], [E_q, dE_q/dR], [E_qq, dE_qq/dR]]`` truncated to
+requested orders. Units are eV, elementary charge, and Angstroms. The
+total-energy mode intervenes before the final neural pass; the explicit
+Coulomb modes differentiate their native modules. No output keys or
+Coulomb-module settings are changed. Native charges need not be stationary.
+
+
+<a id="Psience.ElectronicStructure.MLIPBackends.AIMNet2Backend.evaluate_charge_hardness" class="docs-object-method">&nbsp;</a> 
+```python
+evaluate_charge_hardness(self, coords, coord_order=0, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L679)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L679?message=Update%20Docs)]
+</div>
+``[E_qq, dE_qq/dR]`` in native eV/e^2 and Angstrom units.
+
+
+<a id="Psience.ElectronicStructure.MLIPBackends.AIMNet2Backend.evaluate_polarizability" class="docs-object-method">&nbsp;</a> 
+```python
+evaluate_polarizability(self, coords, coord_order=0, *, polarizability_mode=None, response_solver=None, allow_indefinite=None, stability_tolerance=None, return_diagnostics=False, charge=None, multiplicity=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L683)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L683?message=Update%20Docs)]
+</div>
+Conserved-charge polarizability in atomic units, derivatives per Angstrom.
+
+``coulomb`` uses the previous external-module control; ``net_coulomb``
+includes embedded short-range corrections; ``total_energy`` includes the
+downstream learned energy on a conditional charge surface. The latter is
+experimental: native AIMNet2 charges are not variational minimizers.
+Singular kernels always fail. Unstable kernels require explicit opt-in.
+Diagnostics are available here without changing the standard property API.
+
+
+<a id="Psience.ElectronicStructure.MLIPBackends.AIMNet2Backend.evaluate_dipole" class="docs-object-method">&nbsp;</a> 
+```python
+evaluate_dipole(self, coords, order=0, charge=None, multiplicity=None, **opts): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L724)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L724?message=Update%20Docs)]
+</div>
+Native charge dipole in e Bohr, coordinate derivatives per Angstrom.
+
+No charge re-equilibration is implied. Charged-system dipoles use the
+supplied coordinate origin. This agrees with AIMNet2DipoleEvaluator.
 
 
 <a id="Psience.ElectronicStructure.MLIPBackends.AIMNet2Backend.evaluate_field_response" class="docs-object-method">&nbsp;</a> 
 ```python
-evaluate_field_response(self, coords, coord_order=0, field_order=2, charge=None, multiplicity=None, **opts): 
+evaluate_field_response(self, coords, coord_order=0, field_order=2, charge=None, multiplicity=None, polarizability_mode=None, response_solver=None, allow_indefinite=None, stability_tolerance=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L536)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L536?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L740)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L740?message=Update%20Docs)]
 </div>
-The fluctuating-charge dipole and polarizability expansions,
-`[[mu, dmu/dx, ...], [alpha, dalpha/dx, ...]][:field_order]`.
-  - `coords`: `Any`
-    > `(..., natoms, 3)`, Angstrom
+``[native_dipole_expansion, polarizability_expansion][:field_order]``.
+
+Property values are atomic units and nuclear derivative axes are in
+Angstroms. Selecting a curvature mode changes alpha, not native charges.
 
 
 <a id="Psience.ElectronicStructure.MLIPBackends.AIMNet2Backend.evaluate_properties" class="docs-object-method">&nbsp;</a> 
@@ -157,8 +209,8 @@ The fluctuating-charge dipole and polarizability expansions,
 evaluate_properties(self, coords, orders, charge, multiplicity, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L550)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L550?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L760)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/ElectronicStructure/MLIPBackends/AIMNet2Backend.py#L760?message=Update%20Docs)]
 </div>
  </div>
 </div>
