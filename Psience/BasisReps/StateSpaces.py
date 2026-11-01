@@ -1431,6 +1431,9 @@ class BasisStateSpace(AbstractStateSpace):
         :rtype:
         """
 
+        if hasattr(other, 'store') and not hasattr(self, 'store'):
+            return other.store.coerce(self).union(other, sort=sort, track_excitations=track_excitations, track_indices=track_indices)
+
         if self.basis != other.basis:
             raise ValueError("can't merge state spaces over different bases ({} and {})".format(
                 self.basis,
@@ -1552,6 +1555,12 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
+
+        if hasattr(other, 'contains_indices'):
+            mask = other.contains_indices(self.indices)
+            return self.take_subspace(np.flatnonzero(mask))
+        if hasattr(other, 'store') and not hasattr(self, 'store'):
+            return other.store.coerce(self).intersection(other, sort=sort, track_excitations=track_excitations, track_indices=track_indices)
 
         if self.basis != other.basis:
             raise ValueError("can't merge state spaces over different bases ({} and {})".format(
@@ -1681,6 +1690,12 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
+
+        if hasattr(other, 'contains_indices'):
+            mask = other.contains_indices(self.indices)
+            return self.take_subspace(np.flatnonzero(~mask))
+        if hasattr(other, 'store') and not hasattr(self, 'store'):
+            return other.store.coerce(self).difference(other, sort=sort, track_excitations=track_excitations, track_indices=track_indices)
 
         if self.full_basis is not None:
             track_excitations = False

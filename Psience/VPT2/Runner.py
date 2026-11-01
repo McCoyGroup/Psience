@@ -683,6 +683,10 @@ class VPTStateSpace:
                                                order=order, postfilters=postfilters,
                                                **opts
                                                )
+        filter.target_property = target_property
+        filter.estimate_storage = lambda states: self.get_state_space_filter(
+            states, initial_states=initial_states, target=target_property, order=order,
+            postfilters=postfilters, estimate=True)
         return filter
     def get_filter(self, target_property, order=2, initial_states=None, postfilters=None):
         """
@@ -703,7 +707,7 @@ class VPTStateSpace:
                                            postfilters=postfilters
                                            )
     @classmethod
-    def get_state_space_filter(cls, states, initial_states=None, n_modes=None, order=2, target='wavefunctions', postfilters=None, **opts):
+    def get_state_space_filter(cls, states, initial_states=None, n_modes=None, order=2, target='wavefunctions', postfilters=None, estimate=False, **opts):
         """
         Gets `state_space_filters` for the input `states` targeting some property
 
@@ -725,11 +729,18 @@ class VPTStateSpace:
 
         # if order != 2:
         #     raise ValueError("state space filters currently only implemented at second order")
+        build = (BasisStateSpaceFilter.estimate_property_storage if estimate
+                 else BasisStateSpaceFilter.from_property_rules)
         if target == 'wavefunctions':
+            if estimate:
+                return build(
+                    np.zeros((1,n_modes),dtype=int) if initial_states is None else initial_states,
+                    states, [HarmonicOscillatorProductBasis(n_modes).selection_rules(*['x']*(i+2))
+                             for i in range(1,order+1)], None, order=order, filtered=False)
             return None
         elif target == 'intensities':
-            return BasisStateSpaceFilter.from_property_rules(
-                cls.get_state_list_from_quanta(0, n_modes) if initial_states is None else initial_states,
+            return build(
+                np.zeros((1,n_modes),dtype=int) if initial_states is None else initial_states,
                 states,
                 [
                     HarmonicOscillatorProductBasis(n_modes).selection_rules(*["x"]*i) for i in range(3, order+3)
@@ -746,15 +757,15 @@ class VPTStateSpace:
             #     (1, 1): ([],),
             #     (2, 0): (None, [[0]])
             # }
-            return BasisStateSpaceFilter.from_property_rules(
-                cls.get_state_list_from_quanta(0, n_modes) if initial_states is None else initial_states,
+            return build(
+                np.zeros((1,n_modes),dtype=int) if initial_states is None else initial_states,
                 states,
                 [
                     HarmonicOscillatorProductBasis(n_modes).selection_rules(*["x"] * i) for i in range(3, order + 3)
                 ],
                 None,
                 order=order,
-                postfilters=postfilters
+                postfilters=postfilters, compact=opts.get('compact',False)
                 # [
                 #     # (),
                 #     # (),
@@ -1007,6 +1018,7 @@ class VPTRuntimeOptions:
         "results",
         "memory_constrained",
         "state_space_storage", "state_space_scratch", "hamiltonian_storage",
+        "state_space_memory_limit", "state_space_block_size",
         "checkpoint_keys",
         "use_cached_representations",
         "use_cached_basis",
@@ -1025,6 +1037,8 @@ class VPTRuntimeOptions:
                  parallelizer=None,
                  memory_constrained=None,
                  state_space_storage=None,
+                 state_space_memory_limit=None,
+                 state_space_block_size=None,
                  state_space_scratch=None,
                  hamiltonian_storage=None,
                  checkpoint_keys=None,
@@ -1046,6 +1060,11 @@ class VPTRuntimeOptions:
         :type parallelizer: Parallelizer|None default:None
         :param memory_constrained: whether or not to attempt memory optimizations (`None` means attempt for >20D problems)
         :type memory_constrained: bool|None
+        :param state_space_storage: 'auto' (default), 'memory', or 'external'; auto
+            selects mapped state generation above the property-rule RAM estimate.
+        :param state_space_memory_limit: estimated state-space RAM cutoff in bytes;
+            default 5_000_000_000. None disables automatic switching.
+        :param state_space_block_size: maximum generated pair block, default 65536.
         :param checkpoint: the `Checkpointer` to write Hamiltonians and other bits out to
         :type checkpoint: str|Checkpointer|None default:None
         :param checkpoint_keys: which keys to save in the checkpoint
@@ -1075,6 +1094,8 @@ class VPTRuntimeOptions:
             # operator_chunk_size=operator_chunk_size,
             memory_constrained=memory_constrained,
             state_space_storage=state_space_storage,
+            state_space_memory_limit=state_space_memory_limit,
+            state_space_block_size=state_space_block_size,
             state_space_scratch=state_space_scratch,
             hamiltonian_storage=hamiltonian_storage,
             verbose=verbose,

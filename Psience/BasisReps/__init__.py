@@ -19,6 +19,8 @@ from .StateSpaces import *; from .StateSpaces import __all__ as exposed
 __all__ += exposed
 from .StateIndexers import *; from .StateIndexers import __all__ as exposed
 __all__ += exposed
+from .ExternalStateSpaces import *; from .ExternalStateSpaces import __all__ as exposed
+__all__ += exposed
 from .StateFilters import *; from .StateFilters import __all__ as exposed
 __all__ += exposed
 from .Local import *; from .Local import __all__ as exposed

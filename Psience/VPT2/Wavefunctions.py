@@ -230,6 +230,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                 start = time.time()
                 inds = None
                 rules = m.selection_rules
+                store = getattr(getattr(getattr(self, 'corrs', None), 'total_basis', None), 'store', None)
                 # bra_space = bra_spaces.to_single().take_unique()
                 # ket_space = ket_spaces.to_single().take_unique()
                 # inds, filter = bra_space.get_representation_brakets(
@@ -244,14 +245,14 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                             # self.logger.log_print("<{i}|{k}|{j}>", i=i, j=j, k=k)
                             for nk, kets in enumerate(ket_spaces.spaces):
                                 if ket_space is None:
-                                    ket_space = kets[j]
+                                    ket_space = store.coerce(kets[j]) if store is not None else kets[j]
                                 else:
                                     ket_space = ket_space.union(kets[j])
 
                     bra_space = None
                     for nb, bras in enumerate(bra_spaces.spaces):
                         if bra_space is None:
-                            bra_space = bras[i]
+                            bra_space = store.coerce(bras[i]) if store is not None else bras[i]
                         else:
                             bra_space = bra_space.union(bras[i])
 

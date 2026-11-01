@@ -1276,7 +1276,7 @@ class PropertyEvaluator(metaclass=abc.ABCMeta):
                            coordinate_prep=fd_coordinate_prep,
                            index_filter=fd_index_filter,
                            analytic_derivative_order=analytic_derivative_order,
-                           **fd_opts)
+                           **fd_opts, **opts)
             )
 
         if self.property_units is None:
@@ -5583,6 +5583,7 @@ class RDKitDipoleEvaluator(ChargeEvaluatorDipoleEvaluator):
 
 class DipolePolarizabilityEvaluator(PropertyEvaluator):
     target_property_units = "ElementaryCharge"
+    evaluator_registry = {}
 
     @classmethod
     def get_evaluators(cls):
@@ -5688,9 +5689,50 @@ class BackendDipolePolarizabilityEvaluator(ElectronicStructureBackendEvaluator, 
     def evaluate_polarizability_term(self, coords, coord_order, electrostatic_order, *, charge=None, **opts):
         return self.backend.evaluate_field_response(coords, coord_order, electrostatic_order, charge=charge, **opts)
 
+    def evaluate_expansion(self, coords, order=0, **opts):
+        # Field orders have different units and tensor ranks. Evaluate their
+        # coordinate expansions independently, using the standard single-property
+        # finite-difference machinery, then preserve the public [mu, alpha] API.
+        return [
+            _BackendFieldResponseEvaluator(self.backend, component, **self.defaults).evaluate_expansion(
+                coords, order=order, **opts
+            ) for component in range(self.multi_expansion_order)
+        ]
+
+
+class _BackendFieldResponseEvaluator(PropertyEvaluator):
+    """One component of a backend field response, in its declared property units."""
+    batched_orders = True
+
+    @classmethod
+    def from_mol(cls, mol, *, backend, component, **opts):
+        return cls(backend, component, **opts)
+
+    @classmethod
+    def get_default_function_evaluator_type(cls):
+        return PropertyFunctionEvaluator
+
+    def __init__(self, backend, component, **defaults):
+        super().__init__(**defaults)
+        self.backend = backend
+        self.component = component
+        prop = ('dipole','polarizability')[component]
+        self.distance_units = backend.distance_units
+        self.property_units = backend.get_property_units(prop)
+        self.target_property_units = ('ElementaryCharge','BohrRadius') if component == 0 else None
+        self.property_ndim = component+1
+        self.analytic_derivative_order = backend.get_analytic_derivative_order(prop)
+
+    def evaluate_term(self, coords, order, **opts):
+        return self.backend.evaluate_field_response(coords, order, self.component+1, **opts)[self.component]
+
 class AIMNet2DipolePolarizabilityEvaluator(BackendDipolePolarizabilityEvaluator, FluctuatingChargeDipolePolarizabilityEvaluator):
     """
-    AIMNet2 fluctuating-charge polarizabilities (`Psience.ElectronicStructure.AIMNet2Backend`)
+    AIMNet2 native dipoles and charge-curvature polarizabilities. Pass
+    ``polarizability_mode='coulomb'|'net_coulomb'|'total_energy'`` and
+    ``response_solver='constrained'|'inverse'`` at construction or evaluation.
+    Unstable kernels require ``allow_indefinite=True``; total energy is a
+    conditional, experimental response and does not relax the native charges.
     """
     backend_type = AIMNet2Backend
     evaluate_polarizability_term = BackendDipolePolarizabilityEvaluator.evaluate_polarizability_term

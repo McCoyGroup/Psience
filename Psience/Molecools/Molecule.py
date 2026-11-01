@@ -3292,7 +3292,7 @@ class Molecule(AbstractMolecule):
                     * UnitsData.convert("BohrRadius", evaluator.distance_units),
                 order=order
             )
-            if smol: expansion = expansion[0]
+            if smol: expansion = [e[0] for e in expansion]
             return expansion
         return evaluate_polarizability
     def calculate_dipole_polarizability(self, evaluator=None, order=None, **opts):

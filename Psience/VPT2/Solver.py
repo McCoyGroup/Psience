@@ -66,7 +66,9 @@ class PerturbationTheorySolver:
                  zero_order_energy_corrections=None,
                  nondeg_hamiltonian_precision=3,
                  memory_constrained=False,
-                 state_space_storage="memory",
+                 state_space_storage="auto",
+                 state_space_memory_limit=5_000_000_000,
+                 state_space_block_size=65536,
                  state_space_scratch=None,
                  hamiltonian_storage=None,
                  keep_hamiltonians=None,
@@ -110,6 +112,34 @@ class PerturbationTheorySolver:
         #     raise NotImplementedError('memory constraint handling currently broken')
 
         self.perts = perturbations
+        if state_space_storage not in {'auto', 'memory', 'external'}:
+            raise ValueError('state_space_storage must be auto, memory or external')
+        if state_space_memory_limit is not None and (not np.isfinite(state_space_memory_limit) or state_space_memory_limit < 0):
+            raise ValueError('state_space_memory_limit must be nonnegative bytes or None')
+        self.requested_state_space_storage = state_space_storage
+        self.state_space_memory_limit = state_space_memory_limit
+        self.state_space_block_size = int(state_space_block_size)
+        if self.state_space_block_size < 1:
+            raise ValueError('state_space_block_size must be positive')
+        estimator = getattr(state_space_filters, 'estimate_storage', None)
+        if estimator is not None:
+            self.state_space_estimate = dict(estimator(states),target_property=getattr(state_space_filters,'target_property',None))
+        else:
+            rules = [getattr(p, 'selection_rules', None) or
+                     states.basis.selection_rules(*['x']*(h+2))
+                     for h,p in enumerate(perturbations[1:],1)]
+            if not rules:
+                rules = [states.basis.selection_rules('x','x','x')]
+            self.state_space_estimate = BasisStateSpaceFilter.estimate_property_storage(
+                states, states, rules, None, order=order, filtered=False)
+        if state_space_storage == 'auto':
+            state_space_storage = ('external' if state_space_memory_limit is not None and
+                self.state_space_estimate['estimated_bytes'] > state_space_memory_limit else 'memory')
+        self.state_space_storage = state_space_storage
+        self._state_space_store = None
+        if state_space_storage == 'external':
+            from ..BasisReps.ExternalStateSpaces import StateSpaceDiskStore
+            self._state_space_store = StateSpaceDiskStore(state_space_scratch,state_space_block_size)
         self._reps = None
         self.order = order
         self.state_space_iterations = state_space_iterations
@@ -117,7 +147,8 @@ class PerturbationTheorySolver:
 
         if isinstance(state_space_filters, (types.FunctionType, types.MethodType, types.LambdaType)):
             self.state_space_filter_generator = state_space_filters
-            self.state_space_filters = BasisStateSpaceFilter.from_data(states, self.state_space_filter_generator(states))
+            self.state_space_filters = BasisStateSpaceFilter.from_data(states, self.state_space_filter_generator(
+                states, **({'compact':True} if getattr(state_space_filters,'estimate_storage',None) is not None and self._state_space_store is not None else {})))
         else:
             self.state_space_filter_generator = None
             self.state_space_filters = BasisStateSpaceFilter.from_data(states, state_space_filters)
@@ -204,8 +235,6 @@ class PerturbationTheorySolver:
         self.gaussian_resonance_handling = gaussian_resonance_handling
         self.zero_element_warning = zero_element_warning
 
-        if state_space_storage not in {"memory", "external"}:
-            raise ValueError("state_space_storage must be memory or external")
         self.state_space_storage = state_space_storage
         self.state_space_scratch = state_space_scratch
         self.hamiltonian_storage = hamiltonian_storage
@@ -400,13 +429,21 @@ class PerturbationTheorySolver:
         """
         if self._zo_engs is None:
             H0 = self.representations[0]
-            e_vec_full = np.diag(H0) if isinstance(H0, np.ndarray) else H0.diag
+            e_vec_full = (H0._mapped_diagonal if hasattr(H0,'_mapped_diagonal') else
+                          np.diag(H0) if isinstance(H0, np.ndarray) else H0.diag)
             if isinstance(e_vec_full, SparseArray):
                 e_vec_full = e_vec_full.asarray()
             self._zo_engs = e_vec_full
             if self.zero_order_energy_corrections is not None:
                 if callable(self.zero_order_energy_corrections):
-                    energies = self.zero_order_energy_corrections(self.flat_total_space.excitations)
+                    if self._state_space_store is None:
+                        energies = self.zero_order_energy_corrections(self.flat_total_space.excitations)
+                    else:
+                        energies = self._state_space_store.array('zero_order',float,(len(self.flat_total_space),))
+                        offset = 0
+                        for block in self.flat_total_space.iter_excitations():
+                            energies[offset:offset+len(block)] = self.zero_order_energy_corrections(block)
+                            offset += len(block)
                     self._zo_engs = energies
                 else:
                     states=np.asarray([s[0] for s in self.zero_order_energy_corrections])
@@ -544,7 +581,7 @@ class PerturbationTheorySolver:
                         except KeyError:
                             pass
 
-            if self.hamiltonian_storage is not None:
+            if self.hamiltonian_storage is not None and self._state_space_store is None:
                 from pathlib import Path
                 from McUtils.Numputils import save_sparse_matrix, load_sparse_matrix
                 directory = Path(self.hamiltonian_storage)
@@ -569,6 +606,24 @@ class PerturbationTheorySolver:
         :return: the extended list of representation matrices
         :rtype: list[SparseArray]
         """
+
+        if self._state_space_store is not None:
+            # Rebuild from the merged recipes into mapped CSR. The resident
+            # splice below materializes all old/new COO entries for np.unique.
+            self._zo_engs = None
+            cached = self.use_cached_representations
+            self.use_cached_representations = False
+            try:
+                H = self.get_VPT_representations()
+            finally:
+                self.use_cached_representations = cached
+            if cached:
+                with self.checkpointer as checkpointer:
+                    try:
+                        checkpointer['representations'] = H
+                    except KeyError:
+                        pass
+            return H
 
         logger = self.logger
         if logger is None:
@@ -765,6 +820,8 @@ class PerturbationTheorySolver:
         """
 
         logger = self.logger
+        logger.log_print('state-space storage: {storage}; estimated state-space RAM {cost} bytes',
+                         storage=self.state_space_storage, cost=self.state_space_estimate['estimated_bytes'])
         with self.logger.block(tag='getting basis'):
             if self._coupled_states is None:
                 self.logger.log_print('trying to load from checkpoint...')
@@ -820,7 +877,7 @@ class PerturbationTheorySolver:
                 # otherwise they get calculated twice
                 start = time.time()
                 for s in self._coupled_states:
-                    if s is not None:
+                    if s is not None and self._state_space_store is None:
                         logger.log_print('generating indices for {s}', s=s)
                         new = s.indices
 
@@ -850,21 +907,14 @@ class PerturbationTheorySolver:
 
                 space_list = [self.states] + [s for s in self._coupled_states if s is not None]
                 self._total_space = BasisMultiStateSpace(np.array(space_list, dtype=object))
-                if self.state_space_storage == "external":
-                    from McUtils.Numputils import external_unique
-                    def index_blocks():
+                if self._state_space_store is not None:
+                    def rank_blocks():
                         yield self.states.indices
                         for space in self._coupled_states:
                             if space is not None:
-                                if isinstance(space, BasisMultiStateSpace):
-                                    yield from space.iter_index_blocks()
-                                else:
-                                    yield space.indices
-                    indices = external_unique(index_blocks(), sort=False,
-                                              directory=self.state_space_scratch)
-                    flat_space = BasisStateSpace(self.states.basis, indices,
-                        mode=BasisStateSpace.StateSpaceSpec.Indices, full_basis=self.full_basis)
-                    self._flat_space = flat_space
+                                yield from space.iter_index_blocks()
+                    self._flat_space = self._state_space_store.frontier(self.states.basis,rank_blocks())
+                    flat_space = self._flat_space
                 else:
                     flat_space = self.states.take_unique().to_single(track_excitations=False)
                     for s in self._coupled_states:
@@ -936,11 +986,11 @@ class PerturbationTheorySolver:
                     existing_spaces[p] = ({None:cs}, cs)
                 if self.extended_state_space_filter_generator is not None:
                     filters = BasisStateSpaceFilter.from_data(new_targets,
-                                                              self.extended_state_space_filter_generator(new_targets, check_subspaces=False)
+                                                              self.extended_state_space_filter_generator(new_targets, check_subspaces=False, **({'compact':True} if self._state_space_store is not None and getattr(self.extended_state_space_filter_generator,'estimate_storage',None) is not None else {}))
                                                               )
                 elif self.state_space_filter_generator is not None:
                     filters = BasisStateSpaceFilter.from_data(new_targets,
-                                                              self.state_space_filter_generator(new_targets, check_subspaces=False)
+                                                              self.state_space_filter_generator(new_targets, check_subspaces=False, **({'compact':True} if self._state_space_store is not None and getattr(self.state_space_filter_generator,'estimate_storage',None) is not None else {}))
                                                               )
                 else:
                     filters = None #TODO: is this really the right choice...?
@@ -1321,6 +1371,8 @@ class PerturbationTheorySolver:
         :rtype: object
         """
 
+        if self._state_space_store is not None:
+            b = self._state_space_store.coerce(b)
         if filter_space is not None:
             prefilters = filter_space.prefilters
             postfilters = filter_space.postfilters
@@ -2123,7 +2175,7 @@ class PerturbationTheorySolver:
                 try:
                     checkpointer['corrections'] = {
                         "states": states.excitations,
-                        "total_states": total_states.excitations,
+                        "total_states": self._archive_state_vectors(total_states),
                         'energies': all_energies,
                         'wavefunctions': corr_mats
                     }
@@ -2134,7 +2186,7 @@ class PerturbationTheorySolver:
                     try:
                         self.results['corrections'] = {
                             "states": states.excitations,
-                            "total_states": total_states.excitations,
+                            "total_states": self._archive_state_vectors(total_states),
                             'energies': all_energies,
                             'wavefunctions': corr_mats
                         }
@@ -2145,6 +2197,20 @@ class PerturbationTheorySolver:
             #     self.logger.log_print(str(np.sum(corrs.get_overlap_matrices(), axis=0)).splitlines())
 
         return self.PTResults(corrs, degenerate_states)
+
+    def _archive_state_vectors(self, space):
+        # Null output sinks must not force materialization of the global basis.
+        if isinstance(self.results, NullCheckpointer):
+            return None
+        if not hasattr(space, 'store'):
+            return space.excitations
+        dtype = BasisStateSpace.excitations_dtype
+        result = space.store.array('archived_states',dtype,(len(space),space.ndim))
+        offset = 0
+        for block in space.iter_excitations():
+            result[offset:offset+len(block)] = block
+            offset += len(block)
+        return result
 
     PTResults = namedtuple("PTResults", ["corrections", "degeneracies"])
 

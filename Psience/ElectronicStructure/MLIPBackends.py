@@ -46,25 +46,43 @@ class AIMNet2Backend(ElectronicStructureBackend):
     property_units = {
         'energy': 'ElectronVolts',
         'charges': 'ElementaryCharge',
-        'polarizability': None,  # model-native (charges in e, distances in Angstrom, energies in eV)
+        'polarizability': None,  # atomic units; nuclear derivative axes remain Angstrom
+        'dipole': ('ElementaryCharge', 'BohrRadius'),
     }
     analytic_derivative_orders = {
         'energy': 2,
         'charges': 1,
         'polarizability': 1,
+        'dipole': 1,
     }
     property_shapes = {
         'charges': lambda n: (n,),
         'polarizability': (3, 3),
+        'dipole': (3,),
     }
 
-    def __init__(self, atoms, model='aimnet2', charge=None, device=None, model_dir=None, multiplicity=None, quiet=True):
+    def __init__(self, atoms, model='aimnet2', charge=None, device=None, model_dir=None, multiplicity=None, quiet=True,
+                 polarizability_mode='coulomb', response_solver='constrained',
+                 allow_indefinite=False, stability_tolerance=1e-10):
         """
         :param model: an AIMNet2 model name (`'aimnet2'`, `'aimnet2nse'`, ...) or a loaded `AIMNet2Calculator`
         :param device: the torch device (default: CUDA if available)
         :param model_dir: a cache directory for downloaded weights (default `$MODEL_CACHE_DIR`)
+        :param polarizability_mode: 'coulomb', 'net_coulomb', or experimental 'total_energy'
+        :param response_solver: 'constrained' (null-space solve) or 'inverse' (full inverse)
+        :param allow_indefinite: permit unstable curvature for diagnostics; singular kernels still fail
+        :param stability_tolerance: relative threshold for near-zero constrained eigenvalues
         """
         super().__init__(atoms, charge=charge, multiplicity=multiplicity, quiet=quiet)
+        self.polarizability_mode = self._validate_response_mode(polarizability_mode)
+        if response_solver not in ('constrained','inverse'):
+            raise ValueError(f"unknown charge-response solver {response_solver!r}")
+        if not np.isfinite(stability_tolerance) or stability_tolerance < 0:
+            raise ValueError("stability_tolerance must be finite and nonnegative")
+        self.response_solver = response_solver
+        self.allow_indefinite = allow_indefinite
+        self.stability_tolerance = stability_tolerance
+        self._model_lock = threading.RLock()
         self.model_name = model
         self.model = self.setup_model(model, device=device, model_dir=model_dir)
 
@@ -249,6 +267,14 @@ class AIMNet2Backend(ElectronicStructureBackend):
         return deriv, shape_tuple
 
     def prep_eval(self, coords, order, charge=None, multiplicity=None, keep_graph=None, forces=None, hessian=None, **opts):
+        # Serializes graph construction with the temporary total-energy charge
+        # intervention. The same calculator must not be used outside this
+        # backend concurrently.
+        with self._model_lock:
+            return self._prep_eval_unlocked(coords, order, charge=charge, multiplicity=multiplicity,
+                                            keep_graph=keep_graph, forces=forces, hessian=hessian, **opts)
+
+    def _prep_eval_unlocked(self, coords, order, charge=None, multiplicity=None, keep_graph=None, forces=None, hessian=None, **opts):
         """
         Run the model on `coords` (`(..., natoms, 3)`, Angstrom), setting up autograd for
         `order` energy derivatives.
@@ -512,53 +538,243 @@ class AIMNet2Backend(ElectronicStructureBackend):
             for c in coords
         )
 
-    def evaluate_electrostatic_potential_derivatives(self, coords, coord_order, electrostatic_order,
-                                                     charge=None, multiplicity=None, **opts):
-        """
-        The model's Coulomb energy and its derivatives with respect to the atomic charges (through
-        `electrostatic_order`) and coordinates (through `coord_order`), as
-        `[[E, dE/dx, ...], [dE/dq, ...], [d2E/dq2, ...]]`
-        """
-        self.model.model.outputs.lrcoulomb.key_out = 'coul_energy'
-        base_shape, coords, data = self.prep_eval(coords, 0, charge=charge, multiplicity=multiplicity,
-                                                  keep_graph=electrostatic_order > 0 or coord_order > 0,
-                                                  **opts)
-        data['coul_energy'] = data['coul_energy'].sum()
+    polarizability_modes = ('coulomb', 'net_coulomb', 'total_energy')
 
-        return self.process_aimnet_derivs(
-            base_shape, coords, data,
-            'coul_energy',
-            coord_order,
-            property_shape=data['coul_energy'].shape[len(base_shape):],
-            extra_deriv_coord=(data['charges'], electrostatic_order)
-        )
+    @classmethod
+    def _validate_response_mode(cls, mode):
+        if mode not in cls.polarizability_modes:
+            raise ValueError(f"unknown AIMNet2 polarizability mode {mode!r}; choose {cls.polarizability_modes}")
+        return mode
 
-    def evaluate_field_response(self, coords, coord_order=0, field_order=2, charge=None, multiplicity=None, **opts):
-        """
-        The fluctuating-charge dipole and polarizability expansions,
-        `[[mu, dmu/dx, ...], [alpha, dalpha/dx, ...]][:field_order]`.
+    @contextlib.contextmanager
+    def _independent_charge_increment(self, delta):
+        """Intervene before the last charge-conditioned pass, restoring on failure.
 
-        :param coords: `(..., natoms, 3)`, Angstrom
+        Earlier hidden states remain on the native trajectory. This is a
+        conditional energy surface, not a pretrained variational functional.
+        The caller holds this backend's model lock throughout graph creation.
         """
+        import types
+        import torch
+        model = self.model.model
+        if isinstance(model, torch.jit.ScriptModule) or not hasattr(model, '_update_q') or not hasattr(model, 'mlps'):
+            raise NotImplementedError("total_energy response needs a native, uncompiled AIMNet2 model with _update_q and mlps")
+        expected = len(model.mlps)-1
+        if expected < 1:
+            raise NotImplementedError("total_energy response needs a charge update before the final neural pass")
+        original = model._update_q
+        had_override = '_update_q' in model.__dict__
+        previous = model.__dict__.get('_update_q')
+        count = [0]
+        def update(instance, data, x, delta_q=True):
+            data = original(data, x, delta_q=delta_q)
+            count[0] += 1
+            if count[0] == expected:
+                q = data['charges']
+                if q.numel() != self.natoms+1:
+                    raise NotImplementedError("total_energy response currently requires one padded, single-channel charge vector; NSE spin channels are unsupported")
+                data['charges'] = q+torch.cat((delta, delta.new_zeros(1))).reshape(q.shape)
+            return data
+        model._update_q = types.MethodType(update, model)
+        try:
+            yield
+            if count[0] != expected:
+                raise RuntimeError("AIMNet2 charge intervention did not reach the expected neural pass")
+        finally:
+            if had_override:
+                model._update_q = previous
+            else:
+                delattr(model, '_update_q')
+
+    def _charge_energy_graph(self, coords, mode, charge, multiplicity, **opts):
+        import torch
+        if mode == 'total_energy':
+            parameter = next(self.model.model.parameters())
+            qvar = torch.zeros(self.natoms, dtype=parameter.dtype, device=parameter.device, requires_grad=True)
+            with self._independent_charge_increment(qvar):
+                _, _, data = self.prep_eval(coords, 0, charge=charge, multiplicity=multiplicity,
+                                           keep_graph=True, forces=False, hessian=False, **opts)
+            return data['energy'].sum(), qvar, data
+        _, _, data = self.prep_eval(coords, 0, charge=charge, multiplicity=multiplicity,
+                                   keep_graph=True, forces=False, hessian=False, **opts)
+        # Treat the exported charges as independent variables for explicit
+        # electrostatics. This deliberately excludes the upstream neural path.
+        qvar = data['charges'].detach().to(dtype=torch.float64).requires_grad_(True)
+        if qvar.numel() != self.natoms+1:
+            raise NotImplementedError("charge response needs one padded atomic charge vector")
+        work = dict(data, charges=qvar)
+        external = getattr(self.model, 'external_coulomb', None)
+        outputs = getattr(self.model.model, 'outputs', None)
+        children = [] if outputs is None else list(outputs.children())
+        embedded_lr = [m for m in children if hasattr(m, 'coul_simple')]
+        module = external if external is not None else (embedded_lr[0] if len(embedded_lr)==1 else None)
+        if module is None or getattr(module, 'method', 'simple') != 'simple':
+            raise NotImplementedError("charge response requires an accessible simple Coulomb module")
+        energy = module.coul_simple(dict(work)).sum()
+        if mode == 'net_coulomb':
+            corrections = [m for m in children if type(m).__name__ == 'SRCoulomb']
+            metadata = getattr(self.model, 'metadata', {})
+            if metadata.get('coulomb_mode') == 'sr_embedded' and not corrections:
+                raise NotImplementedError("embedded short-range Coulomb correction could not be isolated")
+            for correction in corrections:
+                partial = dict(work)
+                partial.pop(correction.key_out, None)
+                energy = energy+correction(partial)[correction.key_out].sum()
+        return energy, qvar, data
+
+    @staticmethod
+    def _response_autograd(value, variable, create_graph=False):
+        import torch
+        if not value.requires_grad:
+            return variable*0
+        result = torch.autograd.grad(value, variable, retain_graph=True,
+                                     create_graph=create_graph, allow_unused=True)[0]
+        return variable*0 if result is None else result
+
+    def _charge_potential_single(self, coords, coord_order, electrostatic_order,
+                                 mode, charge, multiplicity, **opts):
+        import torch
+        with self._model_lock:
+            energy, qvar, data = self._charge_energy_graph(coords, mode, charge, multiplicity, **opts)
+            terms = [energy]
+            if electrostatic_order:
+                gradient = self._response_autograd(energy, qvar, create_graph=True).reshape(-1)[:self.natoms]
+                terms.append(gradient)
+                if electrostatic_order > 1:
+                    hardness = torch.stack([self._response_autograd(g, qvar, create_graph=coord_order>0).reshape(-1)[:self.natoms]
+                                            for g in gradient])
+                    terms.append(hardness)
+            result = []
+            for value in terms:
+                expansion = [value.detach().cpu().numpy()]
+                if coord_order:
+                    derivatives = [self._response_autograd(v, data['coord']).reshape(-1,3)[:self.natoms].reshape(-1)
+                                   for v in value.reshape(-1)]
+                    derivative = torch.stack(derivatives).reshape(tuple(value.shape)+(3*self.natoms,))
+                    expansion.append(np.moveaxis(derivative.detach().cpu().numpy(), -1, 0))
+                result.append(expansion)
+        return result
+
+    def evaluate_electrostatic_potential_derivatives(self, coords, coord_order=0, electrostatic_order=2,
+                                                     charge=None, multiplicity=None,
+                                                     polarizability_mode=None, **opts):
+        """Independent-charge derivatives of the selected AIMNet2 energy.
+
+        Returns ``[[E, dE/dR], [E_q, dE_q/dR], [E_qq, dE_qq/dR]]`` truncated to
+        requested orders. Units are eV, elementary charge, and Angstroms. The
+        total-energy mode intervenes before the final neural pass; the explicit
+        Coulomb modes differentiate their native modules. No output keys or
+        Coulomb-module settings are changed. Native charges need not be stationary.
+        """
+        if coord_order not in (0,1) or electrostatic_order not in (0,1,2):
+            raise NotImplementedError("charge-energy expansions support coordinate orders 0/1 and charge orders 0/1/2")
+        mode = self._validate_response_mode(self.polarizability_mode if polarizability_mode is None else polarizability_mode)
         charge, multiplicity = self.resolve_state(charge, multiplicity)
-        coords = np.asanyarray(coords)
-        potential_by_charges_by_coords = self.evaluate_electrostatic_potential_derivatives(
-            coords, coord_order, field_order, charge=charge, multiplicity=multiplicity, **opts
-        )
-        return FluctuatingChargeResponse.expand(charge, coords, potential_by_charges_by_coords)
+        batch, flat = self.prep_coords(coords)
+        rows = [self._charge_potential_single(c, coord_order, electrostatic_order, mode, charge, multiplicity, **opts)
+                for c in flat]
+        return [[np.stack([row[q][k] for row in rows]).reshape(batch+rows[0][q][k].shape)
+                 for k in range(coord_order+1)] for q in range(electrostatic_order+1)]
+
+    def evaluate_charge_hardness(self, coords, coord_order=0, **opts):
+        """``[E_qq, dE_qq/dR]`` in native eV/e^2 and Angstrom units."""
+        return self.evaluate_electrostatic_potential_derivatives(coords, coord_order, 2, **opts)[2]
+
+    def evaluate_polarizability(self, coords, coord_order=0, *, polarizability_mode=None,
+                                response_solver=None, allow_indefinite=None, stability_tolerance=None,
+                                return_diagnostics=False, charge=None, multiplicity=None, **opts):
+        """Conserved-charge polarizability in atomic units, derivatives per Angstrom.
+
+        ``coulomb`` uses the previous external-module control; ``net_coulomb``
+        includes embedded short-range corrections; ``total_energy`` includes the
+        downstream learned energy on a conditional charge surface. The latter is
+        experimental: native AIMNet2 charges are not variational minimizers.
+        Singular kernels always fail. Unstable kernels require explicit opt-in.
+        Diagnostics are available here without changing the standard property API.
+        """
+        from McUtils.Data import UnitsData
+        mode = self.polarizability_mode if polarizability_mode is None else polarizability_mode
+        terms = self.evaluate_electrostatic_potential_derivatives(coords, coord_order, 2,
+            charge=charge, multiplicity=multiplicity, polarizability_mode=mode, **opts)
+        batch, flat = self.prep_coords(coords)
+        positions = flat.reshape(batch+(self.natoms,3))
+        expansion, diagnostics = FluctuatingChargeResponse.constrained_polarizability(
+            positions, terms[2][0], terms[2][1] if coord_order else None,
+            solver=self.response_solver if response_solver is None else response_solver,
+            allow_indefinite=self.allow_indefinite if allow_indefinite is None else allow_indefinite,
+            stability_tolerance=self.stability_tolerance if stability_tolerance is None else stability_tolerance,
+            return_diagnostics=True)
+        # All derivative orders keep native coordinate axes here; Molecools
+        # converts each derivative axis to Bohr exactly once.
+        factor = UnitsData.convert('Angstroms','BohrRadius')**2/UnitsData.convert('ElectronVolts','Hartrees')
+        expansion = [e*factor for e in expansion]
+        if return_diagnostics:
+            Z = np.linalg.svd(np.ones((1,self.natoms)),full_matrices=True)[2][1:].T
+            K = Z.T@terms[2][0]@Z
+            g = np.einsum('na,...n->...a',Z,terms[1][0])
+            shift = -np.einsum('na,...a->...n',Z,np.linalg.solve(K,g[...,None])[...,0])
+            diagnostics.update(polarizability_mode=mode,charge_gradient=terms[1][0],
+                constrained_gradient_norm=np.linalg.norm(g,axis=-1),linearized_zero_field_charge_shift=shift,
+                hardness_units='eV/e^2',charge_gradient_units='eV/e',polarizability_units='atomic units',
+                coordinate_derivative_units='per Angstrom',
+                conditional_energy=(mode=='total_energy'))
+            return expansion, diagnostics
+        return expansion
+
+    def evaluate_dipole(self, coords, order=0, charge=None, multiplicity=None, **opts):
+        """Native charge dipole in e Bohr, coordinate derivatives per Angstrom.
+
+        No charge re-equilibration is implied. Charged-system dipoles use the
+        supplied coordinate origin. This agrees with AIMNet2DipoleEvaluator.
+        """
+        from McUtils.Data import UnitsData
+        batch, flat = self.prep_coords(coords)
+        positions = flat.reshape(batch+(self.natoms,3))
+        charges = self.evaluate_property(positions, 'charges', order, charge=charge, multiplicity=multiplicity, **opts)
+        result = [np.einsum('...n,...nj->...j', charges[0],positions)]
+        if order:
+            dx = np.eye(3*self.natoms).reshape(3*self.natoms,self.natoms,3)
+            result.append(np.einsum('...kn,...nj->...kj',charges[1],positions)+np.einsum('...n,knj->...kj',charges[0],dx))
+        return [e*UnitsData.convert('Angstroms','BohrRadius') for e in result]
+
+    def evaluate_field_response(self, coords, coord_order=0, field_order=2, charge=None, multiplicity=None,
+                                polarizability_mode=None, response_solver=None, allow_indefinite=None,
+                                stability_tolerance=None, **opts):
+        """``[native_dipole_expansion, polarizability_expansion][:field_order]``.
+
+        Property values are atomic units and nuclear derivative axes are in
+        Angstroms. Selecting a curvature mode changes alpha, not native charges.
+        """
+        if field_order not in (0,1,2):
+            raise NotImplementedError("field response supports orders 0/1/2")
+        if field_order == 0:
+            return []
+        mu = self.evaluate_dipole(coords, coord_order, charge=charge, multiplicity=multiplicity, **opts)
+        if field_order == 1:
+            return [mu]
+        alpha = self.evaluate_polarizability(coords, coord_order, charge=charge, multiplicity=multiplicity,
+            polarizability_mode=polarizability_mode,response_solver=response_solver,
+            allow_indefinite=allow_indefinite,stability_tolerance=stability_tolerance,**opts)
+        return [mu,alpha]
 
     def evaluate_properties(self, coords, orders, charge, multiplicity, **opts):
+        response_names = ('polarizability_mode','response_solver','allow_indefinite','stability_tolerance')
+        response_opts = {k:opts.pop(k) for k in response_names if k in opts}
         out = {}
         for prop, order in orders.items():
             if prop == 'energy':
                 out[prop] = self.evaluate_energy(coords, order, charge=charge, multiplicity=multiplicity, **opts)
             elif prop == 'charges':
                 out[prop] = self.evaluate_charges(coords, order, charge=charge, multiplicity=multiplicity, **opts)
+            elif prop == 'dipole':
+                out[prop] = self.evaluate_dipole(coords, order, charge=charge, multiplicity=multiplicity, **opts)
             elif prop == 'polarizability':
-                out[prop] = self.evaluate_field_response(coords, order, 2, charge=charge, multiplicity=multiplicity, **opts)[1]
+                out[prop] = self.evaluate_polarizability(coords, order, charge=charge, multiplicity=multiplicity,
+                                                       **response_opts, **opts)
             else:
                 raise ValueError(f"unknown property {prop!r}")
         return out
+
 
     # endregion
 
