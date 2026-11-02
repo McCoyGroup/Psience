@@ -595,7 +595,7 @@ class VPTStateSpace:
             return None, None
         if hasattr(spec, 'evaluator') and spec.evaluator is None:
             spec.evaluator = (evaluator.for_degeneracy_spec(spec)
-                if hasattr(evaluator, "for_degeneracy_spec") else evaluator)
+                if callable(getattr(type(evaluator), "for_degeneracy_spec", None)) else evaluator)
         if not hasattr(spec, 'frequencies') or spec.frequencies is None:
             if freqs is None:
                 freqs = system.mol.normal_modes.modes.freqs
@@ -3771,9 +3771,12 @@ class AnalyticVPTRunner:
 
 
 
-            new._property_discovery_settings = dict(settings,
-                strong_coupling_property_filter=runner.pt_opts.opts["strong_coupling_property_filter"])
-            new.evaluator_defaults = runner.evaluator_defaults
+            if isinstance(new, AnalyticVPTRunner):
+                new.evaluator_defaults = getattr(runner, "evaluator_defaults", settings.get("evaluator_defaults", "new"))
+                defaults = resolve_evaluator_defaults(new.evaluator_defaults, settings)
+                new._property_discovery_settings = dict(settings,
+                    strong_coupling_property_filter=runner.pt_opts.opts.get(
+                        "strong_coupling_property_filter", defaults["strong_coupling_property_filter"]))
             if states is not None and not isinstance(states, MultiVPTStateSpace):
                 if (
                         isinstance(degeneracy_specs, (list, tuple, np.ndarray))
@@ -3866,9 +3869,12 @@ class AnalyticVPTRunner:
             take_diagonal_v4_terms=take_diagonal_v4_terms,
             two_mode_only=two_mode_only
         )
-        new._property_discovery_settings = dict(settings,
-            strong_coupling_property_filter=runner.pt_opts.opts["strong_coupling_property_filter"])
-        new.evaluator_defaults = runner.evaluator_defaults
+        if isinstance(new, AnalyticVPTRunner):
+            new.evaluator_defaults = getattr(runner, "evaluator_defaults", settings.get("evaluator_defaults", "new"))
+            defaults = resolve_evaluator_defaults(new.evaluator_defaults, settings)
+            new._property_discovery_settings = dict(settings,
+                strong_coupling_property_filter=runner.pt_opts.opts.get(
+                    "strong_coupling_property_filter", defaults["strong_coupling_property_filter"]))
         return new
 
     def precompile(self, correction='energy', order=None, **options):
