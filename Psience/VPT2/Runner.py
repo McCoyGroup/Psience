@@ -18,7 +18,7 @@ import McUtils.Devutils as dev
 import McUtils.Formatters as mfmt
 
 from ..BasisReps import (
-    BasisStateSpace, HarmonicOscillatorProductBasis, BasisStateSpaceFilter, SelectionRuleStateSpace, StateMaker
+    BasisStateSpace, HarmonicOscillatorProductBasis, BasisStateSpaceFilter, PropertyCorrectionFilter, SelectionRuleStateSpace, StateMaker
 )
 from ..Molecools import Molecule
 from ..Spectra import DiscreteSpectrum
@@ -26,6 +26,7 @@ from ..Spectra import DiscreteSpectrum
 from .DegeneracySpecs import DegeneracySpec, DegenerateMultiStateSpace
 from .Hamiltonian import PerturbationTheoryHamiltonian
 from .Terms import ExpansionTerms
+from .EvaluatorDefaults import resolve_evaluator_defaults
 from .Analytic import PerturbationTheoryEvaluator, AnalyticPerturbationTheorySolver
 from .Corrections import AnalyticPerturbationTheoryCorrections
 
@@ -593,7 +594,8 @@ class VPTStateSpace:
         if spec is None:
             return None, None
         if hasattr(spec, 'evaluator') and spec.evaluator is None:
-            spec.evaluator = evaluator
+            spec.evaluator = (evaluator.for_degeneracy_spec(spec)
+                if hasattr(evaluator, "for_degeneracy_spec") else evaluator)
         if not hasattr(spec, 'frequencies') or spec.frequencies is None:
             if freqs is None:
                 freqs = system.mol.normal_modes.modes.freqs
@@ -685,6 +687,9 @@ class VPTStateSpace:
                                                **opts
                                                )
         filter.target_property = target_property
+        filter.correction_filter = PropertyCorrectionFilter.from_property(
+            self.states, initial_space=initial_states, order=order,
+            target_property=target_property)
         filter.estimate_storage = lambda states: self.get_state_space_filter(
             states, initial_states=initial_states, target=target_property, order=order,
             postfilters=postfilters, estimate=True)
@@ -1165,6 +1170,8 @@ class VPTSolverOptions:
         "degenerate_states",
         "zero_order_energy_corrections",
         "handle_strong_couplings",
+        "strong_coupling_property_filter",
+        "strong_coupling_correction_filter",
         # "strong_coupling_test_modes",
         # "strong_couplings_state_filter",
         # "strongly_coupled_group_filter",
@@ -1200,7 +1207,9 @@ class VPTSolverOptions:
                  low_frequency_mode_cutoff=None,
                  zero_order_energy_corrections=None,
                  check_overlap=None,
-                 use_block_recurrence=None
+                 use_block_recurrence=None,
+                 strong_coupling_property_filter=None,
+                 strong_coupling_correction_filter=None
                  ):
         """
         :param order: the order of perturbation theory to apply
@@ -1283,7 +1292,9 @@ class VPTSolverOptions:
             zero_element_warning=zero_element_warning,
             zero_order_energy_corrections=zero_order_energy_corrections,
             check_overlap=check_overlap,
-            use_block_recurrence=use_block_recurrence
+            use_block_recurrence=use_block_recurrence,
+            strong_coupling_property_filter=strong_coupling_property_filter,
+            strong_coupling_correction_filter=strong_coupling_correction_filter
         )
 
         real_opts = {}
@@ -1327,7 +1338,12 @@ class VPTSolverOptions:
 class VPTRunner:
     """
     A helper class to make it easier to run jobs by making the inputs/options
-    clear and making it easier to customize run options
+    clear and making it easier to customize run options.
+
+    evaluator_defaults='new' selects accelerated derivatives, direct contractions,
+    factorized Coriolis terms, the block recurrence, automatic state-space storage
+    and property-use coupling screening. 'old' selects the supported legacy paths.
+    Explicit options take precedence; historical correctness fixes stay in place.
     """
 
     def __init__(self,
@@ -1336,7 +1352,10 @@ class VPTRunner:
                  initial_states=None,
                  hamiltonian_options=None,
                  solver_options=None,
-                 runtime_options=None
+                 runtime_options=None,
+                 evaluator_defaults="new",
+                 target_property="intensities",
+                 strong_coupling_property_rules=None
                  ):
         """
         :param system: the system to run perturbation theory on
@@ -1371,9 +1390,27 @@ class VPTRunner:
 
         self._ham = None
         self._wfns = None
-        self.ham_opts = VPTHamiltonianOptions() if hamiltonian_options is None else hamiltonian_options
-        self.runtime_opts = VPTRuntimeOptions() if runtime_options is None else runtime_options
-        self.pt_opts = VPTSolverOptions() if solver_options is None else solver_options
+        self.evaluator_defaults = evaluator_defaults
+        self.target_property = target_property or 'intensities'
+        par = ParameterManager(**resolve_evaluator_defaults(evaluator_defaults))
+        self.ham_opts = VPTHamiltonianOptions(**par.filter(VPTHamiltonianOptions))
+        self.runtime_opts = VPTRuntimeOptions(**par.filter(VPTRuntimeOptions))
+        self.pt_opts = VPTSolverOptions(**par.filter(VPTSolverOptions))
+        # Copy the maps rather than mutating option objects supplied by a caller.
+        if hamiltonian_options is not None:
+            self.ham_opts.opts.update(hamiltonian_options.opts)
+        if runtime_options is not None:
+            self.runtime_opts.ham_opts.update(runtime_options.ham_opts)
+            self.runtime_opts.solver_opts.update(runtime_options.solver_opts)
+        if solver_options is not None:
+            self.pt_opts.opts.update(solver_options.opts)
+        if 'strong_coupling_correction_filter' not in self.pt_opts.opts:
+            self.pt_opts.opts['strong_coupling_correction_filter'] = (
+                PropertyCorrectionFilter.from_property(self.states.states,
+                    initial_space=self.initial_states.states,
+                    target_property=self.target_property,
+                    property_rules=strong_coupling_property_rules,
+                    order=self.pt_opts.opts.get('order', 2)))
 
     def get_Hamiltonian(self):
         """
@@ -1444,6 +1481,8 @@ class VPTRunner:
         pt_opts = self.pt_opts.opts.copy()
         if 'degenerate_states' not in pt_opts:
             pt_opts['degenerate_states'] = self.states.degenerate_states
+        if 'degeneracy_handlers' not in pt_opts:
+            pt_opts['degeneracy_handlers'] = self.states.degeneracy_specs
         return self.hamiltonian.get_solver(
             self.states.state_list,
             # initial_states=self.initial_states.state_list,
@@ -1787,6 +1826,8 @@ class VPTRunner:
                   basis_filters=None,
                   initial_states=None,
                   corrected_fundamental_frequencies=None,
+                  evaluator_defaults="new",
+                  strong_coupling_property_rules=None,
                   **opts
                   ):
         """
@@ -1808,6 +1849,9 @@ class VPTRunner:
         :type initial_states: VPTStateSpace | int | Iterable | None
         :param corrected_fundamental_frequencies: replacement fundamental frequencies to use for the underlying molecule's normal modes
         :type corrected_fundamental_frequencies: np.ndarray | None
+        :param evaluator_defaults: 'new' (default) or 'old'; explicit options override the preset
+        :param strong_coupling_property_rules: operator selection rules indexed by perturbation order;
+            None uses dipole rules for intensities and closed paths for frequencies
         :param opts: the full set of system/state-space/Hamiltonian/runtime/solver options, validated against the union of all their `__props__`
         :type opts: dict
         :return: the constructed runner, or `(runner, states)` if target states were given
@@ -1831,6 +1875,7 @@ class VPTRunner:
                 "\n  ".join(("",) + full_opts)
             ))
 
+        opts = resolve_evaluator_defaults(evaluator_defaults, opts)
         par = ParameterManager(**opts)
         if not isinstance(system, VPTSystem):
             sys = VPTSystem(system, **par.filter(VPTSystem))
@@ -1920,9 +1965,12 @@ class VPTRunner:
             initial_states=initial_states,
             hamiltonian_options=hops,
             runtime_options=rops,
-            solver_options=sops
+            solver_options=sops,
+            evaluator_defaults=evaluator_defaults,
+            target_property=target_property,
+            strong_coupling_property_rules=strong_coupling_property_rules
         )
-        return runner, (sys, states, hops, rops, sops)
+        return runner, (sys, states, runner.ham_opts, runner.runtime_opts, runner.pt_opts)
     @classmethod
     def run_simple(cls,
                    system,
@@ -1932,6 +1980,7 @@ class VPTRunner:
                    calculate_intensities=True,
                    plot_spectrum=False,
                    operators=None,
+                   evaluator_defaults="new",
                    **opts
                    ):
         """
@@ -1958,8 +2007,24 @@ class VPTRunner:
             states,
             target_property=target_property,
             corrected_fundamental_frequencies=corrected_fundamental_frequencies,
+            evaluator_defaults=evaluator_defaults,
             **opts
         )
+        if (operators is not None or (not calculate_intensities and target_property is None)) and 'strong_coupling_correction_filter' not in opts:
+            # Explicit rules/callbacks win; operator degree planning stays in BasisReps.
+            rules = opts.get('strong_coupling_property_rules')
+            if rules is None and operators is not None:
+                rules = PropertyCorrectionFilter.operator_rules(
+                    runner.states.states.basis, operators,
+                    order=runner.pt_opts.opts.get('order', 2),
+                    include_intensities=calculate_intensities)
+            runner.pt_opts.opts['strong_coupling_correction_filter'] = (
+                PropertyCorrectionFilter.from_property(runner.states.states,
+                    initial_space=runner.initial_states.states,
+                    target_property=('wavefunctions' if target_property == 'wavefunctions' or
+                        (rules is None and operators is not None) else
+                        'intensities' if calculate_intensities else 'frequencies'),
+                    order=runner.pt_opts.opts.get('order', 2), property_rules=rules))
 
         logger = runner.hamiltonian.logger
         with np.printoptions(linewidth=1e8, threshold=1e6):
@@ -3622,7 +3687,7 @@ class AnalyticVPTRunner:
                   allowed_coefficients=None,
                   disallowed_coefficients=None,
                   allowed_energy_changes=None,
-                  mixed_derivative_handling_mode='analytical',
+                  mixed_derivative_handling_mode=None,
                   degeneracy_specs=None,
                   corrected_fundamental_frequencies=None,
                   parallelizer=None,
@@ -3706,6 +3771,9 @@ class AnalyticVPTRunner:
 
 
 
+            new._property_discovery_settings = dict(settings,
+                strong_coupling_property_filter=runner.pt_opts.opts["strong_coupling_property_filter"])
+            new.evaluator_defaults = runner.evaluator_defaults
             if states is not None and not isinstance(states, MultiVPTStateSpace):
                 if (
                         isinstance(degeneracy_specs, (list, tuple, np.ndarray))
@@ -3713,11 +3781,16 @@ class AnalyticVPTRunner:
                         and nput.is_numeric(degeneracy_specs[0][0][0])
                 ):
                     degeneracy_specs = {'polyads': degeneracy_specs}
+                from .Discovery import AnalyticPropertyDiscovery, uses_automatic_discovery
+                discovery = new
+                if uses_automatic_discovery(degeneracy_specs):
+                    packet = MultiVPTStateSpace(states, runner.system, degeneracy_specs=None)
+                    discovery = AnalyticPropertyDiscovery(new, packet, new._property_discovery_settings)
                 states = MultiVPTStateSpace(
                     states,
                     runner.system,
                     degeneracy_specs=degeneracy_specs,
-                    evaluator=new
+                    evaluator=discovery
                 )
             if states is not None:
                 return new, states
@@ -3776,7 +3849,7 @@ class AnalyticVPTRunner:
         )
 
         opts = runner.pt_opts.opts
-        return cls.from_hamiltonian(
+        new = cls.from_hamiltonian(
             runner.hamiltonian,
             opts.get('order', order),
             checkpoint=expressions_file,
@@ -3793,6 +3866,10 @@ class AnalyticVPTRunner:
             take_diagonal_v4_terms=take_diagonal_v4_terms,
             two_mode_only=two_mode_only
         )
+        new._property_discovery_settings = dict(settings,
+            strong_coupling_property_filter=runner.pt_opts.opts["strong_coupling_property_filter"])
+        new.evaluator_defaults = runner.evaluator_defaults
+        return new
 
     def precompile(self, correction='energy', order=None, **options):
         """Compile final analytic expressions; numerical inputs remain late-bound."""
@@ -3876,6 +3953,7 @@ class AnalyticVPTRunner:
                         'inverse':np.zeros((ndim, nats*3)),
                     }
                 )
+        opts.setdefault("evaluator_defaults", getattr(self, "evaluator_defaults", "new"))
         return VPTRunner.construct(
             system, states,
             initial_states=initial_states,
@@ -4003,6 +4081,8 @@ class AnalyticVPTRunner:
         :return: the resolved `MultiVPTStateSpace`
         :rtype: MultiVPTStateSpace
         """
+        from .Discovery import resolve_discovery_space
+        states = resolve_discovery_space(self, states, degeneracy_specs)
         return self.prep_multispace(states,
                                     self.eval.freqs,
                                     system=self._dummy_system(self),

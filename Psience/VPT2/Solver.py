@@ -79,7 +79,9 @@ class PerturbationTheorySolver:
                  checkpoint_keys=None,
                  use_cached_representations=False,
                  use_cached_basis=False,
-                 use_block_recurrence=True
+                 use_block_recurrence=True,
+                 strong_coupling_property_filter=False,
+                 strong_coupling_correction_filter=None
                  ):
         """
 
@@ -95,6 +97,9 @@ class PerturbationTheorySolver:
         :type degenerate_states:
         :param degeneracy_mode:
         :type degeneracy_mode:
+        :param strong_coupling_property_filter: enable property-use screening in strong-coupling discovery
+        :param strong_coupling_correction_filter: callable(source, endpoints, correction_order),
+            returning the structurally useful endpoint space. Runner supplies the property planner.
         :param use_block_recurrence: use the matrix recurrence for multi-state resonance blocks;
             False retains the original scalar recurrence and reorthogonalization path
         :type use_block_recurrence: bool
@@ -166,6 +171,11 @@ class PerturbationTheorySolver:
         else:
             self.extended_state_space_postprocessor = None
 
+        self.strong_coupling_property_filter = strong_coupling_property_filter
+        self.strong_coupling_correction_filter = strong_coupling_correction_filter
+        if self.strong_coupling_correction_filter is None:
+            self.strong_coupling_correction_filter = getattr(
+                state_space_filters, 'correction_filter', None)
         self.target_property_rules=target_property_rules
 
         self.logger = logger

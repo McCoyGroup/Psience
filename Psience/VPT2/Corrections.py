@@ -611,9 +611,13 @@ class PerturbationTheoryCorrections:
         # print(couplings.excitations)
         return couplings
 
-    def find_strong_couplings(self, threshold=.1, state_filter=None):
+    def find_strong_couplings(self, threshold=.1, state_filter=None, correction_filter=None):
         """
-        Finds positions in the expansion matrices where the couplings are too large
+        Finds positions in the expansion matrices where the couplings are too large.
+
+        correction_filter(source, endpoints, order) is an additional, optional
+        order-aware criterion. It returns a state space (or None), and is
+        independent of the magnitude threshold and the existing state_filter.
 
         :param threshold:
         :type threshold:
@@ -636,7 +640,10 @@ class PerturbationTheoryCorrections:
             for i, v in zip(ind_keys, ind_vals):
                 _, upos = np.unique(v, return_index=True)
                 usubs = v[np.sort(upos)]
-                states = state_filter(self.states.take_states([i]), self.total_basis.take_subspace(usubs))
+                source = self.states.take_states([i])
+                states = state_filter(source, self.total_basis.take_subspace(usubs))
+                if correction_filter is not None and states is not None and len(states):
+                    states = correction_filter(source, states, o)
                 if states is not None and len(states) > 0:
                     if i not in strong_couplings:
                         strong_couplings[i] = [None for _ in range(order)]
