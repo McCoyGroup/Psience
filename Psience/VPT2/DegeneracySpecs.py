@@ -826,7 +826,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         self.wfc_threshold = wfc_threshold
         self.state_filter = state_filter
         self.filter_by_property = filter_by_property
-        if hasattr(self.evaluator, "for_degeneracy_spec"):
+        if callable(getattr(type(self.evaluator), "for_degeneracy_spec", None)):
             self.evaluator = self.evaluator.for_degeneracy_spec(self)
         self.extend_spaces=extend_spaces
         self._iterations = iterations
