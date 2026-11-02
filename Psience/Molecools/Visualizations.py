@@ -4067,9 +4067,10 @@ class Graphics3DMoleculePlotter(MoleculePlotter):
                 for g in geometries * conv
             ]
 
-        if draw_bonds is None or draw_bonds is False:
+        if draw_bonds is None or draw_bonds is False or len(draw_bonds) == 0:
             draw_bonds = [None] * len(geometries)
-        elif nput.is_int(draw_bonds[0][0]):
+        elif (draw_bonds[0] is not None and len(draw_bonds[0]) > 0
+              and nput.is_int(draw_bonds[0][0])):
             draw_bonds = [draw_bonds] * len(geometries)
 
         max_bond_orders = {}
