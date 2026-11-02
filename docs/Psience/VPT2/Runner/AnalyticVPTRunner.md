@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Runner.AnalyticVPTRunner">AnalyticVPTRunner</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L3424)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L3424?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L3425)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L3425?message=Update%20Docs)]
 </div>
 
 
@@ -24,11 +24,11 @@ hamiltonian_correction_modification_type: str
 ```
 <a id="Psience.VPT2.Runner.AnalyticVPTRunner.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
-__init__(self, expansions, order=None, expansion_order=None, freqs=None, internals=True, logger=None, hamiltonian=None, checkpoint=None, dipole_expansion=None, allowed_terms=None, allowed_coefficients=None, disallowed_coefficients=None, allowed_energy_changes=None, intermediate_normalization=None, polynomial_representation='path', resonance_condition=None, local_mode_couplings=None, local_mode_coupling_order=None, parallelizer=None): 
+__init__(self, expansions, order=None, expansion_order=None, freqs=None, internals=True, logger=None, hamiltonian=None, checkpoint=None, dipole_expansion=None, allowed_terms=None, allowed_coefficients=None, disallowed_coefficients=None, allowed_energy_changes=None, intermediate_normalization=None, polynomial_representation='path', resonance_condition=None, local_mode_couplings=None, local_mode_coupling_order=None, parallelizer=None, expressions_folder=None, compilation_options=None, evaluation_options=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L3425)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L3425?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner.py#L3426)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L3426?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -69,6 +69,12 @@ Set up an analytic (symbolic) VPT evaluator, either wrapping an already-built `P
     > the perturbative order local-mode couplings should be injected at
   - `parallelizer`: `Parallelizer | None`
     > parallelization backend for the evaluator
+  - `expressions_folder`: `Any`
+    > directory of reusable compiled expression shards and resumable numerical tasks
+  - `compilation_options`: `Any`
+    > bounded compilation settings (max_terms, max_bytes, cache_size, cache_bytes)
+  - `evaluation_options`: `Any`
+    > task/batch sizes, numerical cutoffs and shared-memory options for compiled evaluation
   - `:returns`: `None`
     > None
 
@@ -76,11 +82,11 @@ Set up an analytic (symbolic) VPT evaluator, either wrapping an already-built `P
 <a id="Psience.VPT2.Runner.AnalyticVPTRunner.from_hamiltonian" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-from_hamiltonian(cls, ham, order, expansion_order=None, logger=None, checkpoint=None, parallelizer=None, allowed_terms=None, allowed_coefficients=None, disallowed_coefficients=None, allowed_energy_changes=None, take_diagonal_v4_terms=True, two_mode_only=False, intermediate_normalization=None, polynomial_representation='path', resonance_condition=None, corrected_fundamental_frequencies=None, **opts): 
+from_hamiltonian(cls, ham, order, expansion_order=None, logger=None, checkpoint=None, parallelizer=None, allowed_terms=None, allowed_coefficients=None, disallowed_coefficients=None, allowed_energy_changes=None, take_diagonal_v4_terms=True, two_mode_only=False, intermediate_normalization=None, polynomial_representation='path', resonance_condition=None, corrected_fundamental_frequencies=None, expressions_folder=None, compilation_options=None, evaluation_options=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L3527)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L3527?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L3541)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L3541?message=Update%20Docs)]
 </div>
 A driver powered by a classic PerturbationTheoryHamiltonian object
   - `ham`: `Any`
@@ -98,55 +104,62 @@ A driver powered by a classic PerturbationTheoryHamiltonian object
 <a id="Psience.VPT2.Runner.AnalyticVPTRunner.construct" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-construct(cls, system, states=None, *, order=2, expressions_file=None, allowed_terms=None, allowed_coefficients=None, disallowed_coefficients=None, allowed_energy_changes=None, mixed_derivative_handling_mode='analytical', degeneracy_specs=None, corrected_fundamental_frequencies=None, parallelizer=None, polynomial_representation='path', resonance_condition=None, take_diagonal_v4_terms=True, two_mode_only=False, **settings) -> 'tuple[AnalyticVPTRunner, MultiVPTStateSpace]': 
+construct(cls, system, states=None, *, order=2, expressions_file=None, expressions_folder=None, compilation_options=None, evaluation_options=None, allowed_terms=None, allowed_coefficients=None, disallowed_coefficients=None, allowed_energy_changes=None, mixed_derivative_handling_mode='analytical', degeneracy_specs=None, corrected_fundamental_frequencies=None, parallelizer=None, polynomial_representation='path', resonance_condition=None, take_diagonal_v4_terms=True, two_mode_only=False, **settings) -> 'tuple[AnalyticVPTRunner, MultiVPTStateSpace]': 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L3603)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L3603?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L3623)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L3623?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
 Build an `AnalyticVPTRunner` (and, if target states are given, its resolved `MultiVPTStateSpace`) directly from a molecule/system specification: builds a throwaway single-state `VPTRunner` to assemble the classic Hamiltonian, then derives the analytic evaluator from it via `from_hamiltonian`.
-  - `system`: `str | list | Molecule | VPTSystem`
-    > the molecule or system specification to run VPT on
-  - `states`: `object | None`
-    > the target states (possibly as `(initial, target)` pairs)
-  - `order`: `int`
-    > the perturbation-theory order
-  - `expressions_file`: `str | None`
-    > checkpoint file for caching the analytic expressions
-  - `allowed_terms`: `object | None`
-    > restrict the analytic solver to only these perturbation term types
-  - `allowed_coefficients`: `object | None`
-    > restrict the analytic solver to only these expansion coefficients
-  - `disallowed_coefficients`: `object | None`
-    > exclude these expansion coefficients from the analytic solver
-  - `allowed_energy_changes`: `object | None`
-    > restrict the analytic solver to only these energy-change patterns
-  - `mixed_derivative_handling_mode`: `str`
-    > the mixed-derivative handling mode to use when building the classic Hamiltonian
-  - `degeneracy_specs`: `object | None`
-    > the degeneracy specification(s) to build the `MultiVPTStateSpace` with
-  - `corrected_fundamental_frequencies`: `np.ndarray | None`
-    > replacement fundamental frequencies to use
-  - `parallelizer`: `Parallelizer | None`
-    > parallelization backend for the evaluator
-  - `polynomial_representation`: `str`
-    > ``'path'`` for the canonical DAG backend or ``'eager'`` for the legacy tree backend
-  - `settings`: `dict`
-    > extra options forwarded to `VPTRunner.construct`
-  - `:returns`: `AnalyticVPTRunner | tuple[AnalyticVPTRunner, MultiVPTStateSpace]`
-    > the constructed runner, or `(runner, states)` if `states` was given
+
+:param system: the molecule or system specification to run VPT on
+:type system: str | list | Molecule | VPTSystem
+:param states: the target states (possibly as `(initial, target)` pairs)
+:type states: object | None
+:param order: the perturbation-theory order
+:type order: int
+:param expressions_file: checkpoint file for caching the analytic expressions
+:type expressions_file: str | None
+  - `expressions_folder`: `Any`
+    > compiled expression cache, independent of the intermediate expressions_file checkpoint
+  - `compilation_options`: `Any`
+    > settings for bounded final-expression compilation
+  - `evaluation_options`: `Any`
+    > settings for resumable subset tasks and native numerical evaluation
+    :param allowed_terms: restrict the analytic solver to only these perturbation term types
+    :type allowed_terms: object | None
+    :param allowed_coefficients: restrict the analytic solver to only these expansion coefficients
+    :type allowed_coefficients: object | None
+    :param disallowed_coefficients: exclude these expansion coefficients from the analytic solver
+    :type disallowed_coefficients: object | None
+    :param allowed_energy_changes: restrict the analytic solver to only these energy-change patterns
+    :type allowed_energy_changes: object | None
+    :param mixed_derivative_handling_mode: the mixed-derivative handling mode to use when building the classic Hamiltonian
+    :type mixed_derivative_handling_mode: str
+    :param degeneracy_specs: the degeneracy specification(s) to build the `MultiVPTStateSpace` with
+    :type degeneracy_specs: object | None
+    :param corrected_fundamental_frequencies: replacement fundamental frequencies to use
+    :type corrected_fundamental_frequencies: np.ndarray | None
+    :param parallelizer: parallelization backend for the evaluator
+    :type parallelizer: Parallelizer | None
+    :param polynomial_representation: ``'path'`` for the canonical DAG backend or ``'eager'`` for the legacy tree backend
+    :type polynomial_representation: str
+    :param settings: extra options forwarded to `VPTRunner.construct`
+    :type settings: dict
+    :return: the constructed runner, or `(runner, states)` if `states` was given
+    :rtype: AnalyticVPTRunner | tuple[AnalyticVPTRunner, MultiVPTStateSpace]
 
 
 <a id="Psience.VPT2.Runner.AnalyticVPTRunner.from_file" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-from_file(cls, file_name, order=2, allowed_terms=None, allowed_coefficients=None, disallowed_coefficients=None, allowed_energy_changes=None, expressions_file=None, polynomial_representation='path', take_diagonal_v4_terms=True, two_mode_only=False, **settings): 
+from_file(cls, file_name, order=2, allowed_terms=None, allowed_coefficients=None, disallowed_coefficients=None, allowed_energy_changes=None, expressions_file=None, polynomial_representation='path', take_diagonal_v4_terms=True, two_mode_only=False, expressions_folder=None, compilation_options=None, evaluation_options=None, parallelizer=None, **settings): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L3710)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L3710?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L3739)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L3739?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -165,6 +178,12 @@ Build an `AnalyticVPTRunner` from a molecule file (e.g. an FChk), via a throwawa
     > restrict the analytic solver to only these energy-change patterns
   - `expressions_file`: `str | None`
     > checkpoint file for caching the analytic expressions
+  - `expressions_folder`: `Any`
+    > compiled expression cache, independent of the intermediate expressions_file checkpoint
+  - `compilation_options`: `Any`
+    > settings for bounded final-expression compilation
+  - `evaluation_options`: `Any`
+    > settings for resumable subset tasks and native numerical evaluation
   - `polynomial_representation`: `str`
     > ``'path'`` for the canonical DAG backend or ``'eager'`` for the legacy tree backend
   - `settings`: `dict`
@@ -173,13 +192,45 @@ Build an `AnalyticVPTRunner` from a molecule file (e.g. an FChk), via a throwawa
     > the constructed runner
 
 
+<a id="Psience.VPT2.Runner.AnalyticVPTRunner.precompile" class="docs-object-method">&nbsp;</a> 
+```python
+precompile(self, correction='energy', order=None, **options): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L3809)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L3809?message=Update%20Docs)]
+</div>
+Compile final analytic expressions; numerical inputs remain late-bound.
+
+
+<a id="Psience.VPT2.Runner.AnalyticVPTRunner.precompile_frequency_corrections" class="docs-object-method">&nbsp;</a> 
+```python
+precompile_frequency_corrections(self, initial_state, final_state, order=None, **options): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L3813)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L3813?message=Update%20Docs)]
+</div>
+
+
+<a id="Psience.VPT2.Runner.AnalyticVPTRunner.get_frequency_corrections" class="docs-object-method">&nbsp;</a> 
+```python
+get_frequency_corrections(self, initial_state, final_state, order=None, **options): 
+```
+<div class="docs-source-link" markdown="1">
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L3817)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L3817?message=Update%20Docs)]
+</div>
+Return per-order transition-frequency corrections using compiled expressions.
+
+
 <a id="Psience.VPT2.Runner.AnalyticVPTRunner.construct_classic_runner" class="docs-object-method">&nbsp;</a> 
 ```python
 construct_classic_runner(self, states, system=None, logger=None, corrected_fundamental_frequencies=None, potential_terms=None, kinetic_terms=None, coriolis_terms=None, pseudopotential_terms=None, dipole_terms=None, initial_states=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L3769)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L3769?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L3822)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L3822?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -216,8 +267,8 @@ Build a classic `VPTRunner` reproducing this analytic evaluator's expansion data
 clear_caches(cls): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L3892)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L3892?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L3945)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L3945?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -232,8 +283,8 @@ Clear the global caches used by the underlying `AnalyticPerturbationTheorySolver
 prep_multispace(self, states, freqs, system=None, degeneracy_specs=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L3904)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L3904?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L3957)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L3957?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -255,8 +306,8 @@ Coerce a raw state specification into a `MultiVPTStateSpace`, passing an already
 prep_states(self, states, degeneracy_specs=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L3952)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L3952?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4005)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4005?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -274,8 +325,8 @@ Coerce a raw state specification into a `MultiVPTStateSpace` using this evaluato
 evaluate_expressions(self, states, exprs, zero_cutoff=None, operator_expansions=None, degeneracy_specs=None, verbose=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L3979)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L3979?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4032)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4032?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -301,8 +352,8 @@ Evaluate a set of arbitrary symbolic perturbation-theory expressions numerically
 get_matrix_corrections(self, states, order=None, degeneracy_specs=None, zero_cutoff=None, verbose=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4011)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4011?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4064)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4064?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -326,8 +377,8 @@ Compute the perturbative matrix-element corrections for the given target states,
 get_energy_corrections(self, states, order=None, degeneracy_specs=None, zero_cutoff=None, verbose=False, state_specific_degeneracies=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4036)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4036?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4089)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4089?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -351,8 +402,8 @@ Compute the perturbative energy corrections for the given target states, via the
 get_overlap_corrections(self, states, order=None, degeneracy_specs=None, zero_cutoff=None, verbose=False, state_specific_degeneracies=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4065)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4065?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4118)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4118?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -377,8 +428,8 @@ Compute the perturbative wavefunction-overlap corrections for the given target s
 prep_eval_state_pairs(cls, states): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L4097)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L4097?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L4150)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L4150?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -394,8 +445,8 @@ Flatten a `MultiVPTStateSpace`'s `(initial, final)` state-list pairs into a flat
 get_full_wavefunction_corrections(self, states, order=None, degeneracy_specs=None, zero_cutoff=None, verbose=False, state_specific_degeneracies=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4114)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4114?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4167)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4167?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -419,8 +470,8 @@ Compute the full (all-component) perturbative wavefunction corrections for the g
 get_wavefunction_corrections(self, states, order=None, degeneracy_specs=None, zero_cutoff=None, verbose=False, state_specific_degeneracies=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4147)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4147?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4200)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4200?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -445,8 +496,8 @@ Compute the perturbative wavefunction corrections for the given target states, v
 unflatten_corr(cls, states, corrs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L4181)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L4181?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L4234)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L4234?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -464,8 +515,8 @@ Regroup a flat correction result (expressed over the combined initial/final stat
 get_operator_corrections(self, operator_expansion, states, order=None, terms=None, degeneracy_specs=None, verbose=False, operator_type=None, check_single=True, state_specific_degeneracies=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4221)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4221?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4274)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4274?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -497,8 +548,8 @@ Compute the perturbative corrections to one or more arbitrary operator expansion
 construct_corrections_vectors(self, states, corrs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4295)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4295?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4348)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4348?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -516,8 +567,8 @@ Assemble a set of flat per-order correction matrices spanning the full flat stat
 construct_corrections_matrix(self, group, corrs): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4337)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4337?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4390)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4390?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -535,8 +586,8 @@ Assemble a set of square per-order correction matrices restricted to a single gr
 get_transition_moment_corrections(self, states, dipole_expansion=None, order=None, degeneracy_specs=None, axes=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4376)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4376?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4429)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4429?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -562,8 +613,8 @@ Compute the perturbative transition-dipole-moment corrections for the given targ
 get_freqs(self, states, order=None, degeneracy_specs=None, return_corrections=False, verbose=False, state_specific_degeneracies=False): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4426)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4426?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4479)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4479?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -587,8 +638,8 @@ Compute the vibrational transition frequencies (in wavenumbers) for the given ta
 get_reexpressed_hamiltonian(self, states, order=None, degeneracy_specs=None, only_degenerate_terms=True, verbose=False, hamiltonian_corrections=None, state_specific_degeneracies=False, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4459)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4459?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4512)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4512?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -616,8 +667,8 @@ Build the deperturbed (degenerate-block) Hamiltonian matrices for each degenerat
 get_wfc_test_states(self, input_states: 'BasisStateSpace', energy_window): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4511)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4511?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4564)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4564?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -635,8 +686,8 @@ Identify the candidate states that could plausibly be strongly coupled (via wave
 get_test_wfn_corrs(self, input_states: 'BasisStateSpace', energy_window, order=None, degenerate_states=None, target_orders=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4550)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4550?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4603)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4603?message=Update%20Docs)]
 </div>
 We take the expansions and frequencies that we have and at find the possible terms
 that could possibly lead to a correction greater than the specified threshold
@@ -655,8 +706,8 @@ pass does not evaluate zeroth- or first-order amplitudes again.
 format_strong_couplings_report(couplings, join=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L4582)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L4582?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/staticmethod.py#L4635)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/staticmethod.py#L4635?message=Update%20Docs)]
 </div>
 Format threshold-selected analytic WFC links by source and order.
 
@@ -672,8 +723,8 @@ runner's standard spectroscopic state labels.
 log_strong_couplings(self, couplings, threshold): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4606)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4606?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4659)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4659?message=Update%20Docs)]
 </div>
 Report the couplings actually admitted by ``wfc_threshold``.
 
@@ -683,8 +734,8 @@ Report the couplings actually admitted by ``wfc_threshold``.
 format_energies_table(self, states, energies, energy_corrections, zpe_pos, number_format='.3f'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4614)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4614?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4667)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4667?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -708,8 +759,8 @@ Format a table of state energies/frequencies alongside their per-order correctio
 format_degenerate_energies_table(self, states, energies, deperturbed_energies, zpe_pos, number_format='.3f'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4665)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4665?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4718)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4718?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -733,8 +784,8 @@ Format a table comparing each state's degenerate-perturbation-theory-corrected e
 format_transition_moment_table(self, states, transition_moments, transition_moment_corrections, number_format='.8f'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4711)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4711?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4764)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4764?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -756,8 +807,8 @@ Format a table of transition-dipole moments (and their per-order corrections) fo
 format_operators_table(self, states, keys, operator_values, operator_corrections, number_format='.8f'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4776)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4776?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4829)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4829?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -781,8 +832,8 @@ Format a table of arbitrary operator expectation values (and their per-order cor
 format_spectrum_table(self, states, harmonic_spectra, spectra, deperturbed_spectra=None, number_format='.3f'): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4854)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4854?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4907)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4907?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -806,8 +857,8 @@ Format a table of harmonic, anharmonic, and (optionally) deperturbed IR spectra 
 prep_operators(self, operator_expansions, operator_terms, order=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4920)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4920?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4973)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4973?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -827,8 +878,8 @@ Normalize a user-supplied operator specification (raw expansion coefficients, in
 format_matrix(self, ham): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4978)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4978?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L5031)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L5031?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -844,8 +895,8 @@ Format a matrix as a plain-text string using this class's standard print options
 modify_hamiltonian(self, hamiltonian_corrections): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4993)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L4993?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L5046)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L5046?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -861,8 +912,8 @@ Build a new `AnalyticVPTRunner` whose underlying evaluator has extra Hamiltonian
 run_VPT(self, states, calculate_intensities=True, operator_expansions=None, operator_terms=None, operator_type=None, order=None, verbose=False, degeneracy_specs=None, handle_degeneracies=True, zero_cutoff=None, transition_moment_terms=None, hamiltonian_corrections=None, clear_caches=True, hamiltonian_correction_type=None, only_degenerate_terms=True, state_specific_degeneracies=False, force_return_on_crash=True): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L5052)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L5052?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L5105)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner/AnalyticVPTRunner.py#L5105?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
@@ -908,15 +959,22 @@ Top-level entry point for running a full analytic VPT calculation on a set of ta
 <a id="Psience.VPT2.Runner.AnalyticVPTRunner.run_simple" class="docs-object-method">&nbsp;</a> 
 ```python
 @classmethod
-run_simple(cls, system, states, calculate_intensities=True, operator_expansions=None, operator_terms=None, operator_type=None, verbose=False, return_runner=False, degeneracy_specs=None, degeneracy_states=None, handle_degeneracies=True, zero_cutoff=None, clear_caches=True, hamiltonian_correction_type=None, hamiltonian_corrections=None, only_degenerate_terms=True, state_specific_degeneracies=False, force_return_on_crash=True, **opts): 
+run_simple(cls, system, states, calculate_intensities=True, operator_expansions=None, operator_terms=None, operator_type=None, verbose=False, return_runner=False, degeneracy_specs=None, degeneracy_states=None, handle_degeneracies=True, zero_cutoff=None, clear_caches=True, hamiltonian_correction_type=None, hamiltonian_corrections=None, only_degenerate_terms=True, state_specific_degeneracies=False, force_return_on_crash=True, *, expressions_file=None, expressions_folder=None, compilation_options=None, evaluation_options=None, parallelizer=None, **opts): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L5338)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L5338?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/classmethod.py#L5391)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/classmethod.py#L5391?message=Update%20Docs)]
 </div>
 **LLM Docstring**
 
 Convenience one-shot entry point: builds an `AnalyticVPTRunner` for the given system (via `construct`) and immediately runs the full VPT calculation on it (via `run_VPT`).
+
+Supplying expressions_folder enables bounded final-expression compilation
+followed by numerical dispatch through parallelizer. Matching shards and
+completed task checkpoints are reused on subsequent calls. Energy,
+transition-moment and additional operator requests keep their normal
+result format and native resonance handling. No separate precompile call
+is required. expressions_file can still cache intermediate expressions.
   - `system`: `str | list | Molecule | VPTSystem`
     > the molecule or system specification to run VPT on
   - `states`: `object`
@@ -951,6 +1009,16 @@ Convenience one-shot entry point: builds an `AnalyticVPTRunner` for the given sy
     > use each state's merged degenerate block to select left/right resonance relations
   - `force_return_on_crash`: `bool`
     > whether to catch exceptions during the run and still return partial results
+  - `expressions_file`: `Any`
+    > legacy intermediate-expression checkpoint, independent of expressions_folder
+  - `expressions_folder`: `Any`
+    > persistent compiled-expression shards and resumable numerical tasks; enables compilation in the controller before dispatching each correction
+  - `compilation_options`: `Any`
+    > bounded compilation settings forwarded to the analytic evaluator
+  - `evaluation_options`: `Any`
+    > compiled task/batch sizes, resume, numerical and shared-memory settings
+  - `parallelizer`: `Any`
+    > existing McUtils parallelizer used for numerical workers
   - `opts`: `Any`
     > extra options forwarded to `construct`
   - `:returns`: `object | tuple`
@@ -1008,7 +1076,7 @@ Convenience one-shot entry point: builds an `AnalyticVPTRunner` for the given sy
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience/VPT2/Runner/AnalyticVPTRunner.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/VPT2/Runner/AnalyticVPTRunner.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L3424?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Runner.py#L3425?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

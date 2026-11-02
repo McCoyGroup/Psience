@@ -1,8 +1,8 @@
 ## <a id="Psience.VPT2.Analytic.PTTensorCoeffProductDAGEvaluationPlan">PTTensorCoeffProductDAGEvaluationPlan</a> 
 
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L5742)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L5742?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L5756)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L5756?message=Update%20Docs)]
 </div>
 
 Streams canonical tensor terms from a DAG without expanding it globally.
@@ -44,14 +44,18 @@ remain available as the reference/timing implementation.
 ## <a class="collapse-link" data-toggle="collapse" href="#methods" markdown="1"> Methods and Properties</a> <a class="float-right" data-toggle="collapse" href="#methods"><i class="fa fa-chevron-down"></i></a>
  </div>
  <div class="collapsible-section collapsible-section-body collapse show" id="methods" markdown="1">
- 
+ ```python
+coalesce_combine_nodes: bool
+combine_chunk_size: int
+progress_callback: NoneType
+```
 <a id="Psience.VPT2.Analytic.PTTensorCoeffProductDAGEvaluationPlan.__init__" class="docs-object-method">&nbsp;</a> 
 ```python
 __init__(self, expression, cache=None, max_cached_terms=256, max_mode_indices=None): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L5772)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L5772?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic.py#L5790)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L5790?message=Update%20Docs)]
 </div>
 
 
@@ -60,8 +64,8 @@ __init__(self, expression, cache=None, max_cached_terms=256, max_mode_indices=No
 iter_terms(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PTTensorCoeffProductDAGEvaluationPlan.py#L5911)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PTTensorCoeffProductDAGEvaluationPlan.py#L5911?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PTTensorCoeffProductDAGEvaluationPlan.py#L5960)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PTTensorCoeffProductDAGEvaluationPlan.py#L5960?message=Update%20Docs)]
 </div>
 
 
@@ -70,8 +74,8 @@ iter_terms(self):
 stats(self): 
 ```
 <div class="docs-source-link" markdown="1">
-[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PTTensorCoeffProductDAGEvaluationPlan.py#L5916)/
-[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PTTensorCoeffProductDAGEvaluationPlan.py#L5916?message=Update%20Docs)]
+[[source](https://github.com/McCoyGroup/Psience/blob/master/Psience/VPT2/Analytic/PTTensorCoeffProductDAGEvaluationPlan.py#L5965)/
+[edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic/PTTensorCoeffProductDAGEvaluationPlan.py#L5965?message=Update%20Docs)]
 </div>
  </div>
 </div>
@@ -126,7 +130,7 @@ stats(self):
 [Edit](https://github.com/McCoyGroup/Psience/edit/master/ci/docs/templates/Psience/VPT2/Analytic/PTTensorCoeffProductDAGEvaluationPlan.md)/[New](https://github.com/McCoyGroup/Psience/new/master/?filename=ci/docs/templates/Psience/VPT2/Analytic/PTTensorCoeffProductDAGEvaluationPlan.md)   
 </div>
    <div class="col" markdown="1">
-[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L5742?message=Update%20Docs)   
+[Edit](https://github.com/McCoyGroup/Psience/edit/master/Psience/VPT2/Analytic.py#L5756?message=Update%20Docs)   
 </div>
    <div class="col" markdown="1">
    

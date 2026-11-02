@@ -199,7 +199,18 @@ Finally, the general code flow is detailed below
 [ConditionalTransformationStack](VPT2/Conditional/ConditionalTransformationStack.md)   
 </div>
    <div class="col" markdown="1">
-   
+[AnalyticExpressionStore](VPT2/CompiledExpressions/AnalyticExpressionStore.md)   
+</div>
+   <div class="col" markdown="1">
+[CompiledAnalyticExpression](VPT2/CompiledExpressions/CompiledAnalyticExpression.md)   
+</div>
+</div>
+  <div class="row">
+   <div class="col" markdown="1">
+[CompiledAnalyticEvaluation](VPT2/CompiledExpressions/CompiledAnalyticEvaluation.md)   
+</div>
+   <div class="col" markdown="1">
+[AnalyticCorrectionCompiler](VPT2/CompiledExpressions/AnalyticCorrectionCompiler.md)   
 </div>
    <div class="col" markdown="1">
    
@@ -357,9 +368,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-f27d8e" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-f27d8e"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-0ac78a" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-0ac78a"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-f27d8e" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-0ac78a" markdown="1">
  - [MultdiDegHOH](#MultdiDegHOH)
 - [HOHAnalytic](#HOHAnalytic)
 - [HOHLocal](#HOHLocal)
@@ -426,9 +437,9 @@ and `inv` will take the output of `conv` and return the original Z-matrix/polysp
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-457037" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-457037"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-97bd4a" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-97bd4a"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-457037" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-97bd4a" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces

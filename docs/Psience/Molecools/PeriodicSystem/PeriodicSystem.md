@@ -177,9 +177,9 @@ With return_objects=True, image objects follow the central geometry's objects.
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-## <a class="collapse-link" data-toggle="collapse" href="#Tests-a13587" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-a13587"><i class="fa fa-chevron-down"></i></a>
+## <a class="collapse-link" data-toggle="collapse" href="#Tests-b75ff1" markdown="1"> Tests</a> <a class="float-right" data-toggle="collapse" href="#Tests-b75ff1"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Tests-a13587" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Tests-b75ff1" markdown="1">
  - [wrapper_units_origin_and_independent_copy](#wrapper_units_origin_and_independent_copy)
 - [fractional_boundary_tolerance_and_translated_operation](#fractional_boundary_tolerance_and_translated_operation)
 - [trigonal_centering_operations_and_disordered_sites](#trigonal_centering_operations_and_disordered_sites)
@@ -202,9 +202,9 @@ With return_objects=True, image objects follow the central geometry's objects.
 
 <div class="collapsible-section">
  <div class="collapsible-section collapsible-section-header" markdown="1">
-### <a class="collapse-link" data-toggle="collapse" href="#Setup-022410" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-022410"><i class="fa fa-chevron-down"></i></a>
+### <a class="collapse-link" data-toggle="collapse" href="#Setup-2b8e95" markdown="1"> Setup</a> <a class="float-right" data-toggle="collapse" href="#Setup-2b8e95"><i class="fa fa-chevron-down"></i></a>
  </div>
- <div class="collapsible-section collapsible-section-body collapse show" id="Setup-022410" markdown="1">
+ <div class="collapsible-section collapsible-section-body collapse show" id="Setup-2b8e95" markdown="1">
  
 Before we can run our examples we should get a bit of setup out of the way.
 Since these examples were harvested from the unit tests not all pieces
