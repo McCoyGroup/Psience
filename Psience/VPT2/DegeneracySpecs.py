@@ -113,6 +113,23 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         :rtype: list
         """
         return [g[1] for g in PermutationRelationGraph.make_relation_graph(state_blocks)[0]]
+    @staticmethod
+    def state_specific_pairs(groups):
+        """Map each physical state to its directed neighbors in a disjoint block."""
+        from .Analytic import StateDegeneracyPairs
+        result = {}
+        for group in groups:
+            if len(group) < 2:
+                continue
+            for state in group:
+                key = tuple(int(x) for x in state)
+                if key in result:
+                    raise ValueError("state belongs to multiple degenerate blocks: {}".format(key))
+                result[key] = StateDegeneracyPairs(
+                    [state, other] for other in group if not np.array_equal(state, other)
+                )
+        return result
+
     def get_degenerate_group_filter(self,
                                     solver=None,
                                     evaluator=None,
@@ -771,7 +788,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
     format = DegenerateSpaceInputFormat.StrongCouplings
     default_threshold=.3
     def __init__(self, wfc_threshold=None, state_filter=None, extend_spaces=True, iterations=None,
-                 evaluator=None, iterative=False,
+                 evaluator=None, iterative=False, state_specific_degeneracies=True,
                  **opts):
         """
         **LLM Docstring**
@@ -790,6 +807,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         :type evaluator: object | None
         :param iterative: identify first-order couplings, then evaluate only second-order corrections with those couplings treated as degenerate (pre-solve evaluator path only)
         :type iterative: bool
+        :param state_specific_degeneracies: apply first-pass exclusions only to physical states in their detected blocks (default True); False retains global relations
         :param opts: extra options forwarded to the base `DegeneracySpec.__init__`
         :type opts: dict
         :return: None
@@ -806,6 +824,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         self._iterations = iterations
         self.iterations = iterations
         self.iterative = iterative
+        self.state_specific_degeneracies = state_specific_degeneracies
         self._first_order_pairs = {}
 
     @property
@@ -881,6 +900,30 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         sc = corrs.find_strong_couplings(threshold=degenerate_correction_threshold, state_filter=state_filter)
         return sc
 
+    def _select_input_state_couplings(self, source, finals, corrections, target_orders=None):
+        """Apply the same per-order threshold/custom-filter contract as classic PT."""
+        source = BasisStateSpace(finals.basis, [source])
+        other = np.any(finals.excitations != source.excitations[0], axis=1)
+        selected = None
+        by_order = {}
+        for order in range(1, len(corrections)):
+            if target_orders is not None and order not in target_orders:
+                continue
+            positions = np.flatnonzero((np.abs(corrections[order]) > self.wfc_threshold) & other)
+            if len(positions) == 0:
+                continue
+            partners = finals.take_subspace(positions)
+            if self.state_filter is not None:
+                partners = self.state_filter(source, partners)
+            if partners is None or len(partners) == 0:
+                continue
+            # One partner can exceed the threshold at several orders. Keep its
+            # order provenance for the report, and one copy in the state space.
+            partners = partners.take_unique()
+            by_order[order] = partners
+            selected = partners if selected is None else selected.union(partners)
+        return selected, by_order
+
     def get_input_state_couplings(self, input_states):
         """
         **LLM Docstring**
@@ -920,18 +963,11 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
                         wfcs.initial_states.indices,
                         wfcs.initial_states.excitations,
                         wfcs.final_states, wfcs.corrections):
-                    orders, positions = np.where(np.abs(corrs) > self.wfc_threshold)
-                    if len(orders) > 0:
-                        # Use the very same positions for the report and the
-                        # existing state-space selection; no second threshold
-                        # comparison can disagree with identification.
-                        self._couplings[input_state] = final_state.take_subspace(positions)
-                        by_order = {}
-                        for order, pos in zip(orders, positions):
-                            by_order.setdefault(int(order), []).append(
-                                final_state.excitations[int(pos)]
-                            )
-                        report_rows.append((int(input_state), source, by_order))
+                    partners, by_order = self._select_input_state_couplings(source, final_state, corrs)
+                    if partners is not None:
+                        self._couplings[input_state] = partners
+                        report_rows.append((int(input_state), source,
+                            {order: list(space.excitations) for order, space in by_order.items()}))
             report = getattr(self.evaluator, 'log_strong_couplings', None)
             if report is not None and report_rows:
                 report(report_rows, self.wfc_threshold)
@@ -958,40 +994,39 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         for state_index, source, finals, corrs in zip(
                 first.initial_states.indices, first.initial_states.excitations,
                 first.final_states, first.corrections):
-            positions = np.flatnonzero(np.abs(corrs[1]) > self.wfc_threshold)
-            if len(positions) == 0:
+            partners, by_order = self._select_input_state_couplings(source, finals, corrs, (1,))
+            if partners is None:
                 continue
             index = int(state_index)
-            selected[index] = finals.take_subspace(positions)
-            report_rows[index] = [index, source, {1: list(finals.excitations[positions])}]
+            selected[index] = partners
+            report_rows[index] = [index, source, {1: list(by_order[1].excitations)}]
             source_key = tuple(int(x) for x in source)
-            for partner in finals.excitations[positions]:
+            for partner in partners.excitations:
                 partner_key = tuple(int(x) for x in partner)
                 if source_key != partner_key:
                     key = tuple(sorted((source_key, partner_key)))
                     self._first_order_pairs[key] = key
 
-        # The evaluator's existing degenerate_states path projects by quantum
-        # change signature, not by exact state-pair membership. Use the same
-        # semantics as the rest of analytic degeneracy handling here.
+        pairs = self._get_first_order_degenerate_pairs()
+        if self.state_specific_degeneracies:
+            pairs = self.state_specific_pairs(self.merge_state_blocks(pairs)) if pairs else {}
         second = self.evaluator.get_test_wfn_corrs(
             input_states, self.energy_cutoff, order=2,
-            degenerate_states=self._get_first_order_degenerate_pairs(),
-            target_orders=(2,)
+            degenerate_states=pairs, target_orders=(2,),
+            state_specific_degeneracies=self.state_specific_degeneracies
         )
         if second is not None:
             for state_index, source, finals, corrs in zip(
                     second.initial_states.indices, second.initial_states.excitations,
                     second.final_states, second.corrections):
-                positions = np.flatnonzero(np.abs(corrs[2]) > self.wfc_threshold)
-                if len(positions) == 0:
+                space, by_order = self._select_input_state_couplings(source, finals, corrs, (2,))
+                if space is None:
                     continue
                 index = int(state_index)
-                space = finals.take_subspace(positions)
                 selected[index] = selected[index].union(space) if index in selected else space
                 if index not in report_rows:
                     report_rows[index] = [index, source, {}]
-                report_rows[index][2][2] = list(finals.excitations[positions])
+                report_rows[index][2][2] = list(by_order[2].excitations)
 
         self._couplings.update(selected)
         if second is None:

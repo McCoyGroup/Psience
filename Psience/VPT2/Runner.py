@@ -26,7 +26,7 @@ from ..Spectra import DiscreteSpectrum
 from .DegeneracySpecs import DegeneracySpec, DegenerateMultiStateSpace
 from .Hamiltonian import PerturbationTheoryHamiltonian
 from .Terms import ExpansionTerms
-from .Analytic import PerturbationTheoryEvaluator, AnalyticPerturbationTheorySolver, StateDegeneracyPairs
+from .Analytic import PerturbationTheoryEvaluator, AnalyticPerturbationTheorySolver
 from .Corrections import AnalyticPerturbationTheoryCorrections
 
 VPTStateMaker = StateMaker # alias
@@ -3381,21 +3381,9 @@ class MultiVPTStateSpace:
         self.flat_space.degenerate_states = flat_deg_blocks
         self.flat_space.degenerate_pairs = flat_degs
         self.degenerate_pairs = flat_degs
-        # A state may only exclude actual neighbors in its final block.
-        # Reduced polyad rules can also match states outside that block.
-        # The flat pair list above remains available for global evaluation.
-        self.degenerate_pairs_by_state = {}
-        if flat_deg_blocks is not None:
-            for group in flat_deg_blocks:
-                for state in group:
-                    key = tuple(int(x) for x in state)
-                    if key in self.degenerate_pairs_by_state:
-                        raise ValueError("state belongs to multiple degenerate blocks: {}".format(key))
-                    self.degenerate_pairs_by_state[key] = StateDegeneracyPairs(
-                        [state, other]
-                        for other in group
-                        if not np.array_equal(state, other)
-                    )
+        self.degenerate_pairs_by_state = DegeneracySpec.state_specific_pairs(
+            [] if flat_deg_blocks is None else flat_deg_blocks
+        )
 
     @property
     def state_list_pairs(self):
@@ -4026,7 +4014,7 @@ class AnalyticVPTRunner:
     @staticmethod
     def _eval_degeneracies(states, state_specific_degeneracies):
         if state_specific_degeneracies:
-            return states.degenerate_pairs_by_state
+            return states.degenerate_pairs_by_state or None
         return states.degenerate_pairs
 
     def evaluate_expressions(self, states, exprs, zero_cutoff=None, operator_expansions=None,
@@ -4087,7 +4075,7 @@ class AnalyticVPTRunner:
                                                 zero_cutoff=zero_cutoff)
 
     def get_energy_corrections(self, states, order=None, degeneracy_specs=None, zero_cutoff=None, verbose=False,
-                               state_specific_degeneracies=False):
+                               state_specific_degeneracies=True):
         """
         **LLM Docstring**
 
@@ -4119,7 +4107,7 @@ class AnalyticVPTRunner:
                                 states,
                                 order=None, degeneracy_specs=None,
                                 zero_cutoff=None, verbose=False,
-                                state_specific_degeneracies=False
+                                state_specific_degeneracies=True
                                 ):
         """
         **LLM Docstring**
@@ -4168,7 +4156,7 @@ class AnalyticVPTRunner:
                                           states,
                                           order=None, degeneracy_specs=None,
                                           zero_cutoff=None, verbose=False,
-                                          state_specific_degeneracies=False
+                                          state_specific_degeneracies=True
                                           ):
         """
         **LLM Docstring**
@@ -4201,7 +4189,7 @@ class AnalyticVPTRunner:
                                      states,
                                      order=None, degeneracy_specs=None,
                                      zero_cutoff=None, verbose=False,
-                                     state_specific_degeneracies=False
+                                     state_specific_degeneracies=True
                                      ):
         """
         **LLM Docstring**
@@ -4276,7 +4264,7 @@ class AnalyticVPTRunner:
                                  order=None, terms=None, degeneracy_specs=None, verbose=False,
                                  operator_type=None,
                                  check_single=True,
-                                 state_specific_degeneracies=False,
+                                 state_specific_degeneracies=True,
                                  **opts
                                  ):
         """
@@ -4477,7 +4465,7 @@ class AnalyticVPTRunner:
         return corrs
 
     def get_freqs(self, states, order=None, degeneracy_specs=None, return_corrections=False, verbose=False,
-                  state_specific_degeneracies=False):
+                  state_specific_degeneracies=True):
         """
         **LLM Docstring**
 
@@ -4513,7 +4501,7 @@ class AnalyticVPTRunner:
                                     degeneracy_specs=None, only_degenerate_terms=True,
                                     verbose=False,
                                     hamiltonian_corrections=None,
-                                    state_specific_degeneracies=False,
+                                    state_specific_degeneracies=True,
                                     **opts):
         """
         **LLM Docstring**
@@ -4601,7 +4589,8 @@ class AnalyticVPTRunner:
         )
 
     def get_test_wfn_corrs(self, input_states:BasisStateSpace, energy_window,
-                           order=None, degenerate_states=None, target_orders=None):
+                           order=None, degenerate_states=None, target_orders=None,
+                           state_specific_degeneracies=True):
         """
         We take the expansions and frequencies that we have and at find the possible terms
         that could possibly lead to a correction greater than the specified threshold
@@ -4622,14 +4611,21 @@ class AnalyticVPTRunner:
             return None
         else:
             if order is None and degenerate_states is None and target_orders is None:
-                return self.get_wavefunction_corrections(state_pairs)
+                return self.get_wavefunction_corrections(
+                    state_pairs, state_specific_degeneracies=state_specific_degeneracies
+                )
             states = self.prep_states(state_pairs)
+            if degenerate_states is None:
+                degenerate_states = self._eval_degeneracies(states, state_specific_degeneracies)
+            elif state_specific_degeneracies and not isinstance(degenerate_states, dict):
+                degenerate_states = DegeneracySpec.state_specific_pairs(
+                    DegeneracySpec.merge_state_blocks(degenerate_states)
+                ) if len(degenerate_states) else None
+            if isinstance(degenerate_states, dict) and not degenerate_states:
+                degenerate_states = None
             return self.eval.get_wavefunction_corrections(
                 self.prep_eval_state_pairs(states), order=order,
-                degenerate_states=(
-                    states.degenerate_pairs if degenerate_states is None
-                    else degenerate_states
-                ), target_orders=target_orders
+                degenerate_states=degenerate_states, target_orders=target_orders
             )
 
     @staticmethod
@@ -5118,7 +5114,7 @@ class AnalyticVPTRunner:
                 clear_caches=True,
                 hamiltonian_correction_type=None,
                 only_degenerate_terms=True,
-                state_specific_degeneracies=False,
+                state_specific_degeneracies=True,
                 force_return_on_crash=True
                 ):
         """
@@ -5156,7 +5152,7 @@ class AnalyticVPTRunner:
         :type hamiltonian_correction_type: str | None
         :param only_degenerate_terms: whether the reexpressed Hamiltonian should include only strictly degenerate-coupling terms
         :type only_degenerate_terms: bool
-        :param state_specific_degeneracies: use each state's merged degenerate block to select left/right resonance relations
+        :param state_specific_degeneracies: use each state's actual merged block neighbors (default True); False selects the legacy global relations
         :type state_specific_degeneracies: bool
         :param force_return_on_crash: whether to catch exceptions during the run and still return whatever partial results were computed, rather than propagating the error
         :type force_return_on_crash: bool
@@ -5408,7 +5404,7 @@ class AnalyticVPTRunner:
                    hamiltonian_correction_type=None,
                    hamiltonian_corrections=None,
                    only_degenerate_terms=True,
-                   state_specific_degeneracies=False,
+                   state_specific_degeneracies=True,
                    force_return_on_crash=True,
                    *,
                    expressions_file=None,
@@ -5460,7 +5456,7 @@ class AnalyticVPTRunner:
         :type hamiltonian_corrections: object | None
         :param only_degenerate_terms: whether the reexpressed Hamiltonian should include only strictly degenerate-coupling terms
         :type only_degenerate_terms: bool
-        :param state_specific_degeneracies: use each state's merged degenerate block to select left/right resonance relations
+        :param state_specific_degeneracies: use each state's actual merged block neighbors (default True); False selects the legacy global relations
         :type state_specific_degeneracies: bool
         :param force_return_on_crash: whether to catch exceptions during the run and still return partial results
         :type force_return_on_crash: bool
