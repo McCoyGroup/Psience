@@ -3,7 +3,7 @@ import numpy as np, abc, math, collections
 from .StateSpaces import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace
 
 __all__ = [
-    "BasisStateSpaceFilter"
+    "BasisStateSpaceFilter", "PropertyCorrectionFilter"
 ]
 
 class Postfilter(metaclass=abc.ABCMeta):
@@ -446,6 +446,57 @@ class BasisStateSpaceFilter:
         return full_rules
 
     @classmethod
+    def property_wavefunction_quanta(cls, initial_space, target_space,
+                                     perturbation_rules, property_rules, order=2):
+        """Select WFC endpoints that may occur in a property expansion.
+
+        This is a selection-rule screen, not a numerical VPT calculation. Reuse
+        the property planner's path trees, retaining the cumulative perturbative
+        order at every prefix. Prefixes include lower-order wavefunctions used
+        inside higher-order corrections. Closed energy/normalization paths keep
+        their endpoint manifolds too: equal total quanta does not imply equal
+        states. The result maps (source quanta, WFC order) to endpoint quanta.
+        No Hamiltonian matrices or correction magnitudes are constructed.
+        """
+        rules = list(perturbation_rules)
+        rules += [()] * max(0, order-len(rules))
+        _, initial = cls._build_nquanta_trees(initial_space, rules, order)
+        _, target = cls._build_nquanta_trees(target_space, rules, order)
+        result = {}
+
+        def mark(final_quanta, paths):
+            for path in paths:
+                source_quanta = int(final_quanta-sum(d for h,d in path))
+                quanta = source_quanta
+                correction_order = 0
+                for h,change in path:
+                    quanta += int(change)
+                    correction_order += int(h)
+                    result.setdefault((source_quanta,correction_order),set()).add(quanta)
+
+        for tree in (initial,target):
+            for endpoints in tree:
+                for q,paths in endpoints.items():
+                    closed = [p for p in paths if sum(d for h,d in p)==0]
+                    mark(q,closed)
+        if property_rules is None:
+            return result
+        property_quanta = [set(sum(r) for r in changes) for changes in property_rules]
+        for total in range(order+1):
+            for a in range(total+1):
+                for b in range(total-a+1):
+                    c = total-a-b
+                    if c >= len(property_quanta):
+                        continue
+                    for qi,pi in initial[a].items():
+                        for qf,pf in target[b].items():
+                            if (qf-qi in property_quanta[c]
+                                    or qi-qf in property_quanta[c]):
+                                mark(qi,pi)
+                                mark(qf,pf)
+        return result
+
+    @classmethod
     def _build_nquanta_trees(cls, initial_space, perturbation_rules, order):
         """
         Build the tree of paths from the initial/target spaces to the
@@ -748,3 +799,84 @@ class BasisStateSpaceFilter:
         return {
             k: [r for r in rules if k + sum(r)] in finals for k in initials
         }
+
+
+
+class PropertyCorrectionFilter:
+    """Order-aware structural screen for wavefunction-correction endpoints.
+
+    Uses the same quanta-path planner as property-space generation. Closed
+    energy and normalization paths are retained as well as operator paths.
+    A failed test proves the coefficient unused under these selection rules;
+    a passed test does not assert a nonzero numerical operator coefficient.
+    """
+    def __init__(self, initial_space, target_space, perturbation_rules,
+                 property_rules, order=2, unfiltered=False):
+        self.initial_space = initial_space
+        self.target_space = target_space
+        self.perturbation_rules = perturbation_rules
+        self.property_rules = property_rules
+        self.order = order
+        self.unfiltered = unfiltered
+        self._uses = None
+
+    @classmethod
+    def from_property(cls, target_space, initial_space=None, order=2,
+                      target_property='intensities', property_rules=None,
+                      perturbation_rules=None):
+        if target_property not in {'intensities', 'frequencies', 'wavefunctions'}:
+            raise ValueError('unknown correction-filter target: '+str(target_property))
+        basis = target_space.basis
+        if initial_space is None:
+            initial_space = np.zeros((1, target_space.ndim), dtype=int)
+        if perturbation_rules is None:
+            perturbation_rules = [basis.selection_rules(*['x']*(h+2))
+                                  for h in range(1, order+1)]
+        if property_rules is None and target_property == 'intensities':
+            property_rules = [basis.selection_rules(*['x']*(c+1))
+                              for c in range(order+1)]
+        return cls(initial_space, target_space, perturbation_rules,
+                   property_rules, order=order,
+                   unfiltered=target_property == 'wavefunctions')
+
+    @staticmethod
+    def operator_rules(basis, operators, order=2, include_intensities=True):
+        """Union rules for Taylor operators O_c of degree c and dipole mu_c.
+
+        Mirrors classic operator expansion ordering. Cartesian transformations
+        preserve derivative degree. Representation matrices have no polynomial
+        degree metadata: return None so callers can conservatively retain all.
+        No numerical coefficient is inspected or pruned.
+        """
+        if not isinstance(operators, dict) or 'expansion' in operators:
+            operators = {'Operator': operators}
+        rules = [set(basis.selection_rules(*['x']*(c+1)))
+                 if include_intensities else set() for c in range(order+1)]
+        for expansion in operators.values():
+            if isinstance(expansion, dict):
+                expansion = expansion['expansion']
+            if not isinstance(expansion, (list, tuple)):
+                return None  # Unknown polynomial support: conservatively retain all.
+            for c in range(min(len(expansion), order+1)):
+                rules[c].update([()] if c == 0 else basis.selection_rules(*['x']*c))
+        return [tuple(sorted(r)) for r in rules]
+
+    @property
+    def uses(self):
+        if self._uses is None:
+            self._uses = BasisStateSpaceFilter.property_wavefunction_quanta(
+                self.initial_space, self.target_space, self.perturbation_rules,
+                self.property_rules, order=self.order)
+        return self._uses
+
+    def __call__(self, source, endpoints, order):
+        if self.unfiltered:
+            return endpoints
+        if not 1 <= order <= self.order:
+            raise ValueError('correction order is outside the planned property order')
+        if len(source) != 1:
+            raise ValueError('correction filtering requires one source state')
+        quanta = int(np.sum(source.excitations[0]))
+        allowed = self.uses.get((quanta, order), ())
+        mask = np.isin(np.sum(endpoints.excitations, axis=-1), list(allowed))
+        return endpoints.take_subspace(np.flatnonzero(mask))

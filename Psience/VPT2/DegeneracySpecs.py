@@ -112,6 +112,9 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         :return: the merged, maximal groups
         :rtype: list
         """
+        state_blocks = list(state_blocks)
+        if not state_blocks:
+            return []
         return [g[1] for g in PermutationRelationGraph.make_relation_graph(state_blocks)[0]]
     @staticmethod
     def state_specific_pairs(groups):
@@ -789,7 +792,7 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
     default_threshold=.3
     def __init__(self, wfc_threshold=None, state_filter=None, extend_spaces=True, iterations=None,
                  evaluator=None, iterative=False, state_specific_degeneracies=True,
-                 **opts):
+                 filter_by_property=None, **opts):
         """
         **LLM Docstring**
 
@@ -808,6 +811,8 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         :param iterative: identify first-order couplings, then evaluate only second-order corrections with those couplings treated as degenerate (pre-solve evaluator path only)
         :type iterative: bool
         :param state_specific_degeneracies: apply first-pass exclusions only to physical states in their detected blocks (default True); False retains global relations
+        :param filter_by_property: additional order-aware property-use criterion;
+            None inherits the runner setting, True/False enables/disables it
         :param opts: extra options forwarded to the base `DegeneracySpec.__init__`
         :type opts: dict
         :return: None
@@ -820,6 +825,9 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
             wfc_threshold = self.default_threshold
         self.wfc_threshold = wfc_threshold
         self.state_filter = state_filter
+        self.filter_by_property = filter_by_property
+        if hasattr(self.evaluator, "for_degeneracy_spec"):
+            self.evaluator = self.evaluator.for_degeneracy_spec(self)
         self.extend_spaces=extend_spaces
         self._iterations = iterations
         self.iterations = iterations
@@ -897,7 +905,15 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
                                                                                basis=solver.flat_total_space,
                                                                                target_modes=test_modes
                                                                                )
-        sc = corrs.find_strong_couplings(threshold=degenerate_correction_threshold, state_filter=state_filter)
+        enabled = (solver.strong_coupling_property_filter
+                   if self.filter_by_property is None else self.filter_by_property)
+        correction_filter = (enabled if callable(enabled) else
+            solver.strong_coupling_correction_filter if enabled else None)
+        if enabled and correction_filter is None:
+            raise ValueError('property-use coupling filtering requires property selection rules '
+                             'or a strong_coupling_correction_filter callback')
+        sc = corrs.find_strong_couplings(threshold=degenerate_correction_threshold,
+            state_filter=state_filter, correction_filter=correction_filter)
         return sc
 
     def _select_input_state_couplings(self, source, finals, corrections, target_orders=None):
@@ -1092,7 +1108,31 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
         for s in pt_corrs.final_states:
             basis = basis.union(s)
 
-        matrices = np.zeros((len(pt_corrs.corrections[0]), n_init, len(basis)))
+        shape = (n_init, len(basis))
+        orders = len(pt_corrs.corrections[0])
+        if orders*n_init*len(basis)*8 > 256*1024**2:
+            from McUtils.Numputils import SparseArray
+            rows = [[] for _ in range(orders)]
+            columns = [[] for _ in range(orders)]
+            values = [[] for _ in range(orders)]
+            for row, (finals, corrections) in enumerate(zip(pt_corrs.final_states, pt_corrs.corrections)):
+                positions = basis.find(finals)
+                for order, correction in enumerate(corrections):
+                    if correction is None:
+                        continue
+                    correction = np.asarray(correction)
+                    keep = correction != 0
+                    if np.any(keep):
+                        rows[order].append(np.full(int(np.sum(keep)), row, dtype=int))
+                        columns[order].append(positions[keep])
+                        values[order].append(correction[keep])
+            matrices = [SparseArray.from_data((np.concatenate(v),
+                (np.concatenate(r), np.concatenate(c))), shape=shape, cache_block_data=False)
+                if v else SparseArray.empty(shape, dtype=float)
+                for r,c,v in zip(rows,columns,values)]
+            return cls.PTCorrectionsMatrix(pt_corrs.initial_states, basis, matrices)
+
+        matrices = np.zeros((orders, n_init, len(basis)))
         for i,corr_block in enumerate(zip(pt_corrs.final_states, pt_corrs.corrections)):
             states = corr_block[0]
             for j,c in enumerate(corr_block[1]):
@@ -1800,7 +1840,12 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                 state_inds = states.find(group, dtype=int, missing_val=len(states))
                 found_pos = state_inds < len(states)
                 kill_spots = (np.arange(len(group_inds))[found_pos], state_inds[found_pos])
-                corr_mat = [np.abs(x[:, group_inds].T) for x in corrections.matrices[1:]]
+                corr_mat = []
+                for matrix in corrections.matrices[1:]:
+                    part = matrix[:, group_inds].T
+                    if hasattr(part, 'asarray'):
+                        part = part.asarray()
+                    corr_mat.append(np.abs(part))
                 max_corr = None
                 for c in corr_mat:
                     c[kill_spots] = 0
