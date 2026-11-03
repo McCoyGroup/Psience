@@ -1,5 +1,5 @@
 """
-Readout interface for `Molecule` (see `McUtils.Jupyter.Readouts`).
+Readout interface for `Molecule` (see `McUtils.Readouts`).
 
 Kept out of `Molecule.py`: `Molecule.to_readout(...)` just builds a `MoleculeReadoutInterface`
 around the molecule. Sections::
@@ -22,7 +22,7 @@ import re
 
 import numpy as np
 
-from McUtils.Jupyter import (
+from McUtils.Readouts import (
     ReadoutAdapter, readout_section, ReadoutSectionUnavailable,
     ReadoutSection, ReadoutFields, ReadoutTable, ReadoutText, ReadoutScene,
     FieldSet, TabularData, Column,

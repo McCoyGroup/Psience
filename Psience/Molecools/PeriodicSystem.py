@@ -10,7 +10,7 @@ import numpy as np
 from McUtils.Data import UnitsData
 from McUtils.ExternalPrograms import CIFParser, CIFConverter
 from McUtils.ExternalPrograms.Readouts.Crystals import expand_cif_sites
-from McUtils.Jupyter.Readouts import cell_matrix, element_symbol
+from McUtils.Readouts import cell_matrix, element_symbol
 from McUtils.Plots import Line, Cylinder, Arrow, Text
 from McUtils.Parsers import StringLineByLineReader
 

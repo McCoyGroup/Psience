@@ -290,7 +290,7 @@ class VibronicTests(TestCase):
     def load_log_mol(cls, log_file, ref_file):
 
         klow_exc = Molecule.from_file(ref_file)
-        from McUtils.GaussianInterface import GaussianLogReader
+        from McUtils.ExternalPrograms.Parsers import GaussianLogReader
         woof = log_file
         with GaussianLogReader(woof) as reader:
             nm_data = reader.parse(['InputCartesianCoordinates', 'NormalModes'])
