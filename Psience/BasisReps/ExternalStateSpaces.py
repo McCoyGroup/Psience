@@ -283,6 +283,28 @@ class DiskBasisStateSpace(BasisStateSpace):
         return DiskSelectionRuleStateSpace(self, selection_rules, filter_space=filter_space,
                                           target_dimensions=target_dimensions)
 
+    @property
+    def quanta_bounds(self):
+        """Bounds of actual target occupations for the native graded indexer."""
+        if not getattr(self, '_quanta_bounds_ready', False):
+            self._quanta_bounds = None
+            if len(self) and hasattr(self.basis.indexer, 'symmetric_group'):
+                if self._canonical:
+                    endpoints = self._indices[[0, -1]]
+                else:
+                    # Preserve noncanonical ordering; do not build a lookup.
+                    low, high = None, None
+                    for block in self.iter_index_blocks():
+                        lo, hi = int(np.min(block)), int(np.max(block))
+                        low = lo if low is None else min(low, lo)
+                        high = hi if high is None else max(high, hi)
+                    endpoints = np.array([low, high], dtype=np.int64)
+                occupations = self.basis.unravel_state_inds(endpoints)
+                self._quanta_bounds = tuple(int(q) for q in np.sum(occupations, axis=1))
+            self._quanta_bounds_ready = True
+        return self._quanta_bounds
+
+
 
 class _StoredCouplings:
     """Mapped (outer representative, bra, ket) records for explicit graphs."""
@@ -345,20 +367,36 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
         saved = _StoredCouplings(store.unique(records(graph), width=3))
         return cls(source, recipes=[(source, saved, None, None, (), ())])
 
-    def iter_pair_blocks(self):
+    def iter_pair_blocks(self, filter_space=None):
+        """Generate directed pairs, pushing target restrictions before expansion.
+
+        For native graded bases, generate from the smaller unique endpoint set
+        when its inverse rules are cheaper by cardinality. Negating the rules
+        and restoring (bra, ket) order preserves nonsymmetric rule directions.
+        Explicit owned polyad records keep their original ownership handling.
+        """
         size = self.store.block_size
+        outer_filter = None if filter_space is None else self.store.coerce(filter_space)
         for source, rules, filtered, dimensions, transforms, excluded in self.recipes:
-            source_size = min(64, size)
-            if filtered is not None:
-                filtered = self.store.coerce(filtered)
+            source = self.store.coerce(source)
+            filtered = None if filtered is None else self.store.coerce(filtered)
+            filters = []
+            # A generic postfilter can depend on the contents of its input
+            # block. Preserve its original blocks and apply the outer filter
+            # afterwards; only plain selection-rule recipes can be reversed.
+            for space in (filtered, outer_filter if not transforms else None):
+                if space is not None and all(space is not old for old in filters):
+                    filters.append(space)
+            if any(len(space) == 0 for space in filters):
+                continue
             if isinstance(rules, _StoredCouplings):
                 for start in range(0, len(rules.records), size):
-                    block = rules.records[start:start + size]
+                    block = rules.records[start:start+size]
                     block = block[source._contains(block[:, 0])]
                     pairs = block[:, 1:]
                     valid = np.ones(len(pairs), dtype=bool)
-                    if filtered is not None:
-                        valid &= filtered._contains(pairs[:, 1])
+                    for space in filters:
+                        valid &= space._contains(pairs[:, 1])
                     if excluded:
                         delta = (self.basis.unravel_state_inds(pairs[:, 1])
                                  - self.basis.unravel_state_inds(pairs[:, 0]))
@@ -367,10 +405,14 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
                     for transform in transforms:
                         kept = transform(BasisStateSpace(self.basis, pairs[valid, 1], mode='indices')).indices
                         valid &= np.isin(pairs[:, 1], kept)
+                    if transforms and outer_filter is not None:
+                        valid &= outer_filter._contains(pairs[:, 1])
                     if np.any(valid):
                         yield pairs[valid]
                 continue
             if rules is None:
+                # None means an unrestricted graph on the original targets,
+                # not an identity operator or a known polynomial selection rule.
                 targets = source if filtered is None else filtered
                 for rank_block in source.iter_index_blocks():
                     for rank in rank_block:
@@ -378,50 +420,92 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
                             selected = target_block
                             if excluded:
                                 delta = self.basis.unravel_state_inds(selected)-self.basis.unravel_state_inds(np.array([rank]))
-                                valid = np.ones(len(selected),dtype=bool)
+                                valid = np.ones(len(selected), dtype=bool)
                                 for rule in excluded:
-                                    valid &= ~np.all(delta==rule,axis=1)
+                                    valid &= ~np.all(delta == rule, axis=1)
                                 selected = selected[valid]
                             for transform in transforms:
-                                selected = transform(BasisStateSpace(self.basis,selected,mode='indices')).indices
+                                selected = transform(BasisStateSpace(self.basis, selected, mode='indices')).indices
+                            if outer_filter is not None:
+                                selected = selected[outer_filter._contains(selected)]
                             if len(selected):
-                                yield np.column_stack((np.full(len(selected),rank,dtype=np.int64),selected))
+                                yield np.column_stack((np.full(len(selected), rank, dtype=np.int64), selected))
                 continue
-            for rank_block in source.iter_index_blocks():
-                for start in range(0, len(rank_block), source_size):
-                    ranks = rank_block[start:start + source_size]
-                    original = self.basis.unravel_state_inds(ranks).astype(np.int64,copy=False)
-                    self.store.metrics['peak_source_states'] = max(
-                        self.store.metrics['peak_source_states'], len(ranks))
-                    exc = original if dimensions is None else original[:, dimensions]
-                    group = SymmetricGroupGenerator(exc.shape[1])
-                    for rows, outputs in group.iter_permutation_rule_direct_sum(exc, rules, block_size=size):
-                        self.store.metrics['peak_candidate_pairs'] = max(
-                            self.store.metrics['peak_candidate_pairs'], len(outputs))
-                        self.store.metrics['generated_pairs'] += len(outputs)
-                        if dimensions is not None:
-                            restored = original[rows].copy()
-                            restored[:, dimensions] = outputs
-                            outputs = restored
-                        if excluded:
-                            delta = outputs - original[rows]
-                            mask = np.ones(len(outputs), dtype=bool)
-                            for rule in excluded:
-                                mask &= ~np.all(delta == rule, axis=1)
-                            rows, outputs = rows[mask], outputs[mask]
-                        targets = self.basis.ravel_state_inds(outputs)
-                        if np.any(targets > np.iinfo(np.int64).max):
-                            raise OverflowError('disk state ranks must fit signed int64')
-                        targets = targets.astype(np.int64,copy=False)
-                        valid = np.ones(len(targets), dtype=bool)
-                        if filtered is not None:
-                            valid &= filtered._contains(targets)
-                        for transform in transforms:
-                            block = BasisStateSpace(self.basis, targets[valid], mode='indices')
-                            kept = transform(block).indices
-                            valid &= np.isin(targets, kept)
-                        if np.any(valid):
-                            yield np.column_stack((ranks[rows[valid]], targets[valid]))
+
+            targets = min(filters, key=len) if filters else None
+            # Sorted, unique sources have an existing bounded membership lookup.
+            # Reversal must not create a large extra noncanonical lookup table.
+            reverse = (not transforms and targets is not None and len(targets) < len(source)
+                       and source.is_sorted() and source.is_unique() and targets.is_unique()
+                       and source.quanta_bounds is not None)
+            seeds, membership = (targets, source) if reverse else (source, targets)
+            active_rules = tuple(tuple(-int(c) if reverse else int(c) for c in rule) for rule in rules)
+            if transforms:
+                bounds = None
+            elif reverse:
+                bounds = membership.quanta_bounds
+            else:
+                known = [space.quanta_bounds for space in filters if space.quanta_bounds is not None]
+                bounds = ((max(q[0] for q in known), min(q[1] for q in known)) if known else None)
+            if bounds is not None and bounds[0] > bounds[1]:
+                continue
+            rule_sums = np.array([sum(rule) for rule in active_rules], dtype=np.int64)
+            for rank_block in seeds.iter_index_blocks():
+                for start in range(0, len(rank_block), min(64, size)):
+                    ranks = rank_block[start:start+min(64, size)]
+                    if reverse:
+                        for space in filters:
+                            if space is not seeds:
+                                ranks = ranks[space._contains(ranks)]
+                    if not len(ranks):
+                        continue
+                    original = self.basis.unravel_state_inds(ranks).astype(np.int64, copy=False)
+                    self.store.metrics['peak_source_states'] = max(self.store.metrics['peak_source_states'], len(ranks))
+                    if bounds is None:
+                        batches = [(np.arange(len(ranks)), active_rules)]
+                    else:
+                        quanta = np.sum(original, axis=1)
+                        batches = []
+                        for q in np.unique(quanta):
+                            allowed = (q+rule_sums >= bounds[0]) & (q+rule_sums <= bounds[1])
+                            if np.any(allowed):
+                                batches.append((np.flatnonzero(quanta == q),
+                                                tuple(rule for rule, keep in zip(active_rules, allowed) if keep)))
+                    for selected, selected_rules in batches:
+                        exc = original[selected] if dimensions is None else original[selected][:, dimensions]
+                        group = SymmetricGroupGenerator(exc.shape[1])
+                        for rows, outputs in group.iter_permutation_rule_direct_sum(exc, selected_rules, block_size=size):
+                            rows = selected[rows]
+                            self.store.metrics['peak_candidate_pairs'] = max(self.store.metrics['peak_candidate_pairs'], len(outputs))
+                            self.store.metrics['generated_pairs'] += len(outputs)
+                            if dimensions is not None:
+                                restored = original[rows].copy()
+                                restored[:, dimensions] = outputs
+                                outputs = restored
+                            valid = np.ones(len(outputs), dtype=bool)
+                            if excluded:
+                                delta = original[rows]-outputs if reverse else outputs-original[rows]
+                                for rule in excluded:
+                                    valid &= ~np.all(delta == rule, axis=1)
+                            generated = self.basis.ravel_state_inds(outputs)
+                            if np.any(generated > np.iinfo(np.int64).max):
+                                raise OverflowError('disk state ranks must fit signed int64')
+                            generated = generated.astype(np.int64, copy=False)
+                            bras, kets = (generated, ranks[rows]) if reverse else (ranks[rows], generated)
+                            if membership is not None:
+                                valid &= membership._contains(generated)
+                            if not reverse:
+                                for space in filters:
+                                    if space is not membership:
+                                        valid &= space._contains(kets)
+                            for transform in transforms:
+                                kept = transform(BasisStateSpace(self.basis, kets[valid], mode='indices')).indices
+                                valid &= np.isin(kets, kept)
+                            if transforms and outer_filter is not None:
+                                valid &= outer_filter._contains(kets)
+                            if np.any(valid):
+                                yield np.column_stack((bras[valid], kets[valid]))
+
 
     def to_single(self, *args, **kwargs):
         if self._frontier is None:
@@ -480,13 +564,11 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
         return self.map(lambda block: block.intersection(space))
 
     def canonical_pairs(self, other=None):
-        allowed = None if other is None else self.store.coerce(other)
         def blocks():
-            for pairs in self.iter_pair_blocks():
-                if allowed is not None:
-                    pairs = pairs[allowed._contains(pairs[:, 1])]
+            for pairs in self.iter_pair_blocks(filter_space=other):
                 yield np.sort(pairs, axis=1)
         return self.store.unique(blocks(), width=2)
+
 
     def get_representation_brakets(self, *args, **kwargs):
         raise RuntimeError('consume a deferred coupled space through iter_pair_blocks()')
