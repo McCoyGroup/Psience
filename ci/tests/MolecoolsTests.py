@@ -1,3 +1,4 @@
+from McUtils.ExternalPrograms import *
 import itertools
 import gc
 import os.path
@@ -10,7 +11,6 @@ from Peeves import BlockProfiler
 from Psience.Molecools import Molecule, MolecularNormalModes, MoleculeBuilder
 # from Psience.Molecools.Transformations import MolecularTransformation
 from Psience.Data import DipoleSurface # this will be leaving Zachary very soon I think...
-from McUtils.ExternalPrograms.Parsers import GaussianFChkReader, GaussianLogReader
 from McUtils.Plots import *
 import McUtils.Plots as plt
 from McUtils.Coordinerds import cartesian_to_zmatrix, CartesianCoordinates3D
@@ -5308,7 +5308,6 @@ class MolecoolsTests(TestCase):
     @validationTest
     def test_FunctionalizationMulti(self):
         from McUtils.Data import SMILESData
-        from McUtils.ExternalPrograms import build_templated_smiles
         mol = Molecule.from_string('c1ccccc1')
         fg = Molecule.from_string(r'N/C=C\N')
         # mol.plot(display_atom_numbers=True).show()
@@ -5334,7 +5333,6 @@ class MolecoolsTests(TestCase):
     @validationTest
     def test_FragmentsMulti(self):
         from McUtils.Data import SMILESData
-        from McUtils.ExternalPrograms import build_templated_smiles
 
         # Molecule.from_string(r'[N:1]/C=C\[N:2]', add_implicit_hydrogens='full').plot().show()
         # Molecule.from_string(r'N/C=C\N', add_implicit_hydrogens='full').plot().show()
@@ -5575,7 +5573,6 @@ class MolecoolsTests(TestCase):
 
     @validationTest
     def test_SubstructMatching(self):
-        from McUtils.ExternalPrograms import smarts_matcher
         match_tests = [
             '[N,n,O,o;H1:1]~[*:2]-[*;R0:3]=[*;R0:4]-[*:5]~[*:6]',
             '[N,n,O,o;H1:1]~[*:2]~[*:3]-[*;R0:4]=[*;R0:5]-[*:6]',
@@ -6520,7 +6517,6 @@ class MolecoolsTests(TestCase):
 
     @validationTest
     def test_QM9Loading(self):
-        from McUtils.ExternalPrograms import QM9
 
         qm9_path = os.path.expanduser("~/Documents/Postdoc/datasets/qm9.npz")
         supplier = QM9(qm9_path)
@@ -6536,7 +6532,6 @@ class MolecoolsTests(TestCase):
 
     @validationTest
     def test_QM9Queries(self):
-        from McUtils.ExternalPrograms import QM9, RDMolecule
         import rdkit.Chem as Chem
 
         qm9_path = os.path.expanduser("~/Documents/Postdoc/datasets/qm9.npz")
@@ -6578,7 +6573,6 @@ class MolecoolsTests(TestCase):
 
     @validationTest
     def test_QM9Iter(self):
-        from McUtils.ExternalPrograms import QM9, RDMolecule
         import rdkit.Chem as Chem
 
         qm9_path = os.path.expanduser("~/Documents/Postdoc/datasets/qm9.npz")

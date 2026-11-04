@@ -5,7 +5,9 @@ const controls = Object.fromEntries(["mode", "scale", "label"].map(
     role => [role, component.query('[data-role="' + role + '"]')]
 ));
 const byId = new Map(Array.from(component.scene.querySelectorAll('[id]'), node => [node.id, node]));
-const state = {mode: 0, scale: 1, fraction: 0, running: data.running};
+const scaleBounds = data.scaleBounds || [0, 3];
+const state = {mode: 0, scale: Math.min(scaleBounds[1], Math.max(scaleBounds[0], 1)),
+    fraction: 0, running: data.running};
 
 const scans = data.modes.map(mode => displacement_scale.capture(mode, data.allowAdjustments, byId));
 
@@ -107,7 +109,9 @@ function selectMode(sourceIndex) {
 
 function setScale(scale) {
     if (!data.allowAdjustments) throw new Error("This animation does not allow adjustments");
-    if (!Number.isFinite(scale) || scale < 0) throw new RangeError("Displacement scale must be finite and nonnegative");
+    if (!Number.isFinite(scale) || scale < scaleBounds[0] || scale > scaleBounds[1]) {
+        throw new RangeError("Displacement scale must lie between " + scaleBounds[0] + " and " + scaleBounds[1]);
+    }
     state.scale = scale;
     rebuild();
 }

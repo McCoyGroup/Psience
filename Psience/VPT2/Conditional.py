@@ -12,7 +12,7 @@ import json
 import weakref
 import numpy as np
 
-from McUtils.Zachary.Symbolic.ElementaryFunctions import ElementaryFunction
+from McUtils.Zachary import *
 from .Analytic import (PerturbationTheoryTerm, PerturbationTheoryTermSum,
     ScaledPerturbationTheoryTerm, PTEnergyChangeProductSum,
     ShiftedEnergyBaseline, PerturbationTheoryExpressionEvaluator, make_product_polynomial,
@@ -582,7 +582,6 @@ def format_condition_sum(expression):
 
 def filter_condition_paths(terms,test_keys,mode):
     """Filter divisor paths while retaining every occupation condition."""
-    from McUtils.Zachary.Polynomials import TensorCoefficientPoly
     def normalize(row):
         row = tuple(row)
         delta = np.asarray(row[1:],dtype=int)

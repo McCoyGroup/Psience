@@ -13,7 +13,7 @@ __all__ = ['StateSpaceDiskStore', 'DiskBasisStateSpace', 'DiskSelectionRuleState
 def _cleanup_store(mappings, temporary):
     # NFS must see all mappings closed before unlinking their files. NumPy and
     # SciPy may retain ndarray views after the original memmap object is gone.
-    for mapping in mappings:
+    for mapping in list(mappings):
         if not mapping.closed:
             mapping.close()
     temporary.cleanup()
@@ -29,7 +29,7 @@ class StateSpaceDiskStore:
         self.directory = Path(self._temporary.name)
         self.block_size = int(block_size)
         self._counter = itertools.count()
-        self._mappings = []
+        self._mappings = weakref.WeakSet()
         self._finalize = weakref.finalize(self,_cleanup_store,self._mappings,self._temporary)
         self.metrics = dict(peak_source_states=0, peak_candidate_pairs=0, generated_pairs=0)
 
@@ -38,7 +38,8 @@ class StateSpaceDiskStore:
 
     def own(self, array):
         if isinstance(array, np.memmap):
-            self._mappings.append(array._mmap)
+            # Retain cleanup reachability without owning dead frontier maps.
+            if array._mmap is not None:self._mappings.add(array._mmap)
             array._state_space_store = self
         return array
 
@@ -62,6 +63,30 @@ class StateSpaceDiskStore:
         if isinstance(space, DiskBasisStateSpace) and space.store is self:
             return space
         return self.frontier(space.basis, index_blocks(space, self.block_size))
+
+    def union_spaces(self, spaces, sort=False):
+        """Union a stream of frontiers in one bounded stable/sorted pass.
+
+        Preserve the same first-space coercion and first-occurrence order as
+        repeated ``coerce(first).union(next)``. Empty input returns None.
+        """
+        spaces = iter(spaces)
+        sentinel = object()
+        first = next(spaces, sentinel)
+        if first is sentinel:
+            return None
+        first = self.coerce(first)
+        second = next(spaces, sentinel)
+        if second is sentinel:
+            return first.take_unique(sort=True) if sort else first
+        basis = first.basis
+        def blocks():
+            yield from first.iter_index_blocks()
+            for space in itertools.chain((second,), spaces):
+                if space.basis != basis:
+                    raise ValueError('different state-space bases')
+                yield from index_blocks(space, self.block_size)
+        return self.frontier(basis, blocks(), sort=sort)
 
     def close(self):
         self._finalize()

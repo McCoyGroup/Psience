@@ -81,20 +81,18 @@ class MoleculePropertyCache:
         :rtype: None
         """
         self.checkpointer[key] = value
-    def __delitem__(self, key, value):
+    def __delitem__(self, key):
         """
         **LLM Docstring**
 
-        Intended to delete a cached entry, but as written it actually **sets** `self.checkpointer[key] = value` (identical to `__setitem__`) rather than deleting anything. This looks like a bug: the extra `value` parameter is accepted but no deletion occurs.
+        Delete a cached entry from the underlying checkpointer.
 
-        :param key: the key that would be deleted
+        :param key: the key to delete
         :type key: str
-        :param value: unused for deletion; currently assigned to `self.checkpointer[key]` instead
-        :type value: object
         :return: None
         :rtype: None
         """
-        self.checkpointer[key] = value
+        del self.checkpointer[key]
     def update(self, vals):
         """
         **LLM Docstring**

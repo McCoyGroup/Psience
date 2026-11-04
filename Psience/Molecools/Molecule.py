@@ -24,7 +24,7 @@ import McUtils.Zachary as zach
 from McUtils.Zachary import PointMesh
 from McUtils.Graphs import EdgeGraph
 import McUtils.Plots as plt
-from McUtils.ExternalPrograms import RDMolecule, ExternalProgramJob, build_templated_smiles, parse_smiles_and_atom_map
+from McUtils.ExternalPrograms import *
 from McUtils.Scaffolding import Logger
 import McUtils.Symmetry as symm
 
@@ -416,7 +416,7 @@ class Molecule(AbstractMolecule):
             'atoms':self.atoms,
             'masses':self.masses,
             'coords':self.coords,
-            'bonds':self.bonds,
+            'bonds':self._bonds, # only bonds that were set; `self.bonds` would guess them (which can fail, e.g. for D with RDKit)
             'internals':internals,
             'energy_evaluator':self.energy_evaluator,
             'dipole_evaluator':self.dipole_evaluator,
@@ -2781,7 +2781,6 @@ class Molecule(AbstractMolecule):
         ) or (
                 os.path.splitext(self.source_file)[1] == '.fchk'
         ):
-            from McUtils.ExternalPrograms.Parsers import GaussianFChkReader
             with GaussianFChkReader(self.source_file) as gr:
                 parse = gr.parse(
                     ['Total Energy']
@@ -5325,7 +5324,6 @@ class Molecule(AbstractMolecule):
         :return: the constructed molecule
         :rtype: Molecule
         """
-        from McUtils.ExternalPrograms.Parsers import GaussianLogReader
         with GaussianLogReader(file) as gr:
             parse = gr.parse('CartesianCoordinates', num=num)
         spec, coords = parse['CartesianCoordinates']
@@ -5349,7 +5347,6 @@ class Molecule(AbstractMolecule):
         :return: the constructed molecule
         :rtype: Molecule
         """
-        from McUtils.ExternalPrograms.Parsers import GaussianFChkReader
         with GaussianFChkReader(file) as gr:
             parse = gr.parse(
                 ['Coordinates', 'AtomicNumbers', 'Integer atomic weights', "Real atomic weights"]
@@ -6926,13 +6923,16 @@ class Molecule(AbstractMolecule):
         :type coordinate_expansion: list[np.ndarray] | np.ndarray | None
         :param include_arrows: draw fixed arrows spanning each atom's minimum and maximum sampled motion; X3D arrows are double-sided by default (set ``vector_style={'double_sided': False}`` to override)
         :type include_arrows: bool
-        :param allow_adjustments: include browser-side amplitude controls for an X3D animation
-        :type allow_adjustments: bool
+        :param allow_adjustments: False disables amplitude controls; True uses scale bounds [0, 3];
+            a [minimum, maximum] pair enables controls with those nonnegative finite bounds (X3D only)
+        :type allow_adjustments: bool | list[float] | tuple[float, float]
         :param plot_opts: extra options forwarded to `plot`
         :type plot_opts: dict
         :return: the resulting animation figure/widget
         :rtype: Any
         """
+        from .Visualizations import MoleculePlotter
+        allow_adjustments = MoleculePlotter._adjustment_bounds(allow_adjustments)
         if backend is None:
             backend = ('x3d' if (include_arrows or allow_adjustments) and mode in (None, 'x3d')
                        else self.display_mode)
@@ -7020,14 +7020,17 @@ class Molecule(AbstractMolecule):
         :type frequency_scale: bool
         :param include_arrows: draw fixed arrows spanning each atom's minimum and maximum sampled motion; X3D arrows are double-sided by default (set ``vector_style={'double_sided': False}`` to override)
         :type include_arrows: bool
-        :param allow_adjustments: include browser-side amplitude controls (X3D only)
-        :type allow_adjustments: bool
+        :param allow_adjustments: False disables amplitude controls; True uses scale bounds [0, 3];
+            a [minimum, maximum] pair enables controls with those nonnegative finite bounds (X3D only)
+        :type allow_adjustments: bool | list[float] | tuple[float, float]
         :param opts: extra options forwarded to `animate_coordinate`
         :type opts: dict
         :return: the resulting animation figure/widget
         :rtype: Any
         """
         from ..Modes import NormalModes
+        from .Visualizations import MoleculePlotter
+        allow_adjustments = MoleculePlotter._adjustment_bounds(allow_adjustments)
 
         multiple = not nput.is_int(which)
         if multiple:

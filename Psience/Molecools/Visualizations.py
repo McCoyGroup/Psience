@@ -2473,6 +2473,20 @@ class MoleculePlotter:
         return (scan[np.argmin(projections, axis=0), atom_indices],
                 scan[np.argmax(projections, axis=0), atom_indices])
 
+    @staticmethod
+    def _adjustment_bounds(allow_adjustments):
+        if isinstance(allow_adjustments, (bool, np.bool_)):
+            return (0., 3.) if allow_adjustments else False
+        message = "allow_adjustments must be True, False, or finite bounds [minimum, maximum] with 0 <= minimum < maximum"
+        try:
+            bounds = np.asarray(allow_adjustments, dtype=float)
+        except (TypeError, ValueError) as error:
+            raise ValueError(message) from error
+        if (bounds.shape != (2,) or not np.all(np.isfinite(bounds))
+                or bounds[0] < 0 or bounds[0] >= bounds[1]):
+            raise ValueError(message)
+        return tuple(bounds.tolist())
+
     @classmethod
     def animate_coordinate_frames(cls, molecule, scans, *, mode_indices=None, include_arrows=False,
                                   allow_adjustments=False, units='Angstroms', return_objects=False,
@@ -2481,8 +2495,10 @@ class MoleculePlotter:
 
         Displacement adjustment scales the differences of the sampled Cartesian
         trajectory. It does not reevaluate a nonlinear coordinate expansion beyond
-        its original scan domain.
+        its original scan domain. Set animation_options['playback_controls'] to
+        False to hide the playback toolbar; it is shown by default.
         """
+        allow_adjustments = cls._adjustment_bounds(allow_adjustments)
         plot_options = dict(plot_options or {})
         backend = plot_options.pop('backend', 'x3d')
         mode = plot_options.pop('mode', None)
@@ -2493,6 +2509,7 @@ class MoleculePlotter:
         animation_options = dict(plot_options.pop('animation_options', None) or {})
         duration = animation_options.pop('animation_duration', 2)
         running = animation_options.pop('running', True)
+        playback_controls = animation_options.pop('playback_controls', True)
         # These options select the old frame animator rather than scene geometry.
         animation_options.pop('mode', None)
         animation_options.pop('allow_fallback', None)
@@ -2568,11 +2585,15 @@ class MoleculePlotter:
                 *[JHTML.Option(item['label'], value=str(index)) for index, item in enumerate(modes)],
                 **{'data-role': 'mode'})))
         if allow_adjustments:
+            scale_min, scale_max = allow_adjustments
+            initial_scale = min(scale_max, max(scale_min, 1.))
             controls.append(JHTML.Label('Displacement scale ', JHTML.Input(
-                type='range', name='displacement_scale', min='0', max='3', step='.01', value='1',
+                type='range', name='displacement_scale', min=str(scale_min), max=str(scale_max),
+                step='.01', value=str(initial_scale),
                 **{'data-role': 'scale'})))
-        controls.extend([plt.X3D.get_playback_controls(),
-                         JHTML.Span(modes[0]['label'], **{'data-role': 'label'})])
+        if playback_controls:
+            controls.append(plt.X3D.get_playback_controls())
+        controls.append(JHTML.Span(modes[0]['label'], **{'data-role': 'label'}))
         scripts = Path(__file__).with_name('scripts')
         source = (plt.X3D.get_playback_script() + '\n'
                   + (scripts / 'displacement_scale.js').read_text() + '\n'
@@ -2582,7 +2603,9 @@ class MoleculePlotter:
                                             **{'interpolator' + str(index): identifier + '-interpolator-' + str(index)
                                                for index in range(len(modes))}),
                                  data=dict(duration=float(duration), running=bool(running),
-                                           allowAdjustments=bool(allow_adjustments), modes=modes))
+                                           allowAdjustments=bool(allow_adjustments),
+                                           scaleBounds=list(allow_adjustments) if allow_adjustments else None,
+                                           modes=modes))
         scene = first_plot.figure.to_x3d(components=[component])
         if return_objects:
             if len(modes) == 1:

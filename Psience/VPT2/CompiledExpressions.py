@@ -25,6 +25,8 @@ import time
 import uuid
 import numpy as np
 from McUtils.Parallelizers import Parallelizer, MultiprocessingParallelizer
+from McUtils.Devutils import (atomic_write, atomic_write_json, file_hash, freeze, fingerprint,
+                              implementation_signature)
 
 from .Conditional import (ConditionalTransformationStack, SameStateCondition,
                           operator_sum, operator_product, ZeroTerm)
@@ -52,110 +54,55 @@ def current_compilation():
 
 
 def _atomic_json(path, value):
-    temporary = path.with_name(path.name + '.' + uuid.uuid4().hex + '.tmp')
-    try:
-        temporary.write_text(json.dumps(value, sort_keys=True, indent=2) + '\n')
-        os.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
+    atomic_write_json(path, value, sort_keys=True)
 
 
 def _atomic_pickle(path, value):
     # Preserve shared native PolyPath nodes. JSON/NPZ object conversion expands
     # those graphs; ordinary pickle is the storage format, not a new algebra.
-    temporary = path.with_name(path.name + '.' + uuid.uuid4().hex + '.tmp')
-    try:
-        with temporary.open('wb') as stream:
-            pickle.dump(value, stream, protocol=5)
-        os.replace(temporary, path)
-    finally:
-        temporary.unlink(missing_ok=True)
+    atomic_write(path, lambda stream: pickle.dump(value, stream, protocol=5), fsync=False, keep_mode=False)
 
 
-def _file_hash(path):
-    with Path(path).open('rb') as stream:
-        return hashlib.file_digest(stream, 'sha256').hexdigest()
+_file_hash = file_hash
+
+# Evaluation caches and handles that are not part of an expression's definition.
+_RUNTIME_ATTRS = ('logger', 'checkpoint', '_changes', '_exprs', '_combined', '_eager',
+                  '_op_maps', '_conditional_stacks', '_cache', '_grouped_terms')
+
+
+def _freeze_solver(value, kind, rec):
+    names = ['hamiltonian_expansion', 'allowed_terms', 'allowed_coefficients',
+             'disallowed_coefficients', 'allowed_energy_changes',
+             'intermediate_normalization', 'polynomial_representation', 'resonance_condition']
+    return [kind, {name: rec(getattr(value, name)) for name in names}]
+
+
+def _reject_parallelizer(value, kind, rec):
+    raise TypeError('a parallelizer is runtime state, not an expression definition')
+
+
+def _freeze_options():
+    from McUtils.Parallelizers import SharedMemoryArrayTree
+    from .Analytic import AnalyticPerturbationTheorySolver
+    return dict(
+        pre_handlers=[(lambda v: isinstance(v, SharedMemoryArrayTree), lambda v, rec: rec(v.tree))],
+        handlers=[(lambda v: isinstance(v, AnalyticPerturbationTheorySolver), _freeze_solver),
+                  (lambda v: isinstance(v, Parallelizer), _reject_parallelizer)],
+        exclude_attrs=_RUNTIME_ATTRS
+    )
 
 
 def _freeze(value, seen=None):
     """Fingerprint definitions without including mutable evaluation caches."""
-    if seen is None:
-        seen = {}
-    from McUtils.Parallelizers import SharedMemoryArrayTree
-    if isinstance(value, SharedMemoryArrayTree):
-        return _freeze(value.tree, seen)
-    if value is None or isinstance(value, (str, bool, int, float)):
-        return value
-    if isinstance(value, np.generic):
-        return _freeze(value.item(), seen)
-    if isinstance(value, Path):
-        return str(value)
-    if isinstance(value, np.ndarray):
-        array = np.ascontiguousarray(value)
-        if array.dtype.hasobject:
-            return ['object-array', array.shape, _freeze(array.tolist(), seen)]
-        return ['array', array.shape, array.dtype.str,
-                hashlib.sha256(memoryview(array).cast('B')).hexdigest()]
-    if isinstance(value, (list, tuple)):
-        return [type(value).__name__, [_freeze(v, seen) for v in value]]
-    if isinstance(value, (set, frozenset)):
-        return ['set', sorted((_freeze(v, seen) for v in value), key=repr)]
-    if isinstance(value, dict):
-        return ['dict', sorted([[_freeze(k, seen), _freeze(v, seen)]
-                               for k, v in value.items()], key=lambda p:repr(p[0]))]
-    if isinstance(value, functools.partial):
-        return ['partial', _freeze(value.func,seen), _freeze(value.args,seen), _freeze(value.keywords,seen)]
-    if inspect.ismethod(value):
-        return ['method', _freeze(value.__self__, seen), _freeze(value.__func__, seen)]
-    if inspect.isfunction(value):
-        return ['function', value.__module__, value.__qualname__,
-                hashlib.sha256(marshal.dumps(value.__code__)).hexdigest(),
-                _freeze(value.__defaults__, seen),
-                _freeze(tuple(c.cell_contents for c in (value.__closure__ or ())), seen)]
-    identity = id(value)
-    if identity in seen:
-        return ['reference', seen[identity]]
-    seen[identity] = len(seen)
-    kind = type(value).__module__ + '.' + type(value).__qualname__
-    from .Analytic import AnalyticPerturbationTheorySolver
-    if isinstance(value, AnalyticPerturbationTheorySolver):
-        names = ['hamiltonian_expansion', 'allowed_terms', 'allowed_coefficients',
-                 'disallowed_coefficients', 'allowed_energy_changes',
-                 'intermediate_normalization', 'polynomial_representation', 'resonance_condition']
-        return [kind, {name:_freeze(getattr(value, name), seen) for name in names}]
-    if isinstance(value, Parallelizer):
-        raise TypeError('a parallelizer is runtime state, not an expression definition')
-    attrs = getattr(value, '__dict__', None)
-    if attrs is not None:
-        runtime = {'logger', 'checkpoint', '_changes', '_exprs', '_combined', '_eager',
-                   '_op_maps', '_conditional_stacks', '_cache', '_grouped_terms'}
-        return [kind, {name:_freeze(v, seen) for name, v in sorted(attrs.items()) if name not in runtime}]
-    slots = {}
-    for base in type(value).__mro__:
-        names = getattr(base, '__slots__', ())
-        if isinstance(names, str):names = (names,)
-        for name in names:
-            if name not in {'__weakref__', '__dict__'} and hasattr(value, name):
-                slots[name] = _freeze(getattr(value, name), seen)
-    if slots:
-        return [kind, slots]
-    raise TypeError('no compilation signature for {}'.format(kind))
+    return freeze(value, seen=seen, **_freeze_options())
 
 
 def _fingerprint(value):
-    return hashlib.sha256(json.dumps(_freeze(value), sort_keys=True).encode()).hexdigest()
+    return fingerprint(value, **_freeze_options())
 
 
-@functools.lru_cache(None)
 def _implementation_signature():
-    import McUtils, Psience
-    result = dict(numpy=np.__version__, python=list(sys.version_info[:2]))
-    for module in [McUtils, Psience]:
-        root=Path(module.__file__).parent;digest=hashlib.sha256()
-        for path in sorted(root.rglob('*.py')):
-            digest.update(str(path.relative_to(root)).encode());digest.update(bytes.fromhex(_file_hash(path)))
-        result[module.__name__]=digest.hexdigest()
-    return result
+    return implementation_signature('McUtils', 'Psience')
 
 
 def _polynomial_degree(expression):

@@ -8,8 +8,7 @@ from collections import namedtuple
 
 import McUtils.Numputils as nput
 from McUtils.Coordinerds import CoordinateSet
-from McUtils.ExternalPrograms import OpenBabelInterface
-from McUtils.ExternalPrograms.Parsers import GaussianFChkReader, GaussianFChkReaderException
+from McUtils.ExternalPrograms import OpenBabelInterface, GaussianFChkReader, GaussianFChkReaderException
 from McUtils.Data import AtomData, UnitsData, BondData
 from McUtils.Zachary import FiniteDifferenceDerivative, TensorDerivativeConverter
 
