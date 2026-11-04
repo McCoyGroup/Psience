@@ -14,13 +14,16 @@ from .. import BasisReps as breps
 import McUtils.Devutils as dev
 from McUtils.Data import UnitsData
 import McUtils.Numputils as nput
+import McUtils.Zachary as zach
 import McUtils.Combinatorics as comb
 
 __all__ = [
     "liouville_pathways",
     "nonlinear_response_generators",
     "experimental_response_generator",
-    "prep_vpt_response_data"
+    "prep_vpt_response_data",
+    "orientational_averaging_function",
+    "four_wave_averaging_function"
 ]
 
 def nested_commutator_expansion(k, side='left'):
@@ -53,39 +56,23 @@ def liouville_pathways(k):
     ]
     return np.concatenate(subperms)
 
+def orientational_averaging_function(polarization_vectors, method='wigner', conjugations=None):
+    """Average any finite number of ordered interaction/detection factors.
+
+    Polarizations include the detection factor. Complex conjugations follow
+    the caller's field convention and must be supplied explicitly. Reference
+    methods 'bonvicini' and 'young' construct exact invariant bases.
+    """
+    return zach.OrientationalAverager(interpret_polarization(polarization_vectors),
+                                     method=method, conjugations=conjugations)
+
+
 def four_wave_averaging_function(polarization_vectors):
-    rows, cols = np.triu_indices(4, k=1)
-    polarization_cosines = nput.vec_dots(polarization_vectors[rows,], polarization_vectors[cols])
-
-    # can easily be generalized
-    term_orderings = [
-        # in the basis (ab, ac, ad, bc, bd, cd)
-        [0, 5, 1, 4, 2, 3],
-        [1, 4, 0, 5, 2, 3],
-        [2, 3, 1, 4, 0, 5]
-    ]
-
-    invariant_terms = {
-        (i, j):
-            (4 * polarization_cosines[i] * polarization_cosines[j]
-             - polarization_cosines[k] * polarization_cosines[l]
-             - polarization_cosines[m] * polarization_cosines[n]
-             )
-
-        for i, j, k, l, m, n
-        in term_orderings
-    }
-
-    def average(unit_dipoles):
-        unit_dipoles = np.asanyarray(unit_dipoles)
-        dipole_cosines = nput.vec_dots(unit_dipoles[rows,], unit_dipoles[cols,])
-        terms = [
-            dipole_cosines[i]*dipole_cosines[j] * v
-            for (i,j),v in invariant_terms.items()
-        ]
-        return (1 / 30) * sum(terms)
-
-    return average
+    """Compatibility wrapper for exactly four factors."""
+    averager = orientational_averaging_function(polarization_vectors)
+    if averager.order != 4:
+        raise ValueError('four-wave averaging requires exactly four polarization vectors')
+    return averager
 
 def interpret_polarization(pol):
     eye = np.eye(3)
@@ -98,7 +85,9 @@ def interpret_polarization(pol):
                 _.append(eye[1])
             elif p == 'z':
                 _.append(eye[2])
-        pol = _
+            else:
+                raise ValueError(f'unknown polarization label {p!r}; expected X, Y, or Z')
+        return np.asarray(_).reshape((-1, 3))
     return np.asanyarray(pol)
 
 TransitionData = collections.namedtuple("TransitionData",
@@ -160,7 +149,11 @@ def prep_nonlinear_transition_data(transition_dict: dict,
         frequencies = np.zeros((nstates, nstates), dtype=float)
     needs_tms = transition_moments is None
     if needs_tms:
-        transition_moments = np.zeros((nstates, nstates, 3), dtype=float)
+        moment_dtype = np.result_type(float, *[
+            np.asarray(data.get('transition_moment', np.zeros(3))).dtype
+            for data in transition_dict.values()
+        ])
+        transition_moments = np.zeros((nstates, nstates, 3), dtype=moment_dtype)
 
     for (si, sj), tdata in transition_dict.items():
         # canonicalize index and state vector
@@ -213,7 +206,7 @@ def prep_nonlinear_transition_data(transition_dict: dict,
                         tm = tm * cos_sign
             transition_moments[i, j] = tm
             if np.linalg.norm(transition_moments[j, i]) < 1e-12:
-                transition_moments[j, i] = transition_moments[i, j]
+                transition_moments[j, i] = transition_moments[i, j].conj()
         if needs_frequencies:
             frequencies[i, j] = tdata.get('frequency', 0)
             if abs(frequencies[j, i]) < 1e-12:
@@ -1122,7 +1115,7 @@ def expand_transition_data(td:TransitionData, full_space:BasisStateSpace):
     nstates = len(full_space)
     frequencies = np.zeros((nstates, nstates))
     couplings = np.zeros((nstates, nstates))
-    transition_moments = np.zeros((nstates, nstates, 3))
+    transition_moments = np.zeros((nstates, nstates, 3), dtype=np.result_type(float, td.transition_moments.dtype))
     frequencies[set_sel] = td.frequencies[take_sel]
     couplings[set_sel] = td.couplings[take_sel]
     transition_moments[set_sel] = td.transition_moments[take_sel]
@@ -1218,6 +1211,9 @@ def _default_path_response_function(response_function_data, application_domain):
         response_function_data = {None:response_function_data}
     if application_domain == NonlinearReponseApplicationDomain.Time:
         def response(*times):
+            expected_counts = {len(freqs) for terms in response_function_data.values() for _, freqs, _ in terms}
+            if any(count != len(times) for count in expected_counts):
+                raise ValueError(f'expected {sorted(expected_counts)} time delays, received {len(times)}')
             response_tensors = {}
             for k,d in response_function_data.items():
                 resp = 0
@@ -1643,6 +1639,19 @@ class NonlinearResponseFunction:
         self._dom = NonlinearReponseApplicationDomain(application_domain)
         self._conv = None
 
+    def evaluate_times(self, *times):
+        """Evaluate arbitrary-order time responses on broadcastable delay arrays.
+
+        Delays use time_unit. The existing call_times interface retains its
+        two-dimensional grid convention for three-delay experiments.
+        """
+        if self._dom != NonlinearReponseApplicationDomain.Time:
+            raise NotImplementedError('time evaluation requires a time-domain response')
+        times = np.broadcast_arrays(*[np.asarray(t)*self.conv for t in times])
+        if isinstance(self.caller, dict):
+            return {k: f(*times) for k, f in self.caller.items()}
+        return self.caller(*times)
+
     def call_times(self, t1, t2, t3):
         if self._dom == NonlinearReponseApplicationDomain.Time:
             t1_steps, t1_dt = t1
@@ -1846,6 +1855,8 @@ def nonlinear_response_generators(transition_data,
                                   time_unit="PicoSeconds",
                                   application_domain="time",
                                   response_function_class=None,
+                                  orientational_averaging_method="wigner",
+                                  polarization_conjugations=None,
                                   **state_opts
                                   ) -> NonlinearResponseFunction:
     td = prep_nonlinear_transition_data(transition_data, **state_opts)
@@ -1875,8 +1886,12 @@ def nonlinear_response_generators(transition_data,
         raise ValueError("state vectors are required")
 
     if polarization is not None:
-        polarization = interpret_polarization(polarization) # TODO: ensure norm
-        orientational_averaging = four_wave_averaging_function(polarization)
+        orientational_averaging = orientational_averaging_function(
+            polarization, method=orientational_averaging_method,
+            conjugations=polarization_conjugations
+        )
+        if isinstance(num_interactions, (int, np.integer)) and orientational_averaging.order != num_interactions:
+            raise ValueError('polarization must include one vector per interaction, including detection')
     else:
         orientational_averaging = lambda d: 1
 
@@ -1913,7 +1928,10 @@ def nonlinear_response_generators(transition_data,
                                                    **state_filter_opts)
 
     _, frequencies, transition_moments, couplings = expand_transition_data(td, total_space)
-    dipole_directions, dipole_magnitudes = nput.vec_normalize(transition_moments, return_norms=True)
+    dipole_magnitudes = np.linalg.norm(transition_moments, axis=-1)
+    # vec_normalize replaces zero divisors in the supplied norms; preserve
+    # physical zero transition magnitudes and the Hermitian complex norm.
+    dipole_directions = nput.vec_normalize(transition_moments, norms=dipole_magnitudes.copy())
 
     # print("!")
     # print(
