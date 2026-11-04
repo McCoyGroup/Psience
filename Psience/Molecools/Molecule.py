@@ -416,7 +416,7 @@ class Molecule(AbstractMolecule):
             'atoms':self.atoms,
             'masses':self.masses,
             'coords':self.coords,
-            'bonds':self.bonds,
+            'bonds':self._bonds, # only bonds that were set; `self.bonds` would guess them (which can fail, e.g. for D with RDKit)
             'internals':internals,
             'energy_evaluator':self.energy_evaluator,
             'dipole_evaluator':self.dipole_evaluator,
