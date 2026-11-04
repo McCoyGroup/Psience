@@ -1,3 +1,4 @@
+from McUtils.ExternalPrograms import *
 try:
     from Peeves.TestUtils import *
     from Peeves import BlockProfiler
@@ -2810,7 +2811,6 @@ class VPT2Tests(TestCase):
         #         ])
         # # raise Exception(degeneracies)
 
-        from McUtils.ExternalPrograms.Parsers import GaussianLogReader
         with GaussianLogReader(TestManager.test_data('OCHH_freq_16.log')) as reader:
             sort_spec = np.flip([4, 0, 1, 2, 5, 3])
             x = reader.parse("XMatrix")["XMatrix"][np.ix_(sort_spec, sort_spec)]

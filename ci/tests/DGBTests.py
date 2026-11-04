@@ -1,3 +1,4 @@
+from McUtils.ExternalPrograms import *
 import collections
 import gc
 import itertools
@@ -16,7 +17,6 @@ from McUtils.Zachary import Interpolator, FiniteDifferenceDerivative
 import McUtils.Plots as plt
 import McUtils.Numputils as nput
 import McUtils.Devutils as dev
-from McUtils.ExternalPrograms.Parsers import GaussianFChkReader, GaussianLogReader
 from McUtils.Extensions import ModuleLoader
 
 from McUtils.Scaffolding import Checkpointer

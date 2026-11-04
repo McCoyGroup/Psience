@@ -238,23 +238,21 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                 #     selection_rules=m.selection_rules
                 # )
 
-                for i in range(order):
-                    ket_space = None
-                    for j in range(order):
-                        if i + j + k <= (order-1):
-                            # self.logger.log_print("<{i}|{k}|{j}>", i=i, j=j, k=k)
-                            for nk, kets in enumerate(ket_spaces.spaces):
-                                if ket_space is None:
-                                    ket_space = store.coerce(kets[j]) if store is not None else kets[j]
-                                else:
-                                    ket_space = ket_space.union(kets[j])
+                def union_spaces(spaces):
+                    if store is not None:
+                        return store.union_spaces(spaces)
+                    result = None
+                    for space in spaces:
+                        result = space if result is None else result.union(space)
+                    return result
 
-                    bra_space = None
-                    for nb, bras in enumerate(bra_spaces.spaces):
-                        if bra_space is None:
-                            bra_space = store.coerce(bras[i]) if store is not None else bras[i]
-                        else:
-                            bra_space = bra_space.union(bras[i])
+                for i in range(order):
+                    ket_space = union_spaces(
+                        kets[j]
+                        for j in range(order) if i + j + k <= (order-1)
+                        for kets in ket_spaces.spaces
+                    )
+                    bra_space = union_spaces(bras[i] for bras in bra_spaces.spaces)
 
                     # self.logger.log_print("<{bras}|{k}|{kets}>", bras=bra_space, kets=ket_space, k=k)
 

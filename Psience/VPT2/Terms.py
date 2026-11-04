@@ -4,7 +4,7 @@ Stores all of the terms used inside the VPT2 representations
 
 import numpy as np, functools as fp, itertools, time, enum, math
 
-from McUtils.Numputils import SparseArray, levi_cevita3
+from McUtils.Numputils import *
 import McUtils.Numputils as nput
 from McUtils.Data import UnitsData
 from McUtils.Scaffolding import Logger, NullLogger, Checkpointer, NullCheckpointer
@@ -708,7 +708,6 @@ class ExpansionTerms:
             all_derivs.append(u)
 
         # then add in the binomial expansion temrs
-        from McUtils.Numputils.TensorDerivatives import nca_symmetrize
         for i,u in enumerate(all_derivs):
             # Ordered powers give Taylor coefficients. A derivative also
             # contains all assignments of its coordinate slots; summing
