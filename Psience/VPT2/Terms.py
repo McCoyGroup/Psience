@@ -3636,7 +3636,12 @@ class DipoleTerms(ExpansionTerms):
 
                 mu_derivs = self.derivs[1:]
 
-                if len(mu_derivs) > 2:
+                # The raw mixed-basis route needs this correction. Handled
+                # derivatives are first completed in Cartesian normal modes;
+                # the full re-expansion already supplies the chain-rule terms.
+                if (mixed_derivs
+                        and self.mixed_derivative_handling_mode == MixedDerivativeHandlingModes.Unhandled
+                        and len(mu_derivs) > 2):
                     qQ, qQQ = self.get_cartesian_modes_by_internal_modes(2)
                     f43 = np.tensordot(qQQ, mu_derivs[1], axes=[2, 0])
                     mu_derivs = list(mu_derivs)
@@ -3705,8 +3710,11 @@ class DipoleTerms(ExpansionTerms):
                                 warning_diff=self.mixed_derivative_warning_threshold,
                                 handle_zeros=self.mixed_derivative_handle_zeros
                             )
+                    # Cartesian completion made every generated term known.
+                    # Reapplying a partial-data mask would discard valid terms.
                     if (
-                            self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled
+                            mixed_terms is not None
+                            and self.mixed_derivative_handling_mode != MixedDerivativeHandlingModes.Unhandled
                             and order > 1
                     ):
                         terms[1] = PotentialTerms._symmetrize_mixed_derivatives(terms[1],
