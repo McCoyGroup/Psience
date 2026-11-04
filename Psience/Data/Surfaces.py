@@ -4,7 +4,7 @@ Provides concrete tools for dealing with two of the most useful types of surface
 
 import numpy as np
 from collections import namedtuple
-from McUtils.GaussianInterface import GaussianLogReader, GaussianFChkReader
+from McUtils.ExternalPrograms.Parsers import GaussianLogReader, GaussianFChkReader
 from McUtils.Zachary import Surface, MultiSurface, InterpolatedSurface, TaylorSeriesSurface
 import McUtils.Numputils as nput
 

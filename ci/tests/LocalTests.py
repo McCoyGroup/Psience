@@ -14,7 +14,7 @@ from McUtils.Data import UnitsData, PotentialData, AtomData
 from McUtils.Zachary import Interpolator, FiniteDifferenceDerivative
 import McUtils.Plots as plt
 import McUtils.Numputils as nput
-from McUtils.GaussianInterface import GaussianLogReader
+from McUtils.ExternalPrograms.Parsers import GaussianLogReader
 from McUtils.Extensions import ModuleLoader
 
 from McUtils.Scaffolding import Checkpointer

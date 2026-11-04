@@ -2781,7 +2781,7 @@ class Molecule(AbstractMolecule):
         ) or (
                 os.path.splitext(self.source_file)[1] == '.fchk'
         ):
-            from McUtils.GaussianInterface import GaussianFChkReader
+            from McUtils.ExternalPrograms.Parsers import GaussianFChkReader
             with GaussianFChkReader(self.source_file) as gr:
                 parse = gr.parse(
                     ['Total Energy']
@@ -5325,7 +5325,7 @@ class Molecule(AbstractMolecule):
         :return: the constructed molecule
         :rtype: Molecule
         """
-        from McUtils.GaussianInterface import GaussianLogReader
+        from McUtils.ExternalPrograms.Parsers import GaussianLogReader
         with GaussianLogReader(file) as gr:
             parse = gr.parse('CartesianCoordinates', num=num)
         spec, coords = parse['CartesianCoordinates']
@@ -5349,7 +5349,7 @@ class Molecule(AbstractMolecule):
         :return: the constructed molecule
         :rtype: Molecule
         """
-        from McUtils.GaussianInterface import GaussianFChkReader
+        from McUtils.ExternalPrograms.Parsers import GaussianFChkReader
         with GaussianFChkReader(file) as gr:
             parse = gr.parse(
                 ['Coordinates', 'AtomicNumbers', 'Integer atomic weights', "Real atomic weights"]
@@ -7264,7 +7264,7 @@ class Molecule(AbstractMolecule):
         `readout_interface_class` is overridden).
 
         :return: the readout interface
-        :rtype: McUtils.Jupyter.ReadoutInterface
+        :rtype: McUtils.Readouts.ReadoutInterface
         """
         cls = self.readout_interface_class
         if cls is None:
@@ -7285,7 +7285,7 @@ class Molecule(AbstractMolecule):
         :type exclude: str | list | None
         :param opts: `units=`, `title=`, `strict=`, and per-section options as `section_name={...}`
         :return: the readout
-        :rtype: McUtils.Jupyter.Readout
+        :rtype: McUtils.Readouts.Readout
         """
         return self.get_readout_interface().to_readout(include=include, exclude=exclude, **opts)
 

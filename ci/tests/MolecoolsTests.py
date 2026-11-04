@@ -10,7 +10,7 @@ from Peeves import BlockProfiler
 from Psience.Molecools import Molecule, MolecularNormalModes, MoleculeBuilder
 # from Psience.Molecools.Transformations import MolecularTransformation
 from Psience.Data import DipoleSurface # this will be leaving Zachary very soon I think...
-from McUtils.GaussianInterface import GaussianFChkReader, GaussianLogReader
+from McUtils.ExternalPrograms.Parsers import GaussianFChkReader, GaussianLogReader
 from McUtils.Plots import *
 import McUtils.Plots as plt
 from McUtils.Coordinerds import cartesian_to_zmatrix, CartesianCoordinates3D

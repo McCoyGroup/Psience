@@ -6,7 +6,7 @@ Readout interface for normal modes. Usually reached through `MoleculeReadoutInte
 
 import numpy as np
 
-from McUtils.Jupyter import (
+from McUtils.Readouts import (
     ReadoutAdapter, readout_section, ReadoutSectionUnavailable,
     ReadoutTable, ReadoutScene, ReadoutGallery, ReadoutArray,
     TabularData, Column, ArrayData,

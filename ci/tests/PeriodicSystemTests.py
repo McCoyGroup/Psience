@@ -8,7 +8,7 @@ import numpy as np
 from numpy.testing import assert_allclose
 
 from McUtils.Data import UnitsData
-from McUtils.Jupyter.Readouts import cell_matrix
+from McUtils.Readouts import cell_matrix
 from McUtils.Plots import Line
 from Psience.Molecools import Molecule, PeriodicSystem
 

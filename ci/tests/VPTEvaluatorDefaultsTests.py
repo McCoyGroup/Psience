@@ -5,7 +5,7 @@ import numpy as np
 from Psience.BasisReps import BasisStateSpace,HarmonicOscillatorProductBasis,PropertyCorrectionFilter
 from Psience.VPT2 import VPTRunner,VPTSystem,VPTStateSpace
 from Psience.VPT2.Runner import VPTHamiltonianOptions,VPTRuntimeOptions,VPTSolverOptions
-from Psience.VPT2.EvaluatorDefaults import resolve_evaluator_defaults
+from Psience.VPT2.Runner import resolve_evaluator_defaults
 from Psience.VPT2.DegeneracySpecs import StronglyCoupledDegeneracySpec,DegeneracySpec
 from Psience.VPT2.Corrections import PerturbationTheoryCorrections
 from Psience.VPT2.Terms import ExpansionTerms

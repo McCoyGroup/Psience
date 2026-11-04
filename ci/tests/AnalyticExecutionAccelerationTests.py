@@ -63,7 +63,7 @@ class AccelerationTests(unittest.TestCase):
         f=rng.random((3,4,2));c=rng.integers(-2,3,size=(3,2,3))
         with patch.object(Indexed,'use_jit_energy_contractions',False):a=Indexed._contract_energy_rows(c,f)
         with patch.object(Indexed,'use_jit_energy_contractions',True),\
-             patch('Psience.VPT2._IndexedKernels.get_energy_row_kernel',return_value=None):b=Indexed._contract_energy_rows(c,f)
+             patch('Psience.VPT2.IndexedEvaluator.get_energy_row_kernel',return_value=None):b=Indexed._contract_energy_rows(c,f)
         np.testing.assert_array_equal(a,b)
 
     def test_fourth_order_energies_match_with_batching(self):

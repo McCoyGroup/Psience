@@ -1,4 +1,4 @@
-"""Molecule readouts (McUtils.Jupyter.Readouts) with normal modes, exported to HTML and PowerPoint."""
+"""Molecule readouts (McUtils.Readouts) with normal modes, exported to HTML and PowerPoint."""
 import io
 import json
 import os
