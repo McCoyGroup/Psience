@@ -2359,7 +2359,8 @@ class PerturbationTheorySolver:
                 energies[:, k] = 0
             for a in range(nstates):
                 C[k, a] = dot(resolvents[a], rhs[a])
-                energy_terms[a, k] = np.asarray([term[a] for term in terms])
+                energy_terms[a, k] = (None if self.ignore_odd_orders and k % 2 else
+                                      np.asarray([term[a] for term in terms]))
             C[k][:, inds] = normalizer.T
             overlaps[:, k] = np.diag(normalizer)
         return energies, overlaps, C.transpose(1, 0, 2), energy_terms

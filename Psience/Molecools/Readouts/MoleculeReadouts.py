@@ -55,6 +55,12 @@ class MoleculeReadoutInterface(ReadoutAdapter):
     readout_id = "molecule"
 
     @property
+    def report_template(self):
+        """The `McUtils.Readouts.Reports` template for reports on a molecule (imported on first use)."""
+        from .MoleculeReports import MoleculeReportTemplate
+        return MoleculeReportTemplate
+
+    @property
     def mol(self):
         return self.obj
 
@@ -77,7 +83,8 @@ class MoleculeReadoutInterface(ReadoutAdapter):
         return {"atoms": list(self.mol.atoms)}
 
     # ---- sections ----------------------------------------------------------------------- #
-    @readout_section("overview", title="Overview")
+    @readout_section("overview", title="Overview",
+                     description="Formula, atom count, charge, spin multiplicity, total mass and energy of the molecule.")
     def readout_overview(self, ctx, point_group=False):
         """Formula, size, charge, spin, total mass and (if present) the energy."""
         mol = self.mol
@@ -109,7 +116,8 @@ class MoleculeReadoutInterface(ReadoutAdapter):
         src = getattr(self.mol, "_src", None)
         return (src is not None and src.get("file") is not None), "the molecule was not loaded from a file"
 
-    @readout_section("source", title="Source", available="_has_source")
+    @readout_section("source", title="Source", available="_has_source",
+                     description="The file the molecule was loaded from, with its format and size.")
     def readout_source(self, ctx, absolute=True):
         """The file the molecule was loaded from."""
         src = self.mol._src
@@ -129,7 +137,8 @@ class MoleculeReadoutInterface(ReadoutAdapter):
             return False, "RDKit is not installed"
         return True, None
 
-    @readout_section("rdkit", title="Identifiers (RDKit)", available="_has_rdkit")
+    @readout_section("rdkit", title="Identifiers (RDKit)", available="_has_rdkit",
+                     description="SMILES, InChI and InChIKey, with RDKit's formula, exact mass, and bond and ring counts.")
     def readout_rdkit(self, ctx):
         """SMILES, InChI and InChIKey plus RDKit's formula and exact mass."""
         from rdkit import Chem
@@ -160,7 +169,8 @@ class MoleculeReadoutInterface(ReadoutAdapter):
         ]
         return ReadoutFields(FieldSet(fields, name="rdkit"))
 
-    @readout_section("structure", title="Structure")
+    @readout_section("structure", title="Structure",
+                     description="A 3D view of the equilibrium geometry (a static image in PowerPoint).")
     def readout_structure(self, ctx, html_backend="x3d", plot_options=None):
         """
         A 3D view: a mesh3D plot (used for PowerPoint `.glb` export and posters) and, for HTML,
@@ -178,7 +188,8 @@ class MoleculeReadoutInterface(ReadoutAdapter):
                 return mol.plot(backend="x3d", **opts).figure.to_x3d()
         return ReadoutScene(model=model, html=html, id="view", animated=False)
 
-    @readout_section("cartesians", title="Cartesian coordinates")
+    @readout_section("cartesians", title="Cartesian coordinates",
+                     description="Atom labels, masses and Cartesian coordinates.")
     def readout_cartesians(self, ctx):
         """Atom labels, masses and Cartesian coordinates."""
         mol = self.mol
@@ -223,7 +234,9 @@ class MoleculeReadoutInterface(ReadoutAdapter):
         except Exception as e:
             return False, f"{type(e).__name__}: {e}"
 
-    @readout_section("internals", title="Internal coordinates", available="_has_internals")
+    @readout_section("internals", title="Internal coordinates", available="_has_internals",
+                     description="Bond lengths and angles (optionally dihedrals), from the molecule's internal-coordinate "
+                                 "definitions or its bond graph.")
     def readout_internals(self, ctx, specs=None, dihedrals=False):
         """
         Bond lengths, angles and dihedrals: the molecule's own internal-coordinate specs, or
@@ -257,7 +270,8 @@ class MoleculeReadoutInterface(ReadoutAdapter):
     def _has_bonds(self):
         return bool(self.mol.bonds), "no bonds are defined"
 
-    @readout_section("bonds", title="Bonds", default=False, available="_has_bonds")
+    @readout_section("bonds", title="Bonds", default=False, available="_has_bonds",
+                     description="The bond list with bond orders and lengths.")
     def readout_bonds(self, ctx):
         """The bond list with bond orders and lengths."""
         bonds = self.mol.bonds
@@ -283,7 +297,8 @@ class MoleculeReadoutInterface(ReadoutAdapter):
         except Exception as e:
             return False, f"{type(e).__name__}: {e}"
 
-    @readout_section("normal_modes", title="Normal modes", available="_has_modes", cost="expensive")
+    @readout_section("normal_modes", title="Normal modes", available="_has_modes", cost="expensive",
+                     description="Harmonic normal modes: frequencies, mode animations and displacement vectors.")
     def readout_normal_modes(self, ctx, include=None, exclude=None, **opts):
         """
         Delegates to `NormalModesReadoutInterface` (sections ``frequencies``, ``animations``,

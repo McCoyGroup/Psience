@@ -7,12 +7,13 @@ import hashlib
 import functools
 import weakref
 import numpy as np
+from McUtils.Scaffolding import Logger
 
 from .Analytic import (
     PerturbationTheoryTerm, PerturbationTheoryTermSum,
     PTTensorCoeffProductSum, PTEnergyChangeProductSum, SqrtChangePoly,
     ShiftedEnergyBaseline, make_product_polynomial,
-    PerturbationTheoryExpressionEvaluator, PerturbationOperator,
+    PerturbationTheoryExpressionEvaluator, PerturbationOperator, _log_evaluation_time,
 )
 from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis
 from .Corrections import BasicAPTCorrections
@@ -295,28 +296,33 @@ class AnalyticBlockExpansion:
         return {origin: terms[0] if len(terms) == 1 else PerturbationTheoryTermSum.lookup(*terms)
                 for origin, terms in grouped.items()}
 
-    def element(self, term, initial, final, expansions=None):
+    def element(self, term, initial, final, expansions=None, logger=None, verbose=False):
         if isinstance(term, IdentityTerm):
             return float(tuple(initial) == tuple(final))
         expansions = self.expansions if expansions is None else expansions
         self._coefficient_references[id(expansions)] = expansions
         key = (term, tuple(initial), tuple(final), id(expansions))
         if key not in self._elements:
-            changes = self.evaluator.get_diff_map([[initial, [final]]])
+            logger = Logger.lookup(self.evaluator.solver.logger if logger is None else logger)
+            level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
+            changes = self.evaluator.get_diff_map([[initial, [final]]], logger=logger, log_level=level)
             value = 0.
             for change, state_perms in changes.items():
-                expression = PerturbationTheoryExpressionEvaluator(
-                    term, term.get_poly_terms(change), change, logger=term.logger)
-                result = expression.evaluate(state_perms, expansions, self.freqs,
-                    only_degenerate_terms=False, zero_cutoff=self.zero_cutoff,
-                    parallelizer=self.evaluator.parallelizer,
-                    evaluation_backend=self.evaluation_backend,
-                    log_scaled=False)
+                with _log_evaluation_time(logger, "Building projected evaluator {s}[{c}]",
+                                          s=term, c=change, log_level=level):
+                    expression = PerturbationTheoryExpressionEvaluator(
+                        term, term.get_poly_terms(change), change, logger=logger)
+                with _log_evaluation_time(logger, "evaluating projected element...", log_level=level):
+                    result = expression.evaluate(state_perms, expansions, self.freqs,
+                        only_degenerate_terms=False, zero_cutoff=self.zero_cutoff,
+                        parallelizer=self.evaluator.parallelizer,
+                        evaluation_backend=self.evaluation_backend,
+                        log_scaled=False, verbose=verbose)
                 value += float(result[0][0])
             self._elements[key] = value
         return self._elements[key]
 
-    def inner(self, left, right, operator=None, expansions=None):
+    def inner(self, left, right, operator=None, expansions=None, logger=None, verbose=False):
         result = 0.
         for initial, right_term in right.items():
             if operator is not None:
@@ -328,7 +334,7 @@ class AnalyticBlockExpansion:
                     expression = ShiftedEnergyBaseline.lookup(left_term)
                 else:
                     expression = ShiftedEnergyBaseline.lookup(left_term) * right_term
-                result += self.element(expression, initial, final, expansions)
+                result += self.element(expression, initial, final, expansions, logger=logger, verbose=verbose)
         return result
 
 
@@ -339,72 +345,80 @@ class AnalyticBlockExpansion:
             return None
         return self.evaluator.solver.hamiltonian_expansion[order]
 
-    def extend(self, order):
+    def extend(self, order, logger=None, verbose=False):
+        logger = Logger.lookup(self.evaluator.solver.logger if logger is None else logger)
         size = len(self.states)
         while len(self.Y) <= order:
             n = len(self.Y)
-            normalizer = np.zeros((size, size))
-            for a in range(size):
-                for b in range(size):
-                    normalizer[a, b] = -.5 * sum(
-                        self.inner(self.X[i][a], self.X[n-i][b]) for i in range(1, n)
-                    )
-            for i in range(1,n):
-                normalizer -= .5 * (self.N[i].T @ self.N[n-i])
-            energies = np.diag(self.F[0])
-            hamiltonian = (energies[:, None] - energies[None, :]) * normalizer
-            for r in range(1, n+1):
-                h = self._hamiltonian(r)
-                if h is not None:
-                    bare = np.asarray([[self.element(h,initial,final) for initial in self.states]
-                                       for final in self.states])
-                    hamiltonian += bare @ self.N[n-r]
-                    for a, state in enumerate(self.states):
+            with _log_evaluation_time(logger, "Building projected block ({size} states) at order {o}",
+                                      size=size, o=n):
+                with _log_evaluation_time(logger, "Contracting block normalization..."):
+                    normalizer = np.zeros((size, size))
+                    for a in range(size):
                         for b in range(size):
-                            hamiltonian[a, b] += self.inner(
-                                {state: self.identity}, self.X[n-r][b], h)
-            for i in range(1, n):
-                hamiltonian -= self.N[i] @ self.F[n-i]
-            projected, full = [], []
-            for a, state in enumerate(self.states):
-                parts = [(self.X[n-r][a], 1, self._hamiltonian(r))
-                         for r in range(1, n+1) if self._hamiltonian(r) is not None]
-                parts += [({origin:self.identity},self.N[n-r][b,a],self._hamiltonian(r))
-                          for r in range(1,n+1) if self._hamiltonian(r) is not None
-                          for b,origin in enumerate(self.states)]
-                parts += [(self.X[i][b], -self.F[n-i][b, a], None)
-                          for i in range(1, n) for b in range(size)]
-                source = self._column(parts)
-                column = {}
-                for origin, term in source.items():
-                    key = (term, state, origin)
-                    if key not in self._resolvents:
-                        self._resolvents[key] = ProjectedTerm.resolve(term,self.states,self.freqs,state,origin)
-                    column[origin] = self._resolvents[key]
-                projected.append(column)
-                normalization = [({origin: self.identity}, normalizer[b, a], None)
-                                 for b, origin in enumerate(self.states)]
-                full.append(self._column([(column, 1, None)] + normalization))
-            self.N.append(normalizer)
-            self.F.append(hamiltonian)
-            self.X.append(projected)
-            self.Y.append(full)
+                            normalizer[a, b] = -.5 * sum(
+                                self.inner(self.X[i][a], self.X[n-i][b], logger=logger, verbose=verbose) for i in range(1, n)
+                            )
+                    for i in range(1,n):
+                        normalizer -= .5 * (self.N[i].T @ self.N[n-i])
+                with _log_evaluation_time(logger, "Contracting block Hamiltonian..."):
+                    energies = np.diag(self.F[0])
+                    hamiltonian = (energies[:, None] - energies[None, :]) * normalizer
+                    for r in range(1, n+1):
+                        h = self._hamiltonian(r)
+                        if h is not None:
+                            bare = np.asarray([[self.element(h,initial,final,logger=logger,verbose=verbose) for initial in self.states]
+                                               for final in self.states])
+                            hamiltonian += bare @ self.N[n-r]
+                            for a, state in enumerate(self.states):
+                                for b in range(size):
+                                    hamiltonian[a, b] += self.inner(
+                                        {state: self.identity}, self.X[n-r][b], h, logger=logger, verbose=verbose)
+                    for i in range(1, n):
+                        hamiltonian -= self.N[i] @ self.F[n-i]
+                with _log_evaluation_time(logger, "Building projected resolvents and wavefunctions..."):
+                    projected, full = [], []
+                    for a, state in enumerate(self.states):
+                        parts = [(self.X[n-r][a], 1, self._hamiltonian(r))
+                                 for r in range(1, n+1) if self._hamiltonian(r) is not None]
+                        parts += [({origin:self.identity},self.N[n-r][b,a],self._hamiltonian(r))
+                                  for r in range(1,n+1) if self._hamiltonian(r) is not None
+                                  for b,origin in enumerate(self.states)]
+                        parts += [(self.X[i][b], -self.F[n-i][b, a], None)
+                                  for i in range(1, n) for b in range(size)]
+                        source = self._column(parts)
+                        column = {}
+                        for origin, term in source.items():
+                            key = (term, state, origin)
+                            if key not in self._resolvents:
+                                self._resolvents[key] = ProjectedTerm.resolve(term,self.states,self.freqs,state,origin)
+                            column[origin] = self._resolvents[key]
+                        projected.append(column)
+                        normalization = [({origin: self.identity}, normalizer[b, a], None)
+                                         for b, origin in enumerate(self.states)]
+                        full.append(self._column([(column, 1, None)] + normalization))
+                self.N.append(normalizer)
+                self.F.append(hamiltonian)
+                self.X.append(projected)
+                self.Y.append(full)
         return self
 
-    def intermediate_columns(self, order):
+    def intermediate_columns(self, order, logger=None, verbose=False):
         """Return Omega=Y(PY)^-1; P Omega P=P at every retained order."""
-        self.extend(order)
+        logger = Logger.lookup(self.evaluator.solver.logger if logger is None else logger)
+        self.extend(order,logger=logger,verbose=verbose)
         while len(self._intermediate_columns) <= order:
             n = len(self._intermediate_columns)
-            inverse = -sum(self.N[i] @ self._inverse_normalizers[n-i]
-                           for i in range(1,n+1))
-            self._inverse_normalizers.append(inverse)
-            columns = []
-            for a, state in enumerate(self.states):
-                parts = [(self.X[i][b], self._inverse_normalizers[n-i][b,a], None)
-                         for i in range(1,n+1) for b in range(len(self.states))]
-                columns.append(self._column(parts))
-            self._intermediate_columns.append(columns)
+            with _log_evaluation_time(logger, "Building block intermediate normalization at order {o}", o=n):
+                inverse = -sum(self.N[i] @ self._inverse_normalizers[n-i]
+                               for i in range(1,n+1))
+                self._inverse_normalizers.append(inverse)
+                columns = []
+                for a, state in enumerate(self.states):
+                    parts = [(self.X[i][b], self._inverse_normalizers[n-i][b,a], None)
+                             for i in range(1,n+1) for b in range(len(self.states))]
+                    columns.append(self._column(parts))
+                self._intermediate_columns.append(columns)
         return self._intermediate_columns[order]
 
     def operator_piece(self, order, column, off_diagonal=False):
@@ -435,8 +449,9 @@ class AnalyticBlockExpansion:
         return result
 
     def operator_correction(self, other, left, right, operators, order, expansions=None,
-                            terms=None, branches=True):
-        self.extend(order); other.extend(order)
+                            terms=None, branches=True, logger=None, verbose=False):
+        self.extend(order,logger=logger,verbose=verbose)
+        other.extend(order,logger=logger,verbose=verbose)
         allowed = None if terms is None else {tuple(t) for t in terms}
         result = 0.
         for i in range(order+1):
@@ -446,7 +461,7 @@ class AnalyticBlockExpansion:
                     if branches is True:
                         for bra,bc in self.operator_components(i,left):
                             for ket,kc in other.operator_components(k,right):
-                                result += bc*kc*self.inner(bra,ket,operators[j],expansions)
+                                result += bc*kc*self.inner(bra,ket,operators[j],expansions,logger=logger,verbose=verbose)
                     else:
                         selected = {'main': True}
                         if branches is not False:
@@ -457,15 +472,17 @@ class AnalyticBlockExpansion:
                             if selected.get(name,False):
                                 for bra,bc in self.operator_components(i,left,bra_cross):
                                     for ket,kc in other.operator_components(k,right,ket_cross):
-                                        result += bc*kc*self.inner(bra,ket,operators[j],expansions)
+                                        result += bc*kc*self.inner(bra,ket,operators[j],expansions,logger=logger,verbose=verbose)
         return result
 
 
 class ProjectedCorrectionEvaluator:
     """Resolve actual blocks and expose the ordinary analytic result layout."""
     def __init__(self, evaluator, blocks=None, pairs=None, expansions=None,
-                 freqs=None, zero_cutoff=None):
+                 freqs=None, zero_cutoff=None, logger=None, verbose=False):
         self.evaluator = evaluator
+        self.logger = Logger.lookup(evaluator.solver.logger if logger is None else logger)
+        self.verbose = verbose
         self.expansions = expansions
         self.freqs = np.asarray(evaluator.freqs if freqs is None else freqs)
         self.zero_cutoff = zero_cutoff
@@ -500,8 +517,20 @@ class ProjectedCorrectionEvaluator:
         if group not in self.cache:
             self.cache[group] = AnalyticBlockExpansion(self.evaluator, group,
                 self.expansions, self.freqs, self.zero_cutoff)
-        block = self.cache[group].extend(order)
+        block = self.cache[group].extend(order,logger=self.logger,verbose=self.verbose)
         return block, block.states.index(state)
+
+    def diagonal(self, states, order, series, orders):
+        corrections = []
+        for n in orders:
+            with self.logger.block(tag="Getting corrections at order {o}", o=n):
+                with _log_evaluation_time(self.logger, "evaluating..."):
+                    values = []
+                    for state in states:
+                        block, a = self.block(state, order)
+                        values.append(getattr(block, series)[n][a,a])
+                    corrections.append(np.asarray(values))
+        return corrections
 
     def result(self, states, order, value, target_orders=None):
         if target_orders is not None:
@@ -521,9 +550,15 @@ class ProjectedCorrectionEvaluator:
         final_spaces, corrections = [], []
         for initial, finals in grouped.items():
             final_spaces.append(BasisStateSpace(basis, list(finals)))
-            corrections.append([None if target_orders is not None and n not in target_orders
-                                else np.asarray([value(initial, final, n) for final in finals])
-                                for n in range(order+1)])
+            row = []
+            for n in range(order+1):
+                if target_orders is not None and n not in target_orders:
+                    row.append(None)
+                    continue
+                with self.logger.block(tag="Getting corrections at order {o}", o=n):
+                    with _log_evaluation_time(self.logger, "evaluating..."):
+                        row.append(np.asarray([value(initial, final, n) for final in finals]))
+            corrections.append(row)
         return BasicAPTCorrections(initial_space, final_spaces, corrections)
 
     def wavefunctions(self, states, order, full=True, target_orders=None):
@@ -534,10 +569,10 @@ class ProjectedCorrectionEvaluator:
             block, a = self.block(initial, order)
             column = block.Y[n][a] if full else block.X[n][a]
             if self.evaluator.solver.intermediate_normalization:
-                column = block.intermediate_columns(n)[a]
+                column = block.intermediate_columns(n,logger=self.logger,verbose=self.verbose)[a]
                 if not full and n == 0:
                     column = {}
-            return -sum(block.element(term, origin, final) for origin, term in column.items())
+            return -sum(block.element(term, origin, final,logger=self.logger,verbose=self.verbose) for origin, term in column.items())
         return self.result(states, order, value, target_orders=targets)
 
     @staticmethod
@@ -562,7 +597,8 @@ class ProjectedCorrectionEvaluator:
             b = block.states.index(final)
             result = (block.F[n][b,a] if terms is None and branches is True else
                       block.operator_correction(block,b,a,self.evaluator.solver.hamiltonian_expansion,
-                                                n,terms=terms,branches=self._operator_branches(branches)))
+                                                n,terms=terms,branches=self._operator_branches(branches),
+                                                logger=self.logger,verbose=self.verbose))
             return result if only_degenerate_terms else -result
         return self.result(states, order, value, target_orders=target_orders)
 
@@ -572,5 +608,6 @@ class ProjectedCorrectionEvaluator:
             right, ket = self.block(initial, order)
             left, bra = self.block(final, order)
             return -left.operator_correction(right, bra, ket, operators, n,
-                    expansions=expansions, terms=terms,branches=self._operator_branches(branches))
+                    expansions=expansions, terms=terms,branches=self._operator_branches(branches),
+                    logger=self.logger,verbose=self.verbose)
         return self.result(states, order, value, target_orders=target_orders)

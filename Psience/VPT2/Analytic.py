@@ -1,3 +1,4 @@
+from pathlib import Path
 """
 Provides a symbolic approach to vibrational perturbation theory based on a Harmonic description
 """
@@ -6,6 +7,7 @@ import abc, itertools, collections, enum, math, pickle, weakref, sys, warnings
 import contextlib
 import functools
 import hashlib
+import inspect
 
 import numpy as np, scipy.signal, time
 
@@ -11032,8 +11034,9 @@ class PerturbationTheoryExpressionEvaluator:
                 compile_options.setdefault('mode_dimension', len(freqs))
                 active = tuple(sorted({(n,k) for expansion in coeffs for n,row in enumerate(expansion)
                     for k,c in enumerate(row) if np.any(c)}))
-                compiled = store.compile(self, context=dict(operator=self.op if self.op is not None else poly_obj,
-                    change=tuple(change), baseline=None if shift_start is None else tuple(shift_start)), active_operators=active, **compile_options)
+                with _log_evaluation_time(self.logger, "Preparing compiled expression..."):
+                    compiled = store.compile(self, context=dict(operator=self.op if self.op is not None else poly_obj,
+                        change=tuple(change), baseline=None if shift_start is None else tuple(shift_start)), active_operators=active, **compile_options)
                 numerical = dict(zero_cutoff=zero_cutoff, degenerate_changes=degenerate_changes,
                     only_degenerate_terms=only_degenerate_terms, verbose=verbose, log_scaled=log_scaled)
                 for key,value in dict(evaluation_backend=evaluation_backend,path_cache_size=path_cache_size,
@@ -11042,8 +11045,9 @@ class PerturbationTheoryExpressionEvaluator:
                     if value is not None:numerical[key] = value
                 numerical.update(task_options)
                 numerical.setdefault('use_shared_memory', use_shared_memory)
-                res = compiled.evaluate(state_perms, coeffs, freqs,
-                    parallelizer=parallelizer if parallelizer is not None else default_parallelizer, **numerical)
+                with _log_evaluation_time(self.logger, "evaluating compiled expression..."):
+                    res = compiled.evaluate(state_perms, coeffs, freqs,
+                        parallelizer=parallelizer if parallelizer is not None else default_parallelizer, **numerical)
                 if smol_coeffs:res = [r[0] for r in res]
                 if smol:res = res[0]
                 return res
@@ -11125,30 +11129,65 @@ def _compiled_evaluation_context(method):
     import functools
     @functools.wraps(method)
     def wrapped(self, *args, **kwargs):
-        if self.expressions_folder is None:
-            return method(self, *args, **kwargs)
-        from .CompiledExpressions import compiled_evaluation_context, current_compilation, AnalyticExpressionStore
-        if current_compilation() is not None:
-            return method(self, *args, **kwargs)
-        with compiled_evaluation_context(AnalyticExpressionStore(self.expressions_folder),
+        from .CompiledExpressions import compiled_evaluation_context, current_compilation
+        if not self.compile_expressions:
+            with compiled_evaluation_context(None):return method(self, *args, **kwargs)
+        if current_compilation() is not None:return method(self, *args, **kwargs)
+        with compiled_evaluation_context(self.expression_store,
                 self.compilation_options, self.evaluation_options, self.parallelizer):
             return method(self, *args, **kwargs)
     return wrapped
 
+@contextlib.contextmanager
+def _log_evaluation_time(logger, tag, **options):
+    """Use the analytic evaluator's normal block/elapsed-time convention."""
+    with logger.block(tag=tag, **options):
+        start = time.perf_counter()
+        yield
+        logger.log_print('took {e:.3f}s', e=time.perf_counter() - start,
+                         log_level=options.get('log_level', Logger.LogLevel.Normal))
+
+
+def _timed_evaluation(tag):
+    """Time a complete call using its logger override and the usual block format."""
+    def decorate(method):
+        signature = inspect.signature(method)
+        @functools.wraps(method)
+        def wrapped(self, *args, **kwargs):
+            arguments = signature.bind(self, *args, **kwargs).arguments
+            options = arguments.get('opts', {})
+            logger = arguments.get('logger', options.get('logger'))
+            if logger is None:
+                logger = getattr(self, 'logger', None)
+                if logger is None and hasattr(self, 'solver'):
+                    logger = self.solver.logger
+            timing_options = {}
+            if arguments.get('log_level') is not None:
+                timing_options['log_level'] = arguments['log_level']
+            with _log_evaluation_time(Logger.lookup(logger), tag, **timing_options):
+                return method(self, *args, **kwargs)
+        return wrapped
+    return decorate
+
+
 class PerturbationTheoryEvaluator:
 
     def _projected_corrections(self, blocks, pairs, expansions=None, freqs=None, zero_cutoff=None,
-                               parallelizer=None):
+                               parallelizer=None, logger=None, verbose=False):
         if getattr(self.solver,'resonance_condition',None) is not None:
             from .ConditionalEvaluator import ConditionalCorrectionEvaluator
-            return ConditionalCorrectionEvaluator(self,expansions,freqs,zero_cutoff,parallelizer)
+            return ConditionalCorrectionEvaluator(self,expansions,freqs,zero_cutoff,parallelizer,
+                logger=logger, verbose=verbose)
         if blocks is None and pairs is None:
             return None
         from .Projected import ProjectedCorrectionEvaluator
         evaluator = (self if parallelizer is None else
-                     type(self)(self.solver, self.expansions, self.freqs, parallelizer=parallelizer))
+                     type(self)(self.solver, self.expansions, self.freqs, parallelizer=parallelizer,
+                        expressions_folder=self.expressions_folder,compilation_options=self.compilation_options,
+                        evaluation_options=self.evaluation_options,compile=self.compile_expressions))
         return ProjectedCorrectionEvaluator(evaluator, blocks=blocks, pairs=pairs,
-            expansions=expansions, freqs=freqs, zero_cutoff=zero_cutoff)
+            expansions=expansions, freqs=freqs, zero_cutoff=zero_cutoff,
+            logger=logger, verbose=verbose)
 
     @staticmethod
     def _validate_projected_options(opts):
@@ -11169,8 +11208,10 @@ class PerturbationTheoryEvaluator:
         return degenerate_states.get(tuple(int(x) for x in state), [])
 
     def __init__(self, solver:AnalyticPerturbationTheorySolver, expansion, freqs=None, parallelizer=None,
-                 expressions_folder=None, compilation_options=None, evaluation_options=None):
+                 expressions_folder=None, compilation_options=None, evaluation_options=None, compile=True):
         self.expressions_folder = expressions_folder
+        self.compile_expressions = compile is not False
+        self._expression_store = None
         self.compilation_options = dict(compilation_options or {})
         self.evaluation_options = dict(evaluation_options or {})
         self.solver = solver
@@ -11183,22 +11224,39 @@ class PerturbationTheoryEvaluator:
         self.freqs = freqs
         self.parallelizer = Parallelizer.lookup(parallelizer) if parallelizer is not None else None
 
+    @property
+    def expression_store(self):
+        """Lazily reuse a bounded RAM store, or the explicitly configured disk store."""
+        from .CompiledExpressions import AnalyticExpressionStore
+        folder=None if self.expressions_folder is None else Path(self.expressions_folder).expanduser().resolve()
+        budget=self.compilation_options.get('cache_bytes',512*1024**2)
+        if (self._expression_store is None or self._expression_store.folder != folder
+                or folder is None and self._expression_store.memory_cache_bytes != budget):
+            self._expression_store=AnalyticExpressionStore(folder,
+                memory_cache_bytes=self.compilation_options.get('cache_bytes',512*1024**2))
+        return self._expression_store
+
+    def compilation_statistics(self):
+        folder=None if self.expressions_folder is None else Path(self.expressions_folder).expanduser().resolve()
+        budget=self.compilation_options.get('cache_bytes',512*1024**2)
+        if (self._expression_store is None or self._expression_store.folder != folder
+                or folder is None and self._expression_store.memory_cache_bytes != budget):return dict(requests=0,compilations=0,cache_hits=0,failures=0,
+            compilation_seconds=0.,cache_lookup_seconds=0.,preparation_seconds=0.,evaluation_seconds=0.)
+        return self._expression_store.statistics()
+
     def precompile(self, correction='energy', order=None, **options):
         from .CompiledExpressions import AnalyticCorrectionCompiler
-        if self.expressions_folder is None:
-            raise ValueError('precompile requires expressions_folder')
+        if not self.compile_expressions:raise ValueError('compilation disabled by compile=False')
         return AnalyticCorrectionCompiler(self).precompile(correction=correction, order=order, **options)
 
     def precompile_frequency_corrections(self, initial_state, final_state, order=None, **options):
         from .CompiledExpressions import AnalyticCorrectionCompiler
-        if self.expressions_folder is None:
-            raise ValueError('frequency compilation requires expressions_folder')
+        if not self.compile_expressions:raise ValueError('compilation disabled by compile=False')
         return AnalyticCorrectionCompiler(self).precompile_frequencies(initial_state, final_state, order=order, **options)
 
     def get_frequency_corrections(self, initial_state, final_state, order=None, **options):
         from .CompiledExpressions import AnalyticCorrectionCompiler
-        if self.expressions_folder is None:
-            raise ValueError('compiled frequency corrections require expressions_folder')
+        if not self.compile_expressions:raise ValueError('compilation disabled by compile=False')
         return AnalyticCorrectionCompiler(self).frequencies(initial_state, final_state, order=order, **options)
 
     def modify_hamiltonian(self, hamiltonian_corrections):
@@ -11210,9 +11268,12 @@ class PerturbationTheoryEvaluator:
 
         return type(self)(
             self.solver.modify_hamiltonian(hamiltonian_corrections),
-            exps,
+            exps, parallelizer=self.parallelizer,
+            expressions_folder=self.expressions_folder,compilation_options=self.compilation_options,
+            evaluation_options=self.evaluation_options,compile=self.compile_expressions,
         )
 
+    @_timed_evaluation('Energy corrections (total)')
     @_compiled_evaluation_context
     def get_energy_corrections(self, states, order=None, expansions=None, freqs=None,
                                zero_cutoff=None, degenerate_states=None, verbose=False,
@@ -11223,16 +11284,15 @@ class PerturbationTheoryEvaluator:
                                dag_cache_bytes=None,
                                dag_chunk_size=None, degenerate_blocks=None):
         projected = self._projected_corrections(degenerate_blocks, degenerate_states,
-                                               expansions, freqs, zero_cutoff, parallelizer)
+                                               expansions, freqs, zero_cutoff, parallelizer,
+                                               logger=logger, verbose=verbose)
         if projected is not None:
             if order is None: order = len(self.expansions) - 1
             if hasattr(projected,'energies'):
                 return projected.energies(states,order,evaluation_mode=evaluation_mode,
                     dag_cache_size=dag_cache_size,dag_cache_bytes=dag_cache_bytes,
                     dag_chunk_size=dag_chunk_size)
-            return [np.asarray([projected.block(state, order)[0].F[n][
-                projected.block(state, order)[1], projected.block(state, order)[1]
-            ] for state in states]) for n in range(0, order+1, 2)]
+            return projected.diagonal(states, order, 'F', range(0, order+1, 2))
         if isinstance(degenerate_states, dict):
             results = [
                 self.get_energy_corrections(
@@ -11322,6 +11382,7 @@ class PerturbationTheoryEvaluator:
             ]
             for order_expansion in expansions
         ]
+    @_timed_evaluation('Overlap corrections (total)')
     @_compiled_evaluation_context
     def get_overlap_corrections(self, states, order=None, expansions=None,
                                 degenerate_states=None, freqs=None,
@@ -11332,16 +11393,15 @@ class PerturbationTheoryEvaluator:
                                 dag_cache_bytes=None,
                                 dag_chunk_size=None, degenerate_blocks=None):
         projected = self._projected_corrections(degenerate_blocks, degenerate_states,
-                                               expansions, freqs, zero_cutoff, parallelizer)
+                                               expansions, freqs, zero_cutoff, parallelizer,
+                                               verbose=verbose)
         if projected is not None:
             if order is None: order = len(self.expansions) - 1
             if hasattr(projected,'overlaps'):
                 return projected.overlaps(states,order,evaluation_mode=evaluation_mode,
                     dag_cache_size=dag_cache_size,dag_cache_bytes=dag_cache_bytes,
                     dag_chunk_size=dag_chunk_size)
-            return np.asarray([[projected.block(state, order)[0].N[n][
-                projected.block(state, order)[1], projected.block(state, order)[1]
-            ] for n in range(order+1)] for state in states])
+            return np.stack(projected.diagonal(states, order, 'N', range(order+1)), axis=-1)
         if isinstance(degenerate_states, dict):
             results = [
                 self.get_overlap_corrections(
@@ -11399,7 +11459,9 @@ class PerturbationTheoryEvaluator:
 
         return np.concatenate([np.ones((len(states), 1)), np.zeros((len(states), 1))] + corrs, axis=1)
 
-    def get_diff_map(self, state_map):
+    @_timed_evaluation('Grouping state changes and permutations')
+    def get_diff_map(self, state_map, logger=None, log_level=None):
+        """Group endpoints by change; logging options control only the timer."""
         # states = []
         change_perms = {}
         for initial, finals in state_map:
@@ -11791,6 +11853,7 @@ class PerturbationTheoryEvaluator:
 
         return BasicAPTCorrections(initial_basis, new_finals, new_corrs)
 
+    @_timed_evaluation('State-by-state corrections (total)')
     @_compiled_evaluation_context
     def get_state_by_state_corrections(self, generator, states, order=None,
                                        terms=None, epaths=None,
@@ -11832,7 +11895,7 @@ class PerturbationTheoryEvaluator:
             states = [
                 [[0] * len(states[0]), states]
             ]
-        change_map = self.get_diff_map(states)
+        change_map = self.get_diff_map(states, logger=logger)
 
         state_specific = isinstance(degenerate_states, dict)
         degenerate_changes = (
@@ -11878,24 +11941,27 @@ class PerturbationTheoryEvaluator:
             if shared_coefficients is not None:
                 PerturbationTheoryExpressionEvaluator._cached_expansion = None
                 shared_coefficients.dispose()
-        new_corrs = self._reformat_corrections(order, corrs, change_map, None if spex else len(expansions))
-        if return_sorted:
-            if isinstance(new_corrs, BasicAPTCorrections):
-                new_corrs = self._sort_corrections(new_corrs, states)
-            else:
-                new_corrs = [self._sort_corrections(nc, states) for nc in new_corrs]
+        with _log_evaluation_time(logger, "Assembling and sorting correction results"):
+            new_corrs = self._reformat_corrections(order, corrs, change_map, None if spex else len(expansions))
+            if return_sorted:
+                if isinstance(new_corrs, BasicAPTCorrections):
+                    new_corrs = self._sort_corrections(new_corrs, states)
+                else:
+                    new_corrs = [self._sort_corrections(nc, states) for nc in new_corrs]
         return new_corrs
 
+    @_timed_evaluation('Matrix corrections (total)')
     def get_matrix_corrections(self, states, order=None, expansions=None, freqs=None,
                                zero_cutoff=None, verbose=False):
         gen = lambda o, **kw: self.solver.hamiltonian_expansion[o]
         return self.get_state_by_state_corrections(gen, states, order=order, expansions=expansions,
                                                    freqs=freqs, zero_cutoff=zero_cutoff, verbose=verbose)
+    @_timed_evaluation('Full wavefunction corrections (total)')
     def get_full_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None,
                                           zero_cutoff=None, degenerate_states=None, verbose=False,
                                           degenerate_blocks=None):
         projected = self._projected_corrections(degenerate_blocks, degenerate_states,
-                                               expansions, freqs, zero_cutoff)
+                                               expansions, freqs, zero_cutoff, verbose=verbose)
         if projected is not None:
             return projected.wavefunctions(states, len(self.expansions)-1 if order is None else order)
         return self.get_state_by_state_corrections(self.solver.full_wavefunction_correction, states, degenerate_states=degenerate_states,
@@ -11905,11 +11971,12 @@ class PerturbationTheoryEvaluator:
                                                    },
                                                    verbose=verbose
                                                    )
+    @_timed_evaluation('Wavefunction corrections (total)')
     def get_wavefunction_corrections(self, states, order=None, expansions=None, freqs=None,
                                           zero_cutoff=None, degenerate_states=None, verbose=False,
                                           target_orders=None, degenerate_blocks=None):
         projected = self._projected_corrections(degenerate_blocks, degenerate_states,
-                                               expansions, freqs, zero_cutoff)
+                                               expansions, freqs, zero_cutoff, verbose=verbose)
         if projected is not None:
             return projected.wavefunctions(states, len(self.expansions)-1 if order is None else order,
                                             full=False, target_orders=target_orders)
@@ -11934,6 +12001,7 @@ class PerturbationTheoryEvaluator:
                 )
         return full_corrs, exps
 
+    @_timed_evaluation('Effective Hamiltonian corrections (total)')
     def get_reexpressed_hamiltonian(self, states, order=None, expansions=None, freqs=None,
                                     degenerate_states=None, only_degenerate_terms=False,
                                     verbose=False, include_diagonal=False,
@@ -11955,7 +12023,8 @@ class PerturbationTheoryEvaluator:
         :return:
         """
         projected = self._projected_corrections(degenerate_blocks, degenerate_states,
-                                               expansions, freqs, opts.get('zero_cutoff'), opts.get('parallelizer'))
+                                               expansions, freqs, opts.get('zero_cutoff'), opts.get('parallelizer'),
+                                               logger=opts.get('logger'), verbose=verbose)
         if projected is not None:
             if hasattr(projected,'validate_options'):
                 projected.validate_options(opts)
@@ -11963,7 +12032,8 @@ class PerturbationTheoryEvaluator:
                 self._validate_projected_options(opts)
             if hamiltonian_corrections is not None:
                 projected = self.modify_hamiltonian(hamiltonian_corrections)._projected_corrections(
-                    degenerate_blocks, degenerate_states, expansions, freqs, opts.get('zero_cutoff'),opts.get('parallelizer'))
+                    degenerate_blocks, degenerate_states, expansions, freqs, opts.get('zero_cutoff'),opts.get('parallelizer'),
+                    logger=opts.get('logger'), verbose=verbose)
                 if hasattr(projected,'validate_options'):
                     projected.validate_options(opts)
             if order is None: order = len(self.expansions) - 1
@@ -12068,6 +12138,8 @@ class PerturbationTheoryEvaluator:
 
         return exps
 
+    @_timed_evaluation('Operator corrections (total)')
+    @_compiled_evaluation_context
     def get_operator_corrections(self, operator_expansion, states,
                                  order=None, expansions=None, freqs=None,
                                  degenerate_states=None,
@@ -12076,17 +12148,19 @@ class PerturbationTheoryEvaluator:
                                  terms=None, min_order=1, verbose=False,
                                  degenerate_blocks=None,
                                  **opts):
-        if check_single and self.is_single_expansion(operator_expansion, min_order=min_order):
-            exps = self._prep_operator_expansion(expansions, operator_expansion)
-            if order is None: order = len(operator_expansion) - 1
-            base_index = len(exps[-1]) - 1
-        else:
-            if order is None: order = len(operator_expansion[0]) - 1
-            exps = [
-                self._prep_operator_expansion(expansions, o)
-                for o in operator_expansion
-            ]
-            base_index = len(exps[0][-1]) - 1
+        logger = Logger.lookup(self.solver.logger if opts.get('logger') is None else opts['logger'])
+        with _log_evaluation_time(logger, "Preparing operator coefficients"):
+            if check_single and self.is_single_expansion(operator_expansion, min_order=min_order):
+                exps = self._prep_operator_expansion(expansions, operator_expansion)
+                if order is None: order = len(operator_expansion) - 1
+                base_index = len(exps[-1]) - 1
+            else:
+                if order is None: order = len(operator_expansion[0]) - 1
+                exps = [
+                    self._prep_operator_expansion(expansions, o)
+                    for o in operator_expansion
+                ]
+                base_index = len(exps[0][-1]) - 1
 
         cur_symm = PTTensorCoeffProductSum.default_symmetrizers
         symms = PTTensorCoeffProductSum.symmetrizers()
@@ -12097,7 +12171,8 @@ class PerturbationTheoryEvaluator:
             if operator_type is None:
                 operator_type = min_order
             projected = self._projected_corrections(degenerate_blocks, degenerate_states,
-                                                   expansions, freqs, opts.get('zero_cutoff'),opts.get('parallelizer'))
+                                                   expansions, freqs, opts.get('zero_cutoff'),opts.get('parallelizer'),
+                                                   logger=opts.get('logger'), verbose=verbose)
             if projected is not None:
                 if hasattr(projected,'validate_options'):
                     projected.validate_options(opts)
@@ -12130,6 +12205,7 @@ class PerturbationTheoryEvaluator:
         finally:
             PTTensorCoeffProductSum.default_symmetrizers = cur_symm
 
+    @_timed_evaluation('Expression corrections (total)')
     def evaluate_expressions(self, states, exprs, expansions=None, operator_expansions=None,
                              degenerate_states=None, zero_cutoff=None,
                              verbose=False):

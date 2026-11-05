@@ -11,12 +11,13 @@ import itertools
 import json
 import weakref
 import numpy as np
+from McUtils.Scaffolding import Logger
 
 from McUtils.Zachary import *
 from .Analytic import (PerturbationTheoryTerm, PerturbationTheoryTermSum,
     ScaledPerturbationTheoryTerm, PTEnergyChangeProductSum,
     ShiftedEnergyBaseline, PerturbationTheoryExpressionEvaluator, make_product_polynomial,
-    OperatorExpansionTerm)
+    OperatorExpansionTerm, _log_evaluation_time)
 from .Projected import IdentityTerm
 
 _stacks = weakref.WeakSet()
@@ -713,106 +714,112 @@ class ConditionalTransformationStack:
                 output[target] = operator_sum(output[target],(1/math.factorial(power))*nested)
         return output
 
-    def extend(self,order=None):
+    def extend(self,order=None,logger=None):
+        logger = Logger.lookup(self.solver.logger if logger is None else logger)
         order = self.order if order is None else order
         if order > self.order:
             raise ValueError('requested order exceeds the supplied Hamiltonian expansion')
         while len(self.generators) <= order:
             stage = len(self.generators)
-            old = self.hamiltonian
-            retained = self.restrict(old[stage])
-            eliminated = self.restrict(old[stage],retain=False)
-            generator = self.restrict(old[stage],retain=False,resolvent=True)
-            # Combine the H0 and K_stage BCH contributions at every order:
-            # ad_S^p(D K_stage)/p! + p ad_S^p(Q K_stage)/(p+1)!.
-            # This is the exact homological identity, not a low-order rule.
-            remaining = list(old)
-            remaining[0] = remaining[stage] = self.zero
-            updated = self._conjugate(remaining,generator,stage)
-            updated[0],updated[stage] = old[0],retained
-            d_nested,q_nested = retained,eliminated
-            for power in range(1,(self.order-stage)//stage+1):
-                d_nested = commutator(d_nested,generator)
-                q_nested = commutator(q_nested,generator)
-                target = (power+1)*stage
-                updated[target] = operator_sum(updated[target],
-                    (1/math.factorial(power))*d_nested,
-                    (power/math.factorial(power+1))*q_nested)
-            before = self.wavefunctions
-            after = list(before)
-            power_term = self.identity
-            for power in range(1,self.order//stage+1):
-                power_term = operator_product(power_term,generator)
-                for source in range(self.order-power*stage+1):
-                    target = source+power*stage
-                    after[target] = operator_sum(after[target],
-                        (1/math.factorial(power))*operator_product(before[source],power_term))
-            self.wavefunctions,self.hamiltonian = after,updated
-            self.generators.append(generator)
-            self.stages.append(tuple(updated))
+            with _log_evaluation_time(logger, "Building conditional transformation at order {o}", o=stage):
+                old = self.hamiltonian
+                retained = self.restrict(old[stage])
+                eliminated = self.restrict(old[stage],retain=False)
+                generator = self.restrict(old[stage],retain=False,resolvent=True)
+                # Combine the H0 and K_stage BCH contributions at every order:
+                # ad_S^p(D K_stage)/p! + p ad_S^p(Q K_stage)/(p+1)!.
+                # This is the exact homological identity, not a low-order rule.
+                remaining = list(old)
+                remaining[0] = remaining[stage] = self.zero
+                updated = self._conjugate(remaining,generator,stage)
+                updated[0],updated[stage] = old[0],retained
+                d_nested,q_nested = retained,eliminated
+                for power in range(1,(self.order-stage)//stage+1):
+                    d_nested = commutator(d_nested,generator)
+                    q_nested = commutator(q_nested,generator)
+                    target = (power+1)*stage
+                    updated[target] = operator_sum(updated[target],
+                        (1/math.factorial(power))*d_nested,
+                        (power/math.factorial(power+1))*q_nested)
+                before = self.wavefunctions
+                after = list(before)
+                power_term = self.identity
+                for power in range(1,self.order//stage+1):
+                    power_term = operator_product(power_term,generator)
+                    for source in range(self.order-power*stage+1):
+                        target = source+power*stage
+                        after[target] = operator_sum(after[target],
+                            (1/math.factorial(power))*operator_product(before[source],power_term))
+                self.wavefunctions,self.hamiltonian = after,updated
+                self.generators.append(generator)
+                self.stages.append(tuple(updated))
         return self
 
-    def transform_operator(self,operators,order=None,terms=None,branches=True):
+    def transform_operator(self,operators,order=None,terms=None,branches=True,logger=None):
         order = self.order if order is None else order
-        self.extend(order)
+        logger = Logger.lookup(self.solver.logger if logger is None else logger)
+        self.extend(order,logger=logger)
         allowed = None if terms is None else frozenset(tuple(term) for term in terms)
         branch_key = branches if isinstance(branches,bool) else tuple(sorted(
             branches.items() if isinstance(branches,dict) else ((name,True) for name in branches)))
         key = (tuple(operators),order,allowed,branch_key)
         if key not in self._transformed_operators:
-            if allowed is None and branches is True:
-                series = list(operators[:self.order+1])+[self.zero]*max(0,self.order+1-len(operators))
-                for stage,generator in enumerate(self.generators[1:order+1],1):
-                    series = self._conjugate(series,generator,stage)
-                self._transformed_operators[key] = series[:order+1]
-                return self._transformed_operators[key]
-            corrections = []
-            for n in range(order+1):
-                parts = []
-                for ket in range(n+1):
-                    for bra in range(n-ket+1):
-                        op = n-ket-bra
-                        if op >= len(operators) or (allowed is not None and (ket,op,bra) not in allowed):
-                            continue
-                        if branches is True:
-                            selections = [(False,False)]
-                        else:
-                            selected = {'main':True}
-                            if branches is not False:
-                                selected.update(dict(branch_key))
-                            selections = [(bc,kc) for name,bc,kc in
-                                [('main',False,False),('left',False,True),
-                                 ('right',True,False),('both',True,True)] if selected.get(name,False)]
-                        for bra_cross,ket_cross in selections:
-                            left = self.wavefunctions[bra]
-                            right = self.wavefunctions[ket]
-                            if branches is not True:
-                                diagonal = SameStateCondition()
-                                def piece(term,n,cross):
-                                    if n == 0:
-                                        return self.zero if cross else self.identity
-                                    condition = ((self.condition & ~diagonal) if cross else
-                                                 (~self.condition | diagonal))
-                                    return ConditionalOperatorTerm.lookup(term,condition)
-                                left,right = piece(left,bra,bra_cross),piece(right,ket,ket_cross)
-                            left = self.identity if isinstance(left,IdentityTerm) else ShiftedEnergyBaseline.lookup(left)
-                            parts.append(operator_product(left,operator_product(operators[op],right)))
-                corrections.append(operator_sum(*parts))
-            self._transformed_operators[key] = corrections
+            with _log_evaluation_time(logger, "Transforming conditional operator through order {o}", o=order):
+                if allowed is None and branches is True:
+                    series = list(operators[:self.order+1])+[self.zero]*max(0,self.order+1-len(operators))
+                    for stage,generator in enumerate(self.generators[1:order+1],1):
+                        series = self._conjugate(series,generator,stage)
+                    self._transformed_operators[key] = series[:order+1]
+                    return self._transformed_operators[key]
+                corrections = []
+                for n in range(order+1):
+                    parts = []
+                    for ket in range(n+1):
+                        for bra in range(n-ket+1):
+                            op = n-ket-bra
+                            if op >= len(operators) or (allowed is not None and (ket,op,bra) not in allowed):
+                                continue
+                            if branches is True:
+                                selections = [(False,False)]
+                            else:
+                                selected = {'main':True}
+                                if branches is not False:
+                                    selected.update(dict(branch_key))
+                                selections = [(bc,kc) for name,bc,kc in
+                                    [('main',False,False),('left',False,True),
+                                     ('right',True,False),('both',True,True)] if selected.get(name,False)]
+                            for bra_cross,ket_cross in selections:
+                                left = self.wavefunctions[bra]
+                                right = self.wavefunctions[ket]
+                                if branches is not True:
+                                    diagonal = SameStateCondition()
+                                    def piece(term,n,cross):
+                                        if n == 0:
+                                            return self.zero if cross else self.identity
+                                        condition = ((self.condition & ~diagonal) if cross else
+                                                     (~self.condition | diagonal))
+                                        return ConditionalOperatorTerm.lookup(term,condition)
+                                    left,right = piece(left,bra,bra_cross),piece(right,ket,ket_cross)
+                                left = self.identity if isinstance(left,IdentityTerm) else ShiftedEnergyBaseline.lookup(left)
+                                parts.append(operator_product(left,operator_product(operators[op],right)))
+                    corrections.append(operator_sum(*parts))
+                self._transformed_operators[key] = corrections
         return self._transformed_operators[key]
 
-    def intermediate_wavefunctions(self,order):
-        self.extend(order)
+    def intermediate_wavefunctions(self,order,logger=None):
+        logger = Logger.lookup(self.solver.logger if logger is None else logger)
+        self.extend(order,logger=logger)
         if not self.condition.equivalence:
             raise ValueError('intermediate normalization requires an equivalence relation')
-        inside = [self.identity]+[self.restrict(term) for term in self.wavefunctions[1:order+1]]
-        inverse = [self.identity]
-        result = [self.identity]
-        for n in range(1,order+1):
-            inverse.append(-operator_sum(*(operator_product(inside[i],inverse[n-i])
-                                             for i in range(1,n+1))))
-            result.append(operator_sum(*(operator_product(self.wavefunctions[i],inverse[n-i])
-                                         for i in range(n+1))))
+        with _log_evaluation_time(logger, "Building intermediate normalization through order {o}", o=order):
+            inside = [self.identity]+[self.restrict(term) for term in self.wavefunctions[1:order+1]]
+            inverse = [self.identity]
+            result = [self.identity]
+            for n in range(1,order+1):
+                inverse.append(-operator_sum(*(operator_product(inside[i],inverse[n-i])
+                                                 for i in range(1,n+1))))
+                result.append(operator_sum(*(operator_product(self.wavefunctions[i],inverse[n-i])
+                                             for i in range(n+1))))
         return result
 
 

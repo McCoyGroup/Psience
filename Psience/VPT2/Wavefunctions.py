@@ -8,6 +8,7 @@ from McUtils.Numputils import SparseArray
 import McUtils.Numputils as nput
 from McUtils.Scaffolding import ParameterManager, Checkpointer, NullCheckpointer
 from McUtils.Data import UnitsData
+from McUtils.Formatters import TableFormatter
 
 from ..Wavefun import Wavefunctions
 from ..BasisReps import SimpleProductBasis, BraKetSpace
@@ -1719,31 +1720,34 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
         states = self.corrs.states.excitations
-        e_corrs = self.corrs.all_energy_corrs #ordered like (state, order, corr_list)
-        order = len(e_corrs[0])
-        term_keys = []
-        for k in range(1, order):
-            if e_corrs[0][k] is not None: # from odd order terms...
-                for i in range(0, k):
-                    term_keys.append("<0|dH({j})|{i}>".format(j=k-i, i=i))
-        terms = [ [y for y in x if y is not None] for x in e_corrs ]
-        terms = [ h2w*np.concatenate(tl) for tl in terms if len(tl) > 0 ]
-
-        nels = len(real_fmt.format(0))
-        header_fmt = "{:<" + str(nels) + "}"
-        header = " ".join(header_fmt.format(k) for k in term_keys)
-
-        n_modes = self.corrs.total_basis.ndim
-        padding = np.max([len(str("0 " * n_modes)), 1]) + 1
-        header = "State" + " " * (padding - 3) + header
-
-        prop_mat = header + "\n" + "\n".join(
-            "  " + ("{:<1.0f} " * n_modes).format(*s) +
-            " ".join(real_fmt.format(ll) for ll in l)
-            for s, l in zip(states, terms)
-        )
-
-        return prop_mat
+        e_corrs = self.corrs.all_energy_corrs  # (state, order, term)
+        if len(states) == 0:
+            return "State"
+        # Different solver routes (and older checkpoints) can retain different
+        # orders. Fix one column schema before formatting any state rows.
+        orders = [k for k in range(1, max(map(len, e_corrs)))
+                  if any(k < len(row) and row[k] is not None for row in e_corrs)]
+        term_keys = ["<0|dH({j})|{i}>".format(j=k-i, i=i)
+                     for k in orders for i in range(k)]
+        rows = []
+        for state, corrections in zip(states, e_corrs):
+            row = [" ".join("{:.0f}".format(s) for s in state)]
+            for k in orders:
+                values = corrections[k] if k < len(corrections) else None
+                if values is None:
+                    row.extend(["--"] * k)
+                else:
+                    values = np.asarray(values).reshape(-1)
+                    if len(values) != k:
+                        raise ValueError("expected {} energy terms at order {}, got {}".format(k, k, len(values)))
+                    row.extend(real_fmt.format(h2w * value) for value in values)
+            rows.append(row)
+        return TableFormatter(
+            ["{}"] * (1 + len(term_keys)), headers=["State"] + term_keys,
+            column_join=" ", separator_lines=0,
+            column_alignments=["<"] + [">"] * len(term_keys),
+            header_alignments=["<"] + ["^"] * len(term_keys)
+        ).format(rows)
 
     def _format_intensities_table(self, states, freqs, ints, harm_freqs, harm_ints, real_fmt="{:>12.5f}"):
         # simple utility function pulled from the unit tests

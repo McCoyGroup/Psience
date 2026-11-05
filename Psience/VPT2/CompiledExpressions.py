@@ -39,8 +39,8 @@ _current_compilation = contextvars.ContextVar('analytic_compilation', default=No
 @contextlib.contextmanager
 def compiled_evaluation_context(store, compilation_options=None, evaluation_options=None,
                                 parallelizer=None):
-    token = _current_compilation.set((store, compilation_options or {},
-                                      evaluation_options or {}, parallelizer))
+    token = _current_compilation.set(None if store is None else
+        (store, compilation_options or {}, evaluation_options or {}, parallelizer))
     try:
         yield
     finally:
@@ -188,16 +188,55 @@ class _CompiledEntries(EntryStore):
 
 class AnalyticExpressionStore:
     format_version = 1
-    def __init__(self, folder):
-        self.folder = Path(folder).expanduser().resolve()
-        self.folder.mkdir(parents=True,exist_ok=True)
-        self.entries = _CompiledEntries(self.folder)
+    def __init__(self, folder=None, *, memory_cache_size=128, memory_cache_bytes=512*1024**2):
+        self.folder = None if folder is None else Path(folder).expanduser().resolve()
+        self.entries = None
+        if self.folder is not None:
+            self.folder.mkdir(parents=True,exist_ok=True)
+            self.entries = _CompiledEntries(self.folder)
+        self.memory_cache_size = max(0, int(memory_cache_size))
+        self.memory_cache_bytes = None if memory_cache_bytes is None else max(0, int(memory_cache_bytes))
+        self._memory = collections.OrderedDict()
+        self._aliases = collections.OrderedDict()
+        self.memory_bytes = 0
+        self.timings = dict(requests=0, compilations=0, cache_hits=0, failures=0,
+            compilation_seconds=0., cache_lookup_seconds=0., preparation_seconds=0., evaluation_seconds=0.)
+
+    def statistics(self):
+        return dict(self.timings, storage='memory' if self.folder is None else 'disk',
+                    memory_entries=len(self._memory), memory_payload_bytes=self.memory_bytes)
+
+    def clear(self):
+        """Release reusable in-memory entries; never remove persistent cache files."""
+        self._memory.clear(); self._aliases.clear(); self.memory_bytes=0
+
+    def _remember(self, compiled):
+        size = sum(part['bytes'] for part in compiled.manifest['parts'])
+        key = compiled.manifest['signature']
+        if self.memory_cache_size and (self.memory_cache_bytes is None or size <= self.memory_cache_bytes):
+            previous = self._memory.pop(key, None)
+            if previous is not None:self.memory_bytes -= sum(p['bytes'] for p in previous.manifest['parts'])
+            self._memory[key]=compiled; self.memory_bytes+=size
+            while len(self._memory)>self.memory_cache_size or (self.memory_cache_bytes is not None and self.memory_bytes>self.memory_cache_bytes):
+                removed, value=self._memory.popitem(last=False)
+                self.memory_bytes-=sum(p['bytes'] for p in value.manifest['parts'])
+                for alias,target in list(self._aliases.items()):
+                    if target==removed:del self._aliases[alias]
+        return compiled
+
+    def _get_memory(self, signature):
+        value=self._memory.get(signature)
+        if value is not None:self._memory.move_to_end(signature)
+        return value
 
     def _signature(self,context,active_operators,projection,options):
         return _fingerprint(dict(format=self.format_version,implementation=_implementation_signature(),
             definition=context,active_operators=active_operators,projection=projection,options=options))
 
     def _find_alias(self,signature):
+        if self.folder is None:
+            target=self._aliases.get(signature)
+            return None if target is None else self._get_memory(target)
         target=self.entries.resolve_alias(signature)
         return None if target is None else CompiledAnalyticExpression.load(self.folder/target)
 
@@ -209,9 +248,28 @@ class AnalyticExpressionStore:
             cache_size=cache_size,cache_bytes=cache_bytes,node_cache_size=node_cache_size,
             mode_dimension=mode_dimension,progress=progress)
 
-    def compile_factory(self, factory, *, context, active_operators=None, projection=None,
-                        max_terms=32768,max_bytes=64*1024**2,cache_size=100000,
-                        cache_bytes=512*1024**2,node_cache_size=8192,mode_dimension=None,progress=None):
+    def compile_factory(self, factory, **options):
+        """Compile or reuse an entry, accounting separately for lookup and actual construction."""
+        started=time.perf_counter(); building=[]; completed=False
+        self.timings['requests']+=1
+        def build():
+            building.append(time.perf_counter())
+            return factory()
+        try:
+            result=self._compile_factory(build, **options)
+            result.store=self; completed=True
+            return result
+        finally:
+            elapsed=time.perf_counter()-started
+            construction=0. if not building else time.perf_counter()-building[0]
+            self.timings['compilation_seconds']+=construction
+            self.timings['cache_lookup_seconds']+=max(0.,elapsed-construction)
+            self.timings['compilations' if building else 'cache_hits']+=int(completed)
+            self.timings['failures']+=int(not completed)
+
+    def _compile_factory(self, factory, *, context, active_operators=None, projection=None,
+                         max_terms=32768,max_bytes=64*1024**2,cache_size=100000,
+                         cache_bytes=512*1024**2,node_cache_size=8192,mode_dimension=None,progress=None):
         from .Analytic import (SqrtChangePoly,PTTensorCoeffProductDAG,PTTensorCoeffProductSum,
             PTTensorCoeffProductDAGEvaluationPlan,_BoundedEvaluationCache,_BalancedPolynomialAccumulator)
         from .BoundedStream import StreamBudget
@@ -219,8 +277,11 @@ class AnalyticExpressionStore:
                        cache_bytes=cache_bytes,node_cache_size=node_cache_size,mode_dimension=mode_dimension)
         if max_terms<1 or (max_bytes is not None and max_bytes<1):raise ValueError('invalid compilation budget')
         signature = self._signature(context,active_operators,projection,options)
-        directory = self.folder/signature
-        if self.entries.has(signature):return CompiledAnalyticExpression.load(directory)
+        directory = None if self.folder is None else self.folder/signature
+        if self.folder is None:
+            cached=self._get_memory(signature)
+            if cached is not None:return cached
+        elif self.entries.has(signature):return CompiledAnalyticExpression.load(directory)
         alias=self._find_alias(signature)
         if alias is None and active_operators is not None:
             # A cache compiled without pruning is valid for a narrower active
@@ -263,8 +324,11 @@ class AnalyticExpressionStore:
             plan = None;iterator = poly.terms.items()
         transform = projection.compiler() if projection is not None else None
         budget = StreamBudget(dict(max_terms=max_terms,max_bytes=max_bytes))
-        with self.entries.stage(signature) as staged:
-            stage = Path(staged.path);pending={};parts=[]
+        staging = contextlib.nullcontext(None) if self.folder is None else self.entries.stage(signature)
+        memory_parts={}
+        with staging as staged:
+            stage = None if staged is None else Path(staged.path)
+            pending={};parts=[]
             def flush(reason):
                 if not pending:return
                 compact = PTTensorCoeffProductSum({key:acc.total() for key,acc in pending.items()},
@@ -276,8 +340,14 @@ class AnalyticExpressionStore:
                 for rank,terms in sorted(groups.items()):
                     name = 'part-{:06d}-r{}.pkl'.format(len(parts),rank)
                     part = PTTensorCoeffProductSum(terms,canonicalize=False,reduced=True)
-                    _atomic_pickle(stage/name,part)
-                    parts.append(dict(file=name,rank=rank,sha256=_file_hash(stage/name),bytes=(stage/name).stat().st_size,
+                    if stage is None:
+                        payload=pickle.dumps(part,protocol=5)
+                        part_hash=hashlib.sha256(payload).hexdigest();part_bytes=len(payload)
+                        memory_parts[name]=part
+                    else:
+                        _atomic_pickle(stage/name,part)
+                        part_hash=_file_hash(stage/name);part_bytes=(stage/name).stat().st_size
+                    parts.append(dict(file=name,rank=rank,sha256=part_hash,bytes=part_bytes,
                         coefficient_keys=len(terms),energy_rows=sum(len(p.terms) if hasattr(p,'terms') else 1 for p in terms.values())))
                 pending.clear();budget.flushed(reason)
             for key,value in iterator:
@@ -295,8 +365,9 @@ class AnalyticExpressionStore:
                 operator_letter_bound=degree,maximum_mode_indices=maximum,options=options,
                 seconds=time.perf_counter()-started,stream_stats=budget.stats(),
                 plan_stats=None if plan is None else plan.stats(),implementation=_implementation_signature())
-            _atomic_json(stage/'manifest.json',manifest)
-        compiled=CompiledAnalyticExpression.load(directory)
+            if stage is not None:_atomic_json(stage/'manifest.json',manifest)
+        compiled=(self._remember(CompiledAnalyticExpression(None,manifest,parts=memory_parts))
+                  if directory is None else CompiledAnalyticExpression.load(directory))
         if projection is None:
             native=[wrapper.op if wrapper.op is not None else poly]
             from .ConditionalEvaluator import CorrectionView
@@ -305,7 +376,11 @@ class AnalyticExpressionStore:
                 native.append(wrapper.op.term)
             for op in native:
                 key=self._signature(dict(operator=op,change=change,baseline=baseline),active_operators,None,options)
-                self.entries.set_alias(key,signature)
+                if self.folder is None:
+                    if signature in self._memory:
+                        self._aliases[key]=signature
+                        while len(self._aliases)>4*self.memory_cache_size:self._aliases.popitem(last=False)
+                else:self.entries.set_alias(key,signature)
         return compiled
 
 
@@ -318,8 +393,9 @@ class _TemplateSubset:
 
 
 class CompiledAnalyticExpression:
-    def __init__(self,folder,manifest):
-        self.folder=Path(folder);self.manifest=manifest
+    def __init__(self,folder,manifest,parts=None):
+        self.folder=None if folder is None else Path(folder)
+        self.manifest=manifest;self.parts=parts;self.store=None
     @classmethod
     def load(cls,folder):
         folder=Path(folder).resolve();manifest=json.loads((folder/'manifest.json').read_text())
@@ -332,9 +408,13 @@ class CompiledAnalyticExpression:
         return cls(folder,manifest)
     def prepare_evaluation(self,state_perms,coeffs,freqs,*,anchored_modes=(),parallelizer=None,
                            batch_size=512,task_size=32768,resume=True,use_shared_memory=None,**numerical_options):
-        return CompiledAnalyticEvaluation(self,state_perms,coeffs,freqs,anchored_modes=anchored_modes,
-            parallelizer=parallelizer,batch_size=batch_size,task_size=task_size,resume=resume,
-            numerical_options=numerical_options,use_shared_memory=use_shared_memory)
+        started=time.perf_counter()
+        try:
+            return CompiledAnalyticEvaluation(self,state_perms,coeffs,freqs,anchored_modes=anchored_modes,
+                parallelizer=parallelizer,batch_size=batch_size,task_size=task_size,resume=resume,
+                numerical_options=numerical_options,use_shared_memory=use_shared_memory)
+        finally:
+            if self.store is not None:self.store.timings['preparation_seconds']+=time.perf_counter()-started
     def evaluate(self,state_perms,coeffs,freqs,**options):
         return self.prepare_evaluation(state_perms,coeffs,freqs,**options).run()
 
@@ -368,7 +448,8 @@ class CompiledAnalyticEvaluation:
         signature=_fingerprint(dict(expression=compiled.manifest['signature'],states=self.state_perms,
             coefficients=coeffs,frequencies=self.freqs,anchors=self.anchored_modes,numerical=self.numerical_options,
             batch_size=self.batch_size,task_size=self.task_size))
-        self.folder=compiled.folder/'evaluations'/signature;self.folder.mkdir(parents=True,exist_ok=True)
+        self.folder=None if compiled.folder is None else compiled.folder/'evaluations'/signature
+        if self.folder is not None:self.folder.mkdir(parents=True,exist_ok=True)
         tasks=[];ndim=len(self.freqs);num_fixed=compiled.manifest['num_fixed']
         for part in compiled.manifest['parts']:
             rank=part['rank'];free=rank-num_fixed
@@ -379,13 +460,14 @@ class CompiledAnalyticEvaluation:
                 tasks.append(dict(index=index,part=part,start=start,stop=stop,
                                   file='task-{:08d}.pkl'.format(index)))
         self.tasks=tasks;self.signature=signature
-        _atomic_json(self.folder/'plan.json',dict(signature=signature,expression_signature=compiled.manifest['signature'],
+        if self.folder is not None:_atomic_json(self.folder/'plan.json',dict(signature=signature,expression_signature=compiled.manifest['signature'],
             kind='numerical-task-plan',task_count=len(tasks),subset_part_count=sum(t['stop']-t['start'] for t in tasks),
             batch_size=self.batch_size,task_size=self.task_size,tasks=tasks))
 
     def _context(self,coeffs=None):
-        return dict(expression_folder=str(self.compiled.folder),manifest=self.compiled.manifest,
-            evaluation_folder=str(self.folder),signature=self.signature,state_perms=self.state_perms,
+        return dict(expression_folder=None if self.compiled.folder is None else str(self.compiled.folder),
+            expression_parts=self.compiled.parts,manifest=self.compiled.manifest,
+            evaluation_folder=None if self.folder is None else str(self.folder),signature=self.signature,state_perms=self.state_perms,
             coeffs=self.coeffs if coeffs is None else coeffs,freqs=self.freqs,anchors=self.anchored_modes,
             batch_size=self.batch_size,resume=self.resume,numerical_options=self.numerical_options)
 
@@ -394,9 +476,12 @@ class CompiledAnalyticEvaluation:
         return _run_compiled_tasks([task],self._context())[0]
 
     def run(self):
-        manager = contextlib.nullcontext() if self.parallelizer is None else self.parallelizer
-        with manager:
-            return self._run()
+        started=time.perf_counter()
+        try:
+            manager = contextlib.nullcontext() if self.parallelizer is None else self.parallelizer
+            with manager:return self._run()
+        finally:
+            if self.compiled.store is not None:self.compiled.store.timings['evaluation_seconds']+=time.perf_counter()-started
 
     def _run(self):
         backend=self.parallelizer
@@ -427,7 +512,7 @@ class CompiledAnalyticEvaluation:
                     values=[r['values'][position][index] for r in records]
                     if any(np.iscomplexobj(v) for v in values):out[index]=sum(values)
                     else:out[index]=math.fsum(values)
-            _atomic_json(self.folder/'result.json',dict(complete=True,signature=self.signature,task_count=len(records),
+            if self.folder is not None:_atomic_json(self.folder/'result.json',dict(complete=True,signature=self.signature,task_count=len(records),
                 subset_part_count=sum(t['stop']-t['start'] for t in self.tasks),
                 resumed_tasks=sum(int(r.get('resumed',False)) for r in records)))
             return outputs
@@ -458,8 +543,8 @@ def _run_compiled_tasks(tasks,context):
     anchors=context['anchors'];available=tuple(i for i in range(num_fixed,ndim) if i not in anchors)
     cache=collections.OrderedDict();records=[]
     for task in tasks:
-        target=Path(context['evaluation_folder'])/task['file']
-        if context['resume'] and target.exists():
+        target=None if context['evaluation_folder'] is None else Path(context['evaluation_folder'])/task['file']
+        if target is not None and context['resume'] and target.exists():
             with target.open('rb') as stream:record=pickle.load(stream)
             if record['signature']!=context['signature'] or record['index']!=task['index']:raise ValueError('compiled result context mismatch')
             if record['start']!=task['start'] or not task['start']<=record['stop']<=task['stop']:
@@ -470,9 +555,12 @@ def _run_compiled_tasks(tasks,context):
         else:record=None
         part=task['part'];key=part['file']
         if key not in cache:
-            path=Path(context['expression_folder'])/key
-            if _file_hash(path)!=part['sha256']:raise ValueError('compiled part changed in worker')
-            with path.open('rb') as stream:cache[key]=pickle.load(stream)
+            if context.get('expression_parts') is not None:
+                cache[key]=context['expression_parts'][key]
+            else:
+                path=Path(context['expression_folder'])/key
+                if _file_hash(path)!=part['sha256']:raise ValueError('compiled part changed in worker')
+                with path.open('rb') as stream:cache[key]=pickle.load(stream)
             while len(cache)>2:cache.popitem(last=False)
         poly=cache[key];rank=part['rank'];free=rank-num_fixed
         batches=[];position=task['start']
@@ -517,12 +605,13 @@ def _run_compiled_tasks(tasks,context):
                 batch_values.append(value)
             position+=len(subsets);batches.append(dict(start=position-len(subsets),stop=position,values=batch_values))
             values=total_values()
-            _atomic_pickle(target,dict(complete=False,signature=context['signature'],index=task['index'],
+            if target is not None:_atomic_pickle(target,dict(complete=False,signature=context['signature'],index=task['index'],
                 start=task['start'],stop=position,values=values,batches=batches))
         if position!=task['stop']:raise ValueError('compiled subset range incomplete')
         record=dict(complete=True,signature=context['signature'],index=task['index'],start=task['start'],stop=position,
                     values=values,batches=batches,resumed=record is not None)
-        _atomic_pickle(target,record);records.append(record)
+        if target is not None:_atomic_pickle(target,record)
+        records.append(record)
     IndexedBlockEvaluator.clear_plan_cache()
     return records
 
@@ -531,9 +620,7 @@ class AnalyticCorrectionCompiler:
     """Correction selection and final projection belong to the evaluator layer."""
     def __init__(self,evaluator,folder=None):
         self.evaluator=evaluator
-        folder = evaluator.expressions_folder if folder is None else folder
-        if folder is None:raise ValueError('compilation requires expressions_folder')
-        self.store=AnalyticExpressionStore(folder)
+        self.store=evaluator.expression_store if folder is None else AnalyticExpressionStore(folder)
 
     def _generator(self,correction,order,energy_method):
         from .Conditional import SameStateCondition
