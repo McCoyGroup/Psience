@@ -1978,8 +1978,8 @@ class PotentialTerms(ExpansionTerms):
     @classmethod
     def _warn_mixed_derivatives(cls, derivs, mode_axes, *, logger, term_id=None,
                                 warning_diff=-1, handle_zeros=True,
-                                diagonal=True, val_axes=0):
-        """Compare available, common-basis samples before symmetry repair."""
+                                diagonal=True, val_axes=0, resolution_mode=None):
+        """Compare available samples; describe a pending repair when requested."""
         shape = derivs.shape[val_axes:]
         # Internal *_pre tensors still mix mode and Cartesian derivative slots.
         if (warning_diff is None or warning_diff <= 0
@@ -1994,6 +1994,7 @@ class PotentialTerms(ExpansionTerms):
                 np.repeat(indices[:1], mode_axes, axis=0), indices[1:]
             ], axis=0)
         keys = np.ravel_multi_index(np.sort(indices, axis=0), shape)
+        resolution_announced = False
         for value_pos in np.ndindex(derivs.shape[:val_axes]):
             values = derivs[value_pos][tuple(indices)]
             available = (np.flatnonzero(np.abs(values) > 1e-12) if handle_zeros
@@ -2004,6 +2005,13 @@ class PotentialTerms(ExpansionTerms):
             bounds = np.r_[0, np.flatnonzero(np.diff(keys[ordered])) + 1, len(ordered)]
             low, high = ordered[bounds[:-1]], ordered[bounds[1:] - 1]
             bad = values[high] - values[low] >= warning_diff
+            if np.any(bad) and resolution_mode is not None and not resolution_announced:
+                logger.log_print(
+                    "Mixed-derivative sample discrepancies below are measured before "
+                    "{mode} symmetry handling.",
+                    mode=resolution_mode
+                )
+                resolution_announced = True
             for lo, hi in zip(low[bad], high[bad]):
                 logger.log_print(
                     "WARNING: large difference for term {term_id}, {val:.3f} cm-1 [{pos}] vs {rval:.3f} cm-1 [{rpos}]",
@@ -2092,7 +2100,12 @@ class PotentialTerms(ExpansionTerms):
             raise ValueError("mode_axes must lie between one and the derivative rank")
         cls._warn_mixed_derivatives(derivs, mode_axes, logger=logger, term_id=term_id,
             warning_diff=warning_diff, handle_zeros=handle_zeros,
-            diagonal=diagonal, val_axes=val_axes)
+            diagonal=diagonal, val_axes=val_axes,
+            resolution_mode=(handling_mode.value if handling_mode in (
+                MixedDerivativeHandlingModes.Analytical,
+                MixedDerivativeHandlingModes.Numerical,
+                MixedDerivativeHandlingModes.Averaged
+            ) else None))
         if handling_mode == MixedDerivativeHandlingModes.Unhandled and str(term_id).endswith('_pre'):
             return derivs.copy()
         if str(term_id).endswith('_pre'):
