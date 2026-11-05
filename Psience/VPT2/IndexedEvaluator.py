@@ -2062,9 +2062,8 @@ class IndexedBlockEvaluator:
                   evaluation_context=None):
         """Evaluate one free-index subset through the joined block executor."""
         if verbose:
-            raise NotImplementedError(
-                "verbose indexed evaluation is implemented in the logging stage"
-            )
+            logger.log_print("Gathering indexed coefficients for subset {s}...", s=subset)
+            coefficient_start = time.perf_counter()
 
         self.stats.calls += 1
         full_set = tuple(range(num_fixed)) + subset
@@ -2081,6 +2080,9 @@ class IndexedBlockEvaluator:
             zero_cutoff,
             self.stats
         )
+        if verbose:
+            logger.log_print("Gathered {n} coefficient rows; took {e:.3f}s",
+                             n=len(eval_permutations), e=time.perf_counter()-coefficient_start)
         uniform_output=None
         if (self.use_batched_state_routing and len(state_permutations)>1
                 and all(len(permutations)==1 for _,permutations in state_permutations)):
@@ -2128,7 +2130,11 @@ class IndexedBlockEvaluator:
                 state_permutation_cache,
                 degenerate_changes
             )
-        self.stats.routing_seconds += time.perf_counter() - tick
+        routing_seconds = time.perf_counter() - tick
+        self.stats.routing_seconds += routing_seconds
+        if verbose:
+            logger.log_print("Routed {n} indexed blocks; took {e:.3f}s",
+                             n=len(work_items), e=routing_seconds)
 
         self.stats.work_items += len(work_items)
         degeneracy_context = (
@@ -2141,6 +2147,9 @@ class IndexedBlockEvaluator:
                 self.stats
             )
         )
+        if verbose:
+            logger.log_print("Evaluating {n} indexed blocks...", n=len(work_items))
+            evaluation_start = time.perf_counter()
         self._evaluate_work_items(
             work_items,
             output,
@@ -2156,4 +2165,7 @@ class IndexedBlockEvaluator:
             degeneracy_context=degeneracy_context,
             uniform_output=uniform_output
         )
+        if verbose:
+            logger.log_print("Evaluated indexed blocks; took {e:.3f}s",
+                             e=time.perf_counter()-evaluation_start)
         return output

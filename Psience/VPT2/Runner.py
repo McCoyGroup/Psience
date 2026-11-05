@@ -26,7 +26,8 @@ from ..Spectra import DiscreteSpectrum
 from .DegeneracySpecs import DegeneracySpec, DegenerateMultiStateSpace
 from .Hamiltonian import PerturbationTheoryHamiltonian
 from .Terms import ExpansionTerms
-from .Analytic import PerturbationTheoryEvaluator, AnalyticPerturbationTheorySolver
+from .Analytic import (PerturbationTheoryEvaluator, AnalyticPerturbationTheorySolver,
+                       _log_evaluation_time, _timed_evaluation)
 from .Corrections import AnalyticPerturbationTheoryCorrections
 
 VPTStateMaker = StateMaker # alias
@@ -3513,6 +3514,31 @@ class MultiVPTStateSpace:
     #     return self.flat_space.degenerate_states
 
 
+
+import contextlib, time
+
+@contextlib.contextmanager
+def _timed_vpt_step(logger, step, evaluator=None):
+    """Report total phase time and separate compiled-backend work at normal verbosity."""
+    before={} if evaluator is None else evaluator.compilation_statistics()
+    logger.log_print("{step}: started",step=step,log_level=Logger.LogLevel.Normal)
+    started=time.perf_counter();failed=False
+    try:yield
+    except BaseException:
+        failed=True
+        raise
+    finally:
+        logger.log_print("{step}: {status} after {elapsed:.3f}s",step=step,
+            status='failed' if failed else 'completed',elapsed=time.perf_counter()-started,
+            log_level=Logger.LogLevel.Normal)
+        if evaluator is not None:
+            after=evaluator.compilation_statistics()
+            delta={key:after.get(key,0)-before.get(key,0) for key in
+                ['requests','compilations','cache_hits','compilation_seconds','cache_lookup_seconds','preparation_seconds','evaluation_seconds']}
+            logger.log_print("{step}: expression compilation {compilation_seconds:.3f}s ({compilations} new, {cache_hits} reused); cache lookup {cache_lookup_seconds:.3f}s; compiled preparation {preparation_seconds:.3f}s; numerical evaluation {evaluation_seconds:.3f}s",
+                step=step,**delta,log_level=Logger.LogLevel.Normal)
+
+
 class AnalyticVPTRunner:
     def __init__(self,
                  expansions,
@@ -3530,6 +3556,7 @@ class AnalyticVPTRunner:
                  local_mode_coupling_order=None,
                  parallelizer=None,
                  expressions_folder=None,
+                  compile=True,
                  compilation_options=None,
                  evaluation_options=None
                  ):
@@ -3574,6 +3601,7 @@ class AnalyticVPTRunner:
         :type local_mode_coupling_order: int | None
         :param parallelizer: parallelization backend for the evaluator
         :type parallelizer: Parallelizer | None
+        :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: directory of reusable compiled expression shards and resumable numerical tasks
         :param compilation_options: bounded compilation settings (max_terms, max_bytes, cache_size, cache_bytes)
         :param evaluation_options: task/batch sizes, numerical cutoffs and shared-memory options for compiled evaluation
@@ -3606,11 +3634,13 @@ class AnalyticVPTRunner:
                 freqs=freqs,
                 parallelizer=parallelizer,
                 expressions_folder=expressions_folder,
+                compile=compile,
                 compilation_options=compilation_options,
                 evaluation_options=evaluation_options
             )
         else:
             self.eval = expansions
+            self.eval.compile_expressions = compile is not False
             if expressions_folder is not None:self.eval.expressions_folder = expressions_folder
             if compilation_options is not None:self.eval.compilation_options = dict(compilation_options)
             if evaluation_options is not None:self.eval.evaluation_options = dict(evaluation_options)
@@ -3647,6 +3677,7 @@ class AnalyticVPTRunner:
                          resonance_condition=None,
                          corrected_fundamental_frequencies=None,
                          expressions_folder=None,
+                  compile=True,
                          compilation_options=None,
                          evaluation_options=None,
                          **opts):
@@ -3698,6 +3729,7 @@ class AnalyticVPTRunner:
             parallelizer=parallelizer,
             checkpoint=ham.checkpointer if checkpoint is None else checkpoint,
             expressions_folder=expressions_folder,
+                compile=compile,
             compilation_options=compilation_options,
             evaluation_options=evaluation_options,
             allowed_terms=allowed_terms,
@@ -3719,6 +3751,7 @@ class AnalyticVPTRunner:
                   order=2,
                   expressions_file=None,
                   expressions_folder=None,
+                  compile=True,
                   compilation_options=None,
                   evaluation_options=None,
                   allowed_terms=None,
@@ -3748,6 +3781,7 @@ class AnalyticVPTRunner:
             :type order: int
             :param expressions_file: checkpoint file for caching the analytic expressions
             :type expressions_file: str | None
+        :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: compiled expression cache, independent of the intermediate expressions_file checkpoint
         :param compilation_options: settings for bounded final-expression compilation
         :param evaluation_options: settings for resumable subset tasks and native numerical evaluation
@@ -3791,6 +3825,7 @@ class AnalyticVPTRunner:
                 opts.get('order', order),
                 checkpoint=expressions_file,
                 expressions_folder=expressions_folder,
+                compile=compile,
                 compilation_options=compilation_options,
                 evaluation_options=evaluation_options,
                 parallelizer=parallelizer,
@@ -3849,6 +3884,7 @@ class AnalyticVPTRunner:
                   take_diagonal_v4_terms=True,
                   two_mode_only=False,
                   expressions_folder=None,
+                  compile=True,
                   compilation_options=None,
                   evaluation_options=None,
                   parallelizer=None,
@@ -3872,6 +3908,7 @@ class AnalyticVPTRunner:
         :type allowed_energy_changes: object | None
         :param expressions_file: checkpoint file for caching the analytic expressions
         :type expressions_file: str | None
+        :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: compiled expression cache, independent of the intermediate expressions_file checkpoint
         :param compilation_options: settings for bounded final-expression compilation
         :param evaluation_options: settings for resumable subset tasks and native numerical evaluation
@@ -3896,6 +3933,7 @@ class AnalyticVPTRunner:
             checkpoint=expressions_file,
             parallelizer=parallelizer,
             expressions_folder=expressions_folder,
+                compile=compile,
             compilation_options=compilation_options,
             evaluation_options=evaluation_options,
             expansion_order=opts.get('expansion_order', None),
@@ -4112,7 +4150,8 @@ class AnalyticVPTRunner:
             """
             self.runner = runner
             self.nmodes = len(self.runner.eval.freqs)
-    def prep_states(self, states, degeneracy_specs=None):
+    @_timed_evaluation('Preparing analytic states')
+    def prep_states(self, states, degeneracy_specs=None, logger=None):
         """
         **LLM Docstring**
 
@@ -4173,6 +4212,7 @@ class AnalyticVPTRunner:
             zero_cutoff=zero_cutoff
         )
 
+    @_timed_evaluation('Matrix correction call (total)')
     def get_matrix_corrections(self, states, order=None, degeneracy_specs=None, zero_cutoff=None, verbose=False):
         """
         **LLM Docstring**
@@ -4198,6 +4238,7 @@ class AnalyticVPTRunner:
                                                 verbose=verbose,
                                                 zero_cutoff=zero_cutoff)
 
+    @_timed_evaluation('Energy correction call (total)')
     def get_energy_corrections(self, states, order=None, degeneracy_specs=None, zero_cutoff=None, verbose=False,
                                state_specific_degeneracies=True):
         """
@@ -4227,6 +4268,7 @@ class AnalyticVPTRunner:
             verbose=verbose,
             zero_cutoff=zero_cutoff
         )
+    @_timed_evaluation('Overlap correction call (total)')
     def get_overlap_corrections(self,
                                 states,
                                 order=None, degeneracy_specs=None,
@@ -4276,6 +4318,7 @@ class AnalyticVPTRunner:
             for initials, finals in states.state_list_pairs
             for s in initials
         ]
+    @_timed_evaluation('Full wavefunction correction call (total)')
     def get_full_wavefunction_corrections(self,
                                           states,
                                           order=None, degeneracy_specs=None,
@@ -4309,6 +4352,7 @@ class AnalyticVPTRunner:
             verbose=verbose,
             zero_cutoff=zero_cutoff
         )
+    @_timed_evaluation('Wavefunction correction call (total)')
     def get_wavefunction_corrections(self,
                                      states,
                                      order=None, degeneracy_specs=None,
@@ -4383,6 +4427,7 @@ class AnalyticVPTRunner:
             corr_blocks.append(subcorr)
 
         return corr_blocks
+    @_timed_evaluation('Operator correction call (total)')
     def get_operator_corrections(self,
                                  operator_expansion, states,
                                  order=None, terms=None, degeneracy_specs=None, verbose=False,
@@ -4417,24 +4462,26 @@ class AnalyticVPTRunner:
         :return: the per-block regrouped operator corrections
         :rtype: list
         """
-        states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
+        states = self.prep_states(states, degeneracy_specs=degeneracy_specs, logger=opts.get('logger'))
 
-        is_sing = check_single and (
-            nput.is_numeric(operator_expansion[0])
-            or nput.is_numeric_array_like(operator_expansion[0])
-        )
-        if is_sing:
-            operator_expansion = [operator_expansion]
-        operator_expansion = [
-            [np.asanyarray(o) for o in expansion]
-            for expansion in operator_expansion
-        ]
+        logger = Logger.lookup(self.logger if opts.get('logger') is None else opts['logger'])
+        with _log_evaluation_time(logger, "Preparing operator expansions"):
+            is_sing = check_single and (
+                nput.is_numeric(operator_expansion[0])
+                or nput.is_numeric_array_like(operator_expansion[0])
+            )
+            if is_sing:
+                operator_expansion = [operator_expansion]
+            operator_expansion = [
+                [np.asanyarray(o) for o in expansion]
+                for expansion in operator_expansion
+            ]
 
-        if operator_type is None:
-            ndim = len(states.flat_space.state_list[0])
-            operator_type = itut.counts(operator_expansion[0][0].shape).get(ndim, 0)
-            # if operator_type == 0:
-            #     operator_type = "transition_moment"
+            if operator_type is None:
+                ndim = len(states.flat_space.state_list[0])
+                operator_type = itut.counts(operator_expansion[0][0].shape).get(ndim, 0)
+                # if operator_type == 0:
+                #     operator_type = "transition_moment"
 
         base_corrs = self.eval.get_operator_corrections(
             operator_expansion,
@@ -4448,10 +4495,11 @@ class AnalyticVPTRunner:
             **opts
         )
 
-        reconst_corrs = [
-            self.unflatten_corr(states, corr)
-            for corr in base_corrs
-        ]
+        with _log_evaluation_time(logger, "Regrouping operator correction results"):
+            reconst_corrs = [
+                self.unflatten_corr(states, corr)
+                for corr in base_corrs
+            ]
         # if is_sing:
         #     reconst_corrs = reconst_corrs[0]
 
@@ -4538,6 +4586,7 @@ class AnalyticVPTRunner:
 
         return op_corr_mats
 
+    @_timed_evaluation('Transition moment correction call (total)')
     def get_transition_moment_corrections(self, states,
                                           dipole_expansion=None, order=None,
                                           degeneracy_specs=None, axes=None,
@@ -4562,7 +4611,7 @@ class AnalyticVPTRunner:
         :return: the per-block regrouped transition-moment corrections
         :rtype: list
         """
-        states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
+        states = self.prep_states(states, degeneracy_specs=degeneracy_specs, logger=opts.get('logger'))
         if dipole_expansion is None:
             if order is None:
                 if self.expansion_order is not None:
@@ -4574,17 +4623,25 @@ class AnalyticVPTRunner:
         if order is None:
             order = len(dipole_expansion[0]) - 2
 
-        if axes is None: axes = [0, 1, 2]
-        corrs = self.get_operator_corrections(
-            [
-                [x/math.factorial(i) for i,x in enumerate(dipole_expansion[x])]
-                for x in axes
-            ],
-            states,
-            order=order,
-            operator_type='transition_moment',
-            **opts
-        )
+        logger = Logger.lookup(self.logger if opts.get('logger') is None else opts['logger'])
+        axes = [0, 1, 2] if axes is None else list(axes)
+        axis_names = [{0:'x', 1:'y', 2:'z'}.get(axis, str(axis)) for axis in axes]
+        expansions = []
+        for axis, name in zip(axes, axis_names):
+            with _log_evaluation_time(logger, "Preparing transition moment axis {axis}", axis=name):
+                expansions.append([value/math.factorial(i)
+                                   for i,value in enumerate(dipole_expansion[axis])])
+        # The evaluator shares work across axes, so report their elapsed time
+        # together rather than splitting the batch into separate calculations.
+        with _log_evaluation_time(logger, "Transition moment corrections (axes: {axes}; batched)",
+                                  axes=", ".join(axis_names)):
+            corrs = self.get_operator_corrections(
+                expansions,
+                states,
+                order=order,
+                operator_type='transition_moment',
+                **opts
+            )
 
         return corrs
 
@@ -4621,6 +4678,7 @@ class AnalyticVPTRunner:
         else:
             return spec_data
 
+    @_timed_evaluation('Effective Hamiltonian correction call (total)')
     def get_reexpressed_hamiltonian(self, states, order=None,
                                     degeneracy_specs=None, only_degenerate_terms=True,
                                     verbose=False,
@@ -4649,7 +4707,7 @@ class AnalyticVPTRunner:
         :return: `(all_mats, all_corrs)` -- the summed Hamiltonian matrix and the individual per-order correction matrices, one entry per degenerate group; `None` if there are no degenerate states
         :rtype: tuple | None
         """
-        states = self.prep_states(states, degeneracy_specs=degeneracy_specs)
+        states = self.prep_states(states, degeneracy_specs=degeneracy_specs, logger=opts.get('logger'))
         degs = self._eval_degeneracies(states, state_specific_degeneracies)
         if states.flat_space.degenerate_states is None: return None
         # TODO: break these degenerate states down into directly connected blocks again
@@ -5222,7 +5280,54 @@ class AnalyticVPTRunner:
         ]
 
     hamiltonian_correction_modification_type = 'degenerate'
+    @_timed_evaluation('Analytic VPT run (total)')
     def run_VPT(self,
+                states,
+                calculate_intensities=True,
+                operator_expansions=None,
+                operator_terms=None,
+                operator_type=None,
+                order=None,
+                verbose=False,
+                degeneracy_specs=None,
+                handle_degeneracies=True,
+                zero_cutoff=None,
+                transition_moment_terms=None,
+                hamiltonian_corrections=None,
+                clear_caches=True,
+                hamiltonian_correction_type=None,
+                only_degenerate_terms=True,
+                state_specific_degeneracies=True,
+                force_return_on_crash=True,
+                compile=None
+                ):
+        """Run with the configured compilation policy, or an explicit per-call override."""
+        previous=self.eval.compile_expressions
+        if compile is not None:self.eval.compile_expressions=compile is not False
+        try:
+            return self._run_VPT(
+                states=states,
+                calculate_intensities=calculate_intensities,
+                operator_expansions=operator_expansions,
+                operator_terms=operator_terms,
+                operator_type=operator_type,
+                order=order,
+                verbose=verbose,
+                degeneracy_specs=degeneracy_specs,
+                handle_degeneracies=handle_degeneracies,
+                zero_cutoff=zero_cutoff,
+                transition_moment_terms=transition_moment_terms,
+                hamiltonian_corrections=hamiltonian_corrections,
+                clear_caches=clear_caches,
+                hamiltonian_correction_type=hamiltonian_correction_type,
+                only_degenerate_terms=only_degenerate_terms,
+                state_specific_degeneracies=state_specific_degeneracies,
+                force_return_on_crash=force_return_on_crash,
+
+            )
+        finally:self.eval.compile_expressions=previous
+
+    def _run_VPT(self,
                 states,
                 calculate_intensities=True,
                 operator_expansions=None,
@@ -5329,13 +5434,14 @@ class AnalyticVPTRunner:
             corrs = AnalyticPerturbationTheoryCorrections(basis, states.state_list_pairs, logger=self.logger)
             try:
                 with self.logger.block(tag="Calculating frequency corrections"):
-                    energy_corrections = self.get_energy_corrections(
-                        states,
-                        order=order,
-                        verbose=verbose,
-                        zero_cutoff=zero_cutoff,
-                        state_specific_degeneracies=state_specific_degeneracies
-                    )
+                    with _timed_vpt_step(self.logger, 'Energy corrections', self.eval):
+                        energy_corrections = self.get_energy_corrections(
+                            states,
+                            order=order,
+                            verbose=verbose,
+                            zero_cutoff=zero_cutoff,
+                            state_specific_degeneracies=state_specific_degeneracies
+                        )
                     corrs.energy_corrections = energy_corrections
 
                     if order is None:
@@ -5367,15 +5473,16 @@ class AnalyticVPTRunner:
                     corrs.degenerate_states = states.flat_space.degenerate_states
                     with self.logger.block(tag="Handling degeneracies"):
                         with self.logger.block(tag="Calculating effective Hamiltonians..."):
-                            _, degenerate_corrs = self.get_reexpressed_hamiltonian(
-                                states,
-                                order=order,
-                                verbose=verbose,
-                                only_degenerate_terms=only_degenerate_terms,
-                                hamiltonian_corrections=hamiltonian_corrections,
-                                zero_cutoff=zero_cutoff,
-                                state_specific_degeneracies=state_specific_degeneracies
-                            )
+                            with _timed_vpt_step(self.logger, 'Effective Hamiltonian corrections', self.eval):
+                                _, degenerate_corrs = self.get_reexpressed_hamiltonian(
+                                    states,
+                                    order=order,
+                                    verbose=verbose,
+                                    only_degenerate_terms=only_degenerate_terms,
+                                    hamiltonian_corrections=hamiltonian_corrections,
+                                    zero_cutoff=zero_cutoff,
+                                    state_specific_degeneracies=state_specific_degeneracies
+                                )
                         corrs.only_degenerate_terms = only_degenerate_terms
                         corrs.degenerate_hamiltonian_corrections = degenerate_corrs
 
@@ -5424,14 +5531,15 @@ class AnalyticVPTRunner:
                         )
 
                 if calculate_intensities:
-                    transition_moments_corrs = self.get_transition_moment_corrections(
-                        states,
-                        order=order,
-                        verbose=verbose,
-                        zero_cutoff=zero_cutoff,
-                        terms=transition_moment_terms,
-                        state_specific_degeneracies=state_specific_degeneracies
-                    )
+                    with _timed_vpt_step(self.logger, 'Transition-moment corrections', self.eval):
+                        transition_moments_corrs = self.get_transition_moment_corrections(
+                            states,
+                            order=order,
+                            verbose=verbose,
+                            zero_cutoff=zero_cutoff,
+                            terms=transition_moment_terms,
+                            state_specific_degeneracies=state_specific_degeneracies
+                        )
                     corrs.transition_moment_corrections = transition_moments_corrs
 
                     with self.logger.block(tag="Transition Moments:"):
@@ -5470,16 +5578,17 @@ class AnalyticVPTRunner:
                 keys, operators = self.prep_operators(operator_expansions, operator_terms, order)
                 if operators is not None:
                     # keys, operators = self.prep_operators(operators)
-                    operator_corrections = self.get_operator_corrections(
-                        operators,
-                        states,
-                        order=order,
-                        verbose=verbose,
-                        zero_cutoff=zero_cutoff,
-                        check_single=False,
-                        operator_type=operator_type,
-                        state_specific_degeneracies=state_specific_degeneracies
-                    )
+                    with _timed_vpt_step(self.logger, 'Additional operator corrections', self.eval):
+                        operator_corrections = self.get_operator_corrections(
+                            operators,
+                            states,
+                            order=order,
+                            verbose=verbose,
+                            zero_cutoff=zero_cutoff,
+                            check_single=False,
+                            operator_type=operator_type,
+                            state_specific_degeneracies=state_specific_degeneracies
+                        )
                     corrs.operator_corrections = operator_corrections
                     corrs.operator_keys = keys
 
@@ -5533,6 +5642,7 @@ class AnalyticVPTRunner:
                    *,
                    expressions_file=None,
                    expressions_folder=None,
+                  compile=True,
                    compilation_options=None,
                    evaluation_options=None,
                    parallelizer=None,
@@ -5543,7 +5653,8 @@ class AnalyticVPTRunner:
 
         Convenience one-shot entry point: builds an `AnalyticVPTRunner` for the given system (via `construct`) and immediately runs the full VPT calculation on it (via `run_VPT`).
 
-        Supplying expressions_folder enables bounded final-expression compilation
+        By default, final expressions compile in bounded reusable memory. Pass compile=False
+        to disable compilation. Supplying expressions_folder persists compiled expressions
         followed by numerical dispatch through parallelizer. Matching shards and
         completed task checkpoints are reused on subsequent calls. Energy,
         transition-moment and additional operator requests keep their normal
@@ -5585,6 +5696,7 @@ class AnalyticVPTRunner:
         :param force_return_on_crash: whether to catch exceptions during the run and still return partial results
         :type force_return_on_crash: bool
         :param expressions_file: legacy intermediate-expression checkpoint, independent of expressions_folder
+        :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: persistent compiled-expression shards and resumable numerical tasks; enables compilation in the controller before dispatching each correction
         :param compilation_options: bounded compilation settings forwarded to the analytic evaluator
         :param evaluation_options: compiled task/batch sizes, resume, numerical and shared-memory settings
@@ -5600,6 +5712,7 @@ class AnalyticVPTRunner:
             system, states, degeneracy_specs=degeneracy_specs,
             expressions_file=expressions_file,
             expressions_folder=expressions_folder,
+                compile=compile,
             compilation_options=compilation_options,
             evaluation_options=evaluation_options,
             parallelizer=parallelizer,
