@@ -5309,7 +5309,7 @@ class Molecule(AbstractMolecule):
 
         return OBMolecule.from_mol(self, **opts)
     @classmethod
-    def _from_log_file(cls, file, num=None, **opts):
+    def _from_log_file(cls, file, num=None, charge=None, spin=None, **opts):
         """
         **LLM Docstring**
 
@@ -5319,18 +5319,40 @@ class Molecule(AbstractMolecule):
         :type file: str
         :param num: which structure(s) to parse from the file (forwarded to the log reader)
         :type num: int | None
+        :param charge: override the parsed net charge; None uses the log value
+        :type charge: int | None
+        :param spin: override the parsed spin multiplicity; None uses the log value
+        :type spin: int | None
         :param opts: extra options forwarded to the constructor
         :type opts: dict
         :return: the constructed molecule
         :rtype: Molecule
         """
         with GaussianLogReader(file) as gr:
-            parse = gr.parse('CartesianCoordinates', num=num)
-        spec, coords = parse['CartesianCoordinates']
+            jobs = gr.parse_jobs(['CartesianCoordinates', 'MoleculeInfo'], num=num)
+        remaining = num
+        selected = None
+        for job in jobs:
+            geometry = job['data']['CartesianCoordinates']
+            if not geometry or len(geometry[1]) == 0:
+                continue
+            spec, coords = geometry
+            if remaining is not None and remaining <= 0:
+                break
+            index = -1 if remaining is None else min(remaining, len(coords)) - 1
+            state = get_last_molecule_info(job['data']['MoleculeInfo'])
+            selected = (spec[index][:, 1], coords[index], state)
+            if remaining is not None:
+                remaining -= len(coords)
+        if selected is None:
+            raise ValueError(f'no Cartesian coordinates selected from {file}')
+        atoms, coords, state = selected
         ang2bohr = UnitsData.convert("Angstroms", "AtomicUnitOfLength")
         return cls(
-            spec[-1][:, 1],
-            ang2bohr*coords[-1],
+            atoms,
+            ang2bohr*coords,
+            charge=state.get('charge') if charge is None else charge,
+            spin=state.get('multiplicity') if spin is None else spin,
             **opts
         )
     @classmethod
@@ -5364,7 +5386,7 @@ class Molecule(AbstractMolecule):
         return mol
 
     @classmethod
-    def _from_orca_file(cls, file, **opts):
+    def _from_orca_file(cls, file, charge=None, spin=None, **opts):
         """
         **LLM Docstring**
 
@@ -5372,6 +5394,10 @@ class Molecule(AbstractMolecule):
 
         :param file: path to the ORCA log file
         :type file: str
+        :param charge: override the parsed net charge; None uses the output value
+        :type charge: int | None
+        :param spin: override the parsed spin multiplicity; None uses the output value
+        :type spin: int | None
         :param opts: extra options forwarded to the constructor
         :type opts: dict
         :return: the constructed molecule
@@ -5380,11 +5406,14 @@ class Molecule(AbstractMolecule):
         from McUtils.ExternalPrograms import OrcaLogReader
         with OrcaLogReader(file) as gr:
             parse = gr.parse(['CartesianAUCoordinates'])['CartesianAUCoordinates']
+            state = get_last_molecule_info(gr.parse('MoleculeInfo')['MoleculeInfo'])
 
         mol = cls(
             parse.atoms[-1],
             parse.coords[-1],
             masses=parse.masses[-1],
+            charge=state.get('charge') if charge is None else charge,
+            spin=state.get('multiplicity') if spin is None else spin,
             **opts
         )
         return mol
@@ -5442,10 +5471,19 @@ class Molecule(AbstractMolecule):
         return mol
 
     @classmethod
-    def _from_qchem_file(cls, file, coordinate_filter=True, **opts):
+    def _from_qchem_file(cls, file, coordinate_filter=True, charge=None, spin=None, **opts):
+        """Load Q-Chem geometry and electronic state through McUtils' registered components.
+
+        Explicit charge/spin values override the output; spin is the multiplicity.
+        Missing electronic-state metadata preserves the constructor defaults.
+        """
         from McUtils.ExternalPrograms import QChemLogReader
         with QChemLogReader(file) as gr:
             parse = gr.parse(['CartesianCoordinates'])['CartesianCoordinates']
+            state = get_last_molecule_info(gr.parse('MoleculeInfo')['MoleculeInfo'])
+
+        opts = dict(opts, charge=state.get('charge') if charge is None else charge,
+                    spin=state.get('multiplicity') if spin is None else spin)
 
         if coordinate_filter is True:
             coordinate_filter = lambda c:c[-1]
@@ -5492,8 +5530,9 @@ class Molecule(AbstractMolecule):
         elif hasattr(rdmol, 'GetAtoms'):
             rdmol = RDMolecule.from_base_mol(rdmol, **opts)
 
+        opts.setdefault('masses', rdmol.masses)
         return cls(
-            rdmol.atoms,
+            rdmol.atom_labels,
             rdmol.coords * UnitsData.convert("Angstroms", "BohrRadius"),
             bonds=rdmol.bonds,
             charge=rdmol.charge,
