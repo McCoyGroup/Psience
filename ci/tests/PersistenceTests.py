@@ -174,6 +174,42 @@ class PersistenceTests(unittest.TestCase):
             cache['a']
     #endregion
 
+    #region Compiled expression store on the shared entry store (phase 6)
+    def test_CompiledExpressionStoreUsesEntryStore(self):
+        import types
+        from McUtils.Devutils import EntryStore
+        from Psience.VPT2.CompiledExpressions import AnalyticExpressionStore
+        store = AnalyticExpressionStore(self.path('compiled'))
+        self.assertIsInstance(store.entries, EntryStore)
+        wrapper = types.SimpleNamespace(expr=0, change=(), num_fixed=0, op=None)
+        compiled = store.compile_factory(lambda: wrapper, context='zero', max_terms=10)
+        self.assertTrue(compiled.manifest['complete'])
+        signature = compiled.folder.name
+        self.assertEqual(store.entries.keys(), [signature])  # folder/<signature>/manifest.json, no shards
+        self.assertTrue(os.path.isfile(self.path(os.path.join('compiled', signature, 'manifest.json'))))
+        # a second compile hits the stored entry without calling the factory
+        def fail():
+            raise AssertionError('should have been served from the store')
+        again = store.compile_factory(fail, context='zero', max_terms=10)
+        self.assertEqual(again.folder, compiled.folder)
+        # aliases keep their old layout and point at the compiled entry
+        aliases = os.listdir(self.path(os.path.join('compiled', 'aliases')))
+        self.assertEqual(len(aliases), 1)
+        import json
+        with open(self.path(os.path.join('compiled', 'aliases', aliases[0]))) as f:
+            self.assertEqual(json.load(f), {'compiled': signature})
+        self.assertEqual([n for n in os.listdir(self.path('compiled')) if n.startswith('.')], [])
+
+    def test_CompiledExpressionStoreFailedCompileLeavesNothing(self):
+        from Psience.VPT2.CompiledExpressions import AnalyticExpressionStore
+        store = AnalyticExpressionStore(self.path('compiled2'))
+        def broken():
+            raise RuntimeError('compile failed')
+        with self.assertRaises(RuntimeError):
+            store.compile_factory(broken, context='zero', max_terms=10)
+        self.assertEqual(os.listdir(self.path('compiled2')), [])
+    #endregion
+
 
 if __name__ == '__main__':
     unittest.main()
