@@ -109,13 +109,10 @@ class AIMNet2Backend(ElectronicStructureBackend):
                     if not os.path.exists(filename):
                         os.makedirs(os.path.dirname(filename), exist_ok=True)
                         print(f"Downloading {url} -> {filename}")
-                        with open(filename, "wb") as f:
-                            response = requests.get(url, timeout=60)
-                            f.write(response.content)
+                        response = requests.get(url, timeout=60)
+                        dev.atomic_write(filename, response.content) # an interrupted download must not look complete
                     if sha256 is not None:
-                        import hashlib
-                        with open(filename, 'rb') as f:
-                            digest = hashlib.sha256(f.read()).hexdigest()
+                        digest = dev.file_hash(filename)
                         if digest != sha256:
                             raise ValueError(f"checksum mismatch for {filename}: expected {sha256}, got {digest}")
                     return filename

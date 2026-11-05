@@ -8,7 +8,6 @@ import collections
 import contextlib
 import contextvars
 import dataclasses
-import errno
 import functools
 import hashlib
 import inspect
@@ -20,13 +19,12 @@ import os
 from pathlib import Path
 import pickle
 import sys
-import tempfile
 import time
 import uuid
 import numpy as np
 from McUtils.Parallelizers import Parallelizer, MultiprocessingParallelizer
 from McUtils.Devutils import (atomic_write, atomic_write_json, file_hash, freeze, fingerprint,
-                              implementation_signature)
+                              implementation_signature, EntryStore)
 
 from .Conditional import (ConditionalTransformationStack, SameStateCondition,
                           operator_sum, operator_product, ZeroTerm)
@@ -180,22 +178,28 @@ class _OccupationProjection:
         return Transform()
 
 
+class _CompiledEntries(EntryStore):
+    # compiled expressions live at folder/<signature>/manifest.json, aliases at folder/aliases/<signature>.json
+    meta_name = 'manifest.json'
+    shard = 0
+    alias_field = 'compiled'
+    stage_prefix = '.compile-'
+
+
 class AnalyticExpressionStore:
     format_version = 1
     def __init__(self, folder):
         self.folder = Path(folder).expanduser().resolve()
         self.folder.mkdir(parents=True,exist_ok=True)
+        self.entries = _CompiledEntries(self.folder)
 
     def _signature(self,context,active_operators,projection,options):
         return _fingerprint(dict(format=self.format_version,implementation=_implementation_signature(),
             definition=context,active_operators=active_operators,projection=projection,options=options))
 
     def _find_alias(self,signature):
-        path=self.folder/'aliases'/(signature+'.json')
-        if not path.exists():return None
-        target=json.loads(path.read_text())['compiled']
-        if len(target)!=64 or any(c not in '0123456789abcdef' for c in target):raise ValueError('invalid compiled alias')
-        return CompiledAnalyticExpression.load(self.folder/target)
+        target=self.entries.resolve_alias(signature)
+        return None if target is None else CompiledAnalyticExpression.load(self.folder/target)
 
     def compile(self, expression, *, context=None, active_operators=None, projection=None,
                 max_terms=32768, max_bytes=64*1024**2, cache_size=100000,
@@ -216,7 +220,7 @@ class AnalyticExpressionStore:
         if max_terms<1 or (max_bytes is not None and max_bytes<1):raise ValueError('invalid compilation budget')
         signature = self._signature(context,active_operators,projection,options)
         directory = self.folder/signature
-        if (directory/'manifest.json').exists():return CompiledAnalyticExpression.load(directory)
+        if self.entries.has(signature):return CompiledAnalyticExpression.load(directory)
         alias=self._find_alias(signature)
         if alias is None and active_operators is not None:
             # A cache compiled without pruning is valid for a narrower active
@@ -259,8 +263,8 @@ class AnalyticExpressionStore:
             plan = None;iterator = poly.terms.items()
         transform = projection.compiler() if projection is not None else None
         budget = StreamBudget(dict(max_terms=max_terms,max_bytes=max_bytes))
-        with tempfile.TemporaryDirectory(prefix='.compile-',dir=self.folder) as temporary:
-            stage = Path(temporary);pending={};parts=[]
+        with self.entries.stage(signature) as staged:
+            stage = Path(staged.path);pending={};parts=[]
             def flush(reason):
                 if not pending:return
                 compact = PTTensorCoeffProductSum({key:acc.total() for key,acc in pending.items()},
@@ -292,10 +296,6 @@ class AnalyticExpressionStore:
                 seconds=time.perf_counter()-started,stream_stats=budget.stats(),
                 plan_stats=None if plan is None else plan.stats(),implementation=_implementation_signature())
             _atomic_json(stage/'manifest.json',manifest)
-            try:stage.rename(directory)
-            except OSError as error:
-                if error.errno not in {errno.EEXIST,errno.ENOTEMPTY}:raise
-                if not (directory/'manifest.json').exists():raise
         compiled=CompiledAnalyticExpression.load(directory)
         if projection is None:
             native=[wrapper.op if wrapper.op is not None else poly]
@@ -303,10 +303,9 @@ class AnalyticExpressionStore:
             if isinstance(wrapper.op,CorrectionView) and not any(getattr(wrapper.op,name) is not None for name in
                     ['allowed_terms','allowed_coefficients','disallowed_coefficients','allowed_energy_changes']):
                 native.append(wrapper.op.term)
-            aliases=self.folder/'aliases';aliases.mkdir(exist_ok=True)
             for op in native:
                 key=self._signature(dict(operator=op,change=change,baseline=baseline),active_operators,None,options)
-                _atomic_json(aliases/(key+'.json'),dict(compiled=signature))
+                self.entries.set_alias(key,signature)
         return compiled
 
 
