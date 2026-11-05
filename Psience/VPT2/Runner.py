@@ -4645,6 +4645,109 @@ class AnalyticVPTRunner:
 
         return corrs
 
+    @staticmethod
+    def _contribution_options(options):
+        # Public keys follow matrix bra/ket/operator order, not the internal filter order.
+        if 'terms' in options or 'target_orders' in options:
+            raise ValueError('use term_orders=(bra,ket,operator) and orders for this diagnostic route')
+        return options
+
+    @staticmethod
+    def _operator_contribution_matrices(corrections, order):
+        # Native correction rows are initial kets and columns are final bras.
+        # The native analytic correction convention is minus the matrix element.
+        return {n:[[-np.asarray(block[n]).T.copy() for block in component]
+                   for component in corrections] for n in range(order+1)}
+
+    @_timed_evaluation('Operator term contributions (optional)')
+    def get_operator_term_contributions(self, operator_expansion, states, order=None, *,
+            orders=None, term_orders=None, validate=True, symbol='A', units='atomic units',
+            component_names=None, degeneracy_specs=None, state_specific_degeneracies=True,
+            atol=1e-11, rtol=1e-9, **options):
+        """Resolve <bra correction|A(operator order)|ket correction> terms on request.
+
+        term_orders uses the matrix-code tuple order (bra,ket,operator). Values use
+        physical matrix-element signs and array[bra state,ket state] axes. The
+        ordinary calculation is unaffected until this separate method is called.
+        """
+        from .Contributions import AnalyticTermContributions
+        self._contribution_options(options)
+        if order is None:order=self.order if self.order is not None else len(self.eval.expansions)-1
+        prepared=self.prep_states(states,degeneracy_specs=degeneracy_specs,logger=options.get('logger'))
+        def evaluate(filters,n):
+            raw=self.get_operator_corrections(operator_expansion,prepared,order=n,terms=filters,
+                state_specific_degeneracies=state_specific_degeneracies,**options)
+            return self._operator_contribution_matrices(raw,n)
+        blocks=[dict(ket_states=ket,bra_states=bra) for ket,bra in prepared.state_list_pairs]
+        return AnalyticTermContributions.collect(evaluate,order,orders=orders,term_orders=term_orders,
+            validate=validate,symbol=symbol,units=units,state_blocks=blocks,component_names=component_names,
+            metadata=dict(kind='operator',state_specific_degeneracies=state_specific_degeneracies),atol=atol,rtol=rtol)
+
+    @_timed_evaluation('Transition-moment term contributions (optional)')
+    def get_transition_moment_term_contributions(self, states, order=None, *,
+            orders=None, term_orders=None, validate=True, dipole_expansion=None, axes=None,
+            degeneracy_specs=None, state_specific_degeneracies=True, atol=1e-11, rtol=1e-9, **options):
+        """Decompose transition amplitudes, retaining native derivative factorials.
+
+        These are amplitude contributions. Intensities also contain cross terms
+        and must not be obtained by adding squared individual contributions.
+        """
+        from .Contributions import AnalyticTermContributions
+        self._contribution_options(options)
+        if order is None:order=self.order if self.order is not None else len(self.eval.expansions)-1
+        axes=[0,1,2] if axes is None else list(axes)
+        prepared=self.prep_states(states,degeneracy_specs=degeneracy_specs,logger=options.get('logger'))
+        def evaluate(filters,n):
+            raw=self.get_transition_moment_corrections(prepared,order=n,terms=filters,
+                dipole_expansion=dipole_expansion,axes=axes,
+                state_specific_degeneracies=state_specific_degeneracies,**options)
+            return self._operator_contribution_matrices(raw,n)
+        blocks=[dict(ket_states=ket,bra_states=bra) for ket,bra in prepared.state_list_pairs]
+        return AnalyticTermContributions.collect(evaluate,order,orders=orders,term_orders=term_orders,
+            validate=validate,symbol='mu',units='atomic dipole',state_blocks=blocks,
+            component_names=['mu_'+{0:'x',1:'y',2:'z'}.get(axis,str(axis)) for axis in axes],
+            metadata=dict(kind='transition_moment_amplitude',state_specific_degeneracies=state_specific_degeneracies),atol=atol,rtol=rtol)
+
+    @_timed_evaluation('Hamiltonian term contributions (optional)')
+    def get_hamiltonian_term_contributions(self, states, order=None, *,
+            orders=None, term_orders=None, validate=True, degeneracy_specs=None,
+            hamiltonian_corrections=None, state_specific_degeneracies=True,
+            atol=1e-11, rtol=1e-9, **options):
+        """Full <bra|H|ket> decomposition in the resolved reference-state basis.
+
+        Resolved resonance blocks and normalization are retained. Every ordered
+        state pair is evaluated; individual terms are never mirrored. Diagonal
+        entries include absolute state energies, before ground subtraction.
+        """
+        from .Contributions import AnalyticTermContributions
+        self._contribution_options(options)
+        if order is None:order=self.order if self.order is not None else len(self.eval.expansions)-1
+        prepared=self.prep_states(states,degeneracy_specs=degeneracy_specs,logger=options.get('logger'))
+        references=np.asarray(prepared.flat_space.state_list,dtype=int)
+        pairs=[[state,references] for state in references]
+        degenerate_states=self._eval_degeneracies(prepared,state_specific_degeneracies)
+        degenerate_blocks=prepared.flat_space.degenerate_states
+        evaluator=self.eval if hamiltonian_corrections is None else self.eval.modify_hamiltonian(hamiltonian_corrections)
+        def evaluate(filters,n):
+            raw=evaluator.get_hamiltonian_operator_corrections(pairs,order=n,terms=filters,
+                degenerate_states=degenerate_states,degenerate_blocks=degenerate_blocks,**options)
+            result={}
+            for k in range(n+1):
+                columns=[]
+                for ket in references:
+                    row=int(raw.initial_states.find([ket])[0])
+                    indices=raw.final_states[row].find(references)
+                    columns.append(-np.asarray(raw.corrections[row][k])[indices])
+                result[k]=[[np.stack(columns,axis=1)]]
+            return result
+        groups=None if degenerate_blocks is None else [np.asarray(group,dtype=int).tolist() for group in degenerate_blocks]
+        return AnalyticTermContributions.collect(evaluate,order,orders=orders,term_orders=term_orders,
+            validate=validate,symbol='H',units='Hartrees',state_blocks=[dict(ket_states=references,bra_states=references)],
+            component_names=['H'],metadata=dict(kind='hamiltonian',resolved_resonance_blocks=groups,
+                state_specific_degeneracies=state_specific_degeneracies,absolute_state_energies=True,
+                intermediate_normalization=bool(evaluator.solver.intermediate_normalization),
+                resonance_condition=repr(getattr(evaluator.solver,'resonance_condition',None))),atol=atol,rtol=rtol)
+
     def get_freqs(self, states, order=None, degeneracy_specs=None, return_corrections=False, verbose=False,
                   state_specific_degeneracies=True):
         """

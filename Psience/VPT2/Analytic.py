@@ -1085,6 +1085,15 @@ class AnalyticPerturbationTheorySolver:
     _op_maps = {}
     def get_correction(self, key, cls, order, **kw):
         corr_key = (cls, key, order)
+        for option in ('operator_type','base_index'):
+            if kw.get(option) is not None:corr_key += ((option,kw[option]),)
+        term_filter = kw.get('allowed_terms')
+        if term_filter is None:term_filter = self.allowed_terms
+        if term_filter is not None:
+            # Distinct filtered operators must not reuse the first correction.
+            term_filter = tuple(sorted(set(tuple(t) for t in term_filter)))
+            kw['allowed_terms'] = term_filter
+            corr_key += (('allowed_terms',term_filter),)
         corr = self._op_maps.get(corr_key, None)
         if corr is None:
             for k,v in [
@@ -6638,7 +6647,12 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
         return None
     @property
     def serializer_key(self):
-        return self.get_serializer_key()
+        key = self.get_serializer_key()
+        if key is not None and self.allowed_terms is not None:
+            # Keep legacy unfiltered checkpoints intact and isolate each term.
+            terms = tuple(sorted(set(tuple(t) for t in self.allowed_terms)))
+            key = '{}::terms={}'.format(key,terms)
+        return key
 
     debug_logger = None
     _logger_stack = []
@@ -6786,8 +6800,8 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
 
     def __call__(self, changes, shift=None, coeffs=None, freqs=None,
                  check_sorting=True, simplify=None, return_evaluator=True):
-        with self.logger.block(tag="Building evaluator {}[{}]".format(
-                self, format_quantum_change(changes))):
+        with self.logger.block(tag="Building evaluator {term}[{change}]",
+                term=self, change=format_quantum_change(changes)):
             with self.checkpoint: # Open once
                 if coeffs is not None:
                     raise NotImplementedError(...)
@@ -12000,6 +12014,40 @@ class PerturbationTheoryEvaluator:
                     [exp for term_list, exp in term_list_exps]
                 )
         return full_corrs, exps
+
+    @_timed_evaluation('Hamiltonian operator corrections (optional)')
+    @_compiled_evaluation_context
+    def get_hamiltonian_operator_corrections(self, states, order=None, expansions=None,
+            freqs=None, degenerate_states=None, degenerate_blocks=None, terms=None,
+            verbose=False, **opts):
+        """Full ordered Hamiltonian matrix elements in the native operator-correction sign.
+
+        Unlike the effective-Hamiltonian triangular assembler, this route evaluates
+        both directions independently, including across distinct resolved blocks.
+        No model-space grouping or numerical cutoff is changed.
+        """
+        if opts.pop('only_degenerate_terms',False):
+            raise ValueError('Hamiltonian operator contributions require the full operator')
+        if not opts.pop('include_diagonal',True):
+            raise ValueError('Hamiltonian operator contributions include diagonal elements')
+        if order is None:order=len(self.expansions)-1
+        projected=self._projected_corrections(degenerate_blocks,degenerate_states,
+            expansions,freqs,opts.get('zero_cutoff'),opts.get('parallelizer'),
+            logger=opts.get('logger'),verbose=verbose)
+        if projected is not None:
+            if hasattr(projected,'validate_options'):projected.validate_options(opts)
+            else:self._validate_projected_options(opts)
+            # ConditionalCorrectionEvaluator prepares raw coefficients itself.
+            # A second preparation would transpose internal kinetic tensors twice.
+            coefficients=expansions if hasattr(projected,'energies') else self._prep_expansions(expansions)
+            return projected.operators(states,order,self.solver.hamiltonian_expansion,
+                coefficients,terms=terms,
+                branches=opts.get('include_degenerate_correction_terms',True),
+                target_orders=opts.get('target_orders'))
+        return self.get_reexpressed_hamiltonian(states,order=order,expansions=expansions,
+            freqs=freqs,degenerate_states=degenerate_states,degenerate_blocks=degenerate_blocks,
+            only_degenerate_terms=False,include_diagonal=True,terms=terms,
+            verbose=verbose,**opts)
 
     @_timed_evaluation('Effective Hamiltonian corrections (total)')
     def get_reexpressed_hamiltonian(self, states, order=None, expansions=None, freqs=None,

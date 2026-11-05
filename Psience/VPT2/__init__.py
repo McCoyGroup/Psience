@@ -72,3 +72,7 @@ __all__ += ['OperatorCondition','SameStateCondition','PolynomialInvariantConditi
 from .CompiledExpressions import *
 from .CompiledExpressions import __all__ as exposed
 __all__ += exposed
+
+from .Contributions import *
+from .Contributions import __all__ as exposed
+__all__ += exposed
