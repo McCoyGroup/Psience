@@ -14,6 +14,7 @@ import numpy as np, scipy.signal, time
 from McUtils.Zachary import DensePolynomial, TensorCoefficientPoly
 import McUtils.Numputils as nput
 import McUtils.Devutils as dev
+from McUtils.Devutils import CascadingPropertyManager, cascading_property, derived_property
 import McUtils.Combinatorics as mcomb
 from McUtils.Combinatorics import SymmetricGroupGenerator, IntegerPartitioner, UniquePartitions, UniquePermutations
 from McUtils.Scaffolding import Logger, Checkpointer, MaxSizeCache
@@ -2219,6 +2220,8 @@ class ProductPTPolynomial(PolynomialInterface):
         return other.mul_along(self, inds, remainder=remainder, mapping=mapping)
 
     def __add__(self, other):
+        if isinstance(other, PTEnergyChangeProductSum):
+            return other + self
         if isinstance(other, (int, float, np.integer, np.floating)):
             if other == 0:
                 return self
@@ -2534,6 +2537,8 @@ class ProductPTPolynomialSum(PolynomialInterface):
             return other.mul_along(self, inds, remainder=remainder, mapping=mapping)
 
     def __add__(self, other):
+        if isinstance(other, PTEnergyChangeProductSum):
+            return other + self
         if isinstance(other, (int, float, np.integer, np.floating)):
             if other == 0:
                 return self
@@ -3290,6 +3295,8 @@ class PolyPath(ProductPTPolynomialSum):
         return self.__mul__(other)
 
     def __add__(self, other):
+        if isinstance(other, PTEnergyChangeProductSum):
+            return other + self
         if nput.is_numeric(other):
             if other == 0:
                 return self
@@ -3324,7 +3331,9 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
                 k: v.scale(prefactor)
                 for k, v in terms.items()
             }
-        if canonicalize:
+        # An empty factor product is the unit denominator. Its dimension
+        # comes from the lazy numerator, not from a fictitious energy row.
+        if canonicalize or () in terms:
             self._ndim = self.get_key_ndim(terms)
         else:
             self._ndim = 0 if not terms else len(next(iter(terms.keys()))[0])
@@ -3342,6 +3351,41 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
             prefactor=self.prefactor if prefactor is default else prefactor,
             reduced=self.reduced if reduced is default else reduced
         )
+
+    @classmethod
+    def from_polynomial(cls, polynomial):
+        """Embed a native polynomial as polynomial/1 without materializing it."""
+        if isinstance(polynomial, cls):
+            return polynomial
+        if nput.is_numeric(polynomial):
+            if polynomial == 0:
+                return cls({})
+            polynomial = PolyPath.from_coeffs([], prefactor=polynomial, steps=0)
+        if not isinstance(polynomial, (ProductPTPolynomial, ProductPTPolynomialSum)):
+            raise TypeError("can't promote {} to {}".format(type(polynomial), cls.__name__))
+        return cls({(): polynomial})
+
+    def __add__(self, other):
+        if nput.is_numeric(other) and other == 0:
+            return self
+        if isinstance(other, (ProductPTPolynomial, ProductPTPolynomialSum)) or nput.is_numeric(other):
+            other = type(self).from_polynomial(other)
+        if not isinstance(other, PTEnergyChangeProductSum):
+            return NotImplemented
+        if () not in self.terms and () not in other.terms:
+            return super().__add__(other)
+        # Retain the lazy numerator objects and each genuine denominator key.
+        new_terms = dict(self.terms)
+        for key, polynomial in other.terms.items():
+            value = polynomial if key not in new_terms else new_terms[key] + polynomial
+            if nput.is_zero(value):
+                new_terms.pop(key, None)
+            else:
+                new_terms[key] = value
+        return type(self)(new_terms) if new_terms else 0
+
+    def __radd__(self, other):
+        return self.__add__(other)
 
     def flip_energy_terms(self):
         return self.mutate(
@@ -3384,11 +3428,16 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         return cls(terms, prefactor=prefactor, canonicalize=False)
 
     def filter(self, terms, mode='match'):
+        # Energy filters leave denominator-free polynomials unchanged, as before
+        # their promotion into this container.
         if any(getattr(row[0],'_conditional_endpoint',False) for key in self.terms for row in key):
             from .Conditional import filter_condition_paths
-            return self.mutate(filter_condition_paths(self.terms,terms,mode))
-        base = super().filter(terms, mode=mode)
-        return self.mutate(base.terms)
+            filtered = filter_condition_paths(self.terms,terms,mode)
+        else:
+            filtered = dict(super().filter(terms, mode=mode).terms)
+        if () in self.terms:
+            filtered[()] = self.terms[()]
+        return self.mutate(filtered)
     @classmethod
     def canonical_key(cls, monomial_tuple):
         l = max(len(l) for l in monomial_tuple) if len(monomial_tuple) > 0 else 0
@@ -3408,6 +3457,7 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         return ((k[0], k[1:]) for k in key)
     @classmethod
     def format_key(self, key):
+        if not key: return '1'
         if any(getattr(row[0],'_conditional_endpoint',False) for row in key):
             from .Conditional import format_condition_path
             return format_condition_path(key)
@@ -3433,6 +3483,7 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
 
     @classmethod
     def format_energy_prod_key(cls, key):
+        if not key: return '1'
         if any(getattr(row[0],'_conditional_endpoint',False) for row in key):
             from .Conditional import format_condition_path
             return format_condition_path(key)
@@ -3522,11 +3573,11 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
 
     @classmethod
     def get_key_ndim(cls, terms:dict):
-        if len(terms) == 0: return 0
-        return max(
-            max(len(k) for side,k in cls.side_change_iter(key_tup))
-            for key_tup in terms.keys()
-        )
+        return max((
+            max((len(change) for _,change in cls.side_change_iter(key)), default=0)
+            if key else getattr(polynomial, 'ndim', 0)
+            for key,polynomial in terms.items()
+        ), default=0)
     @property
     def ndim(self):
         if self._ndim is None:
@@ -3539,7 +3590,8 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         for change,poly in self.terms.items():
             if any(c[0] not in {0, 1} and not getattr(c[0], '_state_projection_factor', False) for c in change):
                 raise ValueError("change {} invalid, L/R index must be 0/1".format(change))
-            if target is not None and len(change[0]) - 1 != target:
+            width = len(change[0]) - 1 if change else self.ndim
+            if target is not None and width != target:
                 raise ValueError(
                     "({}) energy change {} doesn't have target dimension ({})".format(
                         type(self)({change: poly}),
@@ -3548,7 +3600,7 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
                 )
             if not nput.is_numeric(poly):
                 try:
-                    poly.audit(len(change[0]) - 1, ignore_constants=ignore_constants)
+                    poly.audit(width, ignore_constants=ignore_constants)
                 except ValueError:
                     raise ValueError("bad polynomial for changes {}: {}".format(
                         change,
@@ -3725,9 +3777,12 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         return (side,) + new
 
     @classmethod
-    def _build_new_echange_key(cls, k1, k2, inds, remainder, right_state_shift=None):
-        l1 = len(k1[0]) - 1
-        l2 = len(k2[0]) - 1
+    def _build_new_echange_key(cls, k1, k2, inds, remainder, right_state_shift=None,
+                              left_ndim=None, right_ndim=None):
+        l1 = (len(k1[0]) - 1 if k1 else
+              len(inds[0])+len(remainder[0]) if left_ndim is None else left_ndim)
+        l2 = (len(k2[0]) - 1 if k2 else
+              len(inds[1])+len(remainder[1]) if right_ndim is None else right_ndim)
         i1 = len(inds[0])
         r1 = len(remainder[0])
         i2 = len(inds[1])
@@ -3762,9 +3817,9 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
             )
         return new_key
     @classmethod
-    def _pad_echange_key_right(cls, k, ndim, inds, remainder):
+    def _pad_echange_key_right(cls, k, ndim, inds, remainder, key_ndim=None):
         ndim = max([ndim, len(inds[1])])#, len(remainder[1])])
-        return cls._build_new_echange_key(k, ((0,)*(ndim+1),), inds, remainder)[:-1]
+        return cls._build_new_echange_key(k, ((0,)*(ndim+1),), inds, remainder, left_ndim=key_ndim)[:-1]
     @classmethod
     def _pad_echange_key_left(cls, k, ndim, inds, remainder):
         ndim = max([ndim, len(inds[0])])#, len(remainder[0])])
@@ -3780,13 +3835,17 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         """
         if isinstance(other, PTEnergyChangeProductSum):
             new_poly = self.direct_product(other,
-                                       key_func=lambda k1,k2:self._build_new_echange_key(k1, k2, inds, remainder, right_state_shift),
+                                       key_func=lambda k1,k2:self._build_new_echange_key(k1, k2, inds, remainder, right_state_shift,
+                                           left_ndim=getattr(self.terms[k1], 'ndim', 0) if not k1 else None,
+                                           right_ndim=getattr(other.terms[k2], 'ndim', 0) if not k2 else None),
                                        mul=lambda a,b,inds=inds:a.mul_along(b, inds, remainder=remainder, mapping=mapping)
                                        )
+            if () in self.terms or () in other.terms:
+                new_poly = new_poly.mutate(new_poly.terms)
         elif isinstance(other, (ProductPTPolynomial, ProductPTPolynomialSum)):
             new_poly = self.mutate(
                 {
-                    self._pad_echange_key_right(k, other.ndim, inds, remainder): (
+                    self._pad_echange_key_right(k, other.ndim, inds, remainder, key_ndim=getattr(v, 'ndim', 0)): (
                         other.scale(v)
                             if nput.is_numeric(v) else
                         v.mul_along(other, inds, remainder=remainder, mapping=mapping)
@@ -3812,7 +3871,7 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         elif isinstance(other, (ProductPTPolynomial, ProductPTPolynomialSum)):
             return self.mutate(
                 {
-                    self._build_new_echange_key(((0,)*(other.ndim+1),), k, inds, remainder, right_state_shift)[1:]: (
+                    self._build_new_echange_key(((0,)*(other.ndim+1),), k, inds, remainder, right_state_shift, right_ndim=getattr(v, 'ndim', 0))[1:]: (
                         other.scale(v)
                             if nput.is_numeric(v) else
                         other.mul_along(v, inds, remainder=remainder, mapping=mapping)
@@ -3822,6 +3881,15 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
             )
         else:
             raise NotImplementedError(type(other))
+
+    @staticmethod
+    def _simple_product_energy_key(k1, k2, left, right):
+        key = k1+k2
+        if k1 and k2:
+            return key
+        width = max(getattr(left, 'ndim', 0), getattr(right, 'ndim', 0),
+                    max((len(row)-1 for row in key), default=0))
+        return tuple(row+(0,)*(width+1-len(row)) for row in key)
 
     def mul_simple(self, other:'ProductPTPolynomial'):
         """
@@ -3833,10 +3901,12 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         :return:
         """
         if isinstance(other, (PTEnergyChangeProductSum)):
-            return self.direct_product(other,
-                                       # key_func=lambda k1,k2:k1+tuple(k2[i] for i in inds), #inds says how k2 permutes?
+            result = self.direct_product(other,
+                                       key_func=lambda k1,k2:self._simple_product_energy_key(
+                                           k1,k2,self.terms[k1],other.terms[k2]),
                                        mul=lambda a,b:a.mul_simple(b)
                                        )
+            return result.mutate(result.terms) if (() in self.terms or () in other.terms) else result
         elif isinstance(other, (ProductPTPolynomial, ProductPTPolynomialSum)):
             return self.mutate(
                 {
@@ -6024,9 +6094,10 @@ class SqrtChangePoly(PolynomialInterface):
 
         is_dag = isinstance(self.poly_obj, PTTensorCoeffProductDAG)
         projected = (not is_dag and any(
-            isinstance(poly, PTEnergyChangeProductSum) and any(
-                getattr(row[0], '_state_projection_factor', False)
-                for key in poly.terms for row in key)
+            isinstance(poly, PTEnergyChangeProductSum) and (
+                () in poly.terms or any(
+                    getattr(row[0], '_state_projection_factor', False)
+                    for key in poly.terms for row in key))
             for poly in self.poly_obj.terms.values()
         ))
         if is_dag or projected:
@@ -6582,6 +6653,7 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
                  allowed_coefficients=None,
                  disallowed_coefficients=None,
                  polynomial_representation='path'):
+        self._cascade_manager = CascadingPropertyManager(self)
         self._exprs = None
         self._raw_changes = {}
         self._changes = None
@@ -6637,11 +6709,9 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
     @abc.abstractmethod
     def get_changes(self) -> 'dict[tuple[int], Any]':
         ...
-    @property
+    @derived_property(depends_on=['change_rules'], settable=False)
     def changes(self):
-        if self._changes is None:
-            self._changes = self.get_changes()
-        return self._changes
+        return self.get_changes()
 
     def get_serializer_key(self): # to be overridden
         return None
@@ -6887,13 +6957,12 @@ class OperatorExpansionTerm(PerturbationTheoryTerm):
             poly_contrib = scipy.signal.convolve(poly_contrib, sqrt_contrib)
         return poly_contrib
 
-    @property
+    @cascading_property
     def change_rules(self):
         return self._change_rules
     @change_rules.setter
     def change_rules(self, rules):
         self._change_rules = rules
-        self._changes = None
     def get_changes(self) -> 'dict[tuple[int], Any]':
         if self.change_rules is not None:
             return {
@@ -8728,6 +8797,8 @@ class PerturbationTheoryExpressionEvaluator:
 
         #TODO: find a way to avoid recomputing the same contributions repeatedly...
 
+        if np.size(energy_changes) == 0:
+            return np.ones(np.shape(perm_freqs)[:-1], dtype=np.result_type(perm_freqs, float))
         echange = np.prod(np.dot(perm_freqs, energy_changes[:, 1:].T), axis=-1)
         return echange
 
@@ -9075,6 +9146,16 @@ class PerturbationTheoryExpressionEvaluator:
                 # all_subchanges = [None] * len(which_perms)
 
             for echanges, polys in subexpr.terms.items():
+                if not echanges:
+                    # A unit denominator has no resonance or small-denominator
+                    # test. Evaluate exactly like the original bare numerator,
+                    # including its unchanged numerical-pruning behavior.
+                    if not include_degs:
+                        subcontrib += cls._eval_poly(
+                            poly_cache, tuple_states, perm_substates, pows,
+                            polys, change, baseline_shift, verbose, logger,
+                            block_key=('full', state_block_key))
+                    continue
                 if any(getattr(row[0], '_state_projection_factor', False) for row in echanges):
                     from .Projected import projected_path_factors
                     good, denominators = projected_path_factors(
@@ -9918,6 +9999,33 @@ class PerturbationTheoryExpressionEvaluator:
     @classmethod
     def get_cache(self):
         return MaxSizeCache(max_items=self._max_cache_size, cache_type='fifo')
+
+    @classmethod
+    def use_persistent_cache(cls, store):
+        """
+        Puts an on-disk layer (an `ObjectStore` or a path to one; there is no default location) under the exact-result
+        polynomial cache so complete polynomial/state values survive restarts; call `flush_persistent_cache`
+        (e.g. at checkpoints) to write new values. `clear_caches` and `set_cache_size` drop the layer.
+        Pass ``False`` to remove it.
+        """
+        from .PersistentCaches import PersistentEvaluationCache
+        if store is False:
+            current = cls._poly_cache
+            cls._poly_cache = current.memory if isinstance(current, PersistentEvaluationCache) else current
+            return None
+        if store is None or store is True:
+            raise ValueError("pass an ObjectStore or a path to one (or False to remove the layer)")
+        current = cls._poly_cache
+        if isinstance(current, PersistentEvaluationCache):
+            current = current.memory
+        cls._poly_cache = PersistentEvaluationCache(store, memory=current)
+        return cls._poly_cache
+
+    @classmethod
+    def flush_persistent_cache(cls):
+        """Writes new values of the persistent polynomial cache (a no-op if there is none)"""
+        flush = getattr(cls._poly_cache, 'flush', None)
+        return 0 if flush is None else flush()
 
     _max_cache_size = 1e7
     _poly_cache = MaxSizeCache(_max_cache_size, cache_type='fifo') # temporary hack, but these are in principle shared/reused
@@ -11038,7 +11146,7 @@ class PerturbationTheoryExpressionEvaluator:
                     change = []
                 else:
                     first_ekey = next(iter(first_echange_poly.terms.keys()))
-                    change = np.sum([list(k) for k in first_ekey], axis=1)
+                    change = [] if not first_ekey else np.sum([list(k) for k in first_ekey], axis=1)
 
             from .CompiledExpressions import current_compilation
             compiled_context = current_compilation()

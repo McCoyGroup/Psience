@@ -15,6 +15,7 @@ from McUtils.Combinatorics import SymmetricGroupGenerator, CompleteSymmetricGrou
 __all__ = [
     "AbstractStateSpace",
     "BasisStateSpace",
+    "BasisStateSpaceView",
     "BasisMultiStateSpace",
     "SelectionRuleStateSpace",
     "PermutationallyReducedStateSpace",
@@ -1829,6 +1830,246 @@ class BasisStateSpace(AbstractStateSpace):
             and (self.indices == other.indices).all()
         )
 
+class _StateSpaceViewQuery:
+    """Per-selection parent-position cache, discarded with the selection."""
+    def __init__(self, states):
+        self.states = states
+        self._ranks = None
+        self._positions = {}
+        self._cast_positions = {}
+        self._rank_queries = {}
+
+    @classmethod
+    def wrap(cls, states, spaces):
+        if isinstance(states, cls) or not spaces.size:
+            return states
+        first = spaces.flat[0]
+        while isinstance(first, BasisMultiStateSpace) and first.spaces.size:
+            first = first.spaces.flat[0]
+        return cls(states) if isinstance(first, BasisStateSpaceView) and first.index_parent is not None else states
+
+    @property
+    def indices(self):
+        if self._ranks is None:
+            states = self.states
+            self._ranks = np.asanyarray(
+                states.indices if isinstance(states, AbstractStateSpace) or hasattr(states, 'indices')
+                else states)
+        return self._ranks
+
+    def ranks_for(self, parent):
+        key = id(parent)
+        if key not in self._rank_queries:
+            ranks = self.indices.reshape(-1)
+            dtype = parent.indices.dtype
+            bounds = np.iinfo(dtype)
+            if len(ranks) and (int(ranks.min()) < 0 or int(ranks.max()) > bounds.max):
+                return None
+            self._rank_queries[key] = ranks.astype(dtype, copy=False)
+        return self._rank_queries[key]
+
+    def positions_for(self, parent, dtype):
+        key = id(parent)
+        if key not in self._positions:
+            self._positions[key] = np.atleast_1d(
+                parent.find(self.indices, check=True, missing_val=-1))
+        cast_key = (key, np.dtype(dtype).str)
+        if cast_key not in self._cast_positions:
+            positions = self._positions[key]
+            bounds = np.iinfo(dtype)
+            if len(positions) and (positions.min() < bounds.min or positions.max() > bounds.max):
+                return None
+            self._cast_positions[cast_key] = positions.astype(dtype, copy=False)
+        return self._cast_positions[cast_key]
+
+
+class BasisStateSpaceView(BasisStateSpace):
+    """Read-only selection of a shared state space through index positions.
+
+    ``index_parent`` keeps the basis ranks once. The supplied position array
+    can be a borrowed CSR index slice; ranks are materialized only when an
+    array is explicitly requested. Ordinary construction remains available
+    for inherited operations that return an independent resident space.
+    """
+    def __init__(self, basis, states, full_basis=None, mode=None, *,
+                 index_parent=None, assume_unique=None):
+        self.index_parent=index_parent
+        self.index_positions=None
+        self._view_unique=assume_unique
+        self._view_position_sorted=None
+        if index_parent is None:
+            super().__init__(basis,states,full_basis=full_basis,mode=mode)
+        else:
+            if basis!=index_parent.basis:raise ValueError('view and parent have different bases')
+            positions=states if isinstance(states, nput.PackedIndexArray) else np.asanyarray(states)
+            if positions.ndim!=1 or positions.dtype.kind not in 'iu':
+                raise TypeError('state-space view positions must be an integer vector')
+            if len(positions):
+                low,high=int(positions.min()),int(positions.max());size=len(index_parent)
+                if low < -size or high>=size:raise IndexError('state-space view position out of bounds')
+                if low<0:
+                    positions=positions.astype(np.intp,copy=False)
+                    positions=np.where(positions<0,positions+size,positions)
+            super().__init__(basis,[],full_basis=index_parent.full_basis,mode=self.StateSpaceSpec.Indices)
+            self.index_positions=positions.view()
+            if isinstance(self.index_positions, np.ndarray):self.index_positions.flags.writeable=False
+            self.keep_indices=False;self.keep_excitations=False
+
+    def __len__(self):
+        return len(self.index_positions) if self.index_parent is not None else super().__len__()
+
+    @property
+    def has_indices(self):
+        return self.index_parent is not None or super().has_indices
+
+    @property
+    def unique_len(self):
+        if self.index_parent is not None and self._view_unique is True:return len(self)
+        return super().unique_len
+
+    def _detach(self, states, mode):
+        self.index_parent=None;self.index_positions=None;self._view_unique=None
+        self._view_position_sorted=None
+        self.keep_indices=True;self.keep_excitations=True
+        BasisStateSpace.__init__(self,self.basis,states,full_basis=self.full_basis,mode=mode)
+
+    @BasisStateSpace.indices.setter
+    def indices(self, indices):
+        if self.index_parent is not None:self._detach(indices,self.StateSpaceSpec.Indices)
+        else:BasisStateSpace.indices.fset(self,indices)
+
+    @BasisStateSpace.excitations.setter
+    def excitations(self, excitations):
+        if self.index_parent is not None:self._detach(excitations,self.StateSpaceSpec.Excitations)
+        else:BasisStateSpace.excitations.fset(self,excitations)
+
+    def as_indices(self):
+        if self.index_parent is None:return super().as_indices()
+        return np.asarray(self.index_parent.indices[self.index_positions],dtype=self.indices_dtype)
+
+    def as_excitations(self):
+        if self.index_parent is None:return super().as_excitations()
+        return BasisStateSpace(self.basis,self.as_indices(),full_basis=self.full_basis,
+                               mode=self.StateSpaceSpec.Indices).as_excitations()
+
+    def _positions_are_sorted(self):
+        if self._view_position_sorted is None:
+            positions = self.index_positions
+            size = getattr(getattr(self.index_parent, 'store', None), 'block_size', 65536)
+            ordered = True
+            if isinstance(positions, nput.PackedIndexArray):
+                self._view_position_sorted = True
+                return True
+            for start in range(0, len(positions), size):
+                block = positions[max(0, start-1):start+size]
+                if np.any(block[1:] < block[:-1]):
+                    ordered = False
+                    break
+            self._view_position_sorted = ordered
+        return self._view_position_sorted
+
+    def find(self, to_search, check=True, minimal_dtype=False, dtype=None, missing_val='raise'):
+        parent = self.index_parent
+        if (parent is None or dtype is not None or len(self) == 0
+                or self._view_unique is not True or not parent.is_unique()
+                or not self._positions_are_sorted()):
+            return super().find(to_search, check=check, minimal_dtype=minimal_dtype,
+                                dtype=dtype, missing_val=missing_val)
+        query = to_search if isinstance(to_search, _StateSpaceViewQuery) else _StateSpaceViewQuery(to_search)
+        ranks = query.indices
+        if ranks.ndim > 1 or ranks.dtype.kind not in 'iu':
+            return super().find(to_search, check=check, minimal_dtype=minimal_dtype,
+                                dtype=dtype, missing_val=missing_val)
+        rank_queries = query.ranks_for(parent)
+        positions = query.positions_for(parent, self.index_positions.dtype)
+        if rank_queries is None or positions is None:
+            return super().find(to_search, check=check, minimal_dtype=minimal_dtype,
+                                dtype=dtype, missing_val=missing_val)
+        found = (self.index_positions.searchsorted(positions) if isinstance(self.index_positions, nput.PackedIndexArray)
+                 else np.searchsorted(self.index_positions, positions))
+        valid = (positions >= 0) & (found < len(self))
+        valid &= self.index_positions[np.minimum(found, len(self)-1)] == positions
+        missing = np.flatnonzero(~valid)
+        if len(missing):
+            if check:
+                if isinstance(missing_val, str) and missing_val == 'raise':
+                    # Preserve the native rank-based error on a checked miss.
+                    return super().find(to_search, check=check, minimal_dtype=minimal_dtype,
+                                        dtype=dtype, missing_val=missing_val)
+                found[missing] = missing_val
+            else:
+                parent_ranks = np.asarray(parent.indices)
+                columns = self.index_positions
+                if isinstance(columns, nput.PackedIndexArray):
+                    if parent.is_sorted():
+                        offsets = np.searchsorted(parent_ranks, rank_queries[missing])
+                        found[missing] = np.minimum(columns.searchsorted(offsets), len(self)-1)
+                    else:
+                        # One parent sort, shared by all packed support views.
+                        sorting = getattr(parent, '_packed_view_rank_sort', None)
+                        if sorting is None:
+                            sorting = nput.argsort(parent_ranks)
+                            parent._packed_view_rank_sort = sorting
+                        for i in missing:
+                            off = bisect.bisect_left(sorting, rank_queries[i], key=parent_ranks.__getitem__)
+                            while off < len(sorting) and not columns.contains(sorting[off]):off += 1
+                            if off == len(sorting):
+                                off = len(sorting)-1
+                                while not columns.contains(sorting[off]):off -= 1
+                            found[i] = columns.searchsorted(sorting[off])
+                elif parent.is_sorted():
+                    key = parent_ranks.__getitem__
+                    for i in missing:
+                        off = bisect.bisect_left(columns, rank_queries[i], key=key)
+                        found[i] = min(off, len(self)-1)
+                else:
+                    # Reuse the ordinary stable rank-order cache, building it
+                    # only once. Binary search dereferences a few entries;
+                    # no full rank vector is rebuilt on subsequent lookups.
+                    if self._indexer is None:
+                        self._indexer = nput.argsort(parent_ranks[columns])
+                    sorting = self._indexer
+                    key = lambda column: parent_ranks[columns[column]]
+                    for i in missing:
+                        off = bisect.bisect_left(sorting, rank_queries[i], key=key)
+                        found[i] = sorting[min(off, len(self)-1)]
+        return found[0] if ranks.ndim == 0 else found
+
+    def take_subspace(self, sel, assume_sorted=False,
+                      track_excitations=True, track_indices=True):
+        if self.index_parent is None or assume_sorted:
+            return super().take_subspace(sel, assume_sorted=assume_sorted,
+                track_excitations=track_excitations, track_indices=track_indices)
+        result = type(self)(self.basis, self.index_positions[sel],
+            index_parent=self.index_parent,
+            assume_unique=self._view_unique if isinstance(sel, slice) else None)
+        result._max_sum = self._max_sum
+        result._max_ind = self._max_ind
+        return result
+
+    def iter_position_blocks(self, block_size):
+        if self.index_parent is None:raise ValueError('resident space has no shared parent')
+        for start in range(0,len(self),block_size):yield self.index_positions[start:start+block_size]
+
+    def iter_index_blocks(self, block_size=None):
+        if block_size is None:block_size=getattr(getattr(self.index_parent,'store',None),'block_size',65536)
+        if self.index_parent is None:
+            indices=self.indices
+            for start in range(0,len(indices),block_size):yield indices[start:start+block_size]
+        else:
+            for positions in self.iter_position_blocks(block_size):
+                yield np.asarray(self.index_parent.indices[positions],dtype=self.indices_dtype)
+
+    def is_unique(self):
+        if self.index_parent is not None and self._view_unique is not None:return self._view_unique
+        return super().is_unique()
+
+    def to_state(self, serializer=None):
+        if self.index_parent is None:return super().to_state(serializer=serializer)
+        return dict(basis=self.basis,excitations=None,indices=self.as_indices())
+
+
+
 class PermutationallyReducedStateSpace(BasisStateSpace):
     """
     Defines a basis state space where terms are reduced over their
@@ -2025,7 +2266,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
         return {
             'basis':self.basis,
             'shape':self.spaces.shape,
-            'spaces':[{'indices':x._indices, 'excitations':x._excitations} for x in self.spaces.flatten()]
+            'spaces':[{'indices':x.indices if isinstance(x,BasisStateSpaceView) else x._indices, 'excitations':x._excitations} for x in self.spaces.flatten()]
         }
     @classmethod
     def from_state(cls, data, serializer=None):
@@ -2162,6 +2403,8 @@ class BasisMultiStateSpace(AbstractStateSpace):
         for space in self.spaces.flat:
             if isinstance(space, BasisMultiStateSpace):
                 yield from space.iter_index_blocks()
+            elif hasattr(space,'iter_index_blocks'):
+                yield from space.iter_index_blocks()
             else:
                 yield space.indices
 
@@ -2223,6 +2466,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
+        states = _StateSpaceViewQuery.wrap(states, self.spaces)
         def take_inter(space, states=states):
             try:
                 return space.take_states(states,
@@ -2428,7 +2672,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
     def to_state(self, serializer=None):
         return {
             'base_space':self._base_space,
-            'spaces':[{'indices':x._indices, 'excitations':x._excitations} for x in self.spaces.flatten()],
+            'spaces':[{'indices':x.indices if isinstance(x,BasisStateSpaceView) else x._indices, 'excitations':x._excitations} for x in self.spaces.flatten()],
             'selection_rules':self.sel_rules
         }
     @classmethod
@@ -2510,6 +2754,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             raise NotImplementedError("need to handle state change tracking")
 
 
+        states = _StateSpaceViewQuery.wrap(states, self.spaces)
         # if self.spaces.ndim == 1:
         new_spaces = [
                 s.take_states(states,

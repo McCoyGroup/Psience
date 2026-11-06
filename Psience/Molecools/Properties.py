@@ -1600,6 +1600,13 @@ class PropertyManager(metaclass=abc.ABCMeta):
         mol:Molecule
         self.mol=mol
 
+    def _changed(self, name):
+        """
+        Tells the molecule's property cascade that `name` (a molecule-level name such as `'potential_derivatives'`)
+        was changed through this manager, so that what depends on it is reset.
+        """
+        self.mol._cascade_manager.changed(name)
+
     def set_molecule(self, mol):
         """
         **LLM Docstring**
@@ -2059,12 +2066,15 @@ class DipoleSurfaceManager(PropertyManager):
         :return: (getter) the analytic dipole derivatives
         :rtype: tuple
         """
+        old = self._derivs
         if isinstance(derivatives, dict):
             self._numerical_derivs = derivatives['numerical']
             self._derivs = derivatives['analytic']
         else:
             self._numerical_derivs = None
             self._derivs = derivatives
+        if self._derivs is not old:
+            self._changed('dipole_derivatives')
 
     def get_pol_derivatives(self, quiet=False):
         """
@@ -2106,7 +2116,10 @@ class DipoleSurfaceManager(PropertyManager):
         :return: (getter) the polarizability derivatives
         :rtype: list
         """
+        old = self._pol_derivs
         self._pol_derivs = derivatives
+        if derivatives is not old:
+            self._changed('polarizability_derivatives')
 
     def load(self):
         """
@@ -2454,7 +2467,10 @@ class PotentialSurfaceManager(PropertyManager):
         :return: (getter) the stored coordinate specification
         :rtype: object
         """
+        old = self._surface_coords
         self._surface_coords = coords
+        if coords is not old:
+            self._changed('potential_surface')
 
     def get_derivs(self, quiet=False):
         """
@@ -2495,7 +2511,10 @@ class PotentialSurfaceManager(PropertyManager):
         :return: (getter) the potential derivative tensors
         :rtype: tuple
         """
+        old = self._derivs
         self._derivs = v
+        if v is not old:
+            self._changed('potential_derivatives')
 
     @property
     def force_constants(self):
@@ -2876,7 +2895,10 @@ class NormalModesManager(PropertyManager):
             raise TypeError("`modes` must be {}".format(
                 MolecularVibrations.__name__
             ))
+        old = self._modes
         self._modes = modes
+        if modes is not old:
+            self._changed('normal_modes')
 
     def construct_normal_modes(self, modes):
         """
@@ -2932,7 +2954,10 @@ class NormalModesManager(PropertyManager):
                 'normal_modes',
                 modes
             ))
+        old = self._modes
         self._modes = modes
+        if modes is not old:
+            self._changed('normal_modes')
 
     @classmethod
     def _parse_orca_file_modes(cls, mol, file, quiet=False):

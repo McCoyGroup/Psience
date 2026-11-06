@@ -1,5 +1,6 @@
 
 import numpy as np, itertools, collections, dataclasses
+import scipy.sparse as sp
 
 from McUtils.Numputils import SparseArray
 import McUtils.Numputils as nput
@@ -9,7 +10,7 @@ from McUtils.Scaffolding import Logger, NullLogger, Checkpointer
 from ..Spectra import DiscreteSpectrum
 from ..BasisReps import (
     BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, HarmonicOscillatorProductBasis,
-    StateMaker
+    StateMaker, BasisStateSpaceView
 )
 from .Common import PerturbationTheoryException, _safe_dot
 
@@ -26,6 +27,305 @@ class PerturbationTheoryCorrections:
     Can be used to correct other operators in the basis of the original calculation.
 
     """
+    @staticmethod
+    def correction_storage_policy(mode, memory_limit, block_size, default_limit, shape):
+        if mode not in {'auto', 'dense', 'sparse', 'compact'}:
+            raise ValueError("correction_storage must be 'auto', 'dense', 'sparse', or 'compact'")
+        if not isinstance(block_size, (int, np.integer)) or block_size < 1:
+            raise ValueError('correction_block_size must be a positive integer')
+        limit = default_limit if memory_limit is None else memory_limit
+        if limit is not None and (not np.isfinite(limit) or limit < 0):
+            raise ValueError('correction_memory_limit must be nonnegative bytes or None')
+        if mode == 'auto':
+            mode = 'sparse' if limit is not None and np.prod(shape, dtype=object)*8 > limit else 'dense'
+        return mode, limit, int(block_size)
+
+
+    class _SparseCorrectionArray:
+        """Logical (state, order, basis) array, retaining only nonzero coefficients.
+
+        Whole-state/block replacement avoids repeated copies of a growing global
+        CSR. With cutoff=None, exact zeros are omitted until final conversion,
+        preserving legacy raw-row overlap updates. A supplied cutoff applies the
+        same final test to completed local solves, after all their arithmetic.
+        No files are written. The dense state/block recurrence is unchanged.
+        """
+        def __init__(self, nstates, order, nbasis, block_size, *, cutoff=None):
+            self.shape = (nstates, order + 1, nbasis)
+            self.block_size = block_size
+            # This is the existing conversion cutoff, supplied only when local
+            # recurrences/normalization are complete and no raw-row overlap update
+            # follows. None retains exact nonzeros for the legacy update path.
+            self.cutoff = cutoff
+            empty = (np.empty(0), np.empty(0, dtype=np.intp))
+            self.rows = [[empty] * (order + 1) for _ in range(nstates)]
+            self.retained_bytes = self.peak_retained_bytes = 0
+
+        def __len__(self):return self.shape[0]
+
+        def __setitem__(self, selected, corrections):
+            if isinstance(selected, slice):selected = np.arange(len(self))[selected]
+            selected = np.atleast_1d(selected)
+            if selected.dtype.kind == 'b':selected = np.flatnonzero(selected)
+            data = np.asarray(corrections, dtype=float)
+            if data.ndim == 2:data = data[None]
+            if data.shape != (len(selected),) + self.shape[1:]:
+                raise ValueError('Incorrect completed correction row shape')
+            for row, levels in zip(selected, data):
+                old = self.rows[row]
+                self.retained_bytes -= sum(v.nbytes + i.nbytes for v, i in old)
+                replacement = []
+                for vector in levels:
+                    values, positions = [], []
+                    for start in range(0, self.shape[2], self.block_size):
+                        block = vector[start:start + self.block_size]
+                        keep = np.flatnonzero(block != 0 if self.cutoff is None or self.cutoff < 0
+                                                 else np.abs(block) > self.cutoff)
+                        if len(keep):values.append(block[keep]);positions.append(keep + start)
+                    replacement.append((np.concatenate(values) if values else np.empty(0),
+                        np.concatenate(positions) if positions else np.empty(0, dtype=np.intp)))
+                self.rows[row] = replacement
+                self.retained_bytes += sum(v.nbytes + i.nbytes for v, i in replacement)
+                self.peak_retained_bytes = max(self.peak_retained_bytes, self.retained_bytes)
+
+        def set_rows(self, selected, corrections):
+            """Pack completed block rows without gathering a second dense block.
+
+            Negative result indices are omitted. Each packed row owns its buffers,
+            so callers can release the returned dense block after this call.
+            """
+            selected = np.asarray(selected)
+            data = np.asarray(corrections)
+            if selected.ndim != 1 or data.shape != (len(selected),) + self.shape[1:]:
+                raise ValueError('Incorrect completed correction block shape')
+            present = selected >= 0
+            if np.all(present):
+                self[selected] = data
+            else:
+                for index in np.flatnonzero(present):
+                    self[selected[index]] = data[index]
+
+        def dot(self, left, lo, right, ro):
+            def vector(n, order):
+                values, columns = self.rows[n][order]
+                return sp.csr_matrix((values, columns, np.array([0, len(values)])),
+                                     shape=(1, self.shape[2]), copy=False)
+            # Matches the existing real np.dot convention, without conjugation.
+            return vector(left, lo).multiply(vector(right, ro)).sum()
+
+        def set_element(self, row, order, column, value):
+            if column < 0:column += self.shape[2]
+            if column < 0 or column >= self.shape[2]:raise IndexError(column)
+            values, columns = self.rows[row][order]
+            position = np.searchsorted(columns, column)
+            if position < len(columns) and columns[position] == column:
+                values[position] = value
+            elif value != 0:
+                values = np.insert(values, position, value)
+                columns = np.insert(columns, position, column)
+                self.rows[row][order] = values, columns
+                self.retained_bytes += values.dtype.itemsize + columns.dtype.itemsize
+                self.peak_retained_bytes = max(self.peak_retained_bytes, self.retained_bytes)
+
+        def to_coupling_matrices(self, states, total_space, cutoff, logger=None, entry_filter=None):
+            if cutoff is None:
+                from .Common import Settings
+                cutoff = Settings.non_zero_cutoff
+            nstates, norders, nbasis = self.shape
+            matrices, spaces = [], [[None] * norders for _ in range(nstates)]
+            for order in range(norders):
+                counts = np.empty(nstates, dtype=np.int64)
+                for row in range(nstates):
+                    values, columns = self.rows[row][order]
+                    kept = [np.flatnonzero(np.abs(values[start:start + self.block_size]) > cutoff) + start
+                            for start in range(0, len(values), self.block_size)]
+                    kept = np.concatenate(kept) if kept else np.empty(0, dtype=np.intp)
+                    columns, values = columns[kept], values[kept]
+                    if not len(values) and logger is not None:
+                        logger.log_print('No corrections for state {s} at order {o}',
+                                         s=states.excitations[row], o=order)
+                    if entry_filter is not None:columns, values = entry_filter(row, order, columns, values)
+                    self.rows[row][order] = values, columns
+                    counts[row] = len(values)
+                indptr = np.empty(nstates + 1, dtype=np.int64)
+                indptr[0] = 0;np.cumsum(counts, out=indptr[1:])
+                nnz = int(indptr[-1])
+                index_dtype = np.int32 if max(nstates, nbasis, nnz) < np.iinfo(np.int32).max else np.int64
+                data, indices = np.empty(nnz), np.empty(nnz, dtype=index_dtype)
+                for row in range(nstates):
+                    values, columns = self.rows[row][order]
+                    start, stop = int(indptr[row]), int(indptr[row + 1])
+                    data[start:stop], indices[start:stop] = values, columns
+                    if hasattr(total_space,'store'):
+                        # Borrow the final CSR index slice; retain parent ranks once.
+                        spaces[row][order] = BasisStateSpaceView(total_space.basis,indices[start:stop],
+                            index_parent=total_space,assume_unique=True if entry_filter is None else None)
+                    else:
+                        ranks = np.asarray(total_space.indices[columns])
+                        spaces[row][order] = BasisStateSpace(total_space.basis, ranks,
+                            mode='indices', full_basis=total_space.full_basis)
+                    self.rows[row][order] = None
+                matrix = sp.csr_matrix((data, indices, indptr.astype(index_dtype, copy=False)),
+                                        shape=(nstates, nbasis), copy=False)
+                matrices.append(SparseArray.from_data(matrix, shape=matrix.shape, cache_block_data=False))
+            coupled = []
+            for row in spaces:
+                objects = np.empty(norders, dtype=object)
+                for order, space in enumerate(row):objects[order] = space
+                coupled.append(BasisMultiStateSpace(objects))
+            self.rows = None
+            self.retained_bytes = 0
+            return matrices, coupled
+
+
+    class _CompactCorrectionArray(_SparseCorrectionArray):
+        """Explicit compact mode; the existing dense and sparse collectors are untouched."""
+        def __init__(self, nstates, order, nbasis, block_size, *, cutoff=None,
+                     block_bytes=64*1024**2, spill_directory=None, resident_bytes=None,
+                     spill_bytes=None, spill_segment_bytes=None):
+            super().__init__(nstates, order, nbasis, block_size, cutoff=cutoff)
+            from McUtils.Numputils import CompactSparseRow
+            if not isinstance(block_bytes, (int, np.integer)) or block_bytes < 1:
+                raise ValueError('correction_block_bytes must be a positive integer')
+            self.block_bytes = int(block_bytes)
+            self._spill_store = None
+            if spill_bytes is not None:
+                import tempfile
+                from McUtils.Numputils import RowSpillStore
+                self._spill_store = RowSpillStore(
+                    tempfile.gettempdir() if spill_directory is None else spill_directory,
+                    spill_bytes if resident_bytes is None else resident_bytes, spill_bytes,
+                    segment_bytes=8*self.block_bytes if spill_segment_bytes is None else spill_segment_bytes,
+                    copy_block_bytes=self.block_bytes)
+            empty = CompactSparseRow(np.empty(0), np.empty(0, dtype=SparseArray._index_dtype(nbasis)), nbasis)
+            self.rows = [[empty] * (order+1) for _ in range(nstates)]
+
+        def __setitem__(self, selected, corrections):
+            from McUtils.Numputils import CompactSparseRow
+            if isinstance(selected, slice): selected = np.arange(len(self))[selected]
+            selected = np.atleast_1d(selected)
+            if selected.dtype.kind == 'b': selected = np.flatnonzero(selected)
+            data = np.asarray(corrections, dtype=float)
+            if data.ndim == 2: data = data[None]
+            if data.shape != (len(selected),)+self.shape[1:]:
+                raise ValueError('Incorrect completed correction row shape')
+            for index, levels in zip(selected, data):
+                old = self.rows[index]
+                for order, vector in enumerate(levels):
+                    row = CompactSparseRow.from_dense(vector, self.cutoff, self.block_size)
+                    if self._spill_store is not None: row = self._spill_store.retain(row)
+                    self.retained_bytes += row.nbytes-old[order].nbytes
+                    old[order] = row
+                    self.peak_retained_bytes = max(self.peak_retained_bytes, self.retained_bytes)
+
+        def dot(self, left, lo, right, ro):
+            a, b = self.rows[left][lo].native(), self.rows[right][ro].native()
+            # Preserve SparseCorrectionArray's overlap accumulation convention.
+            return sp.csr_matrix(a).multiply(sp.csr_matrix(b)).sum()
+
+        def set_element(self, row, order, column, value):
+            from McUtils.Numputils import CompactSparseRow
+            if column < 0: column += self.shape[2]
+            if not 0 <= column < self.shape[2]: raise IndexError(column)
+            old = self.rows[row][order]
+            if old.dense:
+                values = old.values.copy(); values[column] = value
+                new = CompactSparseRow.from_dense(values, None, self.block_size)
+            else:
+                columns, values = old.columns, old.values
+                at = int(np.searchsorted(columns, column))
+                if at < len(columns) and columns[at] == column:
+                    values = values.copy(); values[at] = value
+                elif value != 0:
+                    columns = np.insert(columns, at, column); values = np.insert(values, at, value)
+                new = CompactSparseRow(values, columns, self.shape[2])
+            if self._spill_store is not None: new = self._spill_store.retain(new)
+            self.rows[row][order] = new
+            self.retained_bytes += new.nbytes-old.nbytes
+            self.peak_retained_bytes = max(self.peak_retained_bytes, self.retained_bytes)
+
+        def to_coupling_matrices(self, states, total_space, cutoff, logger=None, entry_filter=None):
+            from McUtils.Numputils import CompactSparseRow, RowSparseArray
+            if cutoff is None:
+                from .Common import Settings
+                cutoff = Settings.non_zero_cutoff
+            nstates, norders, nbasis = self.shape
+            matrices, spaces = [], [[] for _ in range(nstates)]
+            for order in range(norders):
+                rows = []
+                for index in range(nstates):
+                    row = self.rows[index][order]
+                    if entry_filter is not None or self.cutoff != cutoff:
+                        # A one-row workspace; no global CSR or coordinate array.
+                        values = np.zeros(nbasis)
+                        for data, columns in row.entries(self.block_size):
+                            keep = np.abs(data) > cutoff
+                            columns, data = columns[keep], data[keep]
+                            if entry_filter is not None:
+                                columns, data = entry_filter(index, order, columns, data)
+                            values[columns] = data
+                        row = CompactSparseRow.from_dense(values, None, self.block_size)
+                        if self._spill_store is not None: row = self._spill_store.retain(row)
+                    if not row.nnz and logger is not None:
+                        logger.log_print('No corrections for state {s} at order {o}', s=states.excitations[index], o=order)
+                    rows.append(row)
+                    spaces[index].append(BasisStateSpaceView(total_space.basis, row.columns,
+                        index_parent=total_space, assume_unique=True))
+                    self.rows[index][order] = None
+                matrices.append(RowSparseArray(rows, nbasis, block_bytes=self.block_bytes, block_size=self.block_size, storage=self._spill_store))
+            coupled = []
+            for row in spaces:
+                objects = np.empty(norders, dtype=object)
+                for order, space in enumerate(row): objects[order] = space
+                coupled.append(BasisMultiStateSpace(objects))
+            self.rows = None
+            self._spill_store = None
+            self.retained_bytes = 0
+            return matrices, coupled
+
+
+
+    @classmethod
+    def create_correction_array(cls, mode, nstates, order, nbasis, block_size,
+                                *, cutoff=None, block_bytes=64*1024**2,
+                                spill_directory=None, resident_bytes=None,
+                                spill_bytes=None, spill_segment_bytes=None):
+        """Allocate mutable correction data without exposing storage implementations.
+
+        The policy is resolved by correction_storage_policy before allocation.
+        Dense storage uses the original NumPy array; compact storage reuses the
+        generic row representations and backing store from McUtils.Sparse.
+        """
+        if mode == 'dense':
+            return np.zeros((nstates, order+1, nbasis))
+        if mode == 'compact':
+            return cls._CompactCorrectionArray(nstates, order, nbasis, block_size,
+                cutoff=cutoff, block_bytes=block_bytes, spill_directory=spill_directory,
+                resident_bytes=resident_bytes, spill_bytes=spill_bytes,
+                spill_segment_bytes=spill_segment_bytes)
+        if mode == 'sparse':
+            return cls._SparseCorrectionArray(nstates, order, nbasis, block_size, cutoff=cutoff)
+        raise ValueError('Correction allocation requires a resolved dense/sparse/compact mode')
+
+    @staticmethod
+    def _filter_coupling_entries(states, total_space, rules, row, positions, values,
+                                 initial_quanta):
+        """Apply the existing quanta prefilters to either dense or packed rows."""
+        if len(positions) and rules:
+            target_quanta = (total_space.quanta_for_positions(positions)
+                if hasattr(total_space, 'quanta_for_positions') else
+                np.sum(total_space.take_subspace(positions).excitations, axis=1))
+            mask = None
+            for rule in rules:
+                for filter_space, filter_rules in rule.prefilters:
+                    if len(states.take_subspace([row]).intersection(filter_space)):
+                        allowed = np.unique([sum(x) for x in filter_rules])
+                        current = np.isin(target_quanta-initial_quanta, allowed)
+                        mask = current if mask is None else np.logical_or(mask, current)
+            if mask is not None:
+                positions, values = positions[mask], values[mask]
+        return positions, values
+
     def __init__(self,
                  states,
                  coupled_states,
@@ -199,6 +499,15 @@ class PerturbationTheoryCorrections:
         :rtype:
         """
 
+        if isinstance(corrs, cls._SparseCorrectionArray):
+            def filter_entries(row, level, positions, values):
+                rules = [v for k, v in filters.items() if sum(k) == level]
+                return cls._filter_coupling_entries(states, flat_total_space, rules,
+                    row, positions, values, np.sum(states.excitations[row]))
+            return corrs.to_coupling_matrices(
+                states, flat_total_space, non_zero_cutoff, logger,
+                entry_filter=None if filters is None else filter_entries)
+
         # now we recompute reduced state spaces for use in results processing
         # and we also convert the correction vectors to sparse representations
         tci = flat_total_space.indices
@@ -252,25 +561,9 @@ class PerturbationTheoryCorrections:
                     if len(nonzi) > 0:
                         # we attempt to filter out things that can't touch based on our filter rules
                         if nquanta_rules is not None and len(nquanta_rules) > 0:
-                            target_quanta = (flat_total_space.quanta_for_positions(nonzi)
-                                             if hasattr(flat_total_space,'quanta_for_positions') else
-                                             np.sum(flat_total_space.take_subspace(nonzi).excitations,axis=1))
-                            # from .Solver import PerturbationTheoryStateSpaceFilter
-                            mask = None
-                            for f in nquanta_rules:
-                                # f:PerturbationTheoryStateSpaceFilter
-                                for (filter_space, filter_rules) in f.prefilters:
-                                    is_in = states.take_subspace([i]).intersection(filter_space)
-                                    if len(is_in) > 0:
-                                        q_diffs = target_quanta - initial_quanta[i]
-                                        poss_diffs = np.unique([sum(x) for x in filter_rules])
-                                        if mask is None:
-                                            mask = np.isin(q_diffs, poss_diffs)
-                                        else:
-                                            mask = np.logical_or(mask, np.isin(q_diffs, poss_diffs))
-                            if mask is not None:
-                                nonzi = nonzi[mask]
-                                vals = vals[mask]
+                            nonzi, vals = cls._filter_coupling_entries(
+                                states, flat_total_space, nquanta_rules, i,
+                                nonzi, vals, initial_quanta[i])
                     else:
                         if logger is not None:
                             logger.log_print("No corrections for state {s} at order {o}",
@@ -611,7 +904,7 @@ class PerturbationTheoryCorrections:
         # print(couplings.excitations)
         return couplings
 
-    def find_strong_couplings(self, threshold=.1, state_filter=None, correction_filter=None):
+    def find_strong_couplings(self, threshold=.1, state_filter=None, correction_filter=None, block_size=None):
         """
         Finds positions in the expansion matrices where the couplings are too large.
 
@@ -631,9 +924,19 @@ class PerturbationTheoryCorrections:
         order = self.order
         strong_couplings = {}
         for o in range(1, order):
-            sp_vals, sp_inds = self.wfn_corrections[o].block_data
-            nonzi = np.where(np.abs(sp_vals) > threshold)[0]
-            sp_inds = tuple(s[nonzi] for s in sp_inds)
+            matrix = self.wfn_corrections[o]
+            if block_size is None:
+                sp_vals, sp_inds = matrix.block_data
+                nonzi = np.where(np.abs(sp_vals) > threshold)[0]
+                sp_inds = tuple(s[nonzi] for s in sp_inds)
+            else:
+                selected = [indices for values,indices in matrix.iter_nonzero_blocks(
+                    block_size=block_size,value_filter=lambda values: np.abs(values)>threshold)]
+                sp_inds = tuple(np.concatenate([indices[d] for indices in selected])
+                    if selected else np.empty(0,dtype=int) for d in range(2))
+                del selected
+                sorting = np.lexsort((sp_inds[1],sp_inds[0]))
+                sp_inds = tuple(index[sorting] for index in sp_inds)
             ind_keys, ind_vals = nput.group_by(sp_inds[1], self.states.indices[sp_inds[0]])[0]
             # print(self.states.indices[sp_inds[0]])
             # print(tci[sp_inds[1]])

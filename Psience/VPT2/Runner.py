@@ -25,6 +25,7 @@ from ..Spectra import DiscreteSpectrum
 
 from .DegeneracySpecs import DegeneracySpec, DegenerateMultiStateSpace
 from .Hamiltonian import PerturbationTheoryHamiltonian
+from .Solver import PerturbationTheorySolver
 from .Terms import ExpansionTerms
 from .Analytic import (PerturbationTheoryEvaluator, AnalyticPerturbationTheorySolver,
                        _log_evaluation_time, _timed_evaluation)
@@ -47,6 +48,8 @@ _PROFILES = {
         operator_contraction_method='direct',
         factorized_coriolis=True,
         state_space_storage='auto',
+        correction_storage='auto',
+        resonance_memory_constrained=True,
         strong_coupling_property_filter=True
     ),
     'old': dict(
@@ -55,6 +58,8 @@ _PROFILES = {
         operator_contraction_method='tensor',
         factorized_coriolis=False,
         state_space_storage='memory',
+        correction_storage='dense',
+        resonance_memory_constrained=False,
         strong_coupling_property_filter=False
     )
 }
@@ -82,7 +87,7 @@ __all__ = [
     "AnalyticVPTRunner"
 ]
 
-__reload_hook__ = ["..BasisReps", "..Molecools", ".DegeneracySpecs", ".Hamiltonian", ".StateFilters", ".Analytic"]
+__reload_hook__ = ["..BasisReps", "..Molecools", ".DegeneracySpecs", ".Hamiltonian", ".Solver", ".StateFilters", ".Analytic"]
 
 class VPTSystem:
     """
@@ -649,6 +654,7 @@ class VPTStateSpace:
                 evaluator=evaluator,
                 # full_basis=self.full_basis,
                 group_filter=group_filter,
+                default_group_filter=PerturbationTheorySolver.filter_degenerate_group,
                 log_groups=True
             )
             # uuh = [
@@ -1064,6 +1070,9 @@ class VPTRuntimeOptions:
         "memory_constrained",
         "state_space_storage", "state_space_scratch", "hamiltonian_storage",
         "state_space_memory_limit", "state_space_block_size",
+        "correction_storage", "correction_memory_limit", "correction_block_size", "correction_block_bytes",
+        "correction_spill_directory", "correction_resident_bytes", "correction_spill_bytes", "correction_spill_segment_bytes",
+        "resonance_memory_constrained", "resonance_block_size",
         "checkpoint_keys",
         "use_cached_representations",
         "use_cached_basis",
@@ -1085,6 +1094,16 @@ class VPTRuntimeOptions:
                  state_space_memory_limit=None,
                  state_space_block_size=None,
                  state_space_scratch=None,
+                 correction_storage=None,
+                 correction_memory_limit=None,
+                 correction_block_size=None,
+                 correction_block_bytes=None,
+                 correction_spill_directory=None,
+                 correction_resident_bytes=None,
+                 correction_spill_bytes=None,
+                 correction_spill_segment_bytes=None,
+                 resonance_memory_constrained=None,
+                 resonance_block_size=None,
                  hamiltonian_storage=None,
                  checkpoint_keys=None,
                  use_cached_representations=None,
@@ -1110,6 +1129,27 @@ class VPTRuntimeOptions:
         :param state_space_memory_limit: estimated state-space RAM cutoff in bytes;
             default 5_000_000_000. None disables automatic switching.
         :param state_space_block_size: maximum generated pair block, default 65536.
+        :param correction_storage: 'auto' (new preset), 'dense' (old preset), or
+            'sparse', or opt-in 'compact' (adaptive rows, packed support and row-block matrices).
+            Auto keeps the original dense collector below its budget.
+        :param correction_memory_limit: dense collector switch point in bytes;
+            defaults to the existing state_space_memory_limit. Explicit limits override this
+            default. No scheduler-specific policy is introduced. This is not a cap
+            on the recurrence, Hamiltonian, or final nonzero correction payload.
+        :param correction_block_bytes: compact-mode block/workspace target in bytes,
+            default 64 MiB; a single row can exceed it. Also guards explicit whole-array exports.
+            This is not a total-RAM cap. Ignored by the unchanged dense/sparse paths.
+        :param correction_spill_bytes: optional compact-row file capacity in bytes;
+            None disables spill. The process RSS and shared scratch budget are separate.
+        :param correction_resident_bytes: soft resident correction-payload target;
+            defaults to correction_spill_bytes when spill is enabled. If the disk
+            allowance is exhausted, subsequent rows remain resident.
+        :param correction_spill_directory: temporary mapped-row directory;
+            defaults to state_space_scratch or the configured system temporary directory.
+        :param correction_spill_segment_bytes: adjustable mapped segment capacity;
+            defaults to eight correction_block_bytes. One row may require a larger segment.
+        :param correction_block_size: dense values scanned per sparse conversion
+            block; defaults to state_space_block_size. No correction files written.
         :param checkpoint: the `Checkpointer` to write Hamiltonians and other bits out to
         :type checkpoint: str|Checkpointer|None default:None
         :param checkpoint_keys: which keys to save in the checkpoint
@@ -1142,6 +1182,16 @@ class VPTRuntimeOptions:
             state_space_memory_limit=state_space_memory_limit,
             state_space_block_size=state_space_block_size,
             state_space_scratch=state_space_scratch,
+            correction_storage=correction_storage,
+            correction_memory_limit=correction_memory_limit,
+            correction_block_size=correction_block_size,
+            correction_block_bytes=correction_block_bytes,
+            correction_spill_directory=correction_spill_directory,
+            correction_resident_bytes=correction_resident_bytes,
+            correction_spill_bytes=correction_spill_bytes,
+            correction_spill_segment_bytes=correction_spill_segment_bytes,
+            resonance_memory_constrained=resonance_memory_constrained,
+            resonance_block_size=resonance_block_size,
             hamiltonian_storage=hamiltonian_storage,
             verbose=verbose,
             checkpoint_keys=checkpoint_keys,
@@ -1205,6 +1255,7 @@ class VPTSolverOptions:
         "ignore_odd_order_energies",
         "intermediate_normalization",
         "use_block_recurrence",
+        "wavefunction_workspace_bytes",
         "zero_element_warning",
         "degenerate_states",
         "zero_order_energy_corrections",
@@ -1247,6 +1298,7 @@ class VPTSolverOptions:
                  zero_order_energy_corrections=None,
                  check_overlap=None,
                  use_block_recurrence=None,
+                 wavefunction_workspace_bytes=None,
                  strong_coupling_property_filter=None,
                  strong_coupling_correction_filter=None
                  ):
@@ -1332,6 +1384,7 @@ class VPTSolverOptions:
             zero_order_energy_corrections=zero_order_energy_corrections,
             check_overlap=check_overlap,
             use_block_recurrence=use_block_recurrence,
+            wavefunction_workspace_bytes=wavefunction_workspace_bytes,
             strong_coupling_property_filter=strong_coupling_property_filter,
             strong_coupling_correction_filter=strong_coupling_correction_filter
         )

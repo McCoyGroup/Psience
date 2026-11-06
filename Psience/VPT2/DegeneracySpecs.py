@@ -913,7 +913,8 @@ class StronglyCoupledDegeneracySpec(DegeneracySpec):
             raise ValueError('property-use coupling filtering requires property selection rules '
                              'or a strong_coupling_correction_filter callback')
         sc = corrs.find_strong_couplings(threshold=degenerate_correction_threshold,
-            state_filter=state_filter, correction_filter=correction_filter)
+            state_filter=state_filter, correction_filter=correction_filter,
+            block_size=getattr(solver,'resonance_block_size',65536) if getattr(solver,'resonance_memory_constrained',True) else None)
         return sc
 
     def _select_input_state_couplings(self, source, finals, corrections, target_orders=None):
@@ -2137,7 +2138,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
             return [g for g in group if len(g.excitations) > 1]
 
     @classmethod
-    def construct_filer(cls, spec=None, **kwargs):
+    def construct_filer(cls, spec=None, filter_func=None, **kwargs):
         """
         **LLM Docstring**
 
@@ -2145,15 +2146,21 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
 
         :param spec: an explicit `DegeneracySpec` to build the filter from, if available
         :type spec: DegeneracySpec | None
+        :param filter_func: caller-supplied implementation; otherwise uses the standalone dense filter
+        :type filter_func: callable | None
         :param kwargs: options forwarded to `spec.get_group_filter` or bound into the default filter
         :type kwargs: dict
         :return: the constructed group-filter callable
         :rtype: callable
         """
         if spec is not None:
+            if filter_func is not None:
+                kwargs = dict(kwargs, filter_func=filter_func)
             return spec.get_group_filter(**kwargs)
         else:
-            return lambda group:cls.default_group_filter(group, **kwargs)
+            if filter_func is None:
+                filter_func = cls.default_group_filter
+            return lambda group:filter_func(group, **kwargs)
 
     @classmethod
     def from_spec(cls,
@@ -2165,12 +2172,16 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                   format=None,
                   group_filter=None,
                   log_groups=False,
+                  default_group_filter=None,
                   **kwargs
                   ):
         """
         Generates a DegenerateMultiStateSpace object from a number
         of possible specs
 
+        :param default_group_filter: implementation bound to mapping-based filter specifications;
+            explicit callable and unfiltered specifications are preserved
+        :type default_group_filter: callable | None
         :param solver: the actual applier of the perturbation theory which makes use of the degenerate states
         :type solver: PerturbationTheorySolver
         :return:
@@ -2194,7 +2205,8 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                 if hasattr(group_filter, 'items'):
                     group_filter = cls.construct_filer(
                         #TODO: use a ChainMap
-                        **dict(dict(logger=logger), **dict(group_filter, spec=degenerate_states))
+                        **dict(dict(logger=logger, filter_func=default_group_filter),
+                               **dict(group_filter, spec=degenerate_states))
                     )
                 new = GroupsDegeneracySpec.canonicalize(deg_states)
                 if new is None:

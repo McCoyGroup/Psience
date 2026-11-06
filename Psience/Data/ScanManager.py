@@ -301,7 +301,8 @@ class ScanManager:
         if extra_info:
             info.update(extra_info)
 
-        dev.write_json(
+        # atomic, so a crash or a concurrent reader never sees a half-written manifest
+        dev.atomic_write_json(
             self.scan_info_file,
             info,
             indent=2
@@ -446,7 +447,8 @@ class ScanManager:
             molecule_loader=None,
             scan_info=None,
             skip_missing=True,
-            fill_value=np.nan
+            fill_value=np.nan,
+            store=None
     ):
         """
         Rebuilds the `Molecule` for every completed scan step, runs
@@ -466,6 +468,10 @@ class ScanManager:
             tensor slots) rather than raising
         :param fill_value: value used for grid points that were never
             populated (e.g. failed or still-running jobs)
+        :param store: an `ObjectStore` (or a path to one) that keeps the extracted properties of each grid
+            point, one record per point with its grid index as metadata. A point is re-read only when its
+            output file (by content), the extractor, or the molecule loader changes; an extractor that can't be
+            fingerprinted disables the store with a warning
         :return: `dict` mapping each property key to an `np.ndarray` of shape
             `scan_info["shape"] + property_shape`
         :rtype: dict
@@ -474,6 +480,7 @@ class ScanManager:
         output_file_generator, molecule_loader, scan_info = self._output_defaults(
             output_file_generator, molecule_loader, scan_info
         )
+        store, identity = self._point_store(store, molecular_property_extractor, molecule_loader)
 
         grid_shape = tuple(scan_info["shape"])
 
@@ -486,8 +493,10 @@ class ScanManager:
             output_path = output_file_generator(input_path)
 
             try:
-                mol = molecule_loader(output_path)
-                props = molecular_property_extractor(mol)
+                props = self._parse_point(
+                    store, identity, scan_info, index, output_path,
+                    molecule_loader, molecular_property_extractor
+                )
             except (FileNotFoundError, OSError, ValueError) as e:
                 if skip_missing:
                     warnings.warn(f"skipping scan step {index} ({output_path}): {e}")
@@ -511,6 +520,35 @@ class ScanManager:
             warnings.warn(f"{len(missing)} / {populated.size} scan points have no extracted properties")
 
         return tensors
+
+    def _point_store(self, store, extractor, loader):
+        """Resolves the `store` argument of `parse` to ``(ObjectStore | None, extractor/loader identity)``"""
+        if store is None:
+            return None, None
+        from McUtils.Scaffolding import ObjectStore
+        if not isinstance(store, ObjectStore):
+            store = ObjectStore(store)
+        try:
+            return store, (dev.fingerprint(extractor), dev.fingerprint(loader))
+        except Exception as e:
+            warnings.warn(f"can't fingerprint the property extractor or molecule loader ({e}); scan results aren't cached")
+            return None, None
+
+    def _parse_point(self, store, identity, scan_info, index, output_path, loader, extractor):
+        if store is None:
+            return extractor(loader(output_path))
+        # a missing output raises FileNotFoundError here, which `parse` treats like any unreadable step
+        key = store.key_for("scan-point", dev.file_hash(output_path), identity)
+        props = store.get(key, default=None)
+        if props is None:
+            props = {k: np.asarray(v) for k, v in extractor(loader(output_path)).items()}
+            store.put(props, key=key, meta={
+                "kind": "scan-point",
+                "scan_id": scan_info.get("scan_id"),
+                "grid_index": [int(i) for i in index],
+                "output_file": os.path.basename(output_path)
+            })
+        return props
 
     # endregion
 

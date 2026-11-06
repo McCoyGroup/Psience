@@ -1595,6 +1595,8 @@ class IndexedBlockEvaluator:
     @classmethod
     def _contract_energy_rows(cls, energy_changes, frequency_blocks):
         """Contract ordinary harmonic denominator rows; projected masks stay separate."""
+        if np.size(energy_changes) == 0:
+            return np.ones(np.shape(frequency_blocks)[:-1], dtype=np.result_type(frequency_blocks, float))
         if (cls.use_jit_energy_contractions
                 and frequency_blocks.dtype == np.dtype('float64')
                 and energy_changes.dtype.kind in 'biuf'):
@@ -1699,6 +1701,23 @@ class IndexedBlockEvaluator:
                 degeneracy_context=degeneracy_context
             )
             for energy_shape, selected, terms in selected_groups:
+                if terms and not terms[0].energy_changes:
+                    # A unit factor is a bare numerator: it has no energy
+                    # contraction, resonance selection, or extra cutoff.
+                    if not any(only_degenerate_terms[:2]):
+                        tick = time.perf_counter()
+                        for term in terms:
+                            polynomial = evaluator._eval_poly(
+                                polynomial_cache,
+                                blocks.tuple_states[block_index],
+                                blocks.permutation_substates[block_index],
+                                pows, term.polynomial, change, baseline_shift,
+                                False, logger,
+                                block_key=('full', blocks.state_block_identities[block_index]))
+                            blocks.contributions[block_index] += polynomial
+                            self.stats.polynomial_evaluations += 1
+                        self.stats.polynomial_seconds += time.perf_counter() - tick
+                    continue
                 permutation_count = (
                     len(blocks.permutation_subsets[block_index])
                     if selected is None else len(selected)

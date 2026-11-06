@@ -28,6 +28,8 @@ explicitly.
 
 from __future__ import annotations
 
+from McUtils.Devutils import CascadingPropertyManager, cascading_property, derived_property
+
 import numpy as np
 
 from McUtils.Data import AtomData, UnitsData
@@ -71,6 +73,7 @@ class MolecularTopology:
             `Molecule` to run the `RDMolecule` bond-guessing pass.
         :type bond_guesser: callable | None
         """
+        self._cascade_manager = CascadingPropertyManager(self)
         self.atoms = tuple(atoms)
         self._bonds = bonds
         self._edge_graph = None
@@ -90,7 +93,7 @@ class MolecularTopology:
         )
 
     #region Bonds
-    @property
+    @cascading_property
     def bonds(self):
         """
         Property getter/setter for the bonds. The getter lazily guesses the bonds (via the
@@ -116,8 +119,6 @@ class MolecularTopology:
         :rtype: list[tuple] | None
         """
         self._bonds = b
-        self._edge_graph = None
-        self._fragment_indices = None
 
     def get_guessed_bonds(self, **opts):
         """
@@ -212,7 +213,7 @@ class MolecularTopology:
     #endregion
 
     #region Graph
-    @property
+    @derived_property(depends_on=['bonds'])
     def edge_graph(self) -> EdgeGraph:
         """
         The (cached) `EdgeGraph` representation of the bonding structure, built lazily via
@@ -222,10 +223,8 @@ class MolecularTopology:
         :return: the edge graph
         :rtype: EdgeGraph
         """
-        if self._edge_graph is None:
-            from .Properties import MolecularProperties
-            self._edge_graph = MolecularProperties.edge_graph(self)
-        return self._edge_graph
+        from .Properties import MolecularProperties
+        return MolecularProperties.edge_graph(self)
 
     def find_path(self, atom1, atom2):
         """
@@ -258,7 +257,7 @@ class MolecularTopology:
     #endregion
 
     #region Fragments
-    @property
+    @derived_property(depends_on=['bonds'])
     def fragment_indices(self):
         """
         The (cached) grouping of atom indices into connected molecular fragments, computed
@@ -268,10 +267,8 @@ class MolecularTopology:
         :return: the list of per-fragment atom-index groups
         :rtype: list[np.ndarray]
         """
-        if self._fragment_indices is None:
-            from .Properties import MolecularProperties
-            self._fragment_indices = MolecularProperties.fragment_indices(self)
-        return self._fragment_indices
+        from .Properties import MolecularProperties
+        return MolecularProperties.fragment_indices(self)
 
     @property
     def fragments(self):

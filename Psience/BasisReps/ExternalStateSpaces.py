@@ -4,7 +4,7 @@ import itertools, tempfile, weakref
 import numpy as np
 from McUtils.Numputils import external_unique, SparseArray
 from McUtils.Combinatorics import SymmetricGroupGenerator
-from .StateSpaces import BasisStateSpace, SelectionRuleStateSpace, BraKetSpace
+from .StateSpaces import BasisStateSpace, BasisStateSpaceView, SelectionRuleStateSpace, BraKetSpace
 
 __all__ = ['StateSpaceDiskStore', 'DiskBasisStateSpace', 'DiskSelectionRuleStateSpace',
            'QuantaStateSpace']
@@ -20,9 +20,12 @@ def _cleanup_store(mappings, temporary):
 
 
 class StateSpaceDiskStore:
-    def __init__(self, directory=None, block_size=65536):
+    def __init__(self, directory=None, block_size=65536, *, memory_limit=None):
         if block_size < 1:
             raise ValueError('state_space_block_size must be positive')
+        if memory_limit is not None and (not np.isfinite(memory_limit) or memory_limit<0):
+            raise ValueError('state-space memory_limit must be nonnegative bytes or None')
+        self.memory_limit=memory_limit
         if directory is not None:
             Path(directory).mkdir(parents=True, exist_ok=True)
         self._temporary = tempfile.TemporaryDirectory(prefix='coupled_states_', dir=directory)
@@ -44,14 +47,29 @@ class StateSpaceDiskStore:
         return array
 
     def array(self, label, dtype, shape):
+        # One bounded work chunk does not need a live file/mapping descriptor.
+        if np.prod(shape,dtype=object) <= self.block_size:
+            return np.zeros(shape,dtype=dtype)
         return self.own(np.lib.format.open_memmap(self.path(label), mode='w+', dtype=dtype, shape=shape))
 
     def unique(self, arrays, width=1, sort=True):
         def chunks():
             yield np.empty((0,) if width == 1 else (0, width), dtype=np.int64)
             yield from arrays
-        return self.own(external_unique(chunks(), sort=sort, directory=self.directory,
-                                       chunk_size=self.block_size, output_file=self.path('unique')))
+        iterator=iter(chunks());head=[];count=0
+        for block in iterator:
+            head.append(block);count+=len(block)
+            if count>self.block_size:break
+        output=self.path('unique') if count>self.block_size else None
+        result=external_unique(itertools.chain(head,iterator),sort=sort,directory=self.directory,
+                               chunk_size=self.block_size,output_file=output)
+        if isinstance(result,np.memmap) and len(result)<=self.block_size:
+            # This result has not escaped: copy it before closing its sole map.
+            resident=np.array(result,copy=True)
+            result._mmap.close()
+            Path(result.filename).unlink()
+            result=resident
+        return self.own(result)
 
     def frontier(self, basis, arrays, sort=True):
         return DiskBasisStateSpace(basis, self.unique(arrays,sort=sort), self,
@@ -64,6 +82,44 @@ class StateSpaceDiskStore:
             return space
         return self.frontier(space.basis, index_blocks(space, self.block_size))
 
+    def _union_views(self, spaces, sort):
+        """Union common-parent CSR selections without copying every rank row."""
+        parent=spaces[0].index_parent
+        if getattr(parent,'store',None) is not self or not parent.is_unique():return None
+        if len(spaces)==1:
+            first=self.coerce(spaces[0])
+            return first.take_unique(sort=True) if sort else first
+        # One byte per already-existing parent position, never an adjacency
+        # matrix or excitation array. Use it only within the configured state
+        # memory budget and when it is no larger than the input index payload.
+        size=len(parent)
+        payload=sum(space.index_positions.nbytes for space in spaces)
+        if size>payload or (self.memory_limit is not None and size>self.memory_limit):return None
+        seen=np.zeros(size,dtype=bool)
+        count=sum(len(space) for space in spaces)
+        ranks=self.array('union_view_ranks',np.int64,(min(size,count),))
+        # coerce() sorts the first resident input even for sort=False. Keep
+        # that legacy ordering instead of emitting the first CSR row as-is.
+        first=self.coerce(spaces[0]);offset=0
+        for block in first.iter_index_blocks():
+            ranks[offset:offset+len(block)]=block;offset+=len(block)
+        for positions in spaces[0].iter_position_blocks(self.block_size):seen[positions]=True
+        for space in spaces[1:]:
+            for positions in space.iter_position_blocks(self.block_size):
+                if space._view_unique is not True:
+                    _,first_positions=np.unique(positions,return_index=True)
+                    positions=positions[np.sort(first_positions)]
+                new=positions[~seen[positions]]
+                seen[new]=True
+                values=parent.indices[new]
+                if values.dtype.kind=='u' and len(values) and values.max()>np.iinfo(np.int64).max:
+                    raise OverflowError('disk state ranks must fit signed int64')
+                ranks[offset:offset+len(new)]=values
+                offset+=len(new)
+        result=DiskBasisStateSpace(parent.basis,ranks[:offset],self,canonical=False,unique=True)
+        return result.take_unique(sort=True) if sort else result
+
+
     def union_spaces(self, spaces, sort=False):
         """Union a stream of frontiers in one bounded stable/sorted pass.
 
@@ -75,6 +131,18 @@ class StateSpaceDiskStore:
         first = next(spaces, sentinel)
         if first is sentinel:
             return None
+        if isinstance(first,BasisStateSpaceView) and first.index_parent is not None:
+            views=[first];parent=first.index_parent
+            for space in spaces:
+                if not isinstance(space,BasisStateSpaceView) or space.index_parent is not parent:
+                    spaces=itertools.chain(views,(space,),spaces)
+                    break
+                views.append(space)
+            else:
+                result=self._union_views(views,sort)
+                if result is not None:return result
+                spaces=iter(views)
+            first=next(spaces)
         first = self.coerce(first)
         second = next(spaces, sentinel)
         if second is sentinel:

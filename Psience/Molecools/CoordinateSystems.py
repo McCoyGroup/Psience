@@ -5,6 +5,7 @@ Defines useful extended internal coordinate frames
 
 import numpy as np
 import McUtils.Devutils as dev
+from McUtils.Devutils import CascadingPropertyManager, cascading_property
 import McUtils.Numputils as nput
 from McUtils.Parallelizers import Parallelizer
 import McUtils.Coordinerds
@@ -31,6 +32,25 @@ __reload_hook__ = [".MoleculeInterface"]
 
 class MolecularEmbedding:
 
+    def _reset_internal_coordinates(self):
+        # internal coordinates given directly (no spec to recompute them from) are not derived and stay
+        if self._int_spec is not None:
+            self._ints = None
+
+    def _reset_jacobians(self):
+        self._jacobians = self._get_jacobian_storage()
+
+    # What the embedding's cached values depend on. Assigning the Cartesian coordinates, the internal-coordinate
+    # specification (`internals`), the Z-matrix or explicit internal coordinates resets everything downstream:
+    # the Jacobians, the inertial frame, the translation/rotation modes, and internal coordinates computed from the spec.
+    cascade_dependencies = {
+        'internals': ['zmatrix'],
+        'internal_coordinates': dict(depends_on=['coords', 'internals'], reset=_reset_internal_coordinates),
+        'jacobians': dict(depends_on=['coords', 'internals', 'internal_coordinates'], reset=_reset_jacobians),
+        'inertial_frame': dict(depends_on=['coords'], reset='_inert_frame'),
+        'translation_rotation_modes': dict(depends_on=['coords'], reset='_tr_modes')
+    }
+
     def __init__(self,
                  masses,
                  coords,
@@ -56,6 +76,7 @@ class MolecularEmbedding:
         :return: None
         :rtype: None
         """
+        self._cascade_manager = CascadingPropertyManager(self)
 
         self._coords = CoordinateSet(coords, MolecularCartesianCoordinateSystem(masses, coords))
         self.registered_converters = None
@@ -67,7 +88,7 @@ class MolecularEmbedding:
             self._ints = None
         self._jacobians = self._get_jacobian_storage()
         # self._int_spec = internals
-        self._frame = None
+        self._inert_frame = None
         self._tr_modes = None
         self._internal_fd_opts={} if internal_fd_opts is None else internal_fd_opts
         self._cart_fd_opts={} if cartesian_fd_opts is None else cartesian_fd_opts
@@ -143,7 +164,7 @@ class MolecularEmbedding:
             )
             for r in self.registered_converters:
                 r.register()
-    @property
+    @cascading_property
     def coords(self):
         """
         **LLM Docstring**
@@ -176,8 +197,6 @@ class MolecularEmbedding:
             coords = CoordinateSet(coords, sys)
         if sys is not self._coords.system:
             self.cleanup()
-        self._jacobians = self._get_jacobian_storage()
-        self._frame = None
         self._coords = coords
     @property
     def masses(self):
@@ -290,7 +309,7 @@ class MolecularEmbedding:
                 spec = {'specs': specs, 'zmatrix': zmatrix, 'conversion': conversion, 'inverse': None, 'converter_options': {}}
         return spec
 
-    @property
+    @cascading_property
     def internals(self):
         """
         **LLM Docstring**
@@ -318,9 +337,8 @@ class MolecularEmbedding:
         :rtype: dict | None
         """
         self._int_spec = self.canonicalize_internal_coordinate_spec(internals)
-        self._ints = None
 
-    @property
+    @cascading_property
     def zmatrix(self):
         """
         **LLM Docstring**
@@ -357,7 +375,6 @@ class MolecularEmbedding:
             self._int_spec = self.canonicalize_internal_coordinate_spec(zmat)
         else:
             self._int_spec['zmatrix'] = zmat
-        self._ints = None
 
     @classmethod
     def convert_to_internals(cls, coords, masses, spec):
@@ -454,7 +471,7 @@ class MolecularEmbedding:
             spec
         )
 
-    @property
+    @cascading_property
     def internal_coordinates(self):
         """
         **LLM Docstring**
@@ -1282,7 +1299,7 @@ class MolecularEmbedding:
         :rtype:
         """
 
-        if self._frame is None:
+        if self._inert_frame is None:
             # Need to put B in Hartree?
             #  I've got moments of inertia in amu * bohr^2 at the moment
             #  So we convert (amu * bohr^2) to (m_e * bohr^2) since hb^2/(m_e bohr^2) == E_h

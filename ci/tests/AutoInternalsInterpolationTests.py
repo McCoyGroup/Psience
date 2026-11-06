@@ -1,5 +1,6 @@
 """Regression checks for interpolation with geometry-local auto internals."""
 
+import gc
 import unittest
 
 import numpy as np
@@ -21,6 +22,9 @@ class AutoInternalsInterpolationTests(unittest.TestCase):
             (source, target), lambda coords, **kw: coords + 1
         )
         source.registered_converters = (converter,)
+        # molecules left over from earlier tests deregister their converters when they are collected, so
+        # settle the garbage collector first or the registry can shrink in the middle of this test
+        gc.collect()
         before = len(CoordinateSystemConverters.converters)
         result = CoordinateSet([1.0], source).convert(target)
         assert_allclose(result, [2.0])
