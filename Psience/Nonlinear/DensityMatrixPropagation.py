@@ -21,9 +21,8 @@ import numpy as np
 from scipy.linalg import expm
 
 from ..BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis
-from McUtils.Data import UnitsData
 from .NonlinearResponse import (
-    TransitionData, experiment_defaults, expand_transition_data,
+    NonlinearResponseFunction, TransitionData, experiment_defaults, expand_transition_data,
     interpret_polarization, prep_liouville_spaces,
     prep_nonlinear_transition_data,
 )
@@ -170,6 +169,10 @@ def propagate_density_matrix_paths(
 
     ``prepared_spaces`` may supply the ``(total_space, path_paths)`` pair
     returned by ``prep_liouville_spaces`` to reuse an existing enumeration.
+
+    Energies, wavenumbers, and kelvin energies use the same explicit equivalences
+    as NonlinearResponseFunction. Delays contribute the phase E t / hbar; the
+    conversion to cyclic Hertz is followed by exactly one factor of 2 pi.
     """
     if orientational_averaging is not None:
         raise NotImplementedError("orientational averaging of pulse propagation is not implemented")
@@ -223,10 +226,7 @@ def propagate_density_matrix_paths(
     energies = np.asarray(expanded.frequencies[reference], dtype=float)
     if not np.all(np.isfinite(energies)):
         raise ValueError("state energies must be finite")
-    frequency_time_factor = (
-        2 * np.pi * UnitsData.convert(frequency_unit, "Hertz")
-        * UnitsData.convert(time_unit, "Seconds")
-    )
+    frequency_time_factor = NonlinearResponseFunction._freq_conv(frequency_unit, time_unit)
 
     if interaction_tensor is None:
         areas = np.asarray(pulse_areas, dtype=float)

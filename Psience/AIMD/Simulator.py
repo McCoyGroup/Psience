@@ -130,7 +130,11 @@ class LangevinThermostat(MDThermostat):
     def apply_thermostat(self, positions, velocities, sim=None):
         gamma = self.friction
         mass = sim._mass
-        sigma = np.sqrt(2 * gamma * self.target_temperature * UnitsData.convert("Kelvins", "Hartrees") * mass)
+        # Langevin noise uses the thermal energy k_B T, expressed in Hartrees.
+        thermal_energy = self.target_temperature * UnitsData.convert(
+            "Kelvins", "Hartrees", equivalences=("thermal",)
+        )
+        sigma = np.sqrt(2 * gamma * thermal_energy * mass)
         rand = self._rng.normal(size=velocities.shape)
         velocities = velocities + sim.dt * (-gamma * velocities) + np.sqrt(sim.dt) * sigma * rand / mass
         return positions, velocities
@@ -896,7 +900,9 @@ class AIMDSimulator:
 
     def _temperature(self, vels):
         ke = self._ke(self._mass, vels)
-        return 2 * ke / (self._n_dof * UnitsData.convert("Kelvins", "Hartrees"))
+        # Equipartition: T = 2 K / (n_dof k_B), with kinetic energy in Hartrees.
+        boltzmann = UnitsData.convert("Kelvins", "Hartrees", equivalences=("thermal",))
+        return 2 * ke / (self._n_dof * boltzmann)
 
     @classmethod
     def mode_energies_to_velocities(cls, modes, masses, energy_splits, inverse=None):

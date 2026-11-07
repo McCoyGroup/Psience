@@ -3,6 +3,7 @@ import contextlib
 import io
 import tempfile
 import unittest
+import warnings
 from unittest import mock
 
 import numpy as np
@@ -217,6 +218,78 @@ class AnalyticResonanceLoggingTests(unittest.TestCase):
         legacy = self.evaluator(False, logger).get_energy_corrections([[0], [1]], order=2)
         self.assert_timings(stream.getvalue())
         np.testing.assert_allclose(legacy, [[.02, .06], [-.0002, -.0002]], atol=1e-14)
+
+
+    def test_existing_denominator_warnings_reach_normal_log_without_verbose(self):
+        E = PerturbationTheoryExpressionEvaluator
+        logger, output = self.capture()
+        with warnings.catch_warnings(), mock.patch.object(E,'_eval_poly',return_value=np.array([[2.]])):
+            warnings.simplefilter('ignore')
+            value, _, _ = E._eval_subcontrib(
+                ((0,1),), np.array([[1e-30]]), {}, {},
+                None, None, None, None, None, None, False, logger,
+                zero_cutoff=1e-24)
+        np.testing.assert_allclose(value,[[2e30]])
+        text = output.getvalue()
+        self.assertIn('WARNING: energy denominator below zero_cutoff',text)
+        self.assertIn('term survived numerator pruning',text)
+
+    def test_existing_block_warning_and_pruned_zero_remain_visible(self):
+        E = PerturbationTheoryExpressionEvaluator
+        logger, output = self.capture()
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            value = E._divide_polynomial_block_by_energy(
+                np.array([[[0.,2.]]]),np.array([[0.,1e-30]]),1e-24,logger=logger)
+        np.testing.assert_allclose(value,[[[0.,2e30]]])
+        self.assertIn('energy denominator below zero_cutoff',output.getvalue())
+        self.assertIn('term survived numerator pruning',output.getvalue())
+
+    def test_projected_warning_recovers_actual_reference_and_intermediate_pair(self):
+        from Psience.VPT2.Projected import StateProjectionFactor
+        E = PerturbationTheoryExpressionEvaluator
+        reference = [1,0]
+        factor = StateProjectionFactor('R',[reference],[.01,.0100000000001],reference=reference)
+        # Concrete mode permutation reverses the two local delta positions.
+        rows = ((factor,1,0),)
+        context = dict(operator='fixture',_state_pair_context=lambda:(
+            np.array([[0,0]]),np.array([[1,0]]),np.array([[.0100000000001,.01]]),None))
+        details = E._format_small_denominator_context(context,np.array([0]),np.array([1e-30]),energy_changes=rows)
+        pair = details['denominator_state_pairs'][0]['state_pairs'][0]
+        self.assertEqual(pair['left_state'],(1,0))
+        self.assertEqual(pair['right_state'],(0,1))
+        self.assertEqual(pair['energy_difference'],'E(left)-E(right)')
+        self.assertNotIn('_state_pair_context',details['evaluation'])
+        logger, output = self.capture()
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            E._divide_polynomial_by_energy(np.array([[2.]]),np.array([1e-30]),1e-24,
+                energy_changes=rows,evaluation_context=context,logger=logger)
+        self.assertIn("'left_state': (1, 0)",output.getvalue())
+        self.assertIn("'right_state': (0, 1)",output.getvalue())
+
+    def test_conditional_warning_recovers_shifted_endpoint_states(self):
+        from Psience.VPT2.Conditional import ConditionEndpoint
+        E = PerturbationTheoryExpressionEvaluator
+        condition = SameStateCondition()
+        rows = ((ConditionEndpoint(condition,'resolvent',False,0),0),
+                (ConditionEndpoint(condition,'resolvent',False,1),1))
+        result = E._denominator_state_pairs(rows,np.array([0]),lambda:(
+            np.array([[2]]),np.array([[0]]),np.array([[.01]]),np.array([1])))
+        pair = result[0]['state_pairs'][0]
+        self.assertEqual(pair['left_state'],(3,))
+        self.assertEqual(pair['right_state'],(4,))
+        self.assertAlmostEqual(pair['gap_hartree'],-.01)
+
+    def test_relative_energy_rows_do_not_invent_unique_intermediate_states(self):
+        result = PerturbationTheoryExpressionEvaluator._denominator_state_pairs(
+            ((0,1,-1),),np.array([0]),lambda:(np.array([[1,0]]),np.array([[0,1]]),np.array([[.01,.01]]),None))
+        self.assertEqual(result[0]['state_pairs'],[])
+        self.assertEqual(result[0]['source_state'],(1,0))
+        self.assertEqual(result[0]['unresolved_factors'][0]['energy_change'],(1,-1))
+
+    def test_requested_zero_cutoff_default(self):
+        self.assertEqual(PerturbationTheoryExpressionEvaluator.default_zero_cutoff,1e-24)
 
 
 if __name__ == '__main__':

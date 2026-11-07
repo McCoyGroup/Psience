@@ -2241,23 +2241,30 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                         # s=[x for x in degenerate_states if len(x) > 1]
                     )
 
+        # Resolve requested ranks once; shared-parent spaces may materialize
+        # them on access. All temporary membership storage is requested-sized.
+        requested_indices = states.indices
         # build groups of degenerate states for use later
         if degenerate_states is None:
             groups = states.split(1) #[[x] for x in states.indices]  # we're gonna loop through this later so why not destructure now...
         else:
             groups = [None] * len(degenerate_states)
-            deg_sets = [(set(d.indices),d) for d in degenerate_states]
-            for x in states.indices:
-                for i, (d,bs) in enumerate(deg_sets):
-                    # if i == 11:
-                    #     raise Exception(bs.excitations, bs.indices)
-                    if x in d:
-                        if groups[i] is None:
-                            groups[i] = bs.indices
-                        # groups[i].append(x)
-                        break
+            # Keep the first matching group, including overlapping specs,
+            # without testing every requested state against every group.
+            owners = dict.fromkeys(requested_indices, -1)
+            for i, group in enumerate(degenerate_states):
+                for block in group.iter_index_blocks():
+                    for rank in block:
+                        if rank in owners and owners[rank] < 0:
+                            owners[rank] = i
+            for x in requested_indices:
+                i = owners[x]
+                if i >= 0:
+                    if groups[i] is None:
+                        groups[i] = degenerate_states[i].indices
                 else:
                     groups.append([x])
+            del owners
 
         # now turn these into proper BasisStateSpace objects so we can work with them more easily
         ugh = []
@@ -2278,12 +2285,20 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
             else:
                 ugh.append(g)
 
-        for n,x in enumerate(states.indices):
-            for g in ugh:
-                if x in g.indices:
+        # Filtering may remove requested states or split their groups. Mark
+        # coverage once, preserving existing groups and first missing-state order.
+        uncovered = set(requested_indices)
+        for group in ugh:
+            if not uncovered:
+                break
+            for block in group.iter_index_blocks():
+                uncovered.difference_update(block)
+                if not uncovered:
                     break
-            else:
+        for n, rank in enumerate(requested_indices):
+            if rank in uncovered:
                 ugh.append(states.take_subspace([n]))
+                uncovered.remove(rank)
 
         # now make a numpy array for initialization
         arrs = np.full(len(ugh), None)

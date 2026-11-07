@@ -24,7 +24,7 @@ class MoleculeReportToolsTests(unittest.TestCase):
         self.catalog = SourceCatalog()
         self.catalog.add("hoh", self.mol, title="Water")
         self.doc = ReportDocument("Water", self.catalog)
-        self.tools = report_toolset(self.doc, self.catalog)
+        self.tools = report_toolset(self.doc, self.catalog, policy="grounded")
 
     def test_the_menu_tells_the_model_what_it_can_add(self):
         t = ok(self.tools.call("describe_source", {"handle": "hoh"}))["template"]

@@ -4,6 +4,7 @@ import itertools, tempfile, weakref
 import numpy as np
 from McUtils.Numputils import external_unique, SparseArray
 from McUtils.Combinatorics import SymmetricGroupGenerator
+from .StateIndexers import PermutationStateIndexer
 from .StateSpaces import BasisStateSpace, BasisStateSpaceView, SelectionRuleStateSpace, BraKetSpace
 
 __all__ = ['StateSpaceDiskStore', 'DiskBasisStateSpace', 'DiskSelectionRuleStateSpace',
@@ -233,9 +234,14 @@ class DiskBasisStateSpace(BasisStateSpace):
         for start in range(0, len(self), self.store.block_size):
             yield self._indices[start:start + self.store.block_size]
 
-    def iter_excitations(self):
+    def iter_excitations(self, block_size=None, *, sparse=False):
+        size = self.store.block_size if block_size is None else int(block_size)
+        if size < 1:
+            raise ValueError("block_size must be positive")
         for values in self.iter_index_blocks():
-            yield self.basis.unravel_state_inds(values)
+            for start in range(0,len(values),size):
+                block = self.basis.unravel_state_inds(values[start:start+size])
+                yield SparseArray.from_data(block) if sparse else block
 
     def quanta_for_positions(self, positions):
         result = self.store.array('quanta',np.int64,(len(positions),))
@@ -566,8 +572,27 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
                                                 tuple(rule for rule, keep in zip(active_rules, allowed) if keep)))
                     for selected, selected_rules in batches:
                         exc = original[selected] if dimensions is None else original[selected][:, dimensions]
-                        group = SymmetricGroupGenerator(exc.shape[1])
-                        for rows, outputs in group.iter_permutation_rule_direct_sum(exc, selected_rules, block_size=size):
+                        index_group = (self.basis.indexer.symmetric_group
+                            if type(self.basis.indexer) is PermutationStateIndexer else None)
+                        index_only = (dimensions is None and index_group is not None
+                                      and len(excluded)*len(original) <= size)
+                        group = index_group if index_only else SymmetricGroupGenerator(exc.shape[1])
+                        forbidden = []
+                        if index_only:
+                            # Same directed exclusions, encoded once per source block.
+                            # Cache size is bounded by the existing output block budget.
+                            for rule in excluded:
+                                vectors = original-rule if reverse else original+rule
+                                possible = np.all(vectors >= 0,axis=1)
+                                values = np.full(len(original),-1,dtype=np.int64)
+                                if np.any(possible):
+                                    ids = self.basis.ravel_state_inds(vectors[possible])
+                                    within = ids <= np.iinfo(np.int64).max
+                                    positions = np.flatnonzero(possible)
+                                    values[positions[within]] = ids[within]
+                                forbidden.append(values)
+                        for rows, outputs in group.iter_permutation_rule_direct_sum(
+                                exc,selected_rules,block_size=size,return_indices=index_only):
                             rows = selected[rows]
                             self.store.metrics['peak_candidate_pairs'] = max(self.store.metrics['peak_candidate_pairs'], len(outputs))
                             self.store.metrics['generated_pairs'] += len(outputs)
@@ -576,14 +601,16 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
                                 restored[:, dimensions] = outputs
                                 outputs = restored
                             valid = np.ones(len(outputs), dtype=bool)
-                            if excluded:
+                            if excluded and not index_only:
                                 delta = original[rows]-outputs if reverse else outputs-original[rows]
                                 for rule in excluded:
                                     valid &= ~np.all(delta == rule, axis=1)
-                            generated = self.basis.ravel_state_inds(outputs)
+                            generated = outputs if index_only else self.basis.ravel_state_inds(outputs)
                             if np.any(generated > np.iinfo(np.int64).max):
                                 raise OverflowError('disk state ranks must fit signed int64')
                             generated = generated.astype(np.int64, copy=False)
+                            for values in forbidden:
+                                valid &= generated != values[rows]
                             bras, kets = (generated, ranks[rows]) if reverse else (ranks[rows], generated)
                             if membership is not None:
                                 valid &= membership._contains(generated)

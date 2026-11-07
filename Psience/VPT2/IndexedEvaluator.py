@@ -1840,6 +1840,11 @@ class IndexedBlockEvaluator:
                     return {
                         'evaluation_context': {
                             'operator': operator_repr[0],
+                            '_state_pair_context': lambda: (
+                                blocks.reference_states[block_index],
+                                blocks.permutation_subsets[block_index] if selected_rows[row_index] is None else
+                                np.asarray(blocks.permutation_subsets[block_index])[selected_rows[row_index]],
+                                selection[0], baseline_shift),
                             'coefficient_key': blocks.expression_keys[block_index],
                             'energy_term': term.ordinal,
                             'change': None if change is None else tuple(change),
@@ -1856,7 +1861,7 @@ class IndexedBlockEvaluator:
                     polynomial_block,
                     energy_factors,
                     zero_cutoff,
-                    row_diagnostics=row_diagnostics
+                    row_diagnostics=row_diagnostics, logger=logger
                 )
                 segment_starts = np.concatenate((
                     np.array([0], dtype=np.intp),

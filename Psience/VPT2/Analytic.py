@@ -8803,6 +8803,74 @@ class PerturbationTheoryExpressionEvaluator:
         return echange
 
     @staticmethod
+    def _report_energy_denominator_warning(message, category, *, logger=None):
+        # The native log must retain this breakdown even with verbose=False
+        # or a Python warning filter that suppresses repeated stderr messages.
+        if logger is not None:
+            Logger.lookup(logger).log_print(
+                'WARNING: {warning_text}', warning_text=message,
+                log_level=Logger.LogLevel.Warnings)
+        warnings.warn(message, category, stacklevel=4)
+
+    @staticmethod
+    def _denominator_state_pairs(energy_changes, positions, context):
+        """Recover exact endpoints only where native path metadata retains them.
+
+        Ordinary relative-energy rows do not identify a unique intermediate
+        occupation pair. Preserve their source state and delta without guessing.
+        """
+        state, permutations, frequencies, baseline = context()
+        state = np.asarray(state, dtype=int).reshape((-1, np.shape(state)[-1]))
+        if len(state) != 1:
+            return dict(unavailable='multiple source occupations share this contraction')
+        source = state[0]
+        permutations = np.asarray(permutations, dtype=int)
+        frequencies = np.asarray(frequencies)
+        rows = list(energy_changes)
+        examples = []
+        for position in positions[:4]:
+            modes = permutations[int(position)]
+            pairs, unresolved = [], []
+            def shifted(delta):
+                result = source.copy()
+                result[modes[:len(delta)]] += np.asarray(delta, dtype=int)
+                return result
+            index = 0
+            while index < len(rows):
+                row = rows[index]; factor = row[0]; delta = np.asarray(row[1:], dtype=int)
+                if getattr(factor, '_conditional_endpoint', False):
+                    other = rows[index+1]
+                    if factor.kind == 'resolvent':
+                        shift = np.zeros(len(delta), dtype=int)
+                        if baseline is not None:
+                            shift[:min(len(shift),len(baseline))] = baseline[:len(shift)]
+                        left, right = shifted(delta+shift), shifted(np.asarray(other[1:])+shift)
+                        gap = float(frequencies[int(position),:len(delta)] @ (delta-np.asarray(other[1:])))
+                        if np.all(left >= 0) and np.all(right >= 0):
+                            pairs.append(dict(factor=index, kind='conditional resolvent',
+                                left_state=tuple(int(n) for n in left), right_state=tuple(int(n) for n in right),
+                                energy_difference='E(left)-E(right)', gap_hartree=gap))
+                    index += 2
+                    continue
+                if getattr(factor, '_state_projection_factor', False):
+                    if factor.kind == 'R':
+                        left, right = np.asarray(factor.reference), shifted(delta)
+                        gap = float((left-right) @ np.asarray(factor.freqs))
+                        if np.all(right >= 0):
+                            pairs.append(dict(factor=index, kind='projected resolvent',
+                                left_state=tuple(int(n) for n in left), right_state=tuple(int(n) for n in right),
+                                energy_difference='E(left)-E(right)', gap_hartree=gap))
+                else:
+                    unresolved.append(dict(factor=index, side=int(factor),
+                        physical_modes_1based=tuple(int(n)+1 for n in modes[:len(delta)]),
+                        energy_change=tuple(int(n) for n in delta),
+                        reason='relative energy row has no unique intermediate endpoints'))
+                index += 1
+            examples.append(dict(position=int(position), source_state=tuple(int(n) for n in source),
+                                 state_pairs=pairs, unresolved_factors=unresolved))
+        return examples
+
+    @staticmethod
     def _format_small_denominator_context(evaluation_context, positions,
                                           energy_factors, energy_changes=None,
                                           tuple_states=None,
@@ -8810,12 +8878,19 @@ class PerturbationTheoryExpressionEvaluator:
                                           polynomial_factor=None):
         """Build a bounded diagnostic payload for a small denominator warning."""
         details = {
-            'evaluation': evaluation_context,
+            'evaluation': ({key:value for key,value in evaluation_context.items()
+                            if key != '_state_pair_context'}
+                           if isinstance(evaluation_context,dict) else evaluation_context),
             'positions': tuple(int(position) for position in positions[:4]),
             'denominators': tuple(
                 float(energy_factors[position]) for position in positions[:4]
             )
         }
+        if (energy_changes is not None and isinstance(evaluation_context, dict)
+                and evaluation_context.get('_state_pair_context') is not None):
+            details['denominator_state_pairs'] = (
+                PerturbationTheoryExpressionEvaluator._denominator_state_pairs(
+                    energy_changes, positions, evaluation_context['_state_pair_context']))
         if energy_changes is not None:
             details['energy_changes'] = tuple(
                 tuple(int(value) for value in change)
@@ -8850,7 +8925,7 @@ class PerturbationTheoryExpressionEvaluator:
                                      zero_cutoff, *, energy_changes=None,
                                      evaluation_context=None,
                                      tuple_states=None,
-                                     permutation_substates=None):
+                                     permutation_substates=None, logger=None):
         """Prune evaluated numerators, then divide by numerical denominators.
 
         A symbolic energy change can vanish for a particular frequency vector.
@@ -8884,12 +8959,12 @@ class PerturbationTheoryExpressionEvaluator:
                 evaluation_context, positions, denominator,
                 energy_changes=energy_changes
             )
-            warnings.warn(
+            cls._report_energy_denominator_warning(
                 "energy denominator below zero_cutoff={}: {}".format(
                     cutoff, details
                 ),
                 SmallEnergyDenominatorWarning,
-                stacklevel=3
+                logger=logger
             )
 
             surviving_positions = positions[active_numerators[positions]]
@@ -8901,11 +8976,11 @@ class PerturbationTheoryExpressionEvaluator:
                     permutation_substates=permutation_substates,
                     polynomial_factor=numerator
                 )
-                warnings.warn(
+                cls._report_energy_denominator_warning(
                     "term survived numerator pruning at a small energy "
                     "denominator: {}".format(details),
                     SurvivingEnergyDenominatorWarning,
-                    stacklevel=3
+                    logger=logger
                 )
 
         # A pruned numerator over an exact zero is exactly a discarded
@@ -8926,7 +9001,7 @@ class PerturbationTheoryExpressionEvaluator:
     @classmethod
     def _divide_polynomial_block_by_energy(cls, polynomial_factors,
                                            energy_factors, zero_cutoff, *,
-                                           row_diagnostics=None):
+                                           row_diagnostics=None, logger=None):
         """Apply the scalar denominator policy to a homogeneous row block.
 
         ``polynomial_factors`` has shape ``(row, state, permutation)`` and
@@ -8971,12 +9046,12 @@ class PerturbationTheoryExpressionEvaluator:
                     denominator[row],
                     energy_changes=diagnostics.get('energy_changes')
                 )
-                warnings.warn(
+                cls._report_energy_denominator_warning(
                     "energy denominator below zero_cutoff={}: {}".format(
                         cutoff, details
                     ),
                     SmallEnergyDenominatorWarning,
-                    stacklevel=3
+                    logger=logger
                 )
 
                 surviving_positions = positions[
@@ -8994,11 +9069,11 @@ class PerturbationTheoryExpressionEvaluator:
                         ),
                         polynomial_factor=numerator[row]
                     )
-                    warnings.warn(
+                    cls._report_energy_denominator_warning(
                         "term survived numerator pruning at a small energy "
                         "denominator: {}".format(details),
                         SurvivingEnergyDenominatorWarning,
-                        stacklevel=3
+                        logger=logger
                     )
 
         safe_denominator = np.where(
@@ -9104,7 +9179,7 @@ class PerturbationTheoryExpressionEvaluator:
             energy_changes=echanges,
             evaluation_context=evaluation_context,
             tuple_states=tuple_states,
-            permutation_substates=perm_substates
+            permutation_substates=perm_substates, logger=logger
         )
         return scaled_contrib, energy_factors, poly_factor
     @classmethod
@@ -9172,7 +9247,10 @@ class PerturbationTheoryExpressionEvaluator:
                     denominators = np.where(good, denominators, 1.)
                     scaled = cls._divide_polynomial_by_energy(
                         numerator, denominators, zero_cutoff,
-                        evaluation_context={'operator': repr(evaluation_context)}
+                        evaluation_context={
+                            'operator': repr(evaluation_context),
+                            '_state_pair_context': lambda: (state, perm_subsets, perm_freqs, baseline_shift)},
+                        energy_changes=echanges, logger=logger
                     )
                     subcontrib += scaled
                     continue
@@ -9217,6 +9295,9 @@ class PerturbationTheoryExpressionEvaluator:
                     ('take', state_block_key, good_perms)
                 )
 
+                term_context['_state_pair_context'] = lambda: (
+                    state, np.asarray(perm_subsets) if good_perms is None else
+                    np.asarray(perm_subsets)[list(good_perms)], good_freqs, baseline_shift)
                 if len(good_perm_substates) > 0:
                     if verbose:
                         with logger.block(tag="{e} * {p}",
@@ -10060,7 +10141,7 @@ class PerturbationTheoryExpressionEvaluator:
     _degeneracy_identification_seconds = 0.0
     _degeneracy_identification_totals = collections.Counter()
     _indexed_evaluation_generation = 0
-    default_zero_cutoff = 1e-18
+    default_zero_cutoff = 1e-24
 
     @classmethod
     def get_last_dag_evaluation_stats(cls):

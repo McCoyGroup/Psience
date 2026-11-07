@@ -3732,22 +3732,16 @@ class Molecule(AbstractMolecule):
         """
         **LLM Docstring**
 
-        Resolve the display radius for an atom-data record: the icon radius (falling back to the van der Waals radius if too small), or an explicitly named radius field.
+        Resolve the display radius from IconRadius, or an explicitly named radius field.
 
         :param atom_data: the atom-data record to get a radius for
         :type atom_data: dict
-        :param radius_type: the specific radius field to use; if `None`, uses the icon radius with a van der Waals fallback
+        :param radius_type: the specific radius field to use; if `None`, uses IconRadius directly
         :type radius_type: str | None
         :return: the resolved atomic radius
         :rtype: float
         """
-        if radius_type is None:
-            rad = atom_data["IconRadius"]
-            if rad < .8:
-                rad = atom_data["VanDerWaalsRadius"]
-        else:
-            rad = atom_data[radius_type]
-        return rad
+        return atom_data["IconRadius" if radius_type is None else radius_type]
     def plot_molecule_function(self,
                                function,
                                *,
