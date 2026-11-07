@@ -8819,7 +8819,9 @@ class PerturbationTheoryExpressionEvaluator:
         Ordinary relative-energy rows do not identify a unique intermediate
         occupation pair. Preserve their source state and delta without guessing.
         """
-        state, permutations, frequencies, baseline = context()
+        payload = context()
+        state, permutations, frequencies, baseline = payload[:4]
+        projection_bindings = payload[4] if len(payload)>4 else ()
         state = np.asarray(state, dtype=int).reshape((-1, np.shape(state)[-1]))
         if len(state) != 1:
             return dict(unavailable='multiple source occupations share this contraction')
@@ -8854,8 +8856,13 @@ class PerturbationTheoryExpressionEvaluator:
                     continue
                 if getattr(factor, '_state_projection_factor', False):
                     if factor.kind == 'R':
-                        left, right = np.asarray(factor.reference), shifted(delta)
-                        gap = float((left-right) @ np.asarray(factor.freqs))
+                        if factor.slot >= len(projection_bindings):
+                            unresolved.append(dict(factor=index,reason='numerical projection binding unavailable'))
+                            index += 1
+                            continue
+                        _,full_freqs,reference,_ = projection_bindings[factor.slot]
+                        left, right = np.asarray(reference), shifted(delta)
+                        gap = float((left-right) @ np.asarray(full_freqs))
                         if np.all(right >= 0):
                             pairs.append(dict(factor=index, kind='projected resolvent',
                                 left_state=tuple(int(n) for n in left), right_state=tuple(int(n) for n in right),
@@ -9232,9 +9239,10 @@ class PerturbationTheoryExpressionEvaluator:
                             block_key=('full', state_block_key))
                     continue
                 if any(getattr(row[0], '_state_projection_factor', False) for row in echanges):
-                    from .Projected import projected_path_factors
+                    from .Projected import projected_path_factors, projection_inputs
                     good, denominators = projected_path_factors(
-                        echanges, state, perm_subsets, perm_freqs, baseline_shift
+                        echanges, state, perm_subsets, perm_freqs, baseline_shift,
+                        projection_bindings=projection_inputs(evaluation_context)
                     )
                     if not np.any(good):
                         continue
@@ -9249,7 +9257,7 @@ class PerturbationTheoryExpressionEvaluator:
                         numerator, denominators, zero_cutoff,
                         evaluation_context={
                             'operator': repr(evaluation_context),
-                            '_state_pair_context': lambda: (state, perm_subsets, perm_freqs, baseline_shift)},
+                            '_state_pair_context': lambda: (state, perm_subsets, perm_freqs, baseline_shift, projection_inputs(evaluation_context))},
                         energy_changes=echanges, logger=logger
                     )
                     subcontrib += scaled
@@ -9297,7 +9305,8 @@ class PerturbationTheoryExpressionEvaluator:
 
                 term_context['_state_pair_context'] = lambda: (
                     state, np.asarray(perm_subsets) if good_perms is None else
-                    np.asarray(perm_subsets)[list(good_perms)], good_freqs, baseline_shift)
+                    np.asarray(perm_subsets)[list(good_perms)], good_freqs, baseline_shift,
+                    __import__('Psience.VPT2.Projected',fromlist=['projection_inputs']).projection_inputs(evaluation_context))
                 if len(good_perm_substates) > 0:
                     if verbose:
                         with logger.block(tag="{e} * {p}",
@@ -10708,8 +10717,12 @@ class PerturbationTheoryExpressionEvaluator:
                                        _degeneracy_identification_context=None,
                                        mode_subset_selector=None,
                                        dag_stream_options=None,
-                                       _stream_preparation=None
+                                       _stream_preparation=None, projection_bindings=None
                                        ):
+
+        if projection_bindings is not None:
+            from .Projected import _ProjectionEvaluationContext
+            op = _ProjectionEvaluationContext(op,projection_bindings)
 
         if (
                 degenerate_changes is not None
@@ -11175,7 +11188,7 @@ class PerturbationTheoryExpressionEvaluator:
                  _shared_coefficients=None,
                  _degeneracy_identification_context=None,
                  mode_subset_selector=None,
-                 dag_stream_options=None
+                 dag_stream_options=None, projection_bindings=None
                  ):
 
         # state = np.asanyarray(state)
@@ -11237,10 +11250,13 @@ class PerturbationTheoryExpressionEvaluator:
                 compile_options.setdefault('mode_dimension', len(freqs))
                 active = tuple(sorted({(n,k) for expansion in coeffs for n,row in enumerate(expansion)
                     for k,c in enumerate(row) if np.any(c)}))
+                if projection_bindings is not None:
+                    auxiliary=projection_bindings['scalar_order']
+                    active=tuple(sorted(set(active)|{(auxiliary+k,0) for k in range(projection_bindings['scalar_count'])}))
                 with _log_evaluation_time(self.logger, "Preparing compiled expression..."):
                     compiled = store.compile(self, context=dict(operator=self.op if self.op is not None else poly_obj,
                         change=tuple(change), baseline=None if shift_start is None else tuple(shift_start)), active_operators=active, **compile_options)
-                numerical = dict(zero_cutoff=zero_cutoff, degenerate_changes=degenerate_changes,
+                numerical = dict(projection_bindings=projection_bindings,zero_cutoff=zero_cutoff, degenerate_changes=degenerate_changes,
                     only_degenerate_terms=only_degenerate_terms, verbose=verbose, log_scaled=log_scaled)
                 for key,value in dict(evaluation_backend=evaluation_backend,path_cache_size=path_cache_size,
                         path_cache_bytes=path_cache_bytes,state_permutation_cache_size=state_permutation_cache_size,
@@ -11297,7 +11313,7 @@ class PerturbationTheoryExpressionEvaluator:
                         _degeneracy_identification_context
                     ),
                     mode_subset_selector=mode_subset_selector,
-                    dag_stream_options=dag_stream_options
+                    dag_stream_options=dag_stream_options, projection_bindings=projection_bindings
                 )
             finally:
                 if shared_coefficients is not None:

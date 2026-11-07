@@ -6,11 +6,13 @@ the complementary oscillator space use the ordinary analytic term algebra.
 import hashlib
 import functools
 import weakref
+import itertools
 import numpy as np
 from McUtils.Scaffolding import Logger
 
 from .Analytic import (
     PerturbationTheoryTerm, PerturbationTheoryTermSum,
+    PerturbationTheoryTermProduct, ScaledPerturbationTheoryTerm,
     PTTensorCoeffProductSum, PTEnergyChangeProductSum, SqrtChangePoly,
     ShiftedEnergyBaseline, make_product_polynomial,
     PerturbationTheoryExpressionEvaluator, PerturbationOperator, _log_evaluation_time,
@@ -23,11 +25,15 @@ _projected_evaluators = weakref.WeakSet()
 
 def clear_caches():
     ValidResolventTerm._cache.clear()
+    ProjectedTerm._cache.clear()
+    _BlockScalarTerm._cache.clear()
     _projection_reference_data.cache_clear()
     _bound_projection_row.cache_clear()
     for evaluator in list(_projected_evaluators):
         if hasattr(evaluator,'_projected_block_cache'):
             del evaluator._projected_block_cache
+        if hasattr(evaluator,'_projection_runtime_inputs'):
+            del evaluator._projection_runtime_inputs
 
 
 def coefficient_fingerprint(expansions):
@@ -40,96 +46,93 @@ def coefficient_fingerprint(expansions):
     return digest.digest()
 
 
-class StateProjectionFactor(int):
-    """Serializable diagonal projector/resolvent factor in an analytic path.
-
-    An ordinary energy-change row records a relative denominator. This factor
-    additionally retains its actual model space and fixed reference energy.
-    Its occupation shift is transformed by the existing polynomial algebra.
-    """
+class ProjectionFactor(int):
+    """A formal projection/reference role, containing no numerical bindings."""
     _state_projection_factor = True
 
-    def __new__(cls, kind, states, freqs, reference=None):
-        states = tuple(tuple(int(n) for n in state) for state in states)
-        freqs = tuple(float(w) for w in freqs)
-        reference = None if reference is None else tuple(int(n) for n in reference)
-        if kind not in {'P', 'Q', 'R', 'V'}:
-            raise ValueError('unknown state projection factor: {}'.format(kind))
-        if any(len(state) != len(freqs) for state in states):
-            raise ValueError('model states and frequency vector have different dimensions')
-        if kind == 'R' and reference not in states:
-            raise ValueError('a projected resolvent reference must belong to its model space')
-        payload = (kind, states, freqs, reference)
-        number = 2 + int.from_bytes(hashlib.sha256(repr(payload).encode()).digest()[:7], 'big')
-        obj = int.__new__(cls, number)
-        obj.kind, obj.states, obj.freqs, obj.reference = payload
+    def __new__(cls, kind, slot=0):
+        if kind not in {'P','Q','R','V'} or not isinstance(slot, int) or slot < 0:
+            raise ValueError('projection factors require a kind and nonnegative formal slot')
+        obj = int.__new__(cls, 2 + 4*slot + {'P':0,'Q':1,'R':2,'V':3}[kind])
+        obj.kind, obj.slot = kind, slot
         return obj
 
     def __reduce__(self):
-        return type(self), (self.kind, self.states, self.freqs, self.reference)
+        return type(self), (self.kind,self.slot)
+
+    def __repr__(self):
+        return 'Projection[{}:{}]'.format(self.kind,self.slot)
 
     @property
     def label(self):
-        return self.kind if self.kind != 'R' else 'R' + str(self.reference)
+        return '{}[{}]'.format(self.kind,self.slot)
+
+
+class _ProjectionEvaluationContext:
+    """Numerical call data; never a term or a symbolic compilation input."""
+    def __init__(self,operator,bindings):
+        self.operator,self.projection_bindings = operator,bindings
+    def __repr__(self):
+        return repr(self.operator)
+
+
+def projection_inputs(context):
+    return (context.projection_bindings.get('projectors',())
+            if isinstance(context,_ProjectionEvaluationContext) else ())
+
+
+class _BlockScalarTerm(PerturbationTheoryTerm):
+    """Formal finite-block coefficient, supplied through numerical tensors."""
+    _cache = {}
+    def __init__(self,order,slot,logger=None,representation='path'):
+        super().__init__(logger=logger,polynomial_representation=representation)
+        self.order,self.slot = int(order),int(slot)
+    @classmethod
+    def lookup(cls,order,slot,logger=None,representation='path'):
+        key = order,slot,representation
+        if key not in cls._cache:cls._cache[key]=cls(order,slot,logger,representation)
+        return cls._cache[key]
+    def __repr__(self):
+        return 'BlockCoefficient[{},{}]'.format(self.order,self.slot)
+    def get_changes(self):return {():None}
+    def get_core_poly(self,changes,shift=None):
+        if changes:return 0
+        poly = make_product_polynomial([],steps=0,representation=self.polynomial_representation)
+        # Coefficient identity 1 denotes a kinetic tensor in native algebra;
+        # use separate auxiliary rows, each with scalar identity 0.
+        return SqrtChangePoly(PTTensorCoeffProductSum({((self.order+self.slot,0),):poly}),[],[])
 
 
 class ValidResolventTerm(PerturbationOperator):
-    """Reference-relative resolvent when the block projector is redundant."""
+    """Occupation-validity marker without a system-specific model space."""
     _cache = {}
-
     def get_poly_terms(self, changes, shift=None, **opts):
-        # A surrounding product can shift this column's reference occupation.
-        # Its own zero-change component is excluded by get_changes; comparing
-        # to the outer product's initial state would exclude additional paths.
         return PerturbationTheoryTerm.get_poly_terms(self, changes, shift=shift, **opts)
-
     def get_core_poly(self, changes, shift=None):
         base = super().get_core_poly(changes, shift=shift)
-        if np.isscalar(base):
-            return base
-        valid = StateProjectionFactor('V', (), ())
+        if np.isscalar(base):return base
+        valid = ProjectionFactor('V')
         return base.mul_simple(PTEnergyChangeProductSum.monomial((valid,)+tuple(changes),1))
 
 
 class ProjectedTerm(PerturbationTheoryTerm):
-    """Apply P, Q, or a Q-projected fixed-reference resolvent to a term."""
-    def __init__(self, term, states, freqs, reference=None, kind='R'):
-        super().__init__(logger=term.logger,
-                         polynomial_representation=term.polynomial_representation)
-        self.term = term
-        self.factor = StateProjectionFactor(kind, states, freqs, reference)
-
-    def __repr__(self):
-        return '{}<{}>'.format(self.factor.label, id(self.term))
-
+    """A generic projection operator. Its role is bound only by evaluation."""
+    _cache = {}
+    def __init__(self,term,factor):
+        super().__init__(logger=term.logger,polynomial_representation=term.polynomial_representation)
+        self.term,self.factor = term,factor
     @classmethod
-    def resolve(cls, term, states, freqs, reference, origin):
-        # This is an order-independent support test, not a low-order shortcut.
-        # If no nonzero change can reach another P state, Q excludes only the
-        # reference, which the ordinary relative resolvent already removes.
-        if tuple(reference) == tuple(origin):
-            reachable = False
-            for state in states:
-                delta = np.subtract(state,origin)
-                change = tuple(PerturbationTheoryTerm.sorted_changes(delta[delta != 0]))
-                if change and change in term.changes:
-                    reachable = True
-                    break
-            if not reachable:
-                return -ValidResolventTerm.lookup(term)
-        return cls(term,states,freqs,reference)
-
+    def lookup(cls,term,factor):
+        key=term,factor
+        if key not in cls._cache:cls._cache[key]=cls(term,factor)
+        return cls._cache[key]
+    def __repr__(self):return '{}<{}>'.format(self.factor.label,repr(self.term))
     def get_changes(self):
-        return {change: None for change in self.term.changes
-                if change or self.factor.kind == 'P'}
-
-    def get_core_poly(self, changes, shift=None):
-        base = self.term.get_poly_terms(changes, shift=shift)
-        if np.isscalar(base) and base == 0:
-            return 0
-        delta = tuple(changes)
-        factor = PTEnergyChangeProductSum.monomial((self.factor,) + delta, 1)
-        return base.mul_simple(factor)
+        return {change:None for change in self.term.changes if change or self.factor.kind=='P'}
+    def get_core_poly(self,changes,shift=None):
+        base=self.term.get_poly_terms(changes,shift=shift)
+        if np.isscalar(base) and base==0:return 0
+        return base.mul_simple(PTEnergyChangeProductSum.monomial((self.factor,)+tuple(changes),1))
 
 
 class IdentityTerm(PerturbationTheoryTerm):
@@ -149,32 +152,42 @@ class IdentityTerm(PerturbationTheoryTerm):
 
 
 @functools.lru_cache(maxsize=512)
-def _projection_reference_data(factor, state):
-    differences = np.asarray(factor.states, dtype=int).reshape((-1, len(state))) - np.asarray(state)
+def _projection_reference_data(binding, state):
+    states,frequencies,reference,trivial = binding
+    differences = np.asarray(states, dtype=int).reshape((-1, len(state))) - np.asarray(state)
     counts = np.count_nonzero(differences, axis=1)
-    gap = (0. if factor.reference is None else
-           float(np.dot(np.asarray(factor.reference)-state, factor.freqs)))
+    gap = (0. if reference is None else
+           float(np.dot(np.asarray(reference)-state, frequencies)))
     return differences, counts, gap
 
 
-def projected_path_factors(energy_key, state, permutations, perm_freqs, baseline_shift=None):
+def projected_path_factors(energy_key, state, permutations, perm_freqs, baseline_shift=None,
+                           *, projection_bindings=()):
     """Return a projector mask and allowed denominators before any division."""
     if any(getattr(row[0],'_conditional_endpoint',False) for row in energy_key):
         from .Conditional import conditional_path_factors
-        return conditional_path_factors(energy_key,state,permutations,perm_freqs,baseline_shift)
+        return conditional_path_factors(energy_key,state,permutations,perm_freqs,baseline_shift,
+            projection_bindings=projection_bindings)
     state = np.asarray(state)[0]
     permutations = np.asarray(permutations, dtype=int)
     good = np.ones(len(permutations), dtype=bool)
     denominator = np.ones(len(permutations))
     for row in energy_key:
         factor, delta = row[0], np.asarray(row[1:], dtype=int)
-        if not isinstance(factor, StateProjectionFactor):
+        if not isinstance(factor, ProjectionFactor):
             denominator *= perm_freqs @ delta
             continue
         if factor.kind == 'V':
             good &= np.all(state[permutations] + delta >= 0, axis=1)
             continue
-        differences, counts, reference_gap = _projection_reference_data(factor, tuple(state))
+        binding = projection_bindings[factor.slot]
+        if binding[3]:
+            good &= np.all(state[permutations] + delta >= 0, axis=1)
+            reference_gap = (0. if binding[2] is None else
+                float(np.dot(np.asarray(binding[2])-state,binding[1])))
+            denominator *= reference_gap - perm_freqs @ delta
+            continue
+        differences, counts, reference_gap = _projection_reference_data(binding, tuple(state))
         local = differences[:, permutations]
         matches = np.any(np.all(local == delta, axis=2)
                          & (np.count_nonzero(local, axis=2) == counts[:, None]), axis=0)
@@ -186,7 +199,7 @@ def projected_path_factors(energy_key, state, permutations, perm_freqs, baseline
 
 
 @functools.lru_cache(maxsize=512)
-def _bound_projection_row(energy_key, state, model_size):
+def _bound_projection_row(energy_key, state, model_size, projection_bindings):
     factor_count = len(energy_key)
     deltas = np.asarray([row[1:] for row in energy_key], dtype=int)
     kinds = np.zeros(factor_count, dtype=int)
@@ -195,21 +208,31 @@ def _bound_projection_row(energy_key, state, model_size):
     counts = np.full((factor_count, model_size), -1, dtype=int)
     for i,row in enumerate(energy_key):
         factor = row[0]
-        if isinstance(factor, StateProjectionFactor):
+        if isinstance(factor, ProjectionFactor):
             kinds[i] = {'R':1,'P':2,'Q':3,'V':4}[factor.kind]
-            delta, number, gaps[i] = _projection_reference_data(factor,state)
+            if factor.kind == 'V':continue
+            binding = projection_bindings[factor.slot]
+            if binding[3]:
+                kinds[i] = 5
+                gaps[i] = (0. if binding[2] is None else
+                    float(np.dot(np.asarray(binding[2])-state,binding[1])))
+                continue
+            delta, number, gaps[i] = _projection_reference_data(binding,state)
             differences[i,:len(number)] = delta
             counts[i,:len(number)] = number
     return deltas,kinds,gaps,differences,counts
 
 
-def projected_energy_rows(energy_keys, source_states, permutations, frequency_blocks, baseline_shift=None):
+def projected_energy_rows(energy_keys, source_states, permutations, frequency_blocks, baseline_shift=None,
+                          *, projection_bindings=()):
     """Contract a bounded indexed row batch, retaining all projector tests."""
     if any(getattr(row[0],'_conditional_endpoint',False) for key in energy_keys for row in key):
         from .Conditional import conditional_energy_rows
-        return conditional_energy_rows(energy_keys,source_states,permutations,frequency_blocks,baseline_shift)
-    model_size = max(1,max(len(row[0].states) for key in energy_keys for row in key
-                          if isinstance(row[0],StateProjectionFactor)))
+        return conditional_energy_rows(energy_keys,source_states,permutations,frequency_blocks,baseline_shift,
+            projection_bindings=projection_bindings)
+    model_size = max([1]+[len(projection_bindings[row[0].slot][0])
+        for key in energy_keys for row in key if isinstance(row[0],ProjectionFactor)
+        and row[0].kind!='V' and not projection_bindings[row[0].slot][3]])
     # Bound the projector-comparison scratch independently of the native
     # polynomial row chunk, whose bound does not include model-space size.
     factors = len(energy_keys[0])
@@ -219,11 +242,12 @@ def projected_energy_rows(energy_keys, source_states, permutations, frequency_bl
     row_limit = max(1,(16*1024**2)//max(1,bytes_per_row))
     if len(energy_keys) > row_limit:
         results = [projected_energy_rows(energy_keys[i:i+row_limit],
-            source_states[i:i+row_limit],permutations[i:i+row_limit],frequency_blocks[i:i+row_limit])
+            source_states[i:i+row_limit],permutations[i:i+row_limit],frequency_blocks[i:i+row_limit],
+            baseline_shift,projection_bindings=projection_bindings)
             for i in range(0,len(energy_keys),row_limit)]
         return tuple(np.concatenate([result[k] for result in results]) for k in range(2))
     states = np.stack([np.asarray(state)[0] for state in source_states])
-    bound = [_bound_projection_row(key,tuple(state),model_size)
+    bound = [_bound_projection_row(key,tuple(state),model_size,projection_bindings)
              for key,state in zip(energy_keys,states)]
     deltas,kinds,gaps,differences,counts = [np.stack(items) for items in zip(*bound)]
     permutations = np.stack(permutations)
@@ -243,9 +267,12 @@ def projected_energy_rows(energy_keys, source_states, permutations, frequency_bl
     factor_masks = np.where(kinds[:,:,None] == 0,True,
         possible & np.where(kinds[:,:,None] == 2,members,~members))
     good = np.all(factor_masks,axis=1)
-    weights = np.where(kinds[:,None,:] == 1,gaps[:,None,:]-linear,
+    weights = np.where((kinds[:,None,:] == 1) | (kinds[:,None,:] == 5),gaps[:,None,:]-linear,
                        np.where(kinds[:,None,:] == 0,linear,1.))
     return good,np.prod(weights,axis=-1)
+
+
+_runtime_roles = itertools.count(1)
 
 
 class AnalyticBlockExpansion:
@@ -263,6 +290,10 @@ class AnalyticBlockExpansion:
     def __init__(self, evaluator, states, expansions=None, freqs=None, zero_cutoff=None,
                  evaluation_backend=None):
         self.evaluator = evaluator
+        registry = getattr(evaluator,'_projection_runtime_inputs',None)
+        if registry is None:
+            registry = evaluator._projection_runtime_inputs = dict(projectors={},scalars={})
+        self.runtime_inputs = registry
         self.states = tuple(tuple(int(n) for n in state) for state in states)
         self.freqs = np.asarray(evaluator.freqs if freqs is None else freqs)
         self.expansions = evaluator._prep_expansions(expansions)
@@ -281,16 +312,69 @@ class AnalyticBlockExpansion:
         self._intermediate_columns = [self.Y[0]]
         self._operator_pieces = {}
 
-    @staticmethod
-    def _column(parts):
+    def _scalar(self,value):
+        role=next(_runtime_roles)
+        self.runtime_inputs['scalars'][role]=float(value)
+        return _BlockScalarTerm.lookup(len(self.expansions),role,
+            self.evaluator.solver.logger,self.evaluator.solver.polynomial_representation)
+
+    def _resolvent(self,term,state,origin):
+        trivial=False
+        if tuple(state)==tuple(origin):
+            trivial=not any(
+                tuple(other)!=tuple(state) and
+                PerturbationTheoryTerm.sorted_changes((np.asarray(other)-origin)[np.asarray(other)!=origin]) in term.changes
+                for other in self.states)
+        role=next(_runtime_roles)
+        self.runtime_inputs['projectors'][role]=(self.states,tuple(float(w) for w in self.freqs),tuple(state),trivial)
+        return ProjectedTerm.lookup(term,ProjectionFactor('R',role))
+
+    def _generic_term(self,term,scalar_order):
+        projectors,scalars,memo = {},{},{}
+        def walk(node):
+            if node in memo:return memo[node]
+            if isinstance(node,ProjectedTerm):
+                role=node.factor.slot
+                slot=projectors.setdefault(role,len(projectors))
+                result=ProjectedTerm.lookup(walk(node.term),ProjectionFactor(node.factor.kind,slot))
+            elif isinstance(node,_BlockScalarTerm):
+                slot=scalars.setdefault(node.slot,len(scalars))
+                result=_BlockScalarTerm.lookup(scalar_order,slot,node.logger,node.polynomial_representation)
+            elif isinstance(node,PerturbationTheoryTermProduct):
+                result=PerturbationTheoryTermProduct.lookup(walk(node.gen2),walk(node.gen1))
+            elif isinstance(node,PerturbationTheoryTermSum):
+                result=PerturbationTheoryTermSum.lookup(*(walk(t) for t in node.terms))
+            elif isinstance(node,ScaledPerturbationTheoryTerm):
+                result=ScaledPerturbationTheoryTerm.lookup(walk(node.base),node.prefactor)
+            elif isinstance(node,ShiftedEnergyBaseline):
+                result=ShiftedEnergyBaseline.lookup(walk(node.base))
+            elif isinstance(node,ValidResolventTerm):
+                result=ValidResolventTerm.lookup(walk(node.subterm))
+            else:
+                result=node
+            memo[node]=result
+            return result
+        generic=walk(term)
+        bindings=tuple(self.runtime_inputs['projectors'][role] for role in projectors)
+        values=[self.runtime_inputs['scalars'][role] for role in scalars]
+        return generic,dict(projectors=bindings,scalar_order=scalar_order,scalar_count=len(values)),values
+
+    def _column(self,parts):
         grouped = {}
         for column, coefficient, left in parts:
             if coefficient == 0:
                 continue
+            # Skip exactly zero finite-block contractions at numerical assembly,
+            # before requesting a generic equation. Never embed their values.
+            if (isinstance(coefficient,_BlockScalarTerm)
+                    and self.runtime_inputs['scalars'][coefficient.slot] == 0):
+                continue
             for origin, term in column.items():
                 if left is not None:
                     term = left if isinstance(term, IdentityTerm) else left * term
-                if coefficient != 1:
+                if isinstance(coefficient,PerturbationTheoryTerm):
+                    term = coefficient if isinstance(term,IdentityTerm) else coefficient * term
+                elif coefficient != 1:
                     term = coefficient * term
                 grouped.setdefault(origin, []).append(term)
         return {origin: terms[0] if len(terms) == 1 else PerturbationTheoryTermSum.lookup(*terms)
@@ -307,13 +391,16 @@ class AnalyticBlockExpansion:
             level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
             changes = self.evaluator.get_diff_map([[initial, [final]]], logger=logger, log_level=level)
             value = 0.
+            generic,projection_bindings,scalar_values=self._generic_term(term,len(expansions))
+            numerical_expansions=list(expansions)+[[value] for value in scalar_values]
             for change, state_perms in changes.items():
                 with _log_evaluation_time(logger, "Building projected evaluator {s}[{c}]",
                                           s=term, c=change, log_level=level):
                     expression = PerturbationTheoryExpressionEvaluator(
-                        term, term.get_poly_terms(change), change, logger=logger)
+                        generic, generic.get_poly_terms(change), change, logger=logger)
                 with _log_evaluation_time(logger, "evaluating projected element...", log_level=level):
-                    result = expression.evaluate(state_perms, expansions, self.freqs,
+                    result = expression.evaluate(state_perms, numerical_expansions, self.freqs,
+                        projection_bindings=projection_bindings,
                         only_degenerate_terms=False, zero_cutoff=self.zero_cutoff,
                         parallelizer=self.evaluator.parallelizer,
                         evaluation_backend=self.evaluation_backend,
@@ -381,20 +468,20 @@ class AnalyticBlockExpansion:
                     for a, state in enumerate(self.states):
                         parts = [(self.X[n-r][a], 1, self._hamiltonian(r))
                                  for r in range(1, n+1) if self._hamiltonian(r) is not None]
-                        parts += [({origin:self.identity},self.N[n-r][b,a],self._hamiltonian(r))
+                        parts += [({origin:self.identity},self._scalar(self.N[n-r][b,a]),self._hamiltonian(r))
                                   for r in range(1,n+1) if self._hamiltonian(r) is not None
                                   for b,origin in enumerate(self.states)]
-                        parts += [(self.X[i][b], -self.F[n-i][b, a], None)
+                        parts += [(self.X[i][b], self._scalar(-self.F[n-i][b, a]), None)
                                   for i in range(1, n) for b in range(size)]
                         source = self._column(parts)
                         column = {}
                         for origin, term in source.items():
                             key = (term, state, origin)
                             if key not in self._resolvents:
-                                self._resolvents[key] = ProjectedTerm.resolve(term,self.states,self.freqs,state,origin)
+                                self._resolvents[key] = self._resolvent(term,state,origin)
                             column[origin] = self._resolvents[key]
                         projected.append(column)
-                        normalization = [({origin: self.identity}, normalizer[b, a], None)
+                        normalization = [({origin: self.identity}, self._scalar(normalizer[b, a]), None)
                                          for b, origin in enumerate(self.states)]
                         full.append(self._column([(column, 1, None)] + normalization))
                 self.N.append(normalizer)
@@ -415,7 +502,7 @@ class AnalyticBlockExpansion:
                 self._inverse_normalizers.append(inverse)
                 columns = []
                 for a, state in enumerate(self.states):
-                    parts = [(self.X[i][b], self._inverse_normalizers[n-i][b,a], None)
+                    parts = [(self.X[i][b], self._scalar(self._inverse_normalizers[n-i][b,a]), None)
                              for i in range(1,n+1) for b in range(len(self.states))]
                     columns.append(self._column(parts))
                 self._intermediate_columns.append(columns)
@@ -427,11 +514,11 @@ class AnalyticBlockExpansion:
             if order == 0:
                 result = {} if off_diagonal else self.Y[0][column]
             elif off_diagonal:
-                result = self._column([({state: self.identity}, self.N[order][b,column], None)
+                result = self._column([({state: self.identity}, self._scalar(self.N[order][b,column]), None)
                                        for b,state in enumerate(self.states) if b != column])
             else:
                 result = self._column([(self.X[order][column],1,None),
-                    ({self.states[column]:self.identity},self.N[order][column,column],None)])
+                    ({self.states[column]:self.identity},self._scalar(self.N[order][column,column]),None)])
             self._operator_pieces[key] = result
         return self._operator_pieces[key]
 

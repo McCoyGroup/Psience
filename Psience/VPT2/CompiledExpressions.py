@@ -64,7 +64,7 @@ def _atomic_pickle(path, value):
 _file_hash = file_hash
 
 # Evaluation caches and handles that are not part of an expression's definition.
-_RUNTIME_ATTRS = ('logger', 'checkpoint', '_changes', '_exprs', '_combined', '_eager',
+_RUNTIME_ATTRS = ('logger', 'checkpoint', '_cascade_manager', '_changes', '_exprs', '_combined', '_eager',
                   '_op_maps', '_conditional_stacks', '_cache', '_grouped_terms')
 
 

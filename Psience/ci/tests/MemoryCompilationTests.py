@@ -130,13 +130,13 @@ class MemoryCompilationTests(unittest.TestCase):
         self.assertEqual(r.eval.compilation_statistics()['compilations'],0)
         with self.no_expression_writes():np.testing.assert_array_equal(self.energy(r),reference)
         self.assertEqual(r.eval.expression_store.memory_cache_bytes,64*1024**2)
-    def test_new_resonance_block_does_not_reuse_the_previous_block_expression(self):
-        r=self.runner();self.moments(r);before=set(r.eval.expression_store._memory)
+    def test_new_resonance_block_rebinds_equations_without_reusing_values(self):
+        r=self.runner();self.moments(r);before=r.eval.compilation_statistics()['cache_hits']
         block=[[1,0,0],[0,0,1]]
         with self.no_expression_writes():actual=self.moments(r,block)
         expected=self.moments(self.runner(compile=False),block)
         np.testing.assert_allclose(actual,expected,rtol=2e-11,atol=2e-13)
-        self.assertTrue(set(r.eval.expression_store._memory)-before)
+        self.assertGreater(r.eval.compilation_statistics()['cache_hits'],before)
     def test_hamiltonian_clone_preserves_policy_and_derives_new_harmonic_frequencies(self):
         r=self.runner(compile=False);new_frequencies=np.array([.04,.06,.08])
         expansions=[[np.diag(new_frequencies)/2,np.diag(new_frequencies)/2],[0,0],[0,0,0,0,0]]

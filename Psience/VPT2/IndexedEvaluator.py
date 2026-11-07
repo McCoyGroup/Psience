@@ -1773,7 +1773,7 @@ class IndexedBlockEvaluator:
                 tick = time.perf_counter()
                 projected_mask = None
                 if any(term.projected for term in terms):
-                    from .Projected import projected_energy_rows
+                    from .Projected import projected_energy_rows, projection_inputs
                     permutation_rows = []
                     source_rows = []
                     for block_index, selected, term, selection in zip(
@@ -1786,7 +1786,8 @@ class IndexedBlockEvaluator:
                         source_rows.append(blocks.reference_states[block_index])
                     projected_mask,energy_factors = projected_energy_rows(
                         tuple(term.energy_changes for term in terms),source_rows,permutation_rows,
-                        np.stack([selection[0] for selection in selections]),baseline_shift)
+                        np.stack([selection[0] for selection in selections]),baseline_shift,
+                        projection_bindings=projection_inputs(evaluation_context))
                     energy_factors = np.where(projected_mask, energy_factors, 1.)
                 else:
                     energy_changes = np.asarray([term.energy_changes for term in terms])
@@ -1844,7 +1845,8 @@ class IndexedBlockEvaluator:
                                 blocks.reference_states[block_index],
                                 blocks.permutation_subsets[block_index] if selected_rows[row_index] is None else
                                 np.asarray(blocks.permutation_subsets[block_index])[selected_rows[row_index]],
-                                selection[0], baseline_shift),
+                                selection[0], baseline_shift,
+                                __import__('Psience.VPT2.Projected',fromlist=['projection_inputs']).projection_inputs(evaluation_context)),
                             'coefficient_key': blocks.expression_keys[block_index],
                             'energy_term': term.ordinal,
                             'change': None if change is None else tuple(change),

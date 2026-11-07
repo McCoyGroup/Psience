@@ -246,14 +246,15 @@ class AnalyticResonanceLoggingTests(unittest.TestCase):
         self.assertIn('term survived numerator pruning',output.getvalue())
 
     def test_projected_warning_recovers_actual_reference_and_intermediate_pair(self):
-        from Psience.VPT2.Projected import StateProjectionFactor
+        from Psience.VPT2.Projected import ProjectionFactor
         E = PerturbationTheoryExpressionEvaluator
         reference = [1,0]
-        factor = StateProjectionFactor('R',[reference],[.01,.0100000000001],reference=reference)
+        factor = ProjectionFactor('R',0)
+        bindings = ((((1,0),),(.01,.0100000000001),(1,0),False),)
         # Concrete mode permutation reverses the two local delta positions.
         rows = ((factor,1,0),)
         context = dict(operator='fixture',_state_pair_context=lambda:(
-            np.array([[0,0]]),np.array([[1,0]]),np.array([[.0100000000001,.01]]),None))
+            np.array([[0,0]]),np.array([[1,0]]),np.array([[.0100000000001,.01]]),None,bindings))
         details = E._format_small_denominator_context(context,np.array([0]),np.array([1e-30]),energy_changes=rows)
         pair = details['denominator_state_pairs'][0]['state_pairs'][0]
         self.assertEqual(pair['left_state'],(1,0))

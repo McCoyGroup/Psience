@@ -260,4 +260,388 @@ class StateSpaceStorageTests(unittest.TestCase):
         result=DegenerateMultiStateSpace.from_spec(None,states=states,group_filter=lambda group:group.take_subspace([]))
         self.assertEqual([list(g.indices) for g in result.spaces.flat],[[],[],[],[],[self.ranks[2]],[self.ranks[0]],[self.ranks[1]]])
 
+    def _frontier_cache_reference(self, graph):
+        def ranks():
+            yield from graph.representative_space.iter_index_blocks()
+            for pairs in graph.iter_pair_blocks():yield pairs.reshape(-1)
+        return np.array(graph.store.frontier(graph.basis,ranks()).indices,copy=True)
+
+    def test_frontier_cache_union_replays_only_uncached_recipes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                base=store.frontier(self.basis,[self.ranks])
+                first=base.apply_selection_rules([(1,)],target_dimensions=np.array([0,1,70,71]))
+                second=base.apply_selection_rules([(-1,),()],target_dimensions=np.array([0,1,70,71]))
+                first.to_single();combined=first.union(second)
+                expected=self._frontier_cache_reference(combined)
+                cached={id(r) for r in first.recipes};seen=[]
+                original=DiskSelectionRuleStateSpace.iter_pair_blocks
+                def observed(graph,*args,**kwargs):
+                    seen.extend(id(r) for r in graph.recipes)
+                    yield from original(graph,*args,**kwargs)
+                with patch.object(DiskSelectionRuleStateSpace,'iter_pair_blocks',observed):
+                    result=combined.to_single()
+                np.testing.assert_array_equal(result.indices,expected)
+                self.assertTrue(seen);self.assertFalse(cached.intersection(seen))
+                self.assertEqual(seen,[id(r) for r in second.recipes])
+                self.assertIsNone(combined._frontier_components)
+                # The complete directed edge recipes remain available.
+                actual=list(map(tuple,np.concatenate(list(combined.iter_pair_blocks()))))
+                ordinary=DiskSelectionRuleStateSpace(combined.representative_space,recipes=combined.recipes)
+                reference=list(map(tuple,np.concatenate(list(ordinary.iter_pair_blocks()))))
+                self.assertEqual(actual,reference)
+            finally:store.close()
+
+    def test_frontier_cache_both_cached_are_lazy_and_need_no_edges(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                base=store.frontier(self.basis,[self.ranks])
+                first=base.apply_selection_rules([(1,)],target_dimensions=np.array([70,71]))
+                second=base.apply_selection_rules([(-1,),()],target_dimensions=np.array([70,71]))
+                left=first.to_single();right=second.to_single()
+                expected=np.union1d(left.indices,right.indices)
+                with patch.object(DiskSelectionRuleStateSpace,'iter_pair_blocks',side_effect=AssertionError('cached edges replayed')):
+                    combined=first.union(second)
+                    self.assertIsNone(combined._frontier)
+                    self.assertIsNotNone(combined._frontier_components)
+                    np.testing.assert_array_equal(combined.to_single().indices,expected)
+            finally:store.close()
+
+    def test_frontier_cache_uncached_union_keeps_single_replay_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                base=store.frontier(self.basis,[self.ranks])
+                first=base.apply_selection_rules([(1,)],target_dimensions=np.array([70,71]))
+                second=base.apply_selection_rules([(-1,),()],target_dimensions=np.array([70,71]))
+                combined=first.union(second)
+                self.assertIsNone(combined._frontier_components)
+                expected=self._frontier_cache_reference(combined)
+                np.testing.assert_array_equal(combined.to_single().indices,expected)
+            finally:store.close()
+
+    def test_frontier_cache_nested_unions_preserve_recipe_contributions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                base=store.frontier(self.basis,[self.ranks])
+                first=base.apply_selection_rules([(1,)],target_dimensions=np.array([70,71]))
+                middle=base.apply_selection_rules([(-1,)],target_dimensions=np.array([70,71]))
+                last=base.apply_selection_rules([()],target_dimensions=np.array([70,71]))
+                first.to_single();last.to_single()
+                combined=first.union(middle).union(last)
+                self.assertEqual(len(combined._frontier_components),3)
+                expected=self._frontier_cache_reference(combined)
+                seen=[];original=DiskSelectionRuleStateSpace.iter_pair_blocks
+                def observed(graph,*args,**kwargs):
+                    seen.extend(id(r) for r in graph.recipes)
+                    yield from original(graph,*args,**kwargs)
+                with patch.object(DiskSelectionRuleStateSpace,'iter_pair_blocks',observed):
+                    np.testing.assert_array_equal(combined.to_single().indices,expected)
+                self.assertEqual(seen,[id(r) for r in middle.recipes])
+            finally:store.close()
+
+    def test_frontier_cache_pending_snapshot_survives_original_recipe_edits(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                base=store.frontier(self.basis,[self.ranks])
+                pending=base.apply_selection_rules([(1,)],target_dimensions=np.array([70,71]))
+                cached=base.apply_selection_rules([()],target_dimensions=np.array([70,71]));cached.to_single()
+                combined=cached.union(pending);expected=self._frontier_cache_reference(combined)
+                excluded=np.zeros(self.basis.ndim,dtype=int);excluded[-1]=1
+                pending.filter_transitions([excluded],in_place=True)
+                np.testing.assert_array_equal(combined.to_single().indices,expected)
+                self.assertIsNot(combined.recipes[-1],pending.recipes[-1])
+            finally:store.close()
+
+    def test_frontier_cache_in_place_exclusions_invalidate_all_node_caches(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                base=store.frontier(self.basis,[np.array([self.ranks.min()],dtype=np.int64)])
+                first=base.apply_selection_rules([(1,)],target_dimensions=np.array([70,71]));first.to_single()
+                second=base.apply_selection_rules([()],target_dimensions=np.array([70,71]));second.to_single()
+                for materialize in [False,True]:
+                    combined=first.union(second)
+                    if materialize:combined.to_single()
+                    excluded=np.zeros(self.basis.ndim,dtype=int);excluded[-1]=1
+                    combined.filter_transitions([excluded],in_place=True)
+                    self.assertIsNone(combined._frontier);self.assertIsNone(combined._frontier_components)
+                    self.assertIsNone(combined._frontier_block_size)
+                    expected=self._frontier_cache_reference(combined)
+                    np.testing.assert_array_equal(combined.to_single().indices,expected)
+            finally:store.close()
+
+    def test_frontier_cache_map_and_source_intersection_recompute_nodes(self):
+        from Psience.BasisReps import SelectionRuleStateSpace
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                base=store.frontier(self.basis,[self.ranks])
+                first=base.apply_selection_rules([(1,)],target_dimensions=np.array([70,71]));first.to_single()
+                second=base.apply_selection_rules([()],target_dimensions=np.array([70,71]))
+                combined=first.union(second)
+                selected=base.take_subspace([0])
+                source_filter=SelectionRuleStateSpace(selected,[],ignore_shapes=True)
+                variants=[combined.map(lambda block:block.take_subspace([0])),
+                          combined.intersection(source_filter,handle_subspaces=False)]
+                for graph in variants:
+                    self.assertIsNone(graph._frontier_components)
+                    expected=self._frontier_cache_reference(graph)
+                    np.testing.assert_array_equal(graph.to_single().indices,expected)
+            finally:store.close()
+
+    def test_frontier_cache_other_store_preserves_callback_block_context(self):
+        with tempfile.TemporaryDirectory() as directory:
+            first_store=StateSpaceDiskStore(directory,block_size=101)
+            other_store=StateSpaceDiskStore(directory,block_size=5)
+            try:
+                left=first_store.frontier(self.basis,[self.ranks])
+                right=other_store.frontier(self.basis,[self.ranks])
+                first=left.apply_selection_rules([()]);first.to_single()
+                second=right.apply_selection_rules([(1,)],target_dimensions=np.array([0,1,70,71])).map(
+                    lambda block:block.take_subspace([0]))
+                second.to_single()
+                combined=first.union(second)
+                self.assertIsNone(combined._frontier_components[1][0])
+                expected=self._frontier_cache_reference(combined)
+                np.testing.assert_array_equal(combined.to_single().indices,expected)
+            finally:first_store.close();other_store.close()
+
+    def test_frontier_cache_changed_block_size_does_not_reuse_old_callbacks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=5)
+            try:
+                base=store.frontier(self.basis,[self.ranks])
+                first=base.apply_selection_rules([(1,)],target_dimensions=np.array([0,1,70,71])).map(
+                    lambda block:block.take_subspace([0]))
+                second=base.apply_selection_rules([()]);first.to_single();second.to_single()
+                store.block_size=101
+                combined=first.union(second)
+                self.assertIsNone(combined._frontier_components)
+                expected=self._frontier_cache_reference(combined)
+                np.testing.assert_array_equal(combined.to_single().indices,expected)
+            finally:store.close()
+
+    def test_frontier_cache_releases_intermediate_frontier_owners(self):
+        import gc,weakref
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                base=store.frontier(self.basis,[self.ranks])
+                first=base.apply_selection_rules([(1,)],target_dimensions=np.array([70,71]));first.to_single()
+                second=base.apply_selection_rules([()],target_dimensions=np.array([70,71]))
+                previous=weakref.ref(first._frontier)
+                combined=first.union(second);del first
+                gc.collect();self.assertIsNotNone(previous())
+                combined.to_single();gc.collect()
+                self.assertIsNone(combined._frontier_components)
+                self.assertIsNone(previous())
+            finally:store.close()
+
+    def test_frontier_cache_explicit_nested_polyad_nodes_are_preserved(self):
+        from Psience.BasisReps import SelectionRuleStateSpace
+        source=BasisStateSpace(self.basis,self.ranks[:1],mode='indices')
+        internal=BasisStateSpace(self.basis,self.ranks[1:2],mode='indices')
+        target=BasisStateSpace(self.basis,self.ranks[2:3],mode='indices')
+        resident=SelectionRuleStateSpace(source,[SelectionRuleStateSpace(internal,[target])])
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                first=DiskSelectionRuleStateSpace.from_resident(resident,store);first.to_single()
+                base=store.frontier(self.basis,[self.ranks[:2]])
+                second=base.apply_selection_rules([(1,)],target_dimensions=np.array([70,71]))
+                combined=first.union(second);expected=self._frontier_cache_reference(combined)
+                np.testing.assert_array_equal(combined.to_single().indices,expected)
+                self.assertIn(int(self.ranks[1]),combined.indices)
+            finally:store.close()
+
+    def _class_frontier_reference(self,graph):
+        def blocks():
+            yield from graph.representative_space.iter_index_blocks()
+            for pairs in graph.iter_pair_blocks():yield pairs.reshape(-1)
+        return np.array(graph.store.frontier(graph.basis,blocks()).indices,copy=True)
+
+    def _class_fundamentals(self,store):
+        # The full fundamental manifold in the actual 72-mode Pyrene basis.
+        group=self.basis.indexer.symmetric_group
+        data,offsets=group._get_partition_perms([1])
+        return store.frontier(self.basis,[np.arange(int(offsets[0]),int(offsets[0])+int(data[0].num_elements))])
+
+    def test_class_frontier_coalesces_split_support_per_rule(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                base=self._class_fundamentals(store);values=base.indices;middle=len(values)//2
+                first=store.frontier(self.basis,[values[:middle]])
+                second=store.frontier(self.basis,[values[middle:]])
+                graph=DiskSelectionRuleStateSpace(base,recipes=[(s,[(1,),(-1,)],None,None,(),()) for s in [first,second]])
+                expected=self._class_frontier_reference(graph)
+                with patch.object(DiskSelectionRuleStateSpace,'iter_pair_blocks',side_effect=AssertionError('full class generated edges')):
+                    result=graph.to_single()
+                np.testing.assert_array_equal(result.indices,expected)
+                self.assertGreater(store.metrics['class_complete_sources'],0)
+                self.assertEqual(store.metrics['class_pending_sources'],0)
+                self.assertEqual(len(graph.recipes),2)
+            finally:store.close()
+
+    def test_class_frontier_does_not_cross_join_sources_and_rules(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                base=self._class_fundamentals(store);values=base.indices;middle=len(values)//2
+                first=store.frontier(self.basis,[values[:middle]])
+                second=store.frontier(self.basis,[values[middle:]])
+                graph=DiskSelectionRuleStateSpace(base,recipes=[(first,[(1,)],None,None,(),()),(second,[(-1,)],None,None,(),())])
+                expected=self._class_frontier_reference(graph)
+                np.testing.assert_array_equal(graph.to_single().indices,expected)
+            finally:store.close()
+
+    def test_class_frontier_keeps_partial_source_support_exact(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                actual=self.ranks[np.sum(self.states,axis=1)<=1]
+                base=store.frontier(self.basis,[np.r_[0,actual]])
+                graph=DiskSelectionRuleStateSpace(base,[(1,),(-1,),()])
+                expected=self._class_frontier_reference(graph)
+                np.testing.assert_array_equal(graph.to_single().indices,expected)
+                self.assertGreater(store.metrics.get('class_pending_sources',0),0)
+            finally:store.close()
+
+    def test_class_frontier_intersects_explicit_target_ID_filter(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                base=self._class_fundamentals(store)
+                target=store.frontier(self.basis,[self.ranks])
+                graph=DiskSelectionRuleStateSpace(base,[(1,),(-1,),()],filter_space=target)
+                expected=self._class_frontier_reference(graph)
+                with patch.object(DiskSelectionRuleStateSpace,'iter_pair_blocks',side_effect=AssertionError('complete filtered class generated edges')):
+                    np.testing.assert_array_equal(graph.to_single().indices,expected)
+            finally:store.close()
+
+    def test_class_frontier_quanta_filter_matches_explicit_manifold(self):
+        from Psience.BasisReps.ExternalStateSpaces import QuantaStateSpace
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                base=self._class_fundamentals(store);target=QuantaStateSpace(self.basis,2)
+                explicit=store.frontier(self.basis,[np.arange(target.start,target.stop)])
+                rules=[(1,),(-1,),()]
+                expected=self._class_frontier_reference(DiskSelectionRuleStateSpace(base,rules,filter_space=explicit))
+                graph=DiskSelectionRuleStateSpace(base,rules,filter_space=target)
+                with patch.object(DiskSelectionRuleStateSpace,'iter_pair_blocks',side_effect=AssertionError('quanta class generated edges')):
+                    np.testing.assert_array_equal(graph.to_single().indices,expected)
+            finally:store.close()
+
+    def test_class_frontier_preserves_block_dependent_transforms(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                base=self._class_fundamentals(store)
+                graph=DiskSelectionRuleStateSpace(base,[(1,)]).map(lambda space:space.take_subspace(np.arange(0,len(space),2)))
+                expected=self._class_frontier_reference(graph)
+                np.testing.assert_array_equal(graph.to_single().indices,expected)
+                self.assertNotIn('class_frontier_queries',store.metrics)
+            finally:store.close()
+
+    def test_class_frontier_preserves_mode_specific_edge_exclusions(self):
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                base=self._class_fundamentals(store)
+                excluded=np.zeros(self.basis.ndim,dtype=int);excluded[0]=1
+                graph=DiskSelectionRuleStateSpace(base,[(1,)]).filter_transitions([excluded])
+                expected=self._class_frontier_reference(graph)
+                np.testing.assert_array_equal(graph.to_single().indices,expected)
+                self.assertNotIn('class_frontier_queries',store.metrics)
+            finally:store.close()
+
+    def test_class_quanta_filter_keeps_directed_edges_exact_after_frontier(self):
+        from Psience.BasisReps.ExternalStateSpaces import QuantaStateSpace
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                base=self._class_fundamentals(store)
+                for q in [0,2]:
+                    implicit=QuantaStateSpace(self.basis,q)
+                    explicit=store.frontier(self.basis,[np.arange(implicit.start,implicit.stop)])
+                    rules=[(1,),(-1,),()]
+                    graph=DiskSelectionRuleStateSpace(base,rules,filter_space=implicit)
+                    reference=DiskSelectionRuleStateSpace(base,rules,filter_space=explicit)
+                    expected=np.concatenate(list(reference.iter_pair_blocks()))
+                    graph.to_single()
+                    actual=np.concatenate(list(graph.iter_pair_blocks()))
+                    order=lambda pairs:pairs[np.lexsort(pairs.T[::-1])]
+                    np.testing.assert_array_equal(order(actual),order(expected))
+            finally:store.close()
+
+    def test_class_implicit_quanta_blocks_obey_requested_cap(self):
+        from Psience.BasisReps.ExternalStateSpaces import QuantaStateSpace,index_blocks
+        target=QuantaStateSpace(self.basis,1)
+        blocks=list(index_blocks(target,7))
+        self.assertTrue(all(len(block)<=7 for block in blocks))
+        np.testing.assert_array_equal(np.concatenate(blocks),np.arange(target.start,target.stop))
+        with self.assertRaises(RuntimeError):target.indices
+
+
+    def test_structured_Pyrene_class_filters_accept_subtrees_without_leaves(self):
+        from McUtils.Combinatorics import UniquePermutations
+        # This five-quanta permutation class is part of the recorded complete
+        # 19,757,815-state Pyrene frontier, not a substitute molecular benchmark.
+        partition=np.zeros(self.basis.ndim,dtype=int);partition[:5]=1
+        generator=UniquePermutations(partition)
+        caps=np.ones(self.basis.ndim,dtype=int);caps[0]=0
+        statistics={};ranges=list(generator.iter_index_ranges({'maximum':caps},block_size=3,statistics=statistics))
+        self.assertEqual(statistics['leaf_checks'],0)
+        self.assertLess(statistics['visited_nodes'],10)
+        self.assertEqual(sum(int(b-a) for block in ranges for a,b in block),
+                         int(generator.num_permutations)*(self.basis.ndim-5)//self.basis.ndim)
+
+    def test_structured_graph_nodes_and_edges_match_pointwise_filters(self):
+        from Psience.BasisReps.StateFilters import Postfilter
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=101)
+            try:
+                base=self._class_fundamentals(store)
+                caps=np.full(self.basis.ndim,2);caps[0]=0;caps[-1]=1
+                specs=[{'max_quanta':caps},{'max_quanta':2,'parity':'even','partitions':[(),(2,),(1,1)]}]
+                for spec in specs:
+                    post=Postfilter.construct(base,spec)
+                    graph=DiskSelectionRuleStateSpace(base,[(1,),(-1,),()]).map(post.apply)
+                    expected=self._class_frontier_reference(graph)
+                    actual=graph.to_single()
+                    np.testing.assert_array_equal(actual.indices,expected)
+                    self.assertGreater(store.metrics.get('constraint_visited_nodes',0),0)
+                    # Frontier acceleration must not change the later edge recipes.
+                    plain=DiskSelectionRuleStateSpace(base,[(1,),(-1,),()]).map(post.apply)
+                    key=lambda pairs:pairs[np.lexsort(pairs.T[::-1])]
+                    np.testing.assert_array_equal(key(np.concatenate(list(graph.iter_pair_blocks()))),
+                                                  key(np.concatenate(list(plain.iter_pair_blocks()))))
+            finally:store.close()
+
+    def test_structured_run_simple_binds_selected_frequencies_without_mutation(self):
+        from types import SimpleNamespace
+        from inspect import signature
+        from Psience.VPT2 import VPTRunner,VPTStateSpace
+        from Psience.BasisReps import BasisStateSpaceFilter
+        from McUtils.Data import UnitsData
+        frequencies=np.array([0.0022091806829265537,0.0026866989790004497,
+            0.0030336185319669155,0.0035333560019367226,0.0040757163706985075,
+            0.005995761249610487,0.006121095689537073,0.008412070536502078,0.016940751588948696])
+        spec={'max_quanta':2,'energy_windows':[[0,4000]],'energy_units':'Wavenumbers'}
+        bound=BasisStateSpaceFilter.bind_postfilters(spec,modes=SimpleNamespace(freqs=frequencies),mode_selection=(8,0,4))
+        np.testing.assert_array_equal(bound['frequencies'],frequencies[[8,0,4]])
+        self.assertNotIn('frequencies',spec)
+        self.assertIn('basis_filters',signature(VPTRunner.run_simple).parameters)
+        # Explicit postfilters must also work for the unfiltered WFC target.
+        filters=VPTStateSpace.get_state_space_filter(self.states[:2],target='wavefunctions',order=2,postfilters={'parity':'even'})
+        self.assertTrue(filters)
+        self.assertTrue(all(f.postfilters for f in filters.values()))
+
+
 if __name__=='__main__':unittest.main()

@@ -1,5 +1,7 @@
 
 import numpy as np, abc, math, collections
+from McUtils.Combinatorics import UniquePermutations
+from McUtils.Data import UnitsData
 from .StateSpaces import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace
 
 __all__ = [
@@ -7,6 +9,13 @@ __all__ = [
 ]
 
 class Postfilter(metaclass=abc.ABCMeta):
+    native_keys = frozenset({'partitions','parity','min_quanta','max_quanta',
+                             'energy_windows','energy_units','frequencies'})
+
+    def get_permutation_constraints(self):
+        """Optional numeric constraint description; None preserves apply()."""
+        return None
+
     def __init__(self, input_space=None):
         self.input_space = input_space
     @abc.abstractmethod
@@ -23,8 +32,17 @@ class Postfilter(metaclass=abc.ABCMeta):
         }
     @classmethod
     def construct(cls, input_space, spec):
+        if isinstance(spec,Postfilter):
+            return spec
         if isinstance(spec, BasisStateSpace):
             spec = {'intersected_space':spec}
+        if any(key in cls.native_keys for key in spec):
+            if set(spec) == {'max_quanta'}:
+                return MaxQuantaFilter(input_space=input_space,**spec)
+            unknown = set(spec)-cls.native_keys-{'test'}
+            if unknown:
+                raise ValueError('combine native and set/callback filters as a list; unknown keys: {}'.format(sorted(unknown)))
+            return ExclusionTestFilter(input_space=input_space,**spec)
         for k,c in cls.get_spec_map().items():
             if k in spec:
                 return c(input_space=input_space, **spec)
@@ -32,21 +50,57 @@ class Postfilter(metaclass=abc.ABCMeta):
             raise ValueError("Don't know how to build filter from spec {}".format(spec))
 
 class ExclusionTestFilter(Postfilter):
-    def __init__(self, test=None, **opts):
-        super().__init__(**opts)
+    def __init__(self, test=None, input_space=None, *, partitions=None, parity=None,
+                 min_quanta=None, max_quanta=None, energy_windows=None,
+                 energy_units='Hartrees', frequencies=None, **opts):
+        super().__init__(input_space=input_space, **opts)
         self.test = test
+        self._constraints = None
+        if any(value is not None for value in [partitions,parity,min_quanta,max_quanta,energy_windows]):
+            if input_space is None:
+                raise ValueError('structured basis filters require an input space')
+            constraints = dict(partitions=partitions,parity=parity,
+                               minimum=min_quanta,maximum=max_quanta)
+            if energy_windows is not None:
+                if frequencies is None:
+                    raise ValueError('energy_windows require harmonic frequencies; run_simple binds these automatically')
+                constraints.update(weights=np.asarray(frequencies,dtype=float),
+                    windows=np.asarray(energy_windows,dtype=float)*UnitsData.convert(energy_units,'Hartrees'))
+            elif frequencies is not None or energy_units != 'Hartrees':
+                raise ValueError('energy_units/frequencies require energy_windows')
+            self._constraints = UniquePermutations.prepare_constraints(constraints,input_space.ndim)
+        elif test is None:
+            raise ValueError('a filter requires a test or structured constraints')
+
+    def get_permutation_constraints(self):
+        return self._constraints if self.test is None else None
+
     def apply(self, state_space:BasisStateSpace) ->BasisStateSpace:
-        vals = self.test(state_space)
-        where = np.where(vals)
-        if len(where) > 0:
-            where = where[0]
-        return state_space.take_subspace(where)
+        if self._constraints is not None:
+            if self.test is None and getattr(state_space,'store',None) is not None:
+                group = getattr(state_space.basis.indexer,'symmetric_group',None)
+                if group is not None:
+                    return state_space.store.frontier(state_space.basis,
+                        group.iter_filtered_indices(state_space.indices,self._constraints,
+                                                    state_space.store.block_size))
+            vals = UniquePermutations.test_constraints(state_space.excitations,self._constraints)
+            if self.test is not None:
+                vals &= self.test(state_space)
+        else:
+            vals = self.test(state_space)
+        return state_space.take_subspace(np.flatnonzero(vals))
+
+
 class MaxQuantaFilter(ExclusionTestFilter):
     def __init__(self, max_quanta=None, input_space:BasisStateSpace=None, **opts):
         if isinstance(max_quanta, (int, np.integer)):
             max_quanta = [max_quanta] * input_space.ndim
         self.max_quanta = np.asanyarray(max_quanta)
         super().__init__(self.check_mode_quanta, input_space=input_space, **opts)
+    def get_permutation_constraints(self):
+        return UniquePermutations.prepare_constraints(
+            {'maximum':self.max_quanta},self.input_space.ndim)
+
     def check_mode_quanta(self, state_space):
         if len(state_space) == 0:
             return np.array([], dtype=bool)
@@ -98,6 +152,52 @@ class BasisStateSpaceFilter:
         self._raw_prefilters = prefilters
         self._postfilters = None
         self._raw_postfilters = postfilters
+
+    @classmethod
+    def bind_postfilters(cls, filters, *, modes=None, mode_selection=None, mode_transformation=None):
+        """Bind automatic harmonic weights without mutating caller filter specs."""
+        if filters is None or isinstance(filters,BasisStateSpace) or isinstance(filters,Postfilter):
+            return filters
+        if isinstance(filters,dict):
+            stage_map = any(isinstance(k,tuple) and len(k)==2 for k in filters)
+            if stage_map:
+                return {key:cls.bind_postfilters(value,modes=modes,mode_selection=mode_selection,
+                                                mode_transformation=mode_transformation)
+                        for key,value in filters.items()}
+            result = dict(filters)
+            if result.get('energy_windows') is not None and result.get('frequencies') is None:
+                if mode_transformation is not None:
+                    raise ValueError('energy_windows with transformed modes require explicit frequencies in Hartrees')
+                if modes is None:
+                    raise ValueError('automatic energy-window frequencies require molecular modes')
+                frequencies = np.asarray(modes.freqs,dtype=float)
+                selection = mode_selection
+                if isinstance(selection,dict):
+                    if selection.get('modes') is not None:
+                        frequencies = frequencies[np.asarray(selection['modes'],dtype=int)]
+                    selection = selection.get('derivatives')
+                if selection is not None:
+                    frequencies = frequencies[selection if isinstance(selection,slice) else np.asarray(selection,dtype=int)]
+                result['frequencies'] = np.array(frequencies,copy=True)
+            return result
+        return [cls.bind_postfilters(item,modes=modes,mode_selection=mode_selection,
+                                     mode_transformation=mode_transformation) for item in filters]
+
+    @classmethod
+    def from_postfilters(cls, input_space, postfilters, order=2):
+        """Apply explicit postfilters without property-quanta restrictions."""
+        if not isinstance(input_space,BasisStateSpace):
+            from .HarmonicOscillator import HarmonicOscillatorProductBasis
+            input_space = BasisStateSpace(HarmonicOscillatorProductBasis(len(input_space[0])),input_space)
+        stages = isinstance(postfilters,dict) and any(isinstance(k,tuple) and len(k)==2 for k in postfilters)
+        rules = []
+        for h in range(1,order+1):
+            for w in range(order-h+1):
+                filters = postfilters.get((h,w)) if stages else postfilters
+                if filters is not None:
+                    rules.append(dict(order=h+w,expansion_term=h,prefilters=None,postfilters=filters))
+        return cls.from_rules(input_space,*rules)
+
 
     @classmethod
     def from_data(cls, input_space, data):
@@ -160,7 +260,7 @@ class BasisStateSpaceFilter:
                 if k not in r:
                     raise ValueError("filter rule needs `order`, `expansion_term`"
                                      ", and one or both of `prefilters` and `postfilter` for keys")
-            if 'prefilters' not in r and 'postfilter' not in r:
+            if 'prefilters' not in r and 'postfilters' not in r and 'postfilter' not in r:
                 raise ValueError("filter rule needs one or both of `prefilters` and `postfilter` for keys")
 
             h_term = r['expansion_term']
@@ -169,7 +269,7 @@ class BasisStateSpaceFilter:
             filters[(h_term, y_term)] = cls(
                 input_space,
                 r['prefilters'] if 'prefilters' in r else None,
-                r['postfilters'] if 'postfilters' in r else None
+                r.get('postfilters',r.get('postfilter'))
             )
 
         return filters
@@ -202,7 +302,7 @@ class BasisStateSpaceFilter:
         if filters is None:
             return None
         else:
-            if hasattr(filters, 'items') or isinstance(filters, BasisStateSpace):
+            if hasattr(filters, 'items') or isinstance(filters, (BasisStateSpace,Postfilter)):
                 filters = [filters]
             return [
                 Postfilter.construct(input_space, f) for f in filters

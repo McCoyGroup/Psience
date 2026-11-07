@@ -788,7 +788,8 @@ class VPTStateSpace:
                     np.zeros((1,n_modes),dtype=int) if initial_states is None else initial_states,
                     states, [HarmonicOscillatorProductBasis(n_modes).selection_rules(*['x']*(i+2))
                              for i in range(1,order+1)], None, order=order, filtered=False)
-            return None
+            return (None if postfilters is None else
+                    BasisStateSpaceFilter.from_postfilters(states,postfilters,order=order))
         elif target == 'intensities':
             return build(
                 np.zeros((1,n_modes),dtype=int) if initial_states is None else initial_states,
@@ -2005,6 +2006,10 @@ class VPTRunner:
                     **par.filter(VPTStateSpace)
                 )
 
+        if basis_filters is not None:
+            basis_filters = BasisStateSpaceFilter.bind_postfilters(basis_filters,
+                modes=sys.mol.normal_modes.modes,mode_selection=sys.mode_selection,
+                mode_transformation=sys.mode_transformation)
         order = 2 if 'order' not in opts.keys() else opts['order']
         if target_property is None:
             target_property = 'intensities'
@@ -2073,6 +2078,7 @@ class VPTRunner:
                    plot_spectrum=False,
                    operators=None,
                    evaluator_defaults="new",
+                   basis_filters=None,
                    **opts
                    ):
         """
@@ -2088,6 +2094,15 @@ class VPTRunner:
         :type target_property: str
         :param corrected_fundamental_frequencies: a set of fundamental frequencies to use to get new zero-order energies
         :type corrected_fundamental_frequencies: Iterable[float]|None
+        :param basis_filters: generated correction-space constraints. Keys include
+            max_quanta/min_quanta (scalar or per-mode; negative max means unbounded),
+            partitions (allowed occupation partitions), parity ('even'/'odd'),
+            energy_windows (inclusive harmonic-energy intervals) and energy_units
+            (default 'Hartrees'). Harmonic frequencies bind automatically in selected
+            mode order; an explicit frequencies vector is in Hartrees. A dict keyed
+            by (Hamiltonian order, wavefunction order) scopes filters to that stage.
+            Requested roots are retained. Filters deliberately constrain the
+            intermediate basis. Generic tests retain their existing path.
         :param calculate_intensities: whether or not to calculate energies
         :type calculate_intensities: bool default:True
         :param opts: options that work for a `VPTSystem`, `VPTStateSpace`, `VPTRuntimeOptions`, `VPTSolverOptions`, or `VPTHamiltonianOptions` object which will be filtered automatically
@@ -2100,6 +2115,7 @@ class VPTRunner:
             target_property=target_property,
             corrected_fundamental_frequencies=corrected_fundamental_frequencies,
             evaluator_defaults=evaluator_defaults,
+            basis_filters=basis_filters,
             **opts
         )
         if (operators is not None or (not calculate_intensities and target_property is None)) and 'strong_coupling_correction_filter' not in opts:
