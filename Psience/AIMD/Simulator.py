@@ -1,4 +1,4 @@
-import collections, functools, numpy as np
+import collections, functools, json, os, numpy as np
 import abc
 from McUtils.Data import AtomData, UnitsData
 from McUtils.Zachary import FiniteDifferenceDerivative, RBFDInterpolator
@@ -38,6 +38,16 @@ class MDThermostat:
             raise ValueError(f"{type(self).__name__} requires `target_temperature`")
         self.target_temperature = target_temperature
         self.opts = opts  # unconsumed kwargs kept around for introspection/debugging
+
+    def get_state(self):
+        """JSON-able internal state (the random generator, if there is one) saved with a trajectory file so a restart continues the same stream"""
+        rng = getattr(self, '_rng', None)
+        return {} if rng is None else {'rng': rng.bit_generator.state}
+
+    def set_state(self, state):
+        rng = getattr(self, '_rng', None)
+        if rng is not None and 'rng' in state:
+            rng.bit_generator.state = state['rng']
 
     def apply_thermostat(self, positions, velocities, sim=None):
         """
@@ -120,7 +130,11 @@ class LangevinThermostat(MDThermostat):
     def apply_thermostat(self, positions, velocities, sim=None):
         gamma = self.friction
         mass = sim._mass
-        sigma = np.sqrt(2 * gamma * self.target_temperature * UnitsData.convert("Kelvins", "Hartrees") * mass)
+        # Langevin noise uses the thermal energy k_B T, expressed in Hartrees.
+        thermal_energy = self.target_temperature * UnitsData.convert(
+            "Kelvins", "Hartrees", equivalences=("thermal",)
+        )
+        sigma = np.sqrt(2 * gamma * thermal_energy * mass)
         rand = self._rng.normal(size=velocities.shape)
         velocities = velocities + sim.dt * (-gamma * velocities) + np.sqrt(sim.dt) * sigma * rand / mass
         return positions, velocities
@@ -141,6 +155,13 @@ class MDStepPredictor(metaclass=abc.ABCMeta):
 
     def __init__(self, **opts):
         self.opts = opts
+
+    def get_state(self):
+        """Arrays of internal state that the next step depends on (none for one-step methods), saved with a trajectory file"""
+        return {}
+
+    def set_state(self, state):
+        pass
 
     @abc.abstractmethod
     def predict_step(self, positions, velocities, forces, sim=None):
@@ -246,6 +267,12 @@ class BeemanStepPredictor(MDStepPredictor):
     def __init__(self, **opts):
         super().__init__(**opts)
         self._f_prev = None  # f(t - dt); bootstrapped to f(t) on the first call
+
+    def get_state(self):
+        return {} if self._f_prev is None else {'f_prev': self._f_prev}
+
+    def set_state(self, state):
+        self._f_prev = state.get('f_prev')
 
     def predict_step(self, positions, velocities, forces, sim=None):
         if forces is None:
@@ -621,7 +648,9 @@ class AIMDSimulator:
                  step_predictor=None,  # None | str | dict | MDStepPredictor instance
                  thermostat=None,           # None | str | dict | MDThermostat instance
                  target_temperature=None,   # Kelvin; used as default if `thermostat` doesn't set its own
-                 remove_rotation=False
+                 remove_rotation=False,
+                 trajectory_file=None,      # stream frames to this file (see `flush`, `restart`)
+                 flush_every=100            # frames held in memory before they are written
                  ):
         self.masses = np.array([
                 AtomData[a, "Mass"] * UnitsData.convert("AtomicMassUnits", "ElectronMass")
@@ -654,6 +683,8 @@ class AIMDSimulator:
         if isinstance(velocities, (int, float, np.integer, np.floating)):
             velocities = np.full_like(self.coords, velocities)
         velocities = np.asanyarray(velocities)
+        if velocities.ndim < self.coords.ndim:  # same leading axes as the coordinates, so frames stack
+            velocities = velocities.reshape((1,) * (self.coords.ndim - velocities.ndim) + velocities.shape)
         self.velocities = velocities
         if isinstance(force_function, RMSDBiasPotential) and internals is not None:
             raise ValueError("RMSDBiasPotential requires a Cartesian force callback (internals=None)")
@@ -706,10 +737,172 @@ class AIMDSimulator:
         else:
             n_dof = self.coords.shape[-1] * self.coords.shape[-2] if self.coords.ndim > 2 else self.coords.shape[-1]
         self._n_dof = max(n_dof, 1)
+        self._remove_rotation = remove_rotation
+        self._ckpt = None
+        self.trajectory_file = None
+        self._flush_every = flush_every
+        self._chunks = 0
+        self._flushed_frames = 0
+        if trajectory_file is not None:
+            self._open_trajectory_file(trajectory_file)
+
+    #region trajectory files
+    def _open_trajectory_file(self, path, resume=False, chunks=0, frames=0):
+        from McUtils.Scaffolding import IndexedNumPyCheckpointer
+        path = os.fspath(path)
+        ckpt = IndexedNumPyCheckpointer(path)
+        if not resume and os.path.exists(path):
+            with ckpt:
+                if len(list(ckpt.keys())) > 0:
+                    raise ValueError(
+                        "{} already holds a trajectory; continue it with `AIMDSimulator.restart` or remove it first".format(path)
+                    )
+        self._ckpt = ckpt
+        self.trajectory_file = path
+        self._chunks = chunks
+        self._flushed_frames = frames
+
+    @property
+    def num_frames(self):
+        """Frames recorded so far, in the file and in memory"""
+        return self._flushed_frames + len(self.trajectory)
+
+    def flush(self):
+        """
+        Writes the frames held in memory, and the state a restart needs, to the trajectory file in one
+        append (a crash leaves the file as of the previous flush). Does nothing without a trajectory file.
+        """
+        if self._ckpt is None:
+            return
+        pending = len(self.trajectory)
+        with self._ckpt as ck:
+            if pending:
+                prefix = 'frames/{:06d}/'.format(self._chunks)
+                ck[prefix + 'coords'] = np.array(self.trajectory)
+                if self.kinetic_energies is not None:
+                    ck[prefix + 'kinetic_energies'] = np.array(self.kinetic_energies)
+                if self.velocity_deque is not None:
+                    ck[prefix + 'velocities'] = np.array(self.velocity_deque)
+                self._chunks += 1
+                self._flushed_frames += pending
+                self.trajectory.clear()
+                if self.kinetic_energies is not None:
+                    self.kinetic_energies.clear()
+                if self.velocity_deque is not None:
+                    self.velocity_deque.clear()
+            ck['config'] = _pack_json(dict(
+                format=1,
+                masses=[float(m) for m in self.masses],
+                atomic_structures=bool(self._atomic_structs),
+                timestep=self.dt,
+                sampling_rate=self.sampling_rate,
+                track_kinetic_energy=self.kinetic_energies is not None,
+                track_velocities=self.velocity_deque is not None,
+                target_temperature=self.target_temperature,
+                remove_rotation=bool(self._remove_rotation),
+                thermostat=None if self.thermostat is None else self.thermostat.name,
+                step_predictor=self.step_predictor.name
+            ))
+            ck['state/coords'] = np.asarray(self.coords)
+            ck['state/velocities'] = np.asarray(self.velocities)
+            if self._prev_forces is not None:
+                ck['state/forces'] = np.asarray(self._prev_forces)
+            for name, value in self.step_predictor.get_state().items():
+                ck['state/predictor/' + name] = np.asarray(value)
+            ck['state/meta'] = _pack_json(dict(
+                steps=self.steps,
+                chunks=self._chunks,
+                frames=self._flushed_frames,
+                thermostat=None if self.thermostat is None else self.thermostat.get_state()
+            ))
+
+    def close(self):
+        """Flushes (if there is a trajectory file)"""
+        self.flush()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        self.flush()
+
+    @classmethod
+    def restart(cls, file, force_function, flush_every=100, **overrides):
+        """
+        Continues a simulation from the last flush of a trajectory file: same coordinates, velocities, step
+        count, forces, and thermostat/predictor state, so with the same thermostat seed the remaining steps
+        reproduce an uninterrupted run. The force function (and a thermostat, step predictor, `internals`
+        that the original run used) can't be stored, so pass them again as keyword arguments.
+
+        :param file: the trajectory file the original run streamed to
+        :param force_function: the force callback
+        :param overrides: constructor arguments to change
+        """
+        from McUtils.Scaffolding import IndexedNumPyCheckpointer
+        ckpt = IndexedNumPyCheckpointer(os.fspath(file))
+        with ckpt:
+            keys = set(ckpt.keys())
+            if 'state/meta' not in keys:
+                raise ValueError("{} has no saved simulation state (was the simulator flushed?)".format(file))
+            config = _unpack_json(ckpt['config'])
+            meta = _unpack_json(ckpt['state/meta'])
+            coords = np.array(ckpt['state/coords'])
+            velocities = np.array(ckpt['state/velocities'])
+            forces = np.array(ckpt['state/forces']) if 'state/forces' in keys else None
+            predictor_state = {k.rsplit('/', 1)[-1]: np.array(ckpt[k]) for k in keys if k.startswith('state/predictor/')}
+        opts = dict(
+            atoms=config['masses'],
+            coordinates=coords,
+            force_function=force_function,
+            atomic_structures=config['atomic_structures'],
+            velocities=velocities,
+            track_kinetic_energy=config['track_kinetic_energy'],
+            track_velocities=config['track_velocities'],
+            timestep=config['timestep'],
+            sampling_rate=config['sampling_rate'],
+            target_temperature=config['target_temperature'],
+            remove_rotation=config['remove_rotation']
+        )
+        opts.update(overrides)
+        sim = cls(**opts)
+        saved_thermostat = config['thermostat']
+        if (saved_thermostat is None) != (sim.thermostat is None) or (
+                saved_thermostat is not None and sim.thermostat.name != saved_thermostat):
+            raise ValueError("the run used thermostat {!r}; pass the same one to `restart`".format(saved_thermostat))
+        if sim.step_predictor.name != config['step_predictor']:
+            raise ValueError("the run used step predictor {!r}; pass the same one to `restart`".format(config['step_predictor']))
+        sim.trajectory.clear()  # the file already has these frames
+        if sim.kinetic_energies is not None:
+            sim.kinetic_energies.clear()
+        if sim.velocity_deque is not None:
+            sim.velocity_deque.clear()
+        sim.steps = meta['steps']
+        sim._prev_forces = forces
+        if sim.thermostat is not None:
+            sim.thermostat.set_state(meta['thermostat'] or {})
+        sim.step_predictor.set_state(predictor_state)
+        sim._flush_every = flush_every
+        sim._open_trajectory_file(file, resume=True, chunks=meta['chunks'], frames=meta['frames'])
+        return sim
+
+    def _read_frames(self, name, pending):
+        """Recorded `name` frames ('coords', 'velocities', 'kinetic_energies'): file chunks first, then memory"""
+        parts = []
+        if self._ckpt is not None and self._chunks > 0:
+            with self._ckpt as ck:
+                parts = [np.array(ck['frames/{:06d}/{}'.format(i, name)]) for i in range(self._chunks)]
+        if len(pending) > 0:
+            parts.append(np.array(pending))
+        if not parts:
+            return np.array(pending)
+        return parts[0] if len(parts) == 1 else np.concatenate(parts, axis=0)
+    #endregion
 
     def _temperature(self, vels):
         ke = self._ke(self._mass, vels)
-        return 2 * ke / (self._n_dof * UnitsData.convert("Kelvins", "Hartrees"))
+        # Equipartition: T = 2 K / (n_dof k_B), with kinetic energy in Hartrees.
+        boltzmann = UnitsData.convert("Kelvins", "Hartrees", equivalences=("thermal",))
+        return 2 * ke / (self._n_dof * boltzmann)
 
     @classmethod
     def mode_energies_to_velocities(cls, modes, masses, energy_splits, inverse=None):
@@ -814,6 +1007,8 @@ class AIMDSimulator:
                 self.trajectory.append(c)
                 if self.velocity_deque is not None:
                     self.velocity_deque.append(v)
+                if self._ckpt is not None and len(self.trajectory) >= self._flush_every:
+                    self.flush()
 
         return self.trajectory
 
@@ -917,13 +1112,13 @@ class AIMDSimulator:
         if isinstance(embed, (np.ndarray, list, tuple)):
             ref_struct = np.asanyarray(embed)
             embed = True
-        base_coords = np.array(self.trajectory)
+        base_coords = self._read_frames('coords', self.trajectory)
         if flatten:
             base_coords = base_coords.reshape((-1,)+base_coords.shape[-2:])
         if extract_velocities is None:
             extract_velocities = self.velocity_deque is not None
         if extract_velocities:
-            velocities = np.array(self.velocity_deque)
+            velocities = self._read_frames('velocities', self.velocity_deque)
         else:
             velocities = None
         if embed:
@@ -934,7 +1129,7 @@ class AIMDSimulator:
                     ref_crds = base_coords
                 if self.kinetic_energies is not None:
                     # assuming symplectic integration...
-                    kes = np.array(self.kinetic_energies).flatten()
+                    kes = self._read_frames('kinetic_energies', self.kinetic_energies).flatten()
                     max_pos = np.argmax(kes)
                     ref_struct = base_coords[max_pos]
                 else:
@@ -973,6 +1168,14 @@ class AIMDSimulator:
         else:
             return coords
 
+
+
+def _pack_json(value):
+    return np.frombuffer(json.dumps(value).encode('utf-8'), dtype=np.uint8).copy()
+
+
+def _unpack_json(array):
+    return json.loads(np.asarray(array, dtype=np.uint8).tobytes().decode('utf-8'))
 
 
 class PairwisePotential:

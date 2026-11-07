@@ -5,6 +5,7 @@ Provides classes to support wave functions coming from VPT calculations
 import numpy as np, itertools as ip, time, enum, math
 
 from McUtils.Numputils import SparseArray
+from McUtils.Devutils import CascadingPropertyManager, cascading_property
 import McUtils.Numputils as nput
 from McUtils.Scaffolding import ParameterManager, Checkpointer, NullCheckpointer
 from McUtils.Data import UnitsData
@@ -81,6 +82,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         :param corrections: the corrections to the terms
         :type corrections: PerturbationTheoryCorrections
         """
+        self._cascade_manager = CascadingPropertyManager(self)
         super().__init__(None, corrections) # just to
 
         self.mol = mol
@@ -1038,7 +1040,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
 
     class TermHolder(tuple):
         """symbolic wrapper on Tuple so we can know that we've canonicalized some term"""
-    @property
+    @cascading_property
     def dipole_terms(self):
         if self._dipole_terms is None:
             if 'dipole_terms' in self.expansion_options:
@@ -1068,23 +1070,29 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
     @dipole_terms.setter
     def dipole_terms(self, v):
         self._dipole_terms = v
-        self._tm_dat = None
 
     class DipolePartitioningMethod(enum.Enum):
         Standard="standard"
         Intuitive="intuitive"
 
-    @property
+    def _clear_transition_moment_values(self):
+        # the loaded correction terms are reused; only the moments themselves depend on the partitioning
+        if self._tm_dat is not None:
+            self._tm_dat[0] = None
+
+    # transition moments are cached in `_tm_dat`: new dipole terms reset all of it, a new partitioning method just the moments
+    cascade_dependencies = {
+        'transition_moment_data': dict(depends_on=['dipole_terms'], reset='_tm_dat'),
+        'transition_moment_values': dict(depends_on=['dipole_partitioning'], reset=_clear_transition_moment_values)
+    }
+
+    @cascading_property(always=False)
     def dipole_partitioning(self):
         return self._dipole_partitioning
 
     @dipole_partitioning.setter
     def dipole_partitioning(self, p):
-        part = self.DipolePartitioningMethod(p)
-        if part is not self._dipole_partitioning:
-            self._dipole_partitioning = part
-            if self._tm_dat is not None:
-                self._tm_dat[0] = None
+        self._dipole_partitioning = self.DipolePartitioningMethod(p)
 
     def _load_tm_dat(self):
         if self._tm_dat is None:

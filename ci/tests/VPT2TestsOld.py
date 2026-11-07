@@ -1058,7 +1058,7 @@ class VPT2Tests(TestCase):
         De_2 = 8.84e-12 * erg2h
         a_2 = 2.175 * cm2borh
 
-        hz2h = UnitsData.convert("Hertz", "Hartrees")
+        hz2h = UnitsData.convert("Hertz", "Hartrees", equivalences=("frequency",))
         kb = 7.2916e14 / (2 * np.pi) * hz2h
 
         morse = self.harmonically_coupled_morse(

@@ -19,6 +19,7 @@ from McUtils.Coordinerds import (
 import McUtils.Numputils as nput
 import McUtils.Iterators as itut
 import McUtils.Devutils as dev
+from McUtils.Devutils import CascadingPropertyManager, cascading_property, cascading_attribute, derived_property
 import McUtils.Coordinerds as coordops
 import McUtils.Zachary as zach
 from McUtils.Zachary import PointMesh
@@ -50,6 +51,13 @@ __reload_hook__ = ["..Modes", ".MoleculeInterface", '.CoordinateSystems', '.Hami
                    '.Topology', '.Builder', '.Visualizations']
 
 from .Transformations import MolecularTransformation
+
+
+def _tell_checkpoint(mol, changed, affected):
+    """Cascade listener: tells the molecule's property cache (once it exists) what changed"""
+    cache = mol.__dict__.get('checkpoint')
+    if cache is not None:
+        cache.note_change(*changed)
 
 
 class Molecule(AbstractMolecule):
@@ -84,6 +92,7 @@ class Molecule(AbstractMolecule):
                  polarizability_evaluator=None,
                  polarizability_derivatives=None,
                  checkpoint_file=None,
+                 checkpoint_id=None,
                  **metadata
                  ):
         """
@@ -116,6 +125,7 @@ class Molecule(AbstractMolecule):
         :param kw: Other bound parameters that might be useful
         :type kw:
         """
+        self._cascade_manager = CascadingPropertyManager(self, listeners=[_tell_checkpoint])
         # convert "atoms" into list of atom data
         if isinstance(atoms, np.ndarray):
             atoms = atoms.tolist()
@@ -184,14 +194,46 @@ class Molecule(AbstractMolecule):
         self.display_mode = display_mode
         self.display_settings = display_settings
         self._energy = energy
-        self.energy_evaluator = energy_evaluator
-        self.dipole_evaluator = dipole_evaluator
-        self.charge_evaluator = charge_evaluator
-        self.polarizability_evaluator = polarizability_evaluator
+        self._energy_evaluator = energy_evaluator
+        self._dipole_evaluator = dipole_evaluator
+        self._charge_evaluator = charge_evaluator
+        self._polarizability_evaluator = polarizability_evaluator
 
-        # if checkpoint_file is True:
-        #     checkpoint_file = self.molecule_hash() # TODO: define this based on DB work
-        self.checkpoint = MoleculePropertyCache(self, checkpoint_file)
+        # `checkpoint_file` may be a path/checkpointer or an `ObjectStore` (see `MoleculePropertyCache`);
+        # `checkpoint_id` is the identifier you give this molecule's cached values (never derived from the geometry)
+        self.checkpoint = MoleculePropertyCache(self, checkpoint_file, identifier=checkpoint_id)
+
+    # What each stored or derived value depends on. Assigning any of these (through the property setters, the
+    # property managers, or `modify`) resets everything downstream of it -- the cached point group, evaluator,
+    # Hamiltonian, ... -- and tells `self.checkpoint`, which stops vouching for the cached values that depend on
+    # it (see `MoleculePropertyCache.valid`): those are computed, not cached, until a new `checkpoint_id` is given.
+    # `keyed` dependencies are ones the value's cache key already includes. Names that aren't properties
+    # (`energy`/`dipole` as cache keys) are nodes too.
+    _geometry = ['atoms', 'coords', 'masses', 'internals']
+    cascade_dependencies = {
+        'charge': ['metadata'], 'spin': ['metadata'], 'charges': ['metadata'], 'formal_charges': ['metadata'],
+        'coords': ['embedding'], 'masses': ['embedding'], 'internals': ['embedding'],
+        'energy': _geometry + ['charge', 'spin', 'energy_evaluator'],
+        'dipole': _geometry + ['charge', 'spin', 'dipole_evaluator', 'dipole_surface', 'dipole_derivatives'],
+        'normal_modes': dict(depends_on=_geometry + ['energy_evaluator', 'potential_surface'],
+                             keyed=['potential_derivatives']),
+        'point_group': ['atoms', 'coords', 'masses'],
+        'evaluator': ['embedding', 'normal_modes'] + _geometry,
+        'mode_embedding': ['embedding', 'normal_modes'],
+        'hamiltonian': ['embedding', 'normal_modes', 'potential_derivatives', 'dipole_derivatives'] + _geometry,
+        'polarizability_derivatives': [], 'bonds': [], 'guess_bonds': [], 'source_file': []
+    }
+    del _geometry
+
+    energy_evaluator = cascading_attribute(doc="The default energy evaluator (name, class, or object); assigning one resets what depends on it")
+    dipole_evaluator = cascading_attribute(doc="The default dipole evaluator; assigning one resets what depends on it")
+    charge_evaluator = cascading_attribute(doc="The default charge evaluator; assigning one resets what depends on it")
+    polarizability_evaluator = cascading_attribute(doc="The default polarizability evaluator; assigning one resets what depends on it")
+
+    @property
+    def cascade(self):
+        """The molecule's `CascadingPropertyManager` (its dependency graph, listeners, and batching)"""
+        return self._cascade_manager
 
     def modify(self,
                atoms=dev.default,
@@ -218,7 +260,9 @@ class Molecule(AbstractMolecule):
                potential_derivatives=dev.default,
                polarizability_derivatives=dev.default,
                meta=dev.default,
-               source_file=dev.default
+               source_file=dev.default,
+               checkpoint_file=dev.default,
+               checkpoint_id=dev.default
                ) -> Molecule:
         """
         **LLM Docstring**
@@ -273,10 +317,23 @@ class Molecule(AbstractMolecule):
         :type meta: dict | object
         :param source_file: replacement source file path
         :type source_file: str | object
+        :param checkpoint_file: replacement property-cache target (default: this molecule's, when it has an identifier)
+        :type checkpoint_file: Any
+        :param checkpoint_id: the identifier for the new molecule's cached values. Left at the default, the new molecule shares this molecule's cache and identifier, except that the values depending on anything this call changes (`Molecule.cascade`) are computed instead of cached, mirroring how `modify` only carries over the energy and surfaces when their inputs are untouched; pass a new identifier to say that the changed molecule has its own cache entries, or `None` to drop caching. A molecule with no identifier passes nothing on, as before.
+        :type checkpoint_id: str | object | None
         :return: the new, modified `Molecule`
         :rtype: Molecule
         """
-        return type(self)(
+        ck_file, ck_id, ck_changed = self._derive_checkpoint(checkpoint_file, checkpoint_id, dict(
+            atoms=atoms, coords=coords, masses=masses, charge=charge, spin=spin, internals=internals,
+            bonds=bonds, guess_bonds=guess_bonds, energy=energy, energy_evaluator=energy_evaluator,
+            dipole_evaluator=dipole_evaluator, charge_evaluator=charge_evaluator,
+            polarizability_evaluator=polarizability_evaluator, normal_modes=normal_modes,
+            dipole_surface=dipole_surface, dipole_derivatives=dipole_derivatives,
+            potential_surface=potential_surface, potential_derivatives=potential_derivatives,
+            polarizability_derivatives=polarizability_derivatives, meta=meta
+        ))
+        new = type(self)(
             self.atoms if dev.is_default(atoms) else atoms,
             self.coords if dev.is_default(coords) else coords,
             masses=(
@@ -355,8 +412,43 @@ class Molecule(AbstractMolecule):
                         if meta is None else
                      dev.merge_dicts(self._meta, meta)
             ),
-            source_file=self._src if dev.is_default(source_file) else source_file
+            source_file=self._src if dev.is_default(source_file) else source_file,
+            checkpoint_file=ck_file,
+            checkpoint_id=ck_id
         )
+        new.checkpoint.note_change(*ck_changed)
+        return new
+
+    def _derive_checkpoint(self, checkpoint_file, checkpoint_id, args):
+        """
+        The property-cache arguments for the molecule `modify` builds: ``(file, identifier, changed)``. An
+        explicit `checkpoint_id` is taken as is; otherwise the identifier is inherited, together with the record
+        of what has been changed since it was assigned plus the arguments this call overrides.
+        """
+        cache = self.checkpoint
+        given = {
+            name for name, value in args.items()
+            if name in self.cascade and not dev.is_default(value, allow_None=False)
+        }
+        meta = args.get('meta', dev.default)
+        if not dev.is_default(meta, allow_None=False):
+            new_meta = {} if meta is None else dev.merge_dicts(self._meta, meta)
+            for k in ('charge', 'spin', 'charges', 'formal_charges'):
+                a, b = self._meta.get(k), new_meta.get(k)
+                try:
+                    differs = not bool(np.all(a == b))
+                except Exception:
+                    differs = True
+                if differs:
+                    given.add(k)
+        if dev.is_default(checkpoint_id, allow_None=False):
+            ident, changed = cache.identifier, cache.changed | given
+        else:
+            ident, changed = checkpoint_id, set()
+        if dev.is_default(checkpoint_file, allow_None=False):
+            # only a cache with an identifier is passed on: without one the old behavior (a fresh, empty cache) holds
+            checkpoint_file = cache.source if ident is not None and cache.persistent else None
+        return checkpoint_file, ident, changed
 
     def __del__(self):
         """
@@ -444,16 +536,31 @@ class Molecule(AbstractMolecule):
         """
         return cls(**data)
 
+    def _cached_property(self, name, generator, options=None):
+        """
+        Computes a derived property through the molecule's persistent cache when it has one *and* an
+        identifier (`checkpoint_id`) and `options` can be hashed, and otherwise just computes it.
+        """
+        cache = self.checkpoint
+        if not getattr(cache, 'active', False):
+            return generator()
+        try:
+            dev.fingerprint(options)
+        except Exception:
+            return generator()
+        return cache.cached_eval(name, generator, options=options)
+
     def cached_eval(self,
                     key, generator,
                     *,
                     condition=None,
                     args=(),
-                    kwargs=None):
+                    kwargs=None,
+                    options=None):
         """
         **LLM Docstring**
 
-        Evaluate (and cache, via this molecule's on-disk/in-memory checkpoint) a value under `key`, delegating to `self.checkpoint.cached_eval`.
+        Evaluate (and cache, via this molecule's on-disk/in-memory checkpoint) a value under `key`, delegating to `self.checkpoint.cached_eval`. With a `checkpoint_id` the entry is scoped by that identifier (and `options`); reuse for a changed molecule is the caller's responsibility, since nothing is derived from the geometry.
 
         :param key: the cache key to look up or populate
         :type key: str
@@ -465,6 +572,8 @@ class Molecule(AbstractMolecule):
         :type args: tuple
         :param kwargs: keyword arguments passed to `generator` if it is called
         :type kwargs: dict | None
+        :param options: anything besides the molecule that the value depends on (part of the cache key)
+        :type options: Any
         :return: the cached or newly computed value
         :rtype: Any
         """
@@ -473,7 +582,8 @@ class Molecule(AbstractMolecule):
             generator,
             condition=condition,
             args=args,
-            kwargs=kwargs
+            kwargs=kwargs,
+            options=options
         )
 
     @classmethod
@@ -621,12 +731,12 @@ class Molecule(AbstractMolecule):
         """
         return self.coordinate_choice.prep_internal_spec(spec, relocalize=relocalize, masses=masses)
 
-    @property
+    @cascading_property
     def embedding(self):
         """
         **LLM Docstring**
 
-        Property getter/setter for the molecule's `MolecularEmbedding`. Setting it also resets the cached evaluator and Hamiltonian, since both depend on the embedding.
+        Property getter/setter for the molecule's `MolecularEmbedding`. Setting it also resets everything that depends on the embedding (the cached evaluator, Hamiltonian, ...).
 
         :param e: (setter only) the new embedding
         :type e: MolecularEmbedding
@@ -639,7 +749,7 @@ class Molecule(AbstractMolecule):
         """
         **LLM Docstring**
 
-        Property getter/setter for the molecule's `MolecularEmbedding`. Setting it also resets the cached evaluator and Hamiltonian, since both depend on the embedding.
+        Property getter/setter for the molecule's `MolecularEmbedding`. Setting it also resets everything that depends on the embedding (the cached evaluator, Hamiltonian, ...).
 
         :param e: (setter only) the new embedding
         :type e: MolecularEmbedding
@@ -647,8 +757,6 @@ class Molecule(AbstractMolecule):
         :rtype: MolecularEmbedding
         """
         self._embedding = e
-        self.evaluator = None
-        self.hamiltonian = None
 
     @property
     def coordinate_choice(self):
@@ -680,36 +788,18 @@ class Molecule(AbstractMolecule):
         if embedding is None: embedding = self.embedding
         if dev.is_default(normal_modes, allow_None=False): normal_modes = self._normal_modes
         return MolecularEvaluator(embedding, normal_modes)
-    @property
+    @derived_property
     def evaluator(self):
         """
-        **LLM Docstring**
+        The `MolecularEvaluator` used for energy/derivative calculations, built via `get_evaluator` the first time it's needed and
+        rebuilt after anything it depends on changes (the embedding, normal modes, geometry). Assigning one seeds it.
 
-        Property getter/setter for the `MolecularEvaluator` used for energy/derivative calculations. The getter lazily builds one via `get_evaluator` the first time it's needed.
-
-        :param e: (setter only) the new evaluator
-        :type e: MolecularEvaluator
-        :return: (getter) the cached (or newly built) evaluator
+        :return: the cached (or newly built) evaluator
         :rtype: MolecularEvaluator
         """
-        if self._evaluator is None:
-            self._evaluator = self.get_evaluator()
-        return self._evaluator
-    @evaluator.setter
-    def evaluator(self, e):
-        """
-        **LLM Docstring**
-
-        Property getter/setter for the `MolecularEvaluator` used for energy/derivative calculations. The getter lazily builds one via `get_evaluator` the first time it's needed.
-
-        :param e: (setter only) the new evaluator
-        :type e: MolecularEvaluator
-        :return: (getter) the cached (or newly built) evaluator
-        :rtype: MolecularEvaluator
-        """
-        self._evaluator = e
+        return self.get_evaluator()
     #region Base Coords
-    @property
+    @cascading_property
     def coords(self):
         """
         **LLM Docstring**
@@ -735,8 +825,7 @@ class Molecule(AbstractMolecule):
         :rtype: CoordinateSet
         """
         self.embedding.coords = coords
-        self._pg = None  # the cached point group belongs to the old geometry
-    @property
+    @cascading_property
     def masses(self):
         """
         **LLM Docstring**
@@ -763,7 +852,7 @@ class Molecule(AbstractMolecule):
         """
         self._mass = masses
         self.embedding.masses = self.atomic_masses
-    @property
+    @cascading_property
     def internals(self):
         """
         **LLM Docstring**
@@ -774,7 +863,7 @@ class Molecule(AbstractMolecule):
         :rtype: dict | None
         """
         return self.embedding.internals
-    @property
+    @cascading_property
     def charge(self):
         """
         **LLM Docstring**
@@ -800,7 +889,7 @@ class Molecule(AbstractMolecule):
         :rtype: int
         """
         self._meta['charge'] = c
-    @property
+    @cascading_property
     def spin(self):
         """
         **LLM Docstring**
@@ -826,7 +915,7 @@ class Molecule(AbstractMolecule):
         :rtype: Any | None
         """
         self._meta['spin'] = c
-    @property
+    @cascading_property
     def charges(self):
         """
         **LLM Docstring**
@@ -852,7 +941,7 @@ class Molecule(AbstractMolecule):
         :rtype: np.ndarray | None
         """
         self._meta['charges'] = c
-    @property
+    @cascading_property
     def formal_charges(self):
         """
         **LLM Docstring**
@@ -1282,19 +1371,12 @@ class Molecule(AbstractMolecule):
             **internals_opts
         )
 
-    @property
+    @derived_property
     def mode_embedding(self):
         """
-        **LLM Docstring**
-
-        The (cached) `ModeEmbedding` combining this molecule's coordinate embedding with its normal modes, built lazily the first time it's needed.
-
-        :return: the mode embedding
-        :rtype: ModeEmbedding
+        The `ModeEmbedding` of the molecule's embedding and normal modes, rebuilt after either changes.
         """
-        if self._mode_embedding is None:
-            self._mode_embedding = ModeEmbedding(self.embedding, self.normal_modes)
-        return self._mode_embedding
+        return ModeEmbedding(self.embedding, self.normal_modes)
     def get_internals(self, coords=None, *, strip_embedding=True):
         """
         **LLM Docstring**
@@ -1381,7 +1463,7 @@ class Molecule(AbstractMolecule):
     #endregion
 
     #region Properties
-    @property
+    @cascading_property
     def dipole_surface(self):
         """
         :return:
@@ -1464,7 +1546,8 @@ class Molecule(AbstractMolecule):
                         and isinstance(self.dipole_evaluator, str)
                         and evaluator == self.dipole_evaluator
                 ) or evaluator is self.dipole_evaluator:
-                    self.dipole_derivatives = dipole_derivatives
+                    with self.cascade.muted():  # computed from the current state, not a change to it
+                        self.dipole_derivatives = dipole_derivatives
         o = 0 if include_constant_term else 1
         if dipole_derivatives is None:
             return dipole_derivatives
@@ -1576,36 +1659,18 @@ class Molecule(AbstractMolecule):
                                     dipole_derivatives=dipole_derivatives,
                                     **etc
                                     )
-    @property
+    @derived_property
     def hamiltonian(self):
         """
-        **LLM Docstring**
+        The `MolecularHamiltonian`, built via `get_hamiltonian` the first time it's needed and rebuilt after anything it depends
+        on changes (the embedding, normal modes, potential/dipole derivatives, geometry). Assigning one seeds it.
 
-        Property getter/setter for the `MolecularHamiltonian`. The getter lazily builds one via `get_hamiltonian` the first time it's needed.
-
-        :param e: (setter only) the new Hamiltonian
-        :type e: MolecularHamiltonian
-        :return: (getter) the cached (or newly built) Hamiltonian
+        :return: the cached (or newly built) Hamiltonian
         :rtype: MolecularHamiltonian
         """
-        if self._hamiltonian is None:
-            self._hamiltonian = self.get_hamiltonian()
-        return self._hamiltonian
-    @hamiltonian.setter
-    def hamiltonian(self, e):
-        """
-        **LLM Docstring**
+        return self.get_hamiltonian()
 
-        Property getter/setter for the `MolecularHamiltonian`. The getter lazily builds one via `get_hamiltonian` the first time it's needed.
-
-        :param e: (setter only) the new Hamiltonian
-        :type e: MolecularHamiltonian
-        :return: (getter) the cached (or newly built) Hamiltonian
-        :rtype: MolecularHamiltonian
-        """
-        self._hamiltonian = e
-
-    @property
+    @cascading_property
     def potential_surface(self):
         """
         :return:
@@ -1700,7 +1765,8 @@ class Molecule(AbstractMolecule):
                         and isinstance(self.energy_evaluator, str)
                         and evaluator == self.energy_evaluator
                 ) or evaluator is self.energy_evaluator:
-                    self.potential_derivatives = potential_derivatives
+                    with self.cascade.muted():  # computed from the current state, not a change to it
+                        self.potential_derivatives = potential_derivatives
         if order is None or potential_derivatives is None:
             return potential_derivatives
         else:
@@ -1734,7 +1800,7 @@ class Molecule(AbstractMolecule):
             order
         )
 
-    @property
+    @cascading_property
     def normal_modes(self):
         """
         :return:
@@ -1783,6 +1849,18 @@ class Molecule(AbstractMolecule):
         :rtype: NormalModes
         """
         from ..Modes import NormalModes
+        return self._cached_property(
+            'normal_modes',
+            lambda: self._compute_normal_modes(masses, potential_derivatives, use_internals, project_transrot, opts),
+            options=dict(masses=masses,
+                         # the molecule's own derivatives are not covered by its identifier
+                         potential_derivatives=self.potential_derivatives if potential_derivatives is None else potential_derivatives,
+                         use_internals=use_internals,
+                         project_transrot=project_transrot,
+                         opts=opts)
+        )
+    def _compute_normal_modes(self, masses, potential_derivatives, use_internals, project_transrot, opts):
+        from ..Modes import NormalModes
         return NormalModes.from_molecule(self,
                                          masses=masses,
                                          potential_derivatives=potential_derivatives,
@@ -1812,7 +1890,7 @@ class Molecule(AbstractMolecule):
                                                masses=masses,
                                                potential_derivatives=potential_derivatives,
                                                **opts)
-    @property
+    @cascading_property
     def metadata(self):
         """
         **LLM Docstring**
@@ -1998,7 +2076,7 @@ class Molecule(AbstractMolecule):
     @_bonds.setter
     def _bonds(self, b):
         self.topology._bonds = b
-    @property
+    @cascading_property
     def guess_bonds(self):
         """
         Whether the bonding arrangement should be guessed when needed; stored on
@@ -2011,7 +2089,7 @@ class Molecule(AbstractMolecule):
     @guess_bonds.setter
     def guess_bonds(self, g):
         self.topology.guess_bonds = g
-    @property
+    @cascading_property
     def bonds(self):
         """
         **LLM Docstring**
@@ -2099,7 +2177,7 @@ class Molecule(AbstractMolecule):
             return "Unnamed"
         else:
             return self._name
-    @property
+    @cascading_property
     def source_file(self):
         """
         **LLM Docstring**
@@ -2789,21 +2867,19 @@ class Molecule(AbstractMolecule):
         else:
             return None
 
-    @property
+    @derived_property(settable=False)
     def energy(self):
         """
-        **LLM Docstring**
-
-        The molecule's total energy: loaded from its source file if possible, else computed via `calculate_energy` if an energy evaluator is available, and cached thereafter.
+        The molecule's total energy: loaded from its source file if possible, else computed via `calculate_energy` if an energy
+        evaluator is available, and cached until its inputs (geometry, charge, spin, energy evaluator) change.
 
         :return: the total energy, or `None` if neither a source-file energy nor an evaluator is available
         :rtype: float | None
         """
-        if self._energy is None:
-            self._energy = self._load_energy()
-            if self._energy is None and self.energy_evaluator is not None:
-                self._energy = self.calculate_energy()
-        return self._energy
+        energy = self._load_energy()
+        if energy is None and self.energy_evaluator is not None:
+            energy = self.calculate_energy()
+        return energy
 
     default_energy_evalutor = 'rdkit'
     def get_energy_evaluator(self, evaluator=None, **opts):
@@ -2890,6 +2966,18 @@ class Molecule(AbstractMolecule):
         :return: the energy, or the full energy/derivative expansion
         :rtype: float | list
         """
+        if coords is None: # this molecule's own geometry, so a persistent cache can serve it
+            spec = evaluator
+            if spec is None: spec = self.energy_evaluator
+            if spec is None: spec = self.default_energy_evalutor
+            return self._cached_property(
+                'energy',
+                lambda: self._calculate_energy(None, evaluator, order, opts),
+                # an evaluator given by name is part of the call; an evaluator object is covered by the identifier
+                options=dict(evaluator=spec if isinstance(spec, str) else None, order=order, opts=opts)
+            )
+        return self._calculate_energy(coords, evaluator, order, opts)
+    def _calculate_energy(self, coords, evaluator, order, opts):
         evaluator = self.get_energy_evaluator(evaluator, **opts)
         smol = order is None
         if smol: order = 0
@@ -3220,6 +3308,14 @@ class Molecule(AbstractMolecule):
         :return: the dipole, or the full dipole/derivative expansion
         :rtype: np.ndarray | list
         """
+        spec = evaluator
+        if spec is None: spec = self.dipole_evaluator
+        return self._cached_property(
+            'dipole',
+            lambda: self._calculate_dipole(evaluator, order, opts),
+            options=dict(evaluator=spec if isinstance(spec, str) else None, order=order, opts=opts)
+        )
+    def _calculate_dipole(self, evaluator, order, opts):
         evaluator = self.get_dipole_evaluator(evaluator, **opts)
         smol = order is None
         if smol: order = 0
@@ -3636,22 +3732,16 @@ class Molecule(AbstractMolecule):
         """
         **LLM Docstring**
 
-        Resolve the display radius for an atom-data record: the icon radius (falling back to the van der Waals radius if too small), or an explicitly named radius field.
+        Resolve the display radius from IconRadius, or an explicitly named radius field.
 
         :param atom_data: the atom-data record to get a radius for
         :type atom_data: dict
-        :param radius_type: the specific radius field to use; if `None`, uses the icon radius with a van der Waals fallback
+        :param radius_type: the specific radius field to use; if `None`, uses IconRadius directly
         :type radius_type: str | None
         :return: the resolved atomic radius
         :rtype: float
         """
-        if radius_type is None:
-            rad = atom_data["IconRadius"]
-            if rad < .8:
-                rad = atom_data["VanDerWaalsRadius"]
-        else:
-            rad = atom_data[radius_type]
-        return rad
+        return atom_data["IconRadius" if radius_type is None else radius_type]
     def plot_molecule_function(self,
                                function,
                                *,
@@ -4028,34 +4118,13 @@ class Molecule(AbstractMolecule):
             return pg_id, pg
         return pg
 
-    @property
+    @derived_property(slot='_pg')
     def point_group(self) -> symm.PointGroup:
         """
-        **LLM Docstring**
-
-        Property getter/setter for the molecule's (cached) point group. The getter computes it lazily via `get_point_group` the first time it's needed.
-
-        :param point_group: (setter only) the new point group to cache
-        :type point_group: symm.PointGroup
-        :return: (getter) the cached (or newly computed) point group
-        :rtype: symm.PointGroup
+        The molecule's point group, computed via `get_point_group` (through the persistent cache, if one is active)
+        the first time it's needed and recomputed after its atoms, coordinates or masses change.
         """
-        if self._pg is None:
-            self._pg = self.get_point_group()
-        return self._pg
-    @point_group.setter
-    def point_group(self, point_group):
-        """
-        **LLM Docstring**
-
-        Property getter/setter for the molecule's (cached) point group. The getter computes it lazily via `get_point_group` the first time it's needed.
-
-        :param point_group: (setter only) the new point group to cache
-        :type point_group: symm.PointGroup
-        :return: (getter) the cached (or newly computed) point group
-        :rtype: symm.PointGroup
-        """
-        self._pg = point_group
+        return self._cached_property('point_group', self.get_point_group)
 
     # def get_standard_orientation(self,
     #                              coords=None, masses=None,

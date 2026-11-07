@@ -64,7 +64,7 @@ def _atomic_pickle(path, value):
 _file_hash = file_hash
 
 # Evaluation caches and handles that are not part of an expression's definition.
-_RUNTIME_ATTRS = ('logger', 'checkpoint', '_changes', '_exprs', '_combined', '_eager',
+_RUNTIME_ATTRS = ('logger', 'checkpoint', '_cascade_manager', '_changes', '_exprs', '_combined', '_eager',
                   '_op_maps', '_conditional_stacks', '_cache', '_grouped_terms')
 
 
@@ -169,7 +169,7 @@ class _OccupationProjection:
                         if any(getattr(row[0],'_state_projection_factor',False) or row[0] not in {0,1} for row in energy):
                             raise ValueError('occupation projection requires occupation-independent harmonic denominators')
                         canonical,scale = canonical_condition_key(energy)
-                        if not canonical:raise ValueError('invalid harmonic denominator')
+                        if canonical is None:raise ValueError('invalid harmonic denominator')
                         rows[canonical] = rows.get(canonical,np.longdouble(0))+scale*self.difference(numerator,rank)
                     rows = {energy:self.constant(weight,rank) for energy,weight in rows.items() if weight!=0}
                     return value.mutate(rows,reduced=True) if rows else None
@@ -242,11 +242,18 @@ class AnalyticExpressionStore:
 
     def compile(self, expression, *, context=None, active_operators=None, projection=None,
                 max_terms=32768, max_bytes=64*1024**2, cache_size=100000,
-                cache_bytes=512*1024**2, node_cache_size=8192, mode_dimension=None, progress=None):
+                cache_bytes=512*1024**2, node_cache_size=8192, mode_dimension=None, progress=None,
+                coalesce_combine_nodes=True):
+        """Compile native expressions; early DAG combine-node coalescing is on by default.
+
+        Set coalesce_combine_nodes=False (also accepted through evaluator
+        compilation_options) to disable that optimization for diagnostics or
+        benchmarking. Bounded final-part accumulation remains active.
+        """
         return self.compile_factory(lambda:expression, context=expression if context is None else context,
             active_operators=active_operators,projection=projection,max_terms=max_terms,max_bytes=max_bytes,
             cache_size=cache_size,cache_bytes=cache_bytes,node_cache_size=node_cache_size,
-            mode_dimension=mode_dimension,progress=progress)
+            mode_dimension=mode_dimension,progress=progress,coalesce_combine_nodes=coalesce_combine_nodes)
 
     def compile_factory(self, factory, **options):
         """Compile or reuse an entry, accounting separately for lookup and actual construction."""
@@ -269,12 +276,17 @@ class AnalyticExpressionStore:
 
     def _compile_factory(self, factory, *, context, active_operators=None, projection=None,
                          max_terms=32768,max_bytes=64*1024**2,cache_size=100000,
-                         cache_bytes=512*1024**2,node_cache_size=8192,mode_dimension=None,progress=None):
+                          cache_bytes=512*1024**2,node_cache_size=8192,mode_dimension=None,progress=None,
+                          coalesce_combine_nodes=True):
         from .Analytic import (SqrtChangePoly,PTTensorCoeffProductDAG,PTTensorCoeffProductSum,
             PTTensorCoeffProductDAGEvaluationPlan,_BoundedEvaluationCache,_BalancedPolynomialAccumulator)
         from .BoundedStream import StreamBudget
+        if not isinstance(coalesce_combine_nodes, (bool, np.bool_)):
+            raise TypeError('coalesce_combine_nodes must be boolean')
+        coalescing_enabled = bool(coalesce_combine_nodes)
         options = dict(max_terms=max_terms,max_bytes=max_bytes,cache_size=cache_size,
-                       cache_bytes=cache_bytes,node_cache_size=node_cache_size,mode_dimension=mode_dimension)
+                       cache_bytes=cache_bytes,node_cache_size=node_cache_size,mode_dimension=mode_dimension,
+                       coalesce_combine_nodes=coalescing_enabled)
         if max_terms<1 or (max_bytes is not None and max_bytes<1):raise ValueError('invalid compilation budget')
         signature = self._signature(context,active_operators,projection,options)
         directory = None if self.folder is None else self.folder/signature
@@ -313,7 +325,7 @@ class AnalyticExpressionStore:
             maximum=min(maximum,mode_dimension)
         if isinstance(poly,PTTensorCoeffProductDAG):
             class CompilationPlan(PTTensorCoeffProductDAGEvaluationPlan):
-                coalesce_combine_nodes = True
+                coalesce_combine_nodes = coalescing_enabled
             plan = CompilationPlan(poly,
                 cache=_BoundedEvaluationCache(cache_size,cache_bytes),max_cached_terms=node_cache_size,
                 max_mode_indices=maximum)

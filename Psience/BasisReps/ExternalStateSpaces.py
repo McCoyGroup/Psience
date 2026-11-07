@@ -3,8 +3,9 @@ from pathlib import Path
 import itertools, tempfile, weakref
 import numpy as np
 from McUtils.Numputils import external_unique, SparseArray
-from McUtils.Combinatorics import SymmetricGroupGenerator
-from .StateSpaces import BasisStateSpace, SelectionRuleStateSpace, BraKetSpace
+from McUtils.Combinatorics import SymmetricGroupGenerator, UniquePermutations
+from .StateIndexers import PermutationStateIndexer
+from .StateSpaces import BasisStateSpace, BasisStateSpaceView, SelectionRuleStateSpace, BraKetSpace
 
 __all__ = ['StateSpaceDiskStore', 'DiskBasisStateSpace', 'DiskSelectionRuleStateSpace',
            'QuantaStateSpace']
@@ -20,9 +21,12 @@ def _cleanup_store(mappings, temporary):
 
 
 class StateSpaceDiskStore:
-    def __init__(self, directory=None, block_size=65536):
+    def __init__(self, directory=None, block_size=65536, *, memory_limit=None):
         if block_size < 1:
             raise ValueError('state_space_block_size must be positive')
+        if memory_limit is not None and (not np.isfinite(memory_limit) or memory_limit<0):
+            raise ValueError('state-space memory_limit must be nonnegative bytes or None')
+        self.memory_limit=memory_limit
         if directory is not None:
             Path(directory).mkdir(parents=True, exist_ok=True)
         self._temporary = tempfile.TemporaryDirectory(prefix='coupled_states_', dir=directory)
@@ -44,14 +48,29 @@ class StateSpaceDiskStore:
         return array
 
     def array(self, label, dtype, shape):
+        # One bounded work chunk does not need a live file/mapping descriptor.
+        if np.prod(shape,dtype=object) <= self.block_size:
+            return np.zeros(shape,dtype=dtype)
         return self.own(np.lib.format.open_memmap(self.path(label), mode='w+', dtype=dtype, shape=shape))
 
     def unique(self, arrays, width=1, sort=True):
         def chunks():
             yield np.empty((0,) if width == 1 else (0, width), dtype=np.int64)
             yield from arrays
-        return self.own(external_unique(chunks(), sort=sort, directory=self.directory,
-                                       chunk_size=self.block_size, output_file=self.path('unique')))
+        iterator=iter(chunks());head=[];count=0
+        for block in iterator:
+            head.append(block);count+=len(block)
+            if count>self.block_size:break
+        output=self.path('unique') if count>self.block_size else None
+        result=external_unique(itertools.chain(head,iterator),sort=sort,directory=self.directory,
+                               chunk_size=self.block_size,output_file=output)
+        if isinstance(result,np.memmap) and len(result)<=self.block_size:
+            # This result has not escaped: copy it before closing its sole map.
+            resident=np.array(result,copy=True)
+            result._mmap.close()
+            Path(result.filename).unlink()
+            result=resident
+        return self.own(result)
 
     def frontier(self, basis, arrays, sort=True):
         return DiskBasisStateSpace(basis, self.unique(arrays,sort=sort), self,
@@ -64,6 +83,44 @@ class StateSpaceDiskStore:
             return space
         return self.frontier(space.basis, index_blocks(space, self.block_size))
 
+    def _union_views(self, spaces, sort):
+        """Union common-parent CSR selections without copying every rank row."""
+        parent=spaces[0].index_parent
+        if getattr(parent,'store',None) is not self or not parent.is_unique():return None
+        if len(spaces)==1:
+            first=self.coerce(spaces[0])
+            return first.take_unique(sort=True) if sort else first
+        # One byte per already-existing parent position, never an adjacency
+        # matrix or excitation array. Use it only within the configured state
+        # memory budget and when it is no larger than the input index payload.
+        size=len(parent)
+        payload=sum(space.index_positions.nbytes for space in spaces)
+        if size>payload or (self.memory_limit is not None and size>self.memory_limit):return None
+        seen=np.zeros(size,dtype=bool)
+        count=sum(len(space) for space in spaces)
+        ranks=self.array('union_view_ranks',np.int64,(min(size,count),))
+        # coerce() sorts the first resident input even for sort=False. Keep
+        # that legacy ordering instead of emitting the first CSR row as-is.
+        first=self.coerce(spaces[0]);offset=0
+        for block in first.iter_index_blocks():
+            ranks[offset:offset+len(block)]=block;offset+=len(block)
+        for positions in spaces[0].iter_position_blocks(self.block_size):seen[positions]=True
+        for space in spaces[1:]:
+            for positions in space.iter_position_blocks(self.block_size):
+                if space._view_unique is not True:
+                    _,first_positions=np.unique(positions,return_index=True)
+                    positions=positions[np.sort(first_positions)]
+                new=positions[~seen[positions]]
+                seen[new]=True
+                values=parent.indices[new]
+                if values.dtype.kind=='u' and len(values) and values.max()>np.iinfo(np.int64).max:
+                    raise OverflowError('disk state ranks must fit signed int64')
+                ranks[offset:offset+len(new)]=values
+                offset+=len(new)
+        result=DiskBasisStateSpace(parent.basis,ranks[:offset],self,canonical=False,unique=True)
+        return result.take_unique(sort=True) if sort else result
+
+
     def union_spaces(self, spaces, sort=False):
         """Union a stream of frontiers in one bounded stable/sorted pass.
 
@@ -75,6 +132,18 @@ class StateSpaceDiskStore:
         first = next(spaces, sentinel)
         if first is sentinel:
             return None
+        if isinstance(first,BasisStateSpaceView) and first.index_parent is not None:
+            views=[first];parent=first.index_parent
+            for space in spaces:
+                if not isinstance(space,BasisStateSpaceView) or space.index_parent is not parent:
+                    spaces=itertools.chain(views,(space,),spaces)
+                    break
+                views.append(space)
+            else:
+                result=self._union_views(views,sort)
+                if result is not None:return result
+                spaces=iter(views)
+            first=next(spaces)
         first = self.coerce(first)
         second = next(spaces, sentinel)
         if second is sentinel:
@@ -93,7 +162,9 @@ class StateSpaceDiskStore:
 
 
 def index_blocks(space, size):
-    if hasattr(space, 'iter_index_blocks'):
+    if isinstance(space, QuantaStateSpace):
+        yield from space.iter_index_blocks(size)
+    elif hasattr(space, 'iter_index_blocks'):
         for values in space.iter_index_blocks():
             for start in range(0, len(values), size):
                 yield values[start:start + size]
@@ -119,6 +190,19 @@ class QuantaStateSpace(BasisStateSpace):
         if not hasattr(self.basis.indexer,'symmetric_group'):
             return np.sum(self.basis.unravel_state_inds(values),axis=1) == self.quanta
         return (values >= self.start) & (values < self.stop)
+
+    def _contains(self, values):
+        return self.contains_indices(values)
+
+    @property
+    def quanta_bounds(self):
+        return self.quanta, self.quanta
+
+    def iter_index_blocks(self, block_size=65536):
+        if type(self.basis.indexer) is not PermutationStateIndexer:
+            raise ValueError('implicit quanta index blocks require the native graded indexer')
+        for start in range(self.start, self.stop, block_size):
+            yield np.arange(start, min(start+block_size, self.stop), dtype=np.int64)
 
     @property
     def indices(self):
@@ -165,9 +249,14 @@ class DiskBasisStateSpace(BasisStateSpace):
         for start in range(0, len(self), self.store.block_size):
             yield self._indices[start:start + self.store.block_size]
 
-    def iter_excitations(self):
+    def iter_excitations(self, block_size=None, *, sparse=False):
+        size = self.store.block_size if block_size is None else int(block_size)
+        if size < 1:
+            raise ValueError("block_size must be positive")
         for values in self.iter_index_blocks():
-            yield self.basis.unravel_state_inds(values)
+            for start in range(0,len(values),size):
+                block = self.basis.unravel_state_inds(values[start:start+size])
+                yield SparseArray.from_data(block) if sparse else block
 
     def quanta_for_positions(self, positions):
         result = self.store.array('quanta',np.int64,(len(positions),))
@@ -347,6 +436,8 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
         self.recipes = ([(source, rules, filter_space, target_dimensions, (), ())]
                         if recipes is None else recipes)
         self._frontier = None
+        self._frontier_components = None
+        self._frontier_block_size = None
 
     @property
     def basis(self):
@@ -401,10 +492,12 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
         Explicit owned polyad records keep their original ownership handling.
         """
         size = self.store.block_size
-        outer_filter = None if filter_space is None else self.store.coerce(filter_space)
+        outer_filter = (filter_space if isinstance(filter_space, QuantaStateSpace) else
+                        None if filter_space is None else self.store.coerce(filter_space))
         for source, rules, filtered, dimensions, transforms, excluded in self.recipes:
             source = self.store.coerce(source)
-            filtered = None if filtered is None else self.store.coerce(filtered)
+            filtered = (filtered if isinstance(filtered, QuantaStateSpace) else
+                        None if filtered is None else self.store.coerce(filtered))
             filters = []
             # A generic postfilter can depend on the contents of its input
             # block. Preserve its original blocks and apply the outer filter
@@ -441,7 +534,7 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
                 targets = source if filtered is None else filtered
                 for rank_block in source.iter_index_blocks():
                     for rank in rank_block:
-                        for target_block in targets.iter_index_blocks():
+                        for target_block in index_blocks(targets, size):
                             selected = target_block
                             if excluded:
                                 delta = self.basis.unravel_state_inds(selected)-self.basis.unravel_state_inds(np.array([rank]))
@@ -461,6 +554,7 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
             # Sorted, unique sources have an existing bounded membership lookup.
             # Reversal must not create a large extra noncanonical lookup table.
             reverse = (not transforms and targets is not None and len(targets) < len(source)
+                       and not isinstance(targets, QuantaStateSpace)
                        and source.is_sorted() and source.is_unique() and targets.is_unique()
                        and source.quanta_bounds is not None)
             seeds, membership = (targets, source) if reverse else (source, targets)
@@ -475,7 +569,7 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
             if bounds is not None and bounds[0] > bounds[1]:
                 continue
             rule_sums = np.array([sum(rule) for rule in active_rules], dtype=np.int64)
-            for rank_block in seeds.iter_index_blocks():
+            for rank_block in index_blocks(seeds, size):
                 for start in range(0, len(rank_block), min(64, size)):
                     ranks = rank_block[start:start+min(64, size)]
                     if reverse:
@@ -498,8 +592,27 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
                                                 tuple(rule for rule, keep in zip(active_rules, allowed) if keep)))
                     for selected, selected_rules in batches:
                         exc = original[selected] if dimensions is None else original[selected][:, dimensions]
-                        group = SymmetricGroupGenerator(exc.shape[1])
-                        for rows, outputs in group.iter_permutation_rule_direct_sum(exc, selected_rules, block_size=size):
+                        index_group = (self.basis.indexer.symmetric_group
+                            if type(self.basis.indexer) is PermutationStateIndexer else None)
+                        index_only = (dimensions is None and index_group is not None
+                                      and len(excluded)*len(original) <= size)
+                        group = index_group if index_only else SymmetricGroupGenerator(exc.shape[1])
+                        forbidden = []
+                        if index_only:
+                            # Same directed exclusions, encoded once per source block.
+                            # Cache size is bounded by the existing output block budget.
+                            for rule in excluded:
+                                vectors = original-rule if reverse else original+rule
+                                possible = np.all(vectors >= 0,axis=1)
+                                values = np.full(len(original),-1,dtype=np.int64)
+                                if np.any(possible):
+                                    ids = self.basis.ravel_state_inds(vectors[possible])
+                                    within = ids <= np.iinfo(np.int64).max
+                                    positions = np.flatnonzero(possible)
+                                    values[positions[within]] = ids[within]
+                                forbidden.append(values)
+                        for rows, outputs in group.iter_permutation_rule_direct_sum(
+                                exc,selected_rules,block_size=size,return_indices=index_only):
                             rows = selected[rows]
                             self.store.metrics['peak_candidate_pairs'] = max(self.store.metrics['peak_candidate_pairs'], len(outputs))
                             self.store.metrics['generated_pairs'] += len(outputs)
@@ -508,14 +621,16 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
                                 restored[:, dimensions] = outputs
                                 outputs = restored
                             valid = np.ones(len(outputs), dtype=bool)
-                            if excluded:
+                            if excluded and not index_only:
                                 delta = original[rows]-outputs if reverse else outputs-original[rows]
                                 for rule in excluded:
                                     valid &= ~np.all(delta == rule, axis=1)
-                            generated = self.basis.ravel_state_inds(outputs)
+                            generated = outputs if index_only else self.basis.ravel_state_inds(outputs)
                             if np.any(generated > np.iinfo(np.int64).max):
                                 raise OverflowError('disk state ranks must fit signed int64')
                             generated = generated.astype(np.int64, copy=False)
+                            for values in forbidden:
+                                valid &= generated != values[rows]
                             bras, kets = (generated, ranks[rows]) if reverse else (ranks[rows], generated)
                             if membership is not None:
                                 valid &= membership._contains(generated)
@@ -532,13 +647,231 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
                                 yield np.column_stack((bras[valid], kets[valid]))
 
 
+    def _get_structured_frontier(self):
+        """Commute only declared pointwise predicates with node-set union."""
+        grouped = {}
+        for source,rules,filtered,dimensions,transforms,excluded in self.recipes:
+            descriptors = []
+            for function in transforms:
+                owner = getattr(function,'__self__',None)
+                describe = getattr(owner,'get_permutation_constraints',None)
+                descriptor = None if describe is None else describe()
+                if descriptor is None:
+                    return None
+                descriptors.append(descriptor)
+            constraints = UniquePermutations.prepare_constraints(descriptors,self.basis.ndim)
+            key = constraints['signature']
+            if key not in grouped:
+                grouped[key] = (constraints,[])
+            grouped[key][1].append((source,rules,filtered,dimensions,(),excluded))
+        store = self.store
+        def blocks():
+            yield from self._base_space.iter_index_blocks()
+            for constraints,recipes in grouped.values():
+                raw = type(self)(self._base_space,recipes=recipes)
+                # Class predicates reject impossible target shapes before
+                # table emission. Mode-labelled predicates remain a safe
+                # outer bound here and are checked by the prefix traversal.
+                frontier = raw._get_class_frontier(class_constraints=constraints)
+                if frontier is None:
+                    frontier = raw.to_single()
+                group = self.basis.indexer.symmetric_group
+                statistics = {}
+                yield from group.iter_filtered_indices(frontier.indices,constraints,
+                                                       store.block_size,statistics=statistics)
+                for name,value in statistics.items():
+                    key = 'constraint_'+name
+                    store.metrics[key] = store.metrics.get(key,0)+value
+        return store.frontier(self.basis,blocks())
+
+
+    def _get_class_frontier(self, class_constraints=None):
+        """Evaluate set-valued rule propagation over complete source orbits.
+
+        Edge recipes are preserved. Explicit target membership filters can be
+        intersected with class intervals; arbitrary block callbacks and
+        mode-specific edge restrictions retain the original pair evaluator.
+        """
+        if type(self.basis.indexer) is not PermutationStateIndexer:
+            return None
+        if any(t for s,r,f,d,t,e in self.recipes):
+            return self._get_structured_frontier()
+        if any(r is None or isinstance(r, _StoredCouplings) or d is not None or t or e
+               for s, r, f, d, t, e in self.recipes):
+            return None
+        if any(f is not None and not isinstance(f, (BasisStateSpace, QuantaStateSpace))
+               for s, r, f, d, t, e in self.recipes):
+            return None
+        store, group = self.store, self.basis.indexer.symmetric_group
+        groups, sources, filters = {}, {}, {}
+        # A source may be split across recipes. Aggregate support separately
+        # for each rule and the SAME target restriction, never a cross product
+        # between independent unions of sources and rules.
+        for source, rules, filtered, dimensions, transforms, excluded in self.recipes:
+            identity = id(source)
+            if identity not in sources:
+                canonical = store.coerce(source).take_unique(sort=True)
+                if any(not np.all(self._base_space._contains(block))
+                       for block in canonical.iter_index_blocks()):
+                    return None  # accepted bras outside the base need edge ownership
+                sources[identity] = canonical
+            key = (('quanta', filtered.quanta) if isinstance(filtered, QuantaStateSpace)
+                   else ('space', id(filtered)))
+            filters[key] = filtered
+            for rule in {tuple(sorted(int(c) for c in r if c)) for r in rules}:
+                if len(rule) <= self.basis.ndim:
+                    groups.setdefault((rule, key), {})[identity] = sources[identity]
+
+        def merge(intervals):
+            result = []
+            for low, high in sorted(intervals):
+                low, high = int(low), int(high)
+                if low >= high:
+                    continue
+                if result and low <= result[-1][1]:
+                    result[-1][1] = max(result[-1][1], high)
+                else:
+                    result.append([low, high])
+            return result
+
+        def covered(intervals, coverage):
+            j = 0
+            for low, high in intervals:
+                while j < len(coverage) and coverage[j][1] <= low:
+                    j += 1
+                if j == len(coverage) or coverage[j][0] > low or coverage[j][1] < high:
+                    return False
+            return True
+
+        def class_support(space):
+            return [(tuple(map(int,partition)),low,high,support)
+                    for partition,low,high,support in group.iter_index_classes(space.indices)]
+
+        supports, grouped = {}, []
+        for (rule, key), contribution in groups.items():
+            identities = tuple(sorted(contribution))
+            if identities not in supports:
+                space = store.union_spaces(contribution.values(), sort=True)
+                supports[identities] = class_support(space)
+            grouped.append((rule, filters[key], supports[identities]))
+        base = store.coerce(self._base_space).take_unique(sort=True)
+        complete = [[low, high] for p, low, high, support in class_support(base)
+                    if len(support) == high-low]
+        pending, filtered_complete, target_cache = [], [], {}
+        full_classes = partial_classes = 0
+
+        def target_ranges(partition, rule, filtered):
+            cache_key = partition, rule
+            if cache_key not in target_cache:
+                target_cache[cache_key] = group.get_direct_sum_class_ranges(partition, [rule], constraints=class_constraints).tolist()
+            ranges = target_cache[cache_key]
+            if isinstance(filtered, QuantaStateSpace):
+                return [[max(low, filtered.start), min(high, filtered.stop)] for low, high in ranges
+                        if max(low, filtered.start) < min(high, filtered.stop)]
+            return ranges
+
+        for rule, filtered, classes in grouped:
+            for partition, low, high, support in classes:
+                ranges = target_ranges(partition, rule, filtered)
+                if len(support) == high-low:
+                    full_classes += 1
+                    if filtered is None or isinstance(filtered, QuantaStateSpace):
+                        complete.extend(ranges)
+                    else:
+                        filtered_complete.append((ranges, filtered))
+                else:
+                    partial_classes += 1
+                    pending.append((ranges, support, rule, filtered))
+        if not full_classes:
+            return None
+        complete = merge(complete)
+        pending = [item for item in pending if not covered(item[0], complete)]
+
+        def in_ranges(values, ranges):
+            if not ranges:
+                return np.zeros(len(values), dtype=bool)
+            intervals = np.asarray(ranges, dtype=np.int64)
+            positions = np.searchsorted(intervals[:, 0], values, side='right')-1
+            return (positions >= 0) & (values < intervals[np.maximum(positions, 0), 1])
+
+        def ranges_contain(values):
+            return in_ranges(values, complete)
+
+        base_covered = all(np.all(ranges_contain(block)) for block in base.iter_index_blocks())
+        store.metrics['class_frontier_queries'] = store.metrics.get('class_frontier_queries', 0)+1
+        store.metrics['class_complete_sources'] = store.metrics.get('class_complete_sources', 0)+full_classes
+        store.metrics['class_partial_sources'] = store.metrics.get('class_partial_sources', 0)+partial_classes
+        store.metrics['class_pending_sources'] = store.metrics.get('class_pending_sources', 0)+len(pending)
+        store.metrics['class_output_intervals'] = store.metrics.get('class_output_intervals', 0)+len(complete)
+        if not pending and not filtered_complete and base_covered:
+            count = sum(high-low for low, high in complete)
+            values = store.array('class_frontier', np.int64, (count,))
+            position = 0
+            for low, high in complete:
+                for start in range(low, high, store.block_size):
+                    stop = min(start+store.block_size, high)
+                    values[position:position+stop-start] = np.arange(start, stop, dtype=np.int64)
+                    position += stop-start
+            result = DiskBasisStateSpace(self.basis, values, store, canonical=True, unique=True)
+        else:
+            def blocks():
+                yield from base.iter_index_blocks()
+                for low, high in complete:
+                    for start in range(low, high, store.block_size):
+                        yield np.arange(start, min(start+store.block_size, high), dtype=np.int64)
+                for ranges, filtered in filtered_complete:
+                    for values in index_blocks(filtered, store.block_size):
+                        yield values[in_ranges(values, ranges) & ~ranges_contain(values)]
+                for ranges, support, rule, filtered in pending:
+                    selected = DiskBasisStateSpace(self.basis, support, store, canonical=True, unique=True)
+                    # Native quanta filters are handled by the class bounds;
+                    # use the same membership rule on each partial output.
+                    graph = type(self)(selected, [rule], filter_space=None if isinstance(filtered, QuantaStateSpace) else filtered)
+                    for pairs in graph.iter_pair_blocks():
+                        values = pairs[:, 1]
+                        mask = in_ranges(values, ranges) & ~ranges_contain(values)
+                        yield values[mask]
+            result = store.frontier(self.basis, blocks())
+        return result
+
+
+    def _get_frontier_components(self, store):
+        # Block-dependent postfilters must see the same store/coercion and
+        # block boundaries as the computation that produced the cached nodes.
+        if self.store is store and self._frontier_block_size == store.block_size:
+            if self._frontier is not None:
+                return ((self._frontier, None),)
+            return self._frontier_components
+        return None
+
     def to_single(self, *args, **kwargs):
         if self._frontier is None:
+            self._frontier = self._get_class_frontier()
+            if self._frontier is not None:
+                self._frontier_block_size = self.store.block_size
+                self._frontier_components = None
+                return self._frontier
             def ranks():
                 yield from self._base_space.iter_index_blocks()
-                for pairs in self.iter_pair_blocks():
-                    yield pairs.reshape(-1)
+                components = self._get_frontier_components(self.store)
+                if components is None:
+                    for pairs in self.iter_pair_blocks():
+                        yield pairs.reshape(-1)
+                else:
+                    for frontier, recipes in components:
+                        if frontier is not None:
+                            yield from frontier.iter_index_blocks()
+                        else:
+                            # Evaluate a frozen recipe contribution under this
+                            # union's store and basis, preserving callback blocks.
+                            fragment = type(self)(self._base_space, recipes=recipes)
+                            for pairs in fragment.iter_pair_blocks():
+                                yield pairs.reshape(-1)
             self._frontier = self.store.frontier(self.basis, ranks())
+            self._frontier_block_size = self.store.block_size
+            # Once merged, release intermediate node-map ownership. Coupling
+            # recipes remain intact for subsequent Hamiltonian evaluation.
+            self._frontier_components = None
         return self._frontier
 
     def take_unique(self, *args, **kwargs):
@@ -558,7 +891,19 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
         if self.basis != other.basis:
             raise ValueError('different state-space bases')
         source = self._base_space.union(other._base_space)
-        return type(self)(source, recipes=self.recipes + other.recipes)
+        result = type(self)(source, recipes=self.recipes + other.recipes)
+        left = self._get_frontier_components(self.store)
+        right = other._get_frontier_components(self.store)
+        if left is not None or right is not None:
+            # Snapshots protect a pending contribution from later in-place
+            # recipe edits to its original graph. No edges are evaluated here.
+            if left is None:
+                left = ((None, tuple(self.recipes)),)
+            if right is None:
+                right = ((None, tuple(other.recipes)),)
+            result._frontier_components = left + right
+            result._frontier_block_size = self.store.block_size
+        return result
 
     def intersection(self, other, handle_subspaces=True, **opts):
         if handle_subspaces:
@@ -569,7 +914,9 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
 
     def map(self, function):
         owner = getattr(function,'__self__',None)
-        if type(owner).__name__ == 'ExclusionTestFilter' and not getattr(owner.test,'supports_state_blocks',False):
+        if (type(owner).__name__ == 'ExclusionTestFilter'
+                and owner.get_permutation_constraints() is None
+                and not getattr(owner.test,'supports_state_blocks',False)):
             raise ValueError('custom postfilter tests on disk must declare supports_state_blocks=True')
         recipes = [(s,r,f,d,t + (function,),e) for s,r,f,d,t,e in self.recipes]
         return type(self)(self._base_space, recipes=recipes)
@@ -579,6 +926,7 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
         recipes = [(s,r,f,d,t,e + excluded) for s,r,f,d,t,e in self.recipes]
         if in_place:
             self.recipes,self._frontier = recipes,None
+            self._frontier_components = self._frontier_block_size = None
             return self
         return type(self)(self._base_space, recipes=recipes)
 

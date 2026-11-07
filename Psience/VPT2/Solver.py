@@ -1,6 +1,8 @@
 
 import numpy as np, itertools, time, types
+import scipy.sparse as sp
 from collections import namedtuple
+from functools import partial
 
 from McUtils.Numputils import SparseArray
 import McUtils.Numputils as nput
@@ -30,6 +32,8 @@ class PerturbationTheorySolver:
     given a series of corrections and population of states.
     Supports degenerate and non-degenerate PT.
     """
+
+    default_wavefunction_workspace_bytes = 64*1024**2
 
     def __init__(self,
                  perturbations, states,
@@ -66,10 +70,21 @@ class PerturbationTheorySolver:
                  zero_order_energy_corrections=None,
                  nondeg_hamiltonian_precision=3,
                  memory_constrained=False,
+                 wavefunction_workspace_bytes=None,
                  state_space_storage="auto",
                  state_space_memory_limit=5_000_000_000,
                  state_space_block_size=65536,
                  state_space_scratch=None,
+                 correction_storage="auto",
+                 correction_memory_limit=None,
+                 correction_block_size=None,
+                 correction_block_bytes=64*1024**2,
+                 correction_spill_directory=None,
+                 correction_resident_bytes=None,
+                 correction_spill_bytes=None,
+                 correction_spill_segment_bytes=None,
+                 resonance_memory_constrained=True,
+                 resonance_block_size=None,
                  hamiltonian_storage=None,
                  keep_hamiltonians=None,
                  logger=None,
@@ -144,7 +159,7 @@ class PerturbationTheorySolver:
         self._state_space_store = None
         if state_space_storage == 'external':
             from ..BasisReps.ExternalStateSpaces import StateSpaceDiskStore
-            self._state_space_store = StateSpaceDiskStore(state_space_scratch,state_space_block_size)
+            self._state_space_store = StateSpaceDiskStore(state_space_scratch,state_space_block_size,memory_limit=state_space_memory_limit)
         self._reps = None
         self.order = order
         self.state_space_iterations = state_space_iterations
@@ -247,8 +262,31 @@ class PerturbationTheorySolver:
 
         self.state_space_storage = state_space_storage
         self.state_space_scratch = state_space_scratch
+        self.correction_storage = correction_storage
+        self.correction_block_bytes = correction_block_bytes
+        self.correction_spill_directory = correction_spill_directory
+        self.correction_resident_bytes = correction_resident_bytes
+        self.correction_spill_bytes = correction_spill_bytes
+        self.correction_spill_segment_bytes = correction_spill_segment_bytes
+        if correction_spill_bytes is not None and correction_storage != 'compact':
+            raise ValueError('Correction spill requires explicit correction_storage="compact"')
+        self.correction_memory_limit = correction_memory_limit
+        self.correction_block_size = self.state_space_block_size if correction_block_size is None else correction_block_size
+        self.resonance_memory_constrained = resonance_memory_constrained
+        self.resonance_block_size = self.state_space_block_size if resonance_block_size is None else resonance_block_size
+        if not isinstance(self.resonance_block_size,(int,np.integer)) or self.resonance_block_size < 1:
+            raise ValueError('resonance_block_size must be a positive integer')
+        self._correction_default_memory_limit = state_space_memory_limit
+        PerturbationTheoryCorrections.correction_storage_policy(correction_storage, correction_memory_limit,
+                                  self.correction_block_size, state_space_memory_limit, (0, 0, 0))
         self.hamiltonian_storage = hamiltonian_storage
         self.memory_constrained=memory_constrained
+        if wavefunction_workspace_bytes is None:
+            wavefunction_workspace_bytes = self.default_wavefunction_workspace_bytes
+        if (not isinstance(wavefunction_workspace_bytes, (int, np.integer))
+                or wavefunction_workspace_bytes < 1):
+            raise ValueError('wavefunction_workspace_bytes must be positive integer bytes')
+        self.wavefunction_workspace_bytes = int(wavefunction_workspace_bytes)
         self.keep_hamiltonians=keep_hamiltonians
 
         self._coupled_states = coupled_states
@@ -388,6 +426,8 @@ class PerturbationTheorySolver:
                     solver=self,
                     full_basis=self.full_basis,
                     group_filter=group_filter,
+                    default_group_filter=(partial(self.filter_degenerate_group, block_size=self.resonance_block_size)
+                        if self.resonance_memory_constrained else None),
                     log_groups=True
                 ))
             if len(new_states) > 0:
@@ -1817,6 +1857,446 @@ class PerturbationTheorySolver:
         return test_modes
 
     default_strong_coupling_threshold = .3
+    @staticmethod
+    def _group_matrix_values(matrix, rows, columns):
+        value = matrix[rows, columns]
+        if sp.issparse(value):value = value.toarray()
+        return np.asarray(value).reshape(-1)
+
+    @staticmethod
+    def _group_edge_positions(matrix, predicate):
+        """Row-major positions selected from stored CSR entries, not a dense mask."""
+        keep = np.flatnonzero(predicate(matrix.data))
+        rows = np.searchsorted(matrix.indptr, keep, side='right') - 1
+        return rows, matrix.indices[keep]
+
+    @staticmethod
+    def _threshold_group_graph(matrix, threshold):
+        graph = matrix.copy()
+        graph.data = (graph.data > threshold).astype(int)
+        graph.eliminate_zeros()
+        return graph
+
+    @staticmethod
+    def _set_group_graph_value(matrix, row, column, value):
+        # Retain the legacy integer adjacency assignment semantics.
+        value = np.asarray(value,dtype=matrix.dtype).item()
+        start,stop = matrix.indptr[row:row+2]
+        offset = np.searchsorted(matrix.indices[start:stop],column)
+        if start+offset < stop and matrix.indices[start+offset] == column:
+            matrix.data[start+offset] = value
+            return matrix
+        if value == 0:return matrix
+        return matrix + sp.csr_matrix(([value],([row],[column])),shape=matrix.shape,dtype=matrix.dtype)
+
+    class _GroupCorrectionView:
+        """Compute group weights without making (order, group, all targets) arrays."""
+        def __init__(self, matrices, group_columns, state_rows, block_size):
+            self.matrices = matrices
+            self.columns = np.asarray(group_columns)
+            self.state_rows = np.asarray(state_rows)
+            self.block_size = block_size
+
+        @staticmethod
+        def _take_row(matrix, row, columns):
+            if isinstance(matrix, SparseArray):
+                data = getattr(matrix,'data',None)
+                if sp.issparse(data) and data.format == 'csr' and data.has_canonical_format:
+                    start, stop = data.indptr[row:row+2]
+                    indices, values = data.indices[start:stop], data.data[start:stop]
+                    positions = np.searchsorted(indices, columns)
+                    valid = positions < len(indices)
+                    result = np.zeros(len(columns), dtype=values.dtype)
+                    found = np.flatnonzero(valid)
+                    found = found[indices[positions[found]] == columns[found]]
+                    result[found] = values[positions[found]]
+                    return result
+                # Other supported sparse formats use bounded stored-entry iteration.
+                result = np.zeros(len(columns), dtype=float)
+                sorting = np.argsort(columns)
+                ordered = columns[sorting]
+                for values, (rows, cols) in matrix.iter_nonzero_blocks():
+                    selected = rows == row
+                    vals, cols = values[selected], cols[selected]
+                    positions = np.searchsorted(ordered, cols)
+                    valid = positions < len(ordered)
+                    found = np.flatnonzero(valid)
+                    found = found[ordered[positions[found]] == cols[found]]
+                    np.add.at(result, sorting[positions[found]], vals[found])
+                return result
+            return np.asarray(matrix[row, columns]).reshape(-1)
+
+        def maxima(self):
+            """Legacy sorting statistic, needed only when threshold is None."""
+            maximum = np.zeros(len(self.columns))
+            for matrix in self.matrices:
+                for row in range(matrix.shape[0]):
+                    for start in range(0, len(self.columns), self.block_size):
+                        stop = min(start+self.block_size, len(self.columns))
+                        values = np.abs(self._take_row(matrix, row, self.columns[start:stop]))
+                        values[self.state_rows[start:stop] == row] = 0
+                        np.maximum(maximum[start:stop], values, out=maximum[start:stop])
+            return maximum
+
+        def symmetric_strengths(self, found_pos):
+            """Same ordered sum of absolute coefficients and reciprocal directions."""
+            count = len(self.columns)
+            values, columns, indptr, nnz = [], [], [0], 0
+            for local, source in enumerate(self.state_rows):
+                if found_pos[local]:
+                    for start in range(0, count, self.block_size):
+                        stop = min(start+self.block_size, count)
+                        total = None
+                        for matrix in self.matrices:
+                            part = np.abs(self._take_row(matrix, int(source), self.columns[start:stop]))
+                            total = part if total is None else total + part
+                        if total is None:total = np.zeros(stop-start)
+                        if start <= local < stop:total[local-start] = 0
+                        keep = np.flatnonzero(total != 0)
+                        if len(keep):
+                            values.append(total[keep]);columns.append(keep+start)
+                            nnz += len(keep)
+                indptr.append(nnz)
+            data = np.concatenate(values) if values else np.empty(0)
+            indices = np.concatenate(columns) if columns else np.empty(0,dtype=np.intp)
+            matrix = sp.csr_matrix((data,indices,np.asarray(indptr)),shape=(count,count))
+            matrix = (matrix.T + matrix).tocsr()
+            matrix.sum_duplicates();matrix.sort_indices();matrix.eliminate_zeros()
+            return matrix
+
+    class _GroupPairRules:
+        """Implicit incompatible-pair relation; no group-by-group-by-mode tensor."""
+        def __init__(self, excitations, energies, energy_cutoff, block_size):
+            self.excitations = excitations
+            self.energies = energies
+            self.cutoff = energy_cutoff
+            self.block_size = block_size
+
+        def bad(self, rows, columns):
+            rows, columns = np.asarray(rows), np.asarray(columns)
+            if self.cutoff is not None and self.energies is not None:
+                return np.abs(self.energies[rows] - self.energies[columns]) > self.cutoff
+            left, right = self.excitations[rows], self.excitations[columns]
+            return (np.sum(np.abs(left-right),axis=-1) == 1) & (np.sum(np.abs(left+right),axis=-1) > 0)
+
+        def row(self, row, difference=None, zeroed=False):
+            pieces = []
+            for start in range(0,len(self.excitations),self.block_size):
+                columns = np.arange(start,min(start+self.block_size,len(self.excitations)))
+                if difference is None:mask = self.bad(np.full(len(columns),row),columns)
+                else:
+                    distances = (np.zeros(len(columns),dtype=int) if zeroed else
+                        np.sum(np.abs(self.excitations[row]-self.excitations[columns]),axis=-1))
+                    mask = distances == difference
+                pieces.append(columns[mask])
+            return np.concatenate(pieces) if pieces else np.empty(0,dtype=int)
+
+        def any_bad(self):
+            if self.cutoff is not None and self.energies is not None:
+                values = self.energies[~np.isnan(self.energies)]
+                return bool(len(values) and np.max(values)-np.min(values) > self.cutoff)
+            return any(len(self.row(row)) for row in range(len(self.excitations)))
+
+        def remove_bad_edges(self, matrix):
+            matrix = matrix.copy()
+            for start in range(0,len(matrix.data),self.block_size):
+                stop = min(start+self.block_size,len(matrix.data))
+                positions = np.arange(start,stop)
+                rows = np.searchsorted(matrix.indptr,positions,side='right')-1
+                bad = self.bad(rows,matrix.indices[start:stop])
+                matrix.data[start:stop][bad] = 0
+            matrix.eliminate_zeros()
+            return matrix
+
+        def components_conflict(self, labels):
+            if self.cutoff is not None and self.energies is not None:
+                count = int(np.max(labels))+1 if len(labels) else 0
+                minimum, maximum = np.full(count,np.inf),np.full(count,-np.inf)
+                valid = ~np.isnan(self.energies)
+                np.minimum.at(minimum,labels[valid],self.energies[valid])
+                np.maximum.at(maximum,labels[valid],self.energies[valid])
+                with np.errstate(invalid='ignore'):
+                    return bool(np.any(maximum-minimum > self.cutoff))
+            for row in range(len(labels)):
+                bad = self.row(row)
+                if np.any(labels[bad] == labels[row]):return True
+            return False
+
+    @staticmethod
+    def _get_sparse_groups(matrix):
+        # Explicit stored zeros are not edges in the legacy dense graph.
+        matrix.eliminate_zeros()
+        _, labels = sp.csgraph.connected_components(matrix,return_labels=True)
+        from McUtils import Numputils as nput
+        (_, groups), _ = nput.group_by(np.arange(matrix.shape[0]),labels)
+        return groups, labels
+
+    @staticmethod
+    def _filter_group_vector_rows(excitations, filters, block_size):
+        """Bounded equivalent of the legacy vector-rule broadcast/where branch."""
+        filters = np.asarray(filters)
+        if filters.ndim == 1:filters = filters[None]
+        result = []
+        for row in range(len(excitations)):
+            found = False
+            for start in range(0,len(excitations),block_size):
+                difference = excitations[row]-excitations[start:start+block_size]
+                for rule in filters:
+                    if np.any(np.all(difference == rule,axis=-1) | np.all(difference == -rule,axis=-1)):
+                        found = True;break
+                if found:break
+            if found:result.append(row)
+        return np.asarray(result,dtype=int)
+
+    @staticmethod
+    def _filter_group_mode_differences(group, limits, block_size):
+        """Preserve the original row-major greedy removal order in bounded blocks."""
+        excitations = group.excitations
+        limits = np.asarray(limits)
+        tested = np.flatnonzero(limits > -1)
+        dead = set()
+        if len(tested):
+            for row in range(len(excitations)):
+                for start in range(row,len(excitations),block_size):
+                    columns = np.arange(start,min(start+block_size,len(excitations)))
+                    differences = np.abs(excitations[row,tested]-excitations[columns][:,tested])
+                    for column in columns[np.any(differences > limits[tested],axis=-1)]:
+                        if row in dead or column in dead:continue
+                        if np.sum(excitations[row,tested]) > np.sum(excitations[column,tested]):dead.add(row)
+                        else:dead.add(int(column))
+        keep = np.setdiff1d(np.arange(len(excitations)),list(dead))
+        return group.take_subspace(keep) if len(keep) else None
+
+    @classmethod
+    def filter_degenerate_group(cls, group, states=None, basis=None, corrections=None, threshold=None, energy_cutoff=None, frequencies=None, energies=None, decoupling_overide=10, maximize_groups=True, target_modes=None, max_mode_differences=None, threshold_step_size=0.1, extra_groups=None, uncoupled_states=None, state_diff_filters=1, logger=None, block_size=65536):
+        if not isinstance(block_size,(int,np.integer)) or block_size < 1:raise ValueError('block_size must be a positive integer')
+        if len(group) < 2:
+            return group
+        if uncoupled_states is not None:
+            if corrections is not None:
+                if hasattr(corrections, 'total_basis'):
+                    states = corrections.states
+                    basis = corrections.total_basis
+                elif hasattr(corrections, 'matrices'):
+                    basis = corrections.full_basis
+                    states = corrections.initial_states
+            smol = isinstance(group, BasisStateSpace)
+            if smol:
+                group = [group]
+            new_groups = []
+            if nput.is_int(uncoupled_states):
+                uncoupled_states = BasisStateSpace.from_quanta(basis.basis if basis is not None else group[0].basis if len(group) > 0 else HarmonicOscillatorProductBasis(len(states[0])), uncoupled_states)
+            for g in group:
+                uncoupled_pos = g.find(uncoupled_states, dtype=int, missing_val=-1)
+                found_pos = np.where(uncoupled_pos > -1)[0]
+                if len(found_pos) > 0:
+                    if logger is not None:
+                        logger.log_print('WARNING: states {g0} were in degenerate group {g2}, coupling has been removed', g0=uncoupled_states.excitations, g2=g.excitations)
+                    mask = np.setdiff1d(np.arange(len(g)), found_pos)
+                    g = g.take_subspace(mask)
+                new_groups.append(g)
+            if smol:
+                new_groups = new_groups[0]
+            group = new_groups
+        if target_modes is not None:
+            sub = group.take_subdimensions(target_modes)
+            inds = sub.indices
+            exc = sub.excitations
+        else:
+            inds = group.indices
+            exc = group.excitations
+        if corrections is not None:
+            if isinstance(corrections, np.ndarray):
+                state_inds = basis.find(group)
+                group_inds = state_inds
+                found_pos = state_inds < len(states)
+            elif hasattr(corrections, 'total_basis'):
+                states = corrections.states
+                basis = corrections.total_basis
+                group_inds = basis.find(group)
+                state_inds = states.find(group, dtype=int, missing_val=len(states))
+                found_pos = state_inds < len(states)
+                corrections = cls._GroupCorrectionView(corrections.wfn_corrections[1:], group_inds, state_inds, block_size)
+                sorting = (np.arange(len(group_inds)) if threshold is not None else
+                    np.argsort(-corrections.maxima() - 1*found_pos))
+            elif hasattr(corrections, 'matrices'):
+                basis = corrections.full_basis
+                states = corrections.initial_states
+                group_inds = basis.find(group)
+                state_inds = states.find(group, dtype=int, missing_val=len(states))
+                found_pos = state_inds < len(states)
+                corrections = cls._GroupCorrectionView(corrections.matrices[1:], group_inds, state_inds, block_size)
+                sorting = (np.arange(len(group_inds)) if threshold is not None else
+                    np.argsort(-corrections.maxima() - 1*found_pos))
+            elif basis is not None and states is not None:
+                group_inds = basis.find(group)
+                state_inds = states.find(group, dtype=int, missing_val=len(states))
+                found_pos = state_inds < len(states)
+                corrections = cls._GroupCorrectionView([corrections], group_inds, state_inds, block_size)
+                sorting = (np.arange(len(group_inds)) if threshold is not None else
+                    np.argsort(-corrections.maxima() - 1*found_pos))
+            else:
+                corrections = None
+        if corrections is None:
+            sorting = np.argsort(inds)
+            corrections = None
+            if basis is not None:
+                group_inds = basis.find(group)
+            else:
+                group_inds = np.arange(len(group))
+        local_energies = None if energies is None else np.asarray(energies[group_inds])
+        if local_energies is None and frequencies is not None and basis is not None:
+            # Evaluate only this group's energies, never the full basis table.
+            local_energies = np.tensordot(group.excitations + 1/2, frequencies, axes=[-1,0])
+        exc = exc[sorting]
+        rules = cls._GroupPairRules(exc, local_energies, energy_cutoff, block_size)
+        elims = []
+        if threshold is not None and corrections is not None:
+            e_vec = None if energy_cutoff is None else local_energies
+            if rules.any_bad():
+                N = len(group_inds)
+                if isinstance(corrections, cls._GroupCorrectionView):
+                    base_mat = corrections.symmetric_strengths(found_pos)
+                else:
+                    # Legacy ndarray input is already a group-by-target view.
+                    selected = sp.csr_matrix(corrections[:, state_inds[found_pos]])
+                    coordinates = selected.tocoo()
+                    base_mat = sp.coo_matrix((coordinates.data,(coordinates.row,np.flatnonzero(found_pos)[coordinates.col])),shape=(N,N)).tocsr()
+                    base_mat = base_mat.T + base_mat
+                    base_mat.setdiag(0);base_mat.eliminate_zeros()
+                base_mat = rules.remove_bad_edges(base_mat)
+                get_groups = cls._get_sparse_groups
+                corr_mat = cls._threshold_group_graph(base_mat, threshold)
+                groups, A = get_groups(corr_mat)
+                target_threshold = threshold
+                step_size = threshold_step_size
+                while rules.components_conflict(A) and decoupling_overide > threshold:
+                    threshold = threshold + step_size
+                    corr_mat = cls._threshold_group_graph(base_mat, threshold)
+                    groups, A = get_groups(corr_mat)
+                if maximize_groups or (decoupling_overide > 0 and decoupling_overide < threshold):
+                    base_thresh = target_threshold
+                    if not maximize_groups:
+                        base_thresh = decoupling_overide
+                    dropped_pos = cls._group_edge_positions(base_mat, lambda values: (values > base_thresh) & (values < threshold))
+                    if len(dropped_pos) > 0:
+                        sorting = np.argsort(-cls._group_matrix_values(base_mat, *dropped_pos))
+                        dropped_pos = tuple((d[sorting] for d in dropped_pos))
+                        for i, j in zip(*dropped_pos):
+                            if e_vec is not None:
+                                g_i = None
+                                g_j = None
+                                for n, g in enumerate(groups):
+                                    ix, jx = np.searchsorted(g, [i, j])
+                                    if ix < len(g) and g[ix] == i:
+                                        g_i = [n, g]
+                                    if jx < len(g) and g[jx] == j:
+                                        g_j = [n, g]
+                                    if g_i is not None and g_j is not None:
+                                        break
+                                else:
+                                    if g_j is not None:
+                                        g_i, g_j = (g_j, g_i)
+                                        i, j = (j, i)
+                                    if g_i is not None:
+                                        e_g = e_vec[g_i[1]]
+                                        w = max(abs(e_vec[i] - np.min(e_g)), abs(e_vec[i] - np.max(e_g)))
+                                        if w < energy_cutoff:
+                                            groups[g_i[0]] = np.sort(np.concatenate([g_i[1], [j]]))
+                                        continue
+                            corr_mat = cls._set_group_graph_value(corr_mat, i, j, base_mat[i, j])
+                            _, A = get_groups(corr_mat)
+                            if rules.components_conflict(A):
+                                corr_mat = cls._set_group_graph_value(corr_mat, i, j, 0.0)
+                            else:
+                                groups = _
+                    if decoupling_overide > 0 and decoupling_overide < threshold or extra_groups is not None:
+                        if (decoupling_overide > 0 and decoupling_overide < threshold) is not None:
+                            need_pos = cls._group_edge_positions(base_mat, lambda values: (values > decoupling_overide) & (values < threshold))
+                        else:
+                            need_pos = ()
+                        if extra_groups is not None:
+                            for g in extra_groups:
+                                try:
+                                    new_inds = group.find(g)
+                                except IndexError:
+                                    pass
+                                else:
+                                    new_inds = list(itertools.combinations(new_inds, 2))
+                                    new_inds = ([x[0] for x in new_inds], [x[1] for x in new_inds])
+                                    if len(need_pos) > 0:
+                                        need_pos = (np.concatenate([need_pos[0], new_inds[0]]), np.concatenate([need_pos[1], new_inds[1]]))
+                                    else:
+                                        need_pos = new_inds
+                        if len(need_pos) > 0:
+                            sorting = np.argsort(-cls._group_matrix_values(base_mat, *need_pos))
+                            need_pos = tuple((d[sorting] for d in need_pos))
+                            for i, j in zip(*need_pos):
+                                g_i = None
+                                g_j = None
+                                for n, g in enumerate(groups):
+                                    ix, jx = np.searchsorted(g, [i, j])
+                                    if ix < len(g) and g[ix] == i:
+                                        g_i = [n, g]
+                                    if jx < len(g) and g[jx] == j:
+                                        g_j = [n, g]
+                                    if g_i is not None and g_j is not None:
+                                        if g_i[0] == g_j[0]:
+                                            break
+                                        i_couplings = cls._group_matrix_values(base_mat, i, g_i[1])
+                                        j_couplings = cls._group_matrix_values(base_mat, j, g_j[1])
+                                        if np.linalg.norm(j_couplings) > np.linalg.norm(i_couplings):
+                                            g_i, g_j = (g_j, g_i)
+                                            i, j = (j, i)
+                                        groups[g_i[0]] = np.sort(np.concatenate([g_i[1], [j]]))
+                                        groups[g_j[0]] = np.setdiff1d(g_j[1], [j])
+                                        break
+                                else:
+                                    if g_j is not None:
+                                        g_i, g_j = (g_j, g_i)
+                                        i, j = (j, i)
+                                    if g_i is not None:
+                                        groups[g_i[0]] = np.sort(np.concatenate([g_i[1], [j]]))
+                                        continue
+                                    else:
+                                        groups.append(np.array([i, j]))
+                group = [group.take_subspace(g) for g in groups if len(g) > 1]
+        else:
+            zeroed_rows = np.zeros(len(exc),dtype=bool)
+            global_bad_rows = None
+            if energy_cutoff is not None and local_energies is not None:
+                # The legacy branch uses the first coordinate of global where().
+                global_bad_rows = np.asarray([i for i in range(len(exc)) if len(rules.row(i))],dtype=int)
+            elif state_diff_filters is not None and not nput.is_int(state_diff_filters):
+                global_bad_rows = cls._filter_group_vector_rows(exc,state_diff_filters,block_size)
+            for n in np.arange(len(exc)):
+                if global_bad_rows is not None:bad_pos = global_bad_rows
+                elif state_diff_filters is None:bad_pos = np.empty(0,dtype=int)
+                else:bad_pos = rules.row(n,difference=state_diff_filters,zeroed=zeroed_rows[n])
+                if len(bad_pos):
+                    kills = bad_pos[bad_pos > n]
+                    elims.extend(sorting[kills])
+                    zeroed_rows[bad_pos] = True
+            if len(elims) > 0:
+                mask = np.setdiff1d(np.arange(len(exc)), elims)
+                group = group.take_subspace(mask)
+        if max_mode_differences is not None:
+            smol = isinstance(group, BasisStateSpace)
+            if smol:
+                group = [group]
+            new_groups = []
+            for g in group:
+                g = cls._filter_group_mode_differences(g,max_mode_differences,block_size)
+                if g is None:return []
+                new_groups.append(g)
+            if smol:
+                new_groups = new_groups[0]
+            group = new_groups
+        if isinstance(group, BasisStateSpace):
+            return group
+        else:
+            return [g for g in group if len(g.excitations) > 1]
+
     def identify_strong_couplings(self, corrs):
         """
         **LLM Docstring**
@@ -1879,6 +2359,8 @@ class PerturbationTheorySolver:
             couplings=sc,
             solver=self,
             group_filter=group_filter,
+            default_group_filter=(partial(self.filter_degenerate_group, block_size=self.resonance_block_size)
+                if self.resonance_memory_constrained else None),
             log_groups=True
         )
 
@@ -1963,7 +2445,26 @@ class PerturbationTheorySolver:
 
             all_energies = np.zeros((len(states), order + 1))
             all_overlaps = np.zeros((len(states), order + 1))
-            all_corrs = np.zeros((len(states), order + 1, N))
+            mode, limit, block_size = PerturbationTheoryCorrections.correction_storage_policy(
+                self.correction_storage, self.correction_memory_limit,
+                self.correction_block_size, self._correction_default_memory_limit,
+                (len(states), order + 1, N))
+            completed_row_cutoff = (
+                Settings.non_zero_cutoff if non_zero_cutoff is None else non_zero_cutoff
+            ) if self.use_block_recurrence and mode in {'sparse', 'compact'} else None
+            self.correction_storage_report = dict(
+                mode=mode, memory_limit=limit, block_size=block_size,
+                memory_limit_role='dense/sparse selection threshold, not sparse retention cap',
+                completed_row_cutoff=completed_row_cutoff,
+                dense_bytes=len(states) * (order + 1) * N * np.dtype(float).itemsize)
+            all_corrs = PerturbationTheoryCorrections.create_correction_array(
+                mode, len(states), order, N, block_size,
+                cutoff=completed_row_cutoff, block_bytes=self.correction_block_bytes,
+                spill_directory=self.correction_spill_directory or self.state_space_scratch,
+                resident_bytes=self.correction_resident_bytes,
+                spill_bytes=self.correction_spill_bytes,
+                spill_segment_bytes=self.correction_spill_segment_bytes)
+            logger.log_print('Correction storage: {s}', s=self.correction_storage_report)
             all_energy_corrs = np.full((len(states), order + 1), None, dtype=object)
 
             with logger.block(tag="Applying Perturbation Theory"):
@@ -2017,6 +2518,7 @@ class PerturbationTheorySolver:
                             all_energy_corrs[res_index] = ecorrs
                             all_corrs[res_index] = corrs
                             all_overlaps[res_index] = overlaps
+                            del corrs
                 else:
                     # loop over the degenerate sets
                     for deg_group in degenerate_states:
@@ -2042,8 +2544,14 @@ class PerturbationTheorySolver:
                             present = res_inds > -1
                             all_energies[res_inds[present]] = energies[present]
                             all_energy_corrs[res_inds[present]] = ecorrs[present]
-                            all_corrs[res_inds[present]] = corrs[present]
+                            if mode != 'dense':
+                                all_corrs.set_rows(res_inds, corrs)
+                            else:
+                                all_corrs[res_inds[present]] = corrs[present]
                             all_overlaps[res_inds[present]] = overlaps[present]
+                            # Packing owns its rows; drop the dense block before
+                            # evaluating the next solve on the RHS of an assignment.
+                            del corrs
                             continue
                         for n, res_index, de, zo, s in zip(deg_group.indices, res_inds, deg_engs, zero_order_states, subspaces):
                             if res_index > -1:
@@ -2057,19 +2565,30 @@ class PerturbationTheorySolver:
                                 all_energy_corrs[res_index] = ecorrs
                                 all_corrs[res_index] = corrs
                                 all_overlaps[res_index] = overlaps
+                                del corrs
 
                         # now we reorthogonalize degenerate states
                         if self.reorthogonalize_degenerate_states:
+                            sparse_rows = mode != 'dense'
                             for k in range(1, order+1):
                                 for i, (n, x) in enumerate(zip(res_inds, deg_inds)):
                                     for m, y in zip(res_inds[i + 1:], deg_inds[i+1:]):
-                                        onm = -1 / 2 * sum(np.dot(all_corrs[n][i], all_corrs[m][k - i]) for i in range(1, k))
-                                        onn = -1 / 2 * sum(np.dot(all_corrs[n][i], all_corrs[n][k - i]) for i in range(1, k))
-                                        omm = -1 / 2 * sum(np.dot(all_corrs[m][i], all_corrs[m][k - i]) for i in range(1, k))
-                                        all_corrs[n][k][y] = onm
-                                        all_corrs[m][k][x] = onm
-                                        all_corrs[n][k][x] = onn
-                                        all_corrs[m][k][y] = omm
+                                        if sparse_rows:
+                                            onm = -1 / 2 * sum(all_corrs.dot(n, j, m, k-j) for j in range(1, k))
+                                            onn = -1 / 2 * sum(all_corrs.dot(n, j, n, k-j) for j in range(1, k))
+                                            omm = -1 / 2 * sum(all_corrs.dot(m, j, m, k-j) for j in range(1, k))
+                                            all_corrs.set_element(n, k, y, onm)
+                                            all_corrs.set_element(m, k, x, onm)
+                                            all_corrs.set_element(n, k, x, onn)
+                                            all_corrs.set_element(m, k, y, omm)
+                                        else:
+                                            onm = -1 / 2 * sum(np.dot(all_corrs[n][j], all_corrs[m][k-j]) for j in range(1, k))
+                                            onn = -1 / 2 * sum(np.dot(all_corrs[n][j], all_corrs[n][k-j]) for j in range(1, k))
+                                            omm = -1 / 2 * sum(np.dot(all_corrs[m][j], all_corrs[m][k-j]) for j in range(1, k))
+                                            all_corrs[n][k][y] = onm
+                                            all_corrs[m][k][x] = onm
+                                            all_corrs[n][k][x] = onn
+                                            all_corrs[m][k][y] = omm
 
                 end = time.time()
                 logger.log_print(
@@ -2137,6 +2656,11 @@ class PerturbationTheorySolver:
                                                                                                 degenerate_correction_threshold
                                                                                                 )
                                 states, perturbations, flat_total_space, N = meta
+                                if self.correction_storage == 'compact':
+                                    # This branch returns the recomputed result. Its old
+                                    # correction matrices and support views are obsolete;
+                                    # release them before allocating the next pass.
+                                    corrs = corr_mats = corr_inds = cs_states = None
                                 if spec.iterations > 1:
                                     spec.iterations -= 1
                                     degenerate_states = None
@@ -2301,6 +2825,92 @@ class PerturbationTheorySolver:
                                                perturbations=perturbations
                                                )
 
+    def _apply_VPT_block_equations_in_place(self, group, perturbations=None,
+                                           non_zero_cutoff=None):
+        """Evaluate the same block recurrence using C[k] as its RHS storage."""
+        if non_zero_cutoff is None:
+            non_zero_cutoff = Settings.non_zero_cutoff
+        H = self.representations if perturbations is None else perturbations
+        inds = self.flat_total_space.find(group)
+        nstates, nbasis = len(inds), len(self.flat_total_space)
+        order = self.order
+        e0 = self.zero_order_energies[inds]
+        C = np.zeros((order+1, nstates, nbasis), dtype=float)
+        C[0, np.arange(nstates), inds] = 1
+        F = np.zeros((order+1, nstates, nstates), dtype=float)
+        F[0] = np.diag(e0)
+        energies = np.zeros((nstates, order+1), dtype=float)
+        energies[:, 0] = e0
+        overlaps = np.zeros_like(energies)
+        overlaps[:, 0] = 1
+        energy_terms = np.full((nstates, order+1), None, dtype=object)
+        budget = self.wavefunction_workspace_bytes
+        p_order = np.argsort(inds)
+        p_sorted = inds[p_order]
+        # One denominator buffer is shared by all orders and reference states.
+        chunk_size = max(1, min(nbasis, budget//(4*C.dtype.itemsize)))
+        denominator = np.empty(chunk_size, dtype=C.dtype)
+        basis_energies = self.zero_order_energies
+
+        def project_product(rows, columns, product):
+            lo = np.searchsorted(p_sorted, rows.start)
+            hi = np.searchsorted(p_sorted, rows.stop)
+            if hi > lo:
+                projection[p_order[lo:hi], columns] = product[p_sorted[lo:hi]-rows.start]
+
+        for k in range(1, order+1):
+            if self.intermediate_normalization or k == 1:
+                normalizer = np.zeros((nstates, nstates))
+            else:
+                # C is real by construction; conjugating it would copy a full
+                # B-by-N correction slice for no numerical change.
+                normalizer = -.5*sum(C[i] @ C[k-i].T for i in range(1, k))
+                if not self.reorthogonalize_degenerate_states:
+                    normalizer = np.diag(np.diag(normalizer))
+            F[k] = e0[:, None]*normalizer-normalizer*e0[None, :]
+            rhs = C[k]  # Lower-order C[t] is never overwritten.
+            terms = []
+            for s in range(k, 0, -1):
+                t = k-s
+                projection = np.zeros((nstates, nstates))
+                if not isinstance(H[s], (int, float, np.integer, np.floating)):
+                    nput.matrix_dot_into(H[s], C[t].T, rhs.T, alpha=-1, beta=1,
+                        working_memory=budget, block_callback=project_product)
+                elif H[s] != 0:
+                    raise TypeError('Expected a matrix or zero Hamiltonian term')
+                term = projection
+                if t > 0:
+                    nput.matrix_dot_into(F[s].T, C[t], rhs, alpha=1, beta=1,
+                        working_memory=budget)
+                    term = term-C[t][:, inds].T @ F[s]
+                F[k] += term
+                terms.append(np.diag(term))
+            energies[:, k] = np.diag(F[k])
+            if self.ignore_odd_orders and k % 2:
+                energies[:, k] = 0
+            for a, energy in enumerate(e0):
+                for start in range(0, nbasis, chunk_size):
+                    stop = min(nbasis, start+chunk_size)
+                    gap = denominator[:stop-start]
+                    np.subtract(basis_energies[start:stop], energy, out=gap)
+                    lo = np.searchsorted(p_sorted, start)
+                    hi = np.searchsorted(p_sorted, stop)
+                    local_p = p_sorted[lo:hi]-start
+                    gap[local_p] = 1
+                    if k == 1 and np.any(np.abs(gap) < non_zero_cutoff):
+                        # Keep the established full diagnostic and exception.
+                        # This error-only path never builds a resolvent CSR.
+                        self._get_Pi0(inds, E0=energy, non_zero_cutoff=non_zero_cutoff)
+                        raise ValueError('Unexpected unprojected near-zero denominator')
+                    np.reciprocal(gap, out=gap)
+                    gap[local_p] = 0
+                    np.multiply(rhs[a, start:stop], gap, out=rhs[a, start:stop])
+                energy_terms[a, k] = (None if self.ignore_odd_orders and k % 2 else
+                                      np.asarray([term[a] for term in terms]))
+            C[k][:, inds] = normalizer.T
+            overlaps[:, k] = np.diag(normalizer)
+        return energies, overlaps, C.transpose(1, 0, 2), energy_terms
+
     def apply_VPT_block_equations(self, group, perturbations=None, non_zero_cutoff=None):
         """Apply the same recurrence to all columns of one projected block.
 
@@ -2309,6 +2919,9 @@ class PerturbationTheorySolver:
         F is constructed from HY = YF; higher-order normalization is imposed
         before advancing the recurrence. No denominator is inverted inside P.
         """
+        if self.memory_constrained and self.order > 0:
+            return self._apply_VPT_block_equations_in_place(
+                group, perturbations=perturbations, non_zero_cutoff=non_zero_cutoff)
         if non_zero_cutoff is None:
             non_zero_cutoff = Settings.non_zero_cutoff
         H = self.representations if perturbations is None else perturbations

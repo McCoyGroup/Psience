@@ -15,6 +15,7 @@ from McUtils.Combinatorics import SymmetricGroupGenerator, CompleteSymmetricGrou
 __all__ = [
     "AbstractStateSpace",
     "BasisStateSpace",
+    "BasisStateSpaceView",
     "BasisMultiStateSpace",
     "SelectionRuleStateSpace",
     "PermutationallyReducedStateSpace",
@@ -229,7 +230,7 @@ class AbstractStateSpace(metaclass=abc.ABCMeta):
 
     @property
     def unique_len(self):
-        if self._indices is not None:
+        if self._indices is not None or not self.keep_excitations:
             return len(self.unique_indices)
         else:
             return len(self.unique_excitations)
@@ -499,17 +500,33 @@ class BasisStateSpace(AbstractStateSpace):
     Useful largely to provide consistent, unambiguous representations of multiple states across
     the different representation-generating methods in the code base.
     """
-    def __init__(self, basis, states, full_basis=None, mode=None):
+    excitation_block_size = 65536
+
+    def __init__(self, basis, states, full_basis=None, mode=None, *, keep_excitations=None):
         """
         :param basis:
         :type basis: RepresentationBasis
-        :param states:
-        :type states: Iterable[int]
+        :param states: IDs, dense occupations, or McUtils/SciPy sparse occupations
+        :type states: Iterable[int] | SparseArray | scipy.sparse.spmatrix
         :param mode: whether the states were supplied as indices or as excitations
         :type mode: None | str | StateSpaceSpec
+        :param keep_excitations: Existing dense-cache policy for IDs/dense input.
+            False also drops the original dense input after ranking. Sparse
+            occupation input has shape (states, basis.ndim) and disables dense
+            caching. Explicit ``excitations`` still requests a dense table.
         """
 
         super().__init__(basis)
+        if keep_excitations is not None:
+            self.keep_excitations = bool(keep_excitations)
+        self._sparse_excitations = None
+        if isinstance(states, SparseArray) or sp.issparse(states):
+            states = self._coerce_sparse_excitations(states)
+            self._sparse_excitations = states
+            self.keep_excitations = False
+            if mode is not None and mode not in ('excitations', self.StateSpaceSpec.Excitations):
+                raise ValueError("sparse input contains occupations, not basis indices")
+            mode = self.StateSpaceSpec.Excitations
 
         if full_basis is not None:
             self.keep_excitations = False
@@ -517,7 +534,7 @@ class BasisStateSpace(AbstractStateSpace):
         else:
             self.full_basis = full_basis
 
-        self._init_states = np.asanyarray(states)#, dtype=int)
+        self._init_states = states if self._sparse_excitations is not None else np.asanyarray(states)
         if mode is not None and not isinstance(mode, self.StateSpaceSpec):
             mode = self.StateSpaceSpec(mode)
         self._init_state_types = mode
@@ -525,7 +542,9 @@ class BasisStateSpace(AbstractStateSpace):
         self._excitations = None
         self._max_ind = None # for full basis approaches
         self._max_sum = None # for full basis approaches
-        if len(self._init_states) > 0:
+        if self._sparse_excitations is not None:
+            pass
+        elif len(self._init_states) > 0:
             if self.infer_state_inds_type() == self.StateSpaceSpec.Indices:
                 self._indices = self._init_states.astype(self.indices_dtype)
                 if self._indices.ndim != 1:
@@ -545,6 +564,9 @@ class BasisStateSpace(AbstractStateSpace):
             if not self.keep_excitations:
                 self.indices # caching
                 self._excitations = None
+                # The original dense input must not retain the same full table.
+                self._init_states = self._indices
+                self._init_state_types = self.StateSpaceSpec.Indices
         else:
             if mode is None:
                 self._init_state_types = self.StateSpaceSpec.Indices
@@ -566,18 +588,28 @@ class BasisStateSpace(AbstractStateSpace):
         return {
             'basis':self.basis,
             'excitations':self._excitations,
-            'indices':self._indices
+            'indices':self._indices,
+            'sparse_excitations':self._sparse_excitations,
+            'keep_excitations':self.keep_excitations
         }
     @classmethod
     def from_state(cls, data, serializer=None):
         basis = serializer.deserialize(data['basis'])
         exc = serializer.deserialize(data['excitations'])
         inds = serializer.deserialize(data['indices'])
+        sparse = serializer.deserialize(data.get('sparse_excitations'))
+        if sparse is not None:
+            new = cls(basis, sparse, mode=cls.StateSpaceSpec.Excitations)
+            if inds is not None:
+                new._indices = inds
+            return new
         if inds is not None:
             new = cls(basis, inds, mode=cls.StateSpaceSpec.Indices)
             new._excitations = exc
         else:
             new = cls(basis, exc, mode=cls.StateSpaceSpec.Excitations)
+        if data.get('keep_excitations') is False:
+            new.keep_excitations = False
         return new
 
     @property
@@ -621,7 +653,124 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
-        self._excitations = np.asanyarray(exc).astype(self.excitations_dtype)
+        if isinstance(exc, SparseArray) or sp.issparse(exc):
+            exc = self._coerce_sparse_excitations(exc)
+            self._sparse_excitations = exc
+            self._excitations = None
+            self.keep_excitations = False
+            if self.infer_state_inds_type() is self.StateSpaceSpec.Excitations:
+                self._init_states = exc
+        else:
+            was_sparse = self.has_sparse_excitations
+            self._sparse_excitations = None
+            self._excitations = np.asanyarray(exc).astype(self.excitations_dtype)
+            if was_sparse and isinstance(self._init_states,SparseArray):
+                self._init_states = self._excitations
+                if not self.keep_excitations:
+                    self.indices
+                    self._init_states = self._indices
+                    self._init_state_types = self.StateSpaceSpec.Indices
+                    self._excitations = None
+
+    def _coerce_sparse_excitations(self, states):
+        """Normalize sparse row storage without expanding a dense state table."""
+        if isinstance(states,SparseArray) and not isinstance(states,nput.ScipySparseArray):
+            values,coordinates = states.block_data
+            states = sp.csr_matrix((values,coordinates),shape=states.shape)
+        if not isinstance(states,nput.ScipySparseArray):
+            states = SparseArray.from_data(states)
+        if states.ndim != 2 or states.shape[1] != self.ndim:
+            raise ValueError("sparse occupations must have shape (states, basis.ndim)")
+        values = states.data.data
+        if states.dtype.kind not in 'iu':
+            if (states.dtype.kind != 'f' or np.any(~np.isfinite(values))
+                    or np.any(values != np.floor(values)) or np.any(values >= 2**63)):
+                raise TypeError("sparse occupations must be nonnegative integers")
+            states = SparseArray.from_data(states.data.astype(np.int64))
+        if np.any(values < 0):
+            raise ValueError("sparse occupations must be nonnegative")
+        return states
+
+    def _take_sparse_excitations(self, selection):
+        # State rows retain their axis and may repeat. Generic SparseArray
+        # tensor indexing deliberately has different singleton/duplicate rules.
+        if np.isscalar(selection):
+            selection = np.atleast_1d(selection)
+        return SparseArray.from_data(self._sparse_excitations.data[selection,:])
+
+    @property
+    def has_sparse_excitations(self):
+        return getattr(self, '_sparse_excitations', None) is not None
+
+    def __len__(self):
+        if self.has_sparse_excitations:
+            return self._sparse_excitations.shape[0]
+        return super().__len__()
+
+    @property
+    def sparse_excitations(self):
+        """McUtils sparse occupations; dense cache policy remains unchanged."""
+        if self.has_sparse_excitations:
+            return self._sparse_excitations
+        result = self.as_sparse_excitations()
+        if self.keep_excitations:
+            self._sparse_excitations = result
+        return result
+
+    def iter_index_blocks(self, block_size=None):
+        size = self.excitation_block_size if block_size is None else int(block_size)
+        if size < 1:
+            raise ValueError("block_size must be positive")
+        indices = self.indices
+        for start in range(0,len(indices),size):
+            yield indices[start:start+size]
+
+    def iter_excitations(self, block_size=None, *, sparse=False):
+        """Decode bounded blocks, optionally returning existing SparseArray blocks."""
+        size = self.excitation_block_size if block_size is None else int(block_size)
+        if size < 1:
+            raise ValueError("block_size must be positive")
+        if self.has_sparse_excitations:
+            for start in range(0,len(self),size):
+                block = self._take_sparse_excitations(slice(start,start+size))
+                yield block if sparse else block.asarray()
+        elif self._excitations is not None:
+            for start in range(0,len(self),size):
+                block = self._excitations[start:start+size]
+                yield SparseArray.from_data(block) if sparse else block
+        else:
+            # Subclasses can supply mapped/shared-parent rank blocks.
+            for ranks in self.iter_index_blocks():
+                for start in range(0,len(ranks),size):
+                    block = self.basis.unravel_state_inds(ranks[start:start+size])
+                    yield SparseArray.from_data(block) if sparse else block
+
+    def as_sparse_excitations(self, block_size=None):
+        """Build complete sparse occupations using bounded dense decoding blocks.
+
+        The resulting CSR and its sparse assembly intermediates still require
+        storage proportional to rows/nonzeros. Use ``iter_excitations`` with
+        ``sparse=True`` to consume sparse blocks without collecting that table.
+        """
+        if self.has_sparse_excitations:
+            return self._sparse_excitations
+        iterator = iter(self.iter_excitations(block_size=block_size, sparse=True))
+        first = next(iterator,None)
+        if first is None:
+            return SparseArray.from_data(sp.csr_matrix((0,self.ndim),dtype=self.excitations_dtype))
+        rest = tuple(iterator)
+        return first.concatenate(*rest,axis=0) if rest else first
+
+    def find(self, to_search, check=True, minimal_dtype=False, dtype=None, missing_val='raise'):
+        # Sparse/index-only sources must not decode every stored row for a query.
+        if isinstance(to_search,SparseArray) or sp.issparse(to_search):
+            to_search = BasisStateSpace(self.basis,to_search).indices
+        elif (self.has_sparse_excitations or not self.keep_excitations):
+            query = np.asanyarray(to_search) if not isinstance(to_search,AbstractStateSpace) else None
+            if query is not None and query.ndim > 1:
+                to_search = self.basis.ravel_state_inds(query)
+        return super().find(to_search,check=check,minimal_dtype=minimal_dtype,
+                            dtype=dtype,missing_val=missing_val)
 
     @classmethod
     def from_quanta(cls, basis, quants):
@@ -765,7 +914,8 @@ class BasisStateSpace(AbstractStateSpace):
 
 
     def get_mode(self):
-        return self.StateSpaceSpec.Indices if self.has_indices else self.StateSpaceSpec.Excitations
+        return (self.StateSpaceSpec.Indices if self.has_indices or self.has_sparse_excitations
+                else self.StateSpaceSpec.Excitations)
 
     def infer_state_inds_type(self):
         if self._init_state_types is not None:
@@ -788,6 +938,9 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
+
+        if self.has_sparse_excitations:
+            return self._sparse_excitations.asarray()
 
         states = self._init_states
         states_type = self.infer_state_inds_type()
@@ -824,6 +977,13 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
+
+        if isinstance(self._init_states,SparseArray):
+            result = np.empty(self._init_states.shape[0],dtype=self.indices_dtype)
+            for start in range(0,len(result),self.excitation_block_size):
+                block = self._take_sparse_excitations(slice(start,start+self.excitation_block_size)).asarray().astype(np.int64,copy=False)
+                result[start:start+len(block)] = self.basis.ravel_state_inds(block)
+            return result
 
         states = self._init_states
         states_type = self.infer_state_inds_type()
@@ -926,6 +1086,8 @@ class BasisStateSpace(AbstractStateSpace):
                              )
             if track_indices and (self.mode == self.StateSpaceSpec.Indices):
                 new.indices = self.unique_indices
+        if not self.keep_excitations:
+            new.keep_excitations = False
         return new
 
     def as_sorted(self,
@@ -967,6 +1129,8 @@ class BasisStateSpace(AbstractStateSpace):
                 # converting reordering the old sorting and then
                 # sorting that
                 new._exc_indexer = np.argsort(self._exc_indexer[indexer])
+        if not self.keep_excitations:
+            new.keep_excitations = False
         return new
 
     def apply_selection_rules(self, selection_rules, target_dimensions=None, filter_space=None, parallelizer=None, logger=None, iterations=1,
@@ -1188,7 +1352,13 @@ class BasisStateSpace(AbstractStateSpace):
                                                   track_indices=track_indices
                                                   )
 
-        if track_excitations and self.has_excitations:
+        if track_excitations and self.has_sparse_excitations:
+            selected = np.atleast_1d(sel) if np.isscalar(sel) else sel
+            subspace = type(self)(self.basis,self._take_sparse_excitations(selected),
+                mode=self.StateSpaceSpec.Excitations,full_basis=self.full_basis)
+            if track_indices and self.has_indices:
+                subspace.indices = self.indices[selected]
+        elif track_excitations and self.has_excitations:
             subspace = type(self)(
                 self.basis,
                 self.excitations[sel,],
@@ -1217,6 +1387,8 @@ class BasisStateSpace(AbstractStateSpace):
         subspace._max_sum = self._max_sum
         subspace._max_ind = self._max_ind
 
+        if not self.keep_excitations:
+            subspace.keep_excitations = False
         return subspace
     def take_subdimensions(self, inds, exc=None):
         """
@@ -1228,7 +1400,11 @@ class BasisStateSpace(AbstractStateSpace):
         :rtype:
         """
         if exc is None:
-            exc = self.excitations
+            exc = (self.sparse_excitations if self.has_sparse_excitations or not self.keep_excitations
+                   else self.excitations)
+        if isinstance(exc,SparseArray):
+            return type(self)(self.basis.take_subdimensions(inds),exc.data[:,inds],
+                              mode=self.StateSpaceSpec.Excitations)
         if exc.dtype.names is not None:
             exc = nput.uncoerce_dtype(exc, (len(exc), len(exc.dtype.names)), exc.dtype[0])
         return type(self)(
@@ -1328,6 +1504,12 @@ class BasisStateSpace(AbstractStateSpace):
         :rtype: Iterable[BasisStateSpace]
         """
 
+        if self.has_sparse_excitations or not self.keep_excitations:
+            if chunksize < 1:
+                raise ValueError("chunksize must be positive")
+            return [self.take_subspace(slice(start,start+chunksize))
+                    for start in range(0,len(self),chunksize)]
+
         nblocks = np.ceil(len(self) / chunksize)
 
         if self._indices is not None:
@@ -1371,6 +1553,13 @@ class BasisStateSpace(AbstractStateSpace):
                 self.basis,
                 other.basis
             ))
+
+        if not self.keep_excitations or not other.keep_excitations:
+            if self.has_sparse_excitations and other.has_sparse_excitations and track_excitations:
+                return BasisStateSpace(self.basis,self._sparse_excitations.concatenate(
+                    other._sparse_excitations,axis=0),full_basis=self.full_basis)
+            return BasisStateSpace(self.basis,np.concatenate([self.indices,other.indices]),
+                mode=self.StateSpaceSpec.Indices,full_basis=self.full_basis,keep_excitations=False)
 
         if (not track_excitations) or (track_indices and (
                 (self.has_indices and other.has_indices) or(
@@ -1430,6 +1619,9 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
+
+        if not self.keep_excitations or not other.keep_excitations:
+            track_excitations = False
 
         if hasattr(other, 'store') and not hasattr(self, 'store'):
             return other.store.coerce(self).union(other, sort=sort, track_excitations=track_excitations, track_indices=track_indices)
@@ -1541,6 +1733,8 @@ class BasisStateSpace(AbstractStateSpace):
                     new_inds = np.concatenate([self_inds, other_inds], axis=0)
                     new._indices = new_inds[uinds,]
 
+        if not self.keep_excitations:
+            new.keep_excitations = False
         return new
 
     def intersection(self, other, sort=False,
@@ -1555,6 +1749,9 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
+
+        if not self.keep_excitations or not other.keep_excitations:
+            track_excitations = False
 
         if hasattr(other, 'contains_indices'):
             mask = other.contains_indices(self.indices)
@@ -1625,6 +1822,8 @@ class BasisStateSpace(AbstractStateSpace):
                     new._indexer = np.arange(len(new_inds))
                     new._uinds = np.arange(len(new_inds))
                     new._sort_uinds = np.arange(len(new_inds))
+                    if not self.keep_excitations:
+                        new.keep_excitations = False
                     return new
                 else:
                     new = self.take_unique(
@@ -1635,6 +1834,8 @@ class BasisStateSpace(AbstractStateSpace):
                                     track_indices=track_indices
                                     )
                     new._uinds = np.arange(len(new_inds))
+                    if not self.keep_excitations:
+                        new.keep_excitations = False
                     return new
         else:
             self_exc = self.unique_excitations
@@ -1675,6 +1876,8 @@ class BasisStateSpace(AbstractStateSpace):
                                      track_indices=track_indices
                                      )
                 new._uinds = np.arange(len(new_inds))
+                if not self.keep_excitations:
+                    new.keep_excitations = False
                 return new
 
     def difference(self, other,
@@ -1690,6 +1893,9 @@ class BasisStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
+
+        if not self.keep_excitations or not other.keep_excitations:
+            track_excitations = False
 
         if hasattr(other, 'contains_indices'):
             mask = other.contains_indices(self.indices)
@@ -1743,6 +1949,8 @@ class BasisStateSpace(AbstractStateSpace):
                     new._indexer = np.arange(len(new_inds))
                     new._uinds = np.arange(len(new_inds))
                     new._sort_uinds = np.arange(len(new_inds))
+                    if not self.keep_excitations:
+                        new.keep_excitations = False
                     return new
                 else:
                     _, _, _, found_inds, _ = nput.intersection(
@@ -1756,6 +1964,8 @@ class BasisStateSpace(AbstractStateSpace):
                                              track_indices=track_indices
                                              )
                     new._uinds = np.arange(len(found_inds))
+                    if not self.keep_excitations:
+                        new.keep_excitations = False
                     return new
         else:
             self_exc = self.unique_excitations
@@ -1789,6 +1999,8 @@ class BasisStateSpace(AbstractStateSpace):
                                          track_indices=track_indices
                                          )
                 new._uinds = np.arange(len(found_inds))
+                if not self.keep_excitations:
+                    new.keep_excitations = False
                 return new
 
     def __repr__(self):
@@ -1828,6 +2040,246 @@ class BasisStateSpace(AbstractStateSpace):
             len(self) == len(other)
             and (self.indices == other.indices).all()
         )
+
+class _StateSpaceViewQuery:
+    """Per-selection parent-position cache, discarded with the selection."""
+    def __init__(self, states):
+        self.states = states
+        self._ranks = None
+        self._positions = {}
+        self._cast_positions = {}
+        self._rank_queries = {}
+
+    @classmethod
+    def wrap(cls, states, spaces):
+        if isinstance(states, cls) or not spaces.size:
+            return states
+        first = spaces.flat[0]
+        while isinstance(first, BasisMultiStateSpace) and first.spaces.size:
+            first = first.spaces.flat[0]
+        return cls(states) if isinstance(first, BasisStateSpaceView) and first.index_parent is not None else states
+
+    @property
+    def indices(self):
+        if self._ranks is None:
+            states = self.states
+            self._ranks = np.asanyarray(
+                states.indices if isinstance(states, AbstractStateSpace) or hasattr(states, 'indices')
+                else states)
+        return self._ranks
+
+    def ranks_for(self, parent):
+        key = id(parent)
+        if key not in self._rank_queries:
+            ranks = self.indices.reshape(-1)
+            dtype = parent.indices.dtype
+            bounds = np.iinfo(dtype)
+            if len(ranks) and (int(ranks.min()) < 0 or int(ranks.max()) > bounds.max):
+                return None
+            self._rank_queries[key] = ranks.astype(dtype, copy=False)
+        return self._rank_queries[key]
+
+    def positions_for(self, parent, dtype):
+        key = id(parent)
+        if key not in self._positions:
+            self._positions[key] = np.atleast_1d(
+                parent.find(self.indices, check=True, missing_val=-1))
+        cast_key = (key, np.dtype(dtype).str)
+        if cast_key not in self._cast_positions:
+            positions = self._positions[key]
+            bounds = np.iinfo(dtype)
+            if len(positions) and (positions.min() < bounds.min or positions.max() > bounds.max):
+                return None
+            self._cast_positions[cast_key] = positions.astype(dtype, copy=False)
+        return self._cast_positions[cast_key]
+
+
+class BasisStateSpaceView(BasisStateSpace):
+    """Read-only selection of a shared state space through index positions.
+
+    ``index_parent`` keeps the basis ranks once. The supplied position array
+    can be a borrowed CSR index slice; ranks are materialized only when an
+    array is explicitly requested. Ordinary construction remains available
+    for inherited operations that return an independent resident space.
+    """
+    def __init__(self, basis, states, full_basis=None, mode=None, *,
+                 index_parent=None, assume_unique=None):
+        self.index_parent=index_parent
+        self.index_positions=None
+        self._view_unique=assume_unique
+        self._view_position_sorted=None
+        if index_parent is None:
+            super().__init__(basis,states,full_basis=full_basis,mode=mode)
+        else:
+            if basis!=index_parent.basis:raise ValueError('view and parent have different bases')
+            positions=states if isinstance(states, nput.PackedIndexArray) else np.asanyarray(states)
+            if positions.ndim!=1 or positions.dtype.kind not in 'iu':
+                raise TypeError('state-space view positions must be an integer vector')
+            if len(positions):
+                low,high=int(positions.min()),int(positions.max());size=len(index_parent)
+                if low < -size or high>=size:raise IndexError('state-space view position out of bounds')
+                if low<0:
+                    positions=positions.astype(np.intp,copy=False)
+                    positions=np.where(positions<0,positions+size,positions)
+            super().__init__(basis,[],full_basis=index_parent.full_basis,mode=self.StateSpaceSpec.Indices)
+            self.index_positions=positions.view()
+            if isinstance(self.index_positions, np.ndarray):self.index_positions.flags.writeable=False
+            self.keep_indices=False;self.keep_excitations=False
+
+    def __len__(self):
+        return len(self.index_positions) if self.index_parent is not None else super().__len__()
+
+    @property
+    def has_indices(self):
+        return self.index_parent is not None or super().has_indices
+
+    @property
+    def unique_len(self):
+        if self.index_parent is not None and self._view_unique is True:return len(self)
+        return super().unique_len
+
+    def _detach(self, states, mode):
+        self.index_parent=None;self.index_positions=None;self._view_unique=None
+        self._view_position_sorted=None
+        self.keep_indices=True;self.keep_excitations=True
+        BasisStateSpace.__init__(self,self.basis,states,full_basis=self.full_basis,mode=mode)
+
+    @BasisStateSpace.indices.setter
+    def indices(self, indices):
+        if self.index_parent is not None:self._detach(indices,self.StateSpaceSpec.Indices)
+        else:BasisStateSpace.indices.fset(self,indices)
+
+    @BasisStateSpace.excitations.setter
+    def excitations(self, excitations):
+        if self.index_parent is not None:self._detach(excitations,self.StateSpaceSpec.Excitations)
+        else:BasisStateSpace.excitations.fset(self,excitations)
+
+    def as_indices(self):
+        if self.index_parent is None:return super().as_indices()
+        return np.asarray(self.index_parent.indices[self.index_positions],dtype=self.indices_dtype)
+
+    def as_excitations(self):
+        if self.index_parent is None:return super().as_excitations()
+        return BasisStateSpace(self.basis,self.as_indices(),full_basis=self.full_basis,
+                               mode=self.StateSpaceSpec.Indices).as_excitations()
+
+    def _positions_are_sorted(self):
+        if self._view_position_sorted is None:
+            positions = self.index_positions
+            size = getattr(getattr(self.index_parent, 'store', None), 'block_size', 65536)
+            ordered = True
+            if isinstance(positions, nput.PackedIndexArray):
+                self._view_position_sorted = True
+                return True
+            for start in range(0, len(positions), size):
+                block = positions[max(0, start-1):start+size]
+                if np.any(block[1:] < block[:-1]):
+                    ordered = False
+                    break
+            self._view_position_sorted = ordered
+        return self._view_position_sorted
+
+    def find(self, to_search, check=True, minimal_dtype=False, dtype=None, missing_val='raise'):
+        parent = self.index_parent
+        if (parent is None or dtype is not None or len(self) == 0
+                or self._view_unique is not True or not parent.is_unique()
+                or not self._positions_are_sorted()):
+            return super().find(to_search, check=check, minimal_dtype=minimal_dtype,
+                                dtype=dtype, missing_val=missing_val)
+        query = to_search if isinstance(to_search, _StateSpaceViewQuery) else _StateSpaceViewQuery(to_search)
+        ranks = query.indices
+        if ranks.ndim > 1 or ranks.dtype.kind not in 'iu':
+            return super().find(to_search, check=check, minimal_dtype=minimal_dtype,
+                                dtype=dtype, missing_val=missing_val)
+        rank_queries = query.ranks_for(parent)
+        positions = query.positions_for(parent, self.index_positions.dtype)
+        if rank_queries is None or positions is None:
+            return super().find(to_search, check=check, minimal_dtype=minimal_dtype,
+                                dtype=dtype, missing_val=missing_val)
+        found = (self.index_positions.searchsorted(positions) if isinstance(self.index_positions, nput.PackedIndexArray)
+                 else np.searchsorted(self.index_positions, positions))
+        valid = (positions >= 0) & (found < len(self))
+        valid &= self.index_positions[np.minimum(found, len(self)-1)] == positions
+        missing = np.flatnonzero(~valid)
+        if len(missing):
+            if check:
+                if isinstance(missing_val, str) and missing_val == 'raise':
+                    # Preserve the native rank-based error on a checked miss.
+                    return super().find(to_search, check=check, minimal_dtype=minimal_dtype,
+                                        dtype=dtype, missing_val=missing_val)
+                found[missing] = missing_val
+            else:
+                parent_ranks = np.asarray(parent.indices)
+                columns = self.index_positions
+                if isinstance(columns, nput.PackedIndexArray):
+                    if parent.is_sorted():
+                        offsets = np.searchsorted(parent_ranks, rank_queries[missing])
+                        found[missing] = np.minimum(columns.searchsorted(offsets), len(self)-1)
+                    else:
+                        # One parent sort, shared by all packed support views.
+                        sorting = getattr(parent, '_packed_view_rank_sort', None)
+                        if sorting is None:
+                            sorting = nput.argsort(parent_ranks)
+                            parent._packed_view_rank_sort = sorting
+                        for i in missing:
+                            off = bisect.bisect_left(sorting, rank_queries[i], key=parent_ranks.__getitem__)
+                            while off < len(sorting) and not columns.contains(sorting[off]):off += 1
+                            if off == len(sorting):
+                                off = len(sorting)-1
+                                while not columns.contains(sorting[off]):off -= 1
+                            found[i] = columns.searchsorted(sorting[off])
+                elif parent.is_sorted():
+                    key = parent_ranks.__getitem__
+                    for i in missing:
+                        off = bisect.bisect_left(columns, rank_queries[i], key=key)
+                        found[i] = min(off, len(self)-1)
+                else:
+                    # Reuse the ordinary stable rank-order cache, building it
+                    # only once. Binary search dereferences a few entries;
+                    # no full rank vector is rebuilt on subsequent lookups.
+                    if self._indexer is None:
+                        self._indexer = nput.argsort(parent_ranks[columns])
+                    sorting = self._indexer
+                    key = lambda column: parent_ranks[columns[column]]
+                    for i in missing:
+                        off = bisect.bisect_left(sorting, rank_queries[i], key=key)
+                        found[i] = sorting[min(off, len(self)-1)]
+        return found[0] if ranks.ndim == 0 else found
+
+    def take_subspace(self, sel, assume_sorted=False,
+                      track_excitations=True, track_indices=True):
+        if self.index_parent is None or assume_sorted:
+            return super().take_subspace(sel, assume_sorted=assume_sorted,
+                track_excitations=track_excitations, track_indices=track_indices)
+        result = type(self)(self.basis, self.index_positions[sel],
+            index_parent=self.index_parent,
+            assume_unique=self._view_unique if isinstance(sel, slice) else None)
+        result._max_sum = self._max_sum
+        result._max_ind = self._max_ind
+        return result
+
+    def iter_position_blocks(self, block_size):
+        if self.index_parent is None:raise ValueError('resident space has no shared parent')
+        for start in range(0,len(self),block_size):yield self.index_positions[start:start+block_size]
+
+    def iter_index_blocks(self, block_size=None):
+        if block_size is None:block_size=getattr(getattr(self.index_parent,'store',None),'block_size',65536)
+        if self.index_parent is None:
+            indices=self.indices
+            for start in range(0,len(indices),block_size):yield indices[start:start+block_size]
+        else:
+            for positions in self.iter_position_blocks(block_size):
+                yield np.asarray(self.index_parent.indices[positions],dtype=self.indices_dtype)
+
+    def is_unique(self):
+        if self.index_parent is not None and self._view_unique is not None:return self._view_unique
+        return super().is_unique()
+
+    def to_state(self, serializer=None):
+        if self.index_parent is None:return super().to_state(serializer=serializer)
+        return dict(basis=self.basis,excitations=None,indices=self.as_indices())
+
+
 
 class PermutationallyReducedStateSpace(BasisStateSpace):
     """
@@ -2025,7 +2477,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
         return {
             'basis':self.basis,
             'shape':self.spaces.shape,
-            'spaces':[{'indices':x._indices, 'excitations':x._excitations} for x in self.spaces.flatten()]
+            'spaces':[{'indices':x.indices if isinstance(x,BasisStateSpaceView) else x._indices, 'excitations':x._excitations} for x in self.spaces.flatten()]
         }
     @classmethod
     def from_state(cls, data, serializer=None):
@@ -2162,6 +2614,8 @@ class BasisMultiStateSpace(AbstractStateSpace):
         for space in self.spaces.flat:
             if isinstance(space, BasisMultiStateSpace):
                 yield from space.iter_index_blocks()
+            elif hasattr(space,'iter_index_blocks'):
+                yield from space.iter_index_blocks()
             else:
                 yield space.indices
 
@@ -2223,6 +2677,7 @@ class BasisMultiStateSpace(AbstractStateSpace):
         :return:
         :rtype:
         """
+        states = _StateSpaceViewQuery.wrap(states, self.spaces)
         def take_inter(space, states=states):
             try:
                 return space.take_states(states,
@@ -2428,7 +2883,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
     def to_state(self, serializer=None):
         return {
             'base_space':self._base_space,
-            'spaces':[{'indices':x._indices, 'excitations':x._excitations} for x in self.spaces.flatten()],
+            'spaces':[{'indices':x.indices if isinstance(x,BasisStateSpaceView) else x._indices, 'excitations':x._excitations} for x in self.spaces.flatten()],
             'selection_rules':self.sel_rules
         }
     @classmethod
@@ -2510,6 +2965,7 @@ class SelectionRuleStateSpace(BasisMultiStateSpace):
             raise NotImplementedError("need to handle state change tracking")
 
 
+        states = _StateSpaceViewQuery.wrap(states, self.spaces)
         # if self.spaces.ndim == 1:
         new_spaces = [
                 s.take_states(states,

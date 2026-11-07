@@ -896,11 +896,11 @@ class MoleculePlotter:
         """
         **LLM Docstring**
 
-        Resolve the display radius for a single atom, delegating to `self.mol._get_atomic_radius` if a molecule is attached, otherwise falling back to the atom's icon radius (or van der Waals radius if the icon radius is too small) or an explicitly named radius field.
+        Resolve the display radius, delegating to the attached molecule or using IconRadius directly unless another radius field is explicitly requested.
 
         :param atom_data: the atom-data record to get a radius for
         :type atom_data: dict
-        :param radius_type: the specific radius field to use (e.g. `"VanDerWaalsRadius"`); if `None`, uses the icon radius with a van der Waals fallback
+        :param radius_type: the specific radius field to use (e.g. `"VanDerWaalsRadius"`); if `None`, uses IconRadius directly
         :type radius_type: str | None
         :return: the resolved atomic radius
         :rtype: float
@@ -908,13 +908,7 @@ class MoleculePlotter:
         if self.mol is not None:
             return self.mol._get_atomic_radius(atom_data, radius_type=radius_type)
         else:
-            if radius_type is None:
-                rad = atom_data["IconRadius"]
-                if rad < .8:
-                    rad = atom_data["VanDerWaalsRadius"]
-            else:
-                rad = atom_data[radius_type]
-            return rad
+            return atom_data["IconRadius" if radius_type is None else radius_type]
     def _get_atom_radii(self, atom_radii, atom_radius_scaling, radius_type):
         """
         **LLM Docstring**

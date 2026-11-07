@@ -1628,6 +1628,13 @@ def _alternate_test_reponse(
     )
 
 class NonlinearResponseFunction:
+    """Response functions with delays in time_unit and frequencies in frequency_unit.
+
+    Frequency inputs may be cyclic frequencies or energies (including spectroscopic
+    wavenumbers and kelvin energies). Energy uses E = h nu, wavenumbers use
+    E = h c sigma, and kelvin energies use E = k_B T. Time-domain phases use
+    angular frequency, obtained by multiplying the cyclic frequency by 2 pi once.
+    """
     def __init__(self, response_generator, driving_frequency=0,
                  frequency_unit='Hartrees',
                  time_unit='PicoSeconds',
@@ -1671,7 +1678,12 @@ class NonlinearResponseFunction:
 
     @classmethod
     def _freq_conv(cls, freq_unit, time_unit):
-        return UnitsData.convert(freq_unit, "Hertz") * UnitsData.convert(time_unit, 'Seconds') * (2*np.pi)
+        # E = h nu gives cyclic frequency; 2 pi converts it to the phase rate.
+        return (
+            UnitsData.convert(freq_unit, "Hertz", equivalences=("wavenumber", "thermal", "frequency"))
+            * UnitsData.convert(time_unit, "Seconds", equivalences=())
+            * (2 * np.pi)
+        )
     @property
     def conv(self):
         if self._conv is None:
@@ -1725,9 +1737,13 @@ class NonlinearResponseFunction:
             num_samples = [num_samples, num_samples]
         n1, n3 = num_samples
 
+        # The sampling floor uses the same energy/frequency conventions as the phase rate.
+        frequency_floor = self.max_min_freq_wn * UnitsData.convert(
+            "Wavenumbers", self._fu, equivalences=("wavenumber", "thermal", "frequency")
+        )
         min_freq1 = max([
             np.min(np.abs(w1_freqs)),
-            self.max_min_freq_wn*UnitsData.convert("Wavenumbers", self._fu)
+            frequency_floor
         ])
         max_freq1 = np.max(np.abs(w1_freqs))
         n1, t1 = self._determine_fft_samples(min_freq1 * self.conv, max_freq1* self.conv,
@@ -1739,7 +1755,7 @@ class NonlinearResponseFunction:
 
         min_freq3 = max([
             np.min(np.abs(w3_freqs)),
-            self.max_min_freq_wn * UnitsData.convert("Wavenumbers", self._fu)
+            frequency_floor
         ])
         max_freq3 = np.max(np.abs(w3_freqs))
         n3, t3 = self._determine_fft_samples(min_freq3 * self.conv, max_freq3 * self.conv,

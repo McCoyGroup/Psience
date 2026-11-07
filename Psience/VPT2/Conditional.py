@@ -823,7 +823,8 @@ class ConditionalTransformationStack:
         return result
 
 
-def conditional_path_factors(energy_key,state,permutations,perm_freqs,baseline_shift=None):
+def conditional_path_factors(energy_key,state,permutations,perm_freqs,baseline_shift=None,
+                             *,projection_bindings=()):
     """Evaluate endpoint conditions and safe denominators before division."""
     state = np.asarray(state)[0]
     permutations = np.asarray(permutations,dtype=int)
@@ -839,7 +840,8 @@ def conditional_path_factors(energy_key,state,permutations,perm_freqs,baseline_s
         if not isinstance(row[0],ConditionEndpoint):
             if getattr(row[0],'_state_projection_factor',False):
                 from .Projected import projected_path_factors
-                mask,weights = projected_path_factors((row,),[state],permutations,perm_freqs)
+                mask,weights = projected_path_factors((row,),[state],permutations,perm_freqs,
+                    projection_bindings=projection_bindings)
                 good &= mask
                 denominator *= weights
             else:
@@ -865,7 +867,7 @@ def conditional_path_factors(energy_key,state,permutations,perm_freqs,baseline_s
 
 
 def conditional_energy_rows(energy_keys,source_states,permutations,frequency_blocks,
-                            baseline_shift=None):
-    values = [conditional_path_factors(key,state,perms,freqs,baseline_shift)
+                            baseline_shift=None,*,projection_bindings=()):
+    values = [conditional_path_factors(key,state,perms,freqs,baseline_shift,projection_bindings=projection_bindings)
               for key,state,perms,freqs in zip(energy_keys,source_states,permutations,frequency_blocks)]
     return tuple(np.stack([value[i] for value in values]) for i in range(2))

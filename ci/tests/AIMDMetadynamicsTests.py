@@ -489,7 +489,7 @@ class MetadynamicsThermostatTests(unittest.TestCase):
                             thermostat={'type': 'langevin', 'friction': .2, 'seed': 867},
                             target_temperature=300.)
         _, velocities = sim.thermostat.apply_thermostat(sim.coords, sim.velocities, sim)
-        expected = 2*.2*300.*UnitsData.convert('Kelvins', 'Hartrees')*.025 / np.array(masses)
+        expected = 2*.2*300.*UnitsData.convert('Kelvins', 'Hartrees', equivalences=('thermal',))*.025 / np.array(masses)
         actual = velocities.var(axis=(0, 2))
         assert_allclose(actual/expected, 1., atol=.035)
 
