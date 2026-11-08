@@ -324,4 +324,341 @@ class IntermediateBlockTests(unittest.TestCase):
             projected=ProjectedCorrectionEvaluator(runner.eval,blocks=[states])
             projected.hamiltonian(pairs,2,terms=[(0,1,1)],normalization='intermediate')
 
+class FreeIndexExecutorTests(unittest.TestCase):
+    observations = {}
+
+    def fixture(self):
+        from Psience.VPT2.Analytic import (PTTensorCoeffProductSum as Coeff,
+            ProductPTPolynomial, PTEnergyChangeProductSum,
+            PerturbationTheoryExpressionEvaluator as Expression)
+        a=Coeff.canonical_key(((1,0,0,0,1),))
+        b=Coeff.canonical_key(((1,0,0,1,1),))
+        p=ProductPTPolynomial([np.array([1.,.3]),np.array([2.,.5])],steps=0)
+        value=PTEnergyChangeProductSum({((0,1,-2),):p,():p.scale(.01)})
+        poly=Coeff({a:value,b:value.permute((1,0))},canonicalize=False)
+        wrapper=Expression(None,poly,change=(),logger=False)
+        v=np.empty((4,)*3)
+        for index in np.ndindex(v.shape):
+            v[index]=1+sum((j+1)*i for j,i in enumerate(sorted(index)))
+        coeffs=[[[0,0],[v,0]]]
+        states=[(np.array([0,1,2,3]),np.array([[0,1,2,3],[3,0,2,1]])),
+                (np.array([2,0,3,1]),np.array([[1,3,0,2]]))]
+        return wrapper,states,coeffs,np.array([.013,.021,.034,.049])
+
+    def compare(self,actual,reference):
+        delta=np.abs(np.asarray(actual)-np.asarray(reference))
+        den=np.abs(reference);mask=den>0
+        np.testing.assert_allclose(actual,reference,rtol=3e-12,atol=3e-12)
+        return dict(max_absolute=float(delta.max()),
+            max_percent=float((100*delta[mask]/den[mask]).max()) if mask.any() else None,
+            denominator='Absolute corresponding nonzero unreduced reference entry')
+
+    def test_shared_plans_preserve_orientations_and_nonuniform_states(self):
+        from Psience.VPT2.IndexedEvaluator import IndexedBlockEvaluator
+        wrapper,states,coeffs,freqs=self.fixture()
+        store=ce.AnalyticExpressionStore()
+        baseline=store.compile(wrapper,context={'test':'binding'},mode_dimension=4,
+            free_index_reduction=False)
+        candidate=store.compile(wrapper,context={'test':'binding'},mode_dimension=4,
+            free_index_reduction=True)
+        self.assertNotEqual(baseline.manifest['signature'],candidate.manifest['signature'])
+        part=next(iter(candidate.parts.values()))
+        metadata=part._free_index_plan_data
+        self.assertEqual(metadata['stats']['canonical_plans'],1)
+        self.assertEqual(metadata['stats']['shared_plans'],1)
+        plan=IndexedBlockEvaluator.compile_plan(part,reduced=True)
+        keys=list(plan.subexpressions)
+        self.assertIs(plan.subexpressions[keys[0]],plan.subexpressions[keys[1]])
+        expected=baseline.evaluate(states,coeffs,freqs,resume=False,batch_size=2)
+        seen=[];original=IndexedBlockEvaluator.finish
+        def finish(executor):
+            record=original(executor);seen.append(record);return record
+        with mock.patch.object(IndexedBlockEvaluator,'finish',finish):
+            actual=candidate.evaluate(states,coeffs,freqs,resume=False,batch_size=2)
+        checks=[self.compare(a,b) for a,b in zip(actual,expected)]
+        self.assertTrue(any(s['free_index_bound_blocks']>0 for s in seen))
+        disabled=candidate.evaluate(states,coeffs,freqs,resume=False,batch_size=3,
+            free_index_reduction=False)
+        for a,b in zip(disabled,expected):self.compare(a,b)
+        type(self).observations['binding']=checks
+
+    def test_disk_roundtrip_resume_and_flag_cache_namespaces(self):
+        wrapper,states,coeffs,freqs=self.fixture()
+        with tempfile.TemporaryDirectory() as folder:
+            store=ce.AnalyticExpressionStore(folder)
+            a=store.compile(wrapper,context={'test':'disk'},mode_dimension=4,
+                free_index_reduction=False)
+            b=store.compile(wrapper,context={'test':'disk'},mode_dimension=4,
+                free_index_reduction=True)
+            expected=a.evaluate(states,coeffs,freqs,batch_size=2,task_size=2)
+            first=b.evaluate(states,coeffs,freqs,batch_size=2,task_size=2)
+            loaded=ce.CompiledAnalyticExpression.load(b.folder)
+            second=loaded.evaluate(states,coeffs,freqs,batch_size=2,task_size=2)
+            for x,y,z in zip(expected,first,second):
+                self.compare(y,x);np.testing.assert_array_equal(y,z)
+        with self.assertRaisesRegex(TypeError,'boolean'):
+            ce.AnalyticExpressionStore().compile(wrapper,context={},free_index_reduction='yes')
+
+    def test_external_predicates_keep_native_plan(self):
+        from Psience.VPT2.IndexedEvaluator import IndexedBlockEvaluator
+        wrapper,states,coeffs,freqs=self.fixture()
+        compiled=ce.AnalyticExpressionStore().compile(wrapper,context={},mode_dimension=4,
+            free_index_reduction=True)
+        part=next(iter(compiled.parts.values()))
+        token=ce._current_free_index_reduction.set(True)
+        try:
+            executor=IndexedBlockEvaluator(PerturbationTheoryExpressionEvaluator,part)
+        finally:ce._current_free_index_reduction.reset(token)
+        self.assertIsNotNone(executor.plan.index_bindings)
+        # Stop after native-plan selection, before coefficient gathering. This
+        # tests the fallback boundary without inventing an external predicate.
+        with mock.patch.object(executor,'get_coefficient_plan',side_effect=RuntimeError('stop')):
+            with self.assertRaisesRegex(RuntimeError,'stop'):
+                executor.eval_perm(part,(),None,(0,1),states,None,None,freqs,(),(),0,
+                    object(),[False,False,np.logical_and],1e-24,None,None,None,None,None,None,None,
+                    False,None,False)
+        self.assertIsNone(executor.plan.index_bindings)
+        self.assertEqual(executor.stats.free_index_fallback_calls,1)
+
+    def test_native_projected_internal_blocks_through_third_order(self):
+        matrices=[]
+        for enabled in (False,True):
+            exp,freqs,states=intermediate_fixture()
+            runner=AnalyticVPTRunner(exp,order=3,freqs=freqs,internals=True,logger=False,
+                compilation_options={'mode_dimension':2,'free_index_reduction':enabled})
+            block=AnalyticBlockExpansion(runner.eval,states,zero_cutoff=1e-24)
+            with ce.compiled_evaluation_context(runner.eval.expression_store,
+                    compilation_options={'mode_dimension':2,'free_index_reduction':enabled}):
+                block.extend(3)
+            matrices.append(np.asarray(block.F))
+        type(self).observations['projected_internal']=self.compare(matrices[1],matrices[0])
+
+    def test_coalescing_switch_remains_independent(self):
+        arrays=[]
+        for coalescing in (False,True):
+            for reduction in (False,True):
+                runner=MemoryCompilationTests().runner(compilation_options={
+                    'coalesce_combine_nodes':coalescing,'free_index_reduction':reduction})
+                arrays.append(MemoryCompilationTests().energy(runner))
+        for actual in arrays[1:]:self.compare(actual,arrays[0])
+
+
+class FreeIndexRemapTests(unittest.TestCase):
+    def test_inverse_views_collapse_without_mutating_original_graph(self):
+        base=PolyPath.from_coeffs([np.array([1.,.3]),np.array([2.,.5]),np.array([3.,.7])],steps=0).scale(2.)
+        permutation=(2,0,1);inverse=(1,2,0)
+        native=base.permute(permutation).permute(inverse)
+        before=hash(native)
+        token=PolyPath._index_reduction_context.set(True)
+        try:
+            optimized=base.permute(permutation).permute(inverse)
+            normalized=ce._normalize_index_paths(native,{})
+        finally:PolyPath._index_reduction_context.reset(token)
+        self.assertIs(optimized,base)
+        self.assertIs(normalized,base)
+        self.assertEqual(hash(native),before)
+        states=np.array([[0,1,2],[3,0,1],[2,3,0]])
+        np.testing.assert_array_equal(native.evaluate_polynomial(states),optimized.evaluate_polynomial(states))
+
+    def test_leaf_padding_and_permutation_are_exact_native_views(self):
+        base=PolyPath.from_coeffs([np.array([1.,.3]),np.array([2.,.5])],steps=0)
+        expected=base.pad([1,1]).permute((3,1,0,2))
+        token=PolyPath._index_reduction_context.set(True)
+        try:actual=base.pad([1,1]).permute((3,1,0,2))
+        finally:PolyPath._index_reduction_context.reset(token)
+        self.assertIsNone(actual._node)
+        states=np.array([[0,1,2,3],[3,0,1,2],[2,3,0,1]])
+        np.testing.assert_array_equal(actual.evaluate_polynomial(states),expected.evaluate_polynomial(states))
+
+    def test_real_lazy_path_orbits_share_the_lowered_plan(self):
+        from Psience.VPT2.Analytic import PTEnergyChangeProductSum,PTTensorCoeffProductSum
+        wrapper,states,coeffs,freqs=FreeIndexExecutorTests().fixture()
+        a,b=list(wrapper.expr.terms)
+        value=wrapper.expr.terms[a]
+        value=PTEnergyChangeProductSum({energy:PolyPath.from_polynomial(poly) for energy,poly in value.terms.items()})
+        wrapper.expr=PTTensorCoeffProductSum({a:value,b:value.permute((1,0))},canonicalize=False)
+        # Production wrappers supply a symbolic operator identity. A bare
+        # PolyPath cannot currently be used as an alias fingerprint.
+        wrapper.op=('free-index-lazy-binding-fixture',)
+        baseline=ce.AnalyticExpressionStore().compile(wrapper,context={},mode_dimension=4)
+        candidate=ce.AnalyticExpressionStore().compile(wrapper,context={},mode_dimension=4,free_index_reduction=True)
+        metadata=next(iter(candidate.parts.values()))._free_index_plan_data
+        self.assertEqual(metadata['stats']['canonical_plans'],1)
+        expected=baseline.evaluate(states,coeffs,freqs,resume=False)
+        actual=candidate.evaluate(states,coeffs,freqs,resume=False)
+        for x,y in zip(actual,expected):FreeIndexExecutorTests().compare(x,y)
+
+
+class FreeIndexBypassTests(unittest.TestCase):
+    observations={}
+    def test_known_low_rank_parts_do_no_canonical_or_graph_work(self):
+        from Psience.VPT2.Analytic import PTTensorCoeffProductSum as Coeff
+        for rank,fixed in ((0,0),(1,0),(1,1),(2,1),(2,2),(3,3),(4,3)):
+            key=() if rank==0 else ((1,0)+tuple(range(rank)),)
+            expression=Coeff({key:PolyPath.from_coeffs([np.ones(1)]*rank)},canonicalize=False)
+            expression._free_index_plan_data={'stale':True}
+            with mock.patch.object(ce,'_canonical_free_index_key',side_effect=AssertionError('orbit scan')), \
+                 mock.patch.object(ce,'_normalize_index_paths',side_effect=AssertionError('graph walk')), \
+                 mock.patch.object(ce,'_free_index_value_key',side_effect=AssertionError('graph hash')):
+                self.assertIsNone(ce._prepare_free_index_plan(expression,fixed,rank=rank))
+            self.assertFalse(hasattr(expression,'_free_index_plan_data'))
+
+    def test_mixed_ranks_keep_ineligible_values_native(self):
+        from Psience.VPT2.Analytic import PTTensorCoeffProductSum as Coeff
+        keys=((),((1,0,0),),((1,0,0,1),))
+        values=(PolyPath.from_coeffs([]),PolyPath.from_coeffs([np.array([1.,.2])]),
+                PolyPath.from_coeffs([np.array([1.,.2]),np.array([2.,.3])]))
+        expression=Coeff(dict(zip(keys,values)),canonicalize=False)
+        with mock.patch.object(ce,'_canonical_free_index_key',wraps=ce._canonical_free_index_key) as orbit, \
+             mock.patch.object(ce,'_normalize_index_paths',wraps=ce._normalize_index_paths) as normalize:
+            metadata=ce._prepare_free_index_plan(expression,0)
+        self.assertEqual(orbit.call_count,1);self.assertEqual(normalize.call_count,1)
+        self.assertEqual(metadata['stats']['native_passthrough_keys'],2)
+        for key,value in zip(keys[:2],values[:2]):
+            self.assertIs(metadata['values'][key],value);self.assertIsNone(metadata['bindings'][key])
+
+    def test_compiled_bypassed_parts_match_native_values(self):
+        from Psience.VPT2.Analytic import (PTTensorCoeffProductSum as Coeff,
+            PTEnergyChangeProductSum,PerturbationTheoryExpressionEvaluator as Expression)
+        _,states,coeffs,freqs=FreeIndexExecutorTests().fixture()
+        records=[]
+        for change,keys in (((),(((1,0,0,0,0),),)),((1,),(((1,0,0,0,0),),)),
+                            ((1,),(((1,0,0,0,1),),((1,0,0,1,1),)))):
+            terms={}
+            for key in keys:
+                rank=len({i for coefficient in key for i in coefficient[2:]})
+                poly=PolyPath.from_coeffs([np.array([1.+i,.2]) for i in range(rank)],steps=0)
+                terms[Coeff.canonical_key(key)]=PTEnergyChangeProductSum({():poly})
+            wrapper=Expression(('low-free-axis-fixture',change,keys),Coeff(terms,canonicalize=False),change=change,logger=False)
+            baseline=ce.AnalyticExpressionStore().compile(wrapper,context={'case':keys,'change':change},mode_dimension=4)
+            with mock.patch.object(ce,'_canonical_free_index_key',side_effect=AssertionError('orbit scan')), \
+                 mock.patch.object(ce,'_normalize_index_paths',side_effect=AssertionError('graph walk')), \
+                 mock.patch.object(ce,'_free_index_value_key',side_effect=AssertionError('graph hash')):
+                candidate=ce.AnalyticExpressionStore().compile(wrapper,context={'case':keys,'change':change},mode_dimension=4,free_index_reduction=True)
+            self.assertTrue(candidate.parts)
+            self.assertTrue(all(not hasattr(part,'_free_index_plan_data') for part in candidate.parts.values()))
+            expected=baseline.evaluate(states,coeffs,freqs,resume=False)
+            actual=candidate.evaluate(states,coeffs,freqs,resume=False)
+            records.extend(FreeIndexExecutorTests().compare(a,b) for a,b in zip(actual,expected))
+        type(self).observations['native_low_free_axis_values']=records
+
+
+class SharedCanonicalValueTests(unittest.TestCase):
+    observations={}
+    def table(self,physical_blocks=None):
+        from Psience.VPT2.IndexedEvaluator import ConcreteBlockTable,IndexedBlockEvaluator
+        from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression,_StatePermutationBlockIdentity
+        wrapper,*_=FreeIndexExecutorTests().fixture()
+        compiled=ce.AnalyticExpressionStore().compile(wrapper,context={'shared':'table'},mode_dimension=4,free_index_reduction=True)
+        part=next(iter(compiled.parts.values()));plan=IndexedBlockEvaluator.compile_plan(part,reduced=True)
+        subplan=next(iter(plan.subexpressions.values()));table=ConcreteBlockTable()
+        state=np.array([[0,2,1,3]]);freqs=np.array([.013,.021,.034,.049])
+        for n,physical in enumerate(physical_blocks if physical_blocks is not None else (np.array([[0,1],[0,2]]),np.array([[0,2],[0,3]]))):
+            substates=np.moveaxis(state[:,physical],0,1)
+            tuples=[[tuple(row) for row in block] for block in substates]
+            table.append(0,np.array([n,n+1]),np.array([n,n+1]),np.array([[2.+n,3.+n]]),
+                ('source',n),subplan,physical,substates,tuples,freqs[physical],
+                _StatePermutationBlockIdentity(tuples),np.zeros((1,2)),state)
+        token=ce._current_free_index_reduction.set(True)
+        try:executor=IndexedBlockEvaluator(Expression,part)
+        finally:ce._current_free_index_reduction.reset(token)
+        return executor,table
+    def test_physical_pools_deduplicate_and_restore_original_routes(self):
+        executor,table=self.table();joined,routes,aliases=executor._share_canonical_value_blocks(table)
+        self.assertEqual(len(joined),1);self.assertEqual(len(joined.permutation_subsets[0]),3)
+        for index,(group,inverse) in enumerate(routes):
+            np.testing.assert_array_equal(joined.permutation_subsets[group][inverse],table.permutation_subsets[index])
+            np.testing.assert_array_equal(joined.permutation_frequencies[group][inverse],table.permutation_frequencies[index])
+            np.testing.assert_array_equal(joined.permutation_substates[group][inverse],table.permutation_substates[index])
+        self.assertEqual(executor.stats.shared_value_duplicate_points,1)
+        self.assertEqual(aliases[0],tuple(table.expression_keys))
+    def test_join_budget_keeps_native_blocks_separate(self):
+        executor,table=self.table();executor.max_shared_value_permutations=2
+        joined,routes,aliases=executor._share_canonical_value_blocks(table)
+        self.assertIs(joined,table);self.assertIsNone(routes)
+    def test_disjoint_physical_bindings_keep_native_execution(self):
+        executor,table=self.table((np.array([[0,1],[0,2]]),np.array([[0,3],[1,3]])))
+        joined,routes,aliases=executor._share_canonical_value_blocks(table)
+        self.assertIs(joined,table);self.assertIsNone(routes);self.assertIsNone(aliases)
+        self.assertEqual(executor.stats.shared_value_blocks_eliminated,0)
+        self.assertEqual(executor.stats.shared_value_duplicate_points,0)
+        self.assertEqual(executor.stats.shared_value_disjoint_blocks,2)
+    def test_actual_contraction_vectors_fall_with_identical_values(self):
+        self.evaluate_case(False,False)
+    def test_nonunit_prefactors_batched_states_and_cutoffs(self):
+        self.evaluate_case(True,True)
+    def evaluate_case(self,batched,cutoffs):
+        from Psience.VPT2.IndexedEvaluator import IndexedBlockEvaluator
+        from Psience.VPT2.Analytic import PTEnergyChangeProductSum,PTTensorCoeffProductSum
+        wrapper,states,coeffs,freqs=FreeIndexExecutorTests().fixture()
+        if batched:states=[(state,np.array([[0,1,2,3]])) for state,_ in states]
+        wrapper.expr=PTTensorCoeffProductSum({key:PTEnergyChangeProductSum(dict(value.terms),prefactor=2.3)
+            for key,value in wrapper.expr.terms.items()},canonicalize=False)
+        if cutoffs:
+            for index in set(itertools.permutations((0,0,1))):coeffs[0][1][0][index]=1e-32
+            for index in set(itertools.permutations((0,0,2))):coeffs[0][1][0][index]=0.
+        compiled=ce.AnalyticExpressionStore().compile(wrapper,context={'shared':'numeric','batched':batched},mode_dimension=4,free_index_reduction=True)
+        outputs=[];statistics=[]
+        native_finish=IndexedBlockEvaluator.finish
+        for enabled in (False,True):
+            captured=[]
+            def finish(executor):
+                result=native_finish(executor);captured.append(result);return result
+            with mock.patch.object(IndexedBlockEvaluator,'use_shared_canonical_values',enabled), \
+                 mock.patch.object(IndexedBlockEvaluator,'finish',finish):
+                outputs.append(compiled.evaluate(states,coeffs,freqs,resume=False,zero_cutoff=1e-24))
+            statistics.append(captured)
+        residual=[FreeIndexExecutorTests().compare(a,b) for a,b in zip(outputs[1],outputs[0])]
+        before=sum(row['contraction_rows'] for row in statistics[0]);after=sum(row['contraction_rows'] for row in statistics[1])
+        if batched:
+            self.assertEqual(after,before)
+            self.assertEqual(sum(row['shared_value_duplicate_points'] for row in statistics[1]),0)
+        else:
+            self.assertLess(after,before)
+            self.assertGreater(sum(row['shared_value_blocks_eliminated'] for row in statistics[1]),0)
+        self.assertLessEqual(sum(row['energy_scalar_lanes'] for row in statistics[1]),sum(row['energy_scalar_lanes'] for row in statistics[0]))
+        type(self).observations['batched' if batched else 'routed']=dict(residual=residual,rows_before=before,rows_after=after,statistics=statistics)
+
+
+class SharedEnergyRowTests(unittest.TestCase):
+    observations = {}
+
+    def evaluate(self, capacity=32*1024**2):
+        from Psience.VPT2.IndexedEvaluator import IndexedBlockEvaluator
+        from Psience.VPT2.Analytic import PTTensorCoeffProductSum as Coeff
+        wrapper, states, coeffs, freqs = FreeIndexExecutorTests().fixture()
+        value = next(iter(wrapper.expr.terms.values()))
+        a = Coeff.canonical_key(((1,0,0,0,1),))
+        b = Coeff.canonical_key(((1,1,0,0,1),))
+        coeffs[0][1][1] = coeffs[0][1][0] * .37
+        wrapper.expr = Coeff({a:value, b:value.scale(1.7)}, canonicalize=False)
+        compiled = ce.AnalyticExpressionStore().compile(wrapper, context={'energy_row_reuse':capacity},
+            mode_dimension=4, free_index_reduction=True)
+        outputs, statistics = [], []
+        original = IndexedBlockEvaluator.finish
+        for enabled in (False,True):
+            captured = []
+            def finish(executor):
+                result=original(executor);captured.append(result);return result
+            with mock.patch.object(IndexedBlockEvaluator,'use_shared_energy_rows',enabled), \
+                 mock.patch.object(IndexedBlockEvaluator,'max_energy_row_cache_bytes',capacity), \
+                 mock.patch.object(IndexedBlockEvaluator,'finish',finish):
+                outputs.append(compiled.evaluate(states,coeffs,freqs,resume=False,zero_cutoff=1e-24))
+            statistics.append(captured)
+        residual = [FreeIndexExecutorTests().compare(a,b) for a,b in zip(outputs[1],outputs[0])]
+        before = sum(r['energy_computed_scalar_lanes'] for r in statistics[0])
+        after = sum(r['energy_computed_scalar_lanes'] for r in statistics[1])
+        self.assertLess(after,before)
+        self.assertGreater(sum(r['energy_rows_reused'] for r in statistics[1]),0)
+        self.assertLessEqual(max(r['max_energy_row_cache_bytes'] for r in statistics[1]),capacity)
+        type(self).observations[str(capacity)] = dict(residual=residual,scalar_lanes_before=before,
+            scalar_lanes_after=after,statistics=statistics)
+
+    def test_distinct_numerators_share_exact_denominators(self):
+        self.evaluate()
+
+    def test_bounded_cache_keeps_values_and_temporary_row_reuse(self):
+        self.evaluate(1)
+
+
 if __name__=='__main__':unittest.main()

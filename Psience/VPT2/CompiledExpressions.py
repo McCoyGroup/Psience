@@ -34,6 +34,7 @@ __all__ = ['AnalyticExpressionStore', 'CompiledAnalyticExpression',
            'CompiledAnalyticEvaluation', 'AnalyticCorrectionCompiler']
 
 _current_compilation = contextvars.ContextVar('analytic_compilation', default=None)
+_current_free_index_reduction = contextvars.ContextVar('analytic_free_index_reduction', default=False)
 
 
 @contextlib.contextmanager
@@ -127,6 +128,146 @@ def _polynomial_degree(expression):
                               for arg in args[:2])
         else:cache[node] = max((cache[child] for child in children), default=0)
     return cache[expression]
+
+
+def _canonical_free_index_key(key, num_fixed, *, max_permutations=720,
+                              symmetrizers=None, cache=None):
+    """Return (representative, new_to_old_axes), or None for bounded fallback.
+
+    External axes [0,num_fixed) remain pointwise fixed. Equality classes and
+    coefficient identities are preserved. Tensor-slot symmetries come only
+    from PTTensorCoeffProductSum.canonical_key; G never acquires V symmetry.
+    The representative must be evaluated on new_to_old_axes, and numerator,
+    denominator and projector deltas must be permuted with the same binding.
+    In particular, do not replace a source term by this key on an unchanged
+    sorted mode subset.
+    """
+    from Psience.VPT2.Analytic import PTTensorCoeffProductSum
+    key = tuple(tuple(int(i) for i in coefficient) for coefficient in key)
+    if num_fixed < 0:
+        raise ValueError("num_fixed must be nonnegative")
+    indices = sorted({i for coefficient in key for i in coefficient[2:]})
+    rank = len(indices)
+    if indices != list(range(rank)) or num_fixed > rank:
+        return None
+    if math.factorial(rank-num_fixed) > max_permutations:
+        return None
+    cache_key=(num_fixed,key,tuple(PTTensorCoeffProductSum.symmetrizers()
+               if symmetrizers is None else symmetrizers))
+    if cache is not None:
+        cached=cache.get(cache_key,())
+        if cached:return cached
+    fixed = tuple(range(num_fixed))
+    representative = None
+    binding = None
+    for tail in itertools.permutations(range(num_fixed, rank)):
+        old_to_new = fixed + tail
+        candidate = PTTensorCoeffProductSum.canonical_key(
+            tuple(coefficient[:2] + tuple(old_to_new[i] for i in coefficient[2:])
+                  for coefficient in key), symmetrizers=symmetrizers)
+        inverse = [0] * rank
+        for old, new in enumerate(old_to_new):
+            inverse[new] = old
+        inverse = tuple(inverse)
+        if representative is None or (candidate, inverse) < (representative, binding):
+            representative, binding = candidate, inverse
+    result=(representative,binding)
+    if cache is not None:cache[cache_key]=result
+    return result
+
+
+def _free_index_value_key(value):
+    """Exact structural key; includes every denominator/projector factor."""
+    from .Analytic import PTEnergyChangeProductSum, PolyPath
+    if isinstance(value,PTEnergyChangeProductSum):
+        return (PTEnergyChangeProductSum,value.prefactor,frozenset(
+            (energy,PolyPath.from_polynomial(polynomial))
+            for energy,polynomial in value.terms.items()))
+    return (PolyPath,PolyPath.from_polynomial(value))
+
+
+def _normalize_index_paths(value,cache):
+    """Rebuild existing lazy paths through exact native remap simplification.
+
+    The walk is iterative and memoized per immutable part. Original paths stay
+    untouched; no conversion to eager polynomial sums is used.
+    """
+    from .Analytic import PolyPath, PTEnergyChangeProductSum
+    def path(root):
+        root=PolyPath.from_polynomial(root)
+        pending=[(root,False)]
+        def children(arg):
+            if isinstance(arg,PolyPath):yield arg
+            elif isinstance(arg,tuple):
+                for item in arg:yield from children(item)
+        def remap(arg):
+            if isinstance(arg,PolyPath):return cache[id(arg)][1]
+            if isinstance(arg,tuple):return tuple(remap(item) for item in arg)
+            return arg
+        while pending:
+            node,ready=pending.pop()
+            entry=cache.get(id(node))
+            if entry is not None and entry[0] is node:continue
+            if node._node is None:
+                cache[id(node)]=(node,node);continue
+            if not ready:
+                pending.append((node,True))
+                pending.extend((child,False) for child in children(node._node[1]))
+            else:
+                kind,args=node._node
+                reduced=type(node)._from_node(kind,remap(args),node.ndim,node.order)
+                cache[id(node)]=(node,reduced)
+        return cache[id(root)][1]
+    if isinstance(value,PTEnergyChangeProductSum):
+        return value.mutate({energy:path(poly) for energy,poly in value.terms.items()})
+    return path(value)
+
+
+def _prepare_free_index_plan(expression,num_fixed,cache=None,*,rank=None):
+    """Lower equivalent numerator/denominator plans with explicit bindings.
+
+    Original coefficient keys and values stay intact for native gathering,
+    numerical cutoffs, external-degeneracy fallback and reference evaluation.
+    These annotations share preparation, not ordering sectors or scalar sums.
+    """
+    # Compiler parts already have a known homogeneous rank. Return before
+    # scanning values, canonicalizing coefficient keys, walking lazy graphs,
+    # or hashing numerators when no dummy-index permutation exists.
+    if rank is not None and rank-num_fixed<2:
+        expression.__dict__.pop('_free_index_plan_data',None)
+        return None
+    bindings={};values={};interned={};representatives=set();fallbacks=0;paths={}
+    passthrough=0
+    for key,value in expression.terms.items():
+        key_rank=len({i for coefficient in key for i in coefficient[2:]})
+        if key_rank-num_fixed<2:
+            bindings[key]=None;values[key]=value;passthrough+=1
+            continue
+        orbit=_canonical_free_index_key(key,num_fixed,cache=cache)
+        if orbit is None:
+            bindings[key]=None;values[key]=value;fallbacks+=1;passthrough+=1
+            continue
+        else:
+            representative,binding=orbit;representatives.add(representative)
+            if binding==tuple(range(len(binding))):
+                canonical=value
+            else:
+                canonical=value.ensure_dimension(len(binding)).permute(binding,allow_padding=True)
+        canonical=_normalize_index_paths(canonical,paths)
+        identity=_free_index_value_key(canonical)
+        canonical=interned.setdefault(identity,canonical)
+        bindings[key]=binding;values[key]=canonical
+    if passthrough==len(expression.terms):
+        expression.__dict__.pop('_free_index_plan_data',None)
+        return None
+    plan_count=len({id(value) for value in values.values()})
+    expression._free_index_plan_data=dict(format=1,num_fixed=num_fixed,
+        bindings=bindings,values=values,stats=dict(
+            source_keys=len(expression.terms),coefficient_patterns=len(representatives),
+            canonical_plans=plan_count,shared_plans=len(values)-plan_count,
+            fallback_keys=fallbacks,native_passthrough_keys=passthrough))
+    return expression._free_index_plan_data
+
 
 
 @dataclasses.dataclass(frozen=True)
@@ -243,7 +384,7 @@ class AnalyticExpressionStore:
     def compile(self, expression, *, context=None, active_operators=None, projection=None,
                 max_terms=32768, max_bytes=64*1024**2, cache_size=100000,
                 cache_bytes=512*1024**2, node_cache_size=8192, mode_dimension=None, progress=None,
-                coalesce_combine_nodes=True,bounded_byte_accounting=True):
+                coalesce_combine_nodes=True,bounded_byte_accounting=True,free_index_reduction=False):
         """Compile native expressions; early DAG combine-node coalescing is on by default.
 
         Set coalesce_combine_nodes=False (also accepted through evaluator
@@ -254,11 +395,16 @@ class AnalyticExpressionStore:
             active_operators=active_operators,projection=projection,max_terms=max_terms,max_bytes=max_bytes,
             cache_size=cache_size,cache_bytes=cache_bytes,node_cache_size=node_cache_size,
             mode_dimension=mode_dimension,progress=progress,coalesce_combine_nodes=coalesce_combine_nodes,
-            bounded_byte_accounting=bounded_byte_accounting)
+            bounded_byte_accounting=bounded_byte_accounting,free_index_reduction=free_index_reduction)
 
     def compile_factory(self, factory, **options):
         """Compile or reuse an entry, accounting separately for lookup and actual construction."""
         started=time.perf_counter(); building=[]; completed=False
+        from .Analytic import PolyPath
+        reduction=options.get('free_index_reduction',False)
+        if not isinstance(reduction,(bool,np.bool_)):
+            raise TypeError('free_index_reduction must be boolean')
+        index_token=PolyPath._index_reduction_context.set(bool(reduction))
         self.timings['requests']+=1
         def build():
             building.append(time.perf_counter())
@@ -268,6 +414,7 @@ class AnalyticExpressionStore:
             result.store=self; completed=True
             return result
         finally:
+            PolyPath._index_reduction_context.reset(index_token)
             elapsed=time.perf_counter()-started
             construction=0. if not building else time.perf_counter()-building[0]
             self.timings['compilation_seconds']+=construction
@@ -278,16 +425,20 @@ class AnalyticExpressionStore:
     def _compile_factory(self, factory, *, context, active_operators=None, projection=None,
                          max_terms=32768,max_bytes=64*1024**2,cache_size=100000,
                           cache_bytes=512*1024**2,node_cache_size=8192,mode_dimension=None,progress=None,
-                          coalesce_combine_nodes=True,bounded_byte_accounting=True):
+                          coalesce_combine_nodes=True,bounded_byte_accounting=True,free_index_reduction=False):
         from .Analytic import (SqrtChangePoly,PTTensorCoeffProductDAG,PTTensorCoeffProductSum,
             PTTensorCoeffProductDAGEvaluationPlan,_BoundedEvaluationCache,_BalancedPolynomialAccumulator)
         from .BoundedStream import StreamBudget
         if not isinstance(coalesce_combine_nodes, (bool, np.bool_)):
             raise TypeError('coalesce_combine_nodes must be boolean')
         coalescing_enabled = bool(coalesce_combine_nodes)
+        if not isinstance(free_index_reduction,(bool,np.bool_)):
+            raise TypeError('free_index_reduction must be boolean')
+        free_index_reduction=bool(free_index_reduction)
         options = dict(max_terms=max_terms,max_bytes=max_bytes,cache_size=cache_size,
                        cache_bytes=cache_bytes,node_cache_size=node_cache_size,mode_dimension=mode_dimension,
-                       coalesce_combine_nodes=coalescing_enabled,bounded_byte_accounting=bool(bounded_byte_accounting))
+                       coalesce_combine_nodes=coalescing_enabled,bounded_byte_accounting=bool(bounded_byte_accounting),
+                       free_index_reduction=free_index_reduction)
         if max_terms<1 or (max_bytes is not None and max_bytes<1):raise ValueError('invalid compilation budget')
         signature = self._signature(context,active_operators,projection,options)
         directory = None if self.folder is None else self.folder/signature
@@ -340,6 +491,10 @@ class AnalyticExpressionStore:
             bounded_byte_accounting=bounded_byte_accounting))
         staging = contextlib.nullcontext(None) if self.folder is None else self.entries.stage(signature)
         memory_parts={}
+        if free_index_reduction and not hasattr(self,'_free_index_orbits'):
+            self._free_index_orbits=_BoundedEvaluationCache(32768,32*1024**2)
+        can_reduce=free_index_reduction and not (
+            baseline and any(baseline[wrapper.num_fixed:]))
         with staging as staged:
             stage = None if staged is None else Path(staged.path)
             pending={};parts=[]
@@ -354,6 +509,8 @@ class AnalyticExpressionStore:
                 for rank,terms in sorted(groups.items()):
                     name = 'part-{:06d}-r{}.pkl'.format(len(parts),rank)
                     part = PTTensorCoeffProductSum(terms,canonicalize=False,reduced=True)
+                    if can_reduce:
+                        _prepare_free_index_plan(part,wrapper.num_fixed,self._free_index_orbits,rank=rank)
                     if stage is None:
                         payload=pickle.dumps(part,protocol=5)
                         part_hash=hashlib.sha256(payload).hexdigest();part_bytes=len(payload)
@@ -362,7 +519,8 @@ class AnalyticExpressionStore:
                         _atomic_pickle(stage/name,part)
                         part_hash=_file_hash(stage/name);part_bytes=(stage/name).stat().st_size
                     parts.append(dict(file=name,rank=rank,sha256=part_hash,bytes=part_bytes,
-                        coefficient_keys=len(terms),energy_rows=sum(len(p.terms) if hasattr(p,'terms') else 1 for p in terms.values())))
+                        coefficient_keys=len(terms),energy_rows=sum(len(p.terms) if hasattr(p,'terms') else 1 for p in terms.values()),
+                        free_index_plan_stats=(getattr(part,'_free_index_plan_data',{}).get('stats'))))
                 pending.clear();budget.flushed(reason)
             for key,value in iterator:
                 if transform is not None:value = transform(key,value)
@@ -550,8 +708,18 @@ def _run_assigned_compiled_bins(bins,context):
 def _run_compiled_tasks(tasks,context):
     from .Analytic import PolyPath
     limit = context['numerical_options'].get('path_equality_cache_size', 32768)
-    with PolyPath.cached_comparisons(limit):
-        return _run_compiled_tasks_inner(tasks,context)
+    enabled=context['numerical_options'].get('free_index_reduction',
+        context['manifest']['options'].get('free_index_reduction',False))
+    if not isinstance(enabled,(bool,np.bool_)):
+        raise TypeError('free_index_reduction must be boolean')
+    token=_current_free_index_reduction.set(bool(enabled))
+    index_token=PolyPath._index_reduction_context.set(bool(enabled))
+    try:
+        with PolyPath.cached_comparisons(limit):
+            return _run_compiled_tasks_inner(tasks,context)
+    finally:
+        PolyPath._index_reduction_context.reset(index_token)
+        _current_free_index_reduction.reset(token)
 
 
 def _run_compiled_tasks_inner(tasks,context):
@@ -620,6 +788,7 @@ def _run_compiled_tasks_inner(tasks,context):
             options.update(context['numerical_options'])
             options.pop('path_equality_cache_size',None)
             options.pop('cache_polynomial_order',None)
+            options.pop('free_index_reduction',None)
             options['_max_polynomial_order']=max_order
             result=Expression.evaluate_polynomial_expression(requests,coefficients,context['freqs'],poly,
                 manifest['change'],manifest['baseline_shift'],num_fixed,
