@@ -2574,6 +2574,7 @@ class PolyPath(ProductPTPolynomialSum):
     """
 
     _comparison_context = contextvars.ContextVar('PolyPath.comparisons', default=None)
+    _index_reduction_context = contextvars.ContextVar('PolyPath.index_reduction', default=False)
 
     @classmethod
     @contextlib.contextmanager
@@ -2629,6 +2630,25 @@ class PolyPath(ProductPTPolynomialSum):
     @classmethod
     def _from_node(cls, kind, args, ndim, order):
         cls._node_requests += 1
+        if kind=='remap' and cls._index_reduction_context.get():
+            child,pull,output_ndim=args
+            # Compose pure index views. No coefficients are expanded or added.
+            while child._node is not None and child._node[0]=='remap':
+                grandchild,inner,_=child._node[1]
+                pull=tuple(pull[i] for i in inner)
+                child=grandchild
+            if output_ndim==child.ndim and pull==tuple(range(child.ndim)):
+                return child
+            # A one-term leaf can be relabeled exactly using native axes.
+            # Keeping larger leaves lazy avoids materializing polynomial sums.
+            if child._node is None and len(child._items)==1:
+                term,scaling=child._items[0]
+                if len(term.axes)==child.ndim:
+                    identity=PolyAxis((PolyAtom([1]),))
+                    axes=[identity]*output_ndim
+                    for old,new in enumerate(pull):axes[new]=term.axes[old]
+                    return cls({PolyTerm(tuple(axes),steps=term.steps):scaling},reduced=True)
+            args=(child,pull,output_ndim)
         # Addition is intentionally binary and remaps/symmetry orbits have very
         # high cardinality.  Interning those nodes costs substantially more
         # memory than their observed (<1%) hit rate at fourth order; their

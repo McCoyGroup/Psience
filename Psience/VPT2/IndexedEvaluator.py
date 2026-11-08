@@ -258,6 +258,7 @@ class IndexedExpressionPlan:
     expression: object
     subexpressions: object
     term_count: int
+    index_bindings: object = None
 
 
 class ConcreteBlockTable:
@@ -601,6 +602,29 @@ class IndexedEvaluationStats:
     routing_plans_compiled: int = 0
     routing_matches: int = 0
     routing_seconds: float = 0.0
+    free_index_source_plans: int = 0
+    free_index_canonical_plans: int = 0
+    free_index_shared_plans: int = 0
+    free_index_bound_blocks: int = 0
+    free_index_fallback_calls: int = 0
+    shared_value_input_blocks: int = 0
+    shared_value_output_blocks: int = 0
+    shared_value_blocks_eliminated: int = 0
+    shared_value_input_points: int = 0
+    shared_value_unique_points: int = 0
+    shared_value_duplicate_points: int = 0
+    shared_value_disjoint_blocks: int = 0
+    shared_value_pool_hits: int = 0
+    shared_value_pool_misses: int = 0
+    shared_value_sort_calls: int = 0
+    shared_value_seconds: float = 0.0
+    max_shared_value_permutations: int = 0
+    energy_scalar_lanes: int = 0
+    energy_computed_scalar_lanes: int = 0
+    energy_rows_computed: int = 0
+    energy_rows_reused: int = 0
+    energy_row_cache_evictions: int = 0
+    max_energy_row_cache_bytes: int = 0
 
     def as_dict(self):
         return dataclasses.asdict(self)
@@ -613,16 +637,16 @@ class IndexedExpressionPlanCache:
         self.max_items = max(0, int(max_items))
         self._plans = collections.OrderedDict()
 
-    def get(self, expression):
-        entry = self._plans.get(id(expression))
+    def get(self, expression, namespace=None):
+        entry = self._plans.get((id(expression),namespace))
         if entry is None or entry[0] is not expression:
             return None
         return entry[1]
 
-    def store(self, expression, plan):
+    def store(self, expression, plan, namespace=None):
         if self.max_items == 0:
             return
-        key = id(expression)
+        key = (id(expression),namespace)
         self._plans[key] = (expression, plan)
         self._plans.move_to_end(key)
         while len(self._plans) > self.max_items:
@@ -1023,23 +1047,37 @@ class IndexedBlockEvaluator:
         self._degeneracy_selection_plans = collections.OrderedDict()
         self._degeneracy_group_plans = collections.OrderedDict()
         self._started = time.perf_counter()
-        self.plan = self.get_plan(expression)
+        from .CompiledExpressions import _current_free_index_reduction
+        self._free_index_plan = None
+        self._native_plan = None
+        data=getattr(expression,'_free_index_plan_data',None)
+        if _current_free_index_reduction.get() and data is not None:
+            if data.get('format')!=1:raise ValueError('unsupported free-index plan format')
+            self._free_index_plan=self.get_plan(expression,reduced=True)
+            stats=data['stats']
+            self.stats.free_index_source_plans=stats['source_keys']
+            self.stats.free_index_canonical_plans=stats['canonical_plans']
+            self.stats.free_index_shared_plans=stats['shared_plans']
+        self.plan=self._free_index_plan
+        if self.plan is None:
+            self._native_plan=self.plan=self.get_plan(expression)
 
     @classmethod
     def clear_plan_cache(cls):
         cls._plan_cache.clear()
 
-    def get_plan(self, expression):
-        plan = None if self.preparation_context is not None else self._plan_cache.get(expression)
+    def get_plan(self, expression, reduced=False):
+        namespace='free-index-v1' if reduced else None
+        plan = None if self.preparation_context is not None else self._plan_cache.get(expression,namespace)
         if plan is not None:
             self.stats.plan_cache_hits += 1
             return plan
         self.stats.plan_cache_misses += 1
-        plan = self.compile_plan(expression)
+        plan = self.compile_plan(expression,reduced=reduced)
         self.stats.plans_compiled += 1
         self.stats.plan_terms += plan.term_count
         if self.preparation_context is None:
-            self._plan_cache.store(expression, plan)
+            self._plan_cache.store(expression, plan,namespace)
         return plan
 
     @staticmethod
@@ -1079,20 +1117,28 @@ class IndexedBlockEvaluator:
         raise TypeError("unsupported indexed subexpression {}".format(type(expression).__name__))
 
     @classmethod
-    def compile_plan(cls, expression):
+    def compile_plan(cls, expression, reduced=False):
         # Lazy import avoids an Analytic -> IndexedEvaluator -> Analytic cycle.
         from . import Analytic as analytic
 
         subexpressions = {}
         term_count = 0
-        for key, subexpression in expression.terms.items():
-            subplan, subterms = cls._compile_subexpression(subexpression, analytic)
+        data=getattr(expression,'_free_index_plan_data',None) if reduced else None
+        terms=expression.terms if data is None else data['values']
+        interned={}
+        for key, subexpression in terms.items():
+            # Compiler-interned canonical values share the exact native plan.
+            identity=id(subexpression)
+            if identity not in interned:
+                interned[identity]=cls._compile_subexpression(subexpression, analytic)
+            subplan, subterms = interned[identity]
             subexpressions[key] = subplan
             term_count += subterms
         return IndexedExpressionPlan(
             expression,
             types.MappingProxyType(subexpressions),
-            term_count
+            term_count,
+            None if data is None else types.MappingProxyType(data['bindings'])
         )
 
     def finish(self):
@@ -1658,13 +1704,138 @@ class IndexedBlockEvaluator:
         )
         return polynomial_block
 
+    # Bound the joined permutation axis as well as the existing row chunk.
+    # This remains a diagnostic native control, independent of compiler coalescing.
+    use_shared_canonical_values = True
+    use_shared_energy_rows = True
+    max_energy_row_cache_bytes = 32 * 1024**2
+    max_shared_value_permutations = 4096
+
+    def _share_canonical_value_blocks(self, blocks):
+        """Evaluate only genuine overlapping physical inputs once.
+
+        Distinct ordered summation sectors must retain their native blocks.
+        Joining them only widens vectors without removing scalar work and can
+        destroy useful numerator-cache locality. Exact overlap is checked once
+        per cached physical pool; every original coefficient/scatter survives.
+        """
+        from .Analytic import _StatePermutationBlockIdentity
+        tick = time.perf_counter()
+
+        def component(index):
+            return (id(blocks.permutation_frequencies[index]),
+                    id(blocks.permutation_substates[index]),
+                    id(blocks.state_block_identities[index]))
+
+        groups = collections.OrderedDict()
+        for index, plan in enumerate(blocks.plans):
+            groups.setdefault((id(plan), blocks.state_indices[index]), []).append(index)
+        cap = max(1, int(self.max_shared_value_permutations))
+        chunks = []
+        for indices in groups.values():
+            pending, size, components = [], 0, set()
+            for index in indices:
+                key = component(index)
+                count = 0 if key in components else len(blocks.permutation_subsets[index])
+                if pending and size + count > cap:
+                    chunks.append(pending)
+                    pending, size, components = [], 0, set()
+                    count = len(blocks.permutation_subsets[index])
+                pending.append(index)
+                size += count
+                components.add(key)
+            if pending:
+                chunks.append(pending)
+        self.stats.shared_value_input_blocks += len(blocks)
+        if len(chunks) == len(blocks):
+            self.stats.shared_value_output_blocks += len(blocks)
+            self.stats.shared_value_seconds += time.perf_counter() - tick
+            return blocks, None, None
+
+        decisions, pools = [], {}
+        for indices in chunks:
+            first = indices[0]
+            components = {component(index): index for index in indices}
+            keys = tuple(sorted(components))
+            pool_key = (blocks.state_indices[first], keys)
+            pooled = pools.get(pool_key)
+            if pooled is None:
+                self.stats.shared_value_pool_misses += 1
+                if len(keys) == 1:
+                    source = components[keys[0]]
+                    pooled = (blocks.permutation_subsets[source], blocks.permutation_substates[source],
+                              blocks.tuple_states[source], blocks.permutation_frequencies[source],
+                              blocks.state_block_identities[source], {keys[0]: None})
+                else:
+                    ordered = [components[key] for key in keys]
+                    physical = np.concatenate([blocks.permutation_subsets[index] for index in ordered], axis=0)
+                    unique, take, inverse = np.unique(physical, axis=0, return_index=True, return_inverse=True)
+                    self.stats.shared_value_sort_calls += 1
+                    substates = np.concatenate([blocks.permutation_substates[index] for index in ordered], axis=0)[take]
+                    frequencies = np.concatenate([blocks.permutation_frequencies[index] for index in ordered], axis=0)[take]
+                    tuples = [entry for index in ordered for entry in blocks.tuple_states[index]]
+                    tuples = [tuples[int(index)] for index in take]
+                    inverse_routes, cursor = {}, 0
+                    for key, index in zip(keys, ordered):
+                        count = len(blocks.permutation_subsets[index])
+                        inverse_routes[key] = inverse[cursor:cursor+count]
+                        cursor += count
+                    pooled = (unique, substates, tuples, frequencies,
+                              _StatePermutationBlockIdentity(tuples), inverse_routes)
+                pools[pool_key] = pooled
+            else:
+                self.stats.shared_value_pool_hits += 1
+            incoming = sum(len(blocks.permutation_subsets[index]) for index in indices)
+            unique_count = len(pooled[0])
+            self.stats.shared_value_input_points += incoming
+            self.stats.shared_value_unique_points += unique_count
+            self.stats.shared_value_duplicate_points += incoming - unique_count
+            if unique_count == incoming:
+                self.stats.shared_value_disjoint_blocks += len(indices)
+                decisions.extend(([index], None) for index in indices)
+            else:
+                decisions.append((indices, pooled))
+        self.stats.shared_value_output_blocks += len(decisions)
+        self.stats.shared_value_blocks_eliminated += len(blocks) - len(decisions)
+        if len(decisions) == len(blocks):
+            self.stats.shared_value_seconds += time.perf_counter() - tick
+            return blocks, None, None
+
+        joined = ConcreteBlockTable()
+        routes, aliases = [None] * len(blocks), []
+        for indices, pooled in decisions:
+            first = indices[0]
+            if pooled is None:
+                pooled = (blocks.permutation_subsets[first], blocks.permutation_substates[first],
+                          blocks.tuple_states[first], blocks.permutation_frequencies[first],
+                          blocks.state_block_identities[first], {component(first): None})
+            physical, substates, tuples, frequencies, identity, inverse_routes = pooled
+            position = np.arange(len(physical), dtype=np.intp)
+            group = joined.append(blocks.state_indices[first], position, position, None,
+                                  blocks.expression_keys[first], blocks.plans[first], physical,
+                                  substates, tuples, frequencies, identity,
+                                  np.zeros((blocks.contributions[first].shape[0], len(physical))),
+                                  blocks.reference_states[first])
+            aliases.append(tuple(blocks.expression_keys[index] for index in indices))
+            for index in indices:
+                routes[index] = (group, inverse_routes[component(index)])
+            self.stats.max_shared_value_permutations = max(self.stats.max_shared_value_permutations, len(physical))
+        self.stats.shared_value_seconds += time.perf_counter() - tick
+        return joined, routes, aliases
+
     def _evaluate_work_items(self, blocks, output, change, baseline_shift,
                              pows, polynomial_cache, degenerate_changes,
                              only_degenerate_terms, zero_cutoff, logger,
                              evaluation_context=None,
                              degeneracy_context=None, uniform_output=None):
         evaluator = self.evaluator_type
+        original_blocks=blocks;shared_routes=shared_aliases=None
+        if (self.use_shared_canonical_values and self.plan.index_bindings is not None
+                and degenerate_changes is None and not any(only_degenerate_terms[:2])):
+            blocks,shared_routes,shared_aliases=self._share_canonical_value_blocks(blocks)
         row_groups = collections.OrderedDict()
+        energy_row_cache = collections.OrderedDict()
+        energy_row_cache_bytes = 0
 
         for block_index in range(len(blocks)):
             plan = blocks.plans[block_index]
@@ -1745,6 +1916,9 @@ class IndexedBlockEvaluator:
                 block_size = len(terms)
                 self.stats.contraction_blocks += 1
                 self.stats.contraction_rows += block_size
+                self.stats.energy_scalar_lanes += block_size*(
+                    len(blocks.permutation_subsets[int(block_indices[0])])
+                    if selected_rows[0] is None else len(selected_rows[0]))
                 self.stats.max_rows_per_block = max(
                     self.stats.max_rows_per_block,
                     block_size
@@ -1771,28 +1945,81 @@ class IndexedBlockEvaluator:
                         ))
 
                 tick = time.perf_counter()
-                projected_mask = None
-                if any(term.projected for term in terms):
-                    from .Projected import projected_energy_rows, projection_inputs
-                    permutation_rows = []
-                    source_rows = []
-                    for block_index, selected, term, selection in zip(
-                            block_indices, selected_rows, terms, selections):
-                        block_index = int(block_index)
-                        permutations = blocks.permutation_subsets[block_index]
-                        if selected is not None:
-                            permutations = np.asarray(permutations)[selected]
-                        permutation_rows.append(permutations)
-                        source_rows.append(blocks.reference_states[block_index])
-                    projected_mask,energy_factors = projected_energy_rows(
-                        tuple(term.energy_changes for term in terms),source_rows,permutation_rows,
-                        np.stack([selection[0] for selection in selections]),baseline_shift,
-                        projection_bindings=projection_inputs(evaluation_context))
-                    energy_factors = np.where(projected_mask, energy_factors, 1.)
+                projected_call = any(term.projected for term in terms)
+
+                def contract(indices):
+                    if projected_call:
+                        from .Projected import projected_energy_rows, projection_inputs
+                        permutation_rows, source_rows = [], []
+                        for index in indices:
+                            block_index = int(block_indices[index])
+                            permutations = blocks.permutation_subsets[block_index]
+                            selected = selected_rows[index]
+                            if selected is not None:
+                                permutations = np.asarray(permutations)[selected]
+                            permutation_rows.append(permutations)
+                            source_rows.append(blocks.reference_states[block_index])
+                        mask, factors = projected_energy_rows(
+                            tuple(terms[index].energy_changes for index in indices),
+                            source_rows, permutation_rows,
+                            np.stack([selections[index][0] for index in indices]), baseline_shift,
+                            projection_bindings=projection_inputs(evaluation_context))
+                        return mask, np.where(mask, factors, 1.)
+                    changes = np.asarray([terms[index].energy_changes for index in indices])
+                    frequencies = np.stack([selections[index][0] for index in indices])
+                    return None, self._contract_energy_rows(changes, frequencies)
+
+                share_energy = (self.use_shared_energy_rows and self.plan.index_bindings is not None
+                    and degenerate_changes is None and not any(only_degenerate_terms[:2])
+                    and not any(getattr(row[0], '_conditional_endpoint', False)
+                                for term in terms for row in term.energy_changes))
+                if not share_energy:
+                    projected_mask, energy_factors = contract(range(block_size))
+                    self.stats.energy_rows_computed += block_size
+                    self.stats.energy_computed_scalar_lanes += energy_factors.size
                 else:
-                    energy_changes = np.asarray([term.energy_changes for term in terms])
-                    frequency_blocks = np.stack([selection[0] for selection in selections])
-                    energy_factors = self._contract_energy_rows(energy_changes, frequency_blocks)
+                    # A batch-local cache: the formal row, physical frequency/
+                    # occupation binding, source state and projection route must
+                    # all agree. Numerators and coefficient products are free to
+                    # differ. Runtime inputs are fixed for this call and no
+                    # array values are rescanned or globally cached.
+                    keys, ready, missing = [], {}, collections.OrderedDict()
+                    for index, term in enumerate(terms):
+                        block_index = int(block_indices[index])
+                        key = (term.energy_changes, projected_call, blocks.state_indices[block_index],
+                               selections[index][3], id(blocks.permutation_frequencies[block_index]))
+                        keys.append(key)
+                        entry = energy_row_cache.get(key)
+                        if entry is not None:
+                            energy_row_cache.move_to_end(key)
+                            ready[key] = entry
+                        elif key not in missing:
+                            missing[key] = index
+                    if missing:
+                        indices = list(missing.values())
+                        masks, factors = contract(indices)
+                        self.stats.energy_rows_computed += len(indices)
+                        self.stats.energy_computed_scalar_lanes += factors.size
+                        capacity = max(0, int(self.max_energy_row_cache_bytes))
+                        for position, key in enumerate(missing):
+                            # Own bounded row arrays; a view would retain an
+                            # entire parent chunk while accounting only one row.
+                            entry = (None if masks is None else masks[position].copy(),
+                                     factors[position].copy())
+                            ready[key] = entry
+                            size = entry[1].nbytes + (0 if entry[0] is None else entry[0].nbytes)
+                            if size <= capacity:
+                                while energy_row_cache and energy_row_cache_bytes + size > capacity:
+                                    _, removed = energy_row_cache.popitem(last=False)
+                                    energy_row_cache_bytes -= removed[1].nbytes + (0 if removed[0] is None else removed[0].nbytes)
+                                    self.stats.energy_row_cache_evictions += 1
+                                energy_row_cache[key] = entry
+                                energy_row_cache_bytes += size
+                                self.stats.max_energy_row_cache_bytes = max(
+                                    self.stats.max_energy_row_cache_bytes, energy_row_cache_bytes)
+                    self.stats.energy_rows_reused += block_size - len(missing)
+                    energy_factors = np.stack([ready[key][1] for key in keys])
+                    projected_mask = np.stack([ready[key][0] for key in keys]) if projected_call else None
                 self.stats.energy_seconds += time.perf_counter() - tick
 
                 tick = time.perf_counter()
@@ -1848,6 +2075,7 @@ class IndexedBlockEvaluator:
                                 selection[0], baseline_shift,
                                 __import__('Psience.VPT2.Projected',fromlist=['projection_inputs']).projection_inputs(evaluation_context)),
                             'coefficient_key': blocks.expression_keys[block_index],
+                            'shared_coefficient_keys': (None if shared_aliases is None else shared_aliases[block_index]),
                             'energy_term': term.ordinal,
                             'change': None if change is None else tuple(change),
                             'baseline_shift': (
@@ -1883,16 +2111,25 @@ class IndexedBlockEvaluator:
                         blocks.contributions[block_index][:, selected] += scaled
                 self.stats.reduction_seconds += time.perf_counter() - tick
 
-        for block_index in range(len(blocks)):
-            contribution = blocks.contributions[block_index]
-            plan = blocks.plans[block_index]
-            if not plan.direct_polynomial:
-                contribution *= plan.prefactor
+        if shared_routes is not None:
+            # Apply the native prefactor once before routing one shared value
+            # back to each original coefficient block in its original order.
+            for index,plan in enumerate(blocks.plans):
+                if not plan.direct_polynomial:blocks.contributions[index]*=plan.prefactor
+        for block_index in range(len(original_blocks)):
+            if shared_routes is None:
+                contribution=blocks.contributions[block_index]
+                plan=blocks.plans[block_index]
+                if not plan.direct_polynomial:contribution*=plan.prefactor
+            else:
+                group,inverse=shared_routes[block_index]
+                contribution=blocks.contributions[group]
+                if inverse is not None:contribution=contribution[:,inverse]
             value = (
-                blocks.prefactors[block_index][:, np.newaxis, :]
+                original_blocks.prefactors[block_index][:, np.newaxis, :]
                 * contribution[np.newaxis]
             )
-            state_indices=blocks.state_indices[block_index]
+            state_indices=original_blocks.state_indices[block_index]
             if isinstance(state_indices,tuple):
                 if uniform_output is not None:
                     # A routed batch has one shared permutation and distinct
@@ -1900,9 +2137,9 @@ class IndexedBlockEvaluator:
                     uniform_output[np.asarray(state_indices),:,0] += value[:,:,0].T
                 else:
                     for row,state_index in enumerate(state_indices):
-                        output[state_index][:,blocks.mask_positions[block_index]] += value[:,row,:]
+                        output[state_index][:,original_blocks.mask_positions[block_index]] += value[:,row,:]
             else:
-                output[state_indices][:,blocks.mask_positions[block_index]] += value[:,0,:]
+                output[state_indices][:,original_blocks.mask_positions[block_index]] += value[:,0,:]
 
     def _append_routed_work_item(
             self, work_items, state_index, mask_positions, value_positions,
@@ -1918,6 +2155,13 @@ class IndexedBlockEvaluator:
             state,permutations=state_permutations[state_index]
             state_block=state[np.newaxis]
         block_prefactors = prefactors[value_positions].T
+        binding=(None if self.plan.index_bindings is None else
+                 self.plan.index_bindings.get(expression_key))
+        if binding is not None and binding!=tuple(range(len(binding))):
+            # Gather original physical modes in canonical polynomial order.
+            # Coefficient prefactors and output destinations remain original.
+            full_set=tuple(full_set[i] for i in binding)
+            self.stats.free_index_bound_blocks += 1
         permutation_subsets = permutations[
             mask_positions,
         ][:, full_set]
@@ -2092,6 +2336,16 @@ class IndexedBlockEvaluator:
             coefficient_start = time.perf_counter()
 
         self.stats.calls += 1
+        if self._free_index_plan is not None:
+            data=expression._free_index_plan_data
+            if degenerate_changes is None and num_fixed==data['num_fixed']:
+                self.plan=self._free_index_plan
+            else:
+                # External legacy predicates bind original energy-row axes.
+                # Keep the entire native path until their transport is proven.
+                self.stats.free_index_fallback_calls += 1
+                if self._native_plan is None:self._native_plan=self.get_plan(expression)
+                self.plan=self._native_plan
         full_set = tuple(range(num_fixed)) + subset
         coefficient_plan = self.get_coefficient_plan(
             coefficient_specs,

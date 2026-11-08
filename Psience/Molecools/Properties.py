@@ -2293,12 +2293,24 @@ class DipoleSurfaceManager(PropertyManager):
         if ext == ".fchk":
             with GaussianFChkReader(file) as parser:
                 try:
-                    res = parser.parse(["Polarizability", "Polarizability num derivs"])
+                    res = parser.parse(["Polarizability", "Polarizability Derivatives"])
                 except GaussianFChkReaderException:
-                    res = parser.parse(["Polarizability"])
-                    derivs = [res["Polarizability"]]
+                    parser.seek(0)
+                    try:
+                        res = parser.parse(["Polarizability", "Polarizability num derivs"])
+                    except GaussianFChkReaderException:
+                        parser.seek(0)
+                        res = parser.parse(["Polarizability"])
+                        derivs = [res["Polarizability"]]
+                    else:
+                        # Numerical derivatives use Q in sqrt(amu)*bohr.
+                        # Psience normal coordinates use electron masses.
+                        amu = UnitsData.convert("AtomicMassUnits", "AtomicUnitOfMass")
+                        firsts, seconds = res["Polarizability num derivs"]
+                        derivs = [res["Polarizability"], firsts / np.sqrt(amu), seconds / amu]
                 else:
-                    derivs = [res["Polarizability"]] + list(res["Polarizability num derivs"])
+                    # Analytic derivatives are already Cartesian atomic units.
+                    derivs = [res["Polarizability"], res["Polarizability Derivatives"]]
             return derivs
         else:
             if quiet: return None

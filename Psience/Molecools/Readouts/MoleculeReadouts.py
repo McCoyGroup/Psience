@@ -13,6 +13,8 @@ around the molecule. Sections::
     bonds        bond list with orders and lengths (off by default)
     normal_modes frequencies, mode animations and displacement vectors (delegated to
                  `NormalModesReadoutInterface`)
+    spectrum     the harmonic IR (or Raman) spectrum: lines table, stick plot, level ladder, broadened curve (off by
+                 default; delegated to `Psience.Spectra.DiscreteSpectrumReadoutInterface`)
 """
 
 import importlib.util
@@ -308,4 +310,40 @@ class MoleculeReadoutInterface(ReadoutAdapter):
         from .ModeReadouts import NormalModesReadoutInterface
         modes = self.mol.normal_modes.modes.basis.to_new_modes()
         sub = NormalModesReadoutInterface(modes, molecule=self.mol)
+        return ReadoutSection(*sub.get_readout_sections(include=include, exclude=exclude, ctx=ctx, **opts))
+
+    def _has_ir_data(self):
+        mol = self.mol
+        ok, why = self._has_modes()
+        if not ok:
+            return False, why
+        if mol.dipole_derivatives is None:
+            return False, "the molecule has no dipole derivatives, so it has no IR intensities"
+        return True
+
+    @readout_section("spectrum", title="Harmonic spectrum", default=False, available="_has_ir_data", cost="expensive",
+                     description="The harmonic IR spectrum (or Raman with kind='raman'): lines table, stick plot and "
+                                 "an optional broadened curve.")
+    def readout_spectrum(self, ctx, kind="ir", include=None, exclude=None, spectrum_options=None, **opts):
+        """
+        Builds ``Molecule.get_harmonic_spectrum()`` (``kind="ir"``) or ``get_harmonic_raman_spectrum()``
+        (``kind="raman"``, needs polarizability derivatives; its intensities have no unit, see
+        `DiscreteSpectrumReadoutInterface.intensity_unit`) and delegates to `DiscreteSpectrumReadoutInterface`
+        (sections ``lines``, ``stick`` and, when asked for, ``broadened``). Not a default section: ask for it with
+        ``include=["spectrum"]``, a part of it with ``"spectrum.stick"``, and pass options as
+        ``spectrum={"stick": {"min_intensity": .01}, "broadened": {"breadth": 15}}``. ``include=["spectrum.broadened"]``
+        adds the broadened curve. ``spectrum_options`` goes to the molecule's spectrum method (for example ``modes=``).
+        """
+        from ...Spectra.Readouts import DiscreteSpectrumReadoutInterface
+        kind = str(kind).lower()
+        spec_opts = dict(spectrum_options or {})
+        if kind == "ir":
+            spec = self.mol.get_harmonic_spectrum(kind="ir", **spec_opts)
+        elif kind == "raman":
+            if self.mol.polarizability_derivatives is None:
+                raise ReadoutSectionUnavailable("the molecule has no polarizability derivatives, so no Raman spectrum")
+            spec = self.mol.get_harmonic_raman_spectrum(kind="raman", **spec_opts)
+        else:
+            raise ValueError(f"unknown spectrum kind {kind!r}; use 'ir' or 'raman'")
+        sub = DiscreteSpectrumReadoutInterface(spec, molecule=self.mol)
         return ReadoutSection(*sub.get_readout_sections(include=include, exclude=exclude, ctx=ctx, **opts))
