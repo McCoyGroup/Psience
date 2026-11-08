@@ -1,3 +1,8 @@
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 import inspect
 import os
 import tempfile
@@ -1972,6 +1977,7 @@ class AnalyticDAGTests(unittest.TestCase):
             'path'
         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_path_checkpoint_roundtrip(self):
         Analytic.AnalyticPerturbationTheorySolver.clear_caches()
         with tempfile.TemporaryDirectory() as tmpdir:

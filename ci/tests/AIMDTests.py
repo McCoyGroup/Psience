@@ -1,3 +1,8 @@
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 # import itertools
 #
 # import scipy.linalg
@@ -100,6 +105,7 @@ class AIMDTests(TestCase):
 
         # raise Exception(interp)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @debugTest
     def test_Internals(self):
         # sym = Symbols('r')

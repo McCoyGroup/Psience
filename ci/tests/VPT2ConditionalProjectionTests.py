@@ -1,3 +1,8 @@
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 import json
 import pickle
 import unittest
@@ -225,6 +230,7 @@ class ConditionalProjectionTests(unittest.TestCase):
         self.assertEqual(operator_sector(cubic,oh),'complement')
         self.assertIsNone(operator_sector(cubic,fermi))
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_integer_lattice_preserves_congruences_and_rank(self):
         even = IntegerLatticeCondition([[2,-2,0]])
         self.assertFalse(even.matches([0,2,0],[1,1,0]))
@@ -234,6 +240,7 @@ class ConditionalProjectionTests(unittest.TestCase):
         self.assertFalse(rank_two.matches([0,0,1],[1,3,1]))
         self.assertFalse(rank_two.matches([0,0,1],[2,3,2]))
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_function_serialization_after_runtime_compilation(self):
         from McUtils.Zachary.Symbolic.ElementaryFunctions import SymPyFunction
         condition = PolynomialInvariantCondition(SymPyFunction('q*(q-1)'),[0])

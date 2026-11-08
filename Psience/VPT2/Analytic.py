@@ -5,6 +5,7 @@ Provides a symbolic approach to vibrational perturbation theory based on a Harmo
 
 import abc, itertools, collections, enum, math, pickle, weakref, sys, warnings
 import contextlib
+import contextvars
 import functools
 import hashlib
 import inspect
@@ -2572,6 +2573,25 @@ class PolyPath(ProductPTPolynomialSum):
     compatibility boundary for the legacy implementation.
     """
 
+    _comparison_context = contextvars.ContextVar('PolyPath.comparisons', default=None)
+
+    @classmethod
+    @contextlib.contextmanager
+    def cached_comparisons(cls, max_items=32768):
+        """Reuse structural equality of immutable paths during one evaluation.
+
+        Identity keys avoid recursively comparing cache keys. Weak references
+        prevent the cache from retaining polynomial graphs or accepting a
+        recycled object id. A zero limit provides the native A/B path.
+        """
+        if max_items < 0:
+            raise ValueError('comparison cache size must be nonnegative')
+        token = cls._comparison_context.set((collections.OrderedDict(), int(max_items)))
+        try:
+            yield
+        finally:
+            cls._comparison_context.reset(token)
+
     _construction_count = 0
     _node_cache = weakref.WeakValueDictionary()
     _node_requests = 0
@@ -2839,6 +2859,23 @@ class PolyPath(ProductPTPolynomialSum):
         return self._hash
 
     def __eq__(self, other):
+        if self is other:
+            return True
+        context = self._comparison_context.get()
+        if context is None or not context[1] or not isinstance(other, PolyPath):
+            return self._structurally_equal(other)
+        pairs, limit = context
+        key = (id(self), id(other))
+        entry = pairs.get(key)
+        if entry is not None and entry[0]() is self and entry[1]() is other:
+            return entry[2]
+        answer = self._structurally_equal(other)
+        pairs[key] = (weakref.ref(self), weakref.ref(other), answer)
+        if len(pairs) > limit:
+            pairs.popitem(last=False)
+        return answer
+
+    def _structurally_equal(self, other):
         pending,checked = [(self,other)],set()
         while pending:
             left,right = pending.pop()
@@ -5499,8 +5536,8 @@ class _BoundedEvaluationCache:
     def __setitem__(self, key, value):
         if self.max_items == 0 or self.max_bytes == 0:
             return
-        if key in self._data:
-            self._data.pop(key)
+        previous = self._data.pop(key, self._missing)
+        if previous is not self._missing:
             self._bytes -= self._sizes.pop(key)
         size = self._value_size(key) + self._value_size(value)
         if self.max_bytes is not None and size > self.max_bytes:
@@ -10717,7 +10754,8 @@ class PerturbationTheoryExpressionEvaluator:
                                        _degeneracy_identification_context=None,
                                        mode_subset_selector=None,
                                        dag_stream_options=None,
-                                       _stream_preparation=None, projection_bindings=None
+                                       _stream_preparation=None, projection_bindings=None,
+                                       _max_polynomial_order=None
                                        ):
 
         if projection_bindings is not None:
@@ -10766,7 +10804,8 @@ class PerturbationTheoryExpressionEvaluator:
                     _degeneracy_identification_context
                 ),
                 mode_subset_selector=mode_subset_selector,
-                dag_stream_options=dag_stream_options
+                dag_stream_options=dag_stream_options,
+                _max_polynomial_order=_max_polynomial_order
             )
             legacy = cls.evaluate_polynomial_expression(
                 state_perms, coeffs, freqs,
@@ -10896,7 +10935,8 @@ class PerturbationTheoryExpressionEvaluator:
                 for state,perms in state_perms
             )
         else:
-            max_order = cls._get_max_order(expr)
+            max_order = (cls._get_max_order(expr) if _max_polynomial_order is None
+                         else _max_polynomial_order)
             if max_order < 0:
                 raise Exception(expr)
             max_state = np.max(np.concatenate([state for state,perms in state_perms]))
@@ -12275,6 +12315,9 @@ class PerturbationTheoryEvaluator:
         :param opts:
         :return:
         """
+        normalization=opts.pop('normalization','orthonormal')
+        if normalization not in {'orthonormal','intermediate'}:
+            raise ValueError('unknown block normalization '+str(normalization))
         projected = self._projected_corrections(degenerate_blocks, degenerate_states,
                                                expansions, freqs, opts.get('zero_cutoff'), opts.get('parallelizer'),
                                                logger=opts.get('logger'), verbose=verbose)
@@ -12293,9 +12336,14 @@ class PerturbationTheoryEvaluator:
             if nput.is_numeric(states[0][0]):
                 states = [[states[i], states[i+(0 if include_diagonal else 1):]]
                           for i in range(len(states)-(0 if include_diagonal else 1))]
+            if normalization=='intermediate' and hasattr(projected,'validate_options'):
+                raise NotImplementedError('direct Bloch blocks require explicit resolved model-space blocks')
+            block_options={} if hasattr(projected,'validate_options') else {'normalization':normalization}
             return projected.hamiltonian(states, order, only_degenerate_terms,
                 terms=opts.get('terms'), branches=opts.get('include_degenerate_correction_terms',True),
-                target_orders=opts.get('target_orders'))
+                target_orders=opts.get('target_orders'),**block_options)
+        if normalization=='intermediate':
+            raise ValueError('direct Bloch blocks require explicit degenerate_blocks')
         if freqs is None: freqs = self.freqs
         if hamiltonian_corrections is not None:
             hamiltonian_corrections, expansion_corrections = self._prep_ham_corrs(hamiltonian_corrections)

@@ -276,7 +276,12 @@ _runtime_roles = itertools.count(1)
 
 
 class AnalyticBlockExpansion:
-    """Generate normalized block wavefunctions and Hamiltonians at any order.
+    """Generate canonical or intermediate-normalized block expansions.
+
+    In the default canonical convention, the following Y/N/F definitions
+    apply. With intermediate_normalization=True, Y is Omega, N[n>0]=0,
+    and F is the generally non-Hermitian Bloch series P H Omega P. Its
+    metric and canonical counterpart are computed lazily on request.
 
     Y_0=P; X_n=Q Y_n P; N_n=P Y_n P; F=Y^dagger H Y.
     Every X_n is built with a projected resolvent. No model-space energy
@@ -288,7 +293,11 @@ class AnalyticBlockExpansion:
     as a Fock-state basis. The model-space overlap PY is chosen Hermitian.
     """
     def __init__(self, evaluator, states, expansions=None, freqs=None, zero_cutoff=None,
-                 evaluation_backend=None):
+                 evaluation_backend=None, intermediate_normalization=False):
+        self.intermediate_normalization = bool(intermediate_normalization)
+        self._intermediate_expansion = None
+        self._canonical_expansion = None
+        self._metric = [np.eye(len(states))]
         self.evaluator = evaluator
         registry = getattr(evaluator,'_projection_runtime_inputs',None)
         if registry is None:
@@ -296,6 +305,7 @@ class AnalyticBlockExpansion:
         self.runtime_inputs = registry
         self.states = tuple(tuple(int(n) for n in state) for state in states)
         self.freqs = np.asarray(evaluator.freqs if freqs is None else freqs)
+        self._raw_expansions = expansions
         self.expansions = evaluator._prep_expansions(expansions)
         self.zero_cutoff = zero_cutoff
         self.evaluation_backend = evaluation_backend
@@ -433,6 +443,8 @@ class AnalyticBlockExpansion:
         return self.evaluator.solver.hamiltonian_expansion[order]
 
     def extend(self, order, logger=None, verbose=False):
+        if self.intermediate_normalization:
+            return self._extend_intermediate(order,logger=logger,verbose=verbose)
         logger = Logger.lookup(self.evaluator.solver.logger if logger is None else logger)
         size = len(self.states)
         while len(self.Y) <= order:
@@ -490,23 +502,131 @@ class AnalyticBlockExpansion:
                 self.Y.append(full)
         return self
 
+    def _extend_intermediate(self, order, logger=None, verbose=False):
+        """Bloch recurrence: P Omega P=P, B=P H Omega P.
+
+        F holds B in this explicitly selected representation; it is generally
+        non-Hermitian. No overlap contraction is needed to build it.
+        """
+        logger=Logger.lookup(self.evaluator.solver.logger if logger is None else logger)
+        size=len(self.states)
+        while len(self.Y)<=order:
+            n=len(self.Y)
+            with _log_evaluation_time(logger,"Building intermediate-normalized block at order {o}",o=n):
+                hamiltonian=np.zeros((size,size))
+                for r in range(1,n+1):
+                    h=self._hamiltonian(r)
+                    if h is not None:
+                        for a,state in enumerate(self.states):
+                            for b in range(size):
+                                hamiltonian[a,b]+=self.inner(
+                                    {state:self.identity},self.Y[n-r][b],h,
+                                    logger=logger,verbose=verbose)
+                projected=[]
+                for a,state in enumerate(self.states):
+                    parts=[(self.Y[n-r][a],1,self._hamiltonian(r))
+                           for r in range(1,n+1) if self._hamiltonian(r) is not None]
+                    parts += [(self.X[i][b],self._scalar(-self.F[n-i][b,a]),None)
+                              for i in range(1,n) for b in range(size)]
+                    column={}
+                    for origin,term in self._column(parts).items():
+                        key=(term,state,origin)
+                        if key not in self._resolvents:
+                            self._resolvents[key]=self._resolvent(term,state,origin)
+                        column[origin]=self._resolvents[key]
+                    projected.append(column)
+                self.F.append(hamiltonian)
+                self.N.append(np.zeros((size,size)))
+                self.X.append(projected)
+                self.Y.append(projected)
+        return self
+
+    def _intermediate(self):
+        if self.intermediate_normalization:
+            return self
+        if self._intermediate_expansion is None:
+            self._intermediate_expansion=type(self)(self.evaluator,self.states,
+                self._raw_expansions,self.freqs,self.zero_cutoff,self.evaluation_backend,
+                intermediate_normalization=True)
+        return self._intermediate_expansion
+
     def intermediate_columns(self, order, logger=None, verbose=False):
-        """Return Omega=Y(PY)^-1; P Omega P=P at every retained order."""
-        logger = Logger.lookup(self.evaluator.solver.logger if logger is None else logger)
-        self.extend(order,logger=logger,verbose=verbose)
-        while len(self._intermediate_columns) <= order:
-            n = len(self._intermediate_columns)
-            with _log_evaluation_time(logger, "Building block intermediate normalization at order {o}", o=n):
-                inverse = -sum(self.N[i] @ self._inverse_normalizers[n-i]
-                               for i in range(1,n+1))
-                self._inverse_normalizers.append(inverse)
-                columns = []
-                for a, state in enumerate(self.states):
-                    parts = [(self.X[i][b], self._scalar(self._inverse_normalizers[n-i][b,a]), None)
-                             for i in range(1,n+1) for b in range(len(self.states))]
-                    columns.append(self._column(parts))
-                self._intermediate_columns.append(columns)
-        return self._intermediate_columns[order]
+        """Build Omega directly, without first building normalized columns."""
+        block=self._intermediate().extend(order,logger=logger,verbose=verbose)
+        return block.Y[order]
+
+    def intermediate_hamiltonian(self, order, logger=None, verbose=False):
+        """Return the Bloch series B; use a general, not symmetric eigensolver.
+
+        Individual entries differ from the orthonormal representation. Exact
+        similarity preserves eigenvalues; truncated series can differ beyond
+        their retained perturbation order.
+        """
+        return self._intermediate().extend(order,logger=logger,verbose=verbose).F[:order+1]
+
+    def overlap_metric(self, order, logger=None, verbose=False):
+        """Cache S=Omega^dagger Omega once per block and perturbation order."""
+        block=self._intermediate().extend(order,logger=logger,verbose=verbose)
+        size=len(block.states)
+        while len(block._metric)<=order:
+            n=len(block._metric)
+            with _log_evaluation_time(Logger.lookup(block.evaluator.solver.logger if logger is None else logger),
+                                      "Contracting deferred block metric at order {o}",o=n):
+                metric=np.zeros((size,size))
+                for a in range(size):
+                    for b in range(size):
+                        metric[a,b]=sum(block.inner(block.X[i][a],block.X[n-i][b],
+                            logger=logger,verbose=verbose) for i in range(1,n))
+                block._metric.append(metric)
+        return block._metric[:order+1]
+
+    def _metric_factors(self, order, logger=None, verbose=False):
+        metric=self.overlap_metric(order,logger=logger,verbose=verbose)
+        root=[np.eye(len(self.states))];inverse=[root[0]]
+        for n in range(1,order+1):
+            root.append(.5*(metric[n]-sum((root[i]@root[n-i] for i in range(1,n)),
+                                          np.zeros_like(root[0]))))
+            inverse.append(-sum((root[i]@inverse[n-i] for i in range(1,n+1)),
+                                np.zeros_like(root[0])))
+        return root,inverse
+
+    def orthonormal_hamiltonian(self, order, logger=None, verbose=False):
+        """Return S^(1/2) B S^(-1/2), consistently truncated at each order."""
+        if not self.intermediate_normalization:
+            return self.extend(order,logger=logger,verbose=verbose).F[:order+1]
+        root,inverse=self._metric_factors(order,logger=logger,verbose=verbose)
+        return [sum((root[i]@self.F[j]@inverse[n-i-j]
+                     for i in range(n+1) for j in range(n+1-i)),
+                    np.zeros_like(root[0])) for n in range(order+1)]
+
+    def orthonormal_block(self, order, logger=None, verbose=False):
+        """Reuse Omega and its cached metric for normalized observables.
+
+        Y=Omega S^(-1/2). No second Q-space wavefunction recurrence is run.
+        The returned block preserves the ordinary bra-H-ket contribution API.
+        """
+        if not self.intermediate_normalization:
+            return self.extend(order,logger=logger,verbose=verbose)
+        root,inverse=self._metric_factors(order,logger=logger,verbose=verbose)
+        hamiltonians=self.orthonormal_hamiltonian(order,logger=logger,verbose=verbose)
+        if self._canonical_expansion is None:
+            self._canonical_expansion=type(self)(self.evaluator,self.states,
+                self._raw_expansions,self.freqs,self.zero_cutoff,self.evaluation_backend)
+            self._canonical_expansion._intermediate_expansion=self
+        block=self._canonical_expansion
+        while len(block.Y)<=order:
+            n=len(block.Y);projected=[];full=[]
+            for a,state in enumerate(self.states):
+                column=self._column([(self.X[i][b],self._scalar(inverse[n-i][b,a]),None)
+                    for i in range(1,n+1) for b in range(len(self.states))
+                    if inverse[n-i][b,a]!=0])
+                projected.append(column)
+                full.append(self._column([(column,1,None)]+[
+                    ({origin:self.identity},self._scalar(inverse[n][b,a]),None)
+                    for b,origin in enumerate(self.states) if inverse[n][b,a]!=0]))
+            block.N.append(inverse[n]);block.F.append(hamiltonians[n])
+            block.X.append(projected);block.Y.append(full)
+        return block
 
     def operator_piece(self, order, column, off_diagonal=False):
         key = (order, column, off_diagonal)
@@ -537,6 +657,8 @@ class AnalyticBlockExpansion:
 
     def operator_correction(self, other, left, right, operators, order, expansions=None,
                             terms=None, branches=True, logger=None, verbose=False):
+        if self.intermediate_normalization or other.intermediate_normalization:
+            raise ValueError('normalized observables require orthonormal blocks or explicit metric factors')
         self.extend(order,logger=logger,verbose=verbose)
         other.extend(order,logger=logger,verbose=verbose)
         allowed = None if terms is None else {tuple(t) for t in terms}
@@ -598,13 +720,18 @@ class ProjectedCorrectionEvaluator:
             cache = evaluator._projected_block_cache = (context_key, {})
         self.cache = cache[1]
 
-    def block(self, state, order):
+    def block(self, state, order, intermediate=False):
         state = tuple(int(n) for n in state)
         group = self.blocks.get(state, (state,))
-        if group not in self.cache:
-            self.cache[group] = AnalyticBlockExpansion(self.evaluator, group,
-                self.expansions, self.freqs, self.zero_cutoff)
-        block = self.cache[group].extend(order,logger=self.logger,verbose=self.verbose)
+        key=(group,'intermediate') if intermediate else group
+        if not intermediate and key not in self.cache and (group,'intermediate') in self.cache:
+            self.cache[key]=self.cache[(group,'intermediate')].orthonormal_block(
+                order,logger=self.logger,verbose=self.verbose)
+        if key not in self.cache:
+            self.cache[key] = AnalyticBlockExpansion(self.evaluator, group,
+                self.expansions, self.freqs, self.zero_cutoff,
+                intermediate_normalization=intermediate)
+        block = self.cache[key].extend(order,logger=self.logger,verbose=self.verbose)
         return block, block.states.index(state)
 
     def diagonal(self, states, order, series, orders):
@@ -653,7 +780,8 @@ class ProjectedCorrectionEvaluator:
         def value(initial, final, n):
             if targets is not None and n not in targets:
                 return 0.
-            block, a = self.block(initial, order)
+            block, a = self.block(initial, order,
+                                  intermediate=bool(self.evaluator.solver.intermediate_normalization))
             column = block.Y[n][a] if full else block.X[n][a]
             if self.evaluator.solver.intermediate_normalization:
                 column = block.intermediate_columns(n,logger=self.logger,verbose=self.verbose)[a]
@@ -675,9 +803,14 @@ class ProjectedCorrectionEvaluator:
         return [('right' if key=='left' else 'left' if key=='right' else key) for key in branches]
 
     def hamiltonian(self, states, order, only_degenerate_terms=True, terms=None, branches=True,
-                    target_orders=None):
+                    target_orders=None, normalization='orthonormal'):
+        if normalization not in {'orthonormal','intermediate'}:
+            raise ValueError('unknown block normalization '+str(normalization))
+        intermediate=normalization=='intermediate'
+        if intermediate and (terms is not None or branches is not True):
+            raise ValueError('Bloch entries are not normalized bra-H-ket contribution triples')
         def value(initial, final, n):
-            block, a = self.block(initial, order)
+            block, a = self.block(initial, order, intermediate=intermediate)
             final = tuple(final)
             if final not in block.states:
                 raise ValueError('Hamiltonian block endpoints must belong to the same model space')

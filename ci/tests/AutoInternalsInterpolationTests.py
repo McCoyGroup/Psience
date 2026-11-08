@@ -1,5 +1,10 @@
 """Regression checks for interpolation with geometry-local auto internals."""
 
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
+
 import gc
 import unittest
 
@@ -42,6 +47,7 @@ class AutoInternalsInterpolationTests(unittest.TestCase):
         self.assertEqual(len(CoordinateSystemConverters.converters), before)
         self.assertFalse(source._preregistered)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_butane_local_internals_do_not_grow_converter_registry(self):
         try:
             import rdkit  # noqa: F401

@@ -5,7 +5,7 @@ from McUtils.Coordinerds import cartesian_to_zmatrix
 from McUtils.Plots import *
 import McUtils.Numputils as nput
 from unittest import TestCase
-import sys, h5py, math, numpy as np
+import sys, math, numpy as np
 
 class DataTests(TestCase):
 

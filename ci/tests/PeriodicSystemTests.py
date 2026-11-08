@@ -1,4 +1,9 @@
 """Regressions for periodic geometry, CIF import, and native molecular plotting."""
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 import io
 import os
 import tempfile
@@ -228,6 +233,7 @@ class PeriodicSystemTests(unittest.TestCase):
         tiled = full.tile((2, 1, 1))
         self.assertEqual(tiled.molecule.bonds, [[0, 2, 2], [1, 3, 2], [4, 6, 2], [5, 7, 2]])
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_native_plot_cell_edges_units_and_user_annotations(self):
         p = self.read(symmetry_reduced=True)
         p.origin = np.array([2., 3., 4.])
@@ -245,6 +251,7 @@ class PeriodicSystemTests(unittest.TestCase):
             assert_allclose(vertices.max(axis=0), p.cell_vertices.max(axis=0) * factor)
             self.assertTrue(all(line.opts["color"] == "red" for line in annotations[0][:-1]))
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_native_x3d_plot_and_disable_cell(self):
         p = self.read()
         fig, atoms, bonds, lines = p.plot(bonds=False, rings=False, return_objects=True)

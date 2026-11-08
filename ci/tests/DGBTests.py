@@ -1,3 +1,8 @@
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 from McUtils.ExternalPrograms import *
 import collections
 import gc
@@ -518,6 +523,7 @@ class DGBTests(TestCase):
     def setupCartesianModelDGB(cls):
         ...
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ModelPotentialAIMD1DOG(self):
 
@@ -1348,6 +1354,7 @@ class DGBTests(TestCase):
         #                            )
         dev_plot.show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ModelPotentialAIMD1D(self):
         mol, model = self.buildWaterModel(
@@ -1419,6 +1426,7 @@ class DGBTests(TestCase):
                         plot_wavefunctions=False#{'cartesians':[0, 1]} if not cartesians else True
                         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ModelPotentialPhasedAIMD1D(self):
         mol, model = self.buildWaterModel(
@@ -1547,6 +1555,7 @@ class DGBTests(TestCase):
                         plot_wavefunctions=True  # {'cartesians':[0, 1]} if not cartesians else True
                         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ModelPotentialAIMD2D(self):
         mol, model = self.buildWaterModel(
@@ -1713,6 +1722,7 @@ class DGBTests(TestCase):
                         # mode='classic'
                         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ModelPotentialAIMD2DPhased(self):
         mol, model = self.buildWaterModel(
@@ -1881,6 +1891,7 @@ class DGBTests(TestCase):
                         # mode='classic'
                         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ModelPotentialAIMD2D_HOD(self):
         mol, model = self.buildWaterModel(
@@ -2003,6 +2014,7 @@ class DGBTests(TestCase):
                         # mode='classic'
                         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ModelPotentialAIMD2D_sym_bend(self):
         mol, model = self.buildWaterModel(
@@ -2102,6 +2114,7 @@ class DGBTests(TestCase):
             _, upos = np.unique(np.round(coords, unique_tol), return_index=True, axis=0)
             coords = coords[np.sort(upos)]
         return coords
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ModelPotentialAIMD3D(self):
 
@@ -2433,6 +2446,7 @@ class DGBTests(TestCase):
                         )
             plt.Graphics().show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ModelPotentialAIMD3DHOD(self):
         mol, model = self.buildWaterModel(
@@ -2827,6 +2841,7 @@ class DGBTests(TestCase):
             ref_mol = ref_mol.get_embedded_molecule(load_properties=False)
 
         return potential, ref_mol
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_WaterAIMD(self):
         pot, mol = self.getMBPolModel()
@@ -3503,6 +3518,7 @@ class DGBTests(TestCase):
 
         return pot, dip, mol
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_OCHH(self):
         pot, dip, mol = self.setupOCHHModel()
@@ -4339,6 +4355,7 @@ class DGBTests(TestCase):
 
         return
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_NewRunnerStretches(self):
         water = self.setup_Water(stretch_model=True)
@@ -4462,6 +4479,7 @@ State       Frequency    Intensity       Frequency    Intensity
 
         return
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @inactiveTest
     def test_WaterAIMDDisplaced(self):
         pot, mol = self.getMBPolModel()
@@ -4547,6 +4565,7 @@ State       Frequency    Intensity       Frequency    Intensity
         # print("ZPE:", wfns.energies[0] * UnitsData.hartrees_to_wavenumbers, file=woof)
         # print("Freqs:", wfns.frequencies() * UnitsData.hartrees_to_wavenumbers, file=woof)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @inactiveTest
     def test_WaterFromGauss(self):
 

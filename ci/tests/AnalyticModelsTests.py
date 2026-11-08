@@ -1,11 +1,17 @@
 
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
+
 from Peeves.TestUtils import *
 from Psience.AnalyticModels import *
 from McUtils.Plots import *
 import McUtils.Numputils as nput
 from unittest import TestCase
-import sys, h5py, math, numpy as np
+import sys, math, numpy as np
 
+@_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
 class AnalyticModelsTests(TestCase):
     @classmethod
     def setUpClass(cls) -> None:

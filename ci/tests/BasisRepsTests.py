@@ -1,3 +1,8 @@
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 from Peeves import Timer, BlockProfiler
 
 from McUtils.Scaffolding import *
@@ -990,6 +995,7 @@ class BasisSetTests(TestCase):
 
         self.assertEquals(mat2_vals.tolist(), mat_2[sub_brakets].tolist())
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @inactiveTest
     def test_ImprovedRepresentations(self):
         n = 15  # totally meaningless these days

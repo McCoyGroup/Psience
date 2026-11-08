@@ -305,7 +305,7 @@ class VPTWorkspaceTests(unittest.TestCase):
     def setUpClass(cls):
         cls.input=Path(__file__).parent/'TestData/HOH_freq.fchk'
         if not cls.input.is_file():
-            cls.input=Path(__file__).resolve().parents[3]/'ci/tests/TestData/HOH_freq.fchk'
+            cls.input=Path(__file__).resolve().parents[2]/'ci/tests/TestData/HOH_freq.fchk'
         if not cls.input.is_file():raise FileNotFoundError('Actual water FChk fixture is required')
 
     def run_water(self,order,memory,**options):
