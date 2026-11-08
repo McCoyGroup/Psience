@@ -38,7 +38,8 @@ class MoleculeReportToolsTests(unittest.TestCase):
         self.assertEqual([h["heading"] for h in t["outline"]], ["Structure", "Vibrations"])
         opt = {r["name"]: r for r in t["optional"]}
         self.assertEqual(set(opt), {"source", "rdkit", "cartesians", "internals", "bonds",
-                                    "normal_modes.animations", "normal_modes.displacements"})
+                                    "normal_modes.animations", "normal_modes.displacements",
+                                    "spectrum.lines", "spectrum.stick", "spectrum.levels", "spectrum.broadened"})
         self.assertTrue(all(r["description"] for r in opt.values()))
         self.assertEqual(opt["normal_modes.animations"]["part"], "animations")
         self.assertTrue(opt["cartesians"]["available"])

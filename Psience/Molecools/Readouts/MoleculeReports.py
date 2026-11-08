@@ -20,7 +20,8 @@ class MoleculeReportTemplate(ReportTemplate):
         ("Vibrations", ["normal_modes.frequencies"]),
     ]
     optional = ["source", "rdkit", "cartesians", "internals", "bonds",
-                "normal_modes.animations", "normal_modes.displacements"]
+                "normal_modes.animations", "normal_modes.displacements",
+                "spectrum.lines", "spectrum.stick", "spectrum.levels", "spectrum.broadened"]
 
     _captions = {
         "overview": "Formula, size, charge and energy of the molecule.",
@@ -29,6 +30,10 @@ class MoleculeReportTemplate(ReportTemplate):
         "internals": "Bond lengths and angles of the molecule.",
         "bonds": "The bonds of the molecule with their orders and lengths.",
         "normal_modes.frequencies": "Harmonic vibrational frequencies of the normal modes.",
+        "spectrum.lines": "The lines of the harmonic spectrum: frequency and intensity.",
+        "spectrum.stick": "The harmonic IR stick spectrum: intensity against frequency.",
+        "spectrum.levels": "The harmonic frequencies drawn as a ladder of levels.",
+        "spectrum.broadened": "The harmonic IR spectrum broadened onto a frequency grid.",
     }
 
     def caption_for(self, handle, section, source):
