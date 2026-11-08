@@ -27,6 +27,8 @@ class PerturbationTheoryCorrections:
     Can be used to correct other operators in the basis of the original calculation.
 
     """
+    state_formatting = 'quanta'
+
     @staticmethod
     def correction_storage_policy(mode, memory_limit, block_size, default_limit, shape):
         if mode not in {'auto', 'dense', 'sparse', 'compact'}:
@@ -127,7 +129,7 @@ class PerturbationTheoryCorrections:
                 self.retained_bytes += values.dtype.itemsize + columns.dtype.itemsize
                 self.peak_retained_bytes = max(self.peak_retained_bytes, self.retained_bytes)
 
-        def to_coupling_matrices(self, states, total_space, cutoff, logger=None, entry_filter=None):
+        def to_coupling_matrices(self, states, total_space, cutoff, logger=None, entry_filter=None, state_formatting="quanta"):
             if cutoff is None:
                 from .Common import Settings
                 cutoff = Settings.non_zero_cutoff
@@ -143,7 +145,8 @@ class PerturbationTheoryCorrections:
                     columns, values = columns[kept], values[kept]
                     if not len(values) and logger is not None:
                         logger.log_print('No corrections for state {s} at order {o}',
-                                         s=states.excitations[row], o=order)
+                                         s=states.excitations[row], o=order,
+                                         preformatter=None if state_formatting == "vector" else logger.preformat_keys({"s": lambda s: StateMaker.format_state(s, state_formatting)}))
                     if entry_filter is not None:columns, values = entry_filter(row, order, columns, values)
                     self.rows[row][order] = values, columns
                     counts[row] = len(values)
@@ -244,7 +247,7 @@ class PerturbationTheoryCorrections:
             self.retained_bytes += new.nbytes-old.nbytes
             self.peak_retained_bytes = max(self.peak_retained_bytes, self.retained_bytes)
 
-        def to_coupling_matrices(self, states, total_space, cutoff, logger=None, entry_filter=None):
+        def to_coupling_matrices(self, states, total_space, cutoff, logger=None, entry_filter=None, state_formatting="quanta"):
             from McUtils.Numputils import CompactSparseRow, RowSparseArray
             if cutoff is None:
                 from .Common import Settings
@@ -267,7 +270,8 @@ class PerturbationTheoryCorrections:
                         row = CompactSparseRow.from_dense(values, None, self.block_size)
                         if self._spill_store is not None: row = self._spill_store.retain(row)
                     if not row.nnz and logger is not None:
-                        logger.log_print('No corrections for state {s} at order {o}', s=states.excitations[index], o=order)
+                        logger.log_print('No corrections for state {s} at order {o}', s=states.excitations[index], o=order,
+                            preformatter=None if state_formatting == "vector" else logger.preformat_keys({"s": lambda s: StateMaker.format_state(s, state_formatting)}))
                     rows.append(row)
                     spaces[index].append(BasisStateSpaceView(total_space.basis, row.columns,
                         index_parent=total_space, assume_unique=True))
@@ -338,7 +342,8 @@ class PerturbationTheoryCorrections:
                  degenerate_energies=None,
                  degenerate_hamiltonians=None,
                  nondeg_hamiltonian_precision=3,
-                 logger=None
+                 logger=None,
+                 state_formatting="quanta"
                  ):
         """
         :param states:
@@ -369,6 +374,7 @@ class PerturbationTheoryCorrections:
         self.degenerate_energies = degenerate_energies
         self.degenerate_hamiltonians = degenerate_hamiltonians
         self.logger = logger
+        self.state_formatting = state_formatting
         self.nondeg_hamiltonian_precision = nondeg_hamiltonian_precision
 
     @classmethod
@@ -468,7 +474,8 @@ class PerturbationTheoryCorrections:
             degenerate_states=self.degenerate_states,
             degenerate_transformation=self.degenerate_transf,
             degenerate_energies=self.degenerate_energies,
-            logger=self.logger
+            logger=self.logger,
+            state_formatting=self.state_formatting
         )
 
     @classmethod
@@ -477,7 +484,8 @@ class PerturbationTheoryCorrections:
                                nstates, order,
                                filters=None,
                                non_zero_cutoff=1.0e-14,
-                               logger=None
+                               logger=None,
+                               state_formatting="quanta"
                                ):
         """
 
@@ -506,7 +514,7 @@ class PerturbationTheoryCorrections:
                     row, positions, values, np.sum(states.excitations[row]))
             return corrs.to_coupling_matrices(
                 states, flat_total_space, non_zero_cutoff, logger,
-                entry_filter=None if filters is None else filter_entries)
+                entry_filter=None if filters is None else filter_entries, state_formatting=state_formatting)
 
         # now we recompute reduced state spaces for use in results processing
         # and we also convert the correction vectors to sparse representations
@@ -568,7 +576,8 @@ class PerturbationTheoryCorrections:
                         if logger is not None:
                             logger.log_print("No corrections for state {s} at order {o}",
                                 s=states.excitations[i],
-                                o=o
+                                o=o,
+                                preformatter=None if state_formatting == "vector" else logger.preformat_keys({"s": lambda s: StateMaker.format_state(s, state_formatting)})
                             )
 
                     # and then we add the appropriate basis indices to the list of basis data
@@ -693,9 +702,8 @@ class PerturbationTheoryCorrections:
         # raise Exception(corrs.states.excitations, deg_group)
         with logger.block(tag="states" if label is None else label):
             logger.log_print(
-                str(
-                    self.states.take_states(deg_group).excitations
-                ).splitlines()
+                self.states.take_states(deg_group),
+                message_prepper=lambda a: StateMaker.format_states(a, self.state_formatting)
             )
         subdegs = self.take_subspace(deg_group)
 
@@ -840,7 +848,7 @@ class PerturbationTheoryCorrections:
             bad = group.take_subspace(np.where(np.logical_not(mask))[0])
             self.logger.log_print(
                 "WARNING: got degeneracy spec including states {} that are not in space of corrected states".format(
-                    bad.excitations
+                    StateMaker.format_states(bad, self.state_formatting, join=True)
                 ))
         group = group.take_subspace(np.where(mask)[0])
         # print(">..", deg_inds, self.states.find(group, missing_val=-1))
@@ -954,7 +962,7 @@ class PerturbationTheoryCorrections:
 
         return strong_couplings
 
-    def format_strong_couplings_report(self, couplings=None, threshold=.1, int_fmt="{:>3.0f}", padding="{:<8}", join=True, use_excitations=True):
+    def format_strong_couplings_report(self, couplings=None, threshold=.1, int_fmt="{:>3.0f}", padding="{:<8}", join=True, use_excitations=True, state_formatting=None):
         """
         **LLM Docstring**
 
@@ -970,7 +978,7 @@ class PerturbationTheoryCorrections:
         :type padding: str
         :param join: whether to join the report lines into a single string, or return them as a list
         :type join: bool
-        :param use_excitations: whether to display states as their excitation-quantum-number vectors (rather than raw basis indices)
+        :param use_excitations: whether to display occupation labels (or legacy vectors) rather than raw basis indices
         :type use_excitations: bool
         :return: the formatted report, as a single string or a list of lines
         :rtype: str | list[str]
@@ -978,16 +986,18 @@ class PerturbationTheoryCorrections:
         if couplings is None:
             couplings = self.find_strong_couplings(threshold=threshold)
 
+        state_formatting = self.state_formatting if state_formatting is None else state_formatting
         list_fmt = " ".join(int_fmt for _ in range(self.total_basis.ndim))
+        format_state = list_fmt.format if state_formatting == "vector" else lambda *s: StateMaker.parse_state(s)
         coupling_statements = []
         for i,v in sorted(couplings.items(), key=lambda k:k[0]):
             if use_excitations:
                 i = self.states.take_states([i]).excitations[0]
-                coupling_statements.append(padding.format("state:") + list_fmt.format(*i))
+                coupling_statements.append(padding.format("state:") + format_state(*i))
                 # print(v)
                 for n,l in enumerate(v):
                     if l is not None and len(l) > 0:
-                        coupling_statements.extend(padding.format(" order {}".format(n) if j == 0 else "")+list_fmt.format(*e) for j,e in enumerate(l.excitations))
+                        coupling_statements.extend(padding.format(" order {}".format(n) if j == 0 else "")+format_state(*e) for j,e in enumerate(l.excitations))
             else:
                 coupling_statements.append(list_fmt.format(i))
                 coupling_statements.append(padding + str(v.indices))

@@ -13,7 +13,7 @@ from McUtils.Combinatorics import LatticePathGenerator
 
 from ..BasisReps import (
     Representation, BasisStateSpace, BasisMultiStateSpace,
-    SelectionRuleStateSpace, BasisStateSpaceFilter, HarmonicOscillatorProductBasis
+    SelectionRuleStateSpace, BasisStateSpaceFilter, HarmonicOscillatorProductBasis, StateMaker
 )
 
 from .DegeneracySpecs import DegenerateMultiStateSpace, DegeneracySpec
@@ -34,6 +34,7 @@ class PerturbationTheorySolver:
     """
 
     default_wavefunction_workspace_bytes = 64*1024**2
+    state_formatting = 'quanta'
 
     def __init__(self,
                  perturbations, states,
@@ -96,7 +97,8 @@ class PerturbationTheorySolver:
                  use_cached_basis=False,
                  use_block_recurrence=True,
                  strong_coupling_property_filter=False,
-                 strong_coupling_correction_filter=None
+                 strong_coupling_correction_filter=None,
+                 state_formatting='quanta'
                  ):
         """
 
@@ -120,6 +122,8 @@ class PerturbationTheorySolver:
         :type use_block_recurrence: bool
         :param logger:
         :type logger:
+        :param state_formatting: 'quanta' for compact occupation labels (default),
+            or 'vector' for the original excitation-vector diagnostics
         :param parallelizer:
         :type parallelizer:
         :param checkpointer:
@@ -132,6 +136,7 @@ class PerturbationTheorySolver:
         #     raise NotImplementedError('memory constraint handling currently broken')
 
         self.perts = perturbations
+        self.state_formatting = state_formatting
         if state_space_storage not in {'auto', 'memory', 'external'}:
             raise ValueError('state_space_storage must be auto, memory or external')
         if state_space_memory_limit is not None and (not np.isfinite(state_space_memory_limit) or state_space_memory_limit < 0):
@@ -426,7 +431,7 @@ class PerturbationTheorySolver:
                     solver=self,
                     full_basis=self.full_basis,
                     group_filter=group_filter,
-                    default_group_filter=(partial(self.filter_degenerate_group, block_size=self.resonance_block_size)
+                    default_group_filter=(partial(self.filter_degenerate_group, block_size=self.resonance_block_size, state_formatting=self.state_formatting)
                         if self.resonance_memory_constrained else None),
                     log_groups=True
                 ))
@@ -506,7 +511,7 @@ class PerturbationTheorySolver:
                                 self.logger.log_print(
                                     "WARNING: zero-order correction {} for state {} not used as state is not in basis".format(
                                         v * UnitsData.convert("Hartrees", "Wavenumbers"),
-                                        k
+                                        StateMaker.format_state(k, self.state_formatting)
                                     )
                                 )
                     # for k,v in self.zero_order_energy_corrections:
@@ -535,6 +540,7 @@ class PerturbationTheorySolver:
         corrs = self.get_corrections()
         degenerate_states = corrs.degeneracies
         corrs = corrs.corrections
+        corrs.state_formatting = self.state_formatting
 
         # degeneracy_mode = self.degeneracy_mode
         # degenerate_states = self.degenerate_spaces
@@ -851,8 +857,8 @@ class PerturbationTheorySolver:
                 #TODO: add better message
                 raise ValueError(
                     "degeneracies encountered: states {} and {} are degenerate (average energy: {} stddev: {})".format(
-                        self.flat_total_space.take_subspace(degenerate_subspace).excitations,
-                        self.flat_total_space.take_subspace(zero_checks).excitations,
+                        StateMaker.format_states(self.flat_total_space.take_subspace(degenerate_subspace), self.state_formatting, join=True),
+                        StateMaker.format_states(self.flat_total_space.take_subspace(zero_checks), self.state_formatting, join=True),
                         np.average(bad_vec),
                         np.std(bad_vec)
                     ))
@@ -2068,7 +2074,7 @@ class PerturbationTheorySolver:
         return group.take_subspace(keep) if len(keep) else None
 
     @classmethod
-    def filter_degenerate_group(cls, group, states=None, basis=None, corrections=None, threshold=None, energy_cutoff=None, frequencies=None, energies=None, decoupling_overide=10, maximize_groups=True, target_modes=None, max_mode_differences=None, threshold_step_size=0.1, extra_groups=None, uncoupled_states=None, state_diff_filters=1, logger=None, block_size=65536):
+    def filter_degenerate_group(cls, group, states=None, basis=None, corrections=None, threshold=None, energy_cutoff=None, frequencies=None, energies=None, decoupling_overide=10, maximize_groups=True, target_modes=None, max_mode_differences=None, threshold_step_size=0.1, extra_groups=None, uncoupled_states=None, state_diff_filters=1, logger=None, block_size=65536, state_formatting="quanta"):
         if not isinstance(block_size,(int,np.integer)) or block_size < 1:raise ValueError('block_size must be a positive integer')
         if len(group) < 2:
             return group
@@ -2091,7 +2097,8 @@ class PerturbationTheorySolver:
                 found_pos = np.where(uncoupled_pos > -1)[0]
                 if len(found_pos) > 0:
                     if logger is not None:
-                        logger.log_print('WARNING: states {g0} were in degenerate group {g2}, coupling has been removed', g0=uncoupled_states.excitations, g2=g.excitations)
+                        logger.log_print('WARNING: states {g0} were in degenerate group {g2}, coupling has been removed', g0=uncoupled_states.excitations, g2=g.excitations,
+                            preformatter=None if state_formatting == "vector" else logger.preformat_keys({key: lambda s: StateMaker.format_states(s, state_formatting, join=True) for key in ['g0', 'g2']}))
                     mask = np.setdiff1d(np.arange(len(g)), found_pos)
                     g = g.take_subspace(mask)
                 new_groups.append(g)
@@ -2349,7 +2356,7 @@ class PerturbationTheorySolver:
             for s in sc.values():
                 self.logger.log_print(
                     s,
-                    message_prepper=lambda a: str(a.excitations).splitlines(),
+                    message_prepper=lambda a: StateMaker.format_states(a, self.state_formatting),
                     log_level=self.logger.LogLevel.Never
                 )
 
@@ -2359,7 +2366,7 @@ class PerturbationTheorySolver:
             couplings=sc,
             solver=self,
             group_filter=group_filter,
-            default_group_filter=(partial(self.filter_degenerate_group, block_size=self.resonance_block_size)
+            default_group_filter=(partial(self.filter_degenerate_group, block_size=self.resonance_block_size, state_formatting=self.state_formatting)
                 if self.resonance_memory_constrained else None),
             log_groups=True
         )
@@ -2370,7 +2377,7 @@ class PerturbationTheorySolver:
                 with self.logger.block(tag='new states'):
                     self.logger.log_print(
                         missing.excitations,
-                        message_prepper=lambda a: str(np.array(a)).splitlines()
+                        message_prepper=lambda a: StateMaker.format_states(a, self.state_formatting)
                     )
                 extended_spaces = self.extend_state_spaces(missing, degenerate_states=degenerate_states)
                 if extended_spaces is not None:
@@ -2615,7 +2622,8 @@ class PerturbationTheorySolver:
                 non_zero_cutoff=non_zero_cutoff,
                 # filters=self.state_space_filters
                 filters=None,
-                logger=logger
+                logger=logger,
+                state_formatting=self.state_formatting
             )
 
             cs_states = SelectionRuleStateSpace(states, corr_inds, None)
@@ -2636,6 +2644,7 @@ class PerturbationTheorySolver:
                 }
                 , logger=self.logger
                 , nondeg_hamiltonian_precision=self.nondeg_hamiltonian_precision
+                , state_formatting=self.state_formatting
             )
 
             # if (
@@ -2681,7 +2690,7 @@ class PerturbationTheorySolver:
                                         with self.logger.block(tag="Degenerate groups:"):
                                             for g in degenerate_states.flat:
                                                 if len(g) > 1:
-                                                    self.logger.log_print(str(g.excitations).splitlines())
+                                                    self.logger.log_print(g, message_prepper=lambda a: StateMaker.format_states(a, self.state_formatting))
                                     if self.degenerate_states is not None:
                                         degenerate_states = self.merge_deg_spaces(
                                             [degenerate_states, self.degenerate_states]
@@ -3020,7 +3029,7 @@ class PerturbationTheorySolver:
 
         block_tag_formatter = lambda:'getting corrections for state {}/{}'.format(
             n,
-            total_state_space.take_subspace(n_ind).excitations[0]
+            StateMaker.format_state(total_state_space.take_subspace(n_ind).excitations[0], self.state_formatting)
         )
 
         with logger.block(
@@ -3158,7 +3167,7 @@ class PerturbationTheorySolver:
 
     #region Handle Post-PT Variational Stuff
     @staticmethod
-    def _fmt_depert_engs(total_state_space, base_energies):
+    def _fmt_depert_engs(total_state_space, base_energies, state_formatting='quanta'):
         """
         **LLM Docstring**
 
@@ -3176,7 +3185,7 @@ class PerturbationTheorySolver:
             """
             **LLM Docstring**
 
-            Format each state's excitation vector alongside its (ground-state-relative, where applicable) energy/frequency as a fixed-width line, for logging.
+            Format each state's padded occupation label (or legacy vector) beside its energy/frequency.
 
             :param a: unused positional arguments, accepted for logger message-formatter compatibility
             :type a: tuple
@@ -3198,13 +3207,17 @@ class PerturbationTheorySolver:
                 base_energies = base_energies - gs_eng
                 base_energies[gs_pos] = gs_eng
 
-            ndim = len(states[0])
-            fmt_str = "{:.0f} " * ndim + " {:12.4f}"
+            if state_formatting == 'vector':
+                labels = [('{:.0f} ' * len(s)).format(*s) for s in states]
+            else:
+                labels = [StateMaker.parse_state(s) for s in states]
+                width = max([len('State')] + [len(s) for s in labels]) + 1
+                labels = [s.ljust(width) for s in labels]
 
             return [label] + [
-                fmt_str.format(*s, e)
+                s + " {:12.4f}".format(e)
                 for s, e in zip(
-                    total_state_space.excitations,
+                    labels,
                     UnitsData.convert("Hartrees", "Wavenumbers") * base_energies
                 )
             ]
@@ -3240,7 +3253,7 @@ class PerturbationTheorySolver:
         logger = NullLogger() if self.logger is None else self.logger
         logger.log_print(
             None,
-            message_prepper=self._fmt_depert_engs(total_state_space, base_energies)
+            message_prepper=self._fmt_depert_engs(total_state_space, base_energies, self.state_formatting)
         )
 
         rotations = []
@@ -3337,7 +3350,7 @@ class PerturbationTheorySolver:
                 if len(d) > 1:
                     block_logger.log_print(
                         None,
-                        lambda *a:["dropping elements coupling degenerate space:"] + str(g.excitations).splitlines(),
+                        message_prepper=lambda *a: ["dropping elements coupling degenerate space:"] + StateMaker.format_states(g, self.state_formatting),
                         log_level=block_logger.LogLevel.Debug
                     )
                     idx = tuple(np.array([x for x in itertools.product(d, d) if x[0] != x[1]]).T)

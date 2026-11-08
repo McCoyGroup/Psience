@@ -5,14 +5,14 @@ Provides classes to support wave functions coming from VPT calculations
 import numpy as np, itertools as ip, time, enum, math
 
 from McUtils.Numputils import SparseArray
-from McUtils.Devutils import CascadingPropertyManager, cascading_property
+from McUtils.Devutils import CascadingPropertyManager, cascading_property, str_is
 import McUtils.Numputils as nput
 from McUtils.Scaffolding import ParameterManager, Checkpointer, NullCheckpointer
 from McUtils.Data import UnitsData
 from McUtils.Formatters import TableFormatter
 
 from ..Wavefun import Wavefunctions
-from ..BasisReps import SimpleProductBasis, BraKetSpace
+from ..BasisReps import SimpleProductBasis, BraKetSpace, StateMaker
 
 from .Terms import DipoleTerms, OperatorTerms
 from .Solver import PerturbationTheoryCorrections
@@ -1520,17 +1520,32 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
 
                 writer.writerows([padding + x for x in coupled_state_blocks])
 
-    @classmethod
-    def _format_energies_table(cls, gs, zpe, states, freqs, real_fmt='{:>12.5f}'):
+    @staticmethod
+    def _format_state_labels(states, state_formatting='quanta'):
+        """Return padded state labels and their column width, including a trailing gap.
 
-        n_modes = len(gs)
+        Compact columns fit both the State header and the longest analytic label.
+        Vector mode retains the original per-mode spacing.
+        """
+        if str_is(state_formatting, 'vector'):
+            labels = [('{:<1.0f} ' * len(s)).format(*s) for s in states]
+            n_modes = len(states[0]) if len(states) else (states.shape[-1] if np.ndim(states) > 1 else 0)
+            width = 2 * n_modes
+        else:
+            labels = [StateMaker.parse_state(s) for s in states]
+            width = max([len('State')] + [len(s) for s in labels]) + 1
+            labels = [s.ljust(width) for s in labels]
+        return labels, width
+
+    @classmethod
+    def _format_energies_table(cls, gs, zpe, states, freqs, real_fmt='{:>12.5f}', state_formatting='quanta'):
 
         zpe = np.asanyarray(zpe)
         freqs = np.asanyarray(freqs)
 
         ncols = freqs.shape[1] if len(freqs.shape) > 0 else 1
-        states_fmt = '{:<1.0f} ' * n_modes
-        padding = len(states_fmt.format(*[0 for _ in range(n_modes)]))
+        labels, padding = cls._format_state_labels([gs] + list(states), state_formatting)
+        gs_label, state_labels = labels[0], labels[1:]
         num_digits = len(real_fmt.format(0))
         dash_fmt = '{:>' + str(num_digits) + "}"
         htag = "Harmonic"; hpad = (num_digits - len(htag))
@@ -1553,10 +1568,10 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
             zpe_fmt = (real_fmt + " ") * ncols + (dash_fmt + " ") * ncols
             freq_fmt = (dash_fmt + " ") * ncols + (real_fmt + " ") * ncols
             lines = [
-                        states_fmt.format(*gs) + zpe_fmt.format(*zpe, *["-"] * ncols)] + [
-                        states_fmt.format(*s) + freq_fmt.format(*["-"] * ncols, *e)
-                            for s, e in
-                        zip(states, freqs)
+                        gs_label + zpe_fmt.format(*zpe, *["-"] * ncols)] + [
+                        label + freq_fmt.format(*["-"] * ncols, *e)
+                            for label, e in
+                        zip(state_labels, freqs)
                     ]
         else:
             header = ["State" + " " * (padding - len("State")) + bar]
@@ -1567,9 +1582,9 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
             ]
             freq_fmt = ncols + (real_fmt + " ") * ncols
             lines = [
-                states_fmt.format(*s) + freq_fmt.format(*e)
-                    for s, e in
-                zip(states, freqs)
+                label + freq_fmt.format(*e)
+                    for label, e in
+                zip(state_labels, freqs)
             ]
 
         return "\n".join([
@@ -1577,7 +1592,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
             *lines,
         ])
 
-    def _format_group_energies_table(self, engs, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'):
+    def _format_group_energies_table(self, engs, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}', state_formatting='quanta'):
 
         if states is None:
             states = self.corrs.states.excitations
@@ -1597,7 +1612,8 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                 zpe,
                 states[1:],
                 freqs,
-                real_fmt=real_fmt
+                real_fmt=real_fmt,
+                state_formatting=state_formatting
             )
 
         for init in self.initial_state_indices:
@@ -1616,7 +1632,8 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                 zpe,
                 states[subsel],
                 freqs,
-                real_fmt=real_fmt
+                real_fmt=real_fmt,
+                state_formatting=state_formatting
             )
 
         if self.initial_states is None:
@@ -1628,26 +1645,30 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
 
         return res
 
-    def format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'):
+    def format_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}', state_formatting='quanta'):
         return self._format_group_energies_table(
             self.energies,
             states=states,
             zpe=zpe,
             freqs=freqs,
-            real_fmt=real_fmt
+            real_fmt=real_fmt,
+            state_formatting=state_formatting
         )
 
-    def format_deperturbed_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}'):
+    def format_deperturbed_energies_table(self, states=None, zpe=None, freqs=None, real_fmt='{:>12.5f}', state_formatting='quanta'):
         return self._format_group_energies_table(
             self.deperturbed_energies,
             states=states,
             zpe=zpe,
             freqs=freqs,
-            real_fmt=real_fmt
+            real_fmt=real_fmt,
+            state_formatting=state_formatting
         )
 
-    def format_property_matrices(self, states, prop_corrs, real_fmt="{:>.8e}", padding_fmt='{:>16}'):
+    def format_property_matrices(self, states, prop_corrs, real_fmt="{:>.8e}", padding_fmt='{:>16}', state_formatting='quanta'):
 
+        labels, state_width = self._format_state_labels(states, state_formatting)
+        vector_states = str_is(state_formatting, 'vector')
         # reshape data so it's one big matrix...
         order = len(prop_corrs)
         res = {}
@@ -1676,15 +1697,14 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
             header_fmt = "{:<" + str(nels) + "}"
             header = " ".join(header_fmt.format(k) for k in term_keys)
 
-            n_modes = self.corrs.total_basis.ndim
-            padding = np.max([len(str("0 " * n_modes)), 1]) + 1
-            header = "State" + " " * (padding - 3) + header
+            padding = state_width + 3 if vector_states else state_width
+            header = "State" + " " * (padding - len("State")) + header
 
             n_terms = len(term_keys)
             prop_mat = header + "\n" + "\n".join(
-                "  " + ("{:<1.0f} " * n_modes).format(*s) +
+                ("  " if vector_states else "") + label +
                 " ".join(padding_fmt.format(real_fmt.format(ll)) for ll in l)
-                for s, l in zip(states, terms)
+                for label, l in zip(labels, terms)
             )
 
             res[idx] = prop_mat
@@ -1694,7 +1714,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         else:
             _ = []
             for idx, mats in res.items():
-                head = "Initial State: {}\n".format("{:<1.0f} " * len(states[idx])).format(*states[idx])
+                head = "Initial State: {}\n".format(labels[idx] if vector_states else labels[idx].rstrip())
                 _.append(head + mats)
             max_line_len = max(len(l) for l in _[0].splitlines())
             sep = "\n"+("-"*max_line_len)+"\n"
@@ -1702,35 +1722,36 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
 
         return res
 
-    def format_dipole_contribs_tables(self):
+    def format_dipole_contribs_tables(self, state_formatting='quanta'):
 
         states = self.corrs.states.excitations
         corrs = self.transition_moment_corrections
         mats = []
         for a in range(3):
             prop = [x[a] for x in corrs]
-            mats.append(self.format_property_matrices(states, prop))
+            mats.append(self.format_property_matrices(states, prop, state_formatting=state_formatting))
 
         return mats
 
-    def format_deperturbed_dipole_contribs_tables(self):
+    def format_deperturbed_dipole_contribs_tables(self, state_formatting='quanta'):
 
         states = self.corrs.states.excitations
         corrs = self.deperturbed_transition_moment_corrections
         mats = []
         for a in range(3):
             prop = [x[a] for x in corrs]
-            mats.append(self.format_property_matrices(states, prop))
+            mats.append(self.format_property_matrices(states, prop, state_formatting=state_formatting))
 
         return mats
 
-    def format_energy_corrections_table(self, real_fmt="{:>12.5f}"):
+    def format_energy_corrections_table(self, real_fmt="{:>12.5f}", state_formatting='quanta'):
 
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
         states = self.corrs.states.excitations
         e_corrs = self.corrs.all_energy_corrs  # (state, order, term)
         if len(states) == 0:
             return "State"
+        labels, _ = self._format_state_labels(states, state_formatting)
         # Different solver routes (and older checkpoints) can retain different
         # orders. Fix one column schema before formatting any state rows.
         orders = [k for k in range(1, max(map(len, e_corrs)))
@@ -1738,8 +1759,8 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
         term_keys = ["<0|dH({j})|{i}>".format(j=k-i, i=i)
                      for k in orders for i in range(k)]
         rows = []
-        for state, corrections in zip(states, e_corrs):
-            row = [" ".join("{:.0f}".format(s) for s in state)]
+        for label, corrections in zip(labels, e_corrs):
+            row = [label.rstrip()]
             for k in orders:
                 values = corrections[k] if k < len(corrections) else None
                 if values is None:
@@ -1757,11 +1778,13 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
             header_alignments=["<"] + ["^"] * len(term_keys)
         ).format(rows)
 
-    def _format_intensities_table(self, states, freqs, ints, harm_freqs, harm_ints, real_fmt="{:>12.5f}"):
+    def _format_intensities_table(self, states, freqs, ints, harm_freqs, harm_ints, real_fmt="{:>12.5f}", state_formatting='quanta'):
         # simple utility function pulled from the unit tests
 
-        n_modes = self.corrs.total_basis.ndim
-        padding = np.max([len(str("0 " * n_modes)), 1]) + 1
+        labels, state_width = self._format_state_labels(states, state_formatting)
+        if str_is(state_formatting, 'vector'):
+            labels = ['  ' + label + ' ' for label in labels]
+            state_width += 3
 
         num_digits = len(real_fmt.format(0))
         ftag = "Frequency"; fpad = (num_digits - len(ftag))
@@ -1774,24 +1797,23 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
 
         spacer = "    "
         report = (
-                    " " * (padding + 2) + " " * (num_digits - 2) + "Harmonic" +
+                    " " * state_width + " " * (num_digits - 2) + "Harmonic" +
                     " " * (num_digits - len("Harmonic")) + spacer
                     + " " * (num_digits - 2) + "Anharmonic\n"
-                    + "State" + " " * (padding - 3) + bar + spacer + bar + "\n"
+                    + "State" + " " * (state_width - len("State")) + bar + spacer + bar + "\n"
                  ) + "\n".join(
             (
                 (
-                        "  " + ("{:<1.0f} " * n_modes) + " "
-                        + real_fmt + " " + real_fmt
+                        "{}" + real_fmt + " " + real_fmt
                         + spacer
                         + real_fmt + " " + real_fmt
-                ).format(*s, hf, hi, f, i)
-                for s, hf, hi, f, i in zip(states, harm_freqs, harm_ints, freqs, ints)
+                ).format(label, hf, hi, f, i)
+                for label, hf, hi, f, i in zip(labels, harm_freqs, harm_ints, freqs, ints)
             ))
 
         return report
 
-    def _format_group_intensities_table(self, engs, ints, states=None, real_fmt='{:>12.5f}'):
+    def _format_group_intensities_table(self, engs, ints, states=None, real_fmt='{:>12.5f}', state_formatting='quanta'):
 
         if states is None:
             states = self.corrs.states.excitations
@@ -1821,7 +1843,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
             else:
                 anh_ints = ints
 
-            res[init_idx] = self._format_intensities_table(states[subsel], freqs, anh_ints, harm_freqs, harm_ints, real_fmt=real_fmt)
+            res[init_idx] = self._format_intensities_table(states[subsel], freqs, anh_ints, harm_freqs, harm_ints, real_fmt=real_fmt, state_formatting=state_formatting)
             # self._format_energies_table(
             #     states[init],
             #     zpe,
@@ -1834,8 +1856,9 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
             res = res[0]
         else:
             _ = []
+            labels = self._format_state_labels(states, state_formatting)[0]
             for idx, mats in res.items():
-                head = "Initial State: {}\n".format("{:<1.0f} " * len(states[idx])).format(*states[idx])
+                head = "Initial State: {}\n".format(labels[idx] if str_is(state_formatting, 'vector') else labels[idx].rstrip())
                 _.append(head + mats)
             max_line_len = max(len(l) for l in _[0].splitlines())
             sep = "\n"+("-"*max_line_len)+"\n"
@@ -1843,20 +1866,22 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
 
         return res
 
-    def format_intensities_table(self, real_fmt="{:>12.5f}"):
+    def format_intensities_table(self, real_fmt="{:>12.5f}", state_formatting='quanta'):
         return self._format_group_intensities_table(
             self.energies,
             self.intensities,
             states=self.corrs.states.excitations,
-            real_fmt=real_fmt
+            real_fmt=real_fmt,
+            state_formatting=state_formatting
         )
 
-    def format_deperturbed_intensities_table(self, real_fmt="{:>12.5f}"):
+    def format_deperturbed_intensities_table(self, real_fmt="{:>12.5f}", state_formatting='quanta'):
         return self._format_group_intensities_table(
             self.deperturbed_energies,
             self.deperturbed_intensities,
             states=self.corrs.states.excitations,
-            real_fmt=real_fmt
+            real_fmt=real_fmt,
+            state_formatting=state_formatting
         )
 
 
@@ -1902,18 +1927,19 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
             self.deperturbed_intensities
         )
 
-    def _format_operator_table(self, states, val, zo_val, real_fmt="{:>12.5f}"):
+    def _format_operator_table(self, states, val, zo_val, real_fmt="{:>12.5f}", state_formatting='quanta'):
         # simple utility function pulled from the unit tests
 
-        n_modes = self.corrs.total_basis.ndim
-        padding = np.max([len(str("0 " * n_modes)), 1]) + 1
+        labels, state_width = self._format_state_labels(states, state_formatting)
+        if str_is(state_formatting, 'vector'):
+            labels = ['  ' + label + ' ' for label in labels]
+            state_width += 3
 
         num_digits = len(real_fmt.format(0))
 
         spacer = " "
         line_template = (
-                "  " + ("{:<1.0f} " * n_modes) + " "
-                + real_fmt
+                "{}" + real_fmt
                 + spacer
                 + real_fmt
         )
@@ -1925,16 +1951,16 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                 + (" " * apad if apad > 0 else "") + atag
                 )
 
-        report = ["State" + " " * (padding - len("State") + 2) + bar]
+        report = ["State" + " " * (state_width - len("State")) + bar]
         report = report + [
-                line_template.format(*s, hi, i)
-                for s, hi, i in zip(states, zo_val, val)
+                line_template.format(label, hi, i)
+                for label, hi, i in zip(labels, zo_val, val)
             ]
         report = "\n".join(report)
 
         return report
 
-    def _format_group_operator_table(self, operator_data, states=None, real_fmt='{:>12.5f}'):
+    def _format_group_operator_table(self, operator_data, states=None, real_fmt='{:>12.5f}', state_formatting='quanta'):
 
         if states is None:
             states = self.corrs.states.excitations
@@ -1950,7 +1976,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                 val = operator_data[1][0]
             val = val[init_idx]
 
-            res[init_idx] = self._format_operator_table(states, val, zo_val, real_fmt=real_fmt)
+            res[init_idx] = self._format_operator_table(states, val, zo_val, real_fmt=real_fmt, state_formatting=state_formatting)
             # self._format_energies_table(
             #     states[init],
             #     zpe,
@@ -1963,8 +1989,9 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
             res = res[0]
         else:
             _ = []
+            labels = self._format_state_labels(states, state_formatting)[0]
             for idx, mats in res.items():
-                head = "Initial State: {}\n".format("{:<1.0f} " * len(states[idx])).format(*states[idx])
+                head = "Initial State: {}\n".format(labels[idx] if str_is(state_formatting, 'vector') else labels[idx].rstrip())
                 _.append(head + mats)
             max_line_len = max(len(l) for l in _[0].splitlines())
             sep = "\n"+("-"*max_line_len)+"\n"
@@ -1972,7 +1999,7 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
 
         return res
 
-    def format_operator_table(self, operators, real_fmt="{:>12.5f}"):
+    def format_operator_table(self, operators, real_fmt="{:>12.5f}", state_formatting='quanta'):
 
         if not isinstance(operators, dict):
             operators = {'Operator': operators}
@@ -1987,7 +2014,8 @@ class PerturbationTheoryWavefunctions(Wavefunctions):
                                                 tab=self._format_group_operator_table(
                                                     dat,
                                                     states=states,
-                                                    real_fmt=real_fmt
+                                                    real_fmt=real_fmt,
+                                                    state_formatting=state_formatting
                                                 ))
             )
         res = "\n".join(res)

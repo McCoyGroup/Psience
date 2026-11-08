@@ -5,7 +5,7 @@ import numpy as np, enum, abc, scipy.sparse as sp
 from McUtils.Combinatorics import SymmetricGroupGenerator, PermutationRelationGraph
 from McUtils.Scaffolding import Logger
 import McUtils.Numputils as nput
-from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace, HarmonicOscillatorProductBasis
+from ..BasisReps import BasisStateSpace, BasisMultiStateSpace, SelectionRuleStateSpace, BraKetSpace, HarmonicOscillatorProductBasis, StateMaker
 
 __all__ = [
     "DegeneracySpec",
@@ -201,6 +201,7 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
                 test_modes = None
             group_filter = dict(
                 corrections=corrs,
+                state_formatting=getattr(solver if solver is not None else corrs, "state_formatting", "quanta"),
                 energy_cutoff=zero_order_energy_cutoff,
                 frequencies=frequencies,
                 energies=zero_order_energies,
@@ -1734,7 +1735,8 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                              extra_groups=None,
                              uncoupled_states=None,
                              state_diff_filters=1,
-                             logger=None
+                             logger=None,
+                             state_formatting="quanta"
                              ):
         """
         Excludes modes that differ in only one position, prioritizing states with fewer numbers of quanta
@@ -1783,6 +1785,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                         logger.log_print("WARNING: states {g0} were in degenerate group {g2}, coupling has been removed",
                                          g0=uncoupled_states.excitations,
                                          g2=g.excitations,
+                                         preformatter=None if state_formatting == "vector" else logger.preformat_keys({key: lambda s: StateMaker.format_states(s, state_formatting, join=True) for key in ["g0", "g2"]}),
                                          )
                     #TODO: add warnings about coupling to the ground state
                     mask = np.setdiff1d(np.arange(len(g)), found_pos)
@@ -2173,6 +2176,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                   group_filter=None,
                   log_groups=False,
                   default_group_filter=None,
+                  state_formatting=None,
                   **kwargs
                   ):
         """
@@ -2188,6 +2192,8 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
         :rtype:
         """
 
+        if state_formatting is None:
+            state_formatting = getattr(solver, 'state_formatting', 'quanta')
         if evaluator is not None:
             logger = evaluator.logger
         elif solver is not None:
@@ -2233,7 +2239,7 @@ class DegenerateMultiStateSpace(BasisMultiStateSpace):
                     with logger.block(tag="initial degenerate groups:"):
                         for g in degenerate_states:
                             if len(g) > 1:
-                                logger.log_print(str(g.excitations).splitlines())
+                                logger.log_print(g, message_prepper=lambda a: StateMaker.format_states(a, state_formatting))
                 else:
                     logger.log_print(
                         "{n} degenerate state sets found",

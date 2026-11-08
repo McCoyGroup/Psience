@@ -67,6 +67,7 @@ class PerturbationTheoryHamiltonian:
                  checkpoint=None,
                  results=None,
                  parallelizer=None,
+                 use_analytic_harmonic_diagonal=True,
                  **expansion_options
                  ):
         """
@@ -80,6 +81,9 @@ class PerturbationTheoryHamiltonian:
         :type mode_selection: None | Iterable[int]
         :param include_coriolis_coupling: whether to add coriolis coupling if not in internals
         :type include_coriolis_coupling: bool
+        :param use_analytic_harmonic_diagonal: accelerate quadratic diagonal elements
+            in native harmonic direct contractions (default True). False uses the
+            general contraction kernel; other bases/backends keep their evaluator.
         :param parallelizer: parallelism manager
         :type parallelizer: Parallelizer
         :param logger: log file or logger to write to
@@ -284,6 +288,7 @@ class PerturbationTheoryHamiltonian:
         self.operator_settings = {
             'chunk_size': operator_chunk_size,
             'contraction_method': operator_contraction_method,
+            'use_analytic_harmonic_diagonal': use_analytic_harmonic_diagonal,
             'zero_threshold': matrix_element_threshold,
             'logger': self.logger,
             'parallelizer': self.parallelizer,
