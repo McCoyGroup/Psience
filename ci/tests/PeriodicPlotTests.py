@@ -1,4 +1,9 @@
 """Directional periodicity and native plotting overlays for PeriodicSystem."""
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 import copy
 import io
 import unittest
@@ -27,6 +32,7 @@ class PeriodicPlotTests(unittest.TestCase):
     def plot(self, system, **options):
         return system.plot(bonds=False, rings=False, objects=True, return_objects=True, units=None, **options)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_cell_and_lattice_arrows_follow_periodic_dimensions(self):
         for mask, edge_count, labels in (((True, False, False), 1, "a"),
                                           ((True, True, False), 4, "ab"),
@@ -44,6 +50,7 @@ class PeriodicPlotTests(unittest.TestCase):
                     assert_allclose(arrow.pos1, p.origin)
                     assert_allclose(arrow.pos2, p.origin + p.lattice[i])
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_cell_direction_styles_cylinders_and_axes_display_units(self):
         p = self.system()
         style = {"radius": .025, "transparency": .25, "a": {"color": "red"},
@@ -105,6 +112,7 @@ class PeriodicPlotTests(unittest.TestCase):
             PeriodicSystem(Molecule(["C"], [[0., 0., 0.]], guess_bonds=False), np.eye(3),
                            periodicity=(True, False, True), symmetry_operations=[swap])
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_default_images_are_outside_central_axes_with_half_transparency(self):
         p = self.system()
         extra = Line([[0, 0, 0], [1, 0, 0]])
@@ -121,6 +129,7 @@ class PeriodicPlotTests(unittest.TestCase):
         self.assertIs(annotations[0][-1], extra)
         self.assertEqual(len(p.molecule.atoms), 1)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_boolean_and_integer_image_counts_and_explicit_disable(self):
         p = self.system()
         for counts, expected in (([True, False, True], 9), ([2, 0, 1], 15), ([0, 0, 0], 1)):
@@ -130,6 +139,7 @@ class PeriodicPlotTests(unittest.TestCase):
         _, atoms, _, _ = self.plot(p, periodic_images=[2, 0, 1], show_periodic_images=False)
         self.assertEqual(len(atoms), 1)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_asymmetric_image_pairs_set_negative_and_positive_layers(self):
         p = self.system()
         counts = [2, 0, [1, 0]]
@@ -152,6 +162,7 @@ class PeriodicPlotTests(unittest.TestCase):
                 _, atoms, _, _ = self.plot(p, periodic_images=counts)
                 self.assertEqual(len(atoms), expected)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_asymmetric_counts_respect_finite_directions_and_validate_pairs(self):
         p = self.system((True, False, True))
         _, atoms, _, _ = self.plot(p, periodic_images=[[0, 1], [3, 4], [1, 0]])
@@ -161,6 +172,7 @@ class PeriodicPlotTests(unittest.TestCase):
             with self.subTest(counts=counts), self.assertRaisesRegex(ValueError, "count pairs"):
                 self.plot(p, periodic_images=counts)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_images_never_translate_along_finite_directions(self):
         for mask, expected in (((True, False, False), 3), ((True, True, False), 9), (1, 3), (2, 9), (3, 27)):
             p = self.system(mask)
@@ -170,6 +182,7 @@ class PeriodicPlotTests(unittest.TestCase):
             for i in np.flatnonzero(~p.periodicity):
                 assert_allclose(positions[:, i], np.asarray(p.molecule.coords)[0, i])
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_image_material_styles_preserve_multiple_bonds_and_user_inputs(self):
         molecule = Molecule(["C", "O"], [[.2, .3, .4], [1.2, .3, .4]], bonds=[[0, 1, 2]], guess_bonds=False)
         p = PeriodicSystem(molecule, np.diag([4., 5., 6.]))
@@ -190,6 +203,7 @@ class PeriodicPlotTests(unittest.TestCase):
         self.assertTrue(all(o.opts["transparency"] == .7 for image in bonds[1:] for bond in image for o in bond))
         self.assertEqual(style, original)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_actual_native_x3d_axes_and_images_export(self):
         p = self.system((True, False, True))
         fig = p.plot(bonds=False, rings=False, unit_axes=True, periodic_images=[1, 0, 1],
@@ -201,6 +215,7 @@ class PeriodicPlotTests(unittest.TestCase):
         self.assertIn('string="a"', html)
         self.assertIn('string="c"', html)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_lattice_and_principal_axes_coexist_without_copying_them_to_images(self):
         p = PeriodicSystem.from_cif(io.StringIO(CIF), guess_bonds=False)
         _, atoms, _, annotations = self.plot(p, unit_axes=True, principle_axes=True, periodic_images=[1, 0, 0])
@@ -210,6 +225,7 @@ class PeriodicPlotTests(unittest.TestCase):
         _, atoms, _, _ = self.plot(p, atom_style=False, periodic_images=[1, 0, 0])
         self.assertTrue(all(not group for group in atoms))
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_silicon_image_network_matches_full_supercell_and_nearest_neighbors(self):
         p = self.silicon()
         original = np.asarray(p.molecule.coords).copy()
@@ -238,6 +254,7 @@ class PeriodicPlotTests(unittest.TestCase):
         self.assertEqual(len(p.molecule.bonds), 7)
         assert_allclose(np.asarray(p.molecule.coords), original)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_silicon_boundary_bond_halves_follow_cell_materials(self):
         p = self.silicon()
         _, _, bonds, _ = p.plot(periodic_images=[2, 0, [1, 0]], rings=False,
@@ -253,6 +270,7 @@ class PeriodicPlotTests(unittest.TestCase):
                  if tuple(part.opts.get("transparency", 0) for part in bond) == (.1, .6)]
         self.assertTrue(all(tuple(part.opts["color"] for part in bond) == ("orange", "cyan") for bond in mixed))
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_bond_inference_and_rendering_can_be_disabled(self):
         p = self.silicon()
         p.molecule.bonds = p.molecule.get_guessed_bonds()
@@ -268,6 +286,7 @@ class PeriodicPlotTests(unittest.TestCase):
                                  periodic_image_styles={"bond_style": False}, objects=True, return_objects=True)
         self.assertEqual(sum(len(group or []) for group in bonds), 7)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_wire_connects_adjacent_cells_and_preserves_supplied_orders(self):
         factor = UnitsData.convert("Angstroms", "BohrRadius")
         molecule = Molecule(["C", "C"], np.array([[.5, 0, 0], [1.92, 0, 0]]) * factor,
@@ -280,6 +299,7 @@ class PeriodicPlotTests(unittest.TestCase):
         _, _, bonds, _ = p.plot(show_periodic_images=True, rings=False, objects=True, return_objects=True)
         self.assertEqual(sum(len(group or []) for group in bonds), 5)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_new_plot_validation(self):
         p = self.system()
         for kwargs in ({"periodic_images": [-1, 0, 1]}, {"periodic_images": [1.2, 0, 0]},

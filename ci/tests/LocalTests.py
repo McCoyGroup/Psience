@@ -1,3 +1,8 @@
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 from McUtils.ExternalPrograms import *
 import collections
 import gc
@@ -1561,6 +1566,7 @@ class LocalTests(TestCase):
         # raise Exception(len(internals))
         return internals
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_WaterDimerMBPol(self):
         dimer_coords = [
@@ -1699,6 +1705,7 @@ class LocalTests(TestCase):
                 monomer=i
             )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_WaterTrimerMBPol(self):
         init_coords = np.array(
@@ -1929,6 +1936,7 @@ class LocalTests(TestCase):
         >>--------------------------------------------------<<
         """
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_WaterTetramerAutoMBPol(self):
 
@@ -2205,6 +2213,7 @@ class LocalTests(TestCase):
         1 1 0            -            -   4982.51639   4665.46163 
         """
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest#(log_file='~/Documents/Postdoc/local_VPT/hexamer_mbe_rocks.txt')
     def test_WaterHexamerMBPol(self):
         hexamer_base_coords = np.array([
@@ -2332,6 +2341,7 @@ class LocalTests(TestCase):
         #     unitary=True
         # )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_WaterOctamerMBPol(self):
         init_coords = np.array([[1.36660032,1.36660032,1.318721],
@@ -2412,6 +2422,7 @@ class LocalTests(TestCase):
 
         return
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_Localizers(self):
 

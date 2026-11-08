@@ -243,7 +243,7 @@ class AnalyticExpressionStore:
     def compile(self, expression, *, context=None, active_operators=None, projection=None,
                 max_terms=32768, max_bytes=64*1024**2, cache_size=100000,
                 cache_bytes=512*1024**2, node_cache_size=8192, mode_dimension=None, progress=None,
-                coalesce_combine_nodes=True):
+                coalesce_combine_nodes=True,bounded_byte_accounting=True):
         """Compile native expressions; early DAG combine-node coalescing is on by default.
 
         Set coalesce_combine_nodes=False (also accepted through evaluator
@@ -253,7 +253,8 @@ class AnalyticExpressionStore:
         return self.compile_factory(lambda:expression, context=expression if context is None else context,
             active_operators=active_operators,projection=projection,max_terms=max_terms,max_bytes=max_bytes,
             cache_size=cache_size,cache_bytes=cache_bytes,node_cache_size=node_cache_size,
-            mode_dimension=mode_dimension,progress=progress,coalesce_combine_nodes=coalesce_combine_nodes)
+            mode_dimension=mode_dimension,progress=progress,coalesce_combine_nodes=coalesce_combine_nodes,
+            bounded_byte_accounting=bounded_byte_accounting)
 
     def compile_factory(self, factory, **options):
         """Compile or reuse an entry, accounting separately for lookup and actual construction."""
@@ -277,7 +278,7 @@ class AnalyticExpressionStore:
     def _compile_factory(self, factory, *, context, active_operators=None, projection=None,
                          max_terms=32768,max_bytes=64*1024**2,cache_size=100000,
                           cache_bytes=512*1024**2,node_cache_size=8192,mode_dimension=None,progress=None,
-                          coalesce_combine_nodes=True):
+                          coalesce_combine_nodes=True,bounded_byte_accounting=True):
         from .Analytic import (SqrtChangePoly,PTTensorCoeffProductDAG,PTTensorCoeffProductSum,
             PTTensorCoeffProductDAGEvaluationPlan,_BoundedEvaluationCache,_BalancedPolynomialAccumulator)
         from .BoundedStream import StreamBudget
@@ -286,7 +287,7 @@ class AnalyticExpressionStore:
         coalescing_enabled = bool(coalesce_combine_nodes)
         options = dict(max_terms=max_terms,max_bytes=max_bytes,cache_size=cache_size,
                        cache_bytes=cache_bytes,node_cache_size=node_cache_size,mode_dimension=mode_dimension,
-                       coalesce_combine_nodes=coalescing_enabled)
+                       coalesce_combine_nodes=coalescing_enabled,bounded_byte_accounting=bool(bounded_byte_accounting))
         if max_terms<1 or (max_bytes is not None and max_bytes<1):raise ValueError('invalid compilation budget')
         signature = self._signature(context,active_operators,projection,options)
         directory = None if self.folder is None else self.folder/signature
@@ -335,7 +336,8 @@ class AnalyticExpressionStore:
         else:
             plan = None;iterator = poly.terms.items()
         transform = projection.compiler() if projection is not None else None
-        budget = StreamBudget(dict(max_terms=max_terms,max_bytes=max_bytes))
+        budget = StreamBudget(dict(max_terms=max_terms,max_bytes=max_bytes,
+            bounded_byte_accounting=bounded_byte_accounting))
         staging = contextlib.nullcontext(None) if self.folder is None else self.entries.stage(signature)
         memory_parts={}
         with staging as staged:
@@ -546,6 +548,13 @@ def _run_assigned_compiled_bins(bins,context):
 
 
 def _run_compiled_tasks(tasks,context):
+    from .Analytic import PolyPath
+    limit = context['numerical_options'].get('path_equality_cache_size', 32768)
+    with PolyPath.cached_comparisons(limit):
+        return _run_compiled_tasks_inner(tasks,context)
+
+
+def _run_compiled_tasks_inner(tasks,context):
     from .Analytic import PerturbationTheoryExpressionEvaluator as Expression
     from .IndexedEvaluator import IndexedBlockEvaluator
     from McUtils.Parallelizers import SharedMemoryArrayTree
@@ -573,8 +582,12 @@ def _run_compiled_tasks(tasks,context):
                 path=Path(context['expression_folder'])/key
                 if _file_hash(path)!=part['sha256']:raise ValueError('compiled part changed in worker')
                 with path.open('rb') as stream:cache[key]=pickle.load(stream)
+            # Compiled parts are immutable for the lifetime of this worker.
+            # Compute invariant polynomial degree once per load, not per batch.
+            cache[key]=(cache[key],Expression._get_max_order(cache[key])
+                        if context['numerical_options'].get('cache_polynomial_order',True) else None)
             while len(cache)>2:cache.popitem(last=False)
-        poly=cache[key];rank=part['rank'];free=rank-num_fixed
+        poly,max_order=cache[key];rank=part['rank'];free=rank-num_fixed
         batches=[];position=task['start']
         if record is not None:
             position=record['stop'];batches=record['batches']
@@ -605,6 +618,9 @@ def _run_compiled_tasks(tasks,context):
                 path_cache_size=10000,path_cache_bytes=64*1024**2,
                 state_permutation_cache_size=10000,state_permutation_cache_bytes=16*1024**2)
             options.update(context['numerical_options'])
+            options.pop('path_equality_cache_size',None)
+            options.pop('cache_polynomial_order',None)
+            options['_max_polynomial_order']=max_order
             result=Expression.evaluate_polynomial_expression(requests,coefficients,context['freqs'],poly,
                 manifest['change'],manifest['baseline_shift'],num_fixed,
                 mode_subset_selector=_TemplateSubset(rank),**options)

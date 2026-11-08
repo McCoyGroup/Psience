@@ -1,3 +1,8 @@
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 import os.path
 
 from Peeves.TestUtils import *
@@ -10,6 +15,7 @@ from Psience.Reactions import Reaction
 
 class ReactionsTests(TestCase):
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_EmbeddingsIGuess(self):
         # I can't remember what this was supposed to do
@@ -127,6 +133,7 @@ class ReactionsTests(TestCase):
 
         return
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_SetupReactants(self):
 
@@ -148,6 +155,7 @@ class ReactionsTests(TestCase):
         p1.show()
         p2.show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @debugTest
     def test_ReactionZMatrix(self):
         r = Reaction.from_smiles(
@@ -169,6 +177,7 @@ class ReactionsTests(TestCase):
 
         # coordops.functionalized_zmatrix()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_NEBZMatrix(self):
         r = Reaction.from_smiles(
@@ -207,6 +216,7 @@ class ReactionsTests(TestCase):
             spring_constant=.5
         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_Comparison(self):
 
@@ -379,6 +389,7 @@ class ReactionsTests(TestCase):
 
         return
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_VisualizeReactions(self):
 

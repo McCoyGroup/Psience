@@ -1,3 +1,8 @@
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 from McUtils.ExternalPrograms import *
 import itertools
 import gc
@@ -618,6 +623,7 @@ class MolecoolsTests(TestCase):
 
         self.assertTrue(np.allclose(jacs[3, 0], jacs2[1, 0]))
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_Plotting(self):
 
@@ -718,6 +724,7 @@ class MolecoolsTests(TestCase):
         print(UnitsData.convert("Hartrees", "Wavenumbers") * np.sqrt(np.diag(np.dot(np.dot(mm.T, fcs), mm))))
         # print(modes._basis.matrix.T.dot(m.force_constants).shape)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_VisualizeNormalModes(self):
 
@@ -765,6 +772,7 @@ class MolecoolsTests(TestCase):
             tuple(np.round(test_freqs, 4))
         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @inactiveTest
     def test_InternalCartesianJacobians(self):
         import McUtils.Plots as plt
@@ -855,6 +863,7 @@ class MolecoolsTests(TestCase):
 
         self.assertAlmostEquals(np.sum(ic1.convert(ic2.system)-ic2)[()], 0.)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_RDKitSpectrum(self):
         # propane = Molecule.from_string('CCC', 'smi', energy_evaluator='rdkit').optimize()
@@ -898,6 +907,7 @@ class MolecoolsTests(TestCase):
         spec = water.get_harmonic_spectrum()
         spec.plot().show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_AlignMoleculePermuteAtoms(self):
         # tbhp (tert-butyl hydroperoxide) has three graph-equivalent methyl groups, so its
@@ -956,6 +966,7 @@ class MolecoolsTests(TestCase):
         self.assertLess(final_rmsd, naive_rmsd * 1e-2,
                         msg="expected a large RMSD improvement over the naive (unpermuted) alignment")
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_AlignMoleculeNoPermuteAtoms(self):
         # with permute_atoms=False, align_molecule should fall back to a pure rigid-body
@@ -1001,6 +1012,7 @@ class MolecoolsTests(TestCase):
         self.assertLess(rmsd, 1e-8,
                         msg="aligning a molecule to an unperturbed copy of itself should give ~0 RMSD")
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ExpansionPotential(self):
         h2co = Molecule.from_file(TestManager.test_data('OCHH_freq.fchk'))
@@ -1100,6 +1112,7 @@ class MolecoolsTests(TestCase):
 
         return ochh
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_OpenBabel(self):
         mol = Molecule.from_file(TestManager.test_data("nh3.fchk"))
@@ -1478,6 +1491,7 @@ class MolecoolsTests(TestCase):
             )
         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_DihedOptRPNMScan(self):
         import McUtils.Coordinerds as coordops
@@ -2024,6 +2038,7 @@ class MolecoolsTests(TestCase):
         )
         gms = mol.get_gmatrix(coords=other_structs)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_1DPotentialReps(self):
         ochh = self.setup_OCHH(optimize=True)
@@ -2222,6 +2237,7 @@ class MolecoolsTests(TestCase):
         )
         print(ethanol.calculate_energy())
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_MACEEnergy(self):
         ethanol = Molecule.from_string('CCO', energy_evaluator='mace')
@@ -2240,6 +2256,7 @@ class MolecoolsTests(TestCase):
         ethanol = Molecule.from_string('CCO', energy_evaluator='uma')
         print(ethanol.calculate_energy())
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_BackboneChains(self):
         from Psience.Molecools import Molecule
@@ -2326,6 +2343,7 @@ class MolecoolsTests(TestCase):
             include_save_buttons=True
         ).show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_EasyZMatrices(self):
         # cpmo = Molecule.from_file(
@@ -2359,6 +2377,7 @@ class MolecoolsTests(TestCase):
         coordops.validate_zmatrix(zmat, raise_exception=True)
         pprint.pprint(zmat)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_PointGroups(self):
         print()
@@ -2452,6 +2471,7 @@ class MolecoolsTests(TestCase):
         # cpmo3m.plot(highlight_atoms='all', figure=base_pol)
         # base_pol.show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_PartialSymmetries(self):
         import McUtils.Coordinerds as coordops
@@ -2522,6 +2542,7 @@ class MolecoolsTests(TestCase):
 
 
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_SufaceArea(self):
         # propylbenzene = Molecule.from_file(
@@ -2571,6 +2592,7 @@ class MolecoolsTests(TestCase):
 
         mol_plot.show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_SufaceTriangulation(self):
         from McUtils.Plots import ColorPalette
@@ -2753,6 +2775,7 @@ class MolecoolsTests(TestCase):
         v_exp = ham.potential_expansion(2)
         print(len(v_exp))
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_AutoCHModel(self):
         # import McUtils.Devutils as dev
@@ -3666,12 +3689,14 @@ class MolecoolsTests(TestCase):
         ohh = Molecule.from_file(TestManager.test_data('water_freq.fchk'))
         ohh.animate_mode(0, backend='x3d')
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_RDKitIssues(self):
         from Psience.Molecools import Molecule
 
         Molecule.from_string('COc1cc([OH]C2([N+](c3c(C2(C)C)cc(OC)cc3)CCCOS([O-])=O)C=C4)c4cc1', 'smi')
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @debugTest
     def test_InChIExport(self):
         mol = Molecule.from_string('CCO', 'smi')
@@ -3714,6 +3739,7 @@ class MolecoolsTests(TestCase):
         )
         self.assertTrue(np.allclose(loaded.rdmol.coords, explicit_coords))
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_RDKitConfGen(self):
         from Psience.Molecools import Molecule
@@ -3771,6 +3797,7 @@ class MolecoolsTests(TestCase):
             "smi"
         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_CanonicalZMatrix(self):
         from Psience.Molecools import Molecule
@@ -3817,6 +3844,7 @@ class MolecoolsTests(TestCase):
         # print(coordops.set_zmatrix_embedding(ca[:25] - cb[:25], embedding=np.zeros(6)))
 
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_FlexiblePlotting(self):
         from Psience.Molecools import Molecule
@@ -3882,6 +3910,7 @@ class MolecoolsTests(TestCase):
 
         print(mol.get_internals_by_cartesians())
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_Opts(self):
         import McUtils.Coordinerds as coordops
@@ -4068,6 +4097,7 @@ class MolecoolsTests(TestCase):
             (ugh.calculate_energy() - mol.calculate_energy())*UnitsData.convert("Hartrees", "Kilocalories/Mole")
         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_FragBaseDraw(self):
         bits = Molecule.from_string(
@@ -4100,6 +4130,7 @@ class MolecoolsTests(TestCase):
                 'view_vector': [0, 0, 1],
             }).show()#.savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_FragInternalsSpec(self):
         import McUtils.Coordinerds as coordops
@@ -4224,6 +4255,7 @@ class MolecoolsTests(TestCase):
 
         return
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_FragInternalsScan(self):
         import McUtils.Coordinerds as coordops
@@ -4543,6 +4575,7 @@ class MolecoolsTests(TestCase):
                  image_size=800,
                  include_save_buttons=True).show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_MultiXYZParsing(self):
         mol = Molecule.from_file(
@@ -4559,6 +4592,7 @@ class MolecoolsTests(TestCase):
         )
         traj[0].plot([t.coords for t in traj], image_size=800, include_save_buttons=True).show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ZMatOpt(self):
         import McUtils.Coordinerds as coordops
@@ -4647,26 +4681,31 @@ class MolecoolsTests(TestCase):
             )
         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_RDKitNumberIssues(self):
         Molecule.from_string("""CC(N1)=NC2=C1C(/C=C/C3=[N+](CCC[S-](=O)(=O)=O)C4=CC=CC=C4S3)=CC=C2""", 'smi')
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_PubChemNames(self):
         mol = Molecule.from_string('melatonin', 'name')
         mol.plot().show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_MACEPysis(self):
         mol = Molecule.from_string('CCO', 'smi', energy_evaluator='mace')
         mol.optimize(mode='pysis', method='rfo')
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_OddBGZmats(self):
         mol = Molecule.from_string('''N.CCl''', 'smi')
         zm = mol.get_bond_zmatrix()
         mol.modify(internals=zm).animate_coordinate(1).show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_NewLocalModes(self):
         import os
@@ -4680,6 +4719,7 @@ class MolecoolsTests(TestCase):
         ], mass_weighted=True)
         mol.animate_mode(-2, modes=locs).show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_FragEmbedding(self):
         bits = Molecule.from_string(
@@ -4735,6 +4775,7 @@ class MolecoolsTests(TestCase):
         # print(np.linalg.norm(bits.fragments[0].center_of_mass - bits.fragments[1].center_of_mass))
         # print(np.linalg.norm(uuuh.fragments[0].center_of_mass - uuuh.fragments[1].center_of_mass))
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_PlotlyBackend(self):
 
@@ -5104,6 +5145,7 @@ class MolecoolsTests(TestCase):
         # ).show()  # .savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
         # # return
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_Surface2(self):
 
@@ -5152,6 +5194,7 @@ class MolecoolsTests(TestCase):
         # fig.show()
         return
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_Surface3(self):
 
@@ -5167,6 +5210,7 @@ class MolecoolsTests(TestCase):
         surf.plot(figure=fig).show()
         return
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_AnimateColors(self):
         import McUtils.Plots as mplt
@@ -5203,6 +5247,7 @@ class MolecoolsTests(TestCase):
             ]
         ).show()#.to_widget().write("/Users/Mark/Desktop/glow_anim4.html")
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_Functionalization(self):
         mol = Molecule.from_string('c1ccccc1')
@@ -5249,6 +5294,7 @@ class MolecoolsTests(TestCase):
             # dipole_origin=mol.coords[6],
             backend='x3d').show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_TrickyFunctionalization(self):
         base = Molecule.from_string(
@@ -5277,6 +5323,7 @@ class MolecoolsTests(TestCase):
                  highlight_atoms=[0, 1, 2]
                  ).show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_JoinedConstructor(self):
         mol = Molecule.from_string('[c:1]1ccccc1', add_implicit_hydrogens='full')
@@ -5292,6 +5339,7 @@ class MolecoolsTests(TestCase):
         # fg.plot().show()
         comb.plot(backend='x3d').show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_JoinedConstructorStereo(self):
 
@@ -5305,6 +5353,7 @@ class MolecoolsTests(TestCase):
         # fg.plot().show()
         comb.plot(backend='x3d', atom_radius_scaling=1).show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_FunctionalizationMulti(self):
         from McUtils.Data import SMILESData
@@ -5330,6 +5379,7 @@ class MolecoolsTests(TestCase):
             # dipole_origin=mol.coords[6],
             backend='x3d').show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_FragmentsMulti(self):
         from McUtils.Data import SMILESData
@@ -5352,6 +5402,7 @@ class MolecoolsTests(TestCase):
             # dipole_origin=mol.coords[6],
             backend='x3d').show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_MolecularSES(self):
         base = Molecule.from_string(
@@ -5385,6 +5436,7 @@ class MolecoolsTests(TestCase):
         return
 
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ScanIterator(self):
         # from McUtils.Iterators import chunked
@@ -5497,6 +5549,7 @@ class MolecoolsTests(TestCase):
 
         new.get_scan_coordinates()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_SomeZMat3(self):
         from Psience.Molecools import Molecule
@@ -5523,6 +5576,7 @@ class MolecoolsTests(TestCase):
         ).show()
         # derivs = int_mol.get_cartesians_by_internals(3)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_RestrictedZM2(self):
         import McUtils.Coordinerds as coordops
@@ -5558,6 +5612,7 @@ class MolecoolsTests(TestCase):
         #     }, max_iterations=0)
         # mol.plot(geoms).show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_RestrictedZM3(self):
         import McUtils.Coordinerds as coordops
@@ -5585,6 +5640,7 @@ class MolecoolsTests(TestCase):
             print(smarts_matcher(pat)(targ))
 
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_SVGBackend(self):
         from Psience.Molecools import Molecule
@@ -5963,6 +6019,7 @@ class MolecoolsTests(TestCase):
         # ).show()  # .savefig("/Users/Mark/Desktop/view_xy_simp_bonds.svg")
         # # return
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_BondGraphZMatrixIssues(self):
         horizontal_structure = '''
@@ -6063,6 +6120,7 @@ class MolecoolsTests(TestCase):
         segs = f1.find_backbone_segments()
         f1.plot(highlight_atoms=segs[0]).show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_SimpleRelaxedScan(self):
         # import McUtils.Iterators as itut
@@ -6132,6 +6190,7 @@ class MolecoolsTests(TestCase):
         # print(conf_id, conf.GetPositions())
         # return
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_RequiredCoordinateZMatrix(self):
 
@@ -6166,6 +6225,7 @@ class MolecoolsTests(TestCase):
         print(np.array(zm))
         coordops.zmatrix_indices(zm, [(0, 2), (1, 3)])
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ProblemTransformedZMatrix(self):
         import McUtils.Coordinerds as coordops
@@ -6184,6 +6244,7 @@ class MolecoolsTests(TestCase):
                                      draw_coords=[(2, 1)]).show()
 
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ComplexRelaxedScan(self):
         import McUtils.Coordinerds as coordops
@@ -6239,6 +6300,7 @@ class MolecoolsTests(TestCase):
                      , include_save_buttons=True
                      ).show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ASEProfileGenerator(self):
         import warnings
@@ -6291,6 +6353,7 @@ class MolecoolsTests(TestCase):
         # # raise Exception(react[0].coords)
         # # react[0].plot().show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_PysisGSMProfileGenerator(self):
         import warnings
@@ -6374,6 +6437,7 @@ class MolecoolsTests(TestCase):
                                mass_weighted=True)
         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ASEDimerProfile(self):
         import warnings
@@ -6427,6 +6491,7 @@ class MolecoolsTests(TestCase):
         # # raise Exception(react[0].coords)
         # # react[0].plot().show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_PysisyphusZTSProfile(self):
         import warnings
@@ -6468,6 +6533,7 @@ class MolecoolsTests(TestCase):
         )
         f1.show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_PysisyphusDimerProfile(self):
         import warnings
@@ -6515,6 +6581,7 @@ class MolecoolsTests(TestCase):
         mol = Molecule.from_file(TestManager.test_data('frame_0000.xyz'), units='Angstroms')
         mol.get_canonical_zmatrix()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_QM9Loading(self):
 
@@ -6530,6 +6597,7 @@ class MolecoolsTests(TestCase):
 
         huh.plot(include_save_buttons=True).show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_QM9Queries(self):
         import rdkit.Chem as Chem
@@ -6571,6 +6639,7 @@ class MolecoolsTests(TestCase):
             for k,v in bond_lengths.items()
         })
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_QM9Iter(self):
         import rdkit.Chem as Chem
@@ -6614,12 +6683,14 @@ class MolecoolsTests(TestCase):
             for k, v in bond_lengths.items()
         })
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_RDKitPlotErrors(self):
         Molecule.from_string(
             r'''CO/N=C(\\C(O)=N[C@@H]1C(=O)N2C(C(=O)O)=C(C[N+:7]3=[C:6]=[C:5]4CC=C/[C:3]([S:2](=O)(=O)[OH:1])=[C:4]\\4C=C3)CS[C@H]12)c1csc(=N)[nH]1'''
         ).plot(backend='rdkit').show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_RDKitPlotPanel(self):
         systems = [
@@ -6669,6 +6740,7 @@ class MolecoolsTests(TestCase):
                    font_size=fs
                    )
         fig.show()
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @inactiveTest
     def test_Manipulator(self):
         from Psience.Molecools import Molecule
@@ -6722,6 +6794,7 @@ class MolecoolsTests(TestCase):
         )
         woof
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @inactiveTest
     def test_ManipulatorRDKit(self):
         from Psience.Molecools import Molecule
@@ -6789,6 +6862,7 @@ class MolecoolsTests(TestCase):
 
         # print(mol.to_string('xyz', units='Angstroms'))
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_CartesiansOtherCoords(self):
         # from McUtils.Formatters import format_elapsed_time
@@ -6845,6 +6919,7 @@ class MolecoolsTests(TestCase):
 
         print(np.round(uuuh1[0] - uuuh2[0], 8))
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_EvaluatorModels(self):
         import McUtils.Devutils as dev
@@ -6867,6 +6942,7 @@ class MolecoolsTests(TestCase):
             spin=1
         ).optimize(max_iterations=100).animate_mode(0).show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_RMSDEmbeddings(self):
         m1, m2 = Molecule.from_string(
@@ -6899,6 +6975,7 @@ class MolecoolsTests(TestCase):
 
         m2.get_surface().plot(figure=fig, transparency=.5).show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_LocalizedFragmentVPT(self):
         import os
@@ -6952,6 +7029,7 @@ class MolecoolsTests(TestCase):
         specs = wfns.get_spectrum()
         specs[0].broaden(breadth=8).plot().show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_QChem(self):
         mol = Molecule.from_file(TestManager.test_data('qchem_samp.out'), 'qchem', coordinate_filter=lambda c:c[::5])
@@ -6965,6 +7043,7 @@ class MolecoolsTests(TestCase):
 
         mol[0].plot([m.coords for m in mol]).show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_RedundantMassWeighting(self):
         import McUtils.Iterators as itut
@@ -7009,6 +7088,7 @@ class MolecoolsTests(TestCase):
 
         anim.show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_MMFFOptBugs(self):
         from Psience.Molecools import Molecule
@@ -7037,6 +7117,7 @@ class MolecoolsTests(TestCase):
             # except Exception as e:
             #     print(f"conformer {i}: optimize() FAILED -- {type(e).__name__}: {e}")
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ZMatrixUnionMultiGraphPlot(self):
         import re
@@ -7074,6 +7155,7 @@ class MolecoolsTests(TestCase):
         self.assertIn('image/svg', mime_bundle)
         ET.fromstring(mime_bundle['image/svg'])
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ZMatrixGraphNotebookOpen(self):
         import McUtils.Coordinerds as coordops

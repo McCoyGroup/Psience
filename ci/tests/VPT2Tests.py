@@ -1,3 +1,8 @@
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 import itertools
 import tempfile
 
@@ -619,6 +624,7 @@ class VPT2Tests(TestCase):
 
 
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @inactiveTest
     def test_PartialRebuild(self):
         state = VPTStateMaker(7)
@@ -1371,6 +1377,7 @@ class VPT2Tests(TestCase):
             operator_chunk_size=100000
         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_SelAnharmAnalytic(self):
 
@@ -2218,6 +2225,7 @@ class VPT2Tests(TestCase):
             plot_spectrum=False
         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ResultsFileAnalysis(self):
 
@@ -2309,6 +2317,7 @@ class VPT2Tests(TestCase):
                 for subblock in block.lines:
                     print(subblock.tag)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_IHOHExcited(self):
         wfns = VPTRunner.run_simple(
@@ -3437,6 +3446,7 @@ State                   Frequency    Intensity       Frequency    Intensity
           0 0 0 0 2 1    5592.48466      0.00000      5053.08138      7.79496
         """
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_AnalyticModels(self):
         from Psience.AnalyticModels import AnalyticModel as Model
@@ -3829,6 +3839,7 @@ State                   Frequency    Intensity       Frequency    Intensity
             operator_coefficient_threshold=1.00 / 219475
         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_LogFileAnalysis(self):
 

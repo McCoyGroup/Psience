@@ -8,6 +8,11 @@ PySCF, ASE, and AIMNet2 run for real when installed (AIMNet2 also needs its weig
 `$MODEL_CACHE_DIR/aimnet` or a download).
 """
 
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
+
 import importlib.util
 import os
 import sys
@@ -34,6 +39,8 @@ WATER_ANG = np.array([[0.0, 0.0, 0.117], [0.0, 0.757, -0.468], [0.0, -0.757, -0.
 
 
 def has_module(name):
+    if not _RUN_EXTRAS:
+        return False
     try:
         return importlib.util.find_spec(name) is not None
     except (ImportError, ValueError):
@@ -297,6 +304,7 @@ class XTBStandInTests(unittest.TestCase):
         self.assertEqual(mu.shape, (3,))
 
 
+@_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
 @unittest.skipUnless(has_module('pyscf'), "needs pyscf")
 class PySCFBackendTests(unittest.TestCase):
 
@@ -347,8 +355,9 @@ class PySCFBackendTests(unittest.TestCase):
         self.assertTrue(np.isclose(ev.evaluate(self.x)[0], E, atol=1e-8))
         self.assertEqual(PySCFEnergyEvaluator(WATER, **lot, analytic_hessian=True).analytic_derivative_order, 2)
 
-    @unittest.skipUnless(has_module('pyscf.prop'), "needs pyscf-properties")
     def test_Polarizability(self):
+        if not has_module("pyscf.prop"):
+            self.skipTest("needs pyscf-properties")
         lot = dict(level_of_theory='hf', basis_set='6-31g')
         alpha = PySCFBackend(WATER, **lot).evaluate_property(self.x, 'polarizability')[0]
         self.assertTrue(np.allclose(alpha, alpha.T, atol=1e-6))
@@ -371,6 +380,7 @@ class PySCFBackendTests(unittest.TestCase):
         self.assertTrue(np.allclose(alpha_ev[0], alpha))
 
 
+@_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
 @unittest.skipUnless(has_module('ase'), "needs ase")
 class ASEBackendTests(unittest.TestCase):
 
@@ -459,6 +469,7 @@ def _aimnet_available():
     return cache is not None and os.path.exists(os.path.join(cache, 'aimnet', 'aimnet2_wb97m_d3_0.pt'))
 
 
+@_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
 @unittest.skipUnless(_aimnet_available(), "needs aimnet, torch, and the AIMNet2 weights in $MODEL_CACHE_DIR/aimnet")
 class AIMNet2BackendTests(unittest.TestCase):
 

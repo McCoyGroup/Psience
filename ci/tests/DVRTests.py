@@ -1,4 +1,9 @@
 
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
+
 from Peeves.TestUtils import *
 from unittest import TestCase
 
@@ -292,6 +297,7 @@ class DVRTests(TestCase):
 
     def setupMBPolModel(self):
         ...
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @debugTest
     def test_MBPolDVR(self):
         loader = ModuleLoader(TestManager.current_manager().test_data_dir)
@@ -343,6 +349,7 @@ class DVRTests(TestCase):
 
 
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_MoleculeDVR(self):
 

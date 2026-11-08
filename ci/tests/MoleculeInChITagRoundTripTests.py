@@ -1,8 +1,11 @@
 """`Molecule.to_string('inchi', include_tag=True)` -> `Molecule.from_string(..., 'inchi')` round trips, with and without hydrogens in the tag"""
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 import unittest
 import numpy as np
-from rdkit import Chem
-from rdkit.Chem import AllChem
 from McUtils.ExternalPrograms import RDMolecule
 from Psience.Molecools import Molecule
 
@@ -11,7 +14,15 @@ def distances(x):
     return np.linalg.norm(x[:, None] - x[None], axis=-1)
 
 
+@_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
 class MoleculeInChITagRoundTripTests(unittest.TestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        global Chem, AllChem
+        from rdkit import Chem
+        from rdkit.Chem import AllChem
+
     SMILES = ["CCO", "CC(=O)O", "CC(=O)N", "CC.O", "CO"]
 
     @staticmethod

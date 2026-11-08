@@ -29,6 +29,11 @@ and ``PSIENCE_ANALYTIC_PROFILE_TBHP_STATES`` to control its excitation depth.
 An interrupted profile is still written and reported as an intentional sample.
 """
 
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
+
 import os
 import pathlib
 import signal
@@ -37,10 +42,6 @@ import unittest
 
 import numpy as np
 
-try:
-    from pyinstrument import Profiler
-except ImportError:
-    Profiler = None
 
 try:
     import Psience.VPT2.Analytic as Analytic
@@ -59,9 +60,17 @@ class _ProfileTimeout(RuntimeError):
     pass
 
 
+@_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
 @unittest.skipUnless(RUN_PROFILES, 'manual pyinstrument profiling workload')
-@unittest.skipIf(Profiler is None, 'pyinstrument is not installed')
 class AnalyticMaterializedEvaluationProfilingTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        global Profiler
+        try:
+            from pyinstrument import Profiler
+        except ImportError:
+            raise unittest.SkipTest("pyinstrument is not installed")
+
 
     _expression_cache = None
 

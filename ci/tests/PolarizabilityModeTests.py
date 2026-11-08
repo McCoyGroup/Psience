@@ -4,12 +4,13 @@ No pretrained weights or network access are required. The fixture deliberately
 evaluates learned energy before exporting a squeezed charge view, reproducing
 the graph distinction that matters for the total-energy response.
 """
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 import unittest
 import numpy as np
-try:
-    import torch
-except ImportError:
-    torch=None
 from McUtils.Data import UnitsData
 from Psience.ElectronicStructure import AIMNet2Backend, FluctuatingChargeResponse
 from Psience.Molecools import Molecule
@@ -18,86 +19,90 @@ from Psience.Molecools.Evaluator import AIMNet2DipolePolarizabilityEvaluator
 A2B=UnitsData.convert('Angstroms','BohrRadius')
 EV2H=UnitsData.convert('ElectronVolts','Hartrees')
 XYZ=np.array([[0.,0.,0.],[1.,.1,0.],[-.3,.9,0.]])
-_TorchModule=object if torch is None else torch.nn.Module
+def _load_torch_fixtures():
+    global torch, backend
+    import torch
+    _TorchModule=torch.nn.Module
 
-class LRCoulomb(_TorchModule):
-    method='simple'
-    def coul_simple(self,data):
-        q=data['charges'].reshape(-1)[:3]
-        x=data['coord'][:3]
-        return sum(1.5*q[i]*q[j]/torch.linalg.vector_norm(x[i]-x[j]) for i in range(3) for j in range(i))
+    class LRCoulomb(_TorchModule):
+        method='simple'
+        def coul_simple(self,data):
+            q=data['charges'].reshape(-1)[:3]
+            x=data['coord'][:3]
+            return sum(1.5*q[i]*q[j]/torch.linalg.vector_norm(x[i]-x[j]) for i in range(3) for j in range(i))
 
-class SRCoulomb(_TorchModule):
-    key_out='energy'
-    def forward(self,data):
-        correction=-.5*LRCoulomb().coul_simple(data)
-        data[self.key_out]=data.get(self.key_out,0)+correction
-        return data
+    class SRCoulomb(_TorchModule):
+        key_out='energy'
+        def forward(self,data):
+            correction=-.5*LRCoulomb().coul_simple(data)
+            data[self.key_out]=data.get(self.key_out,0)+correction
+            return data
 
-class NeuralFixture(_TorchModule):
-    def __init__(self):
-        super().__init__()
-        self.parameter=torch.nn.Parameter(torch.tensor(1.,dtype=torch.float64))
-        self.mlps=torch.nn.ModuleList([torch.nn.Identity() for _ in range(3)])
-        self.outputs=torch.nn.ModuleDict({'srcoulomb':SRCoulomb()})
-        self.fail=False
+    class NeuralFixture(_TorchModule):
+        def __init__(self):
+            super().__init__()
+            self.parameter=torch.nn.Parameter(torch.tensor(1.,dtype=torch.float64))
+            self.mlps=torch.nn.ModuleList([torch.nn.Identity() for _ in range(3)])
+            self.outputs=torch.nn.ModuleDict({'srcoulomb':SRCoulomb()})
+            self.fail=False
 
-    def _update_q(self,data,x,delta_q=True):
-        r=data['coord'][:3]
-        native=.1*(r[:,0]**2+.3*r[:,1])
-        native=native-native.mean()+data['charge']/3
-        data['charges']=torch.cat((native,native.new_zeros(1))).reshape(-1,1)
-        return data
+        def _update_q(self,data,x,delta_q=True):
+            r=data['coord'][:3]
+            native=.1*(r[:,0]**2+.3*r[:,1])
+            native=native-native.mean()+data['charge']/3
+            data['charges']=torch.cat((native,native.new_zeros(1))).reshape(-1,1)
+            return data
 
-    def forward(self,data):
-        for _ in range(2):data=self._update_q(data,None)
-        if self.fail:raise RuntimeError('synthetic forward failure')
-        q=data['charges'][:3,0]
-        r=data['coord'][:3]
-        data['energy']=(8*q*q+(1+.1*r[:,0]**2)*q**4).sum()
-        data['charges']=data['charges'].squeeze(-1)
-        return self.outputs.srcoulomb(data)
+        def forward(self,data):
+            for _ in range(2):data=self._update_q(data,None)
+            if self.fail:raise RuntimeError('synthetic forward failure')
+            q=data['charges'][:3,0]
+            r=data['coord'][:3]
+            data['energy']=(8*q*q+(1+.1*r[:,0]**2)*q**4).sum()
+            data['charges']=data['charges'].squeeze(-1)
+            return self.outputs.srcoulomb(data)
 
-class CalculatorFixture:
-    def __init__(self):
-        self.model=NeuralFixture()
-        self.external_coulomb=LRCoulomb()
-        self.metadata={'coulomb_mode':'sr_embedded'}
+    class CalculatorFixture:
+        def __init__(self):
+            self.model=NeuralFixture()
+            self.external_coulomb=LRCoulomb()
+            self.metadata={'coulomb_mode':'sr_embedded'}
 
-class FixtureBackend(AIMNet2Backend):
-    @classmethod
-    def setup_model(cls,model,**opts):return model
+    class FixtureBackend(AIMNet2Backend):
+        @classmethod
+        def setup_model(cls,model,**opts):return model
 
-    def _prep_eval_unlocked(self,coords,order,charge=None,multiplicity=None,**opts):
-        charge,multiplicity=self.resolve_state(charge,multiplicity)
-        x=torch.tensor(np.asarray(coords).reshape(-1,3),dtype=torch.float64,requires_grad=True)
-        coord=torch.cat((x,x.new_zeros(1,3)))
-        data={'coord':coord,'charge':charge}
-        data=self.model.model(data)
-        data['energy']=data['energy']+self.model.external_coulomb.coul_simple(data)
-        return np.shape(coords)[:-2],coords,data
+        def _prep_eval_unlocked(self,coords,order,charge=None,multiplicity=None,**opts):
+            charge,multiplicity=self.resolve_state(charge,multiplicity)
+            x=torch.tensor(np.asarray(coords).reshape(-1,3),dtype=torch.float64,requires_grad=True)
+            coord=torch.cat((x,x.new_zeros(1,3)))
+            data={'coord':coord,'charge':charge}
+            data=self.model.model(data)
+            data['energy']=data['energy']+self.model.external_coulomb.coul_simple(data)
+            return np.shape(coords)[:-2],coords,data
 
-    def _native_expansion(self,coords,order,key,charge,multiplicity):
-        rows=[]
-        for c in coords:
-            _,_,data=self.prep_eval(c,0,charge=charge,multiplicity=multiplicity)
-            value=data[key] if key=='energy' else data[key][:3]
-            expansion=[value.detach().numpy()]
-            if order:
-                d=[self._response_autograd(v,data['coord']).reshape(-1,3)[:3].reshape(-1).detach().numpy()
-                   for v in value.reshape(-1)]
-                expansion.append(np.moveaxis(np.asarray(d).reshape(tuple(value.shape)+(9,)),-1,0))
-            rows.append(expansion)
-        return [np.stack([r[k] for r in rows]) for k in range(order+1)]
+        def _native_expansion(self,coords,order,key,charge,multiplicity):
+            rows=[]
+            for c in coords:
+                _,_,data=self.prep_eval(c,0,charge=charge,multiplicity=multiplicity)
+                value=data[key] if key=='energy' else data[key][:3]
+                expansion=[value.detach().numpy()]
+                if order:
+                    d=[self._response_autograd(v,data['coord']).reshape(-1,3)[:3].reshape(-1).detach().numpy()
+                       for v in value.reshape(-1)]
+                    expansion.append(np.moveaxis(np.asarray(d).reshape(tuple(value.shape)+(9,)),-1,0))
+                rows.append(expansion)
+            return [np.stack([r[k] for r in rows]) for k in range(order+1)]
 
-    def evaluate_charges(self,coords,order,charge=None,multiplicity=None,**opts):
-        return self._native_expansion(coords,order,'charges',charge,multiplicity)
+        def evaluate_charges(self,coords,order,charge=None,multiplicity=None,**opts):
+            return self._native_expansion(coords,order,'charges',charge,multiplicity)
 
-    def evaluate_energy(self,coords,order,charge=None,multiplicity=None,**opts):
-        return self._native_expansion(coords,order,'energy',charge,multiplicity)
+        def evaluate_energy(self,coords,order,charge=None,multiplicity=None,**opts):
+            return self._native_expansion(coords,order,'energy',charge,multiplicity)
 
-def backend(**opts):
-    return FixtureBackend(['O','H','H'],model=CalculatorFixture(),multiplicity=1,**opts)
+    def backend(**opts):
+        return FixtureBackend(['O','H','H'],model=CalculatorFixture(),multiplicity=1,**opts)
+
 
 class ConservedChargeSolverTests(unittest.TestCase):
     def test_singular_full_hardness_with_positive_neutral_curvature(self):
@@ -138,8 +143,12 @@ class ConservedChargeSolverTests(unittest.TestCase):
         a=FluctuatingChargeResponse.constrained_polarizability(XYZ[:1],np.zeros((1,1)))
         np.testing.assert_array_equal(a[0],np.zeros((3,3)))
 
-@unittest.skipUnless(torch is not None,'needs torch')
+@_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
 class AIMNetResponseModeTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        _load_torch_fixtures()
+
     def test_total_captures_learned_energy_and_native_zero_increment(self):
         b=backend(polarizability_mode='total_energy')
         total=b.evaluate_charge_hardness(XYZ)[0]

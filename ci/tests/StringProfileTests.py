@@ -1,5 +1,10 @@
 """Check the Psience string profile adapter with an analytic evaluator."""
 
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
+
 import unittest
 
 import numpy as np
@@ -65,6 +70,7 @@ class StringProfileTests(unittest.TestCase):
             for old, new in zip(base[1:-1], after[1:-1])
         ]), .01)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_butane_conformers_with_rdkit_evaluator(self):
         try:
             from rdkit import Chem

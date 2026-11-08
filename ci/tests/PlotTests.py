@@ -1,3 +1,8 @@
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 import itertools
 import os.path
 import pprint
@@ -10,6 +15,7 @@ from Psience.Plots import *
 
 class PlotTests(TestCase):
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_EnergyLevels(self):
         ploot = plot_energy_levels(
@@ -39,6 +45,7 @@ class PlotTests(TestCase):
 
         ploot.show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ConnectEnergyLevels(self):
         plot_energy_levels({
@@ -47,6 +54,7 @@ class PlotTests(TestCase):
             'prod': [-25.01321145379916]
         }, connect=True).show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_PlotOnOtherPlot(self):
 
@@ -66,6 +74,7 @@ class PlotTests(TestCase):
         }, connect=True, figure=f, bar_spacing=.4).show()
 
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_DisorederedXRange(self):
         fun = lambda x: -(np.cos((1 - np.array(x)) * 2*np.pi) - (1 - np.array(x)))
 

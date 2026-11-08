@@ -1,3 +1,8 @@
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 from McUtils.ExternalPrograms import *
 
 try:
@@ -5502,6 +5507,7 @@ class VPT2Tests(TestCase):
     ])
     }
     #Paper
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_WaterDimerVPTCartesians(self):
         # the high-frequency stuff agrees with Gaussian, but not the low-freq
@@ -6771,6 +6777,7 @@ class VPT2Tests(TestCase):
     #endregion Test Components
 
     #region Test Intensities
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_HODIntensities(self):
 
@@ -6886,6 +6893,7 @@ class VPT2Tests(TestCase):
             list(np.round(ints[1:10], 2))
         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_HODIntensitiesHarmonic(self):
 
@@ -7020,6 +7028,7 @@ class VPT2Tests(TestCase):
             )
             print(report)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_HODIntensitiesCartesian(self):
 
@@ -7134,6 +7143,7 @@ class VPT2Tests(TestCase):
             )
         )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_HOHIntensitiesCartesian4thOrder(self):
 
@@ -7264,6 +7274,7 @@ class VPT2Tests(TestCase):
         #     list(np.round(ints[1:10], 2))
         # )
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_HOHIntensities(self):
 
@@ -7463,6 +7474,7 @@ class VPT2Tests(TestCase):
         )
 
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @inactiveTest
     def test_HOHIntensitiesSandbox(self):
 
@@ -7737,6 +7749,7 @@ class VPT2Tests(TestCase):
             print(report)
 
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_WaterDimerIntensitiesCartesian(self):
 
@@ -7809,6 +7822,7 @@ class VPT2Tests(TestCase):
 
     #region Intensity Breakdowns
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @inactiveTest
     def test_HODIntensityBreakdown(self):
         internals = [
@@ -7836,6 +7850,7 @@ class VPT2Tests(TestCase):
             # with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @inactiveTest
     def test_HODCartesianIntensityBreakdown(self):
         internals = None
@@ -7859,6 +7874,7 @@ class VPT2Tests(TestCase):
             # with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @inactiveTest
     def test_HOHIntensityBreakdown(self):
         internals = [
@@ -7887,6 +7903,7 @@ class VPT2Tests(TestCase):
             # with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @inactiveTest
     def test_HOHCartesianIntensityBreakdown(self):
         internals = None
@@ -7911,6 +7928,7 @@ class VPT2Tests(TestCase):
         # with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @inactiveTest
     def test_WaterDimerCartesianIntensityBreakdown(self):
 
@@ -7940,6 +7958,7 @@ class VPT2Tests(TestCase):
         # with io.StringIO() as s:
             self.write_intensity_breakdown(s, all_wfns, plot_spec, write_wavefunctions=False)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @inactiveTest
     def test_WaterDimerInternalIntensityBreakdown(self):
 

@@ -1,4 +1,9 @@
 """A report built by hand from a Molecule: Markdown, HTML (with an X3DOM scene) and PowerPoint."""
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 import os
 import re
 import tempfile
@@ -22,6 +27,7 @@ def slide_texts(path):
         return [re.findall(r"<a:t>([^<]*)</a:t>", z.read(n).decode("utf-8")) for n in names]
 
 
+@_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
 class MoleculeReportTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

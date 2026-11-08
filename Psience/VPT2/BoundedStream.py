@@ -19,6 +19,10 @@ def retained_size(root, stop_after=None):
     The accounting walk itself is temporary and does not retain old batches.
     """
     todo = [root]
+    # Reflection is invariant for a type throughout this walk. In large
+    # PolyPath DAGs, rediscovering every class's slots dominates bookkeeping.
+    layouts = {}
+    getsizeof = sys.getsizeof
     seen = set()
     size = 0
     while todo:
@@ -27,7 +31,7 @@ def retained_size(root, stop_after=None):
         if identity in seen:
             continue
         seen.add(identity)
-        size += sys.getsizeof(obj)
+        size += getsizeof(obj)
         if stop_after is not None and size > stop_after:
             return size
         if isinstance(obj, np.ndarray):
@@ -40,20 +44,29 @@ def retained_size(root, stop_after=None):
             todo.extend(obj.values())
         elif isinstance(obj, (tuple, list, set, frozenset)):
             todo.extend(obj)
-        elif type(obj).__module__.startswith('Psience.VPT2.'):
-            attrs = getattr(obj, '__dict__', None)
-            if attrs is not None:
-                todo.append(attrs)
-            # Some immutable condition records use slots rather than __dict__.
-            for base in type(obj).__mro__:
-                slots = getattr(base, '__slots__', ())
-                if isinstance(slots, str):
-                    slots = (slots,)
+        else:
+            cls = type(obj)
+            if cls not in layouts:
+                slots = []
+                if cls.__module__.startswith('Psience.VPT2.'):
+                    for base in cls.__mro__:
+                        names = getattr(base, '__slots__', ())
+                        if isinstance(names, str):
+                            names = (names,)
+                        slots.extend(name for name in names
+                                     if name not in {'__weakref__', '__dict__'})
+                    layouts[cls] = tuple(slots)
+                else:
+                    layouts[cls] = None
+            slots = layouts[cls]
+            if slots is not None:
+                attrs = getattr(obj, '__dict__', None)
+                if attrs is not None:
+                    todo.append(attrs)
                 for name in slots:
-                    if name not in {'__weakref__', '__dict__'}:
-                        value = getattr(obj, name, None)
-                        if value is not None:
-                            todo.append(value)
+                    value = getattr(obj, name, None)
+                    if value is not None:
+                        todo.append(value)
     return size
 
 
@@ -117,6 +130,7 @@ class StreamBudget:
         self.max_bytes = None if byte_limit is None else max(1, int(byte_limit))
         self.check_interval = max(1, int(options.pop('check_interval', 128)))
         self.callback = options.pop('callback', None)
+        self.bounded_byte_accounting = bool(options.pop('bounded_byte_accounting', True))
         self.preparation_entries = max(0, int(options.pop('preparation_entries', 32)))
         self.reuse_preparation = bool(options.pop('reuse_preparation', True))
         self.account_cache_graphs = bool(options.pop('account_cache_graphs', True))
@@ -136,7 +150,10 @@ class StreamBudget:
                 self.terms == 1 or self.terms % self.check_interval == 0
                 or self.terms >= self.max_terms):
             started = time.perf_counter()
-            self.bytes = retained_size(pending)
+            # A flush decision only needs to know whether the limit was
+            # crossed. Preserve the same checkpoints and flush decisions.
+            self.bytes = retained_size(pending, stop_after=(
+                self.max_bytes if self.bounded_byte_accounting else None))
             self.scan_seconds += time.perf_counter() - started
             self.maximum_bytes = max(self.maximum_bytes, self.bytes)
         if self.max_bytes is not None and self.bytes >= self.max_bytes:
@@ -149,6 +166,8 @@ class StreamBudget:
         data = dict(phase=phase, batch=self.batch, reason=reason,
                     input_terms=self.terms, total_input_terms=self.total_terms,
                     coefficient_keys=keys, measured_pending_bytes=self.bytes,
+                    pending_bytes_capped=bool(self.bounded_byte_accounting and
+                                             self.max_bytes is not None and self.bytes > self.max_bytes),
                     **extra)
         if self.callback is not None:
             self.callback(data)
@@ -163,6 +182,9 @@ class StreamBudget:
                     stream_max_pending_bytes=self.max_bytes,
                     stream_byte_check_interval=self.check_interval,
                     stream_input_terms=self.total_terms,
+                    stream_bounded_byte_accounting=self.bounded_byte_accounting,
+                    stream_peak_bytes_is_lower_bound=bool(self.bounded_byte_accounting and
+                        self.max_bytes is not None and self.maximum_bytes > self.max_bytes),
                     stream_peak_batch_terms=self.maximum_terms,
                     stream_peak_measured_pending_bytes=self.maximum_bytes,
                     stream_accounting_seconds=self.scan_seconds,

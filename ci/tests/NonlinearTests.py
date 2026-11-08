@@ -1,3 +1,8 @@
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 from Peeves.TestUtils import *
 from unittest import TestCase
 from Psience.Nonlinear import *
@@ -11,6 +16,7 @@ import tempfile
 
 class NonlinearTests(TestCase):
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_BasicPathways(self):
         from Psience.BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis
@@ -780,6 +786,7 @@ class NonlinearTests(TestCase):
             self.assertLess(data['frequency'], 4200)
             self.assertGreater(np.linalg.norm(data['transition_moment']), 1e-3)
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_FullTwoDimensionalIRFromVPTResponseData(self):
         """

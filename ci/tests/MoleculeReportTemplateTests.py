@@ -1,4 +1,9 @@
 """The `Molecule` report template: found automatically, fixed outline, no model calls when structure-only."""
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 import os
 import unittest
 import warnings
@@ -11,6 +16,7 @@ from McUtils.Readouts.Reports import SourceCatalog, ReportHarness, WritingPolicy
 TEST_DATA = os.path.join(os.path.dirname(os.path.abspath(__file__)), "TestData")
 
 
+@_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
 class MoleculeReportTemplateTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

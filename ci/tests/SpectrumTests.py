@@ -1,3 +1,8 @@
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 from Peeves.TestUtils import *
 from unittest import TestCase
 from Psience.Spectra import *
@@ -6,6 +11,7 @@ import sys, os, numpy as np
 
 class SpectrumTests(TestCase):
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_LorentzSpectrum(self):
 
@@ -22,6 +28,7 @@ class SpectrumTests(TestCase):
 
         ploot.show()
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     @validationTest
     def test_ExtractSpec(self):
         extractor = SpectrumExtractor.from_file(

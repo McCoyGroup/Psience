@@ -1,4 +1,9 @@
 """Molecule readouts (McUtils.Readouts) with normal modes, exported to HTML and PowerPoint."""
+
+import os as _test_os
+import unittest as _test_unittest
+_RUN_EXTRAS = _test_os.environ.get("MCUTILS_TEST_EXTRAS") == "1"
+
 import io
 import json
 import os
@@ -66,6 +71,7 @@ class MoleculeReadoutTests(unittest.TestCase):
                     if gltf.get("animations"):
                         self.assertTrue(gltf.get("skins"))   # PowerPoint only plays skinned animation
 
+    @_test_unittest.skipUnless(_RUN_EXTRAS, "optional dependencies; set MCUTILS_TEST_EXTRAS=1")
     def test_data_exports(self):
         with tempfile.TemporaryDirectory() as tmp:
             f = os.path.join(tmp, "water.npz")
