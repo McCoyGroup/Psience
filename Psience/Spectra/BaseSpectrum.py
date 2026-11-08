@@ -171,40 +171,82 @@ class DiscreteSpectrum(BaseSpectrum):
         oscillator_strengths = np.linalg.norm(transition_moments, axis=-1) ** 2
         units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
         h2w = UnitsData.convert("Hartrees", "Wavenumbers")
+        meta.update(frequency_unit="Wavenumbers", intensity_unit="KilometersPerMole")
         return cls(
             frequencies * h2w,
             units * frequencies * oscillator_strengths,
             **meta
         )
 
+    @staticmethod
+    def _raman_invariants(polarizabilities):
+        """Return squared isotropic and anisotropic Placzek invariants.
+
+        The nonresonant electric-dipole approximation uses symmetric 3 x 3
+        tensors. Complex symmetric tensors are supported using absolute squares.
+        """
+        pol = np.asarray(polarizabilities)
+        if pol.ndim < 2 or pol.shape[-2:] != (3, 3):
+            raise ValueError("Raman polarizabilities must have trailing shape (3, 3)")
+        if not np.all(np.isfinite(pol)):
+            raise ValueError("Raman polarizabilities must be finite")
+        if not np.allclose(pol, np.swapaxes(pol, -2, -1)):
+            raise ValueError("the Placzek approximation requires symmetric polarizabilities")
+        diagonal = np.diagonal(pol, axis1=-2, axis2=-1)
+        isotropic = np.abs(np.sum(diagonal, axis=-1) / 3) ** 2
+        anisotropic = (
+            np.abs(diagonal[..., 0] - diagonal[..., 1]) ** 2
+            + np.abs(diagonal[..., 1] - diagonal[..., 2]) ** 2
+            + np.abs(diagonal[..., 2] - diagonal[..., 0]) ** 2
+            + 6 * (np.abs(pol[..., 0, 1]) ** 2
+                   + np.abs(pol[..., 0, 2]) ** 2
+                   + np.abs(pol[..., 1, 2]) ** 2)
+        ) / 2
+        return isotropic, anisotropic
+
     @classmethod
     def from_raman_moments(cls, frequencies, transition_polarizabilities, pump_frequency=0, **meta):
-        """
-        **LLM Docstring**
+        """Build a nonresonant Raman spectrum from transition tensors in a.u.
 
-        Build a discrete Raman spectrum from transition frequencies and polarizability transition moments (in atomic units), converting frequencies to wavenumbers and computing intensities from the transition-polarizability magnitudes scaled by the (pump-shifted) frequency to the fourth power.
+        Frequencies and the optional pump photon energy are in Hartrees. Without
+        a pump (None or zero), return transition strengths 45|a|^2 + 7 gamma^2
+        in Angstroms**6. These include vibrational matrix elements; they are not
+        the derivative-based harmonic activities in Angstroms**4/amu.
 
-        :param frequencies: the transition frequencies, in Hartrees
-        :type frequencies: np.ndarray
-        :param transition_polarizabilities: the polarizability transition-moment tensors
-        :type transition_polarizabilities: np.ndarray
-        :param pump_frequency: the pump laser frequency to add before the frequency^4 scaling
-        :type pump_frequency: float
-        :param meta: extra metadata stored on the spectrum
-        :type meta: dict
-        :return: the constructed Raman spectrum
-        :rtype: DiscreteSpectrum
+        A positive pump returns the differential *energy* scattering cross
+        section in cm^2/sr: (2 pi nu_s)^4 (45|a|^2 + 7 gamma^2) / 45, with the
+        polarizability volume and scattered wavenumber expressed in cm. The
+        geometry is 90-degree detection, incident linear polarization normal to
+        the scattering plane, and both scattered polarizations collected.
+        Positive shifts are Stokes (pump minus shift); negative shifts describe
+        anti-Stokes transitions. Closed channels have zero cross section. No
+        thermal populations or frequency dependence of the input tensor is added.
         """
-        #TODO: handle units
-        diff_freqs = (frequencies + pump_frequency)**4
-        transition_strengths = np.sum(np.sum(transition_polarizabilities**2, axis=-1), axis=-1)
-        units = UnitsData.convert("OscillatorStrength", "KilometersPerMole")
-        h2w = UnitsData.convert("Hartrees", "Wavenumbers")
-        return cls(
-            frequencies * h2w,
-            units * diff_freqs * transition_strengths,
-            **meta
-        )
+        frequencies = np.asarray(frequencies)
+        if np.iscomplexobj(frequencies) or not np.all(np.isfinite(frequencies)):
+            raise ValueError("Raman transition frequencies must be finite and real")
+        isotropic, anisotropic = cls._raman_invariants(transition_polarizabilities)
+        strengths = 45 * isotropic + 7 * anisotropic
+        if strengths.shape != frequencies.shape:
+            raise ValueError("each Raman transition frequency needs one polarizability tensor")
+        if pump_frequency is not None and (
+                not np.isscalar(pump_frequency) or np.iscomplexobj(pump_frequency)
+                or not np.isfinite(pump_frequency) or pump_frequency < 0):
+            raise ValueError("pump_frequency must be a finite nonnegative photon energy in Hartrees")
+        if pump_frequency is None or pump_frequency == 0:
+            intensities = strengths * UnitsData.convert("BohrRadius", "Angstroms") ** 6
+            unit = "Angstroms**6"
+            label = "Raman transition strength"
+        else:
+            scattered = np.maximum(pump_frequency - frequencies, 0)
+            wavevectors = 2 * np.pi * scattered * UnitsData.convert("Hartrees", "Wavenumbers")
+            intensities = wavevectors ** 4 * strengths * UnitsData.convert("BohrRadius", "Centimeters") ** 6 / 45
+            unit = "Centimeters**2/Steradians"
+            label = "Raman differential cross section"
+            meta.update(pump_frequency=float(pump_frequency), pump_frequency_unit="Hartrees",
+                        scattering_geometry="90 degrees; incident polarization perpendicular to scattering plane; unanalysed detection")
+        meta.update(frequency_unit="Wavenumbers", intensity_unit=unit, intensity_label=label)
+        return cls(frequencies * UnitsData.convert("Hartrees", "Wavenumbers"), intensities, **meta)
 
     def normalize(self, which=None):
         """
@@ -217,10 +259,11 @@ class DiscreteSpectrum(BaseSpectrum):
         :return: the normalized spectrum
         :rtype: DiscreteSpectrum
         """
+        meta = dict(self.meta, intensity_unit=None, intensity_label="Relative intensity")
         return type(self)(
             self.frequencies,
             self.intensities / (np.max(self.intensities) if which is None else self.intensities[which]),
-            **self.meta
+            **meta
         )
 
     def plot(self,

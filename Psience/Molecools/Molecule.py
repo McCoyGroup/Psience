@@ -1597,7 +1597,7 @@ class Molecule(AbstractMolecule):
         # if dipole_derivatives is None and self.energy_evaluator is not None:
         #     if order is None: order = 1
         #     dipole_derivatives = self.calculate_dipole(order=order)
-        if derivs is None or (order is not None and len(derivs) < order):
+        if derivs is None or (order is not None and len(derivs) <= order):
             if evaluator is None: evaluator = self.polarizability_evaluator
             if evaluator is not None:
                 if order is None: order = 1
@@ -1942,7 +1942,10 @@ class Molecule(AbstractMolecule):
         """
         **LLM Docstring**
 
-        Build a harmonic Raman spectrum for this molecule, via `HarmonicSpectrum.raman_from_mol`.
+        Build harmonic Raman activities in Angstroms**4/amu. Passing a positive
+        `pump_frequency` (photon energy in Hartrees) instead gives ground-state
+        Stokes differential cross sections in cm**2/sr; see
+        `DiscreteSpectrum.from_raman_moments` for the scattering geometry.
 
         :param opts: extra options forwarded to `HarmonicSpectrum.raman_from_mol`
         :type opts: dict
