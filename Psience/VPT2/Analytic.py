@@ -28,7 +28,7 @@ from ..BasisReps import (
 )
 
 from .Corrections import BasicAPTCorrections
-from .Common import Diagnostics
+from .Common import Diagnostics, BoundedCache
 # imports from merged modules
 import json
 from McUtils.Zachary import ElementaryFunction
@@ -5512,111 +5512,6 @@ class PTTensorCoeffProductDAG(PTTensorCoeffProductSum):
         return self.__mul__(other)
 
 
-class _BoundedEvaluationCache:
-    """An owner-scoped bounded FIFO shared by tensor and polynomial DAG evaluation."""
-
-    _missing = object()
-
-    class View:
-        def __init__(self, parent, namespace):
-            self.parent = parent
-            self.namespace = namespace
-
-        def get(self, key, default=None):
-            value = self.parent.get((self.namespace, key), self.parent._missing)
-            return default if value is self.parent._missing else value
-
-        def __contains__(self, key):
-            return self.parent.get((self.namespace, key), self.parent._missing) is not self.parent._missing
-
-        def __getitem__(self, key):
-            value = self.parent.get((self.namespace, key), self.parent._missing)
-            if value is self.parent._missing:
-                raise KeyError(key)
-            return value
-
-        def __setitem__(self, key, value):
-            self.parent[(self.namespace, key)] = value
-
-    def __init__(self, max_items=100000, max_bytes=64 * 1024 ** 2):
-        self.max_items = max(0, int(max_items))
-        self.max_bytes = None if max_bytes is None else max(0, int(max_bytes))
-        self._data = collections.OrderedDict()
-        self._sizes = {}
-        self._bytes = 0
-        self.hits = 0
-        self.misses = 0
-        self.evictions = 0
-        self.peak_items = 0
-        self.peak_bytes = 0
-
-    @classmethod
-    def _value_size(cls, value, depth=0):
-        if isinstance(value, (_HashableNumPyIndex, _StatePermutationBlockIdentity)):
-            return value.memory_size()
-        if isinstance(value, np.ndarray):
-            return sys.getsizeof(value) + value.nbytes
-        if isinstance(value, (bytes, bytearray, memoryview)):
-            return sys.getsizeof(value)
-        if isinstance(value, (tuple, list)) and depth < 4:
-            # Cache accounting must itself remain bounded.  The container size
-            # includes all reference slots; recursively sample a short prefix
-            # to account for the most common byte/array payloads without
-            # traversing an entire symbolic key.
-            sample = value[:16]
-            return sys.getsizeof(value) + sum(
-                max(0, cls._value_size(item, depth=depth + 1) - sys.getsizeof(item))
-                for item in sample
-            )
-        return sys.getsizeof(value)
-
-    def view(self, namespace):
-        return self.View(self, namespace)
-
-    def get(self, key, default=None):
-        try:
-            value = self._data[key]
-        except KeyError:
-            self.misses += 1
-            return default
-        self.hits += 1
-        return value
-
-    def __setitem__(self, key, value):
-        if self.max_items == 0 or self.max_bytes == 0:
-            return
-        previous = self._data.pop(key, self._missing)
-        if previous is not self._missing:
-            self._bytes -= self._sizes.pop(key)
-        size = self._value_size(key) + self._value_size(value)
-        if self.max_bytes is not None and size > self.max_bytes:
-            return
-        self._data[key] = value
-        self._sizes[key] = size
-        self._bytes += size
-        while (
-            len(self._data) > self.max_items
-            or (self.max_bytes is not None and self._bytes > self.max_bytes)
-        ):
-            old_key, _ = self._data.popitem(last=False)
-            self._bytes -= self._sizes.pop(old_key)
-            self.evictions += 1
-        self.peak_items = max(self.peak_items, len(self._data))
-        self.peak_bytes = max(self.peak_bytes, self._bytes)
-
-    def stats(self):
-        return {
-            'cache_items': len(self._data),
-            'cache_bytes': self._bytes,
-            'cache_peak_items': self.peak_items,
-            'cache_peak_bytes': self.peak_bytes,
-            'cache_hits': self.hits,
-            'cache_misses': self.misses,
-            'cache_evictions': self.evictions,
-            'cache_max_items': self.max_items,
-            'cache_max_bytes': self.max_bytes
-        }
-
 
 class _HashableNumPyIndex:
     """Immutable, hash-once identity for a small NumPy index array.
@@ -5696,110 +5591,6 @@ class _StatePermutationBlockIdentity:
         )
 
 
-class _StatePermutationCache(_BoundedEvaluationCache):
-    """Byte-bounded cache for concrete state/frequency permutation gathers."""
-
-    _pointer_size = np.dtype(np.intp).itemsize
-    _tuple_base_size = sys.getsizeof(())
-    _list_base_size = sys.getsizeof([])
-    _integer_size = max(sys.getsizeof(0), sys.getsizeof(np.int64(0)))
-
-    @classmethod
-    def _state_value_size(cls, value):
-        """Conservatively size the fixed state-cache value layout in O(1)."""
-        permuted_states, state_keys, permuted_frequencies, identity = value
-        shape = permuted_states.shape
-        permutation_count = shape[0] if len(shape) > 0 else 1
-        if len(shape) >= 3:
-            state_count = shape[-2]
-            mode_count = shape[-1]
-        elif len(shape) == 2:
-            state_count = 1
-            mode_count = shape[-1]
-        else:
-            state_count = 1
-            mode_count = 1
-        quantum_count = permutation_count * state_count * mode_count
-        state_tuple_count = permutation_count * state_count
-
-        # ndarray.nbytes is added even though owned arrays may already include
-        # it in getsizeof.  The deliberate overestimate keeps the byte ceiling
-        # conservative for views without inspecting ownership or base chains.
-        size = sys.getsizeof(value)
-        size += sys.getsizeof(permuted_states) + permuted_states.nbytes
-        size += sys.getsizeof(permuted_frequencies) + permuted_frequencies.nbytes
-
-        # state_keys is list[permutation][state identity]. Charge two pointer
-        # widths per list entry to cover normal list overallocation.
-        size += sys.getsizeof(state_keys)
-        size += permutation_count * (
-            cls._list_base_size + 2 * cls._pointer_size * state_count
-        )
-        first_key = (
-            None
-            if permutation_count == 0 or state_count == 0 else
-            state_keys[0][0]
-        )
-        if isinstance(first_key, _HashableNumPyIndex):
-            # Each key owns only compact bytes, not an ndarray view/base. Use
-            # the first fixed-rank key to account for Python object overhead
-            # and derive the complete payload from the known array shape.
-            overhead = first_key.memory_size() - first_key.nbytes
-            size += state_tuple_count * overhead
-            size += quantum_count * permuted_states.dtype.itemsize
-        else:
-            size += state_tuple_count * (
-                cls._tuple_base_size + cls._pointer_size * mode_count
-            )
-            size += quantum_count * cls._integer_size
-
-        # The identity owns an outer tuple and one tuple per permutation, but
-        # reuses the already charged state tuples and scalar objects.
-        size += sys.getsizeof(identity)
-        size += cls._tuple_base_size + cls._pointer_size * permutation_count
-        size += permutation_count * (
-            cls._tuple_base_size + cls._pointer_size * state_count
-        )
-        return size
-
-    @classmethod
-    def _state_key_size(cls, value):
-        _, state_index, mask_positions, full_set = value
-        if isinstance(mask_positions, _HashableNumPyIndex):
-            mask_size = mask_positions.memory_size()
-        else:
-            mask_size = (
-                sys.getsizeof(mask_positions)
-                + len(mask_positions) * cls._integer_size
-            )
-        return (
-            sys.getsizeof(value)
-            + sys.getsizeof('state_permutations')
-            + sys.getsizeof(state_index)
-            + mask_size
-            + sys.getsizeof(full_set)
-            + len(full_set) * cls._integer_size
-        )
-
-    @classmethod
-    def _value_size(cls, value, depth=0):
-        if (
-            isinstance(value, tuple)
-            and len(value) == 4
-            and isinstance(value[0], str)
-            and value[0] == 'state_permutations'
-        ):
-            return cls._state_key_size(value)
-        if (
-            isinstance(value, tuple)
-            and len(value) == 4
-            and isinstance(value[0], np.ndarray)
-            and isinstance(value[2], np.ndarray)
-            and isinstance(value[3], _StatePermutationBlockIdentity)
-        ):
-            return cls._state_value_size(value)
-        return super()._value_size(value, depth=depth)
-
 
 class _MaterializedEvaluationCache:
     """Two-level bounded cache for a materialized numerical evaluation plan.
@@ -5829,12 +5620,12 @@ class _MaterializedEvaluationCache:
             )
 
         def get(self, key, default=None):
-            value = self.local.get(key, _BoundedEvaluationCache._missing)
-            if value is not _BoundedEvaluationCache._missing:
+            value = self.local.get(key, BoundedCache._missing)
+            if value is not BoundedCache._missing:
                 return value
             if self._is_shareable(key):
-                value = self.shared.get(key, _BoundedEvaluationCache._missing)
-                if value is not _BoundedEvaluationCache._missing:
+                value = self.shared.get(key, BoundedCache._missing)
+                if value is not BoundedCache._missing:
                     self.local[key] = value
                     return value
             return default
@@ -5848,7 +5639,7 @@ class _MaterializedEvaluationCache:
                  batch_cache=None):
         self.exact_cache = exact_cache
         self.batch_cache = (
-            _BoundedEvaluationCache(max_items, max_bytes)
+            BoundedCache.sampled(max_items, max_bytes)
             if batch_cache is None else batch_cache
         )
         self.shared_path_node_cache = self.batch_cache.view('polypath_nodes')
@@ -5861,13 +5652,12 @@ class _MaterializedEvaluationCache:
 
     def lookup_polynomial_block(self, key):
         value = self.polynomial_block_cache.get(
-            key, _BoundedEvaluationCache._missing
+            key, BoundedCache._missing
         )
-        if value is _BoundedEvaluationCache._missing:
-            if Diagnostics.enabled:
+        if Diagnostics.enabled:
+            if value is BoundedCache._missing:
                 self.block_misses += 1
-        else:
-            if Diagnostics.enabled:
+            else:
                 self.block_hits += 1
         return value
 
@@ -5886,19 +5676,6 @@ class _MaterializedEvaluationCache:
             'block_cache_misses': self.block_misses
         }
 
-
-class _StreamRetainedEvaluationCache(_BoundedEvaluationCache):
-    def trim_retained_graph(self):
-        # Measure once at a batch boundary, not on every numerical cache store.
-        from .Evaluators import retained_size
-        measured = retained_size(self._data)
-        while self.max_bytes is not None and measured > self.max_bytes and self._data:
-            for _ in range(max(1, len(self._data)//2)):
-                key, _ = self._data.popitem(last=False)
-                self._bytes -= self._sizes.pop(key)
-                self.evictions += 1
-            measured = retained_size(self._data)
-        return measured
 
 
 class _BalancedPolynomialAccumulator:
@@ -5968,7 +5745,7 @@ class PTTensorCoeffProductDAGEvaluationPlan:
         if not isinstance(expression, PTTensorCoeffProductDAG):
             raise TypeError(type(expression))
         self.expression = expression
-        self.cache = cache if cache is not None else _BoundedEvaluationCache()
+        self.cache = cache if cache is not None else BoundedCache.sampled()
         self.max_mode_indices = max_mode_indices
         self.term_cache = self.cache.view(('tensor_terms',max_mode_indices,self.coalesce_combine_nodes))
         self.operation_cache = self.cache.view(('tensor_operations',max_mode_indices,self.coalesce_combine_nodes))
@@ -6037,8 +5814,8 @@ class PTTensorCoeffProductDAGEvaluationPlan:
         return tuple(kept)
 
     def _cached_operation(self, key, operation):
-        result = self.operation_cache.get(key, _BoundedEvaluationCache._missing)
-        if result is _BoundedEvaluationCache._missing:
+        result = self.operation_cache.get(key, BoundedCache._missing)
+        if result is BoundedCache._missing:
             result = tuple(operation())
             if len(result) <= self.max_cached_terms:
                 self.operation_cache[key] = result
@@ -6067,8 +5844,8 @@ class PTTensorCoeffProductDAGEvaluationPlan:
         return self._cached_operation(op_key, apply)
 
     def _iter_node(self, node):
-        cached = self.term_cache.get(node, _BoundedEvaluationCache._missing)
-        if cached is not _BoundedEvaluationCache._missing:
+        cached = self.term_cache.get(node, BoundedCache._missing)
+        if cached is not BoundedCache._missing:
             if Diagnostics.enabled:
                 self.node_cache_hits += 1
             yield from cached
@@ -8775,13 +8552,13 @@ class PerturbationTheoryExpressionEvaluator:
 
     @classmethod
     def _resolve_poly_evaluation_cache(cls, cache, poly_key):
-        batch_cache = cache if isinstance(cache, _BoundedEvaluationCache) else None
+        batch_cache = cache if isinstance(cache, BoundedCache) else None
         materialized_cache = (
             cache if isinstance(cache, _MaterializedEvaluationCache) else None
         )
         if materialized_cache is not None:
             exact_cache = materialized_cache.exact_cache
-            if isinstance(exact_cache, _BoundedEvaluationCache):
+            if isinstance(exact_cache, BoundedCache):
                 value_cache = exact_cache.view('polynomial_values')
                 batch_cache = exact_cache
             else:
@@ -8819,9 +8596,9 @@ class PerturbationTheoryExpressionEvaluator:
                     (poly_key, state_key) if batch_cache is not None else state_key
                 )
                 cached_value = value_cache.get(
-                    value_key, _BoundedEvaluationCache._missing
+                    value_key, BoundedCache._missing
                 )
-                if cached_value is _BoundedEvaluationCache._missing:
+                if cached_value is BoundedCache._missing:
                     if materialized_cache is not None:
                         if Diagnostics.enabled:
                             materialized_cache.exact_misses += 1
@@ -8876,7 +8653,7 @@ class PerturbationTheoryExpressionEvaluator:
             block_value = materialized_cache.lookup_polynomial_block(
                 block_value_key
             )
-            if block_value is not _BoundedEvaluationCache._missing:
+            if block_value is not BoundedCache._missing:
                 return block_value
         (
             value_cache, path_node_cache, path_axis_cache,
@@ -9539,8 +9316,8 @@ class PerturbationTheoryExpressionEvaluator:
                 tuple(int(position) for position in mask_pos)
             )
         cache_key = ('state_permutations', state_idx, mask_key, full_set)
-        cached = take_cache.get(cache_key, _BoundedEvaluationCache._missing)
-        if cached is not _BoundedEvaluationCache._missing:
+        cached = take_cache.get(cache_key, BoundedCache._missing)
+        if cached is not BoundedCache._missing:
             return cached
 
         perm_substates = cls._gather_state_permutations(state, sub_perms)
@@ -10274,7 +10051,7 @@ class PerturbationTheoryExpressionEvaluator:
 
     @classmethod
     def _new_state_permutation_cache(cls, max_items=None, max_bytes=None):
-        return _StatePermutationCache(
+        return BoundedCache(
             cls.default_state_permutation_cache_size
             if max_items is None else max_items,
             cls.default_state_permutation_cache_bytes
@@ -10354,7 +10131,7 @@ class PerturbationTheoryExpressionEvaluator:
         pows = np.power(np.arange(max_state + 1)[np.newaxis, :], np.arange(max_order + 1)[:, np.newaxis])
         counts_cache = cls.get_cache()  # so we don't hit some coeff sets too many times
         poly_cache = (
-            _StreamRetainedEvaluationCache(
+            BoundedCache.sampled(
                 path_cache_size or cls.default_materialized_path_cache_size,
                 path_cache_bytes if path_cache_bytes is not None else cls.default_materialized_path_cache_bytes)
             if stream_preparation_entries is not None else
@@ -10576,10 +10353,7 @@ class PerturbationTheoryExpressionEvaluator:
             budget = StreamBudget(stream_options)
             preparation = StreamPreparationContext(
                 coeffs, budget.preparation_entries if budget.reuse_preparation else 0)
-        cache_type = (_StreamRetainedEvaluationCache
-                      if budget is not None and budget.account_cache_graphs
-                      else _BoundedEvaluationCache)
-        evaluation_cache = cache_type(cache_size, cache_bytes)
+        evaluation_cache = BoundedCache.sampled(cache_size, cache_bytes)
         state_permutation_cache = cls._new_state_permutation_cache(
             state_cache_size, state_cache_bytes
         )
@@ -10594,7 +10368,7 @@ class PerturbationTheoryExpressionEvaluator:
                 batch_cache=evaluation_cache
             )
             if use_path_cache and budget is None else
-            _BoundedEvaluationCache(cache_size, cache_bytes) if budget is not None else evaluation_cache
+            BoundedCache.sampled(cache_size, cache_bytes) if budget is not None else evaluation_cache
         )
         plan = PTTensorCoeffProductDAGEvaluationPlan(
             expr,
@@ -10668,9 +10442,10 @@ class PerturbationTheoryExpressionEvaluator:
             if budget is not None:
                 # Numerical roots belong to this batch. Preparation and state
                 # routes persist separately without keeping polynomial roots.
-                polynomial_cache = _BoundedEvaluationCache(cache_size, cache_bytes)
+                polynomial_cache = BoundedCache.sampled(cache_size, cache_bytes)
                 if budget.account_cache_graphs:
-                    evaluation_cache.trim_retained_graph()
+                    from .Evaluators import trim_to_retained_size
+                    trim_to_retained_size(evaluation_cache)
             chunks += 1
             elapsed = time.perf_counter() - tick
             evaluation_seconds += elapsed
@@ -11222,7 +10997,7 @@ class PerturbationTheoryExpressionEvaluator:
 
             if Diagnostics.enabled and isinstance(poly_cache, _MaterializedEvaluationCache):
                 cls._last_materialized_evaluation_stats = poly_cache.stats()
-            if Diagnostics.enabled and isinstance(take_cache, _StatePermutationCache):
+            if Diagnostics.enabled and isinstance(take_cache, BoundedCache):
                 cls._last_state_permutation_cache_stats = take_cache.stats()
             if Diagnostics.enabled and indexed_executor is not None:
                 indexed_stats = [indexed_executor.finish()]

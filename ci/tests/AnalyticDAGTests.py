@@ -620,7 +620,7 @@ class AnalyticDAGTests(unittest.TestCase):
         stats = cache.stats()
         self.assertGreater(stats['cache_hits'], 0)
         self.assertLessEqual(stats['cache_peak_items'], 4)
-        self.assertLessEqual(stats['cache_peak_bytes'], 4096)
+        self.assertLessEqual(stats['cache_peak_bytes'], 1024)
 
     def test_vectorized_prefactors_match_scalar_reference(self):
         rng = np.random.default_rng(9182)
@@ -809,9 +809,9 @@ class AnalyticDAGTests(unittest.TestCase):
             [4, 1, 3],
             [2, 3, 0]
         ])
-        cache = Analytic._StatePermutationCache(
+        cache = Analytic.BoundedCache(
             max_items=100,
-            max_bytes=4096
+            max_bytes=1024
         )
         for state_idx in range(12):
             Analytic.PerturbationTheoryExpressionEvaluator._get_state_perms(
@@ -821,28 +821,8 @@ class AnalyticDAGTests(unittest.TestCase):
 
         stats = cache.stats()
         self.assertLessEqual(stats['cache_peak_items'], 100)
-        self.assertLessEqual(stats['cache_peak_bytes'], 4096)
+        self.assertLessEqual(stats['cache_peak_bytes'], 1024)
         self.assertGreater(stats['cache_evictions'], 0)
-
-    def test_state_permutation_cache_sizing_uses_fixed_layout(self):
-        class NonIterableList(list):
-            def __iter__(self):
-                raise AssertionError('state cache sizing must not recurse')
-
-        states = np.zeros((2, 3, 4), dtype=int)
-        frequencies = np.zeros((2, 4), dtype=float)
-        tuple_states = NonIterableList([
-            [(0, 0, 0, 0)] * 3,
-            [(0, 0, 0, 0)] * 3
-        ])
-        identity = Analytic._StatePermutationBlockIdentity([
-            [(0, 0, 0, 0)] * 3,
-            [(0, 0, 0, 0)] * 3
-        ])
-        size = Analytic._StatePermutationCache._value_size((
-            states, tuple_states, frequencies, identity
-        ))
-        self.assertGreater(size, states.nbytes + frequencies.nbytes)
 
     def test_correction_backend_parity(self):
         builders = [
@@ -1945,7 +1925,7 @@ class AnalyticDAGTests(unittest.TestCase):
             before_evictions
         )
         self.assertLessEqual(len(plan.request_pattern_cache), 2)
-        self.assertLessEqual(plan.request_pattern_cache.bytes, 1024)
+        self.assertLessEqual(plan.request_pattern_cache.nbytes, 1024)
         self.assertLessEqual(
             plan.request_pattern_cache.peak_items,
             plan.max_pattern_cache_items

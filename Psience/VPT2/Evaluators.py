@@ -25,7 +25,7 @@ from McUtils.Parallelizers import Parallelizer, MultiprocessingParallelizer
 from McUtils.Devutils import atomic_write, atomic_write_json, file_hash, freeze, fingerprint, implementation_signature, EntryStore
 from .Analytic import ConditionalTransformationStack, SameStateCondition, operator_sum, operator_product, ZeroTerm, projection_inputs
 from .Analytic import ShiftedEnergyBaseline
-from .Common import Diagnostics
+from .Common import Diagnostics, BoundedCache
 import types
 
 __all__ = ['AnalyticExpressionStore', 'CompiledAnalyticExpression', 'CompiledAnalyticEvaluation', 'AnalyticCorrectionCompiler']
@@ -100,6 +100,17 @@ def retained_size(root, stop_after=None):
     return size
 
 
+def trim_to_retained_size(cache):
+    """Measure a cache's reachable payload once (at a batch boundary) and evict the
+    oldest half until it fits `cache.max_bytes`."""
+    measured = retained_size(cache._data)
+    while cache.max_bytes is not None and measured > cache.max_bytes and len(cache):
+        for _ in range(max(1, len(cache) // 2)):
+            cache.popitem()
+        measured = retained_size(cache._data)
+    return measured
+
+
 class StreamPreparationContext:
     """Bound immutable preparation to an evaluation plan, with bounded values.
 
@@ -165,14 +176,13 @@ class StreamPreparationContext:
         return entry
 
     def cache(self, name, max_bytes):
-        from .Analytic import (_BoundedEvaluationCache,
-                               PerturbationTheoryExpressionEvaluator as Expression)
+        from .Analytic import PerturbationTheoryExpressionEvaluator as Expression
         root = self.root
         if name not in root.numeric:
             items = root.options.get('path_cache_size',10000)
             if items is None:
                 items = Expression.default_materialized_path_cache_size
-            root.numeric[name] = _BoundedEvaluationCache(items,max_bytes)
+            root.numeric[name] = BoundedCache.sampled(items,max_bytes)
         return root.numeric[name]
 
     def polynomial_cache(self):
@@ -851,12 +861,12 @@ class _OccupationProjection:
     background: int = 0
 
     def compiler(self):
-        from .Analytic import PolyPath, PTEnergyChangeProductSum, _BoundedEvaluationCache
+        from .Analytic import PolyPath, PTEnergyChangeProductSum
         from .Analytic import canonical_condition_key
         projection = self
         class Transform:
             def __init__(self):
-                self.cache = _BoundedEvaluationCache(100000, 128*1024**2)
+                self.cache = BoundedCache.sampled(100000, 128*1024**2)
                 self.nodes = self.cache.view('projection_nodes');self.axes = self.cache.view('projection_axes')
                 self.memo = {};self.constants = {}
             def difference(self, value, rank):
@@ -1001,7 +1011,7 @@ class AnalyticExpressionStore:
                           cache_bytes=512*1024**2,node_cache_size=8192,mode_dimension=None,progress=None,
                           coalesce_combine_nodes=True,bounded_byte_accounting=True,free_index_reduction=True):
         from .Analytic import (SqrtChangePoly,PTTensorCoeffProductDAG,PTTensorCoeffProductSum,
-            PTTensorCoeffProductDAGEvaluationPlan,_BoundedEvaluationCache,_BalancedPolynomialAccumulator)
+            PTTensorCoeffProductDAGEvaluationPlan,_BalancedPolynomialAccumulator)
         if not isinstance(coalesce_combine_nodes, (bool, np.bool_)):
             raise TypeError('coalesce_combine_nodes must be boolean')
         coalescing_enabled = bool(coalesce_combine_nodes)
@@ -1052,7 +1062,7 @@ class AnalyticExpressionStore:
             class CompilationPlan(PTTensorCoeffProductDAGEvaluationPlan):
                 coalesce_combine_nodes = coalescing_enabled
             plan = CompilationPlan(poly,
-                cache=_BoundedEvaluationCache(cache_size,cache_bytes),max_cached_terms=node_cache_size,
+                cache=BoundedCache.sampled(cache_size,cache_bytes),max_cached_terms=node_cache_size,
                 max_mode_indices=maximum)
             iterator = plan.iter_terms()
             if progress is not None:
@@ -1065,7 +1075,7 @@ class AnalyticExpressionStore:
         staging = contextlib.nullcontext(None) if self.folder is None else self.entries.stage(signature)
         memory_parts={}
         if free_index_reduction and not hasattr(self,'_free_index_orbits'):
-            self._free_index_orbits=_BoundedEvaluationCache(32768,32*1024**2)
+            self._free_index_orbits=BoundedCache.sampled(32768,32*1024**2)
         can_reduce=free_index_reduction and not (
             baseline and any(baseline[wrapper.num_fixed:]))
         with staging as staged:
@@ -2311,84 +2321,6 @@ class IndexedEvaluationStats:
         return dataclasses.asdict(self)
 
 
-class IndexedExpressionPlanCache:
-    """Small FIFO cache retaining expressions alongside identity-keyed plans."""
-
-    def __init__(self, max_items=128):
-        self.max_items = max(0, int(max_items))
-        self._plans = collections.OrderedDict()
-
-    def get(self, expression, namespace=None):
-        entry = self._plans.get((id(expression),namespace))
-        if entry is None or entry[0] is not expression:
-            return None
-        return entry[1]
-
-    def store(self, expression, plan, namespace=None):
-        if self.max_items == 0:
-            return
-        key = (id(expression),namespace)
-        self._plans[key] = (expression, plan)
-        self._plans.move_to_end(key)
-        while len(self._plans) > self.max_items:
-            self._plans.popitem(last=False)
-
-    def clear(self):
-        self._plans.clear()
-
-    def __len__(self):
-        return len(self._plans)
-
-
-class IndexedRequestPatternCache:
-    """Bounded LRU of structural unique-pattern and inverse arrays."""
-
-    def __init__(self, max_items=256, max_bytes=256 * 1024):
-        self.max_items = max(0, int(max_items))
-        self.max_bytes = max(0, int(max_bytes))
-        self._entries = collections.OrderedDict()
-        self.bytes = 0
-        self.peak_items = 0
-        self.peak_bytes = 0
-        self.evictions = 0
-
-    @staticmethod
-    def _entry_size(key, unique_patterns, inverse):
-        return (
-            unique_patterns.nbytes
-            + inverse.nbytes
-            + sum(len(pattern) for pattern in key) * np.dtype(np.intp).itemsize
-        )
-
-    def get(self, key):
-        entry = self._entries.get(key)
-        if entry is not None:
-            self._entries.move_to_end(key)
-        return entry
-
-    def store(self, key, unique_patterns, inverse):
-        if self.max_items == 0 or self.max_bytes == 0:
-            return
-        size = self._entry_size(key, unique_patterns, inverse)
-        if size > self.max_bytes:
-            return
-        prior = self._entries.pop(key, None)
-        if prior is not None:
-            self.bytes -= prior[2]
-        self._entries[key] = (unique_patterns, inverse, size)
-        self.bytes += size
-        while (
-                len(self._entries) > self.max_items
-                or self.bytes > self.max_bytes
-        ):
-            _, evicted = self._entries.popitem(last=False)
-            self.bytes -= evicted[2]
-            self.evictions += 1
-        self.peak_items = max(self.peak_items, len(self._entries))
-        self.peak_bytes = max(self.peak_bytes, self.bytes)
-
-    def __len__(self):
-        return len(self._entries)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -2420,9 +2352,11 @@ class IndexedCoefficientGatherPlan:
         object.__setattr__(
             self,
             'request_pattern_cache',
-            IndexedRequestPatternCache(
+            BoundedCache(
                 self.max_pattern_cache_items,
-                self.max_pattern_cache_bytes
+                self.max_pattern_cache_bytes,
+                sizer=self._request_pattern_size,
+                lru=True
             )
         )
 
@@ -2440,6 +2374,12 @@ class IndexedCoefficientGatherPlan:
             cache = None
         object.__setattr__(self,'_tensor_metadata',types.MappingProxyType(metadata))
         object.__setattr__(self,'_gather_cache',cache)
+
+    @staticmethod
+    def _request_pattern_size(key, value):
+        unique_patterns, inverse = value
+        return (unique_patterns.nbytes + inverse.nbytes
+                + sum(len(pattern) for pattern in key) * np.dtype(np.intp).itemsize)
 
     @staticmethod
     def _remap_product(product, subset, num_fixed):
@@ -2489,15 +2429,11 @@ class IndexedCoefficientGatherPlan:
             unique_patterns.setflags(write=False)
             inverse = inverse.astype(np.intp, copy=False)
             inverse.setflags(write=False)
-            self.request_pattern_cache.store(
-                key,
-                unique_patterns,
-                inverse
-            )
+            self.request_pattern_cache[key] = (unique_patterns, inverse)
         else:
             if stats is not None:
                 stats.coefficient_pattern_cache_hits += 1
-            unique_patterns, inverse, _ = entry
+            unique_patterns, inverse = entry
         cache = self.request_pattern_cache
         if stats is not None:
             stats.max_coefficient_pattern_cache_items = max(
@@ -2758,7 +2694,8 @@ class IndexedBlockEvaluator:
     use_compiled_permutation_routing = True
     use_shared_degeneracy_pool = True
     use_compiled_degeneracy_selection = True
-    _plan_cache = IndexedExpressionPlanCache(default_plan_cache_size)
+    # keyed by expression identity; entries keep the expression alive so ids are never reused
+    _plan_cache = BoundedCache(default_plan_cache_size)
 
     def __init__(self, evaluator_type, expression, chunk_size=None, preparation_context=None):
         self.preparation_context = preparation_context
@@ -2795,7 +2732,8 @@ class IndexedBlockEvaluator:
         namespace='free-index-v1' if reduced else None
         cache_plans = (self.preparation_context is None
                        or getattr(self.preparation_context, 'immutable_expressions', False))
-        plan = self._plan_cache.get(expression,namespace) if cache_plans else None
+        entry = self._plan_cache.get((id(expression), namespace)) if cache_plans else None
+        plan = entry[1] if entry is not None and entry[0] is expression else None
         if plan is not None:
             if self.stats is not None:
                 self.stats.plan_cache_hits += 1
@@ -2807,7 +2745,7 @@ class IndexedBlockEvaluator:
             self.stats.plans_compiled += 1
             self.stats.plan_terms += plan.term_count
         if cache_plans:
-            self._plan_cache.store(expression, plan,namespace)
+            self._plan_cache[(id(expression), namespace)] = (expression, plan)
         return plan
 
     @staticmethod
