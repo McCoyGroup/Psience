@@ -321,6 +321,8 @@ class AnalyticBlockExpansion:
         self._inverse_normalizers = [np.eye(len(self.states))]
         self._intermediate_columns = [self.Y[0]]
         self._operator_pieces = {}
+        self._generic_terms = {}
+        self._hamiltonian_terms = {}
 
     def _scalar(self,value):
         role=next(_runtime_roles)
@@ -340,31 +342,35 @@ class AnalyticBlockExpansion:
         return ProjectedTerm.lookup(term,ProjectionFactor('R',role))
 
     def _generic_term(self,term,scalar_order):
-        projectors,scalars,memo = {},{},{}
-        def walk(node):
-            if node in memo:return memo[node]
-            if isinstance(node,ProjectedTerm):
-                role=node.factor.slot
-                slot=projectors.setdefault(role,len(projectors))
-                result=ProjectedTerm.lookup(walk(node.term),ProjectionFactor(node.factor.kind,slot))
-            elif isinstance(node,_BlockScalarTerm):
-                slot=scalars.setdefault(node.slot,len(scalars))
-                result=_BlockScalarTerm.lookup(scalar_order,slot,node.logger,node.polynomial_representation)
-            elif isinstance(node,PerturbationTheoryTermProduct):
-                result=PerturbationTheoryTermProduct.lookup(walk(node.gen2),walk(node.gen1))
-            elif isinstance(node,PerturbationTheoryTermSum):
-                result=PerturbationTheoryTermSum.lookup(*(walk(t) for t in node.terms))
-            elif isinstance(node,ScaledPerturbationTheoryTerm):
-                result=ScaledPerturbationTheoryTerm.lookup(walk(node.base),node.prefactor)
-            elif isinstance(node,ShiftedEnergyBaseline):
-                result=ShiftedEnergyBaseline.lookup(walk(node.base))
-            elif isinstance(node,ValidResolventTerm):
-                result=ValidResolventTerm.lookup(walk(node.subterm))
-            else:
-                result=node
-            memo[node]=result
-            return result
-        generic=walk(term)
+        key=(term,scalar_order)
+        if key not in self._generic_terms:
+            projectors,scalars,memo = {},{},{}
+            def walk(node):
+                if node in memo:return memo[node]
+                if isinstance(node,ProjectedTerm):
+                    role=node.factor.slot
+                    slot=projectors.setdefault(role,len(projectors))
+                    result=ProjectedTerm.lookup(walk(node.term),ProjectionFactor(node.factor.kind,slot))
+                elif isinstance(node,_BlockScalarTerm):
+                    slot=scalars.setdefault(node.slot,len(scalars))
+                    result=_BlockScalarTerm.lookup(scalar_order,slot,node.logger,node.polynomial_representation)
+                elif isinstance(node,PerturbationTheoryTermProduct):
+                    result=PerturbationTheoryTermProduct.lookup(walk(node.gen2),walk(node.gen1))
+                elif isinstance(node,PerturbationTheoryTermSum):
+                    result=PerturbationTheoryTermSum.lookup(*(walk(t) for t in node.terms))
+                elif isinstance(node,ScaledPerturbationTheoryTerm):
+                    result=ScaledPerturbationTheoryTerm.lookup(walk(node.base),node.prefactor)
+                elif isinstance(node,ShiftedEnergyBaseline):
+                    result=ShiftedEnergyBaseline.lookup(walk(node.base))
+                elif isinstance(node,ValidResolventTerm):
+                    result=ValidResolventTerm.lookup(walk(node.subterm))
+                else:
+                    result=node
+                memo[node]=result
+                return result
+            generic=walk(term)
+            self._generic_terms[key]=(generic,tuple(projectors),tuple(scalars))
+        generic,projectors,scalars=self._generic_terms[key]
         bindings=tuple(self.runtime_inputs['projectors'][role] for role in projectors)
         values=[self.runtime_inputs['scalars'][role] for role in scalars]
         return generic,dict(projectors=bindings,scalar_order=scalar_order,scalar_count=len(values)),values
@@ -436,11 +442,13 @@ class AnalyticBlockExpansion:
 
 
     def _hamiltonian(self, order):
-        if order >= len(self.expansions):
-            return None
-        if all(np.all(np.asarray(t) == 0) for t in self.expansions[order]):
-            return None
-        return self.evaluator.solver.hamiltonian_expansion[order]
+        if order not in self._hamiltonian_terms:
+            if order >= len(self.expansions) or not any(np.any(t) for t in self.expansions[order]):
+                term = None
+            else:
+                term = self.evaluator.solver.hamiltonian_expansion[order]
+            self._hamiltonian_terms[order] = term
+        return self._hamiltonian_terms[order]
 
     def extend(self, order, logger=None, verbose=False):
         if self.intermediate_normalization:

@@ -11302,14 +11302,13 @@ class PerturbationTheoryExpressionEvaluator:
                     first_ekey = next(iter(first_echange_poly.terms.keys()))
                     change = [] if not first_ekey else np.sum([list(k) for k in first_ekey], axis=1)
 
-            from .CompiledExpressions import current_compilation
+            from .CompiledExpressions import current_compilation, _active_coefficient_operators
             compiled_context = current_compilation()
             if compiled_context is not None and evaluation_mode in {None, 'compiled'}:
                 store, compile_options, task_options, default_parallelizer = compiled_context
                 compile_options = dict(compile_options)
                 compile_options.setdefault('mode_dimension', len(freqs))
-                active = tuple(sorted({(n,k) for expansion in coeffs for n,row in enumerate(expansion)
-                    for k,c in enumerate(row) if np.any(c)}))
+                active = _active_coefficient_operators(coeffs)
                 if projection_bindings is not None:
                     auxiliary=projection_bindings['scalar_order']
                     active=tuple(sorted(set(active)|{(auxiliary+k,0) for k in range(projection_bindings['scalar_count'])}))

@@ -62,6 +62,41 @@ def compiled_evaluation_context(store, compilation_options=None, evaluation_opti
             cache.clear()
 
 
+
+def _coefficient_binding(value):
+    # Only physical tensors are immutable within a public evaluation.
+    cache = _current_coefficient_fingerprints.get()
+    if cache is None or not isinstance(value, np.ndarray) or value.ndim == 0 or value.dtype.hasobject:
+        return None
+    key = id(value)
+    entry = cache.get(key)
+    if entry is None or entry[0]() is not value:
+        def dropped(ref, key=key):
+            old = cache.get(key)
+            if old is not None and old[0] is ref:
+                cache.pop(key, None)
+        entry = (weakref.ref(value, dropped), _freeze(value), {})
+        cache[key] = entry
+    return entry
+
+
+def _active_coefficient_operators(coefficients):
+    active = set()
+    for expansion in coefficients:
+        for order, row in enumerate(expansion):
+            for kind, coefficient in enumerate(row):
+                entry = _coefficient_binding(coefficient)
+                if entry is None:
+                    nonzero = bool(np.any(coefficient))
+                else:
+                    metadata = entry[2]
+                    if 'nonzero' not in metadata:
+                        metadata['nonzero'] = bool(np.any(coefficient))
+                    nonzero = metadata['nonzero']
+                if nonzero:
+                    active.add((order, kind))
+    return tuple(sorted(active))
+
 def current_compilation():
     return _current_compilation.get()
 
@@ -398,7 +433,7 @@ class AnalyticExpressionStore:
     def compile(self, expression, *, context=None, active_operators=None, projection=None,
                 max_terms=32768, max_bytes=64*1024**2, cache_size=100000,
                 cache_bytes=512*1024**2, node_cache_size=8192, mode_dimension=None, progress=None,
-                coalesce_combine_nodes=True,bounded_byte_accounting=True,free_index_reduction=False):
+                coalesce_combine_nodes=True,bounded_byte_accounting=True,free_index_reduction=True):
         """Compile native expressions; early DAG combine-node coalescing is on by default.
 
         Set coalesce_combine_nodes=False (also accepted through evaluator
@@ -415,7 +450,7 @@ class AnalyticExpressionStore:
         """Compile or reuse an entry, accounting separately for lookup and actual construction."""
         started=time.perf_counter(); building=[]; completed=False
         from .Analytic import PolyPath
-        reduction=options.get('free_index_reduction',False)
+        reduction=options.get('free_index_reduction',True)
         if not isinstance(reduction,(bool,np.bool_)):
             raise TypeError('free_index_reduction must be boolean')
         index_token=PolyPath._index_reduction_context.set(bool(reduction))
@@ -439,7 +474,7 @@ class AnalyticExpressionStore:
     def _compile_factory(self, factory, *, context, active_operators=None, projection=None,
                          max_terms=32768,max_bytes=64*1024**2,cache_size=100000,
                           cache_bytes=512*1024**2,node_cache_size=8192,mode_dimension=None,progress=None,
-                          coalesce_combine_nodes=True,bounded_byte_accounting=True,free_index_reduction=False):
+                          coalesce_combine_nodes=True,bounded_byte_accounting=True,free_index_reduction=True):
         from .Analytic import (SqrtChangePoly,PTTensorCoeffProductDAG,PTTensorCoeffProductSum,
             PTTensorCoeffProductDAGEvaluationPlan,_BoundedEvaluationCache,_BalancedPolynomialAccumulator)
         from .BoundedStream import StreamBudget
@@ -665,17 +700,8 @@ class CompiledAnalyticEvaluation:
                 # Per-element scalar coefficients can change between requests.
                 if value.ndim == 0 or value.dtype.hasobject:
                     return
-                key = id(value)
-                entry = cache.get(key)
-                if entry is None or entry[0]() is not value:
-                    frozen = _freeze(value)
-                    def dropped(ref, key=key):
-                        old = cache.get(key)
-                        if old is not None and old[0] is ref:
-                            cache.pop(key, None)
-                    entry = (weakref.ref(value, dropped), frozen)
-                    cache[key] = entry
-                arrays[key] = entry[1]
+                entry = _coefficient_binding(value)
+                arrays[id(value)] = entry[1]
             elif isinstance(value, SharedMemoryArrayTree):
                 bind(value.tree)
             elif isinstance(value, (list, tuple)):
@@ -813,8 +839,21 @@ def _run_compiled_tasks_inner(tasks,context):
             while len(cache)>2:cache.popitem(last=False)
         poly,max_order=cache[key];rank=part['rank'];free=rank-num_fixed
         batches=[];position=task['start']
+        journal=None if target is None else target.with_suffix('.batches')
+        written_batches=0
         if record is not None:
-            position=record['stop'];batches=record['batches']
+            position=record['stop']
+            if 'batch_count' in record:
+                for ordinal in range(record['batch_count']):
+                    with (journal/('batch-{:08d}.pkl'.format(ordinal))).open('rb') as stream:
+                        batch_record=pickle.load(stream)
+                    if batch_record['signature']!=context['signature'] or batch_record['index']!=task['index']:
+                        raise ValueError('compiled batch context mismatch')
+                    batches.append(batch_record['batch'])
+                written_batches=len(batches)
+            else:
+                # Read old checkpoints without changing their summation order.
+                batches=record['batches']
             cursor=task['start']
             for batch in batches:
                 if batch['start']!=cursor or not cursor<batch['stop']<=task['stop']:
@@ -828,7 +867,13 @@ def _run_compiled_tasks_inner(tasks,context):
                 for index in np.ndindex(array.shape):
                     array[index]=math.fsum(batch['values'][route][index] for batch in batches)
             return arrays
-        values=total_values()
+        options=dict(evaluation_mode='materialized',evaluation_backend='indexed',logger=False,log_scaled=False,
+            path_cache_size=10000,path_cache_bytes=64*1024**2,
+            state_permutation_cache_size=10000,state_permutation_cache_bytes=16*1024**2)
+        options.update(context['numerical_options'])
+        for name in ('path_equality_cache_size','cache_polynomial_order','free_index_reduction'):
+            options.pop(name,None)
+        options['_max_polynomial_order']=max_order
         for extra_batch in iter(lambda:list(itertools.islice(iterator,context['batch_size'])),[]):
             subsets=[anchors+tuple(extra) for extra in extra_batch]
             requests=[]
@@ -838,14 +883,6 @@ def _run_compiled_tasks_inner(tasks,context):
                     order=tuple(range(num_fixed))+subset+tuple(i for i in range(num_fixed,ndim) if i not in subset)
                     expanded.extend(perms[:,order])
                 requests.append([state,np.asarray(expanded,dtype=int)])
-            options=dict(evaluation_mode='materialized',evaluation_backend='indexed',logger=False,log_scaled=False,
-                path_cache_size=10000,path_cache_bytes=64*1024**2,
-                state_permutation_cache_size=10000,state_permutation_cache_bytes=16*1024**2)
-            options.update(context['numerical_options'])
-            options.pop('path_equality_cache_size',None)
-            options.pop('cache_polynomial_order',None)
-            options.pop('free_index_reduction',None)
-            options['_max_polynomial_order']=max_order
             result=Expression.evaluate_polynomial_expression(requests,coefficients,context['freqs'],poly,
                 manifest['change'],manifest['baseline_shift'],num_fixed,
                 mode_subset_selector=_TemplateSubset(rank),**options)
@@ -857,13 +894,27 @@ def _run_compiled_tasks_inner(tasks,context):
                 if not np.isfinite(value).all():raise FloatingPointError('nonfinite compiled contraction')
                 batch_values.append(value)
             position+=len(subsets);batches.append(dict(start=position-len(subsets),stop=position,values=batch_values))
-            values=total_values()
-            if target is not None:_atomic_pickle(target,dict(complete=False,signature=context['signature'],index=task['index'],
-                start=task['start'],stop=position,values=values,batches=batches))
+            if target is not None and position < task['stop']:
+                journal.mkdir(exist_ok=True)
+                # Publish only new batch payloads, then a constant-size cursor.
+                # An interrupted unpublished tail is overwritten on resume.
+                for ordinal in range(written_batches,len(batches)):
+                    _atomic_pickle(journal/('batch-{:08d}.pkl'.format(ordinal)),
+                        dict(signature=context['signature'],index=task['index'],batch=batches[ordinal]))
+                written_batches=len(batches)
+                _atomic_pickle(target,dict(complete=False,signature=context['signature'],index=task['index'],
+                    start=task['start'],stop=position,batch_count=written_batches))
         if position!=task['stop']:raise ValueError('compiled subset range incomplete')
+        values=total_values()
         record=dict(complete=True,signature=context['signature'],index=task['index'],start=task['start'],stop=position,
                     values=values,batches=batches,resumed=record is not None)
-        if target is not None:_atomic_pickle(target,record)
+        if target is not None:
+            _atomic_pickle(target,record)
+            if journal.exists():
+                for ordinal in range(written_batches):
+                    (journal/('batch-{:08d}.pkl'.format(ordinal))).unlink(missing_ok=True)
+                if not any(journal.iterdir()):
+                    journal.rmdir()
         records.append(record)
     IndexedBlockEvaluator.clear_plan_cache()
     return records

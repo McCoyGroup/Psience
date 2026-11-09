@@ -662,3 +662,114 @@ class SharedEnergyRowTests(unittest.TestCase):
 
 
 if __name__=='__main__':unittest.main()
+
+
+class CompiledPreparationReuseTests(unittest.TestCase):
+    def test_reduction_defaults_on_with_explicit_opt_out(self):
+        wrapper,states,coeffs,freqs=FreeIndexExecutorTests().fixture()
+        store=ce.AnalyticExpressionStore()
+        default=store.compile(wrapper,context={'defaults':True},mode_dimension=4)
+        enabled=store.compile(wrapper,context={'defaults':True},mode_dimension=4,free_index_reduction=True)
+        disabled=store.compile(wrapper,context={'defaults':True},mode_dimension=4,free_index_reduction=False)
+        self.assertEqual(default.manifest['signature'],enabled.manifest['signature'])
+        self.assertNotEqual(default.manifest['signature'],disabled.manifest['signature'])
+        for a,b in zip(default.evaluate(states,coeffs,freqs),disabled.evaluate(states,coeffs,freqs)):
+            np.testing.assert_allclose(a,b,rtol=3e-12,atol=3e-12)
+
+    def test_activity_reuses_bound_tensors_but_reads_runtime_scalars(self):
+        import gc,weakref
+        tensor=np.ones((2,2));scalar=np.array(0.)
+        coefficients=[[[tensor,scalar]]]
+        with ce.compiled_evaluation_context(ce.AnalyticExpressionStore()):
+            self.assertEqual(ce._active_coefficient_operators(coefficients),((0,0),))
+            with mock.patch.object(ce.np,'any',wraps=np.any) as check:
+                scalar[...]=2.
+                self.assertEqual(ce._active_coefficient_operators(coefficients),((0,0),(0,1)))
+                self.assertEqual(check.call_count,1)
+            ref=weakref.ref(tensor);del coefficients,tensor;gc.collect()
+            self.assertIsNone(ref())
+        replacement=np.zeros((2,2))
+        with ce.compiled_evaluation_context(ce.AnalyticExpressionStore()):
+            self.assertEqual(ce._active_coefficient_operators([[[replacement]]]),())
+
+    def test_generic_structure_keeps_live_scalar_and_projector_bindings(self):
+        from Psience.VPT2.Projected import AnalyticBlockExpansion
+        runner=MemoryCompilationTests().runner()
+        block=AnalyticBlockExpansion(runner.eval,[[1,0,0],[0,1,0]])
+        scalar=block._scalar(.25)
+        projected=block._resolvent(runner.eval.solver.hamiltonian_expansion[1],block.states[0],block.states[1])
+        term=scalar*projected
+        a,bindings,values=block._generic_term(term,len(block.expansions))
+        self.assertEqual(values,[.25])
+        block.runtime_inputs['scalars'][scalar.slot]=.75
+        old=block.runtime_inputs['projectors'][projected.factor.slot]
+        changed=(old[0],old[1],block.states[1],old[3])
+        block.runtime_inputs['projectors'][projected.factor.slot]=changed
+        b,new_bindings,new_values=block._generic_term(term,len(block.expansions))
+        self.assertIs(a,b);self.assertEqual(new_values,[.75])
+        self.assertEqual(new_bindings['projectors'],(changed,))
+        for order in range(len(block.expansions)):
+            block._hamiltonian(order)
+        with mock.patch.object(np,'any',side_effect=AssertionError('repeated tensor scan')):
+            for order in range(len(block.expansions)):
+                block._hamiltonian(order);block._hamiltonian(order)
+
+    def test_interrupted_journal_and_legacy_checkpoint_resume_exactly(self):
+        import pickle
+        from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression
+        wrapper,states,coeffs,freqs=FreeIndexExecutorTests().fixture()
+        reference=ce.AnalyticExpressionStore().compile(wrapper,context={'resume':True},mode_dimension=4)
+        expected=reference.evaluate(states,coeffs,freqs,batch_size=1,task_size=32,resume=False)
+        for legacy in (False,True):
+            with self.subTest(legacy=legacy),tempfile.TemporaryDirectory() as folder:
+                compiled=ce.AnalyticExpressionStore(folder).compile(wrapper,context={'resume':True},mode_dimension=4)
+                evaluation=compiled.prepare_evaluation(states,coeffs,freqs,batch_size=1,task_size=32)
+                native=Expression.evaluate_polynomial_expression;calls=0
+                def interrupted(*args,**kwargs):
+                    nonlocal calls
+                    calls+=1
+                    if calls==3:raise RuntimeError('interrupted evaluation')
+                    return native(*args,**kwargs)
+                with mock.patch.object(Expression,'evaluate_polynomial_expression',side_effect=interrupted):
+                    with self.assertRaisesRegex(RuntimeError,'interrupted evaluation'):
+                        evaluation.run()
+                task=evaluation.tasks[0];target=evaluation.folder/task['file']
+                with target.open('rb') as stream:record=pickle.load(stream)
+                self.assertFalse(record['complete']);self.assertEqual(record['batch_count'],2)
+                journal=target.with_suffix('.batches')
+                if legacy:
+                    batches=[]
+                    for ordinal in range(record.pop('batch_count')):
+                        path=journal/('batch-{:08d}.pkl'.format(ordinal))
+                        with path.open('rb') as stream:batches.append(pickle.load(stream)['batch'])
+                        path.unlink()
+                    journal.rmdir()
+                    record['batches']=batches;ce._atomic_pickle(target,record)
+                actual=evaluation.run()
+                for a,b in zip(actual,expected):np.testing.assert_array_equal(a,b)
+                self.assertFalse(journal.exists())
+                for a,b in zip(evaluation.run(),expected):np.testing.assert_array_equal(a,b)
+
+    def test_partial_journal_rejects_coverage_and_context_corruption(self):
+        import pickle
+        from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression
+        wrapper,states,coeffs,freqs=FreeIndexExecutorTests().fixture()
+        for damage in ('range','signature'):
+            with self.subTest(damage=damage),tempfile.TemporaryDirectory() as folder:
+                compiled=ce.AnalyticExpressionStore(folder).compile(wrapper,context={'corruption':True},mode_dimension=4)
+                evaluation=compiled.prepare_evaluation(states,coeffs,freqs,batch_size=1,task_size=32)
+                native=Expression.evaluate_polynomial_expression;calls=0
+                def interrupted(*args,**kwargs):
+                    nonlocal calls
+                    calls+=1
+                    if calls==2:raise RuntimeError('stop')
+                    return native(*args,**kwargs)
+                with mock.patch.object(Expression,'evaluate_polynomial_expression',side_effect=interrupted):
+                    with self.assertRaisesRegex(RuntimeError,'stop'):evaluation.run()
+                target=evaluation.folder/evaluation.tasks[0]['file']
+                path=target.with_suffix('.batches')/'batch-00000000.pkl'
+                with path.open('rb') as stream:record=pickle.load(stream)
+                if damage=='range':record['batch']['start']+=1
+                else:record['signature']='incorrect'
+                ce._atomic_pickle(path,record)
+                with self.assertRaisesRegex(ValueError,'coverage|context mismatch'):evaluation.run()
