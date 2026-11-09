@@ -13442,6 +13442,25 @@ class ConditionalCorrectionEvaluator:
 
 class PerturbationTheoryEvaluator:
 
+    degeneracy_handling_modes = ('projected', 'filtered')
+
+    @classmethod
+    def resolve_degeneracy_handling(cls, mode):
+        """
+        'projected' (default): degenerate blocks are treated by block projection
+        (`ProjectedCorrectionEvaluator`).
+        'filtered': the original treatment, where degenerate pairs are turned into
+        degenerate changes (`get_degenerate_changes`) and the matching terms are
+        removed from the perturbative sums, leaving the couplings to the
+        effective-Hamiltonian step.
+        """
+        if mode is None:
+            mode = cls.degeneracy_handling_modes[0]
+        if mode not in cls.degeneracy_handling_modes:
+            raise ValueError("degeneracy_handling must be one of {}, got {!r}".format(
+                cls.degeneracy_handling_modes, mode))
+        return mode
+
     def _projected_corrections(self, blocks, pairs, expansions=None, freqs=None, zero_cutoff=None,
                                parallelizer=None, logger=None, verbose=False):
         if getattr(self.solver,'resonance_condition',None) is not None:
@@ -13449,10 +13468,13 @@ class PerturbationTheoryEvaluator:
                 logger=logger, verbose=verbose)
         if blocks is None and pairs is None:
             return None
+        if self.degeneracy_handling == 'filtered':
+            return None
         evaluator = (self if parallelizer is None else
                      type(self)(self.solver, self.expansions, self.freqs, parallelizer=parallelizer,
                         expressions_folder=self.expressions_folder,compilation_options=self.compilation_options,
-                        evaluation_options=self.evaluation_options,compile=self.compile_expressions))
+                        evaluation_options=self.evaluation_options,compile=self.compile_expressions,
+                        degeneracy_handling=self.degeneracy_handling))
         return ProjectedCorrectionEvaluator(evaluator, blocks=blocks, pairs=pairs,
             expansions=expansions, freqs=freqs, zero_cutoff=zero_cutoff,
             logger=logger, verbose=verbose)
@@ -13476,7 +13498,9 @@ class PerturbationTheoryEvaluator:
         return degenerate_states.get(tuple(int(x) for x in state), [])
 
     def __init__(self, solver:AnalyticPerturbationTheorySolver, expansion, freqs=None, parallelizer=None,
-                 expressions_folder=None, compilation_options=None, evaluation_options=None, compile=True):
+                 expressions_folder=None, compilation_options=None, evaluation_options=None, compile=True,
+                 degeneracy_handling=None):
+        self.degeneracy_handling = self.resolve_degeneracy_handling(degeneracy_handling)
         self.expressions_folder = expressions_folder
         self.compile_expressions = compile is not False
         self._expression_store = None
@@ -13539,6 +13563,7 @@ class PerturbationTheoryEvaluator:
             exps, parallelizer=self.parallelizer,
             expressions_folder=self.expressions_folder,compilation_options=self.compilation_options,
             evaluation_options=self.evaluation_options,compile=self.compile_expressions,
+            degeneracy_handling=self.degeneracy_handling
         )
 
     @_timed_evaluation('Energy corrections (total)')
@@ -13851,7 +13876,7 @@ class PerturbationTheoryEvaluator:
         return all_corrs
     @classmethod
     def _compute_corr(cls,  gen_corrs, only_degs, key, gen, expr, *args, only_degenerate_terms=None, **kwargs):
-        new_corrs = expr.evaluate(*args, only_degenerate_terms=only_degenerate_terms, **kwargs)
+        new_corrs = expr.evaluate(*args, **kwargs)
         if only_degenerate_terms is True or only_degenerate_terms is False:
             only_degenerate_terms = [only_degenerate_terms, only_degenerate_terms]
         other_degs = only_degenerate_terms[0] is only_degenerate_terms[1]

@@ -3702,6 +3702,7 @@ class AnalyticVPTRunner:
                  intermediate_normalization=None,
                  polynomial_representation='path',
                  resonance_condition=None,
+                 degeneracy_handling=None,
                  local_mode_couplings=None,
                  local_mode_coupling_order=None,
                  parallelizer=None,
@@ -3786,10 +3787,13 @@ class AnalyticVPTRunner:
                 expressions_folder=expressions_folder,
                 compile=compile,
                 compilation_options=compilation_options,
-                evaluation_options=evaluation_options
+                evaluation_options=evaluation_options,
+                degeneracy_handling=degeneracy_handling
             )
         else:
             self.eval = expansions
+            if degeneracy_handling is not None:
+                self.eval.degeneracy_handling = self.eval.resolve_degeneracy_handling(degeneracy_handling)
             self.eval.compile_expressions = compile is not False
             if expressions_folder is not None:self.eval.expressions_folder = expressions_folder
             if compilation_options is not None:self.eval.compilation_options = dict(compilation_options)
@@ -3825,6 +3829,7 @@ class AnalyticVPTRunner:
                          intermediate_normalization=None,
                          polynomial_representation='path',
                          resonance_condition=None,
+                         degeneracy_handling=None,
                          corrected_fundamental_frequencies=None,
                          expressions_folder=None,
                   compile=True,
@@ -3889,6 +3894,7 @@ class AnalyticVPTRunner:
             intermediate_normalization=intermediate_normalization,
             polynomial_representation=polynomial_representation,
             resonance_condition=resonance_condition,
+            degeneracy_handling=degeneracy_handling,
             local_mode_couplings=ham.local_mode_couplings,
             local_mode_coupling_order=ham.local_mode_coupling_order
         )
@@ -3914,6 +3920,7 @@ class AnalyticVPTRunner:
                   parallelizer=None,
                   polynomial_representation='path',
                   resonance_condition=None,
+                  degeneracy_handling=None,
                   take_diagonal_v4_terms=True,
                   two_mode_only=False,
                   **settings
@@ -3986,6 +3993,7 @@ class AnalyticVPTRunner:
                 allowed_energy_changes=allowed_energy_changes,
                 polynomial_representation=polynomial_representation,
                 resonance_condition=resonance_condition,
+                degeneracy_handling=degeneracy_handling,
                 take_diagonal_v4_terms=take_diagonal_v4_terms,
                 two_mode_only=two_mode_only,
                 intermediate_normalization=opts.get('intermediate_normalization', None),
