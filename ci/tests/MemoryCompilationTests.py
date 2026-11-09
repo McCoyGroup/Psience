@@ -158,6 +158,14 @@ from Psience.VPT2.Analytic import PolyPath, PerturbationTheoryExpressionEvaluato
 from Psience.VPT2.Evaluators import StreamBudget, retained_size
 from Psience.VPT2.Analytic import AnalyticBlockExpansion, ProjectedCorrectionEvaluator
 
+# These tests inspect evaluator statistics, which are only recorded when diagnostics are enabled.
+from Psience.VPT2.Common import Diagnostics
+def setUpModule():
+    Diagnostics.enabled = True
+def tearDownModule():
+    Diagnostics.enabled = False
+
+
 class CompilationOverheadTests(unittest.TestCase):
     def test_weak_comparison_cache_preserves_equal_unequal_and_lifetimes(self):
         a=PolyPath.from_coeffs([np.array([1.,2.])],steps=0)

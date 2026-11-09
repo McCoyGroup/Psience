@@ -1,16 +1,38 @@
 
+import contextlib
 import numpy as np
 from McUtils.Numputils import SparseArray
 
 __all__ = [
     "PerturbationTheoryException",
-    "Settings"
+    "Settings",
+    "Diagnostics"
 ]
 class PerturbationTheoryException(Exception):
     pass
 
 class Settings:
     non_zero_cutoff = 1.0e-14
+
+class Diagnostics:
+    """
+    Switch for the evaluation statistics the analytic evaluators can record
+    (indexed-evaluator counters, DAG/cache statistics, compilation summaries).
+    Off by default: normal runs do no bookkeeping and the `get_last_*_stats`
+    accessors return `None`. Enable with `Diagnostics.enabled = True` or
+    `with Diagnostics.collect(): ...` when profiling or testing.
+    """
+    enabled = False
+
+    @classmethod
+    @contextlib.contextmanager
+    def collect(cls, enabled=True):
+        prev = cls.enabled
+        cls.enabled = enabled
+        try:
+            yield cls
+        finally:
+            cls.enabled = prev
 
 def _safe_dot(a, b):
     # generalizes the dot product so that we can use 0 as a special value...

@@ -25,6 +25,7 @@ from McUtils.Parallelizers import Parallelizer, MultiprocessingParallelizer
 from McUtils.Devutils import atomic_write, atomic_write_json, file_hash, freeze, fingerprint, implementation_signature, EntryStore
 from .Analytic import ConditionalTransformationStack, SameStateCondition, operator_sum, operator_product, ZeroTerm, projection_inputs
 from .Analytic import ShiftedEnergyBaseline
+from .Common import Diagnostics
 import types
 
 __all__ = ['AnalyticExpressionStore', 'CompiledAnalyticExpression', 'CompiledAnalyticEvaluation', 'AnalyticCorrectionCompiler']
@@ -262,9 +263,11 @@ class StreamPreparationContext:
     def prepare(self, evaluator, coefficient_sets):
         key = tuple(coefficient_sets)
         if key in self.data:
-            self.data_hits += 1
+            if Diagnostics.enabled:
+                self.data_hits += 1
             return self.data[key]
-        self.data_misses += 1
+        if Diagnostics.enabled:
+            self.data_misses += 1
         return self._store(self.data, key,
                            evaluator._prep_coeff_data(coefficient_sets, self.coefficients))
 
@@ -272,9 +275,11 @@ class StreamPreparationContext:
         key = (id(specs), id(tensors))
         entry = self.plans.get(key)
         if entry is not None:
-            self.plan_hits += 1
+            if Diagnostics.enabled:
+                self.plan_hits += 1
             return entry[2], True
-        self.plan_misses += 1
+        if Diagnostics.enabled:
+            self.plan_misses += 1
         plan = create()
         self._store(self.plans, key, (specs, tensors, plan))
         return plan, False
@@ -1741,8 +1746,9 @@ class IndexedDegeneracyEvaluationContext:
         self.selection_masks = {}
         self.block_selections = {}
         self.cache_bytes = 0
-        stats.degeneracy_pool_contexts += 1
-        stats.degeneracy_pool_rows += len(permutations)
+        if stats is not None:
+            stats.degeneracy_pool_contexts += 1
+            stats.degeneracy_pool_rows += len(permutations)
 
     @staticmethod
     def _mask_bytes(mask):
@@ -1752,14 +1758,16 @@ class IndexedDegeneracyEvaluationContext:
         if size is None:
             size = self._mask_bytes(mask)
         if size > self.max_cache_bytes - self.cache_bytes:
-            self.stats.degeneracy_pool_cache_skips += 1
+            if self.stats is not None:
+                self.stats.degeneracy_pool_cache_skips += 1
             return
         cache[key] = entry
         self.cache_bytes += size
-        self.stats.max_degeneracy_pool_cache_bytes = max(
-            self.stats.max_degeneracy_pool_cache_bytes,
-            self.cache_bytes
-        )
+        if self.stats is not None:
+            self.stats.max_degeneracy_pool_cache_bytes = max(
+                self.stats.max_degeneracy_pool_cache_bytes,
+                self.cache_bytes
+            )
 
     def predicate_mask(self, predicate, only_degenerate):
         if predicate is None:
@@ -1768,19 +1776,23 @@ class IndexedDegeneracyEvaluationContext:
         predicate_key = id(predicate)
         entry = self.predicate_masks.get(predicate_key)
         if entry is not None and entry[0] is predicate:
-            self.stats.degeneracy_pool_predicate_hits += 1
+            if self.stats is not None:
+                self.stats.degeneracy_pool_predicate_hits += 1
             mask = entry[1]
         else:
-            self.stats.degeneracy_pool_predicate_misses += 1
+            if self.stats is not None:
+                self.stats.degeneracy_pool_predicate_misses += 1
             tick = time.perf_counter()
             evaluate_array = getattr(predicate, 'evaluate_array', None)
-            self.stats.degeneracy_states_tested += len(self.permutations)
+            if self.stats is not None:
+                self.stats.degeneracy_states_tested += len(self.permutations)
             array_cutoff = getattr(predicate, 'scalar_state_cutoff', -1)
             if (
                     evaluate_array is None
                     or len(self.permutations) <= array_cutoff
             ):
-                self.stats.degeneracy_scalar_evaluations += 1
+                if self.stats is not None:
+                    self.stats.degeneracy_scalar_evaluations += 1
                 mask = np.fromiter(
                     (
                         bool(predicate(permutation))
@@ -1790,15 +1802,17 @@ class IndexedDegeneracyEvaluationContext:
                     count=len(self.permutations)
                 )
             else:
-                self.stats.degeneracy_array_evaluations += 1
-                self.stats.degeneracy_patterns_tested += len(
-                    predicate.patterns
-                )
+                if self.stats is not None:
+                    self.stats.degeneracy_array_evaluations += 1
+                    self.stats.degeneracy_patterns_tested += len(
+                        predicate.patterns
+                    )
                 mask = np.asarray(
                     evaluate_array(self.permutations),
                     dtype=bool
                 )
-            self.stats.degeneracy_seconds += time.perf_counter() - tick
+            if self.stats is not None:
+                self.stats.degeneracy_seconds += time.perf_counter() - tick
             self._store(
                 self.predicate_masks,
                 predicate_key,
@@ -1820,10 +1834,12 @@ class IndexedDegeneracyEvaluationContext:
                 and entry[1] is right_predicate
                 and entry[2] is join
         ):
-            self.stats.degeneracy_pool_selection_hits += 1
+            if self.stats is not None:
+                self.stats.degeneracy_pool_selection_hits += 1
             return entry[3]
 
-        self.stats.degeneracy_pool_selection_misses += 1
+        if self.stats is not None:
+            self.stats.degeneracy_pool_selection_misses += 1
         left = self.predicate_mask(left_predicate, use_left)
         right = self.predicate_mask(right_predicate, use_right)
         selected = join(left, right)
@@ -1843,9 +1859,11 @@ class IndexedDegeneracyEvaluationContext:
         key = (id(selection_plan), len(global_indices), index_key)
         entry = self.block_selections.get(key)
         if entry is not None and entry[0] is selection_plan:
-            self.stats.degeneracy_block_selection_hits += 1
+            if self.stats is not None:
+                self.stats.degeneracy_block_selection_hits += 1
             return key, entry[1], entry[2]
-        self.stats.degeneracy_block_selection_misses += 1
+        if self.stats is not None:
+            self.stats.degeneracy_block_selection_misses += 1
         return key, None, None
 
     def store_block_selection(
@@ -1863,7 +1881,8 @@ class IndexedDegeneracyEvaluationContext:
             size=size
         )
         if len(self.block_selections) == before:
-            self.stats.degeneracy_block_selection_cache_skips += 1
+            if self.stats is not None:
+                self.stats.degeneracy_block_selection_cache_skips += 1
 
 
 @dataclasses.dataclass(frozen=True)
@@ -2459,8 +2478,9 @@ class IndexedCoefficientGatherPlan:
         )
         entry = self.request_pattern_cache.get(key)
         if entry is None:
-            stats.coefficient_pattern_cache_misses += 1
-            stats.coefficient_pattern_compilations += 1
+            if stats is not None:
+                stats.coefficient_pattern_cache_misses += 1
+                stats.coefficient_pattern_compilations += 1
             unique_patterns, inverse = np.unique(
                 np.asarray(key, dtype=np.intp),
                 axis=0,
@@ -2475,18 +2495,20 @@ class IndexedCoefficientGatherPlan:
                 inverse
             )
         else:
-            stats.coefficient_pattern_cache_hits += 1
+            if stats is not None:
+                stats.coefficient_pattern_cache_hits += 1
             unique_patterns, inverse, _ = entry
         cache = self.request_pattern_cache
-        stats.max_coefficient_pattern_cache_items = max(
-            stats.max_coefficient_pattern_cache_items,
-            cache.peak_items
-        )
-        stats.max_coefficient_pattern_cache_bytes = max(
-            stats.max_coefficient_pattern_cache_bytes,
-            cache.peak_bytes
-        )
-        stats.coefficient_unique_patterns += len(unique_patterns)
+        if stats is not None:
+            stats.max_coefficient_pattern_cache_items = max(
+                stats.max_coefficient_pattern_cache_items,
+                cache.peak_items
+            )
+            stats.max_coefficient_pattern_cache_bytes = max(
+                stats.max_coefficient_pattern_cache_bytes,
+                cache.peak_bytes
+            )
+            stats.coefficient_unique_patterns += len(unique_patterns)
         return unique_patterns, inverse
 
     @staticmethod
@@ -2595,8 +2617,9 @@ class IndexedCoefficientGatherPlan:
 
                 for tensor, destinations, patterns, structural_patterns, tensor_binding \
                         in request_groups.values():
-                    stats.coefficient_tensor_groups += 1
-                    stats.coefficient_gather_requests += len(patterns)
+                    if stats is not None:
+                        stats.coefficient_tensor_groups += 1
+                        stats.coefficient_gather_requests += len(patterns)
                     if self.use_cached_request_patterns:
                         old_evictions = self.request_pattern_cache.evictions
                         unique_structural, inverse = (
@@ -2605,25 +2628,28 @@ class IndexedCoefficientGatherPlan:
                                 stats
                             )
                         )
-                        stats.coefficient_pattern_cache_evictions += (
-                            self.request_pattern_cache.evictions
-                            - old_evictions
-                        )
+                        if stats is not None:
+                            stats.coefficient_pattern_cache_evictions += (
+                                self.request_pattern_cache.evictions
+                                - old_evictions
+                            )
                         unique_patterns = self._remap_request_patterns(
                             unique_structural,
                             subset,
                             num_fixed
                         )
                     else:
-                        stats.coefficient_pattern_compilations += 1
+                        if stats is not None:
+                            stats.coefficient_pattern_compilations += 1
                         unique_patterns, inverse = np.unique(
                             np.asarray(patterns, dtype=np.intp),
                             axis=0,
                             return_inverse=True
                         )
-                        stats.coefficient_unique_patterns += len(
-                            unique_patterns
-                        )
+                        if stats is not None:
+                            stats.coefficient_unique_patterns += len(
+                                unique_patterns
+                            )
                     values = self._gather_tensor_requests(
                         permutations,tensor,unique_patterns,inverse,
                         cache=self._gather_cache,tensor_binding=tensor_binding,stats=stats)
@@ -2678,7 +2704,8 @@ class IndexedCoefficientGatherPlan:
             chunk_stop = min(chunk_start + chunk_size, len(active_products))
             chunk_products = active_products[chunk_start:chunk_stop]
             chunk_remapped = remapped_products[chunk_start:chunk_stop]
-            stats.coefficient_product_chunks += 1
+            if stats is not None:
+                stats.coefficient_product_chunks += 1
             products, good = self._evaluate_product_chunk(
                 permutations,
                 chunk_products,
@@ -2699,8 +2726,9 @@ class IndexedCoefficientGatherPlan:
                 ]
                 output_position = next_position
 
-        stats.coefficient_rows += output_position
-        stats.coefficient_seconds += time.perf_counter() - start
+        if stats is not None:
+            stats.coefficient_rows += output_position
+            stats.coefficient_seconds += time.perf_counter() - start
         return (
             eval_permutations[:output_position],
             eval_coefficients[:output_position],
@@ -2739,7 +2767,7 @@ class IndexedBlockEvaluator:
         self.chunk_size = (
             self.default_chunk_size if chunk_size is None else max(1, int(chunk_size))
         )
-        self.stats = IndexedEvaluationStats()
+        self.stats = IndexedEvaluationStats() if Diagnostics.enabled else None
         self._coefficient_plans = {}
         self._degeneracy_selection_plans = collections.OrderedDict()
         self._degeneracy_group_plans = collections.OrderedDict()
@@ -2750,10 +2778,11 @@ class IndexedBlockEvaluator:
         if _current_free_index_reduction.get() and data is not None:
             if data.get('format')!=1:raise ValueError('unsupported free-index plan format')
             self._free_index_plan=self.get_plan(expression,reduced=True)
-            stats=data['stats']
-            self.stats.free_index_source_plans=stats['source_keys']
-            self.stats.free_index_canonical_plans=stats['canonical_plans']
-            self.stats.free_index_shared_plans=stats['shared_plans']
+            if self.stats is not None:
+                stats=data['stats']
+                self.stats.free_index_source_plans=stats['source_keys']
+                self.stats.free_index_canonical_plans=stats['canonical_plans']
+                self.stats.free_index_shared_plans=stats['shared_plans']
         self.plan=self._free_index_plan
         if self.plan is None:
             self._native_plan=self.plan=self.get_plan(expression)
@@ -2768,12 +2797,15 @@ class IndexedBlockEvaluator:
                        or getattr(self.preparation_context, 'immutable_expressions', False))
         plan = self._plan_cache.get(expression,namespace) if cache_plans else None
         if plan is not None:
-            self.stats.plan_cache_hits += 1
+            if self.stats is not None:
+                self.stats.plan_cache_hits += 1
             return plan
-        self.stats.plan_cache_misses += 1
+        if self.stats is not None:
+            self.stats.plan_cache_misses += 1
         plan = self.compile_plan(expression,reduced=reduced)
-        self.stats.plans_compiled += 1
-        self.stats.plan_terms += plan.term_count
+        if self.stats is not None:
+            self.stats.plans_compiled += 1
+            self.stats.plan_terms += plan.term_count
         if cache_plans:
             self._plan_cache.store(expression, plan,namespace)
         return plan
@@ -2840,8 +2872,10 @@ class IndexedBlockEvaluator:
         )
 
     def finish(self):
-        self.stats.elapsed_seconds = time.perf_counter() - self._started
-        return self.stats.as_dict()
+        if self.stats is not None:
+            self.stats.elapsed_seconds = time.perf_counter() - self._started
+            return self.stats.as_dict()
+        return None
 
     def get_coefficient_plan(self, coefficient_specs, coefficient_tensors):
         if self.preparation_context is not None:
@@ -2852,10 +2886,12 @@ class IndexedBlockEvaluator:
             plan, hit = self.preparation_context.coefficient_plan(
                 coefficient_specs, coefficient_tensors, create)
             if hit:
-                self.stats.coefficient_plan_hits += 1
+                if self.stats is not None:
+                    self.stats.coefficient_plan_hits += 1
             else:
-                self.stats.coefficient_plan_misses += 1
-                self.stats.coefficient_plans_compiled += 1
+                if self.stats is not None:
+                    self.stats.coefficient_plan_misses += 1
+                    self.stats.coefficient_plans_compiled += 1
             return plan
         key = (id(coefficient_specs), id(coefficient_tensors))
         entry = self._coefficient_plans.get(key)
@@ -2864,9 +2900,11 @@ class IndexedBlockEvaluator:
             and entry[0] is coefficient_specs
             and entry[1] is coefficient_tensors
         ):
-            self.stats.coefficient_plan_hits += 1
+            if self.stats is not None:
+                self.stats.coefficient_plan_hits += 1
             return entry[2]
-        self.stats.coefficient_plan_misses += 1
+        if self.stats is not None:
+            self.stats.coefficient_plan_misses += 1
         expansion_count = (
             0 if len(coefficient_tensors) == 0 else
             len(coefficient_tensors[0])
@@ -2876,7 +2914,8 @@ class IndexedBlockEvaluator:
             coefficient_tensors,
             expansion_count
         )
-        self.stats.coefficient_plans_compiled += 1
+        if self.stats is not None:
+            self.stats.coefficient_plans_compiled += 1
         self._coefficient_plans[key] = (
             coefficient_specs,
             coefficient_tensors,
@@ -2955,11 +2994,13 @@ class IndexedBlockEvaluator:
                 and entry[1] is degenerate_changes
                 and entry[2] is join
         ):
-            self.stats.degeneracy_selection_plan_hits += 1
+            if self.stats is not None:
+                self.stats.degeneracy_selection_plan_hits += 1
             self._degeneracy_selection_plans.move_to_end(key)
             return entry[3]
 
-        self.stats.degeneracy_selection_plan_misses += 1
+        if self.stats is not None:
+            self.stats.degeneracy_selection_plan_misses += 1
         left_changes, right_changes = self._get_degeneracy_change_sides(
             expression_key, degenerate_changes
         )
@@ -2971,7 +3012,8 @@ class IndexedBlockEvaluator:
             use_right,
             join
         )
-        self.stats.degeneracy_selection_descriptors += len(plan.selections)
+        if self.stats is not None:
+            self.stats.degeneracy_selection_descriptors += len(plan.selections)
         self._degeneracy_selection_plans[key] = (
             subexpression, degenerate_changes, join, plan
         )
@@ -2981,11 +3023,13 @@ class IndexedBlockEvaluator:
                 > self.default_degeneracy_selection_plan_cache_size
         ):
             self._degeneracy_selection_plans.popitem(last=False)
-            self.stats.degeneracy_selection_plan_evictions += 1
-        self.stats.max_degeneracy_selection_plan_cache_items = max(
-            self.stats.max_degeneracy_selection_plan_cache_items,
-            len(self._degeneracy_selection_plans)
-        )
+            if self.stats is not None:
+                self.stats.degeneracy_selection_plan_evictions += 1
+        if self.stats is not None:
+            self.stats.max_degeneracy_selection_plan_cache_items = max(
+                self.stats.max_degeneracy_selection_plan_cache_items,
+                len(self._degeneracy_selection_plans)
+            )
         return plan
 
     @staticmethod
@@ -3048,11 +3092,13 @@ class IndexedBlockEvaluator:
         key = (id(selection_plan), selection_classes)
         entry = self._degeneracy_group_plans.get(key)
         if entry is not None and entry[0] is selection_plan:
-            self.stats.degeneracy_group_plan_hits += 1
+            if self.stats is not None:
+                self.stats.degeneracy_group_plan_hits += 1
             self._degeneracy_group_plans.move_to_end(key)
             return entry[1]
 
-        self.stats.degeneracy_group_plan_misses += 1
+        if self.stats is not None:
+            self.stats.degeneracy_group_plan_misses += 1
         group_plan = self._compile_degeneracy_group_plan(
             selection_plan, selection_classes
         )
@@ -3063,11 +3109,13 @@ class IndexedBlockEvaluator:
                 > self.default_degeneracy_group_plan_cache_size
         ):
             self._degeneracy_group_plans.popitem(last=False)
-            self.stats.degeneracy_group_plan_evictions += 1
-        self.stats.max_degeneracy_group_plan_cache_items = max(
-            self.stats.max_degeneracy_group_plan_cache_items,
-            len(self._degeneracy_group_plans)
-        )
+            if self.stats is not None:
+                self.stats.degeneracy_group_plan_evictions += 1
+        if self.stats is not None:
+            self.stats.max_degeneracy_group_plan_cache_items = max(
+                self.stats.max_degeneracy_group_plan_cache_items,
+                len(self._degeneracy_group_plans)
+            )
         return group_plan
 
     def _select_energy_groups_compiled(
@@ -3083,10 +3131,11 @@ class IndexedBlockEvaluator:
             use_right,
             join
         )
-        self.stats.degeneracy_selection_misses += len(selection_plan.selections)
-        self.stats.degeneracy_selection_hits += (
-            selection_plan.term_count - len(selection_plan.selections)
-        )
+        if self.stats is not None:
+            self.stats.degeneracy_selection_misses += len(selection_plan.selections)
+            self.stats.degeneracy_selection_hits += (
+                selection_plan.term_count - len(selection_plan.selections)
+            )
 
         permutation_subsets = blocks.permutation_subsets[block_index]
         global_indices = blocks.global_permutation_indices[block_index]
@@ -3158,7 +3207,8 @@ class IndexedBlockEvaluator:
             use_left,use_right,join=only_degenerate_terms
             selected=join(not use_left,not use_right)
             if isinstance(selected,(bool,np.bool_)):
-                self.stats.unmasked_selection_fast_paths += 1
+                if self.stats is not None:
+                    self.stats.unmasked_selection_fast_paths += 1
                 return (tuple((shape,None,terms) for shape,terms in blocks.plans[block_index].groups)
                         if selected else ())
         if self.use_compiled_degeneracy_selection:
@@ -3221,11 +3271,13 @@ class IndexedBlockEvaluator:
                     and entry[0] is left_predicate
                     and entry[1] is right_predicate
                 ):
-                    self.stats.degeneracy_selection_hits += 1
+                    if self.stats is not None:
+                        self.stats.degeneracy_selection_hits += 1
                     selected = entry[2]
                     selection_id = entry[3]
                 else:
-                    self.stats.degeneracy_selection_misses += 1
+                    if self.stats is not None:
+                        self.stats.degeneracy_selection_misses += 1
                     if degeneracy_context is None:
                         left_matches = self._get_degeneracy_mask(
                             left_predicate,
@@ -3302,17 +3354,20 @@ class IndexedBlockEvaluator:
         predicate_key = id(predicate)
         entry = predicate_masks.get(predicate_key)
         if entry is None or entry[0] is not predicate:
-            self.stats.degeneracy_mask_misses += 1
+            if self.stats is not None:
+                self.stats.degeneracy_mask_misses += 1
             tick = time.perf_counter()
             evaluate = getattr(predicate, 'evaluate', None)
-            self.stats.degeneracy_states_tested += len(permutation_subsets)
+            if self.stats is not None:
+                self.stats.degeneracy_states_tested += len(permutation_subsets)
             array_cutoff = getattr(
                 predicate,
                 'scalar_state_cutoff',
                 -1
             )
             if evaluate is None or len(permutation_subsets) <= array_cutoff:
-                self.stats.degeneracy_scalar_evaluations += 1
+                if self.stats is not None:
+                    self.stats.degeneracy_scalar_evaluations += 1
                 mask = np.fromiter(
                     (
                         bool(predicate(permutation))
@@ -3322,18 +3377,21 @@ class IndexedBlockEvaluator:
                     count=len(permutation_subsets)
                 )
             else:
-                self.stats.degeneracy_array_evaluations += 1
-                self.stats.degeneracy_patterns_tested += len(
-                    predicate.patterns
-                )
+                if self.stats is not None:
+                    self.stats.degeneracy_array_evaluations += 1
+                    self.stats.degeneracy_patterns_tested += len(
+                        predicate.patterns
+                    )
                 mask = np.asarray(
                     evaluate(permutation_subsets),
                     dtype=bool
                 )
-            self.stats.degeneracy_seconds += time.perf_counter() - tick
+            if self.stats is not None:
+                self.stats.degeneracy_seconds += time.perf_counter() - tick
             predicate_masks[predicate_key] = (predicate, mask)
         else:
-            self.stats.degeneracy_mask_hits += 1
+            if self.stats is not None:
+                self.stats.degeneracy_mask_hits += 1
             mask = entry[1]
         return mask if only_degenerate else np.logical_not(mask)
 
@@ -3397,10 +3455,11 @@ class IndexedBlockEvaluator:
                         permutation_count
                     )
                 ) from exc
-        self.stats.max_polynomial_scratch_bytes = max(
-            self.stats.max_polynomial_scratch_bytes,
-            polynomial_block.nbytes
-        )
+        if self.stats is not None:
+            self.stats.max_polynomial_scratch_bytes = max(
+                self.stats.max_polynomial_scratch_bytes,
+                polynomial_block.nbytes
+            )
         return polynomial_block
 
     # Bound the joined permutation axis as well as the existing row chunk.
@@ -3445,10 +3504,12 @@ class IndexedBlockEvaluator:
                 components.add(key)
             if pending:
                 chunks.append(pending)
-        self.stats.shared_value_input_blocks += len(blocks)
+        if self.stats is not None:
+            self.stats.shared_value_input_blocks += len(blocks)
         if len(chunks) == len(blocks):
-            self.stats.shared_value_output_blocks += len(blocks)
-            self.stats.shared_value_seconds += time.perf_counter() - tick
+            if self.stats is not None:
+                self.stats.shared_value_output_blocks += len(blocks)
+                self.stats.shared_value_seconds += time.perf_counter() - tick
             return blocks, None, None
 
         decisions, pools = [], {}
@@ -3459,7 +3520,8 @@ class IndexedBlockEvaluator:
             pool_key = (blocks.state_indices[first], keys)
             pooled = pools.get(pool_key)
             if pooled is None:
-                self.stats.shared_value_pool_misses += 1
+                if self.stats is not None:
+                    self.stats.shared_value_pool_misses += 1
                 if len(keys) == 1:
                     source = components[keys[0]]
                     pooled = (blocks.permutation_subsets[source], blocks.permutation_substates[source],
@@ -3469,7 +3531,8 @@ class IndexedBlockEvaluator:
                     ordered = [components[key] for key in keys]
                     physical = np.concatenate([blocks.permutation_subsets[index] for index in ordered], axis=0)
                     unique, take, inverse = np.unique(physical, axis=0, return_index=True, return_inverse=True)
-                    self.stats.shared_value_sort_calls += 1
+                    if self.stats is not None:
+                        self.stats.shared_value_sort_calls += 1
                     substates = np.concatenate([blocks.permutation_substates[index] for index in ordered], axis=0)[take]
                     frequencies = np.concatenate([blocks.permutation_frequencies[index] for index in ordered], axis=0)[take]
                     tuples = [entry for index in ordered for entry in blocks.tuple_states[index]]
@@ -3483,21 +3546,26 @@ class IndexedBlockEvaluator:
                               _StatePermutationBlockIdentity(tuples), inverse_routes)
                 pools[pool_key] = pooled
             else:
-                self.stats.shared_value_pool_hits += 1
+                if self.stats is not None:
+                    self.stats.shared_value_pool_hits += 1
             incoming = sum(len(blocks.permutation_subsets[index]) for index in indices)
             unique_count = len(pooled[0])
-            self.stats.shared_value_input_points += incoming
-            self.stats.shared_value_unique_points += unique_count
-            self.stats.shared_value_duplicate_points += incoming - unique_count
+            if self.stats is not None:
+                self.stats.shared_value_input_points += incoming
+                self.stats.shared_value_unique_points += unique_count
+                self.stats.shared_value_duplicate_points += incoming - unique_count
             if unique_count == incoming:
-                self.stats.shared_value_disjoint_blocks += len(indices)
+                if self.stats is not None:
+                    self.stats.shared_value_disjoint_blocks += len(indices)
                 decisions.extend(([index], None) for index in indices)
             else:
                 decisions.append((indices, pooled))
-        self.stats.shared_value_output_blocks += len(decisions)
-        self.stats.shared_value_blocks_eliminated += len(blocks) - len(decisions)
+        if self.stats is not None:
+            self.stats.shared_value_output_blocks += len(decisions)
+            self.stats.shared_value_blocks_eliminated += len(blocks) - len(decisions)
         if len(decisions) == len(blocks):
-            self.stats.shared_value_seconds += time.perf_counter() - tick
+            if self.stats is not None:
+                self.stats.shared_value_seconds += time.perf_counter() - tick
             return blocks, None, None
 
         joined = ConcreteBlockTable()
@@ -3518,8 +3586,10 @@ class IndexedBlockEvaluator:
             aliases.append(tuple(blocks.expression_keys[index] for index in indices))
             for index in indices:
                 routes[index] = (group, inverse_routes[component(index)])
-            self.stats.max_shared_value_permutations = max(self.stats.max_shared_value_permutations, len(physical))
-        self.stats.shared_value_seconds += time.perf_counter() - tick
+            if self.stats is not None:
+                self.stats.max_shared_value_permutations = max(self.stats.max_shared_value_permutations, len(physical))
+        if self.stats is not None:
+            self.stats.shared_value_seconds += time.perf_counter() - tick
         return joined, routes, aliases
 
     def _evaluate_work_items(self, blocks, output, change, baseline_shift,
@@ -3588,8 +3658,10 @@ class IndexedBlockEvaluator:
                                 False, logger,
                                 block_key=('full', blocks.state_block_identities[block_index]))
                             blocks.contributions[block_index] += polynomial
-                            self.stats.polynomial_evaluations += 1
-                        self.stats.polynomial_seconds += time.perf_counter() - tick
+                            if self.stats is not None:
+                                self.stats.polynomial_evaluations += 1
+                        if self.stats is not None:
+                            self.stats.polynomial_seconds += time.perf_counter() - tick
                     continue
                 permutation_count = (
                     len(blocks.permutation_subsets[block_index])
@@ -3606,25 +3678,28 @@ class IndexedBlockEvaluator:
                 )
                 segments.append(block_index, selected, terms)
 
-        self.stats.contraction_groups += len(row_groups)
+        if self.stats is not None:
+            self.stats.contraction_groups += len(row_groups)
         for segments in row_groups.values():
-            self.stats.contraction_segments += len(segments.block_indices)
-            self.stats.max_pending_segments = max(
-                self.stats.max_pending_segments,
-                len(segments.block_indices)
-            )
+            if self.stats is not None:
+                self.stats.contraction_segments += len(segments.block_indices)
+                self.stats.max_pending_segments = max(
+                    self.stats.max_pending_segments,
+                    len(segments.block_indices)
+                )
             for block_indices, selected_rows, terms, segment_ids in segments.iter_blocks(
                     self.chunk_size, return_segment_ids=True):
                 block_size = len(terms)
-                self.stats.contraction_blocks += 1
-                self.stats.contraction_rows += block_size
-                self.stats.energy_scalar_lanes += block_size*(
-                    len(blocks.permutation_subsets[int(block_indices[0])])
-                    if selected_rows[0] is None else len(selected_rows[0]))
-                self.stats.max_rows_per_block = max(
-                    self.stats.max_rows_per_block,
-                    block_size
-                )
+                if self.stats is not None:
+                    self.stats.contraction_blocks += 1
+                    self.stats.contraction_rows += block_size
+                    self.stats.energy_scalar_lanes += block_size*(
+                        len(blocks.permutation_subsets[int(block_indices[0])])
+                        if selected_rows[0] is None else len(selected_rows[0]))
+                    self.stats.max_rows_per_block = max(
+                        self.stats.max_rows_per_block,
+                        block_size
+                    )
 
                 selections = []
                 for block_index, selected in zip(block_indices, selected_rows):
@@ -3700,8 +3775,9 @@ class IndexedBlockEvaluator:
                                 for term in terms for row in term.energy_changes))
                 if not share_energy:
                     projected_mask, energy_factors = contract(range(block_size))
-                    self.stats.energy_rows_computed += block_size
-                    self.stats.energy_computed_scalar_lanes += energy_factors.size
+                    if self.stats is not None:
+                        self.stats.energy_rows_computed += block_size
+                        self.stats.energy_computed_scalar_lanes += energy_factors.size
                 else:
                     # A batch-local cache: the formal row, physical frequency/
                     # occupation binding, source state and projection route must
@@ -3751,8 +3827,9 @@ class IndexedBlockEvaluator:
                     if missing:
                         indices = list(missing.values())
                         masks, factors = contract(indices)
-                        self.stats.energy_rows_computed += len(indices)
-                        self.stats.energy_computed_scalar_lanes += factors.size
+                        if self.stats is not None:
+                            self.stats.energy_rows_computed += len(indices)
+                            self.stats.energy_computed_scalar_lanes += factors.size
                         capacity = max(0, int(self.max_energy_row_cache_bytes))
                         for position, key in enumerate(missing):
                             # Own bounded row arrays; a view would retain an
@@ -3766,15 +3843,19 @@ class IndexedBlockEvaluator:
                                     removed_key, removed = energy_row_cache.popitem(last=False)
                                     energy_row_cache_bytes -= (removed[1].nbytes +
                                         (0 if removed[0] is None else removed[0].nbytes) + len(removed_key[-1][2]))
-                                    self.stats.energy_row_cache_evictions += 1
+                                    if self.stats is not None:
+                                        self.stats.energy_row_cache_evictions += 1
                                 energy_row_cache[key] = entry
                                 energy_row_cache_bytes += size
-                                self.stats.max_energy_row_cache_bytes = max(
-                                    self.stats.max_energy_row_cache_bytes, energy_row_cache_bytes)
-                    self.stats.energy_rows_reused += block_size - len(missing)
+                                if self.stats is not None:
+                                    self.stats.max_energy_row_cache_bytes = max(
+                                        self.stats.max_energy_row_cache_bytes, energy_row_cache_bytes)
+                    if self.stats is not None:
+                        self.stats.energy_rows_reused += block_size - len(missing)
                     energy_factors = np.stack([ready[key][1] for key in keys])
                     projected_mask = np.stack([ready[key][0] for key in keys]) if projected_call else None
-                self.stats.energy_seconds += time.perf_counter() - tick
+                if self.stats is not None:
+                    self.stats.energy_seconds += time.perf_counter() - tick
 
                 tick = time.perf_counter()
                 polynomial_factors = [
@@ -3795,8 +3876,9 @@ class IndexedBlockEvaluator:
                     )
                     for term, selection in zip(terms, selections)
                 ]
-                self.stats.polynomial_evaluations += len(polynomial_factors)
-                self.stats.polynomial_seconds += time.perf_counter() - tick
+                if self.stats is not None:
+                    self.stats.polynomial_evaluations += len(polynomial_factors)
+                    self.stats.polynomial_seconds += time.perf_counter() - tick
 
                 tick = time.perf_counter()
                 state_count = blocks.contributions[int(block_indices[0])].shape[0]
@@ -3855,7 +3937,8 @@ class IndexedBlockEvaluator:
                 reduced_rows = np.add.reduceat(
                     scaled_rows, segment_starts, axis=0
                 )
-                self.stats.reduction_scatters += len(segment_starts)
+                if self.stats is not None:
+                    self.stats.reduction_scatters += len(segment_starts)
                 for reduced_index, row_index in enumerate(segment_starts):
                     block_index = int(block_indices[row_index])
                     selected = selected_rows[row_index]
@@ -3864,7 +3947,8 @@ class IndexedBlockEvaluator:
                         blocks.contributions[block_index] += scaled
                     else:
                         blocks.contributions[block_index][:, selected] += scaled
-                self.stats.reduction_seconds += time.perf_counter() - tick
+                if self.stats is not None:
+                    self.stats.reduction_seconds += time.perf_counter() - tick
 
         if shared_routes is not None:
             # Apply the native prefactor once before routing one shared value
@@ -3916,7 +4000,8 @@ class IndexedBlockEvaluator:
             # Gather original physical modes in canonical polynomial order.
             # Coefficient prefactors and output destinations remain original.
             full_set=tuple(full_set[i] for i in binding)
-            self.stats.free_index_bound_blocks += 1
+            if self.stats is not None:
+                self.stats.free_index_bound_blocks += 1
         permutation_subsets = permutations[
             mask_positions,
         ][:, full_set]
@@ -4040,18 +4125,22 @@ class IndexedBlockEvaluator:
                             coefficient_specs[coefficient_group],state_permutations,
                             prefactors,frequencies,num_fixed,subset,full_set,
                             state_permutation_cache,degenerate_changes)
-                        self.stats.batched_state_blocks += 1
-                        self.stats.batched_source_states += len(indices)
-                self.stats.routing_matches += len(eval_permutations)*len(state_permutations)
+                        if self.stats is not None:
+                            self.stats.batched_state_blocks += 1
+                            self.stats.batched_source_states += len(indices)
+                if self.stats is not None:
+                    self.stats.routing_matches += len(eval_permutations)*len(state_permutations)
                 return work_items
         routing_plan = IndexedPermutationRoutingPlan.compile(
             permutation_map,
             [len(permutations) for _, permutations in state_permutations],
             len(all_permutations)
         )
-        self.stats.routing_plans_compiled += 1
+        if self.stats is not None:
+            self.stats.routing_plans_compiled += 1
         routes = routing_plan.route(eval_permutations, eval_coefficients)
-        self.stats.routing_matches += len(routes.value_positions)
+        if self.stats is not None:
+            self.stats.routing_matches += len(routes.value_positions)
         work_items = ConcreteBlockTable()
         for (
                 coefficient_group, state_index,
@@ -4090,7 +4179,8 @@ class IndexedBlockEvaluator:
             logger.log_print("Gathering indexed coefficients for subset {s}...", s=subset)
             coefficient_start = time.perf_counter()
 
-        self.stats.calls += 1
+        if self.stats is not None:
+            self.stats.calls += 1
         if self._free_index_plan is not None:
             data=expression._free_index_plan_data
             if degenerate_changes is None and num_fixed==data['num_fixed']:
@@ -4098,7 +4188,8 @@ class IndexedBlockEvaluator:
             else:
                 # External legacy predicates bind original energy-row axes.
                 # Keep the entire native path until their transport is proven.
-                self.stats.free_index_fallback_calls += 1
+                if self.stats is not None:
+                    self.stats.free_index_fallback_calls += 1
                 if self._native_plan is None:self._native_plan=self.get_plan(expression)
                 self.plan=self._native_plan
         full_set = tuple(range(num_fixed)) + subset
@@ -4168,12 +4259,14 @@ class IndexedBlockEvaluator:
                 degenerate_changes
             )
         routing_seconds = time.perf_counter() - tick
-        self.stats.routing_seconds += routing_seconds
+        if self.stats is not None:
+            self.stats.routing_seconds += routing_seconds
         if verbose:
             logger.log_print("Routed {n} indexed blocks; took {e:.3f}s",
                              n=len(work_items), e=routing_seconds)
 
-        self.stats.work_items += len(work_items)
+        if self.stats is not None:
+            self.stats.work_items += len(work_items)
         degeneracy_context = (
             None if (
                 degenerate_changes is None

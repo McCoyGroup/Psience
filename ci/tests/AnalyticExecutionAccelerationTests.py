@@ -10,6 +10,14 @@ from Psience.VPT2.Analytic import (PerturbationTheoryExpressionEvaluator as Expr
 from Psience.VPT2.Analytic import ZeroTerm
 from McUtils.Zachary import Symbols
 
+# These tests inspect evaluator statistics, which are only recorded when diagnostics are enabled.
+from Psience.VPT2.Common import Diagnostics
+def setUpModule():
+    Diagnostics.enabled = True
+def tearDownModule():
+    Diagnostics.enabled = False
+
+
 class AccelerationTests(unittest.TestCase):
     def run_energy(self,nmodes=4,condition=None,batch=True,jit=True,max_states=128):
         rng=np.random.default_rng(102)

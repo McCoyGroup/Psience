@@ -9,6 +9,14 @@ from Psience.VPT2 import Evaluators as ce
 from Psience.VPT2.Solver import PerturbationTheorySolver
 from Psience.BasisReps import HarmonicOscillatorProductBasis,BasisStateSpace,ArrayStateIndexer
 
+# These tests inspect evaluator statistics, which are only recorded when diagnostics are enabled.
+from Psience.VPT2.Common import Diagnostics
+def setUpModule():
+    Diagnostics.enabled = True
+def tearDownModule():
+    Diagnostics.enabled = False
+
+
 NATIVE_MATRIX_DIFFERENCES={}
 
 class TermContributionTests(unittest.TestCase):

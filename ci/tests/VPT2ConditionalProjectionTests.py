@@ -29,6 +29,14 @@ from Psience.VPT2.Analytic import (
 )
 from Psience.VPT2.Analytic import IdentityTerm
 
+# These tests inspect evaluator statistics, which are only recorded when diagnostics are enabled.
+from Psience.VPT2.Common import Diagnostics
+def setUpModule():
+    Diagnostics.enabled = True
+def tearDownModule():
+    Diagnostics.enabled = False
+
+
 
 class MatrixInterpreter:
     """Test-only interpretation of native operator terms in a Psience basis."""

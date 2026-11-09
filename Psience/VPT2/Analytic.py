@@ -28,6 +28,7 @@ from ..BasisReps import (
 )
 
 from .Corrections import BasicAPTCorrections
+from .Common import Diagnostics
 # imports from merged modules
 import json
 from McUtils.Zachary import ElementaryFunction
@@ -592,9 +593,11 @@ class DegeneracyChangeIndex:
         cached = self.canonical_mode_cache.get(key)
         if cached is not None:
             self.canonical_mode_cache.move_to_end(key)
-            self.canonical_mode_cache_hits += 1
+            if Diagnostics.enabled:
+                self.canonical_mode_cache_hits += 1
             return cached[0]
-        self.canonical_mode_cache_misses += 1
+        if Diagnostics.enabled:
+            self.canonical_mode_cache_misses += 1
         modes = self.groups[signature]
         rows = np.ascontiguousarray(modes[:, ordering])
         key_dtype = np.dtype((np.void, rows.dtype.itemsize * len(ordering)))
@@ -664,36 +667,42 @@ class DegeneracyIdentificationContext:
         self._cache = collections.OrderedDict()
         self._cache_bytes = 0
         self._stats = collections.Counter()
-        self._stats['change_index_bytes'] = self.changes.nbytes
+        if Diagnostics.enabled:
+            self._stats['change_index_bytes'] = self.changes.nbytes
 
     def _get(self, key, kind):
         entry = self._cache.get(key)
         if entry is None:
-            self._stats[kind + '_misses'] += 1
+            if Diagnostics.enabled:
+                self._stats[kind + '_misses'] += 1
             return None
         self._cache.move_to_end(key)
-        self._stats[kind + '_hits'] += 1
+        if Diagnostics.enabled:
+            self._stats[kind + '_hits'] += 1
         return entry[0]
 
     def _put(self, key, value, size):
         size = int(size) + 256  # include a conservative cache-entry allowance
         if size > self.max_bytes or self.max_items <= 0:
-            self._stats['cache_skips'] += 1
+            if Diagnostics.enabled:
+                self._stats['cache_skips'] += 1
             return value
         while self._cache and (
                 len(self._cache) >= self.max_items
                 or self._cache_bytes + size > self.max_bytes):
             _, (_, removed_size) = self._cache.popitem(last=False)
             self._cache_bytes -= removed_size
-            self._stats['cache_evictions'] += 1
+            if Diagnostics.enabled:
+                self._stats['cache_evictions'] += 1
         self._cache[key] = (value, size)
         self._cache_bytes += size
-        self._stats['max_cache_items'] = max(
-            self._stats['max_cache_items'], len(self._cache)
-        )
-        self._stats['max_cache_bytes'] = max(
-            self._stats['max_cache_bytes'], self._cache_bytes
-        )
+        if Diagnostics.enabled:
+            self._stats['max_cache_items'] = max(
+                self._stats['max_cache_items'], len(self._cache)
+            )
+            self._stats['max_cache_bytes'] = max(
+                self._stats['max_cache_bytes'], self._cache_bytes
+            )
         return value
 
     def _requirement(self, echange, method):
@@ -732,7 +741,8 @@ class DegeneracyIdentificationContext:
         mode_maps = np.stack(maps)
         mode_maps.setflags(write=False)
         requirement = (signature, mode_maps, len(zero_pos))
-        self._stats['energy_requirements_compiled'] += 1
+        if Diagnostics.enabled:
+            self._stats['energy_requirements_compiled'] += 1
         return self._put(key, requirement, mode_maps.nbytes)
 
     @staticmethod
@@ -796,7 +806,8 @@ class DegeneracyIdentificationContext:
             signature, projections, mode_set, mode_keys, mode_trie,
             len(modes) * len(maps), modes
         )
-        self._stats['compact_clauses_compiled'] += 1
+        if Diagnostics.enabled:
+            self._stats['compact_clauses_compiled'] += 1
         return self._put(key, clause, projections.nbytes)
 
     def _bind_energy_key(self, ekey, nmodes, method):
@@ -810,7 +821,8 @@ class DegeneracyIdentificationContext:
             modes = self.changes.get(requirement[0])
             if modes is not None:
                 sides[eside].append((echange, requirement, modes))
-                self._stats['resonance_matches'] += len(modes)
+                if Diagnostics.enabled:
+                    self._stats['resonance_matches'] += len(modes)
         result = []
         size = 0
         for requirements in sides:
@@ -834,8 +846,9 @@ class DegeneracyIdentificationContext:
                     clauses, width, mode_index=self.changes
                 )
                 result.append(plan)
-                self._stats['pattern_rows_avoided'] += count
-                self._stats['predicate_plans_built'] += 1
+                if Diagnostics.enabled:
+                    self._stats['pattern_rows_avoided'] += count
+                    self._stats['predicate_plans_built'] += 1
                 size += sum(clause[1].nbytes + 256 for clause in clauses)
                 size += plan.semantic_key_bytes
                 continue
@@ -847,8 +860,9 @@ class DegeneracyIdentificationContext:
             )
             plan = DegeneracyTestPlan(patterns)
             result.append(plan)
-            self._stats['pattern_rows_materialized'] += count
-            self._stats['predicate_plans_built'] += 1
+            if Diagnostics.enabled:
+                self._stats['pattern_rows_materialized'] += count
+                self._stats['predicate_plans_built'] += 1
             size += patterns.nbytes + plan.patterns.nbytes + plan.checks.nbytes
             # The scalar trie is compiled lazily; reserve room for its nodes.
             size += count * (64 + 16 * width)
@@ -869,20 +883,24 @@ class DegeneracyIdentificationContext:
             return plan
         identity = by_identity.get(plan)
         if identity is not None and identity() is not None:
-            self._stats['predicate_intern_identity_hits'] += 1
+            if Diagnostics.enabled:
+                self._stats['predicate_intern_identity_hits'] += 1
             return identity()
 
         if isinstance(plan, CompactDegeneracyTestPlan):
             key = ('compact', plan.semantic_key)
             canonical = by_content.get(key, plan)
             if canonical is plan:
-                self._stats['predicate_intern_misses'] += 1
+                if Diagnostics.enabled:
+                    self._stats['predicate_intern_misses'] += 1
                 if len(by_identity) < self.max_items:
                     by_content[key] = plan
                 else:
-                    self._stats['predicate_intern_skips'] += 1
+                    if Diagnostics.enabled:
+                        self._stats['predicate_intern_skips'] += 1
             else:
-                self._stats['predicate_intern_content_hits'] += 1
+                if Diagnostics.enabled:
+                    self._stats['predicate_intern_content_hits'] += 1
             if len(by_identity) < self.max_items:
                 by_identity[plan] = weakref.ref(canonical)
             return canonical
@@ -901,21 +919,25 @@ class DegeneracyIdentificationContext:
                     and np.array_equal(candidate.checks, plan.checks)
             ):
                 canonical = candidate
-                self._stats['predicate_intern_content_hits'] += 1
+                if Diagnostics.enabled:
+                    self._stats['predicate_intern_content_hits'] += 1
                 break
         else:
-            self._stats['predicate_intern_misses'] += 1
+            if Diagnostics.enabled:
+                self._stats['predicate_intern_misses'] += 1
             if len(by_identity) < self.max_items:
                 by_content.setdefault(key, []).append(plan)
             else:
-                self._stats['predicate_intern_skips'] += 1
+                if Diagnostics.enabled:
+                    self._stats['predicate_intern_skips'] += 1
 
         if len(by_identity) < self.max_items:
             by_identity[plan] = weakref.ref(canonical)
         return canonical
 
     def bind(self, expr, nmodes, method):
-        self._stats['identification_calls'] += 1
+        if Diagnostics.enabled:
+            self._stats['identification_calls'] += 1
         all_degs = ({}, {})
         by_content = {}
         by_identity = weakref.WeakKeyDictionary()
@@ -1398,7 +1420,8 @@ class PolyAxis:
     @property
     def coeffs(self):
         if self._coeffs is None:
-            type(self)._materialization_count += 1
+            if Diagnostics.enabled:
+                type(self)._materialization_count += 1
             coeffs = np.array([1])
             for atom in self.atoms:
                 coeffs = scipy.signal.convolve(coeffs, atom.coeffs)
@@ -2628,11 +2651,13 @@ class PolyPath(ProductPTPolynomialSum):
         self._order = order
         self._hash = None
         self._combined = None
-        type(self)._construction_count += 1
+        if Diagnostics.enabled:
+            type(self)._construction_count += 1
 
     @classmethod
     def _from_node(cls, kind, args, ndim, order):
-        cls._node_requests += 1
+        if Diagnostics.enabled:
+            cls._node_requests += 1
         if kind=='remap' and cls._index_reduction_context.get():
             child,pull,output_ndim=args
             # Compose pure index views. No coefficients are expanded or added.
@@ -2665,7 +2690,8 @@ class PolyPath(ProductPTPolynomialSum):
             path = cls((), reduced=True, node=key, ndim=ndim, order=tuple(order))
             cls._node_cache[key] = path
         else:
-            cls._node_hits += 1
+            if Diagnostics.enabled:
+                cls._node_hits += 1
         return path
 
     @property
@@ -5095,14 +5121,16 @@ class PTTensorCoeffProductDAG(PTTensorCoeffProductSum):
     @classmethod
     def _from_node(cls, kind, args, ndim=None, reduced=False):
         args = cls._freeze(args)
-        cls._node_requests += 1
+        if Diagnostics.enabled:
+            cls._node_requests += 1
         key = (kind, args, ndim, reduced)
         node = cls._node_cache.get(key)
         if node is None:
             node = cls((kind,) + args, ndim=ndim, reduced=reduced)
             cls._node_cache[key] = node
         else:
-            cls._node_hits += 1
+            if Diagnostics.enabled:
+                cls._node_hits += 1
         return node
 
     @classmethod
@@ -5182,7 +5210,8 @@ class PTTensorCoeffProductDAG(PTTensorCoeffProductSum):
         if self._eager is not None:
             return self._eager
 
-        type(self)._materializations += 1
+        if Diagnostics.enabled:
+            type(self)._materializations += 1
         kind, *args = self._node
         if kind == 'leaf':
             eager = args[0]
@@ -5835,9 +5864,11 @@ class _MaterializedEvaluationCache:
             key, _BoundedEvaluationCache._missing
         )
         if value is _BoundedEvaluationCache._missing:
-            self.block_misses += 1
+            if Diagnostics.enabled:
+                self.block_misses += 1
         else:
-            self.block_hits += 1
+            if Diagnostics.enabled:
+                self.block_hits += 1
         return value
 
     def store_polynomial_block(self, key, value):
@@ -5958,8 +5989,9 @@ class PTTensorCoeffProductDAGEvaluationPlan:
             ).combine(combine_coeffs=combine_coeffs, combine_subterms=combine_subterms,
                       combine_energies=combine_energies)
             result = self._result_terms(compact)
-            self.coalesce_output_terms += len(result)
-            self.coalesce_batches += 1
+            if Diagnostics.enabled:
+                self.coalesce_output_terms += len(result)
+                self.coalesce_batches += 1
             pending.clear()
             if self.progress_callback is not None:
                 self.progress_callback(self)
@@ -5969,7 +6001,8 @@ class PTTensorCoeffProductDAGEvaluationPlan:
             if accumulator is None:
                 accumulator = pending[key] = _BalancedPolynomialAccumulator()
             accumulator.append(poly)
-            self.coalesce_input_terms += 1
+            if Diagnostics.enabled:
+                self.coalesce_input_terms += 1
             count += 1
             if count >= self.combine_chunk_size:
                 yield from flush()
@@ -5999,7 +6032,8 @@ class PTTensorCoeffProductDAGEvaluationPlan:
             if count <= self.max_mode_indices:
                 kept.append((key,poly))
             else:
-                self.mode_terms_pruned += 1
+                if Diagnostics.enabled:
+                    self.mode_terms_pruned += 1
         return tuple(kept)
 
     def _cached_operation(self, key, operation):
@@ -6035,11 +6069,13 @@ class PTTensorCoeffProductDAGEvaluationPlan:
     def _iter_node(self, node):
         cached = self.term_cache.get(node, _BoundedEvaluationCache._missing)
         if cached is not _BoundedEvaluationCache._missing:
-            self.node_cache_hits += 1
+            if Diagnostics.enabled:
+                self.node_cache_hits += 1
             yield from cached
             return
 
-        self.nodes_visited += 1
+        if Diagnostics.enabled:
+            self.nodes_visited += 1
         buffered = []
         overflowed = False
         for term in self._iter_node_uncached(node):
@@ -6105,7 +6141,8 @@ class PTTensorCoeffProductDAGEvaluationPlan:
 
     def iter_terms(self):
         for term in self._iter_node(self.expression):
-            self.terms_emitted += 1
+            if Diagnostics.enabled:
+                self.terms_emitted += 1
             yield term
 
     def stats(self):
@@ -8786,13 +8823,15 @@ class PerturbationTheoryExpressionEvaluator:
                 )
                 if cached_value is _BoundedEvaluationCache._missing:
                     if materialized_cache is not None:
-                        materialized_cache.exact_misses += 1
+                        if Diagnostics.enabled:
+                            materialized_cache.exact_misses += 1
                     eval_pos.append((i, j))
                     eval_keys.append(value_key)
                     eval_states.append(perm_substates[j][i])
                 else:
                     if materialized_cache is not None:
-                        materialized_cache.exact_hits += 1
+                        if Diagnostics.enabled:
+                            materialized_cache.exact_hits += 1
                     vals[i, j] = cached_value
         return vals, eval_pos, eval_keys, eval_states
 
@@ -10575,7 +10614,9 @@ class PerturbationTheoryExpressionEvaluator:
         generation_seconds = accumulation_seconds = evaluation_seconds = 0.
         numerical_sums = [_BalancedPolynomialAccumulator() for _ in result]
         indexed_chunk_stats = None
-        materializations_before = PTTensorCoeffProductDAG.cache_info()['tensor_materializations']
+        collect_stats = Diagnostics.enabled
+        materializations_before = (PTTensorCoeffProductDAG.cache_info()['tensor_materializations']
+                                   if collect_stats else 0)
         start = time.perf_counter()
 
         def evaluate_pending(reason='end'):
@@ -10613,7 +10654,7 @@ class PerturbationTheoryExpressionEvaluator:
                 mode_subset_selector=mode_subset_selector,
                 _stream_preparation=preparation
             )
-            if evaluation_backend == 'indexed':
+            if collect_stats and evaluation_backend == 'indexed':
                 chunk_stats = cls.get_last_indexed_evaluation_stats()
                 if chunk_stats is not None:
                     indexed_chunk_stats = cls._aggregate_indexed_evaluation_stats(
@@ -10637,10 +10678,11 @@ class PerturbationTheoryExpressionEvaluator:
                 budget.event('evaluate_end', reason, 0, evaluation_seconds=elapsed)
                 budget.flushed(reason)
 
-        previous = time.perf_counter()
+        previous = time.perf_counter() if collect_stats else 0.
         for key, poly in plan.iter_terms():
-            tick = time.perf_counter()
-            generation_seconds += tick - previous
+            if collect_stats:
+                tick = time.perf_counter()
+                generation_seconds += tick - previous
             if balanced_sums:
                 accumulator = pending.get(key)
                 if accumulator is None:
@@ -10652,15 +10694,19 @@ class PerturbationTheoryExpressionEvaluator:
             reason = budget.incoming(pending) if budget is not None else None
             if reason is None and len(pending) >= chunk_size:
                 reason = 'keys'
-            accumulation_seconds += time.perf_counter() - tick
+            if collect_stats:
+                accumulation_seconds += time.perf_counter() - tick
             if reason is not None:
                 evaluate_pending(reason)
-            previous = time.perf_counter()
+            if collect_stats:
+                previous = time.perf_counter()
         evaluate_pending()
         if budget is not None:
             result = tuple(total.total() if total.blocks else zero
                            for total, zero in zip(numerical_sums, result))
 
+        if not Diagnostics.enabled:
+            return result
         state_cache_stats = state_permutation_cache.stats()
         cls._last_state_permutation_cache_stats = state_cache_stats
         cls._last_dag_evaluation_stats = {
@@ -11174,11 +11220,11 @@ class PerturbationTheoryExpressionEvaluator:
                                             storage += corr
             res = [expr.prefactor * c for c in contrib]
 
-            if isinstance(poly_cache, _MaterializedEvaluationCache):
+            if Diagnostics.enabled and isinstance(poly_cache, _MaterializedEvaluationCache):
                 cls._last_materialized_evaluation_stats = poly_cache.stats()
-            if isinstance(take_cache, _StatePermutationCache):
+            if Diagnostics.enabled and isinstance(take_cache, _StatePermutationCache):
                 cls._last_state_permutation_cache_stats = take_cache.stats()
-            if indexed_executor is not None:
+            if Diagnostics.enabled and indexed_executor is not None:
                 indexed_stats = [indexed_executor.finish()]
                 indexed_stats.extend(parallel_indexed_stats)
                 cls._last_indexed_evaluation_stats = (
