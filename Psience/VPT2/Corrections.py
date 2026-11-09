@@ -1202,7 +1202,19 @@ class PerturbationTheoryCorrections:
                             subrep = 0
                             op.append(0)
                     else:
-                        subrep = dot(dot(wfn_corrs[a], rop), wfn_corrs[b].T)
+                        if isinstance(rop, nput.EvaluatedSparseMatrix):
+                            subrep = rop.bilinear(wfn_corrs[a], wfn_corrs[b].T)
+                            # Preserve the ordinary correction backend for the
+                            # small result so sums with stored terms retain
+                            # their existing arithmetic dispatch.
+                            if isinstance(wfn_corrs[a], nput.RowSparseArray):
+                                subrep = nput.RowSparseArray.from_native(subrep,
+                                    block_bytes=wfn_corrs[a].block_bytes,
+                                    block_size=wfn_corrs[a].block_size)
+                            elif isinstance(wfn_corrs[a], SparseArray):
+                                subrep = SparseArray.from_data(subrep)
+                        else:
+                            subrep = dot(dot(wfn_corrs[a], rop), wfn_corrs[b].T)
                         op.append(subrep)
 
                     full_ops.append([

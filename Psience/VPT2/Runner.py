@@ -1283,6 +1283,7 @@ class VPTSolverOptions:
         "use_block_recurrence",
         "wavefunction_workspace_bytes",
         "sparse_low_order_corrections",
+        "evaluation_mode",
         "zero_element_warning",
         "degenerate_states",
         "zero_order_energy_corrections",
@@ -1328,9 +1329,15 @@ class VPTSolverOptions:
                  wavefunction_workspace_bytes=None,
                  sparse_low_order_corrections=None,
                  strong_coupling_property_filter=None,
-                 strong_coupling_correction_filter=None
+                 strong_coupling_correction_filter=None,
+                 evaluation_mode=None
                  ):
         """
+        :param evaluation_mode: Omitted/None preserves all current stored paths, including H(0).
+            Explicit 'runtime' or 'positions' enables the evaluated matrix backend,
+            with vector H(0), stored H(1), and the selected mode for higher orders.
+            A dict changes only the listed orders; unlisted orders stay stored.
+            'stored' explicitly selects the existing implementation.
         :param order: the order of perturbation theory to apply
         :type order: int
         :type order: int
@@ -1414,6 +1421,7 @@ class VPTSolverOptions:
             use_block_recurrence=use_block_recurrence,
             wavefunction_workspace_bytes=wavefunction_workspace_bytes,
             sparse_low_order_corrections=sparse_low_order_corrections,
+            evaluation_mode=evaluation_mode,
             strong_coupling_property_filter=strong_coupling_property_filter,
             strong_coupling_correction_filter=strong_coupling_correction_filter
         )

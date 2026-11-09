@@ -33,6 +33,7 @@ class PerturbationTheorySolver:
     Supports degenerate and non-degenerate PT.
     """
 
+    evaluation_mode = None  # Old restored solvers retain their existing backend.
     default_wavefunction_workspace_bytes = 64*1024**2
     state_formatting = 'quanta'
 
@@ -101,7 +102,8 @@ class PerturbationTheorySolver:
                  strong_coupling_property_filter=False,
                  strong_coupling_correction_filter=None,
                  state_formatting='quanta',
-                 state_space_flush_buffer=None
+                 state_space_flush_buffer=None,
+                 evaluation_mode=None
                  ):
         """
 
@@ -172,6 +174,26 @@ class PerturbationTheorySolver:
                 memory_limit=state_space_memory_limit, resident_bytes=state_space_resident_bytes,
                 flush_buffer=state_space_flush_buffer)
             self.state_space_flush_buffer = self._state_space_store.flush_buffer
+        if evaluation_mode is not None and not (isinstance(evaluation_mode, str) and evaluation_mode == 'stored'):
+            modes = {'stored', 'positions', 'runtime', 'diagonal'}
+            if isinstance(evaluation_mode, str):
+                if evaluation_mode not in modes-{'diagonal'}:
+                    raise ValueError('Unknown evaluation_mode: '+evaluation_mode)
+                evaluation_mode = {0: 'diagonal', **{
+                    k: ('stored' if k == 1 else evaluation_mode)
+                    for k in range(1, len(perturbations))}}
+            if not isinstance(evaluation_mode, dict):
+                raise TypeError('evaluation_mode must be a mode string or an order-to-mode dictionary')
+            if any(not isinstance(k, (int, np.integer)) or k < 0 or v not in modes
+                   or (k != 0 and v == 'diagonal') for k, v in evaluation_mode.items()):
+                raise ValueError('Invalid perturbation-order evaluation policy')
+            if any(v != 'stored' for v in evaluation_mode.values()):
+                self.evaluation_mode = dict(evaluation_mode)
+            implicit = any(v in ('positions', 'runtime') for v in evaluation_mode.values())
+            if implicit and use_cached_representations:
+                raise ValueError('Runtime/positions bindings must be rebuilt; disable use_cached_representations')
+            if implicit and modify_degenerate_perturbations:
+                raise ValueError('In-place modification of implicit perturbations is unsupported; use stored evaluation')
         self._reps = None
         self.order = order
         self.state_space_iterations = state_space_iterations
@@ -536,7 +558,10 @@ class PerturbationTheorySolver:
                     #             )
                     #         )
                     self._zo_engs[inds] = energies
-                self.representations[0] = SparseArray.from_diag(self._zo_engs)
+                if self.evaluation_mode is not None and self.evaluation_mode.get(0, 'stored') != 'stored':
+                    self.representations[0] = nput.EvaluatedSparseMatrix.from_diagonal_data(self._zo_engs)
+                else:
+                    self.representations[0] = SparseArray.from_diag(self._zo_engs)
         return self._zo_engs
 
     def apply_VPT(self):
@@ -593,6 +618,13 @@ class PerturbationTheorySolver:
                         H = None
                 except (OSError, KeyError):
                     H = None
+                if (H is not None and self.evaluation_mode is not None
+                        and self.evaluation_mode.get(0, 'stored') == 'diagonal'):
+                    H = list(H)
+                    if not isinstance(H[0], nput.EvaluatedSparseMatrix):
+                        old = H[0]
+                        values = old._mapped_diagonal if hasattr(old, '_mapped_diagonal') else old.diag
+                        H[0] = nput.EvaluatedSparseMatrix.from_diagonal_data(values)
                 if H is None:
                     self.logger.log_print('failed to load, building instead...')
 
@@ -609,7 +641,10 @@ class PerturbationTheorySolver:
                             start = time.time()
                             H[0] = self.perts[0].get_representation_matrix(self.flat_total_space, self.flat_total_space,
                                                                            zero_element_warning=self.zero_element_warning,
-                                                                           diagonal=True
+                                                                           diagonal=True,
+                                                                           **({} if self.evaluation_mode is None else dict(
+                                                                               evaluation_mode=self.evaluation_mode.get(0, 'stored'),
+                                                                               evaluation_working_memory=self.wavefunction_workspace_bytes))
                                                                            )
                             end = time.time()
                             logger.log_print("took {t:.3f}s", t=end - start)
@@ -634,7 +669,10 @@ class PerturbationTheorySolver:
                                                                            memory_constrained=self.memory_constrained,
                                                                            deduplication_method=self.state_space_storage,
                                                                            deduplication_directory=self.state_space_scratch,
-                                                                           deduplication_flush_buffer=self.state_space_flush_buffer
+                                                                           deduplication_flush_buffer=self.state_space_flush_buffer,
+                                                                           **({} if self.evaluation_mode is None else dict(
+                                                                               evaluation_mode=self.evaluation_mode.get(i+1, 'stored'),
+                                                                               evaluation_working_memory=self.wavefunction_workspace_bytes))
                                                                            )
                                     h.clear_cache()
                                     end = time.time()
@@ -655,7 +693,7 @@ class PerturbationTheorySolver:
                 directory = Path(self.hamiltonian_storage)
                 directory.mkdir(parents=True, exist_ok=True)
                 for order, matrix in enumerate(H):
-                    if isinstance(matrix, SparseArray):
+                    if isinstance(matrix, SparseArray) and not isinstance(matrix, nput.EvaluatedSparseMatrix):
                         path = directory / "H{}.npz".format(order)
                         save_sparse_matrix(path, matrix)
                         H[order] = load_sparse_matrix(path)
@@ -675,7 +713,8 @@ class PerturbationTheorySolver:
         :rtype: list[SparseArray]
         """
 
-        if self._state_space_store is not None:
+        if self._state_space_store is not None or (self.evaluation_mode is not None and
+                any(mode != 'stored' for mode in self.evaluation_mode.values())):
             # Rebuild from the merged recipes into mapped CSR. The resident
             # splice below materializes all old/new COO entries for np.unique.
             self._zo_engs = None

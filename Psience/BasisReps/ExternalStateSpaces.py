@@ -539,7 +539,7 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
         saved = _StoredCouplings(store.unique(records(graph), width=3))
         return cls(source, recipes=[(source, saved, None, None, (), ())])
 
-    def iter_pair_blocks(self, filter_space=None):
+    def iter_pair_blocks(self, filter_space=None, source_filter=None):
         """Generate directed pairs, pushing target restrictions before expansion.
 
         For native graded bases, generate from the smaller unique endpoint set
@@ -547,6 +547,21 @@ class DiskSelectionRuleStateSpace(SelectionRuleStateSpace):
         and restoring (bra, ket) order preserves nonsymmetric rule directions.
         Explicit owned polyad records keep their original ownership handling.
         """
+        if source_filter is not None:
+            selected = self.store.coerce(source_filter)
+            recipes = []
+            for source, rules, filtered, dimensions, transforms, excluded in self.recipes:
+                if not transforms and not isinstance(rules, _StoredCouplings):
+                    source = self.store.coerce(source)
+                    ids = selected.indices[source._contains(selected.indices)]
+                    source = DiskBasisStateSpace(self.basis, ids, self.store,
+                                                canonical=selected.is_sorted(), unique=True)
+                recipes.append((source, rules, filtered, dimensions, transforms, excluded))
+            graph = type(self)(self._base_space, recipes=recipes)
+            for pairs in graph.iter_pair_blocks(filter_space):
+                keep = selected._contains(pairs[:, 0])
+                if np.any(keep): yield pairs[keep]
+            return
         size = self.store.block_size
         outer_filter = (filter_space if isinstance(filter_space, QuantaStateSpace) else
                         None if filter_space is None else self.store.coerce(filter_space))
