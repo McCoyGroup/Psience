@@ -97,6 +97,18 @@ class PerturbationTheoryCorrections:
             so callers can release the returned dense block after this call.
             """
             selected = np.asarray(selected)
+            if isinstance(corrections, tuple):
+                # Mixed per-order CSR/dense blocks from the opt-in recurrence.
+                expected = (len(selected), self.shape[2])
+                if selected.ndim != 1 or len(corrections) != self.shape[1] or any(
+                        level.shape != expected for level in corrections):
+                    raise ValueError('Incorrect completed correction block shape')
+                for position in np.flatnonzero(selected >= 0):
+                    index = selected[position]
+                    for order, level in enumerate(corrections):
+                        row = level.getrow(position) if sp.issparse(level) else level[position]
+                        self._set_order_row(index, order, row)
+                return
             data = np.asarray(corrections)
             if selected.ndim != 1 or data.shape != (len(selected),) + self.shape[1:]:
                 raise ValueError('Incorrect completed correction block shape')
@@ -106,6 +118,21 @@ class PerturbationTheoryCorrections:
             else:
                 for index in np.flatnonzero(present):
                     self[selected[index]] = data[index]
+
+        def _set_order_row(self, index, order, row):
+            if sp.issparse(row):
+                row = row.tocsr(copy=True)
+                row.sum_duplicates(); row.sort_indices()
+                keep = row.data != 0 if self.cutoff is None or self.cutoff < 0 else np.abs(row.data) > self.cutoff
+                values, positions = row.data[keep], row.indices[keep].astype(np.intp)
+            else:
+                row = np.asarray(row)
+                positions = np.flatnonzero(row != 0 if self.cutoff is None or self.cutoff < 0 else np.abs(row) > self.cutoff)
+                values = row[positions]
+            old_values, old_positions = self.rows[index][order]
+            self.rows[index][order] = values, positions
+            self.retained_bytes += values.nbytes+positions.nbytes-old_values.nbytes-old_positions.nbytes
+            self.peak_retained_bytes = max(self.peak_retained_bytes, self.retained_bytes)
 
         def dot(self, left, lo, right, ro):
             def vector(n, order):
@@ -220,6 +247,23 @@ class PerturbationTheoryCorrections:
                     self.retained_bytes += row.nbytes-old[order].nbytes
                     old[order] = row
                     self.peak_retained_bytes = max(self.peak_retained_bytes, self.retained_bytes)
+
+        def _set_order_row(self, index, order, row):
+            from McUtils.Numputils import CompactSparseRow
+            if sp.issparse(row):
+                row = row.tocsr(copy=True)
+                row.sum_duplicates(); row.sort_indices()
+                if self.cutoff is not None and self.cutoff >= 0:
+                    row.data[~(np.abs(row.data) > self.cutoff)] = 0
+                new = CompactSparseRow.from_native(row, self.block_size)
+            else:
+                new = CompactSparseRow.from_dense(row, self.cutoff, self.block_size)
+            if self._spill_store is not None:
+                new = self._spill_store.retain(new)
+            old = self.rows[index][order]
+            self.rows[index][order] = new
+            self.retained_bytes += new.nbytes-old.nbytes
+            self.peak_retained_bytes = max(self.peak_retained_bytes, self.retained_bytes)
 
         def dot(self, left, lo, right, ro):
             a, b = self.rows[left][lo].native(), self.rows[right][ro].native()

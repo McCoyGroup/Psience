@@ -599,7 +599,8 @@ class Representation:
                                   remove_duplicates=True,
                                   memory_constrained=None,
                                   deduplication_method="memory",
-                                  deduplication_directory=None
+                                  deduplication_directory=None,
+                                  deduplication_flush_buffer=None
                                   ):
         """
         Actively constructs a perturbation theory Hamiltonian representation
@@ -637,7 +638,8 @@ class Representation:
         if remove_duplicates and not (diagonal and coupled_space is total_space):
             m_pairs = m_pairs.remove_duplicates(assume_symmetric=assume_symmetric,
                                                method=deduplication_method,
-                                               directory=deduplication_directory)
+                                               directory=deduplication_directory,
+                                               flush_buffer=deduplication_flush_buffer)
 
         if len(m_pairs) > 0:
             # logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))

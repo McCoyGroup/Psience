@@ -1,8 +1,8 @@
 """Mapped state frontiers and replayable, bounded coupling transformations."""
 from pathlib import Path
-import itertools, tempfile, weakref
+import itertools, tempfile, weakref, time
 import numpy as np
-from McUtils.Numputils import external_unique, SparseArray
+from McUtils.Numputils import external_unique, SparseArray, release_mapped_pages, MappedArrayFlushBuffer
 from McUtils.Combinatorics import SymmetricGroupGenerator, UniquePermutations
 from .StateIndexers import PermutationStateIndexer
 from .StateSpaces import BasisStateSpace, BasisStateSpaceView, SelectionRuleStateSpace, BraKetSpace
@@ -21,12 +21,21 @@ def _cleanup_store(mappings, temporary):
 
 
 class StateSpaceDiskStore:
-    def __init__(self, directory=None, block_size=65536, *, memory_limit=None):
+    def __init__(self, directory=None, block_size=65536, *, memory_limit=None, resident_bytes=None, flush_buffer=None):
         if block_size < 1:
             raise ValueError('state_space_block_size must be positive')
         if memory_limit is not None and (not np.isfinite(memory_limit) or memory_limit<0):
             raise ValueError('state-space memory_limit must be nonnegative bytes or None')
+        if resident_bytes is not None and (not isinstance(resident_bytes, (int, np.integer)) or resident_bytes < 1):
+            raise ValueError('state_space_resident_bytes must be positive integer bytes or None')
+        self.resident_bytes = resident_bytes
+        self._touched_bytes = 0
         self.memory_limit=memory_limit
+        if isinstance(flush_buffer, dict):
+            flush_buffer=MappedArrayFlushBuffer(**flush_buffer)
+        if flush_buffer is not None and not isinstance(flush_buffer, MappedArrayFlushBuffer):
+            raise TypeError('flush_buffer must be a MappedArrayFlushBuffer, configuration dict, or None')
+        self.flush_buffer=flush_buffer
         if directory is not None:
             Path(directory).mkdir(parents=True, exist_ok=True)
         self._temporary = tempfile.TemporaryDirectory(prefix='coupled_states_', dir=directory)
@@ -35,7 +44,9 @@ class StateSpaceDiskStore:
         self._counter = itertools.count()
         self._mappings = weakref.WeakSet()
         self._finalize = weakref.finalize(self,_cleanup_store,self._mappings,self._temporary)
-        self.metrics = dict(peak_source_states=0, peak_candidate_pairs=0, generated_pairs=0)
+        self.metrics = dict(peak_source_states=0, peak_candidate_pairs=0, generated_pairs=0,
+            page_release_calls=0, page_release_failures=0, page_release_seconds=0.,
+            retired_files=0, retired_file_bytes=0)
 
     def path(self, label):
         return self.directory / ('{}_{}.npy'.format(label, next(self._counter)))
@@ -46,6 +57,51 @@ class StateSpaceDiskStore:
             if array._mmap is not None:self._mappings.add(array._mmap)
             array._state_space_store = self
         return array
+
+    def checkpoint(self, touched_bytes=0, *, force=False):
+        """Batch writeback/page release for this explicitly opted-in store.
+
+        touched_bytes is traffic accounting, not measured resident memory.
+        Borrowed views remain valid; future accesses fault their pages back in.
+        """
+        if self.resident_bytes is None:
+            return
+        self._touched_bytes += int(touched_bytes)
+        if not force and self._touched_bytes < self.resident_bytes:
+            return
+        tick = time.perf_counter()
+        for mapping in list(self._mappings):
+            if mapping.closed:
+                continue
+            try:
+                if release_mapped_pages(mapping):
+                    self.metrics['page_release_calls'] += 1
+                else:
+                    self.metrics['page_release_failures'] += 1
+            except (OSError, ValueError):
+                self.metrics['page_release_failures'] += 1
+        self.metrics['page_release_seconds'] += time.perf_counter()-tick
+        self._touched_bytes = 0
+
+    def retire(self, array):
+        """Unlink an owned build-only file after its last mapped view dies.
+
+        Never close a mapping here: CSR/NumPy views may still borrow it.
+        Call only for disposable local work, never retained frontiers/results.
+        """
+        if self.resident_bytes is None or not isinstance(array, np.memmap):
+            return
+        path = Path(array.filename)
+        if path.parent != self.directory:
+            raise ValueError('Cannot retire a file owned by another store')
+        metrics = self.metrics
+        size = path.stat().st_size
+        def unlink():
+            if path.exists():
+                path.unlink()
+                metrics['retired_files'] += 1
+                metrics['retired_file_bytes'] += size
+        weakref.finalize(array._mmap, unlink)
 
     def array(self, label, dtype, shape):
         # One bounded work chunk does not need a live file/mapping descriptor.
@@ -63,7 +119,7 @@ class StateSpaceDiskStore:
             if count>self.block_size:break
         output=self.path('unique') if count>self.block_size else None
         result=external_unique(itertools.chain(head,iterator),sort=sort,directory=self.directory,
-                               chunk_size=self.block_size,output_file=output)
+                               chunk_size=self.block_size,output_file=output,flush_buffer=self.flush_buffer)
         if isinstance(result,np.memmap) and len(result)<=self.block_size:
             # This result has not escaped: copy it before closing its sole map.
             resident=np.array(result,copy=True)
@@ -978,7 +1034,9 @@ def disk_representation(representation, coupled, total, *, diagonal=False, filte
             data[start:stop] = values
             indices[start:stop] = np.arange(start,stop)
             indptr[start:stop] = np.arange(start,stop)
+            store.checkpoint((stop-start)*(data.dtype.itemsize+indices.dtype.itemsize+indptr.dtype.itemsize))
         indptr[n] = n
+        store.checkpoint(force=True)
         result = _mapped_csr(store,data,indices,indptr,n)
         result._mapped_diagonal = data
         return result
@@ -997,6 +1055,7 @@ def disk_representation(representation, coupled, total, *, diagonal=False, filte
         coupled = store.coerce(coupled)
         graph = coupled.apply_selection_rules(representation.selection_rules)
         pairs = graph.canonical_pairs(other=coupled if filter_space is None else filter_space)
+    store.retire(pairs)
     def evaluate(block, warn=True):
         bras = BasisStateSpace(total.basis,block[:,0],mode='indices')
         kets = BasisStateSpace(total.basis,block[:,1],mode='indices')
@@ -1020,25 +1079,31 @@ def disk_representation(representation, coupled, total, *, diagonal=False, filte
     extra_shape = example.shape[1:]
     components = int(np.prod(extra_shape)) if extra_shape else 1
     counts = store.array('counts', np.int64, (n+1,))
+    store.retire(counts)
     counts[:] = 0
     for start in range(0,len(pairs),size):
         block = pairs[start:start+size]
         rows, cols = total.find(block[:,0]), total.find(block[:,1])
         np.add.at(counts,rows+1,components)
         np.add.at(counts,cols[rows!=cols]+1,components)
+        store.checkpoint(block.nbytes+2*len(block)*counts.dtype.itemsize)
     carry = 0
     for start in range(0,n+1,size):
         block = np.cumsum(counts[start:start+size],dtype=np.int64) + carry
         counts[start:start+len(block)] = block
         if len(block):
             carry = int(block[-1])
+        store.checkpoint(block.nbytes)
     dtype = np.int32 if max(n*components,carry) < 2**31-1 else np.int64
     indptr = store.array('indptr',dtype,(n+1,))
     cursor = store.array('cursor',np.int64,(n,))
+    store.retire(cursor)
     for start in range(0,n+1,size):
         indptr[start:start+size] = counts[start:start+size]
     for start in range(0,n,size):
         cursor[start:start+size] = counts[start:min(start+size,n)]
+        store.checkpoint(min(size,n-start)*cursor.dtype.itemsize)
+    del counts
     data = store.array('data',np.result_type(example.dtype,float),(carry,))
     indices = store.array('indices',dtype,(carry,))
     def insert(rows,cols,values):
@@ -1062,4 +1127,6 @@ def disk_representation(representation, coupled, total, *, diagonal=False, filte
         off = rows!=cols
         insert(cols[off],rows[off],values[off])
         representation.clear_cache()
+        store.checkpoint(block.nbytes+2*values.nbytes+2*len(block)*indices.dtype.itemsize)
+    store.checkpoint(force=True)
     return _mapped_csr(store,data,indices,indptr,n,extra_shape=extra_shape)

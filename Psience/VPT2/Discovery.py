@@ -99,78 +99,61 @@ class AnalyticPropertyDiscovery:
             return reachable
         return reachable.intersection(self._uses.get((source_quanta, order), ()))
 
-    def _endpoint_signatures(self, order, ndim):
-        """Shared canonical selection-rule data for scalar and block screening."""
-        from .Analytic import PerturbationTheoryTerm
-        signatures = {
-            tuple(c for c in PerturbationTheoryTerm.sorted_changes(rule) if c)
-            for rule in self._wavefunction_rules(order) if len(rule) <= ndim
-        }
-        width = max(map(len, signatures), default=0)
-        maximum = max((sum(abs(c) for c in rule) for rule in signatures), default=0)
-        patterns = np.zeros((len(signatures), width), dtype=int)
-        for row, rule in enumerate(signatures):
-            patterns[row,:len(rule)] = rule
-        return signatures, patterns, width, maximum
-
     def allowed_endpoints(self, source, endpoints, order):
-        """Return a structural mask using the same rules as generation filtering."""
+        """Return a cheap structural mask; never evaluate a coefficient here."""
+        from .Analytic import PerturbationTheoryTerm
         endpoints = np.asarray(endpoints, dtype=int)
         allowed = self.endpoint_quanta(source, order)
         keep = np.isin(np.sum(endpoints, axis=-1), list(allowed))
         if not np.any(keep):
             return keep
-        signatures, patterns, width, maximum = self._endpoint_signatures(order, endpoints.shape[-1])
+        changes = self._wavefunction_rules(order)
+        signatures = {tuple(PerturbationTheoryTerm.sorted_changes(rule)) for rule in changes
+            if len(rule) <= endpoints.shape[-1]}
         positions = np.flatnonzero(keep)
         if not signatures:
             keep[positions] = False
             return keep
         diffs = endpoints[positions]-source
+        width = max(map(len, signatures), default=0)
+        maximum = max((sum(abs(c) for c in rule) for rule in signatures), default=0)
+        # Exact integer selection-rule bounds, not a numerical magnitude cutoff.
         possible = ((np.count_nonzero(diffs, axis=-1) <= width)
                     & (np.sum(np.abs(diffs), axis=-1) <= maximum))
         keep[positions[~possible]] = False
         positions = positions[possible]
         diffs = diffs[possible]
-        if not len(positions) or width == 0:
+        if not len(positions):
             return keep
-        from .Analytic import PerturbationTheoryTerm
+        if width == 0:
+            return keep
         permutations = PerturbationTheoryTerm.change_sort(diffs)
-        diffs = nput.vector_take(diffs, permutations, shared=1)[:,:width]
-        matches, _ = nput.find(patterns, diffs, missing_val=len(patterns))
-        keep[positions] = matches < len(patterns)
+        diffs = nput.vector_take(diffs, permutations, shared=1)[:, :width]
+        patterns = np.zeros((len(signatures), width), dtype=diffs.dtype)
+        for row, rule in enumerate(signatures):
+            patterns[row, :len(rule)] = rule
+        if len(patterns):
+            matches, _ = nput.find(patterns, diffs, missing_val=len(patterns))
+            keep[positions] = matches < len(patterns)
+        else:
+            keep[positions] = False
         return keep
-
-    def _endpoint_filter(self, source, order):
-        """Prepare an exact scalar predicate before output occupations are copied."""
-        from .Analytic import PerturbationTheoryTerm
-        source = np.asarray(source, dtype=int)
-        allowed = self.endpoint_quanta(source, order)
-        signatures, _, width, maximum = self._endpoint_signatures(order, len(source))
-        source_support = tuple(np.flatnonzero(source))
-
-        def accept(state):
-            if int(np.sum(state)) not in allowed:
-                return False
-            positions = set(np.flatnonzero(state))
-            positions.update(source_support)
-            changes = [int(state[i])-int(source[i]) for i in positions
-                       if state[i] != source[i]]
-            if len(changes) > width or sum(abs(c) for c in changes) > maximum:
-                return False
-            return tuple(PerturbationTheoryTerm.sorted_changes(changes)) in signatures
-
-        return accept
 
     _candidate_batch_size = 32
 
     def candidate_spaces(self, input_states, energy_window, orders, *,
-                         block_size=None, max_bytes=64*1024**2):
-        """Stream exact rule-filtered endpoints into sparse occupation storage.
+                         block_size=None, max_bytes=64*1024**2, filter_at_generation=False):
+        """Apply the native vectorized endpoint screen to bounded dense blocks.
 
-        Nearby-energy queries still share a traversal. One byte-bounded output
-        stream is shared by the batch; complete unfiltered window tables are
-        never materialized. Retained sparse results still scale with the number
-        of accepted endpoints. Numerical coefficients and cutoffs are unchanged.
+        filter_at_generation opts into the existing BasisStateSpaceFilter
+        interface to carry exact signed-rule progress during generation. The
+        default keeps the separately profiled vectorized dense-batch path.
+
+        The iterator bounds unfiltered working storage; only accepted rows
+        enter the existing sparse results. Retained result storage still grows
+        with accepted endpoints. max_bytes bounds the emitted dense block and
+        tags; selection/sorting workspaces add bounded overhead proportional
+        to that block, rather than to the complete unfiltered search.
         """
         freqs = np.asarray(self.eval.freqs)
         sorting = np.argsort(freqs)
@@ -188,20 +171,40 @@ class AnalyticPropertyDiscovery:
                 windows = [[max(float(energies[i])-energy_window, 0),
                             float(energies[i])+energy_window] for i in rows]
                 max_state = np.max(sources[rows], axis=0)+max_change
-                predicates = [self._endpoint_filter(sources[i][sorting], a) for i in rows]
                 pieces = [[] for _ in rows]
+                generation_filter = None
+                if filter_at_generation:
+                    filter_sources = BasisStateSpace(input_states.basis,sources[rows][:,sorting])
+                    by_quanta = {}
+                    for position,i in enumerate(rows):
+                        by_quanta.setdefault((int(np.sum(sources[i])),tuple(sorted(quanta[i]))),[]).append(position)
+                    prefilters = [(BasisStateSpace(input_states.basis,
+                                      filter_sources.excitations[positions]),
+                                   [rule for rule in rules if len(rule)<=len(freqs)
+                                    and sum(rule) in {q-source_quanta for q in allowed}])
+                                  for (source_quanta,allowed),positions in by_quanta.items()]
+                    generation_filter = BasisStateSpaceFilter(filter_sources,prefilters,None)
                 for tags, block in BasisStateSpace.states_in_windows(
                         freqs[sorting], windows, max_state=max_state[sorting],
                         min_quantas=[min(quanta[i]) for i in rows],
                         max_quantas=[max(quanta[i]) for i in rows],
-                        block_size=block_size, max_bytes=max_bytes, sparse=True,
-                        sparse_traversal=False, return_iterator=True,
-                        filter=lambda state, window:predicates[window](state)):
+                        block_size=block_size, max_bytes=max_bytes, sparse=filter_at_generation,
+                        sparse_traversal=filter_at_generation, return_iterator=True,
+                        **({'filter':generation_filter} if generation_filter is not None else {})):
                     for window in np.unique(tags):
-                        selected = np.flatnonzero(tags == window)
-                        data = block.data[selected,:][:,inverse]
-                        data.sort_indices()
-                        pieces[int(window)].append(nput.SparseArray.from_data(data))
+                        i = rows[window]
+                        if filter_at_generation:
+                            pieces[int(window)].append(nput.SparseArray.from_data(
+                                block.data[:,inverse]))
+                            continue
+                        candidates = block[tags == window][:,inverse]
+                        keep = self.allowed_endpoints(sources[i], candidates, a)
+                        if np.any(keep):
+                            accepted = candidates[keep]
+                            dtype = np.promote_types(BasisStateSpace.excitations_dtype,
+                                nput.infer_int_dtype(int(np.max(accepted))))
+                            pieces[int(window)].append(nput.SparseArray.from_data(
+                                accepted.astype(dtype, copy=False), layout='csr'))
                 for i, chunks in zip(rows, pieces):
                     sparse = (chunks[0].concatenate(*chunks[1:],axis=0) if len(chunks)>1
                               else chunks[0] if chunks else
@@ -209,7 +212,6 @@ class AnalyticPropertyDiscovery:
                     chunks.clear()
                     result[i][a] = BasisStateSpace(input_states.basis, sparse)
         return result
-
 
     def get_test_wfn_corrs(self, input_states, energy_window, order=None,
                            degenerate_states=None, target_orders=None,

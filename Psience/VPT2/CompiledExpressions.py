@@ -21,6 +21,7 @@ import pickle
 import sys
 import time
 import uuid
+import weakref
 import numpy as np
 from McUtils.Parallelizers import Parallelizer, MultiprocessingParallelizer
 from McUtils.Devutils import (atomic_write, atomic_write_json, file_hash, freeze, fingerprint,
@@ -35,17 +36,30 @@ __all__ = ['AnalyticExpressionStore', 'CompiledAnalyticExpression',
 
 _current_compilation = contextvars.ContextVar('analytic_compilation', default=None)
 _current_free_index_reduction = contextvars.ContextVar('analytic_free_index_reduction', default=False)
+_current_coefficient_fingerprints = contextvars.ContextVar('analytic_coefficient_fingerprints', default=None)
 
 
 @contextlib.contextmanager
 def compiled_evaluation_context(store, compilation_options=None, evaluation_options=None,
                                 parallelizer=None):
+    """Bind immutable coefficient tensors for one public evaluation.
+
+    Array content is fingerprinted on first binding and reused within this
+    context; changing a bound tensor requires a new context. Scalar coefficient
+    values, occupations and projector bindings remain request-specific. Nested
+    public calls reuse the existing context through _compiled_evaluation_context.
+    """
+    cache = None if store is None else {}
+    coefficient_token = _current_coefficient_fingerprints.set(cache)
     token = _current_compilation.set(None if store is None else
         (store, compilation_options or {}, evaluation_options or {}, parallelizer))
     try:
         yield
     finally:
         _current_compilation.reset(token)
+        _current_coefficient_fingerprints.reset(coefficient_token)
+        if cache is not None:
+            cache.clear()
 
 
 def current_compilation():
@@ -617,7 +631,7 @@ class CompiledAnalyticEvaluation:
                 if not np.array_equal(state,expected) or not np.array_equal(perms,np.arange(len(self.freqs))[None]):
                     raise ValueError('occupation-specialized expression used outside its target-state domain')
         elif self.anchored_modes:raise ValueError('anchoring requires a matching final occupation projection')
-        signature=_fingerprint(dict(expression=compiled.manifest['signature'],states=self.state_perms,
+        signature=self._fingerprint_context(dict(expression=compiled.manifest['signature'],states=self.state_perms,
             coefficients=coeffs,frequencies=self.freqs,anchors=self.anchored_modes,numerical=self.numerical_options,
             batch_size=self.batch_size,task_size=self.task_size))
         self.folder=None if compiled.folder is None else compiled.folder/'evaluations'/signature
@@ -635,6 +649,48 @@ class CompiledAnalyticEvaluation:
         if self.folder is not None:_atomic_json(self.folder/'plan.json',dict(signature=signature,expression_signature=compiled.manifest['signature'],
             kind='numerical-task-plan',task_count=len(tasks),subset_part_count=sum(t['stop']-t['start'] for t in tasks),
             batch_size=self.batch_size,task_size=self.task_size,tasks=tasks))
+
+
+    @staticmethod
+    def _fingerprint_context(context):
+        # Physical coefficient tensors are bound as immutable for the active
+        # evaluation context. Cache their frozen content, not runtime inputs.
+        cache = _current_coefficient_fingerprints.get()
+        if cache is None:
+            return _fingerprint(context)
+        from McUtils.Parallelizers import SharedMemoryArrayTree
+        arrays = {}
+        def bind(value):
+            if isinstance(value, np.ndarray):
+                # Per-element scalar coefficients can change between requests.
+                if value.ndim == 0 or value.dtype.hasobject:
+                    return
+                key = id(value)
+                entry = cache.get(key)
+                if entry is None or entry[0]() is not value:
+                    frozen = _freeze(value)
+                    def dropped(ref, key=key):
+                        old = cache.get(key)
+                        if old is not None and old[0] is ref:
+                            cache.pop(key, None)
+                    entry = (weakref.ref(value, dropped), frozen)
+                    cache[key] = entry
+                arrays[key] = entry[1]
+            elif isinstance(value, SharedMemoryArrayTree):
+                bind(value.tree)
+            elif isinstance(value, (list, tuple)):
+                for part in value:
+                    bind(part)
+            elif isinstance(value, dict):
+                for part in value.values():
+                    bind(part)
+        bind(context['coefficients'])
+        options = _freeze_options()
+        options['pre_handlers'] = [
+            (lambda value: isinstance(value, np.ndarray) and id(value) in arrays,
+             lambda value, rec: arrays[id(value)])
+        ] + options['pre_handlers']
+        return fingerprint(context, **options)
 
     def _context(self,coeffs=None):
         return dict(expression_folder=None if self.compiled.folder is None else str(self.compiled.folder),

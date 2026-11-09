@@ -1079,7 +1079,7 @@ class VPTRuntimeOptions:
         "results",
         "memory_constrained",
         "state_space_storage", "state_space_scratch", "hamiltonian_storage",
-        "state_space_memory_limit", "state_space_block_size",
+        "state_space_memory_limit", "state_space_block_size", "state_space_resident_bytes", "state_space_flush_buffer",
         "correction_storage", "correction_memory_limit", "correction_block_size", "correction_block_bytes",
         "correction_spill_directory", "correction_resident_bytes", "correction_spill_bytes", "correction_spill_segment_bytes",
         "resonance_memory_constrained", "resonance_block_size",
@@ -1103,6 +1103,7 @@ class VPTRuntimeOptions:
                  state_space_storage=None,
                  state_space_memory_limit=None,
                  state_space_block_size=None,
+                 state_space_resident_bytes=None,
                  state_space_scratch=None,
                  correction_storage=None,
                  correction_memory_limit=None,
@@ -1119,7 +1120,8 @@ class VPTRuntimeOptions:
                  use_cached_representations=None,
                  use_cached_basis=None,
                  use_analytic_harmonic_diagonal=None,
-                 state_formatting=None
+                 state_formatting=None,
+                 state_space_flush_buffer=None
                  ):
         """
         :param operator_chunk_size: the number of representation matrix elements to calculate in at one time
@@ -1145,6 +1147,10 @@ class VPTRuntimeOptions:
         :param state_space_memory_limit: estimated state-space RAM cutoff in bytes;
             default 5_000_000_000. None disables automatic switching.
         :param state_space_block_size: maximum generated pair block, default 65536.
+        :param state_space_flush_buffer: optional MappedArrayFlushBuffer or a dict
+            of its max_bytes/max_files settings for external-state intermediate
+            merges. None keeps immediate flushes. Final mapped outputs always
+            flush. Queue limits count file sizes, not process RAM or dirty pages.
         :param correction_storage: 'auto' (new preset), 'dense' (old preset), or
             'sparse', or opt-in 'compact' (adaptive rows, packed support and row-block matrices).
             Auto keeps the original dense collector below its budget.
@@ -1199,7 +1205,9 @@ class VPTRuntimeOptions:
             state_space_storage=state_space_storage,
             state_space_memory_limit=state_space_memory_limit,
             state_space_block_size=state_space_block_size,
+            state_space_resident_bytes=state_space_resident_bytes,
             state_space_scratch=state_space_scratch,
+            state_space_flush_buffer=state_space_flush_buffer,
             correction_storage=correction_storage,
             correction_memory_limit=correction_memory_limit,
             correction_block_size=correction_block_size,
@@ -1274,6 +1282,7 @@ class VPTSolverOptions:
         "intermediate_normalization",
         "use_block_recurrence",
         "wavefunction_workspace_bytes",
+        "sparse_low_order_corrections",
         "zero_element_warning",
         "degenerate_states",
         "zero_order_energy_corrections",
@@ -1317,6 +1326,7 @@ class VPTSolverOptions:
                  check_overlap=None,
                  use_block_recurrence=None,
                  wavefunction_workspace_bytes=None,
+                 sparse_low_order_corrections=None,
                  strong_coupling_property_filter=None,
                  strong_coupling_correction_filter=None
                  ):
@@ -1403,6 +1413,7 @@ class VPTSolverOptions:
             check_overlap=check_overlap,
             use_block_recurrence=use_block_recurrence,
             wavefunction_workspace_bytes=wavefunction_workspace_bytes,
+            sparse_low_order_corrections=sparse_low_order_corrections,
             strong_coupling_property_filter=strong_coupling_property_filter,
             strong_coupling_correction_filter=strong_coupling_correction_filter
         )
