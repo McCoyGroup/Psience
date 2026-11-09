@@ -7,8 +7,8 @@ import numpy as np
 from McUtils.Parallelizers import MultiprocessingParallelizer
 from McUtils.Scaffolding import Logger
 from Psience.VPT2 import AnalyticVPTRunner
-from Psience.VPT2 import CompiledExpressions as ce
-from Psience.VPT2.Projected import ProjectedCorrectionEvaluator
+from Psience.VPT2 import Evaluators as ce
+from Psience.VPT2.Analytic import ProjectedCorrectionEvaluator
 from Psience.VPT2.Runner import _timed_vpt_step
 
 class MemoryCompilationTests(unittest.TestCase):
@@ -155,8 +155,8 @@ from unittest import mock
 import numpy as np
 from Psience.VPT2 import AnalyticVPTRunner
 from Psience.VPT2.Analytic import PolyPath, PerturbationTheoryExpressionEvaluator
-from Psience.VPT2.BoundedStream import StreamBudget, retained_size
-from Psience.VPT2.Projected import AnalyticBlockExpansion, ProjectedCorrectionEvaluator
+from Psience.VPT2.Evaluators import StreamBudget, retained_size
+from Psience.VPT2.Analytic import AnalyticBlockExpansion, ProjectedCorrectionEvaluator
 
 class CompilationOverheadTests(unittest.TestCase):
     def test_weak_comparison_cache_preserves_equal_unequal_and_lifetimes(self):
@@ -196,7 +196,7 @@ class CompilationOverheadTests(unittest.TestCase):
         self.assertGreater(cut,100);self.assertLessEqual(cut,size)
 
     def test_degree_hint_matches_native_evaluation_and_bypass_is_optional(self):
-        from Psience.VPT2 import CompiledExpressions as ce
+        from Psience.VPT2 import Evaluators as ce
         from Psience.VPT2.Analytic import PTTensorCoeffProductSum
         poly=PTTensorCoeffProductSum({((1,0,0,0,0),):
             PolyPath.from_coeffs([np.array([1.,.2])],steps=0)})
@@ -237,7 +237,7 @@ class IntermediateBlockTests(unittest.TestCase):
         normal=AnalyticBlockExpansion(runner.eval,states,zero_cutoff=1e-24)
         direct=AnalyticBlockExpansion(runner.eval,states,zero_cutoff=1e-24,
                                      intermediate_normalization=True)
-        from Psience.VPT2 import CompiledExpressions as ce
+        from Psience.VPT2 import Evaluators as ce
         with ce.compiled_evaluation_context(runner.eval.expression_store):
             tick=time.perf_counter();normal.extend(3);normal_seconds=time.perf_counter()-tick
             tick=time.perf_counter();direct.extend(3);direct_seconds=time.perf_counter()-tick
@@ -354,7 +354,7 @@ class FreeIndexExecutorTests(unittest.TestCase):
             denominator='Absolute corresponding nonzero unreduced reference entry')
 
     def test_shared_plans_preserve_orientations_and_nonuniform_states(self):
-        from Psience.VPT2.IndexedEvaluator import IndexedBlockEvaluator
+        from Psience.VPT2.Evaluators import IndexedBlockEvaluator
         wrapper,states,coeffs,freqs=self.fixture()
         store=ce.AnalyticExpressionStore()
         baseline=store.compile(wrapper,context={'test':'binding'},mode_dimension=4,
@@ -400,7 +400,7 @@ class FreeIndexExecutorTests(unittest.TestCase):
             ce.AnalyticExpressionStore().compile(wrapper,context={},free_index_reduction='yes')
 
     def test_external_predicates_keep_native_plan(self):
-        from Psience.VPT2.IndexedEvaluator import IndexedBlockEvaluator
+        from Psience.VPT2.Evaluators import IndexedBlockEvaluator
         wrapper,states,coeffs,freqs=self.fixture()
         compiled=ce.AnalyticExpressionStore().compile(wrapper,context={},mode_dimension=4,
             free_index_reduction=True)
@@ -546,7 +546,7 @@ class FreeIndexBypassTests(unittest.TestCase):
 class SharedCanonicalValueTests(unittest.TestCase):
     observations={}
     def table(self,physical_blocks=None):
-        from Psience.VPT2.IndexedEvaluator import ConcreteBlockTable,IndexedBlockEvaluator
+        from Psience.VPT2.Evaluators import ConcreteBlockTable,IndexedBlockEvaluator
         from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression,_StatePermutationBlockIdentity
         wrapper,*_=FreeIndexExecutorTests().fixture()
         compiled=ce.AnalyticExpressionStore().compile(wrapper,context={'shared':'table'},mode_dimension=4,free_index_reduction=True)
@@ -588,7 +588,7 @@ class SharedCanonicalValueTests(unittest.TestCase):
     def test_nonunit_prefactors_batched_states_and_cutoffs(self):
         self.evaluate_case(True,True)
     def evaluate_case(self,batched,cutoffs):
-        from Psience.VPT2.IndexedEvaluator import IndexedBlockEvaluator
+        from Psience.VPT2.Evaluators import IndexedBlockEvaluator
         from Psience.VPT2.Analytic import PTEnergyChangeProductSum,PTTensorCoeffProductSum
         wrapper,states,coeffs,freqs=FreeIndexExecutorTests().fixture()
         if batched:states=[(state,np.array([[0,1,2,3]])) for state,_ in states]
@@ -624,7 +624,7 @@ class SharedEnergyRowTests(unittest.TestCase):
     observations = {}
 
     def evaluate(self, capacity=32*1024**2):
-        from Psience.VPT2.IndexedEvaluator import IndexedBlockEvaluator
+        from Psience.VPT2.Evaluators import IndexedBlockEvaluator
         from Psience.VPT2.Analytic import PTTensorCoeffProductSum as Coeff
         wrapper, states, coeffs, freqs = FreeIndexExecutorTests().fixture()
         value = next(iter(wrapper.expr.terms.values()))
@@ -693,7 +693,7 @@ class CompiledPreparationReuseTests(unittest.TestCase):
             self.assertEqual(ce._active_coefficient_operators([[[replacement]]]),())
 
     def test_generic_structure_keeps_live_scalar_and_projector_bindings(self):
-        from Psience.VPT2.Projected import AnalyticBlockExpansion
+        from Psience.VPT2.Analytic import AnalyticBlockExpansion
         runner=MemoryCompilationTests().runner()
         block=AnalyticBlockExpansion(runner.eval,[[1,0,0],[0,1,0]])
         scalar=block._scalar(.25)
@@ -777,7 +777,7 @@ class CompiledPreparationReuseTests(unittest.TestCase):
 
 class ProjectedBatchReuseTests(unittest.TestCase):
     def test_row_projectors_keep_each_reference_and_model_space(self):
-        from Psience.VPT2.Projected import ProjectionFactor, projected_energy_rows, projected_path_factors
+        from Psience.VPT2.Analytic import ProjectionFactor, projected_energy_rows, projected_path_factors
         frequencies=np.array([.013,.021,.034])
         states=[np.array([[0,0,0]]),np.array([[1,0,0]]),np.array([[0,1,0]])]
         permutations=[np.array([[0,1,2],[1,0,2]]) for _ in states]
@@ -793,7 +793,7 @@ class ProjectedBatchReuseTests(unittest.TestCase):
         for column in range(2):np.testing.assert_array_equal(actual[column],np.stack([x[column] for x in expected]))
 
     def test_batched_elements_rebind_projectors_and_scalar_coefficients(self):
-        from Psience.VPT2.Projected import AnalyticBlockExpansion
+        from Psience.VPT2.Analytic import AnalyticBlockExpansion
         from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression
         runner=MemoryCompilationTests().runner()
         def requests():
@@ -821,7 +821,7 @@ class ProjectedBatchReuseTests(unittest.TestCase):
         self.assertNotEqual(expected[0],expected[1])
 
     def test_cross_block_batching_and_hermitian_triangles_match_full_entries(self):
-        from Psience.VPT2.Projected import AnalyticBlockExpansion
+        from Psience.VPT2.Analytic import AnalyticBlockExpansion
         from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression
         runner=MemoryCompilationTests().runner()
         models=[[[0,0,0]],[[0,0,1]],[[1,0,0],[0,1,0]]]
@@ -844,7 +844,7 @@ class ProjectedBatchReuseTests(unittest.TestCase):
                     np.testing.assert_array_equal(b,b.conj().T)
 
     def test_pending_iterator_is_consumed_in_bounded_batches(self):
-        from Psience.VPT2.Projected import AnalyticBlockExpansion
+        from Psience.VPT2.Analytic import AnalyticBlockExpansion
         from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression
         runner=MemoryCompilationTests().runner();block=AnalyticBlockExpansion(runner.eval,[[0,0,0]])
         h=runner.eval.solver.hamiltonian_expansion[1];consumed=0;seen=[]
@@ -883,7 +883,7 @@ class ProjectedBatchReuseTests(unittest.TestCase):
 
 
     def test_numpy_scalar_cutoff_preserves_scalar_results(self):
-        from Psience.VPT2.Projected import AnalyticBlockExpansion
+        from Psience.VPT2.Analytic import AnalyticBlockExpansion
         runner=MemoryCompilationTests().runner()
         expected=AnalyticBlockExpansion(runner.eval,[[0,0,0]],zero_cutoff=1e-14)
         actual=AnalyticBlockExpansion(runner.eval,[[0,0,0]],zero_cutoff=np.array(1e-14))
@@ -894,7 +894,7 @@ class ProjectedBatchReuseTests(unittest.TestCase):
         self.assertEqual(a,b)
 
     def test_large_projector_bindings_reduce_the_route_batch(self):
-        from Psience.VPT2.Projected import AnalyticBlockExpansion
+        from Psience.VPT2.Analytic import AnalyticBlockExpansion
         from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression
         runner=MemoryCompilationTests().runner()
         block=AnalyticBlockExpansion(runner.eval,[[0,0,n] for n in range(100)])
@@ -953,7 +953,7 @@ class ProjectedBatchReuseTests(unittest.TestCase):
             self.assertTrue(plan.closed)
 
     def test_plan_coefficient_scalars_and_tensor_domains_remain_separate(self):
-        from Psience.VPT2.BoundedStream import StreamPreparationContext
+        from Psience.VPT2.Evaluators import StreamPreparationContext
         plan=StreamPreparationContext(None,immutable_expressions=True)
         tensor=np.arange(8.).reshape((2,)*3)
         a=[[[tensor,0.5]]];b=[[[tensor,0.7]]];c=[[[tensor.copy(),0.5]]]
@@ -1003,7 +1003,7 @@ class ProjectedBatchReuseTests(unittest.TestCase):
             self.assertTrue(native)
             self.assertTrue(plan.closed)
             self.assertFalse(plan.numeric)
-            from Psience.VPT2.BoundedStream import StreamPreparationContext
+            from Psience.VPT2.Evaluators import StreamPreparationContext
             for options,limit in [({},10000),({'path_cache_size':None},Expression.default_materialized_path_cache_size)]:
                 owner=StreamPreparationContext(None,options=options)
                 try:
@@ -1012,7 +1012,7 @@ class ProjectedBatchReuseTests(unittest.TestCase):
                 finally:owner.close()
 
     def test_zero_byte_capacity_disables_plan_path_storage(self):
-        from Psience.VPT2.BoundedStream import StreamPreparationContext
+        from Psience.VPT2.Evaluators import StreamPreparationContext
         plan=StreamPreparationContext(None,options={'path_cache_size':100,'path_cache_bytes':0})
         cache=plan.polynomial_cache()
         cache.batch_cache[('fixture',1)]=np.arange(4.)
@@ -1039,8 +1039,8 @@ class ProjectedBatchReuseTests(unittest.TestCase):
         self.assertIsNone(ce._current_evaluation_plan.get())
 
     def test_plan_frequency_sums_share_without_sharing_projection_masks(self):
-        from Psience.VPT2.BoundedStream import StreamPreparationContext
-        from Psience.VPT2.Projected import ProjectionFactor,projected_energy_rows
+        from Psience.VPT2.Evaluators import StreamPreparationContext
+        from Psience.VPT2.Analytic import ProjectionFactor,projected_energy_rows
         plan=StreamPreparationContext(None,immutable_expressions=True)
         freqs=np.array([.02,.03,.05]);perms=[np.array([[0,1,2],[1,0,2]])]
         frequencies=np.stack([freqs[p] for p in perms])
@@ -1063,7 +1063,7 @@ class ProjectedBatchReuseTests(unittest.TestCase):
         plan.close()
 
     def test_independent_coefficient_planes_keep_each_original_cutoff(self):
-        from Psience.VPT2.IndexedEvaluator import IndexedCoefficientGatherPlan,IndexedEvaluationStats
+        from Psience.VPT2.Evaluators import IndexedCoefficientGatherPlan,IndexedEvaluationStats
         product=((1,0,0,0,1),(1,0,0,0,1))
         small=np.full((2,2,2),2.**-30)
         large=np.full((2,2,2),.125)
@@ -1087,8 +1087,8 @@ class ProjectedBatchReuseTests(unittest.TestCase):
         self.assertEqual(len(legacy),0)
 
     def test_coefficient_plan_binds_tensor_preparation_before_the_hot_loop(self):
-        from Psience.VPT2.BoundedStream import StreamPreparationContext
-        from Psience.VPT2.IndexedEvaluator import IndexedCoefficientGatherPlan,IndexedEvaluationStats
+        from Psience.VPT2.Evaluators import StreamPreparationContext
+        from Psience.VPT2.Evaluators import IndexedCoefficientGatherPlan,IndexedEvaluationStats
         tensor=np.full((2,2,2),.125)
         context=StreamPreparationContext(None,immutable_expressions=True)
         product=((1,0,0,0,1),(1,0,0,0,1))
@@ -1166,7 +1166,7 @@ class ProjectedBatchReuseTests(unittest.TestCase):
 
     def test_operator_transition_and_xyz_batches_match_scalar_components(self):
         from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression
-        from Psience.VPT2.Projected import AnalyticBlockExpansion
+        from Psience.VPT2.Analytic import AnalyticBlockExpansion
         helper=MemoryCompilationTests()
         def make_runner():
             runner=helper.runner()

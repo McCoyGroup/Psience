@@ -5,7 +5,7 @@ from unittest import mock
 import numpy as np
 from McUtils.Scaffolding import NullLogger,NullCheckpointer
 from Psience.VPT2 import AnalyticVPTRunner,AnalyticTermContributions,PerturbationTermOrder
-from Psience.VPT2 import CompiledExpressions as ce
+from Psience.VPT2 import Evaluators as ce
 from Psience.VPT2.Solver import PerturbationTheorySolver
 from Psience.BasisReps import HarmonicOscillatorProductBasis,BasisStateSpace,ArrayStateIndexer
 
@@ -150,7 +150,7 @@ class TermContributionTests(unittest.TestCase):
                 r.get_hamiltonian_term_contributions([[0],[1]],order=3,**kwargs)
         with self.assertRaises(ValueError):r.get_hamiltonian_term_contributions([[0],[1]],terms=[(2,0,1)])
     def test_conditional_hamiltonian_terms_reconstruct_native_total(self):
-        from Psience.VPT2.Conditional import SameStateCondition
+        from Psience.VPT2.Analytic import SameStateCondition
         original,_,_,_,_=self.fixture(order=2)
         r=AnalyticVPTRunner(original.eval.expansions,order=2,freqs=original.eval.freqs,
             internals=False,logger=False,resonance_condition=SameStateCondition())

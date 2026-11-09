@@ -12,7 +12,7 @@ from Psience.VPT2.Analytic import (
     AnalyticPerturbationTheorySolver, HamiltonianExpansionTerm,
     PerturbationTheoryEvaluator,
 )
-from Psience.VPT2.Conditional import SameStateCondition, ZeroTerm
+from Psience.VPT2.Analytic import SameStateCondition, ZeroTerm
 
 
 class AnalyticStageTimingTests(unittest.TestCase):

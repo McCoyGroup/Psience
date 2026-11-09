@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from McUtils.Parallelizers import Parallelizer, SharedMemoryArrayTree
-from Psience.VPT2 import CompiledExpressions as ce
+from Psience.VPT2 import Evaluators as ce
 
 __all__ = ["CompiledExpressionFingerprintTests"]
 
@@ -125,7 +125,7 @@ def _implementation_signature():
 
 '''
 _ORIGINAL.update(dict(
-    __name__="Psience.VPT2.CompiledExpressions", __package__="Psience.VPT2",
+    __name__="Psience.VPT2.Evaluators", __package__="Psience.VPT2",
     functools=functools, hashlib=hashlib, inspect=inspect, json=json, marshal=marshal, os=os,
     pickle=pickle, sys=sys, uuid=uuid, Path=Path, np=np, Parallelizer=Parallelizer
 ))
@@ -162,7 +162,7 @@ class CompiledExpressionFingerprintTests(unittest.TestCase):
 
     def test_ImmutableConditionFingerprintIgnoresPreparedFunctionState(self):
         from McUtils.Zachary import Symbols
-        from Psience.VPT2.Conditional import PolynomialInvariantCondition
+        from Psience.VPT2.Analytic import PolynomialInvariantCondition
         q = Symbols('q').q
         condition = PolynomialInvariantCondition(q*(q-1), [0])
         import pickle

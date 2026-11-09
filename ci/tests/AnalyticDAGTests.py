@@ -1025,7 +1025,7 @@ class AnalyticDAGTests(unittest.TestCase):
         self.assertEqual(stats['dag_materializations'], 0)
 
     def test_indexed_backend_matches_legacy_and_compare_mode(self):
-        from Psience.VPT2.IndexedEvaluator import IndexedBlockEvaluator
+        from Psience.VPT2.Evaluators import IndexedBlockEvaluator
 
         Analytic.AnalyticPerturbationTheorySolver.clear_caches()
         solver = Analytic.AnalyticPerturbationTheorySolver.from_order(
@@ -1134,7 +1134,7 @@ class AnalyticDAGTests(unittest.TestCase):
         self.assertLessEqual(stats['max_rows_per_block'], 64)
 
     def test_indexed_contraction_segments_stream_in_bounded_order(self):
-        from Psience.VPT2.IndexedEvaluator import (
+        from Psience.VPT2.Evaluators import (
             ConcreteBlockTable,
             IndexedContractionSegmentTable
         )
@@ -1182,7 +1182,7 @@ class AnalyticDAGTests(unittest.TestCase):
         )
 
     def test_indexed_polynomial_block_uses_one_bounded_materialization(self):
-        from Psience.VPT2.IndexedEvaluator import (
+        from Psience.VPT2.Evaluators import (
             IndexedBlockEvaluator,
             IndexedEvaluationStats
         )
@@ -1211,7 +1211,7 @@ class AnalyticDAGTests(unittest.TestCase):
         self.assertEqual(stats.max_polynomial_scratch_bytes, block.nbytes)
 
     def test_indexed_permutation_routing_matches_mask_split_routing(self):
-        from Psience.VPT2.IndexedEvaluator import (
+        from Psience.VPT2.Evaluators import (
             IndexedPermutationRoutingPlan
         )
 
@@ -1315,7 +1315,7 @@ class AnalyticDAGTests(unittest.TestCase):
         )
 
     def test_shared_degeneracy_pool_is_exact_and_byte_bounded(self):
-        from Psience.VPT2.IndexedEvaluator import (
+        from Psience.VPT2.Evaluators import (
             IndexedDegeneracyEvaluationContext,
             IndexedEvaluationStats
         )
@@ -1373,7 +1373,7 @@ class AnalyticDAGTests(unittest.TestCase):
     def test_compiled_degeneracy_selection_matches_legacy_and_reuses_plans(self):
         import collections
 
-        from Psience.VPT2.IndexedEvaluator import (
+        from Psience.VPT2.Evaluators import (
             ConcreteBlockTable,
             IndexedBlockEvaluator,
             IndexedDegeneracyEvaluationContext,
@@ -1671,7 +1671,7 @@ class AnalyticDAGTests(unittest.TestCase):
         self.assertEqual(index.canonical_mode_cache_misses, 2)
 
     def test_compact_predicate_value_cache_reuses_checked_positions_and_bounds_memory(self):
-        from Psience.VPT2.IndexedEvaluator import (
+        from Psience.VPT2.Evaluators import (
             BoundedPredicateValueCache,
             IndexedDegeneracyEvaluationContext,
             IndexedEvaluationStats
@@ -1812,7 +1812,7 @@ class AnalyticDAGTests(unittest.TestCase):
         self.assertEqual(context.stats()['predicate_intern_skips'], 1)
 
     def test_indexed_coefficient_gather_matches_legacy(self):
-        from Psience.VPT2.IndexedEvaluator import (
+        from Psience.VPT2.Evaluators import (
             IndexedCoefficientGatherPlan,
             IndexedEvaluationStats
         )
@@ -1895,7 +1895,7 @@ class AnalyticDAGTests(unittest.TestCase):
         self.assertGreater(stats.coefficient_gather_requests, 0)
 
     def test_indexed_coefficient_pattern_cache_reuses_and_evicts(self):
-        from Psience.VPT2.IndexedEvaluator import (
+        from Psience.VPT2.Evaluators import (
             IndexedCoefficientGatherPlan,
             IndexedEvaluationStats
         )

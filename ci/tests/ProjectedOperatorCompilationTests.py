@@ -4,8 +4,8 @@ from pathlib import Path
 from unittest import mock
 import numpy as np
 from Psience.VPT2 import AnalyticVPTRunner
-from Psience.VPT2 import CompiledExpressions as ce
-from Psience.VPT2.Projected import ProjectedCorrectionEvaluator
+from Psience.VPT2 import Evaluators as ce
+from Psience.VPT2.Analytic import ProjectedCorrectionEvaluator
 from pathlib import Path
 import hashlib,json,collections
 def inventory(folder):
@@ -29,7 +29,7 @@ def inventory(folder):
 class ProjectedOperatorCompilationTests(unittest.TestCase):
     observations={}
     def test_projection_factor_is_only_a_formal_role(self):
-        from Psience.VPT2 import Projected as projected
+        from Psience.VPT2 import Analytic as projected
         factor=projected.ProjectionFactor('R',3)
         self.assertEqual(vars(factor),dict(kind='R',slot=3))
         self.assertEqual(vars(pickle.loads(pickle.dumps(factor))),vars(factor))
@@ -37,7 +37,7 @@ class ProjectedOperatorCompilationTests(unittest.TestCase):
         with self.assertRaises(ValueError):projected.ProjectionFactor('R',[(1,0)])
 
     def test_equations_rebind_states_frequencies_and_block_coefficients(self):
-        from Psience.VPT2.Projected import AnalyticBlockExpansion
+        from Psience.VPT2.Analytic import AnalyticBlockExpansion
         r=self.runner(None);h=r.eval.solver.hamiltonian_expansion[1]
         a=AnalyticBlockExpansion(r.eval,[[0,0,0]])
         b=AnalyticBlockExpansion(r.eval,[[0,0,0],[1,0,0]],freqs=[.022,.024,.033])
@@ -75,7 +75,7 @@ class ProjectedOperatorCompilationTests(unittest.TestCase):
         self.assertEqual(before,ce._fingerprint(ga))
 
     def test_projector_row_batch_matches_scalar_reference(self):
-        from Psience.VPT2.Projected import ProjectionFactor,projected_path_factors,projected_energy_rows
+        from Psience.VPT2.Analytic import ProjectionFactor,projected_path_factors,projected_energy_rows
         bindings=((((1,0,0),(0,1,0)),(.02,.023,.031),(1,0,0),False),)
         permutations=np.asarray(list(itertools.permutations(range(3))))
         state=np.array([[0,0,0]]);freqs=np.asarray(bindings[0][1])[permutations]
@@ -88,7 +88,7 @@ class ProjectedOperatorCompilationTests(unittest.TestCase):
             np.testing.assert_allclose(denominators[i],denominator,atol=1e-15,rtol=1e-14)
 
     def test_trivial_resolvent_retains_shifted_reference_energy(self):
-        from Psience.VPT2.Projected import ProjectionFactor,projected_path_factors,projected_energy_rows
+        from Psience.VPT2.Analytic import ProjectionFactor,projected_path_factors,projected_energy_rows
         binding=((((0,1,0),),(.02,.023,.031),(0,1,0),True),)
         key=((ProjectionFactor('R'),0,0),)
         state=np.array([[0,0,0]]);perms=np.array([[1,0]]);freqs=np.array([[.023,.02]])
@@ -99,7 +99,7 @@ class ProjectedOperatorCompilationTests(unittest.TestCase):
 
     def test_projection_bindings_cross_compiled_worker_processes(self):
         from McUtils.Parallelizers import MultiprocessingParallelizer
-        from Psience.VPT2.Projected import AnalyticBlockExpansion
+        from Psience.VPT2.Analytic import AnalyticBlockExpansion
         r=self.runner(None);h=r.eval.solver.hamiltonian_expansion[1]
         a=AnalyticBlockExpansion(r.eval,[[0,0,0]])
         expected=a.element(a._scalar(.7)*a._resolvent(h,(0,0,0),(0,0,0)),[0,0,0],[1,0,0])

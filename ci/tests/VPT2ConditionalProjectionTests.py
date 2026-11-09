@@ -21,13 +21,13 @@ from Psience.VPT2.Analytic import (
     PTTensorCoeffProductDAGEvaluationPlan, SqrtChangePoly,
     make_product_polynomial, SmallEnergyDenominatorWarning, PolyPath,
 )
-from Psience.VPT2.Conditional import (
+from Psience.VPT2.Analytic import (
     PolynomialInvariantCondition, PolynomialRelationshipCondition,
     IntegerLatticeCondition, SameStateCondition, EnergyWindowCondition,
     ConditionalOperatorTerm, ConditionalTransformationStack, ConditionEndpoint,
     ZeroTerm, operator_sector,
 )
-from Psience.VPT2.Projected import IdentityTerm
+from Psience.VPT2.Analytic import IdentityTerm
 
 
 class MatrixInterpreter:

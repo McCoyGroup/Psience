@@ -106,7 +106,7 @@ class EvaluatorDefaultsTests(unittest.TestCase):
 
     def test_vectorized_endpoint_screening_is_chunk_invariant(self):
         import itertools
-        from Psience.VPT2.Discovery import AnalyticPropertyDiscovery
+        from Psience.VPT2.DegeneracySpecs import AnalyticPropertyDiscovery
         discovery=object.__new__(AnalyticPropertyDiscovery)
         rules={1:[(),(0,),(1,),(-1,)],2:[(),(0,),(2,),(-2,),(1,1),(1,-1),(-1,-1)]}
         discovery._wavefunction_rules=lambda order:rules[order]
@@ -122,7 +122,7 @@ class EvaluatorDefaultsTests(unittest.TestCase):
                     np.testing.assert_array_equal(actual,expected)
 
     def test_sparse_discovery_stream_matches_eager_vectorized_filter(self):
-        from Psience.VPT2.Discovery import AnalyticPropertyDiscovery
+        from Psience.VPT2.DegeneracySpecs import AnalyticPropertyDiscovery
         discovery=object.__new__(AnalyticPropertyDiscovery)
         discovery.eval=SimpleNamespace(freqs=np.array([.75,.25,.5]))
         rules={1:[(1,),(-1,)],2:[(),(2,),(-2,),(1,1),(1,-1),(-1,-1)]}
@@ -170,7 +170,7 @@ class EvaluatorDefaultsTests(unittest.TestCase):
                 np.testing.assert_array_equal(space.indices,basis.ravel_state_inds(expected[i,order]))
 
     def test_vectorized_discovery_preserves_large_sparse_occupations(self):
-        from Psience.VPT2.Discovery import AnalyticPropertyDiscovery
+        from Psience.VPT2.DegeneracySpecs import AnalyticPropertyDiscovery
         basis=HarmonicOscillatorProductBasis(1)
         inputs=BasisStateSpace(basis,SparseArray.from_data(np.array([[130]],dtype=np.int16),layout='csr'))
         discovery=object.__new__(AnalyticPropertyDiscovery)
@@ -270,7 +270,7 @@ class EvaluatorDefaultsTests(unittest.TestCase):
                 filter=BasisStateSpaceFilter(first,None,None))
 
     def test_property_generation_filter_matches_vectorized_candidates(self):
-        from Psience.VPT2.Discovery import AnalyticPropertyDiscovery
+        from Psience.VPT2.DegeneracySpecs import AnalyticPropertyDiscovery
         basis=HarmonicOscillatorProductBasis(4)
         inputs=BasisStateSpace(basis,[[0,0,0,0],[1,0,0,0],[0,0,1,1],[0,2,0,0]])
         discovery=object.__new__(AnalyticPropertyDiscovery)

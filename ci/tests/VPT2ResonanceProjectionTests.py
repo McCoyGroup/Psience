@@ -125,7 +125,7 @@ from Psience.VPT2.Analytic import (
     AnalyticPerturbationTheorySolver, PerturbationTheoryEvaluator,
     HamiltonianExpansionTerm, SqrtChangePoly, PerturbationTheoryExpressionEvaluator,
 )
-from Psience.VPT2.Projected import AnalyticBlockExpansion, StateProjectionFactor
+from Psience.VPT2.Analytic import AnalyticBlockExpansion, StateProjectionFactor
 
 
 class AnalyticProjectedBlockTests(unittest.TestCase):

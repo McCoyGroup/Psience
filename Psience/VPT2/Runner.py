@@ -4007,7 +4007,7 @@ class AnalyticVPTRunner:
                         and nput.is_numeric(degeneracy_specs[0][0][0])
                 ):
                     degeneracy_specs = {'polyads': degeneracy_specs}
-                from .Discovery import AnalyticPropertyDiscovery, uses_automatic_discovery
+                from .DegeneracySpecs import AnalyticPropertyDiscovery, uses_automatic_discovery
                 discovery = new
                 if uses_automatic_discovery(degeneracy_specs):
                     packet = MultiVPTStateSpace(states, runner.system, degeneracy_specs=None)
@@ -4314,7 +4314,7 @@ class AnalyticVPTRunner:
         :return: the resolved `MultiVPTStateSpace`
         :rtype: MultiVPTStateSpace
         """
-        from .Discovery import resolve_discovery_space
+        from .DegeneracySpecs import resolve_discovery_space
         states = resolve_discovery_space(self, states, degeneracy_specs)
         return self.prep_multispace(states,
                                     self.eval.freqs,
@@ -4820,7 +4820,7 @@ class AnalyticVPTRunner:
         physical matrix-element signs and array[bra state,ket state] axes. The
         ordinary calculation is unaffected until this separate method is called.
         """
-        from .Contributions import AnalyticTermContributions
+        from .Corrections import AnalyticTermContributions
         self._contribution_options(options)
         if order is None:order=self.order if self.order is not None else len(self.eval.expansions)-1
         prepared=self.prep_states(states,degeneracy_specs=degeneracy_specs,logger=options.get('logger'))
@@ -4842,7 +4842,7 @@ class AnalyticVPTRunner:
         These are amplitude contributions. Intensities also contain cross terms
         and must not be obtained by adding squared individual contributions.
         """
-        from .Contributions import AnalyticTermContributions
+        from .Corrections import AnalyticTermContributions
         self._contribution_options(options)
         if order is None:order=self.order if self.order is not None else len(self.eval.expansions)-1
         axes=[0,1,2] if axes is None else list(axes)
@@ -4869,7 +4869,7 @@ class AnalyticVPTRunner:
         state pair is evaluated; individual terms are never mirrored. Diagonal
         entries include absolute state energies, before ground subtraction.
         """
-        from .Contributions import AnalyticTermContributions
+        from .Corrections import AnalyticTermContributions
         self._contribution_options(options)
         if order is None:order=self.order if self.order is not None else len(self.eval.expansions)-1
         prepared=self.prep_states(states,degeneracy_specs=degeneracy_specs,logger=options.get('logger'))
@@ -5557,7 +5557,7 @@ class AnalyticVPTRunner:
         """Run with the configured compilation policy, or an explicit per-call override."""
         previous=self.eval.compile_expressions
         if compile is not None:self.eval.compile_expressions=compile is not False
-        from .CompiledExpressions import compiled_evaluation_context
+        from .Evaluators import compiled_evaluation_context
         try:
             with compiled_evaluation_context(
                     self.eval.expression_store if self.eval.compile_expressions else None,
