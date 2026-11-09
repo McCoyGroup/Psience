@@ -643,5 +643,37 @@ class StateSpaceStorageTests(unittest.TestCase):
         self.assertTrue(filters)
         self.assertTrue(all(f.postfilters for f in filters.values()))
 
+    def test_sparse_window_stream_preserves_recorded_pyrene_states(self):
+        expected={tuple(state) for state in self.states if sum(state)<=2}
+        predicate=lambda state,window:tuple(state) in expected
+        blocks=list(BasisStateSpace.states_in_windows(
+            np.ones(self.basis.ndim),[[0.,2.]],max_quantas=2,
+            sparse=True,filter=predicate,block_size=3,max_bytes=1024, return_iterator=True))
+        actual=[]
+        for tags,block in blocks:
+            np.testing.assert_array_equal(tags,np.zeros(len(tags),dtype=int))
+            space=BasisStateSpace(self.basis,block)
+            self.assertTrue(space.has_sparse_excitations)
+            self.assertIsNone(space._excitations)
+            self.assertFalse(space.keep_excitations)
+            np.testing.assert_array_equal(space.indices,self.basis.ravel_state_inds(block.asarray()))
+            actual.extend(map(tuple,space.sparse_excitations.asarray()))
+        self.assertEqual(set(actual),expected)
+        self.assertEqual(len(actual),len(expected))
+        key=lambda row:(sum(row),tuple(i for i,n in enumerate(row) for _ in range(n)))
+        self.assertEqual(actual,sorted(expected,key=key))
+
+    def test_sparse_window_collection_never_decodes_dense_occupations(self):
+        with patch.object(type(self.space().sparse_excitations),'asarray',
+                          side_effect=AssertionError('dense occupation table requested')):
+            result=BasisStateSpace.states_in_windows(
+                np.ones(self.basis.ndim),[[0.,1.],[2.,1.]],
+                max_quantas=1,sparse=True,block_size=3,max_bytes=1024)
+            first=BasisStateSpace(self.basis,result[0])
+            empty=BasisStateSpace(self.basis,result[1])
+            self.assertTrue(first.has_sparse_excitations)
+            self.assertEqual(len(first),self.basis.ndim+1)
+            self.assertEqual(empty.sparse_excitations.shape,(0,self.basis.ndim))
+
 
 if __name__=='__main__':unittest.main()

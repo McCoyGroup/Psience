@@ -102,3 +102,58 @@ class EvaluatorDefaultsTests(unittest.TestCase):
         runner.get_solver()
         self.assertIs(captured['degeneracy_handlers'],self.space.degeneracy_specs)
         self.assertIs(captured['strong_coupling_correction_filter'],runner.pt_opts.opts['strong_coupling_correction_filter'])
+
+    def test_generation_endpoint_predicate_matches_block_screening(self):
+        import itertools
+        from Psience.VPT2.Discovery import AnalyticPropertyDiscovery
+        discovery=object.__new__(AnalyticPropertyDiscovery)
+        rules={1:[(),(0,),(1,),(-1,)],2:[(),(0,),(2,),(-2,),(1,1),(1,-1),(-1,-1)]}
+        discovery._wavefunction_rules=lambda order:rules[order]
+        discovery.endpoint_quanta=lambda source,order:set(range(7))
+        states=np.asarray(list(itertools.product(range(4),repeat=3)),dtype=int)
+        for source in [[0,0,0],[1,1,0],[0,0,2]]:
+            source=np.asarray(source)
+            for order in [1,2]:
+                expected=discovery.allowed_endpoints(source,states,order)
+                predicate=discovery._endpoint_filter(source,order)
+                np.testing.assert_array_equal([predicate(row) for row in states],expected)
+
+    def test_sparse_discovery_stream_matches_eager_postfilter(self):
+        from Psience.VPT2.Discovery import AnalyticPropertyDiscovery
+        discovery=object.__new__(AnalyticPropertyDiscovery)
+        discovery.eval=SimpleNamespace(freqs=np.array([.75,.25,.5]))
+        rules={1:[(1,),(-1,)],2:[(),(2,),(-2,),(1,1),(1,-1),(-1,-1)]}
+        discovery._wavefunction_rules=lambda order:rules[order]
+        discovery.endpoint_quanta=lambda source,order:{0,1,2,3}
+        basis=HarmonicOscillatorProductBasis(3)
+        inputs=BasisStateSpace(basis,[[1,0,0],[0,1,1],[0,0,0]])
+        sources=inputs.excitations
+        sorting=np.argsort(discovery.eval.freqs);inverse=np.argsort(sorting)
+        energies=sources@discovery.eval.freqs
+        windows=[[max(float(e)-1.,0),float(e)+1.] for e in energies]
+        expected={}
+        for order in [1,2]:
+            maximum=np.max(sources,axis=0)+max(abs(c) for rule in rules[order] for c in rule)
+            raw=BasisStateSpace.states_in_windows(discovery.eval.freqs[sorting],windows,
+                max_state=maximum[sorting],min_quantas=[0]*3,max_quantas=[3]*3)
+            for i,rows in enumerate(raw):
+                rows=rows[:,inverse]
+                expected[i,order]=rows[discovery.allowed_endpoints(sources[i],rows,order)]
+        native_windows=BasisStateSpace.states_in_windows
+        def streamed_windows(*args,**options):
+            self.assertTrue(options.get('return_iterator'))
+            self.assertTrue(options.get('sparse'))
+            self.assertIsNotNone(options.get('filter'))
+            return native_windows(*args,**options)
+        with mock.patch.object(BasisStateSpace,'states_in_windows',
+                               side_effect=streamed_windows), \
+             mock.patch.object(discovery,'allowed_endpoints',
+                               side_effect=AssertionError('postfilter called')):
+            result=discovery.candidate_spaces(inputs,1.,(1,2),block_size=2,max_bytes=512)
+        for i,orders in enumerate(result):
+            for order,space in orders.items():
+                self.assertTrue(space.has_sparse_excitations)
+                self.assertIsNone(space._excitations)
+                np.testing.assert_array_equal(space.sparse_excitations.asarray(),expected[i,order])
+                np.testing.assert_array_equal(space.indices,basis.ravel_state_inds(expected[i,order]))
+
