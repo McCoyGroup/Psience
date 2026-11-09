@@ -18,6 +18,7 @@ from ..BasisReps import (
 
 from .DegeneracySpecs import DegenerateMultiStateSpace, DegeneracySpec
 from .Common import *
+from .Common import _safe_dot
 from .Corrections import *
 
 __reload_hook__ = [ "..BasisReps", ".DegeneracySpecs", ".Corrections", ".Common" ]
@@ -2828,36 +2829,8 @@ class PerturbationTheorySolver:
 
     PTResults = namedtuple("PTResults", ["corrections", "degeneracies"])
 
-    @staticmethod
-    def _safe_dot(a, b):
-        """
-        **LLM Docstring**
+    _safe_dot = staticmethod(_safe_dot)
 
-        Generalized dot product that treats a bare `0` operand (rather than a zero-valued array) as an exact zero result, short-circuiting the multiplication -- used throughout the perturbation-theory recursion, where many terms really are the literal integer `0` rather than zero arrays.
-
-        :param a: the left operand, or `0`
-        :type a: np.ndarray | SparseArray | int | float
-        :param b: the right operand, or `0`
-        :type b: np.ndarray | SparseArray | int | float
-        :return: `0` if either operand is a numeric zero, otherwise the dot product of `a` and `b`
-        :rtype: np.ndarray | SparseArray | int
-        """
-        # generalizes the dot product so that we can use 0 as a special value...
-        if (
-                isinstance(a, (int, np.integer, float, np.floating)) and a == 0
-                or isinstance(b, (int, np.integer, float, np.floating)) and b == 0
-        ):
-            return 0
-
-        if isinstance(a, np.ndarray):
-            doots = np.dot(a, b)
-        else:
-            doots = a.dot(b)
-
-        if isinstance(b, np.ndarray) and isinstance(doots, SparseArray):
-            doots = doots.asarray()
-
-        return doots
     def apply_VPT_equations(self,
                             state_index,
                             degenerate_space_indices,

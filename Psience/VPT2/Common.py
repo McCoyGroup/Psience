@@ -1,5 +1,6 @@
 
 import numpy as np
+from McUtils.Numputils import SparseArray
 
 __all__ = [
     "PerturbationTheoryException",

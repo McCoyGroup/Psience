@@ -1255,10 +1255,6 @@ class CompiledAnalyticEvaluation:
             coeffs=self.coeffs if coeffs is None else coeffs,freqs=self.freqs,anchors=self.anchored_modes,
             batch_size=self.batch_size,resume=self.resume,numerical_options=self.numerical_options)
 
-    def run_task(self,task):
-        if isinstance(task,int):task=self.tasks[task]
-        return _run_compiled_tasks([task],self._context())[0]
-
     def run(self):
         started=time.perf_counter()
         try:
@@ -1659,10 +1655,6 @@ class AnalyticBlochSeries:
             coefficient*= (power-exponent+1)/exponent
             for n in range(1,order+1):result[n]=operator_sum(result[n],coefficient*product[n])
         return result
-
-    def normalized_wavefunctions(self,order):
-        self.extend(order)
-        return self._product_series(self.wave_operator,self._metric_power(order,-.5),order)
 
     def hermitian_hamiltonian(self,order):
         self.extend(order)

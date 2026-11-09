@@ -8257,7 +8257,7 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
             if len(ch1) == 2 and isinstance(ch1[0], tuple): continue
             ch1 = np.array(ch1)
             if not np.equal(self.change_sort(ch1), np.arange(len(ch1))).all():
-                raise ValueError(ch2)
+                raise ValueError(ch1)
             classes_1, counts_1, mapping_1 = self._fill_class_counts(class_count_data_1, i1, ch1)
             n1 = np.sum(counts_1)
 
@@ -10101,7 +10101,6 @@ class PerturbationTheoryExpressionEvaluator:
                 if changes.right else {}
             )
             return [left, right]
-        started = time.perf_counter()
         if method is None:
             method = cls.default_deg_id_method
         if method is None:
@@ -10117,36 +10116,10 @@ class PerturbationTheoryExpressionEvaluator:
             result = cls._identify_possible_degeneracies_legacy(
                 all_perms, sides, expr, changes, nmodes, method=method
             )
-            cls._last_degeneracy_identification_stats = None
         else:
             if context is None:
                 context = DegeneracyIdentificationContext(changes)
-            before = context.stats()
             result = context.bind(expr, nmodes, method)
-            after = context.stats()
-            cls._last_degeneracy_identification_stats = after
-            for name in (
-                    'bound_plan_hits', 'bound_plan_misses',
-                    'requirement_hits', 'requirement_misses',
-                    'energy_requirements_compiled', 'resonance_matches',
-                    'pattern_rows_materialized', 'predicate_plans_built',
-                    'compact_clause_hits', 'compact_clause_misses',
-                    'compact_clauses_compiled', 'pattern_rows_avoided',
-                    'predicate_intern_identity_hits',
-                    'predicate_intern_content_hits',
-                    'predicate_intern_misses', 'predicate_intern_skips',
-                    'cache_evictions', 'cache_skips'):
-                cls._degeneracy_identification_totals[name] += (
-                    after.get(name, 0) - before.get(name, 0)
-                )
-            for name in ('max_cache_items', 'max_cache_bytes',
-                         'change_index_bytes', 'mode_index_bytes_estimate'):
-                cls._degeneracy_identification_totals[name] = max(
-                    cls._degeneracy_identification_totals[name],
-                    after.get(name, 0)
-                )
-        cls._degeneracy_identification_calls += 1
-        cls._degeneracy_identification_seconds += time.perf_counter() - started
         return result
 
 
@@ -10215,10 +10188,6 @@ class PerturbationTheoryExpressionEvaluator:
     _last_materialized_evaluation_stats = None
     _last_state_permutation_cache_stats = None
     _last_indexed_evaluation_stats = None
-    _last_degeneracy_identification_stats = None
-    _degeneracy_identification_calls = 0
-    _degeneracy_identification_seconds = 0.0
-    _degeneracy_identification_totals = collections.Counter()
     _indexed_evaluation_generation = 0
     default_zero_cutoff = 1e-24
 
@@ -10235,31 +10204,12 @@ class PerturbationTheoryExpressionEvaluator:
         )
 
     @classmethod
-    def get_last_state_permutation_cache_stats(cls):
-        return (
-            None
-            if cls._last_state_permutation_cache_stats is None else
-            dict(cls._last_state_permutation_cache_stats)
-        )
-
-    @classmethod
     def get_last_indexed_evaluation_stats(cls):
         return (
             None
             if cls._last_indexed_evaluation_stats is None else
             dict(cls._last_indexed_evaluation_stats)
         )
-
-    @classmethod
-    def get_last_degeneracy_identification_stats(cls):
-        return (
-            None if cls._last_degeneracy_identification_stats is None else
-            dict(cls._last_degeneracy_identification_stats)
-        )
-
-    @classmethod
-    def get_degeneracy_identification_totals(cls):
-        return dict(cls._degeneracy_identification_totals)
 
     @staticmethod
     def _compare_evaluation_backends(legacy, indexed, rtol=2e-12, atol=2e-12):
@@ -12195,15 +12145,6 @@ class AnalyticBlockExpansion:
         block=self._intermediate().extend(order,logger=logger,verbose=verbose)
         return block.Y[order]
 
-    def intermediate_hamiltonian(self, order, logger=None, verbose=False):
-        """Return the Bloch series B; use a general, not symmetric eigensolver.
-
-        Individual entries differ from the orthonormal representation. Exact
-        similarity preserves eigenvalues; truncated series can differ beyond
-        their retained perturbation order.
-        """
-        return self._intermediate().extend(order,logger=logger,verbose=verbose).F[:order+1]
-
     def overlap_metric(self, order, logger=None, verbose=False):
         """Cache S=Omega^dagger Omega once per block and perturbation order."""
         block=self._intermediate().extend(order,logger=logger,verbose=verbose)
@@ -12267,20 +12208,6 @@ class AnalyticBlockExpansion:
             block.N.append(inverse[n]);block.F.append(hamiltonians[n])
             block.X.append(projected);block.Y.append(full)
         return block
-
-    def operator_piece(self, order, column, off_diagonal=False):
-        key = (order, column, off_diagonal)
-        if key not in self._operator_pieces:
-            if order == 0:
-                result = {} if off_diagonal else self.Y[0][column]
-            elif off_diagonal:
-                result = self._column([({state: self.identity}, self._scalar(self.N[order][b,column]), None)
-                                       for b,state in enumerate(self.states) if b != column])
-            else:
-                result = self._column([(self.X[order][column],1,None),
-                    ({self.states[column]:self.identity},self._scalar(self.N[order][column,column]),None)])
-            self._operator_pieces[key] = result
-        return self._operator_pieces[key]
 
     def operator_components(self, order, column, off_diagonal=None):
         # Keep finite P coefficients outside the free-space operator products.
@@ -12866,12 +12793,6 @@ class IntegerLatticeCondition(OperatorCondition):
                                         for row in inverse.tolist())
         self.denominator = denominator
         self.key = ('integer-lattice',self.modes,self.basis)
-
-    @classmethod
-    def from_pairs(cls,pairs):
-        if isinstance(pairs,dict):
-            pairs = [pair for neighbors in pairs.values() for pair in neighbors]
-        return cls([np.subtract(end,start) for start,end in pairs])
 
     def evaluate_shifted(self,state,permutations,start,end,frequencies):
         change = np.asarray(end,dtype=int)-start
