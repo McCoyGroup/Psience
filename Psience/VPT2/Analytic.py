@@ -5486,7 +5486,7 @@ class PTTensorCoeffProductDAG(PTTensorCoeffProductSum):
 
 
 class _BoundedEvaluationCache:
-    """A batch-local bounded FIFO shared by tensor and polynomial DAG evaluation."""
+    """An owner-scoped bounded FIFO shared by tensor and polynomial DAG evaluation."""
 
     _missing = object()
 
@@ -5525,11 +5525,13 @@ class _BoundedEvaluationCache:
 
     @classmethod
     def _value_size(cls, value, depth=0):
+        if isinstance(value, (_HashableNumPyIndex, _StatePermutationBlockIdentity)):
+            return value.memory_size()
         if isinstance(value, np.ndarray):
             return sys.getsizeof(value) + value.nbytes
         if isinstance(value, (bytes, bytearray, memoryview)):
             return sys.getsizeof(value)
-        if isinstance(value, (tuple, list)) and depth < 2:
+        if isinstance(value, (tuple, list)) and depth < 4:
             # Cache accounting must itself remain bounded.  The container size
             # includes all reference slots; recursively sample a short prefix
             # to account for the most common byte/array payloads without
@@ -5642,11 +5644,20 @@ class _HashableNumPyIndex:
 class _StatePermutationBlockIdentity:
     """Hash-once identity for the concrete quantum states in one block."""
 
-    __slots__ = ('states', '_hash')
+    __slots__ = ('states', '_hash', '_size')
 
     def __init__(self, state_keys):
         self.states = tuple(tuple(block) for block in state_keys)
         self._hash = hash(self.states)
+        self._size = sys.getsizeof(self) + sys.getsizeof(self.states) + sum(
+            sys.getsizeof(block) + sum(
+                key.memory_size() if isinstance(key,_HashableNumPyIndex)
+                else sys.getsizeof(key) + len(key)*sys.getsizeof(0)
+                for key in block)
+            for block in self.states)
+
+    def memory_size(self):
+        return self._size
 
     def __hash__(self):
         return self._hash
@@ -5764,14 +5775,13 @@ class _StatePermutationCache(_BoundedEvaluationCache):
 
 
 class _MaterializedEvaluationCache:
-    """Two-level cache for one materialized numerical evaluation batch.
+    """Two-level bounded cache for a materialized numerical evaluation plan.
 
-    ``exact_cache`` is the legacy cache of complete polynomial/state results.
-    The bounded cache holds numerical values for shared ``PolyPath`` nodes and
-    axes only for the lifetime of the current call to
-    :meth:`evaluate_polynomial_expression`.  Keeping these lifetimes separate
-    preserves reuse of exact results without allowing intermediate arrays from
-    successive state batches to accumulate globally.
+    ``exact_cache`` holds complete polynomial/state results. A bounded exact
+    cache uses flat keys so nested dictionaries cannot bypass its byte limit.
+    The caller may own this cache for one batch or a complete immutable-input
+    evaluation plan; concrete state keys and bounded values permit that reuse
+    without accumulating unbounded arrays across successive calls.
     """
 
     class PathNodeView:
@@ -8736,9 +8746,13 @@ class PerturbationTheoryExpressionEvaluator:
         )
         if materialized_cache is not None:
             exact_cache = materialized_cache.exact_cache
-            if poly_key not in exact_cache:
-                exact_cache[poly_key] = {}
-            value_cache = exact_cache[poly_key]
+            if isinstance(exact_cache, _BoundedEvaluationCache):
+                value_cache = exact_cache.view('polynomial_values')
+                batch_cache = exact_cache
+            else:
+                if poly_key not in exact_cache:
+                    exact_cache[poly_key] = {}
+                value_cache = exact_cache[poly_key]
             path_node_cache = materialized_cache
             path_axis_cache = materialized_cache.path_axis_cache
         elif batch_cache is None:
@@ -8807,9 +8821,9 @@ class PerturbationTheoryExpressionEvaluator:
         # Complete (polynomial, change, baseline, state) values remain the first
         # cache level.  _MaterializedEvaluationCache adds a second, batch-local
         # level for internal PolyPath nodes and axes shared by nonidentical root
-        # polynomials.  That second level is discarded after the batch and is
-        # capped by entries and estimated bytes; retaining it globally would
-        # merely move high-order expression growth into the evaluator cache.
+        # polynomials. Both levels can be owned by a numerical plan, with
+        # entry/estimated-byte bounds and exact concrete occupation identities.
+        # Expression coverage and output accumulation remain request-local.
 
         poly_key = (
             poly,
@@ -9606,6 +9620,8 @@ class PerturbationTheoryExpressionEvaluator:
                 if degenerate_changes is not None:
                     perm_subsets = [tuple(p) for p in perm_subsets]
 
+                route_context = (evaluation_context.for_route(state_idx)
+                                 if hasattr(evaluation_context, 'for_route') else evaluation_context)
                 if verbose:
                     with logger.block(
                             tag="{k} ({p})",
@@ -9621,7 +9637,7 @@ class PerturbationTheoryExpressionEvaluator:
                             pows, g_key, perm_subsets, degenerate_changes, only_degenerate_terms,
                             poly_cache, energy_cache,
                             verbose, logger, log_level, log_scaling,
-                            zero_cutoff, evaluation_context
+                            zero_cutoff, route_context
                         )
                         val = prefacs[:, np.newaxis, :] * subcontrib[np.newaxis]
                         logger.log_print("contrib: {e}", e=val,
@@ -9641,7 +9657,7 @@ class PerturbationTheoryExpressionEvaluator:
                         pows, g_key, perm_subsets, degenerate_changes, only_degenerate_terms,
                         poly_cache, energy_cache,
                         verbose, logger, log_level, log_scaling,
-                        zero_cutoff, evaluation_context
+                        zero_cutoff, route_context
                     )
                     val = prefacs[:, np.newaxis, :] * subcontrib[np.newaxis]
                     contrib[state_idx][:, mask_pos] += val[:, 0, :]
@@ -10734,19 +10750,21 @@ class PerturbationTheoryExpressionEvaluator:
         return result
 
     @staticmethod
-    def _normalize_coefficient_expansions(coeffs):
-        """Canonicalize coefficient leaves before optional shared allocation."""
-        return [
-            [
-                [
-                    np.asanyarray(coefficient)
-                        if not nput.is_numeric(coefficient) else coefficient
-                    for coefficient in order_expansion
-                ]
-                for order_expansion in expansion
-            ]
-            for expansion in coeffs
-        ]
+    def _normalize_coefficient_expansions(coeffs, preparation_context=None):
+        """Canonicalize array-like physical tensors once for an immutable plan."""
+        def coefficient(value):
+            if nput.is_numeric(value):
+                return value
+            if isinstance(value,np.ndarray) or preparation_context is None:
+                return np.asanyarray(value)
+            root = preparation_context.root
+            entry = root.normalized_inputs.get(id(value))
+            if entry is None:
+                entry = (value,np.asanyarray(value))
+                root.normalized_inputs[id(value)] = entry
+            return entry[1]
+        return [[[coefficient(value) for value in row] for row in expansion]
+                for expansion in coeffs]
 
     @classmethod
     def evaluate_polynomial_expression(cls,
@@ -12509,11 +12527,11 @@ class PerturbationTheoryEvaluator:
                     return projected.operators(states,order,operators,exps,terms=terms,
                         branches=opts.get('include_degenerate_correction_terms',True),
                         target_orders=opts.get('target_orders'))
-                result = [projected.operators(states, order, operators,
-                    self._prep_expansions(coefficients), terms=terms,
-                    branches=opts.get('include_degenerate_correction_terms',True),
-                    target_orders=opts.get('target_orders')) for coefficients in batches]
-                return result[0] if single else result
+                prepared = [self._prep_expansions(coefficients) for coefficients in batches]
+                return projected.operators(states, order, operators,
+                    prepared[0] if single else prepared,
+                    terms=terms, branches=opts.get('include_degenerate_correction_terms',True),
+                    target_orders=opts.get('target_orders'))
             return self.get_state_by_state_corrections(
                 lambda *a, **kw: self.solver.operator_correction(*a, operator_type=operator_type, base_index=base_index, **kw),
                 states, order=order,

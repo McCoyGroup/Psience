@@ -160,6 +160,21 @@ class CompiledExpressionFingerprintTests(unittest.TestCase):
         yield Path('/tmp/some/where')
         yield np.float64(3.5)
 
+    def test_ImmutableConditionFingerprintIgnoresPreparedFunctionState(self):
+        from McUtils.Zachary import Symbols
+        from Psience.VPT2.Conditional import PolynomialInvariantCondition
+        q = Symbols('q').q
+        condition = PolynomialInvariantCondition(q*(q-1), [0])
+        import pickle
+        same = pickle.loads(pickle.dumps(condition))
+        before = ce._fingerprint(condition)
+        self.assertEqual(before, ce._fingerprint(same))
+        condition.matches([0], [1])
+        condition.functions[0].__dict__['prepared_runtime_note'] = object()
+        self.assertEqual(before, ce._fingerprint(condition))
+        different = PolynomialInvariantCondition(q*q, [0])
+        self.assertNotEqual(before, ce._fingerprint(different))
+
     def test_FreezeMatchesOriginal(self):
         for sample in self.samples():
             self.assertEqual(json.dumps(ce._freeze(sample), sort_keys=True),

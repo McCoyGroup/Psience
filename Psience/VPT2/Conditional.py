@@ -73,6 +73,11 @@ class OperatorCondition:
     def __hash__(self):
         return hash(self.key)
 
+    def __fingerprint__(self):
+        # The same immutable definition drives equality, hashing and persistent
+        # compilation. Prepared evaluators are runtime state of the functions.
+        return ('operator-condition', self.key)
+
     def __eq__(self, other):
         if self is other:
             return True

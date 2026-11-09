@@ -558,6 +558,8 @@ class IndexedEvaluationStats:
     coefficient_pattern_compilations: int = 0
     coefficient_unique_patterns: int = 0
     coefficient_rows: int = 0
+    coefficient_gather_cache_hits: int = 0
+    coefficient_gather_cache_misses: int = 0
     coefficient_seconds: float = 0.0
     degeneracy_mask_hits: int = 0
     degeneracy_mask_misses: int = 0
@@ -729,6 +731,10 @@ class IndexedCoefficientGatherPlan:
         compare=False
     )
 
+    preparation_context: object = dataclasses.field(default=None, repr=False, compare=False)
+    _tensor_metadata: object = dataclasses.field(init=False,repr=False,compare=False)
+    _gather_cache: object = dataclasses.field(init=False,repr=False,compare=False)
+
     use_cached_request_patterns = True
 
     def __post_init__(self):
@@ -740,6 +746,21 @@ class IndexedCoefficientGatherPlan:
                 self.max_pattern_cache_bytes
             )
         )
+
+        context = self.preparation_context
+        metadata = {}
+        for product in self.coefficient_tensors:
+            for expansion in product:
+                for tensor in expansion:
+                    identity = id(tensor)
+                    if identity not in metadata:
+                        scalar = np.ndim(tensor)==0
+                        metadata[identity] = (scalar,None if scalar or context is None else context.bind(tensor))
+        cache = None if context is None else context.cache('coefficient_gathers',32*1024**2)
+        if cache is not None and (cache.max_items==0 or cache.max_bytes==0):
+            cache = None
+        object.__setattr__(self,'_tensor_metadata',types.MappingProxyType(metadata))
+        object.__setattr__(self,'_gather_cache',cache)
 
     @staticmethod
     def _remap_product(product, subset, num_fixed):
@@ -818,21 +839,34 @@ class IndexedCoefficientGatherPlan:
         return patterns
 
     @staticmethod
-    def _gather_tensor_requests(permutations, tensor,
-                                unique_patterns, inverse):
-        """Evaluate precompiled distinct patterns for one coefficient tensor."""
-        # permutation x request x tensor-axis
-        tensor_indices = permutations[:, unique_patterns]
-        gathered = tensor[tuple(
-            tensor_indices[..., axis]
-            for axis in range(tensor_indices.shape[-1])
-        )]
-        # request x permutation, restored to the possibly repeated request list
-        return np.moveaxis(gathered, 0, 1)[inverse]
+    def _gather_tensor_requests(permutations, tensor, unique_patterns, inverse,
+                                *, cache=None, tensor_binding=None, stats=None):
+        """Gather distinct tensor factors, optionally reusing the plan binding."""
+        tensor_indices = permutations[:,unique_patterns]
+        key = gathered = None
+        if cache is not None:
+            from .Analytic import _HashableNumPyIndex
+            if tensor_binding is None:
+                raise ValueError('cached tensor gathering requires a plan-bound tensor')
+            key = (tensor_binding,_HashableNumPyIndex(tensor_indices))
+            gathered = cache.get(key)
+        if gathered is None:
+            if stats is not None and cache is not None:
+                stats.coefficient_gather_cache_misses += 1
+            gathered = tensor[tuple(tensor_indices[...,axis]
+                                    for axis in range(tensor_indices.shape[-1]))]
+            if cache is not None:
+                gathered.setflags(write=False)
+                cache[key] = gathered
+        elif stats is not None:
+            stats.coefficient_gather_cache_hits += 1
+        # Advanced indexing owns the returned request plane; callers cannot
+        # mutate the cached factor while accumulating a different product.
+        return np.moveaxis(gathered,0,1)[inverse]
 
     def _evaluate_product_chunk(self, permutations, product_indices,
                                 remapped_products, subset, num_fixed,
-                                zero_cutoff, stats):
+                                zero_cutoff, stats, independent_coefficients=False):
         product_count = len(product_indices)
         permutation_count = len(permutations)
         expansion_count = self.expansion_count
@@ -867,13 +901,13 @@ class IndexedCoefficientGatherPlan:
                     tensor = self.coefficient_tensors[
                         global_index
                     ][expansion_index][factor_index]
-                    if len(indices) == 0 or np.ndim(tensor) == 0:
+                    if len(indices) == 0 or self._tensor_metadata[id(tensor)][0]:
                         scalar_requests.append((local_index, tensor, len(indices)))
                     else:
                         tensor_key = id(tensor)
                         entry = request_groups.get(tensor_key)
-                        if entry is None or entry[0] is not tensor:
-                            entry = [tensor, [], [], []]
+                        if entry is None:
+                            entry = [tensor, [], [], [], self._tensor_metadata[tensor_key][1]]
                             request_groups[tensor_key] = entry
                         entry[1].append(local_index)
                         entry[2].append(indices)
@@ -890,13 +924,16 @@ class IndexedCoefficientGatherPlan:
                     if index_count > 0:
                         base_value = 0
                     if abs(base_value) < zero_cutoff:
-                        # Match the legacy scalar branch: one rejected scalar
-                        # invalidates every expansion for this product.
-                        good[local_index, :, :] = False
+                        # Preserve legacy coupled planes by default. Batched
+                        # independent properties retain each scalar call's cutoff.
+                        if independent_coefficients:
+                            good[local_index,expansion_index,:] = False
+                        else:
+                            good[local_index,:,:] = False
                     else:
                         products[local_index, expansion_index, :] *= base_value
 
-                for tensor, destinations, patterns, structural_patterns \
+                for tensor, destinations, patterns, structural_patterns, tensor_binding \
                         in request_groups.values():
                     stats.coefficient_tensor_groups += 1
                     stats.coefficient_gather_requests += len(patterns)
@@ -928,11 +965,8 @@ class IndexedCoefficientGatherPlan:
                             unique_patterns
                         )
                     values = self._gather_tensor_requests(
-                        permutations,
-                        tensor,
-                        unique_patterns,
-                        inverse
-                    )
+                        permutations,tensor,unique_patterns,inverse,
+                        cache=self._gather_cache,tensor_binding=tensor_binding,stats=stats)
                     destinations = np.asarray(destinations, dtype=int)
                     active = good[destinations, expansion_index, :]
                     block = products[destinations, expansion_index, :]
@@ -943,10 +977,12 @@ class IndexedCoefficientGatherPlan:
                         np.abs(block) >= zero_cutoff
                     )
 
+        if independent_coefficients:
+            products = np.where(good,products,0.)
         return products, np.any(good, axis=1)
 
     def gather(self, permutations, subset, num_fixed,
-               counts_cache, factorials, zero_cutoff, stats):
+               counts_cache, factorials, zero_cutoff, stats, *, independent_coefficients=False):
         start = time.perf_counter()
         active_products, remapped_products = self._active_products(
             subset,
@@ -990,7 +1026,8 @@ class IndexedCoefficientGatherPlan:
                 subset,
                 num_fixed,
                 zero_cutoff,
-                stats
+                stats,
+                independent_coefficients=independent_coefficients
             )
             for local_index, global_index in enumerate(chunk_products):
                 active_permutations = np.flatnonzero(good[local_index])
@@ -1068,7 +1105,9 @@ class IndexedBlockEvaluator:
 
     def get_plan(self, expression, reduced=False):
         namespace='free-index-v1' if reduced else None
-        plan = None if self.preparation_context is not None else self._plan_cache.get(expression,namespace)
+        cache_plans = (self.preparation_context is None
+                       or getattr(self.preparation_context, 'immutable_expressions', False))
+        plan = self._plan_cache.get(expression,namespace) if cache_plans else None
         if plan is not None:
             self.stats.plan_cache_hits += 1
             return plan
@@ -1076,7 +1115,7 @@ class IndexedBlockEvaluator:
         plan = self.compile_plan(expression,reduced=reduced)
         self.stats.plans_compiled += 1
         self.stats.plan_terms += plan.term_count
-        if self.preparation_context is None:
+        if cache_plans:
             self._plan_cache.store(expression, plan,namespace)
         return plan
 
@@ -1149,7 +1188,8 @@ class IndexedBlockEvaluator:
         if self.preparation_context is not None:
             def create():
                 return IndexedCoefficientGatherPlan(coefficient_specs, coefficient_tensors,
-                    0 if not coefficient_tensors else len(coefficient_tensors[0]))
+                    0 if not coefficient_tensors else len(coefficient_tensors[0]),
+                    preparation_context=self.preparation_context)
             plan, hit = self.preparation_context.coefficient_plan(
                 coefficient_specs, coefficient_tensors, create)
             if hit:
@@ -1836,6 +1876,9 @@ class IndexedBlockEvaluator:
         row_groups = collections.OrderedDict()
         energy_row_cache = collections.OrderedDict()
         energy_row_cache_bytes = 0
+        frequency_keys = collections.OrderedDict()
+        frequency_key_bytes = 0
+        projector_domains = {}
 
         for block_index in range(len(blocks)):
             plan = blocks.plans[block_index]
@@ -1963,11 +2006,34 @@ class IndexedBlockEvaluator:
                             tuple(terms[index].energy_changes for index in indices),
                             source_rows, permutation_rows,
                             np.stack([selections[index][0] for index in indices]), baseline_shift,
-                            projection_bindings=projection_inputs(evaluation_context))
+                            row_projection_bindings=[
+                                projection_inputs(evaluation_context, blocks.state_indices[int(block_indices[index])])
+                                for index in indices],
+                            preparation_context=self.preparation_context)
                         return mask, np.where(mask, factors, 1.)
                     changes = np.asarray([terms[index].energy_changes for index in indices])
                     frequencies = np.stack([selections[index][0] for index in indices])
-                    return None, self._contract_energy_rows(changes, frequencies)
+                    if self.preparation_context is None:
+                        return None, self._contract_energy_rows(changes, frequencies)
+                    from .Analytic import _HashableNumPyIndex
+                    cache = self.preparation_context.cache('ordinary_energy',32*1024**2)
+                    keys = [(_HashableNumPyIndex(c),_HashableNumPyIndex(f)) for c,f in zip(changes,frequencies)]
+                    ready, missing = {}, {}
+                    for index,key in enumerate(keys):
+                        value = cache.get(key)
+                        if value is not None:
+                            ready[key] = value
+                        elif key not in missing:
+                            missing[key] = index
+                    if missing:
+                        selected = list(missing.values())
+                        values = self._contract_energy_rows(changes[selected],frequencies[selected])
+                        for key,value in zip(missing,values):
+                            value = value.copy()
+                            value.setflags(write=False)
+                            ready[key] = value
+                            cache[key] = value
+                    return None, np.stack([ready[key] for key in keys])
 
                 share_energy = (self.use_shared_energy_rows and self.plan.index_bindings is not None
                     and degenerate_changes is None and not any(only_degenerate_terms[:2])
@@ -1986,8 +2052,37 @@ class IndexedBlockEvaluator:
                     keys, ready, missing = [], {}, collections.OrderedDict()
                     for index, term in enumerate(terms):
                         block_index = int(block_indices[index])
-                        key = (term.energy_changes, projected_call, blocks.state_indices[block_index],
-                               selections[index][3], id(blocks.permutation_frequencies[block_index]))
+                        # Frequency bindings describe physical mode indices,
+                        # not the source-state row that happened to gather them.
+                        frequency_key = frequency_keys.get(block_index)
+                        if frequency_key is None:
+                            physical = np.asarray(blocks.permutation_subsets[block_index])
+                            frequency_key = (physical.shape,physical.dtype.str,physical.tobytes())
+                            capacity = max(0,int(self.max_energy_row_cache_bytes))
+                            size = len(frequency_key[2])
+                            if size <= capacity:
+                                while frequency_keys and (len(frequency_keys)>=128 or frequency_key_bytes+size>capacity):
+                                    _,removed = frequency_keys.popitem(last=False)
+                                    frequency_key_bytes -= len(removed[2])
+                                frequency_keys[block_index] = frequency_key
+                                frequency_key_bytes += size
+                        else:
+                            frequency_keys.move_to_end(block_index)
+                        source = blocks.state_indices[block_index] if term.projected else None
+                        if term.projected:
+                            if source not in projector_domains:
+                                from .Projected import projection_inputs
+                                bindings = projection_inputs(evaluation_context,source)
+                                state = np.asarray(blocks.reference_states[block_index])[0]
+                                projector_domains[source] = all(binding[3] and
+                                    (binding[2] is None or np.array_equal(binding[2],state))
+                                    for binding in bindings)
+                            if projector_domains[source]:
+                                # Equal local occupations still remain in the
+                                # selection key: valid-state masks can differ.
+                                source = None
+                        key = (term.energy_changes, projected_call, source,
+                               selections[index][3], frequency_key)
                         keys.append(key)
                         entry = energy_row_cache.get(key)
                         if entry is not None:
@@ -2007,11 +2102,12 @@ class IndexedBlockEvaluator:
                             entry = (None if masks is None else masks[position].copy(),
                                      factors[position].copy())
                             ready[key] = entry
-                            size = entry[1].nbytes + (0 if entry[0] is None else entry[0].nbytes)
+                            size = entry[1].nbytes + (0 if entry[0] is None else entry[0].nbytes) + len(key[-1][2])
                             if size <= capacity:
                                 while energy_row_cache and energy_row_cache_bytes + size > capacity:
-                                    _, removed = energy_row_cache.popitem(last=False)
-                                    energy_row_cache_bytes -= removed[1].nbytes + (0 if removed[0] is None else removed[0].nbytes)
+                                    removed_key, removed = energy_row_cache.popitem(last=False)
+                                    energy_row_cache_bytes -= (removed[1].nbytes +
+                                        (0 if removed[0] is None else removed[0].nbytes) + len(removed_key[-1][2]))
                                     self.stats.energy_row_cache_evictions += 1
                                 energy_row_cache[key] = entry
                                 energy_row_cache_bytes += size
@@ -2073,7 +2169,8 @@ class IndexedBlockEvaluator:
                                 blocks.permutation_subsets[block_index] if selected_rows[row_index] is None else
                                 np.asarray(blocks.permutation_subsets[block_index])[selected_rows[row_index]],
                                 selection[0], baseline_shift,
-                                __import__('Psience.VPT2.Projected',fromlist=['projection_inputs']).projection_inputs(evaluation_context)),
+                                __import__('Psience.VPT2.Projected',fromlist=['projection_inputs']).projection_inputs(
+                                    evaluation_context, blocks.state_indices[block_index])),
                             'coefficient_key': blocks.expression_keys[block_index],
                             'shared_coefficient_keys': (None if shared_aliases is None else shared_aliases[block_index]),
                             'energy_term': term.ordinal,
@@ -2358,7 +2455,9 @@ class IndexedBlockEvaluator:
             counts_cache,
             factorials,
             zero_cutoff,
-            self.stats
+            self.stats,
+            independent_coefficients=getattr(evaluation_context,'projection_bindings',{}).get(
+                'independent_coefficients',False)
         )
         if verbose:
             logger.log_print("Gathered {n} coefficient rows; took {e:.3f}s",

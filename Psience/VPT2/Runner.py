@@ -5557,27 +5557,31 @@ class AnalyticVPTRunner:
         """Run with the configured compilation policy, or an explicit per-call override."""
         previous=self.eval.compile_expressions
         if compile is not None:self.eval.compile_expressions=compile is not False
+        from .CompiledExpressions import compiled_evaluation_context
         try:
-            return self._run_VPT(
-                states=states,
-                calculate_intensities=calculate_intensities,
-                operator_expansions=operator_expansions,
-                operator_terms=operator_terms,
-                operator_type=operator_type,
-                order=order,
-                verbose=verbose,
-                degeneracy_specs=degeneracy_specs,
-                handle_degeneracies=handle_degeneracies,
-                zero_cutoff=zero_cutoff,
-                transition_moment_terms=transition_moment_terms,
-                hamiltonian_corrections=hamiltonian_corrections,
-                clear_caches=clear_caches,
-                hamiltonian_correction_type=hamiltonian_correction_type,
-                only_degenerate_terms=only_degenerate_terms,
-                state_specific_degeneracies=state_specific_degeneracies,
-                force_return_on_crash=force_return_on_crash,
+            with compiled_evaluation_context(
+                    self.eval.expression_store if self.eval.compile_expressions else None,
+                    self.eval.compilation_options, self.eval.evaluation_options, self.eval.parallelizer):
+                return self._run_VPT(
+                    states=states,
+                    calculate_intensities=calculate_intensities,
+                    operator_expansions=operator_expansions,
+                    operator_terms=operator_terms,
+                    operator_type=operator_type,
+                    order=order,
+                    verbose=verbose,
+                    degeneracy_specs=degeneracy_specs,
+                    handle_degeneracies=handle_degeneracies,
+                    zero_cutoff=zero_cutoff,
+                    transition_moment_terms=transition_moment_terms,
+                    hamiltonian_corrections=hamiltonian_corrections,
+                    clear_caches=clear_caches,
+                    hamiltonian_correction_type=hamiltonian_correction_type,
+                    only_degenerate_terms=only_degenerate_terms,
+                    state_specific_degeneracies=state_specific_degeneracies,
+                    force_return_on_crash=force_return_on_crash,
 
-            )
+                )
         finally:self.eval.compile_expressions=previous
 
     def _run_VPT(self,

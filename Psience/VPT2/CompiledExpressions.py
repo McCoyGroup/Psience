@@ -34,6 +34,9 @@ from .Analytic import ShiftedEnergyBaseline
 __all__ = ['AnalyticExpressionStore', 'CompiledAnalyticExpression',
            'CompiledAnalyticEvaluation', 'AnalyticCorrectionCompiler']
 
+_current_evaluation_plan = contextvars.ContextVar('analytic_evaluation_plan', default=None)
+_worker_evaluation_plans = {}
+
 _current_compilation = contextvars.ContextVar('analytic_compilation', default=None)
 _current_free_index_reduction = contextvars.ContextVar('analytic_free_index_reduction', default=False)
 _current_coefficient_fingerprints = contextvars.ContextVar('analytic_coefficient_fingerprints', default=None)
@@ -48,18 +51,72 @@ def compiled_evaluation_context(store, compilation_options=None, evaluation_opti
     context; changing a bound tensor requires a new context. Scalar coefficient
     values, occupations and projector bindings remain request-specific. Nested
     public calls reuse the existing context through _compiled_evaluation_context.
+    Every actually used live parallelizer receives worker-cache cleanup, including
+    per-request overrides. Pool ownership remains with the native contexts.
     """
-    cache = None if store is None else {}
+    from .BoundedStream import StreamPreparationContext
+    current = _current_evaluation_plan.get()
+    active = _current_compilation.get()
+    owner = current is None or (active is not None and active[0] is not store)
+    plan = (uuid.uuid4().hex, StreamPreparationContext(
+        None, immutable_expressions=True, options=evaluation_options)) if owner else current
+    cache = _current_coefficient_fingerprints.get()
+    if owner:
+        cache = {}
     coefficient_token = _current_coefficient_fingerprints.set(cache)
+    plan_token = _current_evaluation_plan.set(plan)
     token = _current_compilation.set(None if store is None else
         (store, compilation_options or {}, evaluation_options or {}, parallelizer))
+    manager = parallelizer if owner and parallelizer is not None else contextlib.nullcontext()
     try:
-        yield
+        with manager:
+            try:
+                yield plan[1]
+            finally:
+                if owner:
+                    try:
+                        with contextlib.ExitStack() as workers:
+                            for backend in tuple(plan[1].parallelizers.values()):
+                                if backend.active:
+                                    workers.callback(backend.apply,_release_evaluation_plan,
+                                                     plan[0],cleanup=False)
+                    finally:
+                        try:
+                            _release_evaluation_plan(plan[0])
+                        finally:
+                            plan[1].close()
     finally:
         _current_compilation.reset(token)
+        _current_evaluation_plan.reset(plan_token)
         _current_coefficient_fingerprints.reset(coefficient_token)
-        if cache is not None:
+        if owner:
             cache.clear()
+
+
+def _release_evaluation_plan(identity, parallelizer=None):
+    from .Analytic import PerturbationTheoryExpressionEvaluator
+    from .IndexedEvaluator import IndexedBlockEvaluator
+    plan = _worker_evaluation_plans.pop(identity, None)
+    if plan is not None:
+        plan.close()
+    IndexedBlockEvaluator.clear_plan_cache()
+    PerturbationTheoryExpressionEvaluator._cached_expansion = None
+    PerturbationTheoryExpressionEvaluator._cached_stream_preparation = None
+
+
+def _evaluation_plan(context):
+    from .BoundedStream import StreamPreparationContext
+    identity = context.get('plan_identity')
+    if identity is None:
+        return StreamPreparationContext(None, immutable_expressions=True,
+                                        options=context['numerical_options'])
+    current = _current_evaluation_plan.get()
+    if current is not None and current[0] == identity and current[1].pid == os.getpid():
+        return current[1]
+    if identity not in _worker_evaluation_plans:
+        _worker_evaluation_plans[identity] = StreamPreparationContext(
+            None, immutable_expressions=True, options=context['numerical_options'])
+    return _worker_evaluation_plans[identity]
 
 
 
@@ -646,7 +703,13 @@ class CompiledAnalyticEvaluation:
                  batch_size=512,task_size=32768,resume=True,numerical_options=None,use_shared_memory=None):
         self.compiled=compiled
         self.state_perms=[(np.asarray(state,dtype=int),np.asarray(perms,dtype=int)) for state,perms in state_perms]
-        self.coeffs=coeffs;self.freqs=np.asarray(freqs);self.anchored_modes=tuple(anchored_modes)
+        from McUtils.Parallelizers import SharedMemoryArrayTree
+        from .Analytic import PerturbationTheoryExpressionEvaluator
+        active = _current_evaluation_plan.get()
+        self.coeffs = (coeffs if isinstance(coeffs,SharedMemoryArrayTree) else
+            PerturbationTheoryExpressionEvaluator._normalize_coefficient_expansions(
+                coeffs,preparation_context=None if active is None else active[1]))
+        self.freqs=np.asarray(freqs);self.anchored_modes=tuple(anchored_modes)
         cap=compiled.manifest['options'].get('mode_dimension')
         if cap is not None and len(self.freqs)>cap:
             raise ValueError('compiled expression was pruned for fewer modes; recompile for the larger basis')
@@ -667,7 +730,7 @@ class CompiledAnalyticEvaluation:
                     raise ValueError('occupation-specialized expression used outside its target-state domain')
         elif self.anchored_modes:raise ValueError('anchoring requires a matching final occupation projection')
         signature=self._fingerprint_context(dict(expression=compiled.manifest['signature'],states=self.state_perms,
-            coefficients=coeffs,frequencies=self.freqs,anchors=self.anchored_modes,numerical=self.numerical_options,
+            coefficients=self.coeffs,frequencies=self.freqs,anchors=self.anchored_modes,numerical=self.numerical_options,
             batch_size=self.batch_size,task_size=self.task_size))
         self.folder=None if compiled.folder is None else compiled.folder/'evaluations'/signature
         if self.folder is not None:self.folder.mkdir(parents=True,exist_ok=True)
@@ -719,7 +782,12 @@ class CompiledAnalyticEvaluation:
         return fingerprint(context, **options)
 
     def _context(self,coeffs=None):
-        return dict(expression_folder=None if self.compiled.folder is None else str(self.compiled.folder),
+        plan = _current_evaluation_plan.get()
+        from McUtils.Parallelizers import SharedMemoryArrayTree
+        inputs = self.coeffs.tree if isinstance(self.coeffs,SharedMemoryArrayTree) else self.coeffs
+        bindings = None if plan is None else plan[1].bind(inputs)
+        return dict(plan_identity=None if plan is None else plan[0],
+            coefficient_bindings=bindings,coefficient_owner_pid=os.getpid(),expression_folder=None if self.compiled.folder is None else str(self.compiled.folder),
             expression_parts=self.compiled.parts,manifest=self.compiled.manifest,
             evaluation_folder=None if self.folder is None else str(self.folder),signature=self.signature,state_perms=self.state_perms,
             coeffs=self.coeffs if coeffs is None else coeffs,freqs=self.freqs,anchors=self.anchored_modes,
@@ -732,9 +800,18 @@ class CompiledAnalyticEvaluation:
     def run(self):
         started=time.perf_counter()
         try:
-            manager = contextlib.nullcontext() if self.parallelizer is None else self.parallelizer
+            if _current_evaluation_plan.get() is None:
+                manager = compiled_evaluation_context(self.compiled.store,
+                    evaluation_options=self.numerical_options,parallelizer=self.parallelizer)
+            else:
+                manager = contextlib.nullcontext() if self.parallelizer is None else self.parallelizer
             with manager:return self._run()
         finally:
+            active = _current_evaluation_plan.get()
+            if active is not None and self.parallelizer is not None and not self.parallelizer.active:
+                # Per-request pools keep their native lifetime/default policy.
+                # Dead pools have no worker state left for the plan to release.
+                active[1].parallelizers.pop(id(self.parallelizer),None)
             if self.compiled.store is not None:self.compiled.store.timings['evaluation_seconds']+=time.perf_counter()-started
 
     def _run(self):
@@ -745,13 +822,20 @@ class CompiledAnalyticEvaluation:
             index=min(range(nprocs),key=lambda i:loads[i]);bins[index].append(task)
             loads[index]+=(task['stop']-task['start'])*max(1,task['part']['energy_rows'])
         owner=None
+        active = _current_evaluation_plan.get()
+        if active is not None and backend is not None:
+            active[1].parallelizers[id(backend)] = backend
         try:
             from McUtils.Parallelizers import SharedMemoryArrayTree
+            coefficients = self.coeffs
             if isinstance(backend,MultiprocessingParallelizer) and self.use_shared_memory and not isinstance(self.coeffs,SharedMemoryArrayTree):
-                from .Analytic import PerturbationTheoryExpressionEvaluator
-                owner=SharedMemoryArrayTree.create(
-                    PerturbationTheoryExpressionEvaluator._normalize_coefficient_expansions(self.coeffs))
-            context=self._context(owner)
+                normalized = self.coeffs
+                if active is not None:
+                    coefficients = active[1].share_coefficients(normalized)
+                else:
+                    owner = SharedMemoryArrayTree.create(normalized)
+                    coefficients = owner
+            context=self._context(coefficients)
             if backend is None:
                 records=_run_compiled_tasks(self.tasks,context)
             else:
@@ -805,11 +889,43 @@ def _run_compiled_tasks(tasks,context):
 
 
 def _run_compiled_tasks_inner(tasks,context):
-    from .Analytic import PerturbationTheoryExpressionEvaluator as Expression
+    from .Analytic import PerturbationTheoryExpressionEvaluator as Expression, _MaterializedEvaluationCache
     from .IndexedEvaluator import IndexedBlockEvaluator
+    from .BoundedStream import StreamPreparationContext
     from McUtils.Parallelizers import SharedMemoryArrayTree
-    coefficients=context['coeffs']
-    if not isinstance(coefficients,SharedMemoryArrayTree):coefficients=Expression._normalize_coefficient_expansions(coefficients)
+    evaluation_plan = _evaluation_plan(context)
+    def restore(value, binding=None):
+        if isinstance(value, SharedMemoryArrayTree):
+            if value.owner or context.get('coefficient_owner_pid') == os.getpid():
+                # A caller's local handle is borrowed, including attach() handles.
+                # Only transport-created worker attachments belong to this plan.
+                # Retain a borrowed handle while prepared views refer to it.
+                evaluation_plan.borrowed_handles[id(value)] = value
+                return value.tree
+            # Unpickled descriptors attach on each dispatch. Intern the native
+            # attachment so tensor identities and gathers survive that dispatch.
+            key = ('shared', value.descriptor.name)
+            prior = evaluation_plan.shared_arrays.get(key)
+            if prior is None:
+                evaluation_plan.shared_arrays[key] = value
+                prior = value
+            elif prior is not value:
+                value.dispose()
+            return prior.tree
+        if isinstance(value,np.ndarray) and value.ndim and binding is not None:
+            # Non-shared dispatch pickles new ndarray objects each time. Intern
+            # them by the parent's immutable plan binding, not their new worker
+            # addresses, so old transport copies do not accumulate in a plan.
+            return evaluation_plan.copied_inputs.setdefault(binding,value)
+        if isinstance(value, (list, tuple)):
+            return type(value)(restore(part,None if binding is None else binding[index])
+                               for index,part in enumerate(value))
+        return value
+    coefficients = Expression._normalize_coefficient_expansions(
+        restore(context['coeffs'],context.get('coefficient_bindings')),
+        preparation_context=evaluation_plan)
+    preparation = evaluation_plan.domain(coefficients)
+    polynomial_cache = evaluation_plan.polynomial_cache()
     manifest=context['manifest'];num_fixed=manifest['num_fixed'];ndim=len(context['freqs'])
     anchors=context['anchors'];available=tuple(i for i in range(num_fixed,ndim) if i not in anchors)
     cache=collections.OrderedDict();records=[]
@@ -874,6 +990,8 @@ def _run_compiled_tasks_inner(tasks,context):
         for name in ('path_equality_cache_size','cache_polynomial_order','free_index_reduction'):
             options.pop(name,None)
         options['_max_polynomial_order']=max_order
+        options['_poly_eval_cache']=polynomial_cache
+        options['_stream_preparation']=preparation
         for extra_batch in iter(lambda:list(itertools.islice(iterator,context['batch_size'])),[]):
             subsets=[anchors+tuple(extra) for extra in extra_batch]
             requests=[]
@@ -916,7 +1034,9 @@ def _run_compiled_tasks_inner(tasks,context):
                 if not any(journal.iterdir()):
                     journal.rmdir()
         records.append(record)
-    IndexedBlockEvaluator.clear_plan_cache()
+    if context.get('plan_identity') is None:
+        evaluation_plan.close()
+        IndexedBlockEvaluator.clear_plan_cache()
     return records
 
 

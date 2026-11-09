@@ -74,11 +74,26 @@ class _ProjectionEvaluationContext:
         self.operator,self.projection_bindings = operator,bindings
     def __repr__(self):
         return repr(self.operator)
+    def for_route(self, route):
+        if 'route_projectors' not in self.projection_bindings:
+            return self
+        bindings = dict(self.projection_bindings)
+        bindings['projectors'] = projection_inputs(self, route)
+        bindings.pop('route_projectors')
+        return type(self)(self.operator, bindings)
 
 
-def projection_inputs(context):
-    return (context.projection_bindings.get('projectors',())
-            if isinstance(context,_ProjectionEvaluationContext) else ())
+def projection_inputs(context, route=None):
+    if not isinstance(context, _ProjectionEvaluationContext):
+        return ()
+    bindings = context.projection_bindings
+    if route is not None and 'route_projectors' in bindings:
+        # Multi-source concrete blocks contain only ordinary terms. Diagnostic
+        # formatting for those blocks uses their first source as before.
+        if isinstance(route, tuple):
+            route = route[0]
+        return bindings['route_projectors'][int(route)]
+    return bindings.get('projectors', ())
 
 
 class _BlockScalarTerm(PerturbationTheoryTerm):
@@ -224,15 +239,25 @@ def _bound_projection_row(energy_key, state, model_size, projection_bindings):
 
 
 def projected_energy_rows(energy_keys, source_states, permutations, frequency_blocks, baseline_shift=None,
-                          *, projection_bindings=()):
+                          *, projection_bindings=(), row_projection_bindings=None, preparation_context=None):
     """Contract a bounded indexed row batch, retaining all projector tests."""
+    bindings = ([projection_bindings] * len(energy_keys) if row_projection_bindings is None
+                else row_projection_bindings)
+    if len(bindings) != len(energy_keys):
+        raise ValueError('one projector binding is required per energy row')
     if any(getattr(row[0],'_conditional_endpoint',False) for key in energy_keys for row in key):
         from .Conditional import conditional_energy_rows
-        return conditional_energy_rows(energy_keys,source_states,permutations,frequency_blocks,baseline_shift,
-            projection_bindings=projection_bindings)
-    model_size = max([1]+[len(projection_bindings[row[0].slot][0])
-        for key in energy_keys for row in key if isinstance(row[0],ProjectionFactor)
-        and row[0].kind!='V' and not projection_bindings[row[0].slot][3]])
+        if row_projection_bindings is None:
+            return conditional_energy_rows(energy_keys,source_states,permutations,frequency_blocks,baseline_shift,
+                projection_bindings=projection_bindings)
+        results = [conditional_energy_rows([key],[state],[perms],freqs[None],baseline_shift,
+                    projection_bindings=binding)
+                   for key,state,perms,freqs,binding in zip(
+                       energy_keys,source_states,permutations,frequency_blocks,bindings)]
+        return tuple(np.concatenate([result[k] for result in results]) for k in range(2))
+    model_size = max([1]+[len(binding[row[0].slot][0])
+        for key,binding in zip(energy_keys,bindings) for row in key if isinstance(row[0],ProjectionFactor)
+        and row[0].kind!='V' and not binding[row[0].slot][3]])
     # Bound the projector-comparison scratch independently of the native
     # polynomial row chunk, whose bound does not include model-space size.
     factors = len(energy_keys[0])
@@ -243,15 +268,18 @@ def projected_energy_rows(energy_keys, source_states, permutations, frequency_bl
     if len(energy_keys) > row_limit:
         results = [projected_energy_rows(energy_keys[i:i+row_limit],
             source_states[i:i+row_limit],permutations[i:i+row_limit],frequency_blocks[i:i+row_limit],
-            baseline_shift,projection_bindings=projection_bindings)
+            baseline_shift,projection_bindings=projection_bindings,
+            row_projection_bindings=bindings[i:i+row_limit], preparation_context=preparation_context)
             for i in range(0,len(energy_keys),row_limit)]
         return tuple(np.concatenate([result[k] for result in results]) for k in range(2))
     states = np.stack([np.asarray(state)[0] for state in source_states])
-    bound = [_bound_projection_row(key,tuple(state),model_size,projection_bindings)
-             for key,state in zip(energy_keys,states)]
+    bound = [_bound_projection_row(key,tuple(state),model_size,binding)
+             for key,state,binding in zip(energy_keys,states,bindings)]
     deltas,kinds,gaps,differences,counts = [np.stack(items) for items in zip(*bound)]
     permutations = np.stack(permutations)
-    linear = np.einsum('rpm,rfm->rpf',frequency_blocks,deltas,optimize=False)
+    linear = (np.einsum('rpm,rfm->rpf',frequency_blocks,deltas,optimize=False)
+              if preparation_context is None else
+              preparation_context.energy_contractions(frequency_blocks,deltas))
     row_count,factor_count,model_count = differences.shape[:3]
     local = differences[
         np.arange(row_count)[:,None,None,None,None],
@@ -396,37 +424,132 @@ class AnalyticBlockExpansion:
         return {origin: terms[0] if len(terms) == 1 else PerturbationTheoryTermSum.lookup(*terms)
                 for origin, terms in grouped.items()}
 
-    def element(self, term, initial, final, expansions=None, logger=None, verbose=False):
-        if isinstance(term, IdentityTerm):
-            return float(tuple(initial) == tuple(final))
-        expansions = self.expansions if expansions is None else expansions
-        self._coefficient_references[id(expansions)] = expansions
-        key = (term, tuple(initial), tuple(final), id(expansions))
-        if key not in self._elements:
-            logger = Logger.lookup(self.evaluator.solver.logger if logger is None else logger)
-            level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
-            changes = self.evaluator.get_diff_map([[initial, [final]]], logger=logger, log_level=level)
-            value = 0.
-            generic,projection_bindings,scalar_values=self._generic_term(term,len(expansions))
-            numerical_expansions=list(expansions)+[[value] for value in scalar_values]
-            for change, state_perms in changes.items():
-                with _log_evaluation_time(logger, "Building projected evaluator {s}[{c}]",
-                                          s=term, c=change, log_level=level):
-                    expression = PerturbationTheoryExpressionEvaluator(
-                        generic, generic.get_poly_terms(change), change, logger=logger)
-                with _log_evaluation_time(logger, "evaluating projected element...", log_level=level):
-                    result = expression.evaluate(state_perms, numerical_expansions, self.freqs,
-                        projection_bindings=projection_bindings,
-                        only_degenerate_terms=False, zero_cutoff=self.zero_cutoff,
-                        parallelizer=self.evaluator.parallelizer,
-                        evaluation_backend=self.evaluation_backend,
-                        log_scaled=False, verbose=verbose)
-                value += float(result[0][0])
-            self._elements[key] = value
-        return self._elements[key]
+    use_batched_elements = True
+    use_hermitian_symmetry = True
+    max_element_batch_size = 128
+    element_batch_bytes = 64 * 1024**2
 
-    def inner(self, left, right, operator=None, expansions=None, logger=None, verbose=False):
-        result = 0.
+    @classmethod
+    def _evaluate_elements(cls, requests, logger=None, verbose=False, coefficient_batch_size=1):
+        """Use native multi-route evaluation; keep pending requests bounded.
+
+        Each request owns its final-value cache and runtime projector binding.
+        Compatible requests share the existing coefficient/permutation and
+        polynomial machinery, including requests from different model spaces.
+        """
+        iterator = iter(requests)
+        while True:
+            try:
+                first = next(iterator)
+            except StopIteration:
+                return
+            owner = first[0]
+            subset_batch = max(1, int((getattr(owner.evaluator,'evaluation_options',None) or {}).get('batch_size', 512)))
+            # Bound input permutation expansion as well as request count. This
+            # is a batching target, not an RSS cap.
+            limit = min(cls.max_element_batch_size,
+                        max(1, cls.element_batch_bytes // max(1, 16*len(owner.freqs)*subset_batch)))
+            if not cls.use_batched_elements:
+                limit = 1
+            elif limit >= coefficient_batch_size:
+                limit = (limit//coefficient_batch_size)*coefficient_batch_size
+            chunk = [first] + list(itertools.islice(iterator, limit-1))
+            values = [None] * len(chunk)
+            pending, groups = {}, {}
+            for position, (block, tag, term, initial, final, expansions) in enumerate(chunk):
+                if isinstance(term, IdentityTerm):
+                    values[position] = float(tuple(initial) == tuple(final))
+                    continue
+                raw_expansions = expansions
+                expansions = block.expansions if expansions is None else expansions
+                block._coefficient_references[id(expansions)] = expansions
+                key = (term, tuple(initial), tuple(final), id(expansions))
+                if key in block._elements:
+                    values[position] = block._elements[key]
+                    continue
+                identity = (block, key)
+                if identity in pending:
+                    pending[identity]['positions'].append(position)
+                    continue
+                entry = dict(block=block, key=key, positions=[position], value=0.)
+                pending[identity] = entry
+                log = Logger.lookup(block.evaluator.solver.logger if logger is None else logger)
+                level = Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug
+                changes = block.evaluator.get_diff_map([[initial, [final]]], logger=log, log_level=level)
+                generic, bindings, scalars = block._generic_term(term, len(expansions))
+                domain = ((id(block.evaluator), id(block._raw_expansions)) if raw_expansions is None
+                          else (None, id(expansions)))
+                for change, routes in changes.items():
+                    group_key = (domain, id(block.freqs), generic, tuple(change), tuple(scalars),
+                                 id(block.zero_cutoff), block.evaluation_backend, id(block.evaluator.parallelizer))
+                    group = groups.setdefault(group_key, dict(block=block, generic=generic, change=change,
+                        expansions=expansions, scalars=scalars, bindings=bindings, routes=[],
+                        projectors=[], destinations=[], logger=log))
+                    start = len(group['routes'])
+                    group['routes'].extend(routes)
+                    group['projectors'].extend([bindings['projectors']] * len(routes))
+                    group['destinations'].append((entry, start))
+            compatible = {}
+            for group_key,group in groups.items():
+                # Equality compares exact source/permutation routes and runtime
+                # projectors; no Cartesian expansion of unmatched domains.
+                from .Analytic import _HashableNumPyIndex
+                route_key = tuple((_HashableNumPyIndex(state),_HashableNumPyIndex(perms))
+                                  for state,perms in group['routes'])
+                key = (group_key[1:],route_key,tuple(group['projectors']))
+                compatible.setdefault(key,[]).append(group)
+            from .CompiledExpressions import current_compilation
+            cohorts = compatible.values()
+            # The legacy evaluator's historical multi-expansion cutoff policy
+            # is coupled. Keep independent property domains separate there.
+            if current_compilation() is None or any(
+                    item['block'].evaluation_backend == 'legacy' for items in cohorts for item in items):
+                cohorts = ([item] for items in compatible.values() for item in items)
+            for cohort in cohorts:
+                group = cohort[0]
+                block = group['block']
+                bindings = dict(group['bindings'], route_projectors=tuple(group['projectors']))
+                coefficients = [list(item['expansions']) + [[value] for value in item['scalars']]
+                                for item in cohort]
+                generic, change = group['generic'], group['change']
+                expression = PerturbationTheoryExpressionEvaluator(
+                    generic, generic.get_poly_terms(change), change, logger=group['logger'])
+                subset_batch=max(1,int((getattr(block.evaluator,'evaluation_options',None) or {}).get('batch_size',512)))
+                permutation_bytes=16*len(block.freqs)*subset_batch*len(cohort)*max(len(perms) for _,perms in group['routes'])
+                # Account conservatively for the bound model-space/reference
+                # metadata used while fingerprinting a numerical batch.
+                projection_bytes=64*len(block.freqs)*max(
+                    sum(len(binding[0])+2 for binding in route) for route in group['projectors'])
+                route_limit=max(1,min(cls.max_element_batch_size,
+                    cls.element_batch_bytes//max(1,permutation_bytes+projection_bytes)))
+                if not cls.use_batched_elements:
+                    route_limit=1
+                for start in range(0,len(group['routes']),route_limit):
+                    stop=min(start+route_limit,len(group['routes']))
+                    route_bindings=dict(bindings,route_projectors=tuple(group['projectors'][start:stop]),
+                                        independent_coefficients=len(cohort)>1)
+                    with _log_evaluation_time(group['logger'], "evaluating projected element batch...",
+                                              log_level=Logger.LogLevel.Normal if verbose else Logger.LogLevel.Debug):
+                        result = expression.evaluate(group['routes'][start:stop], coefficients, block.freqs,
+                            projection_bindings=route_bindings, only_degenerate_terms=False,
+                            zero_cutoff=block.zero_cutoff, parallelizer=block.evaluator.parallelizer,
+                            evaluation_backend=block.evaluation_backend, log_scaled=False, verbose=verbose)
+                    for axis,item in enumerate(cohort):
+                        for entry, route in item['destinations']:
+                            if start<=route<stop:
+                                entry['value'] += np.asarray(result[route-start][axis]).item()
+            for entry in pending.values():
+                entry['block']._elements[entry['key']] = entry['value']
+                for position in entry['positions']:
+                    values[position] = entry['value']
+            for request, value in zip(chunk, values):
+                yield request[1], value
+
+    def element(self, term, initial, final, expansions=None, logger=None, verbose=False):
+        return next(self._evaluate_elements(
+            [(self, None, term, initial, final, expansions)], logger, verbose))[1]
+
+    def _inner_requests(self, left, right, operator=None):
         for initial, right_term in right.items():
             if operator is not None:
                 right_term = operator if isinstance(right_term, IdentityTerm) else operator * right_term
@@ -437,9 +560,39 @@ class AnalyticBlockExpansion:
                     expression = ShiftedEnergyBaseline.lookup(left_term)
                 else:
                     expression = ShiftedEnergyBaseline.lookup(left_term) * right_term
-                result += self.element(expression, initial, final, expansions, logger=logger, verbose=verbose)
+                yield expression, initial, final
+
+    def inner(self, left, right, operator=None, expansions=None, logger=None, verbose=False):
+        requests = ((self, None, term, initial, final, expansions)
+                    for term, initial, final in self._inner_requests(left, right, operator))
+        result = 0.
+        for _, value in self._evaluate_elements(requests, logger, verbose):
+            result += value
         return result
 
+    @classmethod
+    def _contract_matrices(cls, specifications, logger=None, verbose=False):
+        """Contract selected entries, retaining the original inner-sum order."""
+        matrices = [np.zeros((len(left), len(right))) for block,left,right,op,upper in specifications]
+        def requests():
+            for index, (block, left, right, operator, upper) in enumerate(specifications):
+                for a, column_left in enumerate(left):
+                    for b in range(a if upper else 0, len(right)):
+                        for term, initial, final in block._inner_requests(column_left, right[b], operator):
+                            yield block, (index,a,b), term, initial, final, None
+        for tag, entries in itertools.groupby(cls._evaluate_elements(requests(), logger, verbose),
+                                               key=lambda item:item[0]):
+            value = 0.
+            for _, part in entries:
+                value += part
+            index,a,b = tag
+            matrices[index][a,b] = value
+        return matrices
+
+    @staticmethod
+    def _complete_hermitian(matrix):
+        upper = np.triu(matrix)
+        return upper + np.triu(matrix,1).conj().T
 
     def _hamiltonian(self, order):
         if order not in self._hamiltonian_terms:
@@ -453,62 +606,93 @@ class AnalyticBlockExpansion:
     def extend(self, order, logger=None, verbose=False):
         if self.intermediate_normalization:
             return self._extend_intermediate(order,logger=logger,verbose=verbose)
-        logger = Logger.lookup(self.evaluator.solver.logger if logger is None else logger)
-        size = len(self.states)
-        while len(self.Y) <= order:
-            n = len(self.Y)
-            with _log_evaluation_time(logger, "Building projected block ({size} states) at order {o}",
-                                      size=size, o=n):
-                with _log_evaluation_time(logger, "Contracting block normalization..."):
-                    normalizer = np.zeros((size, size))
-                    for a in range(size):
-                        for b in range(size):
-                            normalizer[a, b] = -.5 * sum(
-                                self.inner(self.X[i][a], self.X[n-i][b], logger=logger, verbose=verbose) for i in range(1, n)
-                            )
-                    for i in range(1,n):
-                        normalizer -= .5 * (self.N[i].T @ self.N[n-i])
-                with _log_evaluation_time(logger, "Contracting block Hamiltonian..."):
-                    energies = np.diag(self.F[0])
-                    hamiltonian = (energies[:, None] - energies[None, :]) * normalizer
-                    for r in range(1, n+1):
-                        h = self._hamiltonian(r)
-                        if h is not None:
-                            bare = np.asarray([[self.element(h,initial,final,logger=logger,verbose=verbose) for initial in self.states]
-                                               for final in self.states])
-                            hamiltonian += bare @ self.N[n-r]
-                            for a, state in enumerate(self.states):
-                                for b in range(size):
-                                    hamiltonian[a, b] += self.inner(
-                                        {state: self.identity}, self.X[n-r][b], h, logger=logger, verbose=verbose)
-                    for i in range(1, n):
-                        hamiltonian -= self.N[i] @ self.F[n-i]
-                with _log_evaluation_time(logger, "Building projected resolvents and wavefunctions..."):
-                    projected, full = [], []
-                    for a, state in enumerate(self.states):
-                        parts = [(self.X[n-r][a], 1, self._hamiltonian(r))
-                                 for r in range(1, n+1) if self._hamiltonian(r) is not None]
-                        parts += [({origin:self.identity},self._scalar(self.N[n-r][b,a]),self._hamiltonian(r))
-                                  for r in range(1,n+1) if self._hamiltonian(r) is not None
-                                  for b,origin in enumerate(self.states)]
-                        parts += [(self.X[i][b], self._scalar(-self.F[n-i][b, a]), None)
-                                  for i in range(1, n) for b in range(size)]
-                        source = self._column(parts)
-                        column = {}
-                        for origin, term in source.items():
-                            key = (term, state, origin)
-                            if key not in self._resolvents:
-                                self._resolvents[key] = self._resolvent(term,state,origin)
-                            column[origin] = self._resolvents[key]
-                        projected.append(column)
-                        normalization = [({origin: self.identity}, self._scalar(normalizer[b, a]), None)
-                                         for b, origin in enumerate(self.states)]
-                        full.append(self._column([(column, 1, None)] + normalization))
-                self.N.append(normalizer)
-                self.F.append(hamiltonian)
-                self.X.append(projected)
-                self.Y.append(full)
+        self._extend_blocks([self], order, logger, verbose)
         return self
+
+    @classmethod
+    def _extend_blocks(cls, blocks, order, logger=None, verbose=False):
+        """Advance independent canonical blocks together, one order at a time."""
+        blocks = list(dict.fromkeys(blocks))
+        ordinary = [block for block in blocks if not block.intermediate_normalization]
+        for block in blocks:
+            if block.intermediate_normalization:
+                block._extend_intermediate(order,logger=logger,verbose=verbose)
+        upper = cls.use_hermitian_symmetry
+        while True:
+            active = [block for block in ordinary if len(block.Y) <= order]
+            if not active:
+                return
+            n = min(len(block.Y) for block in active)
+            active = [block for block in active if len(block.Y) == n]
+            log = Logger.lookup(active[0].evaluator.solver.logger if logger is None else logger)
+            with _log_evaluation_time(log, "Building projected blocks at order {o}", o=n):
+                specifications, locations = [], []
+                for block in active:
+                    for i in range(1,n):
+                        locations.append((block,i))
+                        specifications.append((block,block.X[i],block.X[n-i],None,upper))
+                with _log_evaluation_time(log, "Contracting block normalization..."):
+                    pieces = dict(zip(locations,cls._contract_matrices(specifications,log,verbose)))
+                    normalizers = {}
+                    for block in active:
+                        size = len(block.states)
+                        normalizer = np.zeros((size,size))
+                        for a in range(size):
+                            for b in range(a if upper else 0,size):
+                                normalizer[a,b] = -.5 * sum(pieces[block,i][a,b] for i in range(1,n))
+                        for i in range(1,n):
+                            normalizer -= .5 * (block.N[i].conj().T @ block.N[n-i])
+                        normalizers[block] = cls._complete_hermitian(normalizer) if upper else normalizer
+                with _log_evaluation_time(log, "Contracting block Hamiltonian..."):
+                    specifications, locations = [], []
+                    identities = {block:[{state:block.identity} for state in block.states] for block in active}
+                    for block in active:
+                        for r in range(1,n+1):
+                            h = block._hamiltonian(r)
+                            if h is not None:
+                                locations.append((block,r,'bare'))
+                                specifications.append((block,identities[block],identities[block],h,upper))
+                                locations.append((block,r,'mixed'))
+                                specifications.append((block,identities[block],block.X[n-r],h,upper))
+                    pieces = dict(zip(locations,cls._contract_matrices(specifications,log,verbose)))
+                    hamiltonians = {}
+                    for block in active:
+                        energies = np.diag(block.F[0])
+                        hamiltonian = (energies[:,None]-energies[None,:]) * normalizers[block]
+                        for r in range(1,n+1):
+                            if block._hamiltonian(r) is not None:
+                                bare = pieces[block,r,'bare']
+                                if upper:
+                                    bare = cls._complete_hermitian(bare)
+                                hamiltonian += bare @ block.N[n-r]
+                                hamiltonian += pieces[block,r,'mixed']
+                        for i in range(1,n):
+                            hamiltonian -= block.N[i] @ block.F[n-i]
+                        hamiltonians[block] = cls._complete_hermitian(hamiltonian) if upper else hamiltonian
+                with _log_evaluation_time(log, "Building projected resolvents and wavefunctions..."):
+                    for block in active:
+                        size = len(block.states)
+                        projected, full = [], []
+                        for a,state in enumerate(block.states):
+                            parts = [(block.X[n-r][a],1,block._hamiltonian(r))
+                                     for r in range(1,n+1) if block._hamiltonian(r) is not None]
+                            parts += [({origin:block.identity},block._scalar(block.N[n-r][b,a]),block._hamiltonian(r))
+                                      for r in range(1,n+1) if block._hamiltonian(r) is not None
+                                      for b,origin in enumerate(block.states)]
+                            parts += [(block.X[i][b],block._scalar(-block.F[n-i][b,a]),None)
+                                      for i in range(1,n) for b in range(size)]
+                            column = {}
+                            for origin,term in block._column(parts).items():
+                                key = (term,state,origin)
+                                if key not in block._resolvents:
+                                    block._resolvents[key] = block._resolvent(term,state,origin)
+                                column[origin] = block._resolvents[key]
+                            projected.append(column)
+                            normalization = [({origin:block.identity},block._scalar(normalizers[block][b,a]),None)
+                                             for b,origin in enumerate(block.states)]
+                            full.append(block._column([(column,1,None)]+normalization))
+                        block.N.append(normalizers[block]);block.F.append(hamiltonians[block])
+                        block.X.append(projected);block.Y.append(full)
 
     def _extend_intermediate(self, order, logger=None, verbose=False):
         """Bloch recurrence: P Omega P=P, B=P H Omega P.
@@ -663,14 +847,13 @@ class AnalyticBlockExpansion:
                    (off_diagonal is None or (b != column) == off_diagonal)]
         return result
 
-    def operator_correction(self, other, left, right, operators, order, expansions=None,
-                            terms=None, branches=True, logger=None, verbose=False):
+    def _operator_inner_requests(self, other, left, right, operators, order,
+                                 terms=None, branches=True, logger=None, verbose=False):
         if self.intermediate_normalization or other.intermediate_normalization:
             raise ValueError('normalized observables require orthonormal blocks or explicit metric factors')
         self.extend(order,logger=logger,verbose=verbose)
         other.extend(order,logger=logger,verbose=verbose)
         allowed = None if terms is None else {tuple(t) for t in terms}
-        result = 0.
         for i in range(order+1):
             for k in range(order+1-i):
                 j = order-i-k
@@ -678,7 +861,7 @@ class AnalyticBlockExpansion:
                     if branches is True:
                         for bra,bc in self.operator_components(i,left):
                             for ket,kc in other.operator_components(k,right):
-                                result += bc*kc*self.inner(bra,ket,operators[j],expansions,logger=logger,verbose=verbose)
+                                yield bc*kc, bra, ket, operators[j]
                     else:
                         selected = {'main': True}
                         if branches is not False:
@@ -689,7 +872,14 @@ class AnalyticBlockExpansion:
                             if selected.get(name,False):
                                 for bra,bc in self.operator_components(i,left,bra_cross):
                                     for ket,kc in other.operator_components(k,right,ket_cross):
-                                        result += bc*kc*self.inner(bra,ket,operators[j],expansions,logger=logger,verbose=verbose)
+                                        yield bc*kc, bra, ket, operators[j]
+
+    def operator_correction(self, other, left, right, operators, order, expansions=None,
+                            terms=None, branches=True, logger=None, verbose=False):
+        result = 0.
+        for weight, bra, ket, operator in self._operator_inner_requests(
+                other, left, right, operators, order, terms, branches, logger, verbose):
+            result += weight*self.inner(bra, ket, operator, expansions, logger, verbose)
         return result
 
 
@@ -742,7 +932,23 @@ class ProjectedCorrectionEvaluator:
         block = self.cache[key].extend(order,logger=self.logger,verbose=self.verbose)
         return block, block.states.index(state)
 
+    def _prepare_blocks(self, states, order):
+        blocks = []
+        for state in states:
+            state = tuple(int(n) for n in state)
+            group = self.blocks.get(state,(state,))
+            if group not in self.cache and (group,'intermediate') in self.cache:
+                # Preserve the existing lazy conversion of a previously built
+                # intermediate expansion, including its metric policy.
+                self.block(state,order)
+            elif group not in self.cache:
+                self.cache[group] = AnalyticBlockExpansion(self.evaluator,group,
+                    self.expansions,self.freqs,self.zero_cutoff)
+            blocks.append(self.cache[group])
+        AnalyticBlockExpansion._extend_blocks(blocks,order,self.logger,self.verbose)
+
     def diagonal(self, states, order, series, orders):
+        self._prepare_blocks(states, order)
         corrections = []
         for n in orders:
             with self.logger.block(tag="Getting corrections at order {o}", o=n):
@@ -754,7 +960,7 @@ class ProjectedCorrectionEvaluator:
                     corrections.append(np.asarray(values))
         return corrections
 
-    def result(self, states, order, value, target_orders=None):
+    def result(self, states, order, value, target_orders=None, *, prepare_canonical=True, prepare_final_blocks=False, batch_value=None):
         if target_orders is not None:
             target_orders = frozenset(target_orders)
             if not target_orders or min(target_orders) < 0 or max(target_orders) > order:
@@ -767,6 +973,11 @@ class ProjectedCorrectionEvaluator:
             row = grouped.setdefault(key, {})
             for final in finals:
                 row.setdefault(tuple(int(n) for n in final), None)
+        if prepare_canonical and not self.evaluator.solver.intermediate_normalization:
+            needed = itertools.chain(grouped,*(finals for finals in grouped.values())) if prepare_final_blocks else grouped
+            self._prepare_blocks(needed,order)
+        batched_values = None if batch_value is None else iter(batch_value(
+            grouped, [n for n in range(order+1) if target_orders is None or n in target_orders]))
         basis = HarmonicOscillatorProductBasis(len(self.freqs))
         initial_space = BasisStateSpace(basis, list(grouped))
         final_spaces, corrections = [], []
@@ -779,7 +990,8 @@ class ProjectedCorrectionEvaluator:
                     continue
                 with self.logger.block(tag="Getting corrections at order {o}", o=n):
                     with _log_evaluation_time(self.logger, "evaluating..."):
-                        row.append(np.asarray([value(initial, final, n) for final in finals]))
+                        row.append(np.asarray([value(initial, final, n) if batched_values is None
+                                               else next(batched_values) for final in finals]))
             corrections.append(row)
         return BasicAPTCorrections(initial_space, final_spaces, corrections)
 
@@ -828,14 +1040,54 @@ class ProjectedCorrectionEvaluator:
                                                 n,terms=terms,branches=self._operator_branches(branches),
                                                 logger=self.logger,verbose=self.verbose))
             return result if only_degenerate_terms else -result
-        return self.result(states, order, value, target_orders=target_orders)
+        return self.result(states, order, value, target_orders=target_orders, prepare_canonical=not intermediate)
 
     def operators(self, states, order, operators, expansions, terms=None, branches=True,
                   target_orders=None):
-        def value(initial, final, n):
-            right, ket = self.block(initial, order)
-            left, bra = self.block(final, order)
-            return -left.operator_correction(right, bra, ket, operators, n,
-                    expansions=expansions, terms=terms,branches=self._operator_branches(branches),
-                    logger=self.logger,verbose=self.verbose)
-        return self.result(states, order, value, target_orders=target_orders)
+        return_single = self.evaluator.is_single_expansion(expansions)
+        batches = [expansions] if return_single else expansions
+        branches = self._operator_branches(branches)
+        def values(grouped, orders):
+            def requests():
+                cell = 0
+                for initial, finals in grouped.items():
+                    right, ket = self.block(initial, order)
+                    for n in orders:
+                        for final in finals:
+                            left, bra = self.block(final, order)
+                            # A zero marker keeps empty cells in the output
+                            # stream without materializing all transition work.
+                            for axis, coefficients in enumerate(batches):
+                                yield left, (cell,-1,axis,0.), left.identity, initial, initial, coefficients
+                            for component,(weight,lhs,rhs,operator) in enumerate(left._operator_inner_requests(
+                                    right,bra,ket,operators,n,terms,branches,self.logger,self.verbose)):
+                                for term,origin,target in left._inner_requests(lhs,rhs,operator):
+                                    for axis,coefficients in enumerate(batches):
+                                        yield left,(cell,component,axis,weight),term,origin,target,coefficients
+                            cell += 1
+            current_cell = current_component = None
+            total = np.zeros(len(batches))
+            inner = np.zeros(len(batches))
+            weight = 0.
+            for (cell,component,axis,coefficient),value in AnalyticBlockExpansion._evaluate_elements(
+                    requests(),self.logger,self.verbose,coefficient_batch_size=len(batches)):
+                if (cell,component) != (current_cell,current_component):
+                    if current_cell is not None:
+                        total += weight*inner
+                        if cell != current_cell:
+                            yield -total
+                            total = np.zeros(len(batches))
+                    current_cell,current_component = cell,component
+                    inner = np.zeros(len(batches))
+                    weight = coefficient
+                inner[axis] += value
+            if current_cell is not None:
+                total += weight*inner
+                yield -total
+        combined = self.result(states,order,None,target_orders=target_orders,
+                               prepare_final_blocks=True,batch_value=values)
+        results = [BasicAPTCorrections(combined.initial_states,combined.final_states,
+                   [[None if row is None else row[:,axis] for row in orders]
+                    for orders in combined.corrections])
+                   for axis in range(len(batches))]
+        return results[0] if return_single else results

@@ -5,6 +5,8 @@ Byte thresholds are checked periodically and describe the reachable Python
 payload, not a hard bound on process RSS or a kernel's transient workspace.
 """
 import collections
+import contextlib
+import os
 import sys
 import time
 import numpy as np
@@ -71,19 +73,157 @@ def retained_size(root, stop_after=None):
 
 
 class StreamPreparationContext:
-    """Reuse coefficient preparation within one call, without retaining batches.
+    """Bound immutable preparation to an evaluation plan, with bounded values.
 
-    The coefficient owner fixes this context's lifetime. It is never reused
-    across calls or coefficient updates. Workers receive their own context.
-    Expression plans remain batch-local; coefficient routing plans may persist.
+    Child domains separate coefficient sets, including request-specific scalar
+    values. Pure polynomial values, tensor gathers and frequency contractions
+    can be reused across those domains. Coverage counts and output accumulators
+    belong to each expression evaluation and are deliberately not stored here.
     """
-    def __init__(self, coefficients, max_items=32):
+    def __init__(self, coefficients, max_items=32, *, immutable_expressions=False,
+                 evaluation_plan=None, options=None):
         self.coefficients = coefficients
+        self.immutable_expressions = bool(immutable_expressions)
         self.max_items = max(0, int(max_items))
         self.data = collections.OrderedDict()
         self.plans = collections.OrderedDict()
         self.data_hits = self.data_misses = 0
         self.plan_hits = self.plan_misses = 0
+        self.evaluation_plan = evaluation_plan
+        self.options = {} if options is None else dict(options)
+        self.pid = os.getpid()
+        self.domains = collections.OrderedDict()
+        self.bindings = {}
+        self.copied_inputs = {}
+        self.normalized_inputs = {}
+        self.borrowed_handles = {}
+        self.parallelizers = {}
+        self.shared_arrays = {}
+        self.numeric = {}
+        self.closed = False
+
+    @property
+    def root(self):
+        return self if self.evaluation_plan is None else self.evaluation_plan
+
+    def bind(self, value):
+        """Bind an input array once; identity cannot be recycled during the plan."""
+        if isinstance(value, np.ndarray) and value.ndim:
+            root = self.root
+            identity = id(value)
+            entry = root.bindings.get(identity)
+            if entry is None:
+                # Bind layout once. Strong input ownership prevents identity or
+                # buffer-address recycling; equivalent views still get equal keys.
+                key = ('array',(value.__array_interface__['data'][0],value.dtype.str,
+                                value.shape,value.strides))
+                entry = (value,key)
+                root.bindings[identity] = entry
+            return entry[1]
+        if isinstance(value, (tuple, list)):
+            return tuple(self.bind(part) for part in value)
+        if isinstance(value, np.ndarray):
+            return ('scalar', value.dtype.str, value.tobytes())
+        return ('scalar', value)
+
+    def domain(self, coefficients):
+        root = self.root
+        key = root.bind(coefficients)
+        entry = root.domains.get(key)
+        if entry is None:
+            entry = type(self)(coefficients, self.max_items,
+                               immutable_expressions=True, evaluation_plan=root)
+            root._store(root.domains, key, entry)
+        return entry
+
+    def cache(self, name, max_bytes):
+        from .Analytic import (_BoundedEvaluationCache,
+                               PerturbationTheoryExpressionEvaluator as Expression)
+        root = self.root
+        if name not in root.numeric:
+            items = root.options.get('path_cache_size',10000)
+            if items is None:
+                items = Expression.default_materialized_path_cache_size
+            root.numeric[name] = _BoundedEvaluationCache(items,max_bytes)
+        return root.numeric[name]
+
+    def polynomial_cache(self):
+        from .Analytic import (_MaterializedEvaluationCache,
+                               PerturbationTheoryExpressionEvaluator as Expression)
+        root = self.root
+        if 'polynomials' not in root.numeric:
+            byte_limit = root.options.get('path_cache_bytes')
+            paths = root.cache('polynomial_paths',64*1024**2 if byte_limit is None else byte_limit)
+            # Preserve the native exact-value cache and its existing capacity /
+            # persistence controls. path_cache_* governs DAG/path work, not the
+            # exact polynomial cache; putting both under that smaller budget
+            # evicts useful exact values during discovery.
+            root.numeric['polynomials'] = _MaterializedEvaluationCache(
+                Expression._poly_cache, batch_cache=paths)
+        else:
+            root.numeric['polynomials'].exact_cache = Expression._poly_cache
+        return root.numeric['polynomials']
+
+    def energy_contractions(self, frequencies, deltas):
+        """Cache only immutable frequency/delta sums, never projector masks."""
+        from .Analytic import _HashableNumPyIndex
+        root = self.root
+        cache = root.cache('energy_sums', 32*1024**2)
+        keys = [(_HashableNumPyIndex(f), _HashableNumPyIndex(d))
+                for f,d in zip(frequencies,deltas)]
+        ready, missing = {}, {}
+        for index,key in enumerate(keys):
+            value = cache.get(key)
+            if value is not None:
+                ready[key] = value
+            elif key not in missing:
+                missing[key] = index
+        if missing:
+            indices = list(missing.values())
+            values = np.einsum('rpm,rfm->rpf', frequencies[indices], deltas[indices], optimize=False)
+            for key,value in zip(missing, values):
+                value = value.copy()
+                value.setflags(write=False)
+                ready[key] = value
+                cache[key] = value
+        return np.stack([ready[key] for key in keys])
+
+    def share_coefficients(self, coefficients):
+        """One native shared arena per physical tensor, reused across requests."""
+        from McUtils.Parallelizers import SharedMemoryArrayTree
+        root = self.root
+        def share(value):
+            if not value.ndim:
+                return value
+            key = root.bind(value)
+            if key not in root.shared_arrays:
+                root.shared_arrays[key] = SharedMemoryArrayTree.create(value)
+            return root.shared_arrays[key]
+        return SharedMemoryArrayTree._map_tree(coefficients, share)
+
+    def close(self):
+        root = self.root
+        for domain in root.domains.values():
+            domain.data.clear()
+            domain.plans.clear()
+            domain.coefficients = None
+            domain.closed = True
+        root.domains.clear()
+        root.data.clear()
+        root.plans.clear()
+        root.numeric.clear()
+        root.copied_inputs.clear()
+        root.normalized_inputs.clear()
+        root.bindings.clear()
+        root.borrowed_handles.clear()
+        try:
+            with contextlib.ExitStack() as cleanup:
+                for owner in root.shared_arrays.values():
+                    cleanup.callback(owner.dispose)
+                root.shared_arrays.clear()
+        finally:
+            root.parallelizers.clear()
+            root.closed = True
 
     def _store(self, cache, key, value):
         if self.max_items:
@@ -104,7 +244,7 @@ class StreamPreparationContext:
     def coefficient_plan(self, specs, tensors, create):
         key = (id(specs), id(tensors))
         entry = self.plans.get(key)
-        if entry is not None and entry[0] is specs and entry[1] is tensors:
+        if entry is not None:
             self.plan_hits += 1
             return entry[2], True
         self.plan_misses += 1

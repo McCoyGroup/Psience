@@ -773,3 +773,437 @@ class CompiledPreparationReuseTests(unittest.TestCase):
                 else:record['signature']='incorrect'
                 ce._atomic_pickle(path,record)
                 with self.assertRaisesRegex(ValueError,'coverage|context mismatch'):evaluation.run()
+
+
+class ProjectedBatchReuseTests(unittest.TestCase):
+    def test_row_projectors_keep_each_reference_and_model_space(self):
+        from Psience.VPT2.Projected import ProjectionFactor, projected_energy_rows, projected_path_factors
+        frequencies=np.array([.013,.021,.034])
+        states=[np.array([[0,0,0]]),np.array([[1,0,0]]),np.array([[0,1,0]])]
+        permutations=[np.array([[0,1,2],[1,0,2]]) for _ in states]
+        keys=[((ProjectionFactor('R',0),1,0,0),)]*len(states)
+        bindings=[
+            ((((0,0,0),),tuple(frequencies),(0,0,0),True),),
+            ((((0,0,0),(1,0,0)),tuple(frequencies),(1,0,0),False),),
+            ((((0,1,0),(0,0,1),(1,0,0)),tuple(frequencies),(0,0,1),False),)]
+        blocks=np.stack([frequencies[p] for p in permutations])
+        expected=[projected_path_factors(key,state,perms,freqs,projection_bindings=binding)
+                  for key,state,perms,freqs,binding in zip(keys,states,permutations,blocks,bindings)]
+        actual=projected_energy_rows(keys,states,permutations,blocks,row_projection_bindings=bindings)
+        for column in range(2):np.testing.assert_array_equal(actual[column],np.stack([x[column] for x in expected]))
+
+    def test_batched_elements_rebind_projectors_and_scalar_coefficients(self):
+        from Psience.VPT2.Projected import AnalyticBlockExpansion
+        from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression
+        runner=MemoryCompilationTests().runner()
+        def requests():
+            result=[]
+            for model,reference,scale in [
+                ([[0,0,0]],(0,0,0),.7),
+                ([[0,0,0],[1,0,0]],(1,0,0),.7),
+                ([[0,0,1]],(0,0,1),1.4)]:
+                block=AnalyticBlockExpansion(runner.eval,model)
+                h=runner.eval.solver.hamiltonian_expansion[1]
+                term=block._scalar(scale)*block._resolvent(h,reference,(0,0,0))
+                result.append((block,len(result),term,(0,0,0),(1,0,0),None))
+            return result
+        with mock.patch.object(AnalyticBlockExpansion,'use_batched_elements',False),ce.compiled_evaluation_context(runner.eval.expression_store):
+            expected=[value for _,value in AnalyticBlockExpansion._evaluate_elements(requests())]
+        seen=[];native=Expression.evaluate
+        def evaluated(expression,routes,*args,**kwargs):
+            seen.append((len(routes),kwargs['projection_bindings']))
+            return native(expression,routes,*args,**kwargs)
+        with mock.patch.object(Expression,'evaluate',evaluated),ce.compiled_evaluation_context(runner.eval.expression_store):
+            actual=[value for _,value in AnalyticBlockExpansion._evaluate_elements(requests())]
+        np.testing.assert_allclose(actual,expected,rtol=2e-12,atol=2e-14)
+        self.assertTrue(any(count>1 for count,_ in seen))
+        self.assertTrue(any(len(binding['route_projectors'])>1 for _,binding in seen))
+        self.assertNotEqual(expected[0],expected[1])
+
+    def test_cross_block_batching_and_hermitian_triangles_match_full_entries(self):
+        from Psience.VPT2.Projected import AnalyticBlockExpansion
+        from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression
+        runner=MemoryCompilationTests().runner()
+        models=[[[0,0,0]],[[0,0,1]],[[1,0,0],[0,1,0]]]
+        reference=[AnalyticBlockExpansion(runner.eval,model) for model in models]
+        with mock.patch.object(AnalyticBlockExpansion,'use_batched_elements',False),\
+             mock.patch.object(AnalyticBlockExpansion,'use_hermitian_symmetry',False),\
+             ce.compiled_evaluation_context(runner.eval.expression_store):
+            for block in reference:block.extend(2)
+        candidate=[AnalyticBlockExpansion(runner.eval,model) for model in models]
+        counts=[];native=Expression.evaluate
+        def evaluate(expression,routes,*args,**kwargs):
+            counts.append(len(routes));return native(expression,routes,*args,**kwargs)
+        with mock.patch.object(Expression,'evaluate',evaluate),ce.compiled_evaluation_context(runner.eval.expression_store):
+            AnalyticBlockExpansion._extend_blocks(candidate,2)
+        self.assertTrue(any(count>1 for count in counts))
+        for old,new in zip(reference,candidate):
+            for name in ['N','F']:
+                for a,b in zip(getattr(old,name),getattr(new,name)):
+                    np.testing.assert_allclose(a,b,rtol=3e-12,atol=3e-14)
+                    np.testing.assert_array_equal(b,b.conj().T)
+
+    def test_pending_iterator_is_consumed_in_bounded_batches(self):
+        from Psience.VPT2.Projected import AnalyticBlockExpansion
+        from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression
+        runner=MemoryCompilationTests().runner();block=AnalyticBlockExpansion(runner.eval,[[0,0,0]])
+        h=runner.eval.solver.hamiltonian_expansion[1];consumed=0;seen=[]
+        def requests():
+            nonlocal consumed
+            for i in range(9):
+                consumed+=1
+                final=[0,0,0];final[i%3]=1
+                yield block,i,h,(0,0,0),final,None
+        native=Expression.evaluate
+        def evaluate(expression,routes,*args,**kwargs):
+            seen.append((consumed,len(routes)));return native(expression,routes,*args,**kwargs)
+        with mock.patch.object(AnalyticBlockExpansion,'max_element_batch_size',2),\
+             mock.patch.object(Expression,'evaluate',evaluate),ce.compiled_evaluation_context(runner.eval.expression_store):
+            values=list(AnalyticBlockExpansion._evaluate_elements(requests()))
+        self.assertEqual(len(values),9);self.assertLessEqual(seen[0][0],2)
+        self.assertTrue(all(count<=2 for _,count in seen));self.assertEqual(consumed,9)
+
+    def test_compiled_batches_share_existing_bounded_preparation(self):
+        from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression
+        wrapper,states,coeffs,freqs=FreeIndexExecutorTests().fixture()
+        compiled=ce.AnalyticExpressionStore().compile(wrapper,context={'reuse':'native'},mode_dimension=4)
+        seen=[];native=Expression.evaluate_polynomial_expression
+        def evaluate(*args,**kwargs):
+            seen.append((kwargs['_poly_eval_cache'],kwargs['_stream_preparation']))
+            return native(*args,**kwargs)
+        with mock.patch.object(Expression,'evaluate_polynomial_expression',side_effect=evaluate):
+            result=compiled.evaluate(states,coeffs,freqs,batch_size=1,task_size=32,resume=False)
+        self.assertTrue(all(np.isfinite(row).all() for row in result));self.assertGreater(len(seen),1)
+        self.assertEqual(len({id(cache) for cache,_ in seen}),1)
+        self.assertEqual(len({id(prep) for _,prep in seen}),1)
+        cache,prep=seen[0]
+        self.assertLessEqual(cache.batch_cache.stats()['cache_peak_bytes'],64*1024**2)
+        self.assertGreater(prep.stats()['stream_preparation_hits'],0)
+        self.assertGreater(prep.stats()['stream_coefficient_plan_hits'],0)
+
+
+    def test_numpy_scalar_cutoff_preserves_scalar_results(self):
+        from Psience.VPT2.Projected import AnalyticBlockExpansion
+        runner=MemoryCompilationTests().runner()
+        expected=AnalyticBlockExpansion(runner.eval,[[0,0,0]],zero_cutoff=1e-14)
+        actual=AnalyticBlockExpansion(runner.eval,[[0,0,0]],zero_cutoff=np.array(1e-14))
+        h=runner.eval.solver.hamiltonian_expansion[1]
+        with ce.compiled_evaluation_context(runner.eval.expression_store):
+            a=expected.element(h,(0,0,0),(1,0,0))
+            b=actual.element(h,(0,0,0),(1,0,0))
+        self.assertEqual(a,b)
+
+    def test_large_projector_bindings_reduce_the_route_batch(self):
+        from Psience.VPT2.Projected import AnalyticBlockExpansion
+        from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression
+        runner=MemoryCompilationTests().runner()
+        block=AnalyticBlockExpansion(runner.eval,[[0,0,n] for n in range(100)])
+        h=runner.eval.solver.hamiltonian_expansion[1]
+        requests=[(block,i,block._resolvent(h,(0,0,0),(0,0,0)),(0,0,0),(1,0,0),None) for i in range(8)]
+        seen=[];native=Expression.evaluate
+        def evaluate(expression,routes,*args,**kwargs):
+            seen.append(len(routes));return native(expression,routes,*args,**kwargs)
+        with mock.patch.object(AnalyticBlockExpansion,'element_batch_bytes',128*1024),\
+             mock.patch.object(Expression,'evaluate',evaluate),ce.compiled_evaluation_context(runner.eval.expression_store):
+            result=list(AnalyticBlockExpansion._evaluate_elements(requests))
+        self.assertEqual(len(result),8);self.assertTrue(all(n<=2 for n in seen))
+        self.assertTrue(np.all(np.isfinite([v for _,v in result])))
+
+    def test_numerical_caches_span_distinct_compiled_evaluations_and_clear_on_exit(self):
+        from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression
+        wrapper,states,coeffs,freqs=FreeIndexExecutorTests().fixture()
+        store=ce.AnalyticExpressionStore()
+        compiled=store.compile(wrapper,context={'scope':'plan'},mode_dimension=4,free_index_reduction=False)
+        with ce.compiled_evaluation_context(store) as plan:
+            first=compiled.evaluate(states,coeffs,freqs,resume=False,free_index_reduction=False)
+            cache=plan.cache('coefficient_gathers',32*1024**2)
+            hits=cache.hits
+            second=compiled.evaluate(list(reversed(states)),coeffs,freqs,resume=False,free_index_reduction=False)
+            self.assertGreater(cache.hits,hits)
+            for a,b in zip(first,reversed(second)):np.testing.assert_array_equal(a,b)
+            self.assertIs(plan.polynomial_cache(),plan.domain(coeffs).polynomial_cache())
+            self.assertLessEqual(cache.peak_bytes,32*1024**2)
+            self.assertTrue(plan.numeric)
+        self.assertTrue(plan.closed)
+        self.assertFalse(plan.numeric)
+        self.assertFalse(plan.bindings)
+        self.assertFalse(ce._worker_evaluation_plans)
+
+    def test_shared_arenas_and_worker_bindings_survive_multiple_plan_requests(self):
+        wrapper,states,coeffs,freqs=FreeIndexExecutorTests().fixture()
+        store=ce.AnalyticExpressionStore()
+        compiled=store.compile(wrapper,context={'scope':'workers'},mode_dimension=4,free_index_reduction=False)
+        expected=compiled.evaluate(states,coeffs,freqs,resume=False,task_size=1,free_index_reduction=False)
+        with MultiprocessingParallelizer(processes=2,stall_timeout=60) as backend:
+            with ce.compiled_evaluation_context(store) as plan:
+                first=compiled.evaluate(states,coeffs,freqs,resume=False,task_size=1,
+                    parallelizer=backend,free_index_reduction=False)
+                arenas=list(plan.shared_arrays.values())
+                self.assertEqual(len(arenas),1)
+                self.assertEqual(list(plan.parallelizers.values()),[backend])
+                aliased=[[[0,0],[coeffs[0][1][0].view(),0]]]
+                second=compiled.evaluate(list(reversed(states)),aliased,freqs,resume=False,task_size=1,
+                    parallelizer=backend,free_index_reduction=False)
+                self.assertEqual(list(plan.shared_arrays.values()),arenas)
+                for a,b,c in zip(expected,first,reversed(second)):
+                    np.testing.assert_array_equal(a,b)
+                    np.testing.assert_array_equal(a,c)
+            self.assertTrue(all(arena._closed for arena in arenas))
+            self.assertFalse(plan.shared_arrays)
+            self.assertTrue(plan.closed)
+
+    def test_plan_coefficient_scalars_and_tensor_domains_remain_separate(self):
+        from Psience.VPT2.BoundedStream import StreamPreparationContext
+        plan=StreamPreparationContext(None,immutable_expressions=True)
+        tensor=np.arange(8.).reshape((2,)*3)
+        a=[[[tensor,0.5]]];b=[[[tensor,0.7]]];c=[[[tensor.copy(),0.5]]]
+        self.assertIs(plan.domain(a),plan.domain([[[tensor,0.5]]]))
+        self.assertIs(plan.domain(a),plan.domain([[[tensor.view(),0.5]]]))
+        self.assertIsNot(plan.domain(a),plan.domain(b))
+        self.assertIsNot(plan.domain(a),plan.domain(c))
+        with self.assertRaisesRegex(RuntimeError,'exit'):
+            with ce.compiled_evaluation_context(ce.AnalyticExpressionStore()) as owned:
+                owned.domain(a)
+                raise RuntimeError('exit')
+        self.assertTrue(owned.closed)
+        self.assertFalse(owned.domains)
+        plan.close()
+
+    def test_parent_plan_releases_arenas_when_worker_cleanup_raises(self):
+        from McUtils.Parallelizers import SharedMemoryArrayTree
+        backend=mock.MagicMock()
+        backend.apply.side_effect=RuntimeError('worker cleanup fixture')
+        arena=SharedMemoryArrayTree.create(np.arange(4.))
+        with self.assertRaisesRegex(RuntimeError,'worker cleanup fixture'):
+            with ce.compiled_evaluation_context(ce.AnalyticExpressionStore(),parallelizer=backend) as plan:
+                plan.shared_arrays['fixture']=arena
+                plan.parallelizers[id(backend)]=backend
+        self.assertTrue(arena._closed)
+        self.assertTrue(arena._unlinked)
+        self.assertTrue(plan.closed)
+        self.assertFalse(plan.shared_arrays)
+
+    def test_plan_preserves_existing_exact_polynomial_cache_policy(self):
+        from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression
+        wrapper,states,coeffs,freqs=FreeIndexExecutorTests().fixture()
+        store=ce.AnalyticExpressionStore()
+        compiled=store.compile(wrapper,context={'scope':'native_exact_cache'},mode_dimension=4,free_index_reduction=False)
+        native={}
+        with mock.patch.object(Expression,'_poly_cache',native):
+            with ce.compiled_evaluation_context(store,evaluation_options={'path_cache_size':1,'path_cache_bytes':0}) as plan:
+                result=compiled.evaluate(states,coeffs,freqs,resume=False,free_index_reduction=False)
+                self.assertTrue(all(np.isfinite(row).all() for row in result))
+                cache=plan.polynomial_cache()
+                self.assertIs(cache.exact_cache,native)
+                self.assertTrue(native)
+                self.assertEqual(cache.batch_cache.max_bytes,0)
+                self.assertEqual(cache.batch_cache.stats()['cache_items'],0)
+            # A plan owns its bounded DAG work, not the caller's native exact
+            # cache or its configured persistence/eviction policy.
+            self.assertTrue(native)
+            self.assertTrue(plan.closed)
+            self.assertFalse(plan.numeric)
+            from Psience.VPT2.BoundedStream import StreamPreparationContext
+            for options,limit in [({},10000),({'path_cache_size':None},Expression.default_materialized_path_cache_size)]:
+                owner=StreamPreparationContext(None,options=options)
+                try:
+                    self.assertIs(owner.polynomial_cache().exact_cache,native)
+                    self.assertEqual(owner.polynomial_cache().batch_cache.max_items,limit)
+                finally:owner.close()
+
+    def test_zero_byte_capacity_disables_plan_path_storage(self):
+        from Psience.VPT2.BoundedStream import StreamPreparationContext
+        plan=StreamPreparationContext(None,options={'path_cache_size':100,'path_cache_bytes':0})
+        cache=plan.polynomial_cache()
+        cache.batch_cache[('fixture',1)]=np.arange(4.)
+        self.assertEqual(cache.batch_cache.max_bytes,0)
+        self.assertEqual(cache.batch_cache.stats()['cache_items'],0)
+        plan.close()
+
+    def test_standalone_compiled_evaluation_owns_and_releases_its_plan_on_failure(self):
+        wrapper,states,coeffs,freqs=FreeIndexExecutorTests().fixture()
+        store=ce.AnalyticExpressionStore()
+        compiled=store.compile(wrapper,context={'scope':'implicit'},mode_dimension=4,free_index_reduction=False)
+        seen=[]
+        def fail(tasks,context):
+            identity,plan=ce._current_evaluation_plan.get()
+            self.assertEqual(context['plan_identity'],identity)
+            seen.append(plan)
+            plan.domain(coeffs)
+            raise RuntimeError('implicit plan fixture')
+        with mock.patch.object(ce,'_run_compiled_tasks',side_effect=fail):
+            with self.assertRaisesRegex(RuntimeError,'implicit plan fixture'):
+                compiled.evaluate(states,coeffs,freqs,resume=False,free_index_reduction=False)
+        self.assertTrue(seen[0].closed)
+        self.assertFalse(seen[0].bindings)
+        self.assertIsNone(ce._current_evaluation_plan.get())
+
+    def test_plan_frequency_sums_share_without_sharing_projection_masks(self):
+        from Psience.VPT2.BoundedStream import StreamPreparationContext
+        from Psience.VPT2.Projected import ProjectionFactor,projected_energy_rows
+        plan=StreamPreparationContext(None,immutable_expressions=True)
+        freqs=np.array([.02,.03,.05]);perms=[np.array([[0,1,2],[1,0,2]])]
+        frequencies=np.stack([freqs[p] for p in perms])
+        key=((ProjectionFactor('R',0),1,0,0),)
+        bindings=[((((0,0,0),),tuple(freqs),(0,0,0),True),)]
+        args=([key],[np.array([[0,0,0]])],perms,frequencies)
+        expected=projected_energy_rows(*args,row_projection_bindings=bindings)
+        actual=projected_energy_rows(*args,row_projection_bindings=bindings,preparation_context=plan)
+        for a,b in zip(actual,expected):np.testing.assert_array_equal(a,b)
+        cache=plan.cache('energy_sums',32*1024**2);hits=cache.hits
+        changed=[((((0,0,0),(1,0,0)),tuple(freqs),(0,0,0),False),)]
+        expected=projected_energy_rows(*args,row_projection_bindings=changed)
+        actual=projected_energy_rows(*args,row_projection_bindings=changed,preparation_context=plan)
+        for a,b in zip(actual,expected):np.testing.assert_array_equal(a,b)
+        self.assertGreater(cache.hits,hits)
+        changed_freqs=frequencies*1.2
+        expected=projected_energy_rows(args[0],args[1],args[2],changed_freqs,row_projection_bindings=changed)
+        actual=projected_energy_rows(args[0],args[1],args[2],changed_freqs,row_projection_bindings=changed,preparation_context=plan)
+        for a,b in zip(actual,expected):np.testing.assert_array_equal(a,b)
+        plan.close()
+
+    def test_independent_coefficient_planes_keep_each_original_cutoff(self):
+        from Psience.VPT2.IndexedEvaluator import IndexedCoefficientGatherPlan,IndexedEvaluationStats
+        product=((1,0,0,0,1),(1,0,0,0,1))
+        small=np.full((2,2,2),2.**-30)
+        large=np.full((2,2,2),.125)
+        tensors=[[[small,small],[large,large]]]
+        joined=IndexedCoefficientGatherPlan((product,),tensors,2)
+        args=(np.array([[0,1]]),(0,1),0)
+        rows,coefficients,values=joined.gather(*args,{},[1,1,2],1e-14,
+            IndexedEvaluationStats(),independent_coefficients=True)
+        self.assertEqual(values.shape,(1,2))
+        self.assertEqual(values[0,0],0.)
+        self.assertEqual(values[0,1],1/64)
+        for axis,tensor in enumerate([small,large]):
+            separate=IndexedCoefficientGatherPlan((product,),[[[tensor,tensor]]],1)
+            _,_,reference=separate.gather(*args,{},[1,1,2],1e-14,IndexedEvaluationStats())
+            self.assertEqual(values[0,axis],0. if len(reference)==0 else reference[0,0])
+        scalar=IndexedCoefficientGatherPlan((((0,0),),),[[[0.],[.5]]],2)
+        _,_,independent=scalar.gather(*args,{},[1,1],1e-14,IndexedEvaluationStats(),
+                                      independent_coefficients=True)
+        np.testing.assert_array_equal(independent,[[0.,.5]])
+        _,_,legacy=scalar.gather(*args,{},[1,1],1e-14,IndexedEvaluationStats())
+        self.assertEqual(len(legacy),0)
+
+    def test_coefficient_plan_binds_tensor_preparation_before_the_hot_loop(self):
+        from Psience.VPT2.BoundedStream import StreamPreparationContext
+        from Psience.VPT2.IndexedEvaluator import IndexedCoefficientGatherPlan,IndexedEvaluationStats
+        tensor=np.full((2,2,2),.125)
+        context=StreamPreparationContext(None,immutable_expressions=True)
+        product=((1,0,0,0,1),(1,0,0,0,1))
+        plan=IndexedCoefficientGatherPlan((product,),[[[tensor,tensor]]],1,preparation_context=context)
+        with mock.patch.object(context,'bind',side_effect=AssertionError('tensor rebound in gather')),\
+             mock.patch.object(context,'cache',side_effect=AssertionError('cache handle rebound in gather')):
+            first=plan.gather(np.array([[0,1]]),(0,1),0,{},[1,1,2],1e-14,IndexedEvaluationStats())
+            second=plan.gather(np.array([[0,1]]),(0,1),0,{},[1,1,2],1e-14,IndexedEvaluationStats())
+        for a,b in zip(first,second):np.testing.assert_array_equal(a,b)
+        self.assertGreater(plan._gather_cache.hits,0)
+        context.close()
+
+    def test_nonshared_worker_requests_intern_immutable_transport_inputs(self):
+        wrapper,states,coeffs,freqs=FreeIndexExecutorTests().fixture()
+        store=ce.AnalyticExpressionStore()
+        compiled=store.compile(wrapper,context={'scope':'copied-workers'},mode_dimension=4,free_index_reduction=False)
+        reference=compiled.evaluate(states,coeffs,freqs,resume=False,free_index_reduction=False)
+        with MultiprocessingParallelizer(processes=2,stall_timeout=60) as backend:
+            with ce.compiled_evaluation_context(store) as plan:
+                for route in [states,list(reversed(states)),states]:
+                    actual=compiled.evaluate(route,coeffs,freqs,resume=False,task_size=1,
+                        parallelizer=backend,use_shared_memory=False,free_index_reduction=False)
+                    expected=list(reversed(reference)) if route is not states else reference
+                    for a,b in zip(actual,expected):np.testing.assert_array_equal(a,b)
+                    self.assertEqual(len(plan.copied_inputs),1)
+                    self.assertFalse(plan.shared_arrays)
+                    self.assertEqual(list(plan.parallelizers.values()),[backend])
+            self.assertFalse(plan.copied_inputs)
+            self.assertFalse(plan.parallelizers)
+
+    def test_array_like_tensor_inputs_are_normalized_once_per_plan(self):
+        wrapper,states,coeffs,freqs=FreeIndexExecutorTests().fixture()
+        store=ce.AnalyticExpressionStore()
+        compiled=store.compile(wrapper,context={'scope':'array-like'},mode_dimension=4,free_index_reduction=False)
+        reference=compiled.evaluate(states,coeffs,freqs,resume=False,free_index_reduction=False)
+        array_like=[[[0,0],[coeffs[0][1][0].tolist(),0]]]
+        with ce.compiled_evaluation_context(store) as plan:
+            prepared=[compiled.prepare_evaluation(states,array_like,freqs,resume=False,free_index_reduction=False)
+                      for _ in range(2)]
+            self.assertIs(prepared[0].coeffs[0][1][0],prepared[1].coeffs[0][1][0])
+            self.assertEqual(len(plan.normalized_inputs),1)
+            for evaluation in prepared:
+                actual=evaluation.run()
+                for a,b in zip(actual,reference):np.testing.assert_array_equal(a,b)
+        self.assertFalse(plan.normalized_inputs)
+
+    def test_attached_caller_coefficient_tree_is_borrowed_across_evaluations(self):
+        from McUtils.Parallelizers import SharedMemoryArrayTree
+        wrapper,states,coeffs,freqs=FreeIndexExecutorTests().fixture()
+        compiled=ce.AnalyticExpressionStore().compile(wrapper,context={'scope':'borrowed-tree'},
+            mode_dimension=4,free_index_reduction=False)
+        reference=compiled.evaluate(states,coeffs,freqs,resume=False,free_index_reduction=False)
+        owner=SharedMemoryArrayTree.create(coeffs)
+        borrowed=SharedMemoryArrayTree.attach(owner.descriptor)
+        try:
+            for _ in range(2):
+                actual=compiled.evaluate(states,borrowed,freqs,resume=False,free_index_reduction=False)
+                for a,b in zip(actual,reference):np.testing.assert_array_equal(a,b)
+                self.assertFalse(borrowed._closed)
+                np.testing.assert_array_equal(borrowed.tree[0][1][0],coeffs[0][1][0])
+            import gc,weakref
+            with ce.compiled_evaluation_context(compiled.store) as plan:
+                temporary=SharedMemoryArrayTree.attach(owner.descriptor)
+                temporary_ref=weakref.ref(temporary)
+                compiled.evaluate(states,temporary,freqs,resume=False,free_index_reduction=False)
+                del temporary
+                gc.collect()
+                self.assertIsNotNone(temporary_ref())
+                self.assertTrue(plan.borrowed_handles)
+            gc.collect()
+            self.assertIsNone(temporary_ref())
+        finally:
+            borrowed.dispose()
+            owner.dispose()
+
+    def test_operator_transition_and_xyz_batches_match_scalar_components(self):
+        from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Expression
+        from Psience.VPT2.Projected import AnalyticBlockExpansion
+        helper=MemoryCompilationTests()
+        def make_runner():
+            runner=helper.runner()
+            dipole=runner.dipole_expansion
+            runner.dipole_expansion=[dipole[0],
+                [np.asarray(v)*.7 for v in dipole[0]],
+                [np.asarray(v)*-1.3 for v in dipole[0]]]
+            runner.dipole_expansion[0][0]=.5
+            runner.dipole_expansion[1][0]=0.
+            runner.dipole_expansion[2][0]=-.7
+            return runner
+        reference=make_runner()
+        # The scalar method remains an independent route through the shared
+        # component generator: one complete inner sum before each finite weight.
+        def scalar(evaluator,states,order,operators,expansions,terms=None,branches=True,
+                   target_orders=None):
+            return_single=evaluator.evaluator.is_single_expansion(expansions)
+            batches=[expansions] if return_single else expansions
+            outputs=[]
+            for coefficients in batches:
+                def value(initial,final,n):
+                    right,ket=evaluator.block(initial,order);left,bra=evaluator.block(final,order)
+                    return -left.operator_correction(right,bra,ket,operators,n,expansions=coefficients,
+                        terms=terms,branches=evaluator._operator_branches(branches))
+                outputs.append(evaluator.result(states,order,value,target_orders=target_orders,prepare_final_blocks=True))
+            return outputs[0] if return_single else outputs
+        with mock.patch.object(ProjectedCorrectionEvaluator,'operators',scalar),\
+             ce.compiled_evaluation_context(reference.eval.expression_store):
+            expected=helper.moments(reference)
+        runner=make_runner()
+        # Three nonzero independent Cartesian coefficient domains must remain
+        # bound to their own result planes while sharing Hamiltonian factors.
+        native=Expression.evaluate;seen=[]
+        def observed(expression,routes,coefficients,*args,**kwargs):
+            seen.append((len(routes),len(coefficients)))
+            return native(expression,routes,coefficients,*args,**kwargs)
+        with mock.patch.object(Expression,'evaluate',observed),ce.compiled_evaluation_context(runner.eval.expression_store):
+            actual=helper.moments(runner)
+        np.testing.assert_allclose(actual,expected,rtol=2e-11,atol=2e-12)
+        self.assertTrue(any(routes>1 and axes>1 for routes,axes in seen),seen)
