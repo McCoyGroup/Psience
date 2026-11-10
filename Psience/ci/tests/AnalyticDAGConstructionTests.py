@@ -428,14 +428,17 @@ class SymbolicBlockRecurrenceTests(unittest.TestCase):
             self.assertValues(actual,expected)
 
     def test_filtered_keeps_its_recurrences_with_either_block_flag(self):
-        for compile in [True,False]:
-            expected=self.values(self.runner(False,compile=compile,degeneracy_handling='filtered'))
-            runner=self.runner(True,compile=compile,degeneracy_handling='filtered')
-            with mock.patch.object(runner.eval.solver,'get_conditional_stack',
-                                   side_effect=AssertionError('filtered rerouted to conditional')):
-                self.assertIsNone(runner.eval._projected_corrections([self.groups['groups'][0]],None))
-                actual=self.values(runner)
-            self.assertValues(actual,expected)
+        for block in [False,True]:
+            for compile in [True,False]:
+                expected=self.values(self.runner(False,compile=compile,
+                    degeneracy_handling='projected' if block else 'filtered'))
+                runner=self.runner(block,compile=compile,degeneracy_handling='filtered')
+                with mock.patch.object(runner.eval.solver,'get_conditional_stack',
+                                       side_effect=AssertionError('filtered rerouted to conditional')):
+                    self.assertIsNone(runner.eval._projected_corrections([self.groups['groups'][0]],None))
+                    actual=self.values(runner)
+                self.assertIs(runner.eval.solver.filtered_block_recurrence,block)
+                self.assertValues(actual,expected)
 
     def test_cloning_preserves_explicit_opt_out(self):
         runner=self.runner(False)
@@ -567,6 +570,202 @@ class SymbolicBlockRecurrenceTests(unittest.TestCase):
         self.assertIsInstance(evaluator.stack.condition, A.ResonanceBlockCondition)
         self.assertEqual(evaluator.projection_bindings['projectors'],
                          ((((0, 2, 0), (1, 0, 0)),),))
+
+class FilteredBlockRecurrenceTests(unittest.TestCase):
+    # The fixture is deliberately shared with the existing symbolic-block tests.
+    # Comparisons use the independent numerical projected recurrence.
+    groups=SymbolicBlockRecurrenceTests.groups
+    states=SymbolicBlockRecurrenceTests.states
+    flat=SymbolicBlockRecurrenceTests.flat
+    values=SymbolicBlockRecurrenceTests.values
+    assertValues=SymbolicBlockRecurrenceTests.assertValues
+
+    def runner(self, block=True, **options):
+        options.setdefault('degeneracy_handling', 'filtered' if block else 'projected')
+        return SymbolicBlockRecurrenceTests.runner(self, block, **options)
+
+    def test_native_filtered_recurrence_and_normalization_match_matrix_blocks(self):
+        for groups in [self.groups, {'groups':[[[1,0,0],[0,1,0]]]},
+                       {'groups':[[[1,0,0],[0,1,0],[0,2,0]]]}]:
+            for compile in [True,False]:
+                expected=self.values(self.runner(False,compile=compile),groups)
+                with mock.patch.object(A.ConditionalTransformationStack,'extend',side_effect=AssertionError('Conditional used')), \
+                     mock.patch.object(A.ProjectedCorrectionEvaluator,'__init__',side_effect=AssertionError('projected used')), \
+                     mock.patch.object(A.AnalyticBlockExpansion,'_scalar',side_effect=AssertionError('numeric F used')):
+                    actual=self.values(self.runner(compile=compile),groups)
+                self.assertValues(actual,expected)
+
+    def test_energy_filters_preserve_integer_domains_and_only_filter_divisors(self):
+        term=A.HamiltonianExpansionTerm([['x']],order=1,identities=[0],logger=False)
+        for base in [term.get_poly_terms((1,)), A.PerturbationOperator.lookup(term).get_poly_terms((1,))]:
+            scoped=A._change_domain_polynomial(base,(1,),True)
+            for mode, terms in [('include',[(0,1)]), ('exclude',[(0,1)]), ('match',[((0,1),)])]:
+                bare=list(base.filter_energies(terms,mode=mode).change_equations())
+                selected=list(scoped.filter_energies(terms,mode=mode).change_equations())
+                self.assertEqual(len(bare),len(selected))
+                for (_,expected),(domains,actual) in zip(bare,selected):
+                    self.assertEqual(domains,((True,(0,),(1,)),))
+                    self.assertEqual(expected.format_expr(),actual.format_expr())
+
+    def test_F_is_shared_and_exports_ordinary_change_equations(self):
+        runner=self.runner();runner.eval._projected_corrections(self.groups['groups'],None)
+        solver=runner.eval.solver
+        f=solver.block_hamiltonian_correction(1)
+        self.assertIs(f,solver.block_hamiltonian_correction(1))
+        seen=set();pending=[solver.wavefunction_correction(2)]
+        while pending:
+            term=pending.pop()
+            if term in seen:continue
+            seen.add(term)
+            self.assertNotIsInstance(term,(A.ConditionalOperatorTerm,A._BlockScalarTerm,A.ProjectedTerm))
+            if isinstance(term,A.PerturbationTheoryTermProduct):pending += [term.gen1,term.gen2]
+            elif isinstance(term,(A.ScaledPerturbationTheoryTerm,A.ShiftedEnergyBaseline)):pending += [term.base]
+            elif isinstance(term,A.PerturbationOperator):pending += [term.subterm]
+            elif isinstance(term,A.OperatorExpansionTerm):pass
+            else:pending += list(term.expressions)
+        self.assertIn(f,seen)
+        poly=solver.wavefunction_correction(2).get_poly_terms((1,-1))
+        equations=list(poly.change_equations())
+        self.assertTrue(equations)
+        self.assertTrue(any(domains for domains,_ in equations))
+        for domains,equation in equations:
+            for retain,origin,change in domains:
+                self.assertIsInstance(retain,bool)
+                self.assertTrue(all(type(v) in (int,np.int64,np.int32) for v in origin+change))
+            for value in equation.poly_obj.terms.values():
+                self.assertIsInstance(value,A.PTEnergyChangeProductSum)
+                for path in value.terms:
+                    self.assertTrue(all(type(row[0]) is int for row in path))
+        self.assertNotIn('PathMask',poly.format_expr())
+        self.assertFalse(any(hasattr(f,name) for name in ['states','freqs','energies','expansions']))
+
+    def test_pruning_rebinding_and_parameter_dependence(self):
+        alternate={'groups':[[[1,0,0],[0,1,0]]]}
+        with tempfile.TemporaryDirectory() as folder:
+            runner=self.runner(folder=folder)
+            for groups in [self.groups,alternate,self.groups]:
+                self.assertValues(self.values(runner,groups),self.values(self.runner(False),groups))
+            runner.eval.expansions[1][0] *= 2
+            self.assertValues(self.values(runner),self.values(self.runner(False,scale=2)))
+            for scale in [1.03,1.]:
+                self.assertValues(self.values(self.runner(freq_scale=scale,folder=folder)),
+                                  self.values(self.runner(False,freq_scale=scale)))
+
+    def test_pruning_opt_out_preserves_results_and_cache_reuse(self):
+        runner=self.runner()
+        expected=self.values(self.runner(False))
+        for enabled in [True,False,True]:
+            runner.eval.evaluation_options['prune_fixed_resonances']=enabled
+            self.assertValues(self.values(runner),expected)
+
+    def test_legacy_and_block_policies_do_not_alias_in_one_disk_cache(self):
+        from Psience.VPT2.Evaluators import _fingerprint
+        with tempfile.TemporaryDirectory() as folder:
+            hashes={}
+            for block in [False,True,False,True]:
+                runner=self.runner(block,folder=folder,degeneracy_handling='filtered')
+                runner.eval.evaluation_options['prune_fixed_resonances']=False
+                actual=self.values(runner)
+                reference=self.runner(False,degeneracy_handling='projected' if block else 'filtered')
+                reference.eval.evaluation_options['prune_fixed_resonances']=False
+                self.assertValues(actual,self.values(reference))
+                hashes[block]=_fingerprint(runner.eval.solver)
+            self.assertNotEqual(hashes[False],hashes[True])
+
+    def test_no_resonance_and_opt_out_preserve_legacy_filtered(self):
+        for groups in [None,[],[[[1,0,0]]]]:
+            a=self.runner();b=self.runner(False,degeneracy_handling='filtered')
+            args=dict(degeneracy_specs=None if groups is None else {'groups':groups})
+            sa=a.prep_states(self.states,**args);sb=b.prep_states(self.states,**args)
+            self.assertValues(a.get_energy_corrections(sa),b.get_energy_corrections(sb))
+            self.assertFalse(a.eval.solver.filtered_block_recurrence)
+        runner=self.runner(False,degeneracy_handling='filtered')
+        self.values(runner)
+        self.assertFalse(runner.eval.solver.filtered_block_recurrence)
+        for mode in ['conditional','projected']:
+            runner=self.runner(degeneracy_handling=mode)
+            selected=runner.eval._projected_corrections(self.groups['groups'],None)
+            self.assertIsInstance(selected,A.ConditionalCorrectionEvaluator if mode=='conditional' else A.ProjectedCorrectionEvaluator)
+            self.assertFalse(runner.eval.solver.filtered_block_recurrence)
+
+    def test_intermediate_H_blocks_and_third_order_feedback(self):
+        values=[]
+        for block in [False,True]:
+            runner=self.runner(block)
+            space=runner.prep_states(self.states,degeneracy_specs=self.groups)
+            values.append(runner.get_reexpressed_hamiltonian(space,order=2,normalization='intermediate'))
+        self.assertValues(*values)
+        values=[]
+        for block in [False,True]:
+            runner=self.runner(block,order=3)
+            space=runner.prep_states([[[[1,0,0]],[[0,1,0],[2,1,0]]]],degeneracy_specs=self.groups)
+            values.append(runner.get_full_wavefunction_corrections(space,order=3))
+        self.assertValues(*values)
+
+    def test_change_domain_prepass_skips_rejected_subtree_before_expansion(self):
+        poly=A.make_product_polynomial([np.ones(1)],steps=0,representation='path')
+        leaf=A.PTTensorCoeffProductDAG.from_sum(A.PTTensorCoeffProductSum({((1,0,0),):poly}))
+        dag=leaf.with_change_domain((1,),True)
+        rows=[[np.array([2]),np.array([[0]])]]
+        groups=(((0,),(1,)),)
+        stats={}
+        with mock.patch.object(A.PTTensorCoeffProductDAGEvaluationPlan,'iter_terms',side_effect=AssertionError('expanded before pruning')):
+            selected,digest=dag.select_change_domains(rows,(groups,),1,1,statistics=stats)
+        self.assertEqual(selected,0);self.assertTrue(digest)
+        self.assertEqual(stats['change_domains_pruned'],1)
+        self.assertIs(dag._node[1],leaf)
+        selected,_=dag.select_change_domains([[np.array([0]),np.array([[0]])]],(groups,),1,1)
+        self.assertIs(selected,leaf)
+
+    def test_fourth_order_polynomial_recurrence_matches_finite_basis(self):
+        from Psience.BasisReps import HarmonicOscillatorProductBasis,BasisStateSpace
+        order=4;w=np.array([.04]);force=.004
+        hs=[A.AnalyticPerturbationTheorySolver.from_order(order,internals=False,logger=False).hamiltonian_expansion[0],
+            A.HamiltonianExpansionTerm([['x']],order=1,identities=[0],logger=False)]
+        hs += [A.ZeroTerm(logger=False) for _ in range(order-1)]
+        solver=A.AnalyticPerturbationTheorySolver(hs,logger=False)
+        solver.filtered_block_recurrence=True
+        coefficients=[[np.diag(w)/2,np.diag(w)/2],[np.array([force])]]+[[0.] for _ in range(order-1)]
+        evaluator=A.PerturbationTheoryEvaluator(solver,coefficients,freqs=w,compile=False)
+        basis=HarmonicOscillatorProductBasis(1);states=BasisStateSpace(basis,np.arange(14)[:,None])
+        x=basis.representation('x',coeffs=np.ones(1),axes=[[0],[0]]).get_representation_matrix(states,states,zero_element_warning=False)
+        x=x.asarray() if hasattr(x,'asarray') else np.asarray(x)
+        energies=(states.excitations[:,0]+.5)*w[0]
+        P=np.eye(len(states),dtype=bool);P[:2,:2]=True
+        gap=energies[:,None]-energies[None,:]
+        Y=[np.eye(len(states))];X=[np.zeros_like(x)];N=[np.eye(len(states))];F=[np.diag(energies)]
+        bindings=dict(projectors=((((0,),(1,)),),),scalar_count=0,scalar_order=len(coefficients))
+        def element(term,a,b):
+            total=0.
+            for change,rows in evaluator.get_diff_map([[np.array([a]),[np.array([b])]]]).items():
+                expression=A.PerturbationTheoryExpressionEvaluator(term,term.get_poly_terms(change),change,logger=False)
+                value = float(np.asarray(expression.evaluate(rows,coefficients,w,projection_bindings=bindings,zero_cutoff=1e-30)).ravel()[0])
+                exported = 0.
+                if not A.nput.is_numeric(expression.expr):
+                    for domains, equation in expression.expr.change_equations():
+                        valid = True
+                        for retain, origin, delta in domains:
+                            left = a + (origin[0] if origin else 0)
+                            right = left + (delta[0] if delta else 0)
+                            inside = left == right or left in (0,1) and right in (0,1)
+                            valid &= left >= 0 and right >= 0 and (inside if retain else not inside)
+                        if valid:
+                            bare = A.PerturbationTheoryExpressionEvaluator(term,equation,change,logger=False)
+                            exported += float(np.asarray(bare.evaluate(rows,coefficients,w,zero_cutoff=1e-30)).ravel()[0])
+                self.assertAlmostEqual(value,exported,places=12)
+                total += value
+            return total
+        for n in range(1,order+1):
+            norm=-.5*sum((Y[j].T@Y[n-j] for j in range(1,n)),np.zeros_like(x))
+            N.append(np.where(P,norm,0))
+            raw=force*x@Y[n-1]
+            outside=raw-sum((X[n-r]@F[r] for r in range(1,n)),np.zeros_like(x))
+            X.append(np.where(P,0,-outside/np.where(P,1,gap)))
+            B=raw-sum((N[n-r]@F[r] for r in range(1,n)),np.zeros_like(x))
+            F.append(np.where(P,(B+B.T)/2,0));Y.append(X[n]+N[n])
+            for source,target in [(0,0),(0,1),(0,2),(1,0),(1,2)]:
+                self.assertAlmostEqual(element(solver.full_wavefunction_correction(n),source,target),Y[n][target,source],places=12)
+                self.assertAlmostEqual(element(solver.block_hamiltonian_correction(n),source,target),F[n][target,source],places=12)
 
 
 if __name__ == '__main__':

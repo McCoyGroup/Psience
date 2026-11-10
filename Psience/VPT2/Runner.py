@@ -3756,7 +3756,7 @@ class AnalyticVPTRunner:
         through the existing state-space preparation and discovery pipeline;
         no separate resonance_condition is accepted.
 
-        :param block_recurrence: select the symbolic F/Q/N recurrence (default True) or ordered transformation (False) in conditional handling of resolved blocks. Projected and filtered handling keep their existing paths. F corrections remain DAG subgraphs, without evaluated scalar bindings.
+        :param block_recurrence: include shared symbolic F[k] feedback and block normalization in filtered handling of resolved resonances (default True); False retains the legacy filtered recurrence for comparisons. In conditional handling, select the block recurrence (True) or ordered transformation (False). Projected handling is unchanged. F corrections stay in the DAG and resonance-change domains bind only at evaluation time.
         :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: directory of reusable compiled expression shards and resumable numerical tasks
         :param compilation_options: bounded compilation settings (max_terms, max_bytes, cache_size, cache_bytes)
@@ -3953,7 +3953,7 @@ class AnalyticVPTRunner:
         through the existing state-space preparation and discovery pipeline;
         no separate resonance_condition is accepted.
 
-        :param block_recurrence: select the symbolic F/Q/N recurrence (default True) or ordered transformation (False) in conditional handling of resolved blocks. Projected and filtered handling keep their existing paths. F corrections remain DAG subgraphs, without evaluated scalar bindings.
+        :param block_recurrence: include shared symbolic F[k] feedback and block normalization in filtered handling of resolved resonances (default True); False retains the legacy filtered recurrence for comparisons. In conditional handling, select the block recurrence (True) or ordered transformation (False). Projected handling is unchanged. F corrections stay in the DAG and resonance-change domains bind only at evaluation time.
         :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: compiled expression cache, independent of the intermediate expressions_file checkpoint
         :param compilation_options: settings for bounded final-expression compilation
@@ -4089,7 +4089,7 @@ class AnalyticVPTRunner:
         through the existing state-space preparation and discovery pipeline;
         no separate resonance_condition is accepted.
 
-        :param block_recurrence: select the symbolic F/Q/N recurrence (default True) or ordered transformation (False) in conditional handling of resolved blocks. Projected and filtered handling keep their existing paths. F corrections remain DAG subgraphs, without evaluated scalar bindings.
+        :param block_recurrence: include shared symbolic F[k] feedback and block normalization in filtered handling of resolved resonances (default True); False retains the legacy filtered recurrence for comparisons. In conditional handling, select the block recurrence (True) or ordered transformation (False). Projected handling is unchanged. F corrections stay in the DAG and resonance-change domains bind only at evaluation time.
         :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: compiled expression cache, independent of the intermediate expressions_file checkpoint
         :param compilation_options: settings for bounded final-expression compilation
@@ -5994,7 +5994,7 @@ class AnalyticVPTRunner:
         through the existing state-space preparation and discovery pipeline;
         no separate resonance_condition is accepted.
 
-        :param block_recurrence: select the symbolic F/Q/N recurrence (default True) or ordered transformation (False) in conditional handling of resolved blocks. Projected and filtered handling keep their existing paths. F corrections remain DAG subgraphs, without evaluated scalar bindings.
+        :param block_recurrence: include shared symbolic F[k] feedback and block normalization in filtered handling of resolved resonances (default True); False retains the legacy filtered recurrence for comparisons. In conditional handling, select the block recurrence (True) or ordered transformation (False). Projected handling is unchanged. F corrections stay in the DAG and resonance-change domains bind only at evaluation time.
         :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: persistent compiled-expression shards and resumable numerical tasks; enables compilation in the controller before dispatching each correction
         :param compilation_options: bounded compilation settings forwarded to the analytic evaluator

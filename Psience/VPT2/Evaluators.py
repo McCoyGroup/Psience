@@ -656,7 +656,8 @@ _RUNTIME_ATTRS = ('logger', 'checkpoint', '_cascade_manager', '_changes', '_expr
 def _freeze_solver(value, kind, rec):
     names = ['hamiltonian_expansion', 'allowed_terms', 'allowed_coefficients',
              'disallowed_coefficients', 'allowed_energy_changes',
-             'intermediate_normalization', 'polynomial_representation', 'resonance_condition']
+             'intermediate_normalization', 'polynomial_representation', 'resonance_condition',
+             'filtered_block_recurrence']
     return [kind, {name: rec(getattr(value, name)) for name in names}]
 
 
@@ -3713,6 +3714,7 @@ class IndexedBlockEvaluator:
                 share_energy = (self.use_shared_energy_rows and self.plan.index_bindings is not None
                     and degenerate_changes is None and not any(only_degenerate_terms[:2])
                     and not any(getattr(row[0], '_conditional_endpoint', False)
+                                or getattr(row[0], '_filtered_change_domain', False)
                                 for term in terms for row in term.energy_changes))
                 if not share_energy:
                     projected_mask, energy_factors = contract(range(block_size))
