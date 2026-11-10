@@ -30,6 +30,25 @@ class AnalyticDAGConstructionTests(unittest.TestCase):
         result = Analytic.PerturbationTheoryTermProduct.get_core_poly(product, (1,))
         self._check_long_path_sum(primitive, result)
 
+    def test_prune_operators_maps_shared_nodes_once(self):
+        # x -> x + x forty times: 41 distinct nodes but 2**40 root-to-leaf paths
+        primitive = Analytic.OperatorExpansionTerm(
+            [['x']], order=0, identities=[0], logger=False
+        )
+        dag = primitive.get_poly_terms((1,)).poly_obj
+        self.assertIsInstance(dag, Analytic.PTTensorCoeffProductDAG)
+        for _ in range(40):
+            dag = Analytic.PTTensorCoeffProductDAG._from_node('add', (dag, dag), ndim=dag.ndim)
+        calls = []
+        original = Analytic.PTTensorCoeffProductDAG._from_node.__func__
+        def counting(cls, *args, **kwargs):
+            calls.append(args[0])
+            return original(cls, *args, **kwargs)
+        with mock.patch.object(Analytic.PTTensorCoeffProductDAG, '_from_node', classmethod(counting)):
+            pruned = dag.prune_operators([(9, 9)])
+        self.assertLessEqual(len(calls), 41)
+        self.assertEqual(pruned.operator_keys, frozenset({(0, 0)}))
+
     def _check_long_path_sum(self, primitive, poly):
         # Inspect without recursively walking the very tree under test.
         depths = {}
@@ -292,6 +311,185 @@ class DAGResonancePruningTests(unittest.TestCase):
                     actual = candidate.evaluate(*arguments, degenerate_changes=changes,
                                                  evaluation_mode='dag')
                     np.testing.assert_allclose(actual, expected, rtol=2e-12, atol=2e-12)
+
+
+import inspect,itertools,tempfile,unittest
+from unittest import mock
+import numpy as np
+import Psience.VPT2.Analytic as A
+from Psience.VPT2 import AnalyticVPTRunner
+
+
+class SymbolicBlockRecurrenceTests(unittest.TestCase):
+    groups={'groups':[[[1,0,0],[0,2,0]]]}
+    states=[[0,0,0],[1,0,0],[0,2,0]]
+
+    def runner(self,block=True,compile=True,scale=1.,freq_scale=1.,folder=None,order=2,
+               degeneracy_handling=None):
+        w=np.array([.041,.0201,.0313])*freq_scale
+        v3=np.zeros((3,)*3);v4=np.zeros((3,)*4)
+        for indices,value in [((0,0,0),.0003),((0,1,1),.0002),((0,0,1),.0001)]:
+            for p in set(itertools.permutations(indices)):v3[p]=value*scale
+        # Keep only cubic perturbations, so order-two amplitudes are quadratic.
+        dipole=[[0.,np.array([.2,.1,.3]),np.zeros((3,3)),np.zeros((3,)*3)]]
+        dipole += [[0.,np.zeros(3),np.zeros((3,3)),np.zeros((3,)*3)] for _ in range(2)]
+        expansions=[[np.diag(w)/2,np.diag(w)/2],[v3,0],[v4,0,0,0,0]]
+        if order>2:
+            expansions += [[0]*5 for _ in range(order-2)]
+            for axis in dipole:axis += [np.zeros((3,)*(n+1)) for n in range(3,order+1)]
+        return AnalyticVPTRunner(expansions,order=order,freqs=w,internals=False,
+            dipole_expansion=dipole,logger=False,compile=compile,
+            expressions_folder=folder,block_recurrence=block,
+            degeneracy_handling=('conditional' if block else 'projected')
+            if degeneracy_handling is None else degeneracy_handling)
+
+    def values(self,runner,groups=None,order=2):
+        states=runner.prep_states(self.states,degeneracy_specs=self.groups if groups is None else groups)
+        return (runner.get_energy_corrections(states,order=order),
+                runner.get_transition_moment_corrections(states,order=order),
+                runner.get_reexpressed_hamiltonian(states,order=order))
+
+    def flat(self,value):
+        if isinstance(value,A.BasicAPTCorrections):
+            yield value.initial_states.excitations
+            for states in value.final_states:yield states.excitations
+            yield from self.flat(value.corrections)
+        elif isinstance(value,(list,tuple)):
+            for part in value:yield from self.flat(part)
+        elif value is not None:yield np.asarray(value)
+
+    def assertValues(self,left,right):
+        a,b=list(self.flat(left)),list(self.flat(right))
+        self.assertEqual(len(a),len(b))
+        for x,y in zip(a,b):np.testing.assert_allclose(x,y,atol=1e-11,rtol=1e-10)
+
+    def test_default_flag_and_exact_runtime_relation(self):
+        self.assertIs(inspect.signature(AnalyticVPTRunner.run_simple).parameters['block_recurrence'].default,True)
+        self.assertEqual(A.PerturbationTheoryEvaluator.resolve_degeneracy_handling(None),'projected')
+        self.assertEqual(A.PerturbationTheoryEvaluator.resolve_degeneracy_handling('conditional'),'conditional')
+        condition=A.ResonanceBlockCondition()
+        self.assertEqual(vars(condition),{})
+        groups=(((1,0),(0,2)),)
+        p=np.array([[0,1]])
+        self.assertTrue(condition.evaluate_bound(np.array([0,0]),p,np.array([1,0]),np.array([0,2]),None,(groups,))[0])
+        self.assertFalse(condition.evaluate_bound(np.array([1,0]),p,np.array([1,0]),np.array([0,2]),None,(groups,))[0])
+        with self.assertRaisesRegex(ValueError,'bindings'):
+            condition.evaluate_bound(np.array([0,0]),p,np.array([1,0]),np.array([0,2]),None)
+
+    def test_feedback_is_a_shared_symbolic_subgraph(self):
+        runner=self.runner()
+        stack=runner.eval.solver.get_conditional_stack(A.ResonanceBlockCondition(),block_recurrence=True).extend(2)
+        seen=set();pending=[stack.outside[2]]
+        while pending:
+            term=pending.pop()
+            if id(term) in seen:continue
+            seen.add(id(term))
+            self.assertNotIsInstance(term,(A._BlockScalarTerm,A.ProjectedTerm))
+            for name in ['term','base','subterm','gen1','gen2','terms']:
+                value=getattr(term,name,())
+                pending.extend([value] if isinstance(value,A.PerturbationTheoryTerm) else
+                               [x for x in value if isinstance(x,A.PerturbationTheoryTerm)] if isinstance(value,(list,tuple)) else [])
+        self.assertIn(id(stack.hamiltonian[1]),seen)
+        poly=stack.outside[2].get_poly_terms((1,-1))
+        self.assertIsInstance(poly.poly_obj,A.PTTensorCoeffProductDAG)
+        self.assertFalse(any(hasattr(stack,name) for name in ['states','freqs','energies','expansions']))
+
+    def test_compiled_and_uncompiled_match_canonical_blocks_without_numeric_F(self):
+        expected=self.values(self.runner(False))
+        for compile in [True,False]:
+            with mock.patch.object(A.AnalyticBlockExpansion,'_scalar',side_effect=AssertionError('detached numeric F')):
+                actual=self.values(self.runner(compile=compile))
+            self.assertValues(actual,expected)
+
+    def test_explicit_opt_out_retains_legacy_dispatch(self):
+        runner=self.runner(False)
+        with mock.patch.object(runner.eval.solver,'get_conditional_stack',side_effect=AssertionError('block path used')):
+            self.assertIsInstance(runner.eval._projected_corrections([self.groups['groups'][0]],None),
+                                  A.ProjectedCorrectionEvaluator)
+        with self.assertRaisesRegex(TypeError,'boolean'):
+            AnalyticVPTRunner(runner.eval,order=2,block_recurrence='yes')
+
+    def test_conditional_mode_selects_requested_recurrence(self):
+        for block in [True,False]:
+            runner=self.runner(block,degeneracy_handling='conditional')
+            evaluator=runner.eval._projected_corrections([self.groups['groups'][0]],None)
+            self.assertIsInstance(evaluator,A.ConditionalCorrectionEvaluator)
+            self.assertIs(evaluator.stack.block_recurrence,block)
+
+    def test_projected_keeps_native_dispatch_with_either_block_flag(self):
+        for compile in [True,False]:
+            expected=self.values(self.runner(False,compile=compile))
+            runner=self.runner(True,compile=compile,degeneracy_handling='projected')
+            with mock.patch.object(runner.eval.solver,'get_conditional_stack',
+                                   side_effect=AssertionError('projected rerouted to conditional')):
+                self.assertIsInstance(runner.eval._projected_corrections([self.groups['groups'][0]],None),
+                                      A.ProjectedCorrectionEvaluator)
+                actual=self.values(runner)
+            self.assertValues(actual,expected)
+
+    def test_filtered_keeps_its_recurrences_with_either_block_flag(self):
+        for compile in [True,False]:
+            expected=self.values(self.runner(False,compile=compile,degeneracy_handling='filtered'))
+            runner=self.runner(True,compile=compile,degeneracy_handling='filtered')
+            with mock.patch.object(runner.eval.solver,'get_conditional_stack',
+                                   side_effect=AssertionError('filtered rerouted to conditional')):
+                self.assertIsNone(runner.eval._projected_corrections([self.groups['groups'][0]],None))
+                actual=self.values(runner)
+            self.assertValues(actual,expected)
+
+    def test_cloning_preserves_explicit_opt_out(self):
+        runner=self.runner(False)
+        self.assertIs(runner.eval.modify_hamiltonian(None).block_recurrence,False)
+        self.assertIs(runner.modify_hamiltonian(None).eval.block_recurrence,False)
+        self.assertIs(inspect.signature(AnalyticVPTRunner.from_file).parameters['block_recurrence'].default,True)
+
+    def test_rebinding_parameters_preserves_both_feedback_dependencies(self):
+        runner=self.runner()
+        space=runner.prep_states(self.states,degeneracy_specs=self.groups)
+        first=runner.get_transition_moment_corrections(space,order=2)
+        runner.eval.expansions[1][0] *= 2
+        second=runner.get_transition_moment_corrections(space,order=2)
+        reference=self.runner(False,scale=2.)
+        self.assertValues(second,reference.get_transition_moment_corrections(
+            reference.prep_states(self.states,degeneracy_specs=self.groups),order=2))
+        a,b=np.asarray(first[0][0][2]),np.asarray(second[0][0][2])
+        self.assertGreater(np.max(np.abs(a)),1e-8)
+        np.testing.assert_allclose(b,4*a,atol=1e-12,rtol=1e-10)
+
+    def test_runtime_blocks_are_not_frozen_in_memory_or_disk_compilation(self):
+        alternate={'groups':[[[1,0,0],[0,1,0]]]}
+        with tempfile.TemporaryDirectory() as folder:
+            for location in [None,folder]:
+                runner=self.runner(folder=location)
+                for groups in [self.groups,alternate,self.groups]:
+                    self.assertValues(self.values(runner,groups),self.values(self.runner(False),groups))
+
+    def test_frequency_parameters_are_not_captured_by_the_stack(self):
+        with tempfile.TemporaryDirectory() as folder:
+            for scale in [1.,1.03,1.]:
+                self.assertValues(self.values(self.runner(freq_scale=scale,folder=folder)),
+                                  self.values(self.runner(False,freq_scale=scale)))
+
+    def test_intermediate_normalization_matches_native_block_evaluator(self):
+        results=[]
+        for block in [False,True]:
+            runner=self.runner(block)
+            states=runner.prep_states(self.states,degeneracy_specs=self.groups)
+            results.append(runner.get_reexpressed_hamiltonian(states,order=2,normalization='intermediate'))
+        self.assertValues(*results)
+
+    def test_third_order_feedback_and_normalization_match_native_blocks(self):
+        # A third-order outside-block column exercises F2 feedback directly.
+        # Keep a selected correction request, rather than building a full
+        # third-order dipole surface in an otherwise second-order CI module.
+        values=[]
+        for block in [False,True]:
+            runner=self.runner(block,order=3)
+            space=runner.prep_states([[[[1,0,0]],[[0,1,0],[2,1,0]]]],
+                                     degeneracy_specs=self.groups)
+            values.append(runner.get_full_wavefunction_corrections(space,order=3))
+        self.assertValues(*values)
+        self.assertGreater(max(np.max(np.abs(row[3])) for row in values[1].corrections),1e-10)
 
 
 if __name__ == '__main__':

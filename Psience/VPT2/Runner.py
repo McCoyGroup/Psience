@@ -3703,6 +3703,7 @@ class AnalyticVPTRunner:
                  polynomial_representation='path',
                  resonance_condition=None,
                  degeneracy_handling=None,
+                 block_recurrence=True,
                  local_mode_couplings=None,
                  local_mode_coupling_order=None,
                  parallelizer=None,
@@ -3752,6 +3753,7 @@ class AnalyticVPTRunner:
         :type local_mode_coupling_order: int | None
         :param parallelizer: parallelization backend for the evaluator
         :type parallelizer: Parallelizer | None
+        :param block_recurrence: select the symbolic F/Q/N recurrence (default True) or ordered transformation (False) in conditional handling of resolved blocks. Projected and filtered handling keep their existing paths. F corrections remain DAG subgraphs, without evaluated scalar bindings.
         :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: directory of reusable compiled expression shards and resumable numerical tasks
         :param compilation_options: bounded compilation settings (max_terms, max_bytes, cache_size, cache_bytes)
@@ -3788,10 +3790,13 @@ class AnalyticVPTRunner:
                 compile=compile,
                 compilation_options=compilation_options,
                 evaluation_options=evaluation_options,
-                degeneracy_handling=degeneracy_handling
+                degeneracy_handling=degeneracy_handling, block_recurrence=block_recurrence
             )
         else:
             self.eval = expansions
+            if not isinstance(block_recurrence, (bool, np.bool_)):
+                raise TypeError('block_recurrence must be boolean')
+            self.eval.block_recurrence = bool(block_recurrence)
             if degeneracy_handling is not None:
                 self.eval.degeneracy_handling = self.eval.resolve_degeneracy_handling(degeneracy_handling)
             self.eval.compile_expressions = compile is not False
@@ -3830,6 +3835,7 @@ class AnalyticVPTRunner:
                          polynomial_representation='path',
                          resonance_condition=None,
                          degeneracy_handling=None,
+                         block_recurrence=True,
                          corrected_fundamental_frequencies=None,
                          expressions_folder=None,
                   compile=True,
@@ -3894,7 +3900,7 @@ class AnalyticVPTRunner:
             intermediate_normalization=intermediate_normalization,
             polynomial_representation=polynomial_representation,
             resonance_condition=resonance_condition,
-            degeneracy_handling=degeneracy_handling,
+            degeneracy_handling=degeneracy_handling, block_recurrence=block_recurrence,
             local_mode_couplings=ham.local_mode_couplings,
             local_mode_coupling_order=ham.local_mode_coupling_order
         )
@@ -3921,6 +3927,7 @@ class AnalyticVPTRunner:
                   polynomial_representation='path',
                   resonance_condition=None,
                   degeneracy_handling=None,
+                  block_recurrence=True,
                   take_diagonal_v4_terms=True,
                   two_mode_only=False,
                   **settings
@@ -3938,6 +3945,7 @@ class AnalyticVPTRunner:
             :type order: int
             :param expressions_file: checkpoint file for caching the analytic expressions
             :type expressions_file: str | None
+        :param block_recurrence: select the symbolic F/Q/N recurrence (default True) or ordered transformation (False) in conditional handling of resolved blocks. Projected and filtered handling keep their existing paths. F corrections remain DAG subgraphs, without evaluated scalar bindings.
         :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: compiled expression cache, independent of the intermediate expressions_file checkpoint
         :param compilation_options: settings for bounded final-expression compilation
@@ -3993,7 +4001,7 @@ class AnalyticVPTRunner:
                 allowed_energy_changes=allowed_energy_changes,
                 polynomial_representation=polynomial_representation,
                 resonance_condition=resonance_condition,
-                degeneracy_handling=degeneracy_handling,
+                degeneracy_handling=degeneracy_handling, block_recurrence=block_recurrence,
                 take_diagonal_v4_terms=take_diagonal_v4_terms,
                 two_mode_only=two_mode_only,
                 intermediate_normalization=opts.get('intermediate_normalization', None),
@@ -4046,6 +4054,7 @@ class AnalyticVPTRunner:
                   compilation_options=None,
                   evaluation_options=None,
                   parallelizer=None,
+                  block_recurrence=True,
                   **settings):
         """
         **LLM Docstring**
@@ -4066,6 +4075,7 @@ class AnalyticVPTRunner:
         :type allowed_energy_changes: object | None
         :param expressions_file: checkpoint file for caching the analytic expressions
         :type expressions_file: str | None
+        :param block_recurrence: select the symbolic F/Q/N recurrence (default True) or ordered transformation (False) in conditional handling of resolved blocks. Projected and filtered handling keep their existing paths. F corrections remain DAG subgraphs, without evaluated scalar bindings.
         :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: compiled expression cache, independent of the intermediate expressions_file checkpoint
         :param compilation_options: settings for bounded final-expression compilation
@@ -4101,7 +4111,7 @@ class AnalyticVPTRunner:
             allowed_energy_changes=allowed_energy_changes,
             polynomial_representation=polynomial_representation,
             take_diagonal_v4_terms=take_diagonal_v4_terms,
-            two_mode_only=two_mode_only
+            two_mode_only=two_mode_only, block_recurrence=block_recurrence
         )
         if isinstance(new, AnalyticVPTRunner):
             new.evaluator_defaults = getattr(runner, "evaluator_defaults", settings.get("evaluator_defaults", "new"))
@@ -5498,7 +5508,8 @@ class AnalyticVPTRunner:
             order=self.order,
             expansion_order=self.expansion_order,
             dipole_expansion = self.dipole_expansion,
-            logger=self.logger
+            logger=self.logger,
+            block_recurrence=self.eval.block_recurrence
         )
 
     @classmethod
@@ -5910,6 +5921,7 @@ class AnalyticVPTRunner:
                   compile=True,
                    compilation_options=None,
                    evaluation_options=None,
+                   block_recurrence=True,
                    parallelizer=None,
                    **opts
                    ):
@@ -5961,6 +5973,7 @@ class AnalyticVPTRunner:
         :param force_return_on_crash: whether to catch exceptions during the run and still return partial results
         :type force_return_on_crash: bool
         :param expressions_file: legacy intermediate-expression checkpoint, independent of expressions_folder
+        :param block_recurrence: select the symbolic F/Q/N recurrence (default True) or ordered transformation (False) in conditional handling of resolved blocks. Projected and filtered handling keep their existing paths. F corrections remain DAG subgraphs, without evaluated scalar bindings.
         :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: persistent compiled-expression shards and resumable numerical tasks; enables compilation in the controller before dispatching each correction
         :param compilation_options: bounded compilation settings forwarded to the analytic evaluator
@@ -5979,7 +5992,7 @@ class AnalyticVPTRunner:
             expressions_folder=expressions_folder,
                 compile=compile,
             compilation_options=compilation_options,
-            evaluation_options=evaluation_options,
+            evaluation_options=evaluation_options, block_recurrence=block_recurrence,
             parallelizer=parallelizer,
             **opts
         )

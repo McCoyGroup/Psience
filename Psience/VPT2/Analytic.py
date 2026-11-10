@@ -1091,13 +1091,15 @@ class AnalyticPerturbationTheorySolver:
             resonance_condition=self.resonance_condition
         )
 
-    def get_conditional_stack(self):
-        if self.resonance_condition is None:
+    def get_conditional_stack(self, condition=None, *, block_recurrence=False):
+        condition = self.resonance_condition if condition is None else condition
+        if condition is None:
             raise ValueError('no resonance condition was supplied')
-        if self.resonance_condition not in self._conditional_stacks:
-            self._conditional_stacks[self.resonance_condition] = ConditionalTransformationStack(
-                self,self.resonance_condition)
-        return self._conditional_stacks[self.resonance_condition]
+        key = (condition, 'block-recurrence') if block_recurrence else condition
+        if key not in self._conditional_stacks:
+            self._conditional_stacks[key] = ConditionalTransformationStack(
+                self, condition, block_recurrence=block_recurrence)
+        return self._conditional_stacks[key]
 
     def _conditional_term(self,kind,order,**options):
         if self.resonance_condition is None:
@@ -5654,19 +5656,34 @@ class PTTensorCoeffProductDAG(PTTensorCoeffProductSum):
 
 
     def _map_leaves(self, method, *args, **kwargs):
-        kind, *node_args = self._node
-        if kind == 'leaf':
-            transformed = getattr(node_args[0], method)(*args, **kwargs)
-            return type(self).from_sum(transformed)
-        mapped_args = tuple(
-            arg._map_leaves(method, *args, **kwargs)
-                if isinstance(arg, type(self)) else
-            arg
-            for arg in node_args
-        )
-        return type(self)._from_node(
-            kind, mapped_args, ndim=self._ndim, reduced=self.reduced
-        )
+        # Map each node of the DAG once. A recursive walk visits a shared
+        # subgraph once per path to it, which is exponential in the depth of
+        # the sharing, and it also hits the recursion limit on deep DAGs.
+        cls = type(self)
+        mapped = {}
+        pending = [(self, False)]
+        while pending:
+            node, ready = pending.pop()
+            if id(node) in mapped:
+                continue
+            kind, *node_args = node._node
+            if kind == 'leaf':
+                transformed = getattr(node_args[0], method)(*args, **kwargs)
+                mapped[id(node)] = cls.from_sum(transformed)
+            elif not ready:
+                pending.append((node, True))
+                pending.extend(
+                    (arg, False) for arg in node_args
+                    if isinstance(arg, cls) and id(arg) not in mapped
+                )
+            else:
+                mapped[id(node)] = cls._from_node(
+                    kind,
+                    tuple(mapped[id(arg)] if isinstance(arg, cls) else arg
+                          for arg in node_args),
+                    ndim=node._ndim, reduced=node.reduced
+                )
+        return mapped[id(self)]
 
     def filter_coefficients(self, terms, mode='match'):
         return type(self)._from_node(
@@ -12400,6 +12417,18 @@ class ProjectedCorrectionEvaluator:
         self.expansions = expansions
         self.freqs = np.asarray(evaluator.freqs if freqs is None else freqs)
         self.zero_cutoff = zero_cutoff
+        self.blocks = self.resolve_blocks(blocks, pairs)
+        _projected_evaluators.add(evaluator)
+        context_key = (coefficient_fingerprint(evaluator.expansions if expansions is None else expansions),
+                       tuple(self.freqs), zero_cutoff)
+        cache = getattr(evaluator, '_projected_block_cache', None)
+        if cache is None or cache[0] != context_key:
+            cache = evaluator._projected_block_cache = (context_key, {})
+        self.cache = cache[1]
+
+    @staticmethod
+    def resolve_blocks(blocks=None, pairs=None):
+        """Merge exact runtime relations without making a global change set."""
         groups = [] if blocks is None else [list(group) for group in blocks]
         if blocks is None and pairs is not None:
             if isinstance(pairs, dict):
@@ -12416,14 +12445,7 @@ class ProjectedCorrectionEvaluator:
                 group |= part
                 components.remove(part)
             components.append(group)
-        self.blocks = {state: tuple(sorted(group)) for group in components for state in group}
-        _projected_evaluators.add(evaluator)
-        context_key = (coefficient_fingerprint(evaluator.expansions if expansions is None else expansions),
-                       tuple(self.freqs), zero_cutoff)
-        cache = getattr(evaluator, '_projected_block_cache', None)
-        if cache is None or cache[0] != context_key:
-            cache = evaluator._projected_block_cache = (context_key, {})
-        self.cache = cache[1]
+        return {state: tuple(sorted(group)) for group in components for state in group}
 
     def block(self, state, order, intermediate=False):
         state = tuple(int(n) for n in state)
@@ -12616,6 +12638,7 @@ def _clear_conditional_caches():
     ConditionEndpoint._cache.clear()
     operator_sector.cache_clear()
     canonical_condition_key.cache_clear()
+    _resonance_block_labels.cache_clear()
     IntegerLatticeCondition.may_retain_change.cache_clear()
     for stack in list(_stacks):
         cache = getattr(stack.solver,'_conditional_stacks',{})
@@ -12686,6 +12709,9 @@ class OperatorCondition:
     def evaluate_shifted(self, state, permutations, start, end, frequencies):
         raise NotImplementedError
 
+    def evaluate_bound(self, state, permutations, start, end, frequencies, bindings=()):
+        return self.evaluate_shifted(state, permutations, start, end, frequencies)
+
     def matches(self,initial,final,frequencies=None):
         initial,final = np.broadcast_arrays(np.asarray(initial),np.asarray(final))
         size = initial.shape[-1]
@@ -12731,6 +12757,46 @@ class SameStateCondition(OperatorCondition):
         return not change
 
 
+@functools.lru_cache(maxsize=16)
+def _resonance_block_labels(groups):
+    return {state: index for index, group in enumerate(groups) for state in group}
+
+
+class ResonanceBlockCondition(OperatorCondition):
+    """Formal retained-sector mask, bound to exact relations only at evaluation.
+
+    No occupations, energies, coefficients or frequencies enter this symbolic
+    object. The existing numerical evaluation context supplies mask membership.
+    """
+    symmetric = diagonal = equivalence = True
+    key = ('runtime-resonance-blocks', 1)
+
+    def evaluate_bound(self, state, permutations, start, end, frequencies, bindings=()):
+        permutations = np.asarray(permutations, dtype=int)
+        shape = permutations.shape[:-1]
+        if np.array_equal(start, end):
+            return np.ones(shape, dtype=bool)
+        if not bindings:
+            raise ValueError('symbolic block recurrence requires runtime resonance bindings')
+        labels = _resonance_block_labels(bindings[0])
+        permutations = permutations.reshape((-1, permutations.shape[-1]))
+        left = np.broadcast_to(state, (len(permutations), len(state))).copy()
+        right = left.copy()
+        rows = np.arange(len(permutations))[:, None]
+        left[rows, permutations] += start
+        right[rows, permutations] += end
+        return np.fromiter((
+            (key in labels and labels[key] == labels.get(tuple(target)))
+            for key, target in zip(map(tuple, left), right)
+        ), dtype=bool, count=len(left)).reshape(shape)
+
+    def may_retain_change(self, change):
+        return True if not change else None
+
+    def __repr__(self):
+        return 'RuntimeResonanceBlocks'
+
+
 class BooleanCondition(OperatorCondition):
     def __init__(self, operation, *conditions):
         self.operation, self.conditions = operation, tuple(conditions)
@@ -12755,6 +12821,13 @@ class BooleanCondition(OperatorCondition):
         return (np.logical_and.reduce(values) if self.operation == 'and'
                 else np.logical_or.reduce(values))
 
+    def evaluate_bound(self, state, permutations, start, end, frequencies, bindings=()):
+        values = [condition.evaluate_bound(state, permutations, start, end, frequencies, bindings)
+                  for condition in self.conditions]
+        if self.operation == 'not':
+            return ~values[0]
+        return np.logical_and.reduce(values) if self.operation == 'and' else np.logical_or.reduce(values)
+
     def __repr__(self):
         return '{}({})'.format(self.operation,','.join(map(repr,self.conditions)))
 
@@ -12770,6 +12843,10 @@ class SymmetricCondition(OperatorCondition):
     def evaluate_shifted(self,state,permutations,start,end,frequencies):
         return (self.condition.evaluate_shifted(state,permutations,start,end,frequencies)
                 | self.condition.evaluate_shifted(state,permutations,end,start,frequencies))
+
+    def evaluate_bound(self, state, permutations, start, end, frequencies, bindings=()):
+        return (self.condition.evaluate_bound(state, permutations, start, end, frequencies, bindings)
+                | self.condition.evaluate_bound(state, permutations, end, start, frequencies, bindings))
 
     def __repr__(self):
         return 'Symmetric[{}]'.format(repr(self.condition))
@@ -13257,7 +13334,7 @@ def operator_sector(term,condition):
 
 class ConditionalTransformationStack:
     """Ordered all-order unitary transformations under a symbolic relation."""
-    def __init__(self,solver,condition):
+    def __init__(self,solver,condition, *, block_recurrence=False):
         if not isinstance(condition,OperatorCondition) or not condition.symmetric:
             raise ValueError('unitary resonance handling requires a symmetric operator condition')
         self.solver = solver
@@ -13267,7 +13344,11 @@ class ConditionalTransformationStack:
         self.zero = ZeroTerm(logger=solver.logger,
                              polynomial_representation=solver.polynomial_representation)
         self.order = len(solver.hamiltonian_expansion)-1
-        self.hamiltonian = list(solver.hamiltonian_expansion)
+        self.block_recurrence = bool(block_recurrence)
+        self.hamiltonian = ([solver.hamiltonian_expansion[0]]+[self.zero]*self.order
+                            if self.block_recurrence else list(solver.hamiltonian_expansion))
+        self.normalizers = [self.identity]
+        self.outside = [self.zero]
         self.wavefunctions = [self.identity]+[self.zero]*self.order
         self.generators = [self.zero]
         self.stages = [tuple(self.hamiltonian)]
@@ -13301,11 +13382,47 @@ class ConditionalTransformationStack:
                 output[target] = operator_sum(output[target],(1/math.factorial(power))*nested)
         return output
 
+    def _extend_block_recurrence(self, order, logger):
+        """HY=YF with shared symbolic F, QY and full block normalization.
+
+        All contractions are native operator DAG products. Resolvents carry
+        frequency-change divisors; no reference energy or evaluated F entry
+        is captured. Keep F[n] itself as a shared node in subsequent orders.
+        """
+        H = self.solver.hamiltonian_expansion
+        while len(self.normalizers) <= order:
+            n = len(self.normalizers)
+            with _log_evaluation_time(logger, 'Building symbolic block recurrence at order {o}', o=n):
+                overlap = operator_sum(*(operator_product(
+                    ShiftedEnergyBaseline.lookup(self.wavefunctions[i]), self.wavefunctions[n-i])
+                    for i in range(1, n)))
+                normalizer = operator_sum(-.5*self.restrict(overlap))
+                driving = operator_sum(*(operator_product(H[r], self.wavefunctions[n-r])
+                                         for r in range(1, n+1)))
+                inside_feedback = operator_sum(*(operator_product(
+                    self.normalizers[n-r], self.hamiltonian[r]) for r in range(1, n)))
+                # F=[H0,N]+B is Hermitian and N is Hermitian. Therefore
+                # F=(B+B^dagger)/2; avoid expanding two cancelling H0*N
+                # products with artificial extra mode-index contractions.
+                inside = self.restrict(operator_sum(driving, -inside_feedback))
+                F = (inside if n == 1 else operator_sum(
+                    .5*inside, .5*ShiftedEnergyBaseline.lookup(inside)))
+                feedback = operator_sum(*(operator_product(
+                    self.outside[n-r], self.hamiltonian[r]) for r in range(1, n)))
+                X = self.restrict(operator_sum(driving, -feedback), retain=False, resolvent=True)
+                self.normalizers.append(normalizer)
+                self.outside.append(X)
+                self.hamiltonian[n] = F
+                self.wavefunctions[n] = operator_sum(X, normalizer)
+        return self
+
     def extend(self,order=None,logger=None):
         logger = Logger.lookup(self.solver.logger if logger is None else logger)
         order = self.order if order is None else order
         if order > self.order:
             raise ValueError('requested order exceeds the supplied Hamiltonian expansion')
+        if self.block_recurrence:
+            return self._extend_block_recurrence(order, logger)
         while len(self.generators) <= order:
             stage = len(self.generators)
             with _log_evaluation_time(logger, "Building conditional transformation at order {o}", o=stage):
@@ -13352,7 +13469,7 @@ class ConditionalTransformationStack:
         key = (tuple(operators),order,allowed,branch_key)
         if key not in self._transformed_operators:
             with _log_evaluation_time(logger, "Transforming conditional operator through order {o}", o=order):
-                if allowed is None and branches is True:
+                if allowed is None and branches is True and not self.block_recurrence:
                     series = list(operators[:self.order+1])+[self.zero]*max(0,self.order+1-len(operators))
                     for stage,generator in enumerate(self.generators[1:order+1],1):
                         series = self._conjugate(series,generator,stage)
@@ -13444,7 +13561,7 @@ def conditional_path_factors(energy_key,state,permutations,perm_freqs,baseline_s
         start,end = np.asarray(row[1:],dtype=int)+baseline,np.asarray(end_row[1:],dtype=int)+baseline
         possible = (np.all(state[permutations]+start >= 0,axis=-1)
                     & np.all(state[permutations]+end >= 0,axis=-1))
-        matches = factor.condition.evaluate_shifted(state,permutations,start,end,perm_freqs)
+        matches = factor.condition.evaluate_bound(state,permutations,start,end,perm_freqs,projection_bindings)
         good &= possible & (matches if factor.retain else ~matches)
         if factor.kind == 'resolvent':
             denominator *= perm_freqs @ (start-end)
@@ -13486,11 +13603,13 @@ class CorrectionView(PerturbationTheoryTerm):
 class ConditionalCorrectionEvaluator:
     """Late-bound occupations/coefficients; no finite block contractions."""
     def __init__(self,evaluator,expansions=None,freqs=None,zero_cutoff=None,parallelizer=None,
-                 logger=None,verbose=False):
+                 logger=None,verbose=False, *, stack=None, resonance_groups=None):
         self.evaluator = evaluator
         self.logger = Logger.lookup(evaluator.solver.logger if logger is None else logger)
         self.verbose = verbose
-        self.stack = evaluator.solver.get_conditional_stack()
+        self.stack = evaluator.solver.get_conditional_stack() if stack is None else stack
+        self.projection_bindings = (None if resonance_groups is None else
+            dict(projectors=(resonance_groups,), scalar_count=0, scalar_order=len(evaluator.expansions)))
         self.raw_expansions = evaluator.expansions if expansions is None else expansions
         self.expansions = evaluator._prep_expansions(self.raw_expansions)
         self.freqs = evaluator.freqs if freqs is None else freqs
@@ -13518,7 +13637,7 @@ class ConditionalCorrectionEvaluator:
             with _log_evaluation_time(self.logger, "evaluating..."):
                 values.extend(expression.evaluate(permutations,self.expansions,self.freqs,
                     zero_cutoff=self.zero_cutoff,parallelizer=self.parallelizer,log_scaled=False,
-                    verbose=self.verbose,**numerical))
+                    verbose=self.verbose,projection_bindings=self.projection_bindings,**numerical))
         return np.asarray(values)[:,0]
 
     def energies(self,states,order,**numerical):
@@ -13545,7 +13664,8 @@ class ConditionalCorrectionEvaluator:
             expansions=self.raw_expansions if expansions is None else expansions,freqs=self.freqs,
             zero_cutoff=self.zero_cutoff,parallelizer=self.parallelizer,
             only_degenerate_terms=False,include_degenerate_correction_terms=False,
-            target_orders=target_orders,logger=self.logger,verbose=self.verbose,**self.options)
+            target_orders=target_orders,logger=self.logger,verbose=self.verbose,
+            projection_bindings=self.projection_bindings,**self.options)
 
     def wavefunctions(self,states,order,full=True,target_orders=None):
         self.stack.extend(order,logger=self.logger)
@@ -13558,8 +13678,18 @@ class ConditionalCorrectionEvaluator:
         return self._evaluate(series,states,order,target_orders=target_orders)
 
     def hamiltonian(self,states,order,only_degenerate_terms=True,terms=None,branches=True,
-                    target_orders=None):
+                    target_orders=None, normalization='orthonormal'):
         self.stack.extend(order,logger=self.logger)
+        if normalization == 'intermediate':
+            if terms is not None or branches is not True:
+                raise ValueError('Bloch entries are not normalized bra-H-ket contribution triples')
+            omega = self.stack.intermediate_wavefunctions(order, logger=self.logger)
+            H = self.evaluator.solver.hamiltonian_expansion
+            series = [H[0]]+[self.stack.restrict(operator_sum(*(
+                operator_product(H[r], omega[n-r]) for r in range(1,n+1))))
+                for n in range(1,order+1)]
+            return self._evaluate(series,states,order,target_orders=target_orders,
+                                  sign=-1. if only_degenerate_terms else 1.)
         series = (self.stack.hamiltonian if terms is None and branches is True else
                   self.stack.transform_operator(self.evaluator.solver.hamiltonian_expansion,
                                                 order,terms,branches,logger=self.logger))
@@ -13574,7 +13704,7 @@ class ConditionalCorrectionEvaluator:
 
 class PerturbationTheoryEvaluator:
 
-    degeneracy_handling_modes = ('projected', 'filtered')
+    degeneracy_handling_modes = ('projected', 'filtered', 'conditional')
     # Filtered effective Hamiltonian, off-diagonal elements: True evaluates only the
     # resonant terms of the main <n|H|m> expression and negates them (see
     # _compute_corr) instead of evaluating the non-resonant complement. Both give
@@ -13587,6 +13717,11 @@ class PerturbationTheoryEvaluator:
         """
         'projected' (default): degenerate blocks are treated by block projection
         (`ProjectedCorrectionEvaluator`).
+        'conditional': resolved blocks are represented by symbolic endpoint
+        conditions in the Conditional transformation stack. block_recurrence=True
+        (default) selects the shared symbolic F/Q/N recurrence; False selects
+        the existing ordered Conditional transformation. Neither flag value
+        changes 'projected' or 'filtered' dispatch.
         'filtered': the original treatment, where degenerate pairs are turned into
         degenerate changes (`get_degenerate_changes`) and the matching terms are
         removed from the perturbative sums, leaving the couplings to the
@@ -13608,11 +13743,18 @@ class PerturbationTheoryEvaluator:
             return None
         if self.degeneracy_handling == 'filtered':
             return None
+        if self.degeneracy_handling == 'conditional':
+            resolved = ProjectedCorrectionEvaluator.resolve_blocks(blocks, pairs)
+            groups = tuple(sorted(set(resolved.values())))
+            stack = self.solver.get_conditional_stack(ResonanceBlockCondition(),
+                                                      block_recurrence=self.block_recurrence)
+            return ConditionalCorrectionEvaluator(self, expansions, freqs, zero_cutoff, parallelizer,
+                logger=logger, verbose=verbose, stack=stack, resonance_groups=groups)
         evaluator = (self if parallelizer is None else
                      type(self)(self.solver, self.expansions, self.freqs, parallelizer=parallelizer,
                         expressions_folder=self.expressions_folder,compilation_options=self.compilation_options,
                         evaluation_options=self.evaluation_options,compile=self.compile_expressions,
-                        degeneracy_handling=self.degeneracy_handling))
+                        degeneracy_handling=self.degeneracy_handling,block_recurrence=self.block_recurrence))
         return ProjectedCorrectionEvaluator(evaluator, blocks=blocks, pairs=pairs,
             expansions=expansions, freqs=freqs, zero_cutoff=zero_cutoff,
             logger=logger, verbose=verbose)
@@ -13637,7 +13779,10 @@ class PerturbationTheoryEvaluator:
 
     def __init__(self, solver:AnalyticPerturbationTheorySolver, expansion, freqs=None, parallelizer=None,
                  expressions_folder=None, compilation_options=None, evaluation_options=None, compile=True,
-                 degeneracy_handling=None):
+                 degeneracy_handling=None, block_recurrence=True):
+        if not isinstance(block_recurrence, (bool, np.bool_)):
+            raise TypeError("block_recurrence must be boolean")
+        self.block_recurrence = bool(block_recurrence)
         self.degeneracy_handling = self.resolve_degeneracy_handling(degeneracy_handling)
         self.expressions_folder = expressions_folder
         self.compile_expressions = compile is not False
@@ -13701,7 +13846,7 @@ class PerturbationTheoryEvaluator:
             exps, parallelizer=self.parallelizer,
             expressions_folder=self.expressions_folder,compilation_options=self.compilation_options,
             evaluation_options=self.evaluation_options,compile=self.compile_expressions,
-            degeneracy_handling=self.degeneracy_handling
+            degeneracy_handling=self.degeneracy_handling, block_recurrence=self.block_recurrence
         )
 
     @_timed_evaluation('Energy corrections (total)')
@@ -14048,7 +14193,7 @@ class PerturbationTheoryEvaluator:
                            parallelizer, shared_coefficients=None,
                            degeneracy_identification_context=None,
                            target_orders=None,
-                           resonant_complement=False):
+                           resonant_complement=False, projection_bindings=None):
         corrs = {}
         if degenerate_changes is not None:
             changes = (
@@ -14143,6 +14288,7 @@ class PerturbationTheoryEvaluator:
                         )
                         eval_kwargs = dict(
                             degenerate_changes=degenerate_changes,
+                            projection_bindings=projection_bindings,
                             verbose=verbose,
                             zero_cutoff=zero_cutoff,
                             log_scaled=log_scaled,
@@ -14213,7 +14359,7 @@ class PerturbationTheoryEvaluator:
                                           log_scaled, parallelizer,
                                           shared_coefficients=None,
                                           target_orders=None,
-                                          resonant_complement=False):
+                                          resonant_complement=False, projection_bindings=None):
         """Evaluate one state/permutation row at a time and restore the old shape."""
         result = {
             change: [
@@ -14254,7 +14400,7 @@ class PerturbationTheoryEvaluator:
                         parallelizer,
                         shared_coefficients=shared_coefficients,
                         target_orders=target_orders,
-                        resonant_complement=resonant_complement
+                        resonant_complement=resonant_complement, projection_bindings=projection_bindings
                     )[change]
                     for o in range(order + 1):
                         if result[change][o] is not None:
@@ -14316,7 +14462,7 @@ class PerturbationTheoryEvaluator:
                                        logger=None,
                                        parallelizer=None,
                                        target_orders=None,
-                                       resonant_complement=False):
+                                       resonant_complement=False, projection_bindings=None):
         PerturbationTheoryExpressionEvaluator._cached_expansion = None # to make paralellism work right
 
         spex = expansions is None or self.is_single_expansion(expansions)
@@ -14383,6 +14529,7 @@ class PerturbationTheoryEvaluator:
                 shared_coefficients=shared_coefficients,
                 target_orders=target_orders,
                 resonant_complement=resonant_complement,
+                projection_bindings=projection_bindings,
                 **({} if state_specific else {
                     'degeneracy_identification_context': degeneracy_identification_context
                 })
@@ -14527,9 +14674,11 @@ class PerturbationTheoryEvaluator:
             if nput.is_numeric(states[0][0]):
                 states = [[states[i], states[i+(0 if include_diagonal else 1):]]
                           for i in range(len(states)-(0 if include_diagonal else 1))]
-            if normalization=='intermediate' and hasattr(projected,'validate_options'):
+            symbolic_block = (isinstance(projected, ConditionalCorrectionEvaluator)
+                              and projected.stack.block_recurrence)
+            if normalization=='intermediate' and hasattr(projected,'validate_options') and not symbolic_block:
                 raise NotImplementedError('direct Bloch blocks require explicit resolved model-space blocks')
-            block_options={} if hasattr(projected,'validate_options') else {'normalization':normalization}
+            block_options=({'normalization':normalization} if symbolic_block or not hasattr(projected,'validate_options') else {})
             return projected.hamiltonian(states, order, only_degenerate_terms,
                 terms=opts.get('terms'), branches=opts.get('include_degenerate_correction_terms',True),
                 target_orders=opts.get('target_orders'),**block_options)
