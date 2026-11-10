@@ -9,7 +9,7 @@ import os, unittest
 import numpy as np
 
 from Psience.VPT2 import AnalyticVPTRunner
-from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator
+from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator, PerturbationTheoryEvaluator
 from Psience.VPT2.Common import Diagnostics
 
 TEST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'TestData')
@@ -51,6 +51,19 @@ class VPT2LegacyFlowTests(unittest.TestCase):
             degeneracy_handling='filtered', logger=False, calculate_intensities=False
         )
         np.testing.assert_allclose(corrs.energies * h2w, JULY_OCHH_BLOCKS, atol=1e-3)
+
+    def test_resonant_complement_matches_excluded_sum(self):
+        # off the diagonal the full main expression vanishes, so evaluating only the
+        # resonant terms (once each) and negating must reproduce the default
+        default = self.run_hoh(degeneracy_handling='filtered')
+        PerturbationTheoryEvaluator.use_resonant_complement = True
+        try:
+            complement = self.run_hoh(degeneracy_handling='filtered')
+        finally:
+            PerturbationTheoryEvaluator.use_resonant_complement = False
+        for a, b in zip(default.degenerate_hamiltonians, complement.degenerate_hamiltonians):
+            np.testing.assert_allclose(np.asarray(b), np.asarray(a), atol=1e-12)
+        np.testing.assert_allclose(complement.energies, default.energies, atol=1e-12)
 
     def test_unknown_degeneracy_handling_is_rejected(self):
         with self.assertRaises(ValueError):

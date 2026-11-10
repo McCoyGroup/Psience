@@ -10772,13 +10772,19 @@ class PerturbationTheoryExpressionEvaluator:
             free_ind_groups = {}
             if only_degenerate_terms[0] and only_degenerate_terms[1]:
                 if degenerate_changes is not None:
-                    for subchanges in degenerate_changes:
-                        for coeff_indices in subchanges.keys():
-                            num_inds = len(expr.get_inds(coeff_indices))
-                            free_inds = num_inds - num_fixed
-                            if free_inds not in free_ind_groups:
-                                free_ind_groups[free_inds] = []
-                            free_ind_groups[free_inds].append(coeff_indices)
+                    # A key with resonant denominators on both sides appears in
+                    # both the left and the right dict; evaluate it once.
+                    resonant_keys = dict.fromkeys(
+                        coeff_indices
+                        for subchanges in degenerate_changes
+                        for coeff_indices in subchanges.keys()
+                    )
+                    for coeff_indices in resonant_keys:
+                        num_inds = len(expr.get_inds(coeff_indices))
+                        free_inds = num_inds - num_fixed
+                        if free_inds not in free_ind_groups:
+                            free_ind_groups[free_inds] = []
+                        free_ind_groups[free_inds].append(coeff_indices)
             else:
                 for coeff_indices, poly_terms in expr.terms.items():
                     num_inds = len(expr.get_inds(coeff_indices))
@@ -13264,6 +13270,12 @@ class ConditionalCorrectionEvaluator:
 class PerturbationTheoryEvaluator:
 
     degeneracy_handling_modes = ('projected', 'filtered')
+    # Filtered effective Hamiltonian, off-diagonal elements: True evaluates only the
+    # resonant terms of the main <n|H|m> expression and negates them (see
+    # _compute_corr) instead of evaluating the non-resonant complement. Both give
+    # the same numbers; on HNO3/criegee the resonant set is the larger one (about
+    # two thirds of the (term, assignment) pairs), so the complement is the default.
+    use_resonant_complement = False
 
     @classmethod
     def resolve_degeneracy_handling(cls, mode):
@@ -13696,8 +13708,17 @@ class PerturbationTheoryEvaluator:
 
         return all_corrs
     @classmethod
-    def _compute_corr(cls,  gen_corrs, only_degs, key, gen, expr, *args, only_degenerate_terms=None, **kwargs):
-        new_corrs = expr.evaluate(*args, **kwargs)
+    def _compute_corr(cls,  gen_corrs, only_degs, key, gen, expr, *args, only_degenerate_terms=None,
+                      resonant_complement=False, **kwargs):
+        if resonant_complement:
+            # For a != b the full (non-degenerate) main expression is
+            # <psi_a|H|psi_b> = 0 at every order, so the sum with the resonant
+            # terms excluded equals minus the sum over the resonant terms only.
+            # Only valid for the Hamiltonian itself, off the diagonal, with the
+            # same H in the operator and in the wavefunction corrections.
+            new_corrs = [-c for c in expr.evaluate(*args, only_degenerate_terms=True, **kwargs)]
+        else:
+            new_corrs = expr.evaluate(*args, **kwargs)
         if only_degenerate_terms is True or only_degenerate_terms is False:
             only_degenerate_terms = [only_degenerate_terms, only_degenerate_terms]
         other_degs = only_degenerate_terms[0] is only_degenerate_terms[1]
@@ -13721,7 +13742,8 @@ class PerturbationTheoryEvaluator:
                            freqs, verbose, logger, zero_cutoff, log_scaled,
                            parallelizer, shared_coefficients=None,
                            degeneracy_identification_context=None,
-                           target_orders=None):
+                           target_orders=None,
+                           resonant_complement=False):
         corrs = {}
         if degenerate_changes is not None:
             changes = (
@@ -13831,6 +13853,11 @@ class PerturbationTheoryEvaluator:
                                 "!", main_gen, expr,
                                 *eval_args,
                                 only_degenerate_terms=only_degenerate_terms,
+                                resonant_complement=(
+                                    resonant_complement
+                                    and degenerate_changes is not None
+                                    and len(change) > 0
+                                ),
                                 **eval_kwargs
                             )
                         if left_deg_expr is not None:
@@ -13880,7 +13907,8 @@ class PerturbationTheoryEvaluator:
                                           freqs, verbose, logger, zero_cutoff,
                                           log_scaled, parallelizer,
                                           shared_coefficients=None,
-                                          target_orders=None):
+                                          target_orders=None,
+                                          resonant_complement=False):
         """Evaluate one state/permutation row at a time and restore the old shape."""
         result = {
             change: [
@@ -13920,7 +13948,8 @@ class PerturbationTheoryEvaluator:
                         freqs, verbose, logger, zero_cutoff, log_scaled,
                         parallelizer,
                         shared_coefficients=shared_coefficients,
-                        target_orders=target_orders
+                        target_orders=target_orders,
+                        resonant_complement=resonant_complement
                     )[change]
                     for o in range(order + 1):
                         if result[change][o] is not None:
@@ -13981,7 +14010,8 @@ class PerturbationTheoryEvaluator:
                                        return_sorted=False,
                                        logger=None,
                                        parallelizer=None,
-                                       target_orders=None):
+                                       target_orders=None,
+                                       resonant_complement=False):
         PerturbationTheoryExpressionEvaluator._cached_expansion = None # to make paralellism work right
 
         spex = expansions is None or self.is_single_expansion(expansions)
@@ -14047,6 +14077,7 @@ class PerturbationTheoryEvaluator:
                 freqs, verbose, logger, zero_cutoff, log_scaled, parallelizer,
                 shared_coefficients=shared_coefficients,
                 target_orders=target_orders,
+                resonant_complement=resonant_complement,
                 **({} if state_specific else {
                     'degeneracy_identification_context': degeneracy_identification_context
                 })
@@ -14241,6 +14272,11 @@ class PerturbationTheoryEvaluator:
             return self.get_state_by_state_corrections(corr_gen, states,
                                                        degenerate_states=degenerate_states,
                                                        only_degenerate_terms=only_degenerate_terms,
+                                                       resonant_complement=(
+                                                           self.use_resonant_complement
+                                                           and only_degenerate_terms is True
+                                                           and hamiltonian_corrections is None
+                                                       ),
                                                        degenerate_correction_generator=deg_corr_gen,
                                                        order=order, expansions=exps, freqs=freqs, verbose=verbose,
                                                        log_scaled=True,
