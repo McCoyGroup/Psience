@@ -492,5 +492,82 @@ class SymbolicBlockRecurrenceTests(unittest.TestCase):
         self.assertGreater(max(np.max(np.abs(row[3])) for row in values[1].corrections),1e-10)
 
 
+    def test_conditional_inference_uses_existing_group_and_polyad_specs(self):
+        specs = [
+            dict(self.groups, group_filter='unfiltered'),
+            {'polyads': self.groups['groups'], 'group_filter': 'unfiltered'},
+            {'nT': [2, 1, 10], 'group_filter': 'unfiltered'},
+            [dict(self.groups, group_filter='unfiltered'),
+             {'polyads': self.groups['groups'], 'group_filter': 'unfiltered'}]
+        ]
+        for spec in specs:
+            for compile in [True, False]:
+                runner = self.runner(compile=compile)
+                self.assertIsNone(runner.eval.solver.resonance_condition)
+                with mock.patch.object(A.AnalyticBlockExpansion, '_scalar',
+                                       side_effect=AssertionError('numerical projected fallback')):
+                    actual = self.values(runner, groups=spec)
+                self.assertValues(actual, self.values(self.runner(False), groups=spec))
+
+    def test_conditional_no_resonances_do_not_reuse_previous_blocks(self):
+        runner = self.runner()
+        for spec in [self.groups, None, False, self.groups]:
+            results = []
+            for current in [runner, self.runner(False)]:
+                space = current.prep_states(self.states, degeneracy_specs=spec)
+                results.append((current.get_energy_corrections(space, order=2),
+                                current.get_transition_moment_corrections(space, order=2)))
+                if current is runner:
+                    evaluator = current.eval._projected_corrections(
+                        space.flat_space.degenerate_states, None)
+                    self.assertIsInstance(evaluator, A.ConditionalCorrectionEvaluator)
+                    self.assertIsInstance(evaluator.stack.condition, A.ResonanceBlockCondition)
+                    self.assertEqual(vars(evaluator.stack.condition), {})
+            self.assertValues(*results)
+
+    def test_conditional_inference_preserves_existing_group_filter(self):
+        spec = {'groups': [[[1, 0, 0], [0, 2, 0], [0, 0, 1]]]}
+        runner = self.runner()
+        space = runner.prep_states(self.states, degeneracy_specs=spec)
+        evaluator = runner.eval._projected_corrections(space.flat_space.degenerate_states, None)
+        resolved = A.ProjectedCorrectionEvaluator.resolve_blocks(space.flat_space.degenerate_states)
+        self.assertEqual(evaluator.projection_bindings['projectors'],
+                         (tuple(sorted(set(resolved.values()))),))
+        self.assertValues(self.values(runner, groups=spec),
+                          self.values(self.runner(False), groups=spec))
+
+    def test_runner_resonances_have_no_independent_condition_input(self):
+        for constructor in [AnalyticVPTRunner, AnalyticVPTRunner.construct,
+                            AnalyticVPTRunner.from_hamiltonian, AnalyticVPTRunner.from_file]:
+            self.assertNotIn('resonance_condition', inspect.signature(constructor).parameters)
+        condition = A.SameStateCondition()
+        with self.assertRaises(TypeError):
+            AnalyticVPTRunner(self.runner().eval, order=2, resonance_condition=condition)
+        for constructor, source in [(AnalyticVPTRunner.construct, 'not-a-molecule-file'),
+                                    (AnalyticVPTRunner.from_file, 'not-a-molecule-file'),
+                                    (AnalyticVPTRunner.from_hamiltonian, None)]:
+            with self.assertRaisesRegex(TypeError, 'degeneracy_specs'):
+                constructor(source, order=2, resonance_condition=condition)
+        evaluator = self.runner(False, compile=False).eval
+        evaluator.solver.resonance_condition = condition
+        for mode in ['filtered', 'projected', 'conditional']:
+            with self.assertRaisesRegex(TypeError, 'degeneracy_specs'):
+                AnalyticVPTRunner(evaluator, order=2, degeneracy_handling=mode)
+            self.assertIs(evaluator.block_recurrence, False)
+            self.assertIs(evaluator.compile_expressions, False)
+
+    def test_conditional_evaluator_infers_its_own_stack_from_resolved_groups(self):
+        signature = inspect.signature(A.ConditionalCorrectionEvaluator).parameters
+        self.assertNotIn('stack', signature)
+        self.assertNotIn('resonance_groups', signature)
+        self.assertIn('blocks', signature)
+        self.assertIn('pairs', signature)
+        runner = self.runner()
+        evaluator = runner.eval._projected_corrections(self.groups['groups'], None)
+        self.assertIsInstance(evaluator.stack.condition, A.ResonanceBlockCondition)
+        self.assertEqual(evaluator.projection_bindings['projectors'],
+                         ((((0, 2, 0), (1, 0, 0)),),))
+
+
 if __name__ == '__main__':
     unittest.main()

@@ -210,15 +210,18 @@ class ConditionalProjectionTests(unittest.TestCase):
         w = np.array([.04,.02,.13]);cubic = np.zeros((3,)*3)
         cubic[0,1,1]=cubic[1,0,1]=cubic[1,1,0]=.0006/3
         cubic[1,1,1]=.0004
-        condition = IntegerLatticeCondition([[1,-2,0]])
         runner = AnalyticVPTRunner([[np.diag(w)/2,np.diag(w)/2],[cubic,0],[np.zeros((3,)*4),0,0,0,0]],
-            order=2,freqs=w,internals=False,logger=False,resonance_condition=condition)
+            order=2,freqs=w,internals=False,logger=False,degeneracy_handling='conditional')
         a,b,k = [1,0,0],[0,2,0],[0,1,0]
+        space = runner.prep_states([a,b], degeneracy_specs={
+            'polyads': [[a,b]], 'group_filter': 'unfiltered'})
+        resonance_data = dict(degenerate_blocks=space.flat_space.degenerate_states,
+                              degenerate_states=runner._eval_degeneracies(space, True))
         with warnings.catch_warnings():
             warnings.simplefilter('error',SmallEnergyDenominatorWarning)
-            value = runner.eval.get_full_wavefunction_corrections([[a,[k]]],order=2)
+            value = runner.eval.get_full_wavefunction_corrections([[a,[k]]],order=2,**resonance_data)
             self.assertAlmostEqual(-value.corrections[0][2][0],-.0016125)
-            h = runner.eval.get_reexpressed_hamiltonian([a,b],order=2,only_degenerate_terms=True)
+            h = runner.eval.get_reexpressed_hamiltonian([a,b],order=2,only_degenerate_terms=True,**resonance_data)
             self.assertAlmostEqual(h.corrections[0][1][0],.0003)
 
     def test_intermediate_normalization_and_cache_clear(self):

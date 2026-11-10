@@ -13603,13 +13603,16 @@ class CorrectionView(PerturbationTheoryTerm):
 class ConditionalCorrectionEvaluator:
     """Late-bound occupations/coefficients; no finite block contractions."""
     def __init__(self,evaluator,expansions=None,freqs=None,zero_cutoff=None,parallelizer=None,
-                 logger=None,verbose=False, *, stack=None, resonance_groups=None):
+                 logger=None,verbose=False, *, blocks=None, pairs=None):
         self.evaluator = evaluator
         self.logger = Logger.lookup(evaluator.solver.logger if logger is None else logger)
         self.verbose = verbose
-        self.stack = evaluator.solver.get_conditional_stack() if stack is None else stack
-        self.projection_bindings = (None if resonance_groups is None else
-            dict(projectors=(resonance_groups,), scalar_count=0, scalar_order=len(evaluator.expansions)))
+        resolved = ProjectedCorrectionEvaluator.resolve_blocks(blocks, pairs)
+        groups = tuple(sorted(set(resolved.values())))
+        self.stack = evaluator.solver.get_conditional_stack(
+            ResonanceBlockCondition(), block_recurrence=evaluator.block_recurrence)
+        self.projection_bindings = dict(
+            projectors=(groups,), scalar_count=0, scalar_order=len(evaluator.expansions))
         self.raw_expansions = evaluator.expansions if expansions is None else expansions
         self.expansions = evaluator._prep_expansions(self.raw_expansions)
         self.freqs = evaluator.freqs if freqs is None else freqs
@@ -13717,8 +13720,9 @@ class PerturbationTheoryEvaluator:
         """
         'projected' (default): degenerate blocks are treated by block projection
         (`ProjectedCorrectionEvaluator`).
-        'conditional': resolved blocks are represented by symbolic endpoint
-        conditions in the Conditional transformation stack. block_recurrence=True
+        'conditional': resonance membership is inferred from the same resolved
+        degeneracy-spec blocks/pairs as the other modes and bound at evaluation.
+        No independent resonance_condition is supplied to the runner. block_recurrence=True
         (default) selects the shared symbolic F/Q/N recurrence; False selects
         the existing ordered Conditional transformation. Neither flag value
         changes 'projected' or 'filtered' dispatch.
@@ -13736,20 +13740,13 @@ class PerturbationTheoryEvaluator:
 
     def _projected_corrections(self, blocks, pairs, expansions=None, freqs=None, zero_cutoff=None,
                                parallelizer=None, logger=None, verbose=False):
-        if getattr(self.solver,'resonance_condition',None) is not None:
-            return ConditionalCorrectionEvaluator(self,expansions,freqs,zero_cutoff,parallelizer,
-                logger=logger, verbose=verbose)
+        if self.degeneracy_handling == 'conditional':
+            return ConditionalCorrectionEvaluator(self, expansions, freqs, zero_cutoff, parallelizer,
+                logger=logger, verbose=verbose, blocks=blocks, pairs=pairs)
         if blocks is None and pairs is None:
             return None
         if self.degeneracy_handling == 'filtered':
             return None
-        if self.degeneracy_handling == 'conditional':
-            resolved = ProjectedCorrectionEvaluator.resolve_blocks(blocks, pairs)
-            groups = tuple(sorted(set(resolved.values())))
-            stack = self.solver.get_conditional_stack(ResonanceBlockCondition(),
-                                                      block_recurrence=self.block_recurrence)
-            return ConditionalCorrectionEvaluator(self, expansions, freqs, zero_cutoff, parallelizer,
-                logger=logger, verbose=verbose, stack=stack, resonance_groups=groups)
         evaluator = (self if parallelizer is None else
                      type(self)(self.solver, self.expansions, self.freqs, parallelizer=parallelizer,
                         expressions_folder=self.expressions_folder,compilation_options=self.compilation_options,

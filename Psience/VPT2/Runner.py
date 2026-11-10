@@ -3701,7 +3701,6 @@ class AnalyticVPTRunner:
                  allowed_energy_changes=None,
                  intermediate_normalization=None,
                  polynomial_representation='path',
-                 resonance_condition=None,
                  degeneracy_handling=None,
                  block_recurrence=True,
                  local_mode_couplings=None,
@@ -3753,6 +3752,10 @@ class AnalyticVPTRunner:
         :type local_mode_coupling_order: int | None
         :param parallelizer: parallelization backend for the evaluator
         :type parallelizer: Parallelizer | None
+        Conditional resonance membership is inferred from degeneracy_specs
+        through the existing state-space preparation and discovery pipeline;
+        no separate resonance_condition is accepted.
+
         :param block_recurrence: select the symbolic F/Q/N recurrence (default True) or ordered transformation (False) in conditional handling of resolved blocks. Projected and filtered handling keep their existing paths. F corrections remain DAG subgraphs, without evaluated scalar bindings.
         :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: directory of reusable compiled expression shards and resumable numerical tasks
@@ -3781,7 +3784,6 @@ class AnalyticVPTRunner:
                     allowed_energy_changes=allowed_energy_changes,
                     intermediate_normalization=intermediate_normalization,
                     polynomial_representation=polynomial_representation,
-                    resonance_condition=resonance_condition
                 ),
                 expansions,
                 freqs=freqs,
@@ -3793,6 +3795,9 @@ class AnalyticVPTRunner:
                 degeneracy_handling=degeneracy_handling, block_recurrence=block_recurrence
             )
         else:
+            if expansions.solver.resonance_condition is not None:
+                raise TypeError('AnalyticVPTRunner infers resonances from degeneracy_specs; '
+                                'a separate solver resonance_condition is not supported')
             self.eval = expansions
             if not isinstance(block_recurrence, (bool, np.bool_)):
                 raise TypeError('block_recurrence must be boolean')
@@ -3833,7 +3838,6 @@ class AnalyticVPTRunner:
                          two_mode_only=False,
                          intermediate_normalization=None,
                          polynomial_representation='path',
-                         resonance_condition=None,
                          degeneracy_handling=None,
                          block_recurrence=True,
                          corrected_fundamental_frequencies=None,
@@ -3851,6 +3855,8 @@ class AnalyticVPTRunner:
         :param polynomial_representation: ``'path'`` for the canonical DAG backend or ``'eager'`` for timing/comparison runs
         :return:
         """
+        if 'resonance_condition' in opts:
+            raise TypeError('supply degeneracy_specs instead of resonance_condition')
         exp_orders = ham._get_expansion_orders(expansion_order, order)
         exps = ham.get_perturbations(
             exp_orders,
@@ -3899,7 +3905,6 @@ class AnalyticVPTRunner:
             allowed_energy_changes=allowed_energy_changes,
             intermediate_normalization=intermediate_normalization,
             polynomial_representation=polynomial_representation,
-            resonance_condition=resonance_condition,
             degeneracy_handling=degeneracy_handling, block_recurrence=block_recurrence,
             local_mode_couplings=ham.local_mode_couplings,
             local_mode_coupling_order=ham.local_mode_coupling_order
@@ -3925,7 +3930,6 @@ class AnalyticVPTRunner:
                   corrected_fundamental_frequencies=None,
                   parallelizer=None,
                   polynomial_representation='path',
-                  resonance_condition=None,
                   degeneracy_handling=None,
                   block_recurrence=True,
                   take_diagonal_v4_terms=True,
@@ -3945,6 +3949,10 @@ class AnalyticVPTRunner:
             :type order: int
             :param expressions_file: checkpoint file for caching the analytic expressions
             :type expressions_file: str | None
+        Conditional resonance membership is inferred from degeneracy_specs
+        through the existing state-space preparation and discovery pipeline;
+        no separate resonance_condition is accepted.
+
         :param block_recurrence: select the symbolic F/Q/N recurrence (default True) or ordered transformation (False) in conditional handling of resolved blocks. Projected and filtered handling keep their existing paths. F corrections remain DAG subgraphs, without evaluated scalar bindings.
         :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: compiled expression cache, independent of the intermediate expressions_file checkpoint
@@ -3974,6 +3982,8 @@ class AnalyticVPTRunner:
             :rtype: AnalyticVPTRunner | tuple[AnalyticVPTRunner, MultiVPTStateSpace]
             """
 
+            if 'resonance_condition' in settings:
+                raise TypeError('supply degeneracy_specs instead of resonance_condition')
             runner, _ = VPTRunner.construct(
                 system,
                 1,
@@ -4000,7 +4010,6 @@ class AnalyticVPTRunner:
                 disallowed_coefficients=disallowed_coefficients,
                 allowed_energy_changes=allowed_energy_changes,
                 polynomial_representation=polynomial_representation,
-                resonance_condition=resonance_condition,
                 degeneracy_handling=degeneracy_handling, block_recurrence=block_recurrence,
                 take_diagonal_v4_terms=take_diagonal_v4_terms,
                 two_mode_only=two_mode_only,
@@ -4019,7 +4028,8 @@ class AnalyticVPTRunner:
             if states is not None and not isinstance(states, MultiVPTStateSpace):
                 if (
                         isinstance(degeneracy_specs, (list, tuple, np.ndarray))
-                        and all(len(d) == 2 for d in degeneracy_specs)
+                        and all(isinstance(d, (list, tuple, np.ndarray)) and len(d) == 2
+                            for d in degeneracy_specs)
                         and nput.is_numeric(degeneracy_specs[0][0][0])
                 ):
                     degeneracy_specs = {'polyads': degeneracy_specs}
@@ -4075,6 +4085,10 @@ class AnalyticVPTRunner:
         :type allowed_energy_changes: object | None
         :param expressions_file: checkpoint file for caching the analytic expressions
         :type expressions_file: str | None
+        Conditional resonance membership is inferred from degeneracy_specs
+        through the existing state-space preparation and discovery pipeline;
+        no separate resonance_condition is accepted.
+
         :param block_recurrence: select the symbolic F/Q/N recurrence (default True) or ordered transformation (False) in conditional handling of resolved blocks. Projected and filtered handling keep their existing paths. F corrections remain DAG subgraphs, without evaluated scalar bindings.
         :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: compiled expression cache, independent of the intermediate expressions_file checkpoint
@@ -4087,6 +4101,8 @@ class AnalyticVPTRunner:
         :return: the constructed runner
         :rtype: AnalyticVPTRunner
         """
+        if 'resonance_condition' in settings:
+            raise TypeError('supply degeneracy_specs instead of resonance_condition')
         runner, _ = VPTRunner.construct(
             file_name,
             1,
@@ -4291,7 +4307,8 @@ class AnalyticVPTRunner:
         if not isinstance(states, MultiVPTStateSpace):
             if (
                     isinstance(degeneracy_specs, (list, tuple, np.ndarray))
-                    and all(len(d) == 2 for d in degeneracy_specs)
+                    and all(isinstance(d, (list, tuple, np.ndarray)) and len(d) == 2
+                            for d in degeneracy_specs)
                     and nput.is_numeric(degeneracy_specs[0][0][0])
             ):
                 degeneracy_specs = {'polyads':degeneracy_specs}
@@ -5973,6 +5990,10 @@ class AnalyticVPTRunner:
         :param force_return_on_crash: whether to catch exceptions during the run and still return partial results
         :type force_return_on_crash: bool
         :param expressions_file: legacy intermediate-expression checkpoint, independent of expressions_folder
+        Conditional resonance membership is inferred from degeneracy_specs
+        through the existing state-space preparation and discovery pipeline;
+        no separate resonance_condition is accepted.
+
         :param block_recurrence: select the symbolic F/Q/N recurrence (default True) or ordered transformation (False) in conditional handling of resolved blocks. Projected and filtered handling keep their existing paths. F corrections remain DAG subgraphs, without evaluated scalar bindings.
         :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: persistent compiled-expression shards and resumable numerical tasks; enables compilation in the controller before dispatching each correction
