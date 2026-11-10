@@ -1130,7 +1130,10 @@ class AnalyticExpressionStore:
                     ['allowed_terms','allowed_coefficients','disallowed_coefficients','allowed_energy_changes']):
                 native.append(wrapper.op.term)
             for op in native:
-                key=self._signature(dict(operator=op,change=change,baseline=baseline),active_operators,None,options)
+                native_context = dict(operator=op,change=change,baseline=baseline)
+                if isinstance(context,dict) and 'excluded_resonances' in context:
+                    native_context['excluded_resonances'] = context['excluded_resonances']
+                key=self._signature(native_context,active_operators,None,options)
                 if self.folder is None:
                     if signature in self._memory:
                         self._aliases[key]=signature
@@ -1457,7 +1460,7 @@ def _run_compiled_tasks_inner(tasks,context):
             path_cache_size=10000,path_cache_bytes=64*1024**2,
             state_permutation_cache_size=10000,state_permutation_cache_bytes=16*1024**2)
         options.update(context['numerical_options'])
-        for name in ('path_equality_cache_size','cache_polynomial_order','free_index_reduction'):
+        for name in ('path_equality_cache_size','cache_polynomial_order','free_index_reduction','prune_fixed_resonances'):
             options.pop(name,None)
         options['_max_polynomial_order']=max_order
         options['_poly_eval_cache']=polynomial_cache
