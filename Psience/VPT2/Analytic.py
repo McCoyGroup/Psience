@@ -6638,10 +6638,15 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
         return Logger.lookup(cls.default_filters)
 
     def get_core_poly(self, changes, shift=None):
-        return sum(
-            term.get_poly_terms(changes, shift=shift)
-            for term in self.expressions
-        )
+        terms = (term.get_poly_terms(changes, shift=shift)
+                 for term in self.expressions)
+        if self.polynomial_representation == 'path':
+            # A left-folded sum gives the lazy tensor DAG linear depth.
+            accumulator = _BalancedPolynomialAccumulator()
+            for term in terms:
+                accumulator.append(term)
+            return accumulator.total()
+        return sum(terms)
 
     simplify_by_default = True
     caching_enabled = True
@@ -8364,6 +8369,8 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
         base_changes = self.changes.get(changes, 0)
         if isinstance(base_changes, list):
             poly_changes = 0
+            accumulator = (_BalancedPolynomialAccumulator()
+                           if self.polynomial_representation == 'path' else None)
             for change_1, change_2, contact_1, contact_2, rem_1, rem_2, reorg in base_changes:
                 # try:
                 new_polys = self.get_poly_product_terms(
@@ -8382,7 +8389,12 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
                             self.gen2, change_2, contact_2
                         ))
 
-                poly_changes += new_polys
+                if accumulator is None:
+                    poly_changes += new_polys
+                else:
+                    accumulator.append(new_polys)
+            if accumulator is not None:
+                poly_changes = accumulator.total()
 
             # if not nput.is_numeric(poly_changes):
             #
