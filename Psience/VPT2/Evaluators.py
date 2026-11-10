@@ -657,7 +657,7 @@ def _freeze_solver(value, kind, rec):
     names = ['hamiltonian_expansion', 'allowed_terms', 'allowed_coefficients',
              'disallowed_coefficients', 'allowed_energy_changes',
              'intermediate_normalization', 'polynomial_representation', 'resonance_condition',
-             'filtered_block_recurrence']
+             'filtered_block_recurrence', 'resonance_independent']
     return [kind, {name: rec(getattr(value, name)) for name in names}]
 
 
@@ -904,6 +904,75 @@ class _OccupationProjection:
         return Transform()
 
 
+@dataclasses.dataclass(frozen=True)
+class _OccupationCoefficientProjection:
+    powers: tuple
+    shift: float = -.5
+    kind: str = dataclasses.field(default='coefficient', init=False)
+
+    def compiler(self):
+        from .Analytic import PolyPath, PTEnergyChangeProductSum, canonical_condition_key
+        projection = self
+        class Transform:
+            def __init__(self):
+                self.memo = {};self.constants = {}
+            def coefficient(self, value, rank):
+                if rank < len(projection.powers):
+                    return 0.
+                if np.isscalar(value):
+                    return value if not any(projection.powers) else 0.
+                key = value,rank
+                if key not in self.memo:
+                    if len(self.memo) >= 10000:
+                        self.memo.pop(next(iter(self.memo)))
+                    self.memo[key] = PolyPath.from_polynomial(value).coefficient(
+                        projection.powers, shift=projection.shift)
+                return self.memo[key]
+            def constant(self, value, rank):
+                key = float(value),rank
+                if key not in self.constants:
+                    if len(self.constants) >= 10000:
+                        self.constants.pop(next(iter(self.constants)))
+                    self.constants[key] = PolyPath.from_coeffs([np.ones(1)]*rank,
+                                                             prefactor=key[0], steps=0)
+                return self.constants[key]
+            def __call__(self, key, value):
+                rank = len({i for c in key for i in c[2:]})
+                if rank < len(projection.powers):
+                    return None
+                if isinstance(value,PTEnergyChangeProductSum):
+                    rows = {}
+                    for energy,numerator in value.terms.items():
+                        if any(getattr(row[0],'_state_projection_factor',False) or row[0] not in {0,1}
+                               for row in energy):
+                            raise ValueError('action coefficients require unrestricted harmonic denominators')
+                        canonical,scale = canonical_condition_key(energy)
+                        if canonical is None:
+                            raise ValueError('invalid harmonic denominator')
+                        rows.setdefault(canonical,[]).append(scale*self.coefficient(numerator,rank))
+                    rows = {energy:self.constant(weight,rank) for energy,values in rows.items()
+                            if (weight := math.fsum(values)) != 0}
+                    return value.mutate(rows,reduced=True) if rows else None
+                weight = self.coefficient(value,rank)
+                return self.constant(weight,rank) if weight else None
+        return Transform()
+
+
+@dataclasses.dataclass(frozen=True)
+class _AnchoredModeSubset:
+    anchors: tuple
+
+    def count(self, ndim, num_fixed, free_count):
+        k = free_count-len(self.anchors)
+        return math.comb(ndim-num_fixed-len(self.anchors),k) if 0 <= k <= ndim-num_fixed-len(self.anchors) else 0
+
+    def iter_subsets(self, ndim, num_fixed, free_count):
+        if self.count(ndim,num_fixed,free_count):
+            available = (i for i in range(num_fixed,ndim) if i not in self.anchors)
+            for rest in itertools.combinations(available,free_count-len(self.anchors)):
+                yield self.anchors+rest
+
+
 class _CompiledEntries(EntryStore):
     # compiled expressions live at folder/<signature>/manifest.json, aliases at folder/aliases/<signature>.json
     meta_name = 'manifest.json'
@@ -1070,7 +1139,13 @@ class AnalyticExpressionStore:
                 plan.progress_callback=lambda p:progress(dict(stage='generating',**p.stats()))
         else:
             plan = None;iterator = poly.terms.items()
-        transform = projection.compiler() if projection is not None else None
+        projected = (isinstance(poly,PTTensorCoeffProductDAG)
+                     and poly._node[0] == 'occupation_coefficient'
+                     and getattr(projection,'kind',None) == 'coefficient'
+                     and poly._node[2:] == (projection.powers,projection.shift))
+        transform = projection.compiler() if projection is not None and not projected else None
+        constant_transform = (_OccupationCoefficientProjection((),0.).compiler()
+                              if getattr(projection,'kind',None) == 'coefficient' else None)
         budget = StreamBudget(dict(max_terms=max_terms,max_bytes=max_bytes,
             bounded_byte_accounting=bounded_byte_accounting))
         staging = contextlib.nullcontext(None) if self.folder is None else self.entries.stage(signature)
@@ -1084,7 +1159,11 @@ class AnalyticExpressionStore:
             pending={};parts=[]
             def flush(reason):
                 if not pending:return
-                compact = PTTensorCoeffProductSum({key:acc.total() for key,acc in pending.items()},
+                totals = {key:acc.total() for key,acc in pending.items()}
+                if constant_transform is not None:
+                    totals = {key:value for key,total in totals.items()
+                              if (value := constant_transform(key,total)) is not None}
+                compact = PTTensorCoeffProductSum(totals,
                     canonicalize=False,reduced=False).combine()
                 groups = {}
                 for key,value in compact.terms.items():
@@ -1165,6 +1244,22 @@ class CompiledAnalyticExpression:
             if Path(part['file']).name!=part['file']:raise ValueError('invalid expression part path')
             if _file_hash(folder/part['file'])!=part['sha256']:raise ValueError('compiled expression checksum mismatch')
         return cls(folder,manifest)
+    def evaluate_coefficient(self, coeffs, freqs, *, indices=(), **options):
+        """Contract a symbolic action coefficient with physical tensors.
+
+        External mode indices bind the requested action powers. The constant
+        numerator uses an internal zero index carrier, with no reference-state
+        binding in the expression or its symbolic cache.
+        """
+        projection = self.manifest['projection']
+        if projection is None or projection.get('kind') != 'coefficient':
+            raise ValueError('expression is not an action coefficient kernel')
+        indices = tuple(indices)
+        if any(not isinstance(i,(int,np.integer)) for i in indices):
+            raise ValueError('coefficient mode indices must be integers')
+        carrier = [(np.zeros(len(freqs),dtype=int),np.arange(len(freqs))[None])]
+        return self.evaluate(carrier,coeffs,freqs,anchored_modes=indices,**options)[0][:,0]
+
     def prepare_evaluation(self,state_perms,coeffs,freqs,*,anchored_modes=(),parallelizer=None,
                            batch_size=512,task_size=32768,resume=True,use_shared_memory=None,**numerical_options):
         started=time.perf_counter()
@@ -1202,7 +1297,12 @@ class CompiledAnalyticEvaluation:
         if forbidden:raise TypeError('compiled numerical options override scheduling: {}'.format(sorted(forbidden)))
         self.use_shared_memory=use_shared_memory is not False
         projection=compiled.manifest['projection']
-        if projection is not None:
+        if projection is not None and projection.get('kind') == 'coefficient':
+            if (len(self.anchored_modes) != len(projection['powers'])
+                    or len(set(self.anchored_modes)) != len(self.anchored_modes)
+                    or any(i < 0 or i >= len(self.freqs) for i in self.anchored_modes)):
+                raise ValueError('coefficient kernel requires distinct physical indices for its powers')
+        elif projection is not None:
             if len(self.anchored_modes)!=1:raise ValueError('projected transition requires its one anchored physical mode')
             anchor=self.anchored_modes[0]
             for state,perms in self.state_perms:
@@ -1573,6 +1673,67 @@ class AnalyticCorrectionCompiler:
         return {(n,tuple(change)):self.store.compile_factory(lambda n=n,c=tuple(change):expression(n,c),
                     context=dict(source,order=n,change=tuple(change)),active_operators=active,projection=projection,**options)
                 for n in orders for change in changes}
+
+    def _action_terms(self, order, correction):
+        return self.evaluator.solver.action_expansion_terms(order,correction)
+
+    def precompile_action_expansion(self, order=2, correction='energy', *, compilation_options=None):
+        from .Analytic import PerturbationTheoryExpressionEvaluator
+        terms = self._action_terms(order,correction)
+        source = self.evaluator.solver._action_expansion_source(correction)
+        options = dict(self.evaluator.compilation_options)
+        options.update(compilation_options or {})
+        options.setdefault('mode_dimension',len(self.evaluator.freqs))
+        return {key:self.store.compile(
+                    PerturbationTheoryExpressionEvaluator(None,kernel,(),logger=False),
+                    context=dict(solver=source,order=key[0],powers=key[1],source=correction),
+                    projection=_OccupationCoefficientProjection(key[1]),active_operators=None,**options)
+                for key,kernel in terms.items()}
+
+    def action_expansion(self, order=2, correction='energy', *, parallelizer=None, **options):
+        from .Analytic import PerturbationTheoryExpressionEvaluator
+        evaluator = self.evaluator
+        kernels = self._action_terms(order,correction)
+        numerical = dict(evaluator.evaluation_options);numerical.update(options)
+        if any(numerical.get(k) is not None and numerical.get(k) is not False for k in (
+                'degenerate_changes','projection_bindings','only_degenerate_terms','allowed_coefficients',
+                'disallowed_coefficients','allowed_energy_changes','epaths')):
+            raise ValueError('resonance-independent action expansion cannot use runtime diagram filters')
+        numerical.pop('only_degenerate_terms',None)
+        numerical.setdefault('zero_cutoff',0.)
+        prepared = evaluator._prep_expansions(evaluator.expansions)
+        freqs = evaluator.freqs
+        ndim = len(freqs)
+        backend = evaluator.parallelizer if parallelizer is None else parallelizer
+        constant = 0.;linear = np.zeros(ndim);quadratic = np.zeros((ndim,ndim))
+        compiled = (self.precompile_action_expansion(order,correction)
+                    if evaluator.compile_expressions else None)
+        for key,kernel in kernels.items():
+            _,powers = key
+            indices = ([()] if not powers else [(i,) for i in range(ndim)] if len(powers)==1
+                       else itertools.combinations(range(ndim),len(powers)))
+            for anchors in indices:
+                if compiled is not None:
+                    value = compiled[key].evaluate_coefficient([prepared],freqs,indices=anchors,
+                                                              parallelizer=backend,**numerical)[0]
+                else:
+                    # The projected kernels are constant in occupations. This
+                    # index carrier only reuses the native tensor contraction;
+                    # no reference energy or state was used to derive them.
+                    carrier = [(np.zeros(ndim,dtype=int),np.arange(ndim)[None])]
+                    wrapper = PerturbationTheoryExpressionEvaluator(None,kernel,(),logger=False)
+                    value = wrapper.evaluate(carrier,[prepared],freqs,
+                        mode_subset_selector=_AnchoredModeSubset(tuple(anchors)),
+                        parallelizer=backend,**numerical)[0][0,0]
+                if not powers:
+                    constant += value
+                elif powers == (1,):
+                    linear[anchors[0]] += value
+                elif powers == (2,):
+                    quadratic[anchors[0],anchors[0]] += value
+                else:
+                    quadratic[anchors] += value
+        return [constant,linear,quadratic],kernels
 
     def _frequency_request(self,initial,final):
         from .Analytic import SameStateCondition

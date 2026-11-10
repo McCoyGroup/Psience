@@ -1119,10 +1119,12 @@ class AnalyticPerturbationTheorySolver:
                 term = stack.restrict(term)
         return CorrectionView(term,diagonal=kind=='energy',**options)
     filtered_block_recurrence = False
+    resonance_independent = False
 
     _op_maps = {}
     def get_correction(self, key, cls, order, **kw):
-        corr_key = (cls, key, order, bool(self.filtered_block_recurrence), bool(self.intermediate_normalization))
+        corr_key = (cls, key, order, bool(self.filtered_block_recurrence), bool(self.intermediate_normalization),
+                    bool(self.resonance_independent))
         for option in ('operator_type','base_index'):
             if kw.get(option) is not None:corr_key += ((option,kw[option]),)
         term_filter = kw.get('allowed_terms')
@@ -1156,6 +1158,53 @@ class AnalyticPerturbationTheorySolver:
             parent = copy.copy(self)
             parent.filtered_block_recurrence = True
         return parent.get_correction('block-H', BlockHamiltonianCorrection, order, **kw)
+
+    def _action_expansion_source(self, correction):
+        if correction not in {'energy','hamiltonian'}:
+            raise ValueError("action source must be 'energy' or 'hamiltonian'")
+        if any(getattr(self,name) is not None for name in (
+                'allowed_terms','allowed_coefficients','disallowed_coefficients','allowed_energy_changes')):
+            raise ValueError('unrestricted action expansion requires unfiltered correction definitions')
+        source = copy.copy(self)
+        source._op_maps,source._conditional_stacks = {},{}
+        source.resonance_condition = None
+        source.resonance_independent = True
+        source.filtered_block_recurrence = correction == 'hamiltonian'
+        source.intermediate_normalization = False
+        for n,term in enumerate(source.hamiltonian_expansion[:3]):
+            if not isinstance(term,(OperatorExpansionTerm,ZeroTerm)):
+                raise NotImplementedError('action expansion requires the native Hamiltonian expansion')
+            if isinstance(term,OperatorExpansionTerm):
+                if max(map(len,term.terms),default=0) > n+2:
+                    raise ValueError('Hamiltonian order exceeds the VPT2 action degree bound')
+                if any(len(t)%2 != n%2 for t in term.terms):
+                    raise ValueError('Hamiltonian terms must have the native VPT order parity')
+                if any(getattr(term,name) is not None for name in (
+                        'allowed_terms','allowed_coefficients','disallowed_coefficients','allowed_energy_changes')):
+                    raise ValueError('unrestricted action expansion requires unfiltered Hamiltonian terms')
+        return source
+
+    def action_expansion_terms(self, order=2, correction='energy'):
+        """Symbolic unrestricted action coefficients, indexed by (PT order, powers).
+
+        The zero-change block Hamiltonian uses singleton P and its full Q
+        complement. No runtime resonance selection enters either source.
+        Kernels retain force tensors and harmonic frequency denominators.
+        """
+        if order != 2:
+            raise NotImplementedError('symbolic action expansion currently supports VPT2')
+        source = self._action_expansion_source(correction)
+        generator = (source.energy_correction if correction == 'energy'
+                     else source.block_hamiltonian_correction)
+        result = {}
+        for n in (0,2):
+            polynomial = generator(n).get_poly_terms(())
+            if nput.is_numeric(polynomial):
+                polynomial = SqrtChangePoly(PTTensorCoeffProductDAG.from_sum(
+                    PTTensorCoeffProductSum({():polynomial})),(),())
+            for powers in ((),(1,),(2,),(1,1)):
+                result[n,powers] = polynomial.project_coefficients(powers,shift=-.5)
+        return result
 
     def block_main_wavefunction_correction(self, order):
         if order == 0:
@@ -2778,6 +2827,111 @@ class PolyPath(ProductPTPolynomialSum):
         if isinstance(eager, ProductPTPolynomial):
             return [eager]
         return eager.polys
+
+    def coefficient(self, powers, shift=0):
+        """Extract [I**powers] P(I+shift) without evaluating occupations.
+
+        Walk coefficient requests through the shared DAG. Integer path shifts,
+        index maps and contact products are applied before extracting the
+        requested coefficient. Only one-dimensional leaf axes materialize;
+        neither a multivariate eager expansion nor state sampling is needed.
+        ``shift=-.5`` changes occupation variables to actions I=n+1/2.
+        """
+        powers = tuple(powers)
+        if any(int(p) != p or p < 0 for p in powers):
+            raise ValueError('coefficient powers must be nonnegative integers')
+        powers = tuple(int(p) for p in powers)
+        if any(powers[self.ndim:]):
+            return 0.
+        powers = (powers + (0,)*self.ndim)[:self.ndim]
+        if np.isscalar(shift):
+            shift = (float(shift),)*self.ndim
+        else:
+            shift = tuple(float(s) for s in shift)
+            if len(shift) != self.ndim:
+                raise ValueError('formal shift dimension differs from polynomial')
+        root = (self, powers, shift)
+        values = {}
+        pending = [(root, None)]
+
+        def mapped(child, pull, degree, offset):
+            # Native remaps are injective changes of index labels.
+            if len(set(pull)) != len(pull):
+                raise ValueError('coefficient extraction requires injective index maps')
+            if any(d for i,d in enumerate(degree) if i not in pull):
+                return None
+            return (child, tuple(degree[i] for i in pull), tuple(offset[i] for i in pull))
+
+        while pending:
+            request, terms = pending.pop()
+            if request in values:
+                continue
+            node, degree, offset = request
+            if terms is not None:
+                values[request] = math.fsum(
+                    weight * math.prod(values[dep] for dep in deps)
+                    for weight,deps in terms)
+                continue
+            if node._node is None:
+                contributions = []
+                for term, scaling in node._items:
+                    weight = scaling * 2.**(-term.steps/2)
+                    for i,power in enumerate(degree):
+                        if i >= len(term.axes):
+                            weight *= (power == 0)
+                        else:
+                            coeffs = term.axes[i].coeffs
+                            if offset[i]:
+                                coeffs = DensePolynomial.compute_shifted_coeffs(coeffs, offset[i])
+                            weight *= coeffs[power] if power < len(coeffs) else 0
+                        if weight == 0:
+                            break
+                    contributions.append(weight)
+                values[request] = math.fsum(contributions)
+                continue
+            kind, args = node._node
+            terms = []
+            def append(weight, *deps):
+                if weight and all(dep is not None for dep in deps):
+                    terms.append((weight, deps))
+            if kind == 'add':
+                for child in args:
+                    append(1, (child, degree, offset))
+            elif kind == 'linear':
+                for child,weight in args:
+                    append(weight, (child, degree, offset))
+            elif kind == 'scale':
+                child,weight = args
+                append(weight, (child, degree, offset))
+            elif kind == 'shift':
+                child,delta = args
+                delta = tuple(delta)+(0,)*len(offset)
+                append(1, (child, degree, tuple(a+b for a,b in zip(offset,delta))))
+            elif kind == 'remap':
+                child,pull,_ = args
+                append(1, mapped(child,pull,degree,offset))
+            elif kind == 'permutation_sum':
+                child,_,pulls = args
+                for pull in pulls:
+                    append(1, mapped(child,pull,degree,offset))
+            elif kind == 'project':
+                child,keep,_ = args
+                child_degree = [0]*child.ndim
+                child_offset = [0.]*child.ndim
+                for i,j in enumerate(keep):
+                    child_degree[j],child_offset[j] = degree[i],offset[i]
+                append(1, (child,tuple(child_degree),tuple(child_offset)))
+            elif kind == 'mul':
+                left,right,_,_,left_pull,right_pull = args
+                for left_degree in itertools.product(*(range(p+1) for p in degree)):
+                    right_degree = tuple(p-q for p,q in zip(degree,left_degree))
+                    append(1, mapped(left,left_pull,left_degree,offset),
+                           mapped(right,right_pull,right_degree,offset))
+            else:
+                raise NotImplementedError('coefficient extraction for PolyPath node '+kind)
+            pending.append((request, terms))
+            pending.extend((dep,None) for _,deps in terms for dep in deps if dep not in values)
+        return values[root]
 
     def _leaf_to_eager(self):
         return [
@@ -5225,6 +5379,10 @@ class PTTensorCoeffProductDAG(PTTensorCoeffProductSum):
     def __repr__(self):
         return "TensorDAG({}; ndim={})".format(self._node[0], self._ndim)
 
+    def project_coefficients(self, powers, shift=-.5):
+        return type(self)._from_node('occupation_coefficient', (self,tuple(powers),float(shift)),
+                                    ndim=self._ndim, reduced=False)
+
     def with_change_domain(self, change, retain):
         return type(self)._from_node('change_domain', (self, tuple(change), bool(retain)),
                                      ndim=self._ndim, reduced=self.reduced)
@@ -5269,7 +5427,19 @@ class PTTensorCoeffProductDAG(PTTensorCoeffProductSum):
         if Diagnostics.enabled:
             type(self)._materializations += 1
         kind, *args = self._node
-        if kind == 'change_domain':
+        if kind == 'occupation_coefficient':
+            # Explicit compatibility export streams only the projected terms;
+            # never materialize the parent expression as a fallback.
+            collected = {}
+            for key,poly in PTTensorCoeffProductDAGEvaluationPlan(self).iter_terms():
+                collected.setdefault(key,_BalancedPolynomialAccumulator()).append(poly)
+            from .Evaluators import _OccupationCoefficientProjection
+            collapse = _OccupationCoefficientProjection((),0.).compiler()
+            terms = {key:value for key,acc in collected.items()
+                     if (value := collapse(key,acc.total())) is not None}
+            eager = PTTensorCoeffProductSum(terms,
+                                           canonicalize=False).combine()
+        elif kind == 'change_domain':
             child, change, retain = args
             eager = child.to_eager()
             rows = ((_ChangeDomainIndex(retain, 0),)+(0,)*len(change),
@@ -6249,7 +6419,15 @@ class PTTensorCoeffProductDAGEvaluationPlan:
 
     def _iter_node_uncached(self, node):
         kind, *args = node._node
-        if kind == 'change_domain':
+        if kind == 'occupation_coefficient':
+            from .Evaluators import _OccupationCoefficientProjection
+            child,powers,shift = args
+            transform = _OccupationCoefficientProjection(powers,shift).compiler()
+            for key,poly in self._iter_node(child):
+                projected = transform(key,poly)
+                if projected is not None:
+                    yield key,projected
+        elif kind == 'change_domain':
             child, change, retain = args
             rows = ((_ChangeDomainIndex(retain, 0),)+(0,)*len(change),
                     (_ChangeDomainIndex(retain, 1),)+change)
@@ -6343,6 +6521,12 @@ class SqrtChangePoly(PolynomialInterface):
             self.poly_obj, self.poly_change, self.shift_start = self.canonicalize(
                 self.poly_obj, self.poly_change, self.shift_start
             )
+
+    def project_coefficients(self, powers, shift=-.5):
+        if np.any(self.poly_change) or np.any(self.shift_start):
+            raise ValueError('action coefficients require an unshifted diagonal expression')
+        dag = PTTensorCoeffProductDAG.from_sum(self.poly_obj)
+        return self.mutate(poly_obj=dag.project_coefficients(powers,shift))
 
     def mutate(self,
                poly_obj:'Any'=default,
@@ -6998,6 +7182,8 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
         key = self.get_serializer_key()
         if key is not None and getattr(getattr(self, 'parent', None), 'filtered_block_recurrence', False):
             key += '::filtered-block-v1::intermediate={}'.format(bool(self.intermediate_normalization))
+        if key is not None and getattr(getattr(self, 'parent', None), 'resonance_independent', False):
+            key += '::unrestricted-action-v1'
         if key is not None and self.allowed_terms is not None:
             # Keep legacy unfiltered checkpoints intact and isolate each term.
             terms = tuple(sorted(set(tuple(t) for t in self.allowed_terms)))
@@ -7217,6 +7403,15 @@ class OperatorExpansionTerm(PerturbationTheoryTerm):
 
     def __repr__(self):
         return "M[{}]".format(self.order)
+
+    def __fingerprint__(self):
+        # Construction/evaluation populate polynomial and change caches. Their
+        # hashes and object identities are not part of an operator definition.
+        names = ('terms','order','index','identities','symmetrizers','_change_rules',
+                 'allowed_terms','allowed_coefficients','disallowed_coefficients',
+                 'allowed_energy_changes','intermediate_normalization','polynomial_representation')
+        return (type(self).__module__,type(self).__qualname__,
+                {name:getattr(self,name) for name in names})
 
     _generator_cache = {}
     @classmethod
@@ -7681,10 +7876,18 @@ class BlockHamiltonianCorrection(PerturbationTheoryTerm):
         return [.5*base, .5*ShiftedEnergyBaseline.lookup(base)]
 
     def get_core_poly(self, changes, shift=None):
-        return _change_domain_polynomial(super().get_core_poly(changes), changes, True)
+        if self.parent.resonance_independent and changes:
+            return 0
+        return _change_domain_polynomial(super().get_core_poly(changes), changes, True,
+                                         unrestricted=self.parent.resonance_independent)
 
 
-def _change_domain_polynomial(poly, change, retain):
+def _change_domain_polynomial(poly, change, retain, *, unrestricted=False):
+    # In the unrestricted scalar reference every state is its own block:
+    # P retains only zero change, Q all nonzero changes. This policy is
+    # applied during construction, before any resonance domain is attached.
+    if unrestricted:
+        return poly if bool(change) != retain else 0
     if nput.is_numeric(poly):
         return poly
     if not change:
@@ -7813,7 +8016,8 @@ class WavefunctionCorrection(PerturbationTheoryTerm):
 
     def get_core_poly(self, changes, shift=None):
         base = super().get_core_poly(changes)
-        return (_change_domain_polynomial(base, changes, False)
+        return (_change_domain_polynomial(base, changes, False,
+                                           unrestricted=self.parent.resonance_independent)
                 if self.parent.filtered_block_recurrence else base)
 
     def get_subexpressions(self):
@@ -7948,8 +8152,11 @@ class WavefunctionOverlapCorrection(PerturbationTheoryTerm):
         ]
 
     def get_core_poly(self, changes, shift=None):
+        if self.parent.resonance_independent and changes:
+            return 0
         base = super().get_core_poly(changes)
-        return (_change_domain_polynomial(base, changes, True)
+        return (_change_domain_polynomial(base, changes, True,
+                                          unrestricted=self.parent.resonance_independent)
                 if self.parent.filtered_block_recurrence else base)
 
 
@@ -14216,6 +14423,23 @@ class PerturbationTheoryEvaluator:
         from .Evaluators import AnalyticCorrectionCompiler
         if not self.compile_expressions:raise ValueError('compilation disabled by compile=False')
         return AnalyticCorrectionCompiler(self).precompile(correction=correction, order=order, **options)
+
+    def precompile_action_expansion(self, order=2, correction='energy', **options):
+        from .Evaluators import AnalyticCorrectionCompiler
+        if not self.compile_expressions:
+            raise ValueError('compilation disabled by compile=False')
+        return AnalyticCorrectionCompiler(self).precompile_action_expansion(order,correction,**options)
+
+    @_compiled_evaluation_context
+    def get_action_expansion(self, order=2, correction='energy', **options):
+        """Return ([C, w, X], symbolic kernels) in actions I=n+1/2.
+
+        X stores spectroscopic cross coefficients in its upper triangle:
+        E=C+sum(w_i I_i)+sum(i<=j, X_ij I_i I_j).
+        Both source choices are independent of runtime resonance groups.
+        """
+        from .Evaluators import AnalyticCorrectionCompiler
+        return AnalyticCorrectionCompiler(self).action_expansion(order,correction,**options)
 
     def precompile_frequency_corrections(self, initial_state, final_state, order=None, **options):
         from .Evaluators import AnalyticCorrectionCompiler

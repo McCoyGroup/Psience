@@ -4141,6 +4141,14 @@ class AnalyticVPTRunner:
         """Compile final analytic expressions; numerical inputs remain late-bound."""
         return self.eval.precompile(correction=correction, order=self.order if order is None else order, **options)
 
+    def precompile_action_expansion(self, order=2, correction='energy', **options):
+        """Compile unrestricted symbolic action coefficients through VPT2."""
+        return self.eval.precompile_action_expansion(order=order,correction=correction,**options)
+
+    def get_action_expansion(self, order=2, correction='energy', **options):
+        """Return ([C, w, upper-triangle X], symbolic kernels), without state fitting."""
+        return self.eval.get_action_expansion(order=order,correction=correction,**options)
+
     def precompile_frequency_corrections(self, initial_state, final_state, order=None, **options):
         return self.eval.precompile_frequency_corrections(initial_state, final_state,
             order=self.order if order is None else order, **options)

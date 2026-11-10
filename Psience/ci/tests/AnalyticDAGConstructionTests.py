@@ -768,5 +768,280 @@ class FilteredBlockRecurrenceTests(unittest.TestCase):
                 self.assertAlmostEqual(element(solver.block_hamiltonian_correction(n),source,target),F[n][target,source],places=12)
 
 
+import itertools
+import math
+import tempfile
+import unittest
+from unittest import mock
+
+import numpy as np
+import Psience.VPT2.Analytic as A
+from Psience.VPT2 import AnalyticVPTRunner, PerturbationTheoryHamiltonian
+from Psience.VPT2.Evaluators import _OccupationCoefficientProjection
+
+
+class SymbolicActionExpansionTests(unittest.TestCase):
+    @staticmethod
+    def model(ndim=3, internals=False, scale=1., freq_scale=1., compile=True, folder=None):
+        rng = np.random.default_rng(410)
+        w = np.array([.013,.029,.047][:ndim])*freq_scale
+        def symmetric(rank, magnitude):
+            x = rng.normal(size=(ndim,)*rank)*magnitude*scale
+            return sum(x.transpose(p) for p in itertools.permutations(range(rank)))/math.factorial(rank)
+        v3,v4 = symmetric(3,.0003),symmetric(4,.00002)
+        if internals:
+            # G derivatives are symmetric within coordinate and momentum
+            # slots, and need not have potential-tensor permutation symmetry.
+            g1 = rng.normal(size=(ndim,)*3)*.0001*scale
+            g1 = (g1+g1.swapaxes(-1,-2))/2
+            g2 = rng.normal(size=(ndim,)*4)*.00001*scale
+            g2 = (g2+g2.swapaxes(0,1))/2
+            g2 = (g2+g2.swapaxes(-1,-2))/2
+            coefficients = [[np.diag(w)/2,np.diag(w)/2],[v3,g1],[v4,g2,.000007*scale]]
+        else:
+            coefficients = [[np.diag(w)/2,np.diag(w)/2],[v3,0],[v4,0,0,0,0]]
+        solver = A.AnalyticPerturbationTheorySolver.from_order(2,internals=internals,logger=False)
+        return A.PerturbationTheoryEvaluator(solver,coefficients,w,compile=compile,expressions_folder=folder)
+
+    def assertExpansion(self, left, right, atol=1e-12):
+        for a,b in zip(left,right):
+            np.testing.assert_allclose(a,b,rtol=1e-12,atol=atol)
+
+    @staticmethod
+    def native_energies(evaluator, states):
+        # Oracle only: the implementation never samples these states.
+        solver = A.AnalyticPerturbationTheorySolver(evaluator.solver.hamiltonian_expansion,logger=False)
+        prepared = evaluator._prep_expansions(evaluator.expansions)
+        identity = np.arange(len(evaluator.freqs))[None]
+        total = np.zeros(len(states))
+        for n in (0,2):
+            term = solver.energy_correction(n)
+            wrapper = A.PerturbationTheoryExpressionEvaluator(term,term.get_poly_terms(()),(),logger=False)
+            total += np.asarray(wrapper.evaluate([(s,identity) for s in states],prepared,
+                                                  evaluator.freqs,zero_cutoff=0)).reshape(-1)
+        return total
+
+    def test_polypath_all_operations_without_sampling_or_eager_expansion(self):
+        p = A.PolyPath.from_coeffs([[2,3,4],[1,-2]],prefactor=3,steps=2)
+        q = A.PolyPath.from_coeffs([[3,-1],[2,0,1]],steps=0)
+        projected = A.PolyPath._from_node('project',(p,(1,),(0,)),1,(1,))
+        linear = A.PolyPath._from_node('linear',((p,2.),(q,-3.)),2,(2,2))
+        paths = [p,p+q,linear,p.scale(2.5),p.shift((2,-1)),p.permute((1,0)),
+                 p.permutation_sum(((0,1),(1,0))),p.mul_simple(q),
+                 p.mul_along(q,[(0,),(1,)]),projected,p.permute((2,0,1),allow_padding=True)]
+        def oracle(path, powers):
+            eager = path.to_eager()
+            polynomials = eager.polys if isinstance(eager,A.ProductPTPolynomialSum) else [eager]
+            value = 0.
+            for poly in polynomials:
+                weight = poly.prefactor*2**(-poly.steps/2)
+                for i,power in enumerate(powers):
+                    axis = poly.coeffs[i]
+                    weight *= sum(axis[k]*math.comb(k,power)*(-.5)**(k-power)
+                                  for k in range(power,len(axis)))
+                value += weight
+            return value
+        for path in paths:
+            for powers in itertools.product(range(3),repeat=path.ndim):
+                expected = oracle(path,powers)
+                with (mock.patch.object(A.PolyPath,'to_eager',side_effect=AssertionError('eager expansion')),
+                      mock.patch.object(A.PolyPath,'evaluate_polynomial',side_effect=AssertionError('state sampling'))):
+                    self.assertAlmostEqual(path.coefficient(powers,shift=-.5),expected,places=11)
+        with self.assertRaises(ValueError):p.coefficient((-1,))
+        with self.assertRaises(ValueError):p.coefficient((1.5,))
+        self.assertEqual(p.coefficient((0,0,1)),0)
+
+    def test_deep_and_shared_coefficient_requests_are_iterative(self):
+        path = A.PolyPath.from_coeffs([[1,2,3]],steps=0)
+        for _ in range(40):
+            path = A.PolyPath._from_node('add',(path,path),1,(2,))
+        for i in range(1800):
+            path = path.shift((1 if i%2 == 0 else -1,))
+        self.assertEqual(path.coefficient((2,),shift=-.5),3*2.**40)
+        self.assertEqual(path.coefficient((1,),shift=-.5),-2.**40)
+
+    def test_one_mode_closed_form_and_both_sources(self):
+        w,a,b = .043,.0003,.00002
+        solver = A.AnalyticPerturbationTheorySolver.from_order(2,internals=False,logger=False)
+        coefficients = [[np.array([[w/2]]),np.array([[w/2]])],
+                        [np.full((1,)*3,a),0],[np.full((1,)*4,b),0,0,0,0]]
+        expected = [3*b/8-7*a*a/(16*w),np.array([w]),np.array([[1.5*b-15*a*a/(4*w)]])]
+        for compiled in (False,True):
+            evaluator = A.PerturbationTheoryEvaluator(solver,coefficients,np.array([w]),compile=compiled)
+            for source in ('energy','hamiltonian'):
+                expansion,kernels = evaluator.get_action_expansion(correction=source)
+                self.assertExpansion(expansion,expected,atol=1e-15)
+                self.assertEqual(set(kernels),{(n,p) for n in (0,2) for p in ((),(1,),(2,),(1,1))})
+
+    def test_coupled_modes_reconstruct_energies_and_match_nielsen(self):
+        evaluator = self.model()
+        states = np.array(list(itertools.product(range(3),repeat=3)))
+        expected = self.native_energies(evaluator,states)
+        v3,v4 = evaluator.expansions[1][0],evaluator.expansions[2][0]
+        nielsen = PerturbationTheoryHamiltonian._get_Nielsen_xmat(evaluator.freqs,6*v3,24*v4,None,None).sum(axis=0)
+        reference = None
+        for compiled in (False,True):
+            evaluator.compile_expressions = compiled
+            for source in ('energy','hamiltonian'):
+                result,_ = evaluator.get_action_expansion(correction=source)
+                C,linear,X = result
+                I = states+.5
+                actual = C+I@linear+np.einsum('si,ij,sj->s',I,X,I)
+                np.testing.assert_allclose(actual,expected,atol=1e-13,rtol=1e-13)
+                np.testing.assert_allclose(X,np.triu(nielsen),atol=1e-13,rtol=1e-12)
+                if reference is None:reference = result
+                self.assertExpansion(result,reference)
+
+    def test_internal_kinetic_and_scalar_terms_preserve_constant(self):
+        evaluator = self.model(internals=True)
+        states = np.array(list(itertools.product(range(3),repeat=3)))
+        expected = self.native_energies(evaluator,states)
+        for source in ('energy','hamiltonian'):
+            (C,linear,X),_ = evaluator.get_action_expansion(correction=source)
+            I = states+.5
+            np.testing.assert_allclose(C+I@linear+np.einsum('si,ij,sj->s',I,X,I),expected,atol=1e-13,rtol=1e-13)
+            self.assertNotEqual(C,0)
+
+    def test_lower_degree_second_order_terms_preserve_linear_actions(self):
+        w = np.array([.023,.041]);shift = np.array([.0002,.0003]);constant = .0007
+        base = A.AnalyticPerturbationTheorySolver.from_order(2,internals=False,logger=False)
+        perturbation = A.HamiltonianExpansionTerm([['x','x'],[]],order=2,identities=[0,2],logger=False)
+        solver = A.AnalyticPerturbationTheorySolver(
+            [base.hamiltonian_expansion[0],A.ZeroTerm(logger=False),perturbation],logger=False)
+        coefficients = [[np.diag(w)/2]*2,[0,0],[np.diag(shift),0,constant,0,0]]
+        evaluator = A.PerturbationTheoryEvaluator(solver,coefficients,w)
+        for source in ('energy','hamiltonian'):
+            result,_ = evaluator.get_action_expansion(correction=source)
+            self.assertExpansion(result,[constant,w+shift,np.zeros((2,2))],atol=1e-15)
+
+    def test_cubic_occupation_coefficients_cancel_symbolically(self):
+        for internals in (False,True):
+            evaluator = self.model(internals=internals)
+            for source in ('energy','hamiltonian'):
+                kernels = evaluator.solver.action_expansion_terms(correction=source)
+                raw = kernels[2,()].poly_obj._node[1]
+                for powers in ((3,),(2,1),(1,2),(1,1,1)):
+                    # Export explicitly collects identical force products and
+                    # canonical frequency rows; no numerical tensors are bound.
+                    expression = raw.project_coefficients(powers).to_eager()
+                    for value in expression.terms.values():
+                        rows = value.terms.values() if isinstance(value,A.PTEnergyChangeProductSum) else [value]
+                        for numerator in rows:
+                            self.assertAlmostEqual(A.PolyPath.from_polynomial(numerator).coefficient(()),0.,places=13)
+
+    def test_resonance_groups_flags_and_conditional_stack_do_not_enter(self):
+        evaluator = self.model()
+        expected,kernels = evaluator.get_action_expansion()
+        evaluator.solver.resonance_condition = A.ResonanceBlockCondition()
+        evaluator.solver.filtered_block_recurrence = True
+        for handling in ('conditional','filtered','projected'):
+            evaluator.degeneracy_handling = handling
+            evaluator._filtered_change_bindings = dict(projectors=((((1,0,0),(0,2,0)),),))
+            with (mock.patch.object(A.ConditionalTransformationStack,'extend',side_effect=AssertionError('Conditional route')),
+                 mock.patch.object(A.ProjectedCorrectionEvaluator,'__init__',side_effect=AssertionError('projected route')),
+                 mock.patch.object(A.PolyPath,'evaluate_polynomial',side_effect=AssertionError('occupation sampling')),
+                 mock.patch.object(PerturbationTheoryHamiltonian,'_invert_action_expansion_tensors',side_effect=AssertionError('state fit'))):
+                # Only construction is under the polynomial-evaluation guard:
+                # numerical contraction legitimately evaluates constant kernels.
+                symbolic = evaluator.solver.action_expansion_terms()
+                self.assertEqual(len(symbolic),8)
+            for source in ('energy','hamiltonian'):
+                actual,_ = evaluator.get_action_expansion(correction=source)
+                self.assertExpansion(actual,expected)
+
+    def test_disk_and_memory_cache_rebind_force_constants_and_frequencies(self):
+        with tempfile.TemporaryDirectory() as folder:
+            evaluator = self.model(ndim=2,folder=folder)
+            first,_ = evaluator.get_action_expansion()
+            stats = evaluator.compilation_statistics()
+            evaluator.expansions[1][0] *= 1.7
+            evaluator.expansions[2][0] *= .3
+            evaluator.freqs *= 1.2
+            evaluator.expansions[0] = [np.diag(evaluator.freqs)/2]*2
+            changed,_ = evaluator.get_action_expansion()
+            self.assertEqual(evaluator.compilation_statistics()['compilations'],stats['compilations'])
+            self.assertFalse(np.allclose(first[2],changed[2]))
+            evaluator.compile_expressions = False
+            direct,_ = evaluator.get_action_expansion()
+            self.assertExpansion(changed,direct)
+            warm = self.model(ndim=2,folder=folder)
+            warm.expansions,warm.freqs = evaluator.expansions,evaluator.freqs
+            resumed,_ = warm.get_action_expansion()
+            self.assertExpansion(resumed,changed)
+            self.assertEqual(warm.compilation_statistics()['compilations'],0)
+
+    def test_zero_coefficients_are_not_baked_into_symbolic_kernels(self):
+        evaluator = self.model(ndim=2)
+        saved = evaluator.expansions[1][0].copy()
+        evaluator.expansions[1][0][:] = 0
+        evaluator.get_action_expansion()
+        compiled = evaluator.compilation_statistics()['compilations']
+        evaluator.expansions[1][0][:] = saved
+        actual,_ = evaluator.get_action_expansion()
+        self.assertEqual(evaluator.compilation_statistics()['compilations'],compiled)
+        fresh,_ = self.model(ndim=2).get_action_expansion()
+        self.assertExpansion(actual,fresh)
+
+    def test_symbolic_derivative_matches_parameter_rebinding(self):
+        evaluator = self.model(ndim=1)
+        kernels = evaluator.precompile_action_expansion()
+        coefficient = kernels[2,(2,)]
+        prepared = evaluator._prep_expansions(evaluator.expansions)
+        w = evaluator.freqs[0]
+        a = prepared[1][0][0,0,0]
+        epsilon = 1e-7
+        values = []
+        for delta in (-epsilon,epsilon):
+            trial = [[x.copy() if hasattr(x,'copy') else x for x in row] for row in prepared]
+            trial[1][0][0,0,0] = a+delta
+            values.append(coefficient.evaluate_coefficient([trial],np.array([w]),indices=(0,))[0])
+        derivative = (values[1]-values[0])/(2*epsilon)
+        self.assertAlmostEqual(derivative,-15*a/(2*w),places=10)
+        values = [coefficient.evaluate_coefficient([prepared],np.array([w+delta]),indices=(0,))[0]
+                  for delta in (-epsilon,epsilon)]
+        self.assertAlmostEqual((values[1]-values[0])/(2*epsilon),15*a*a/(4*w*w),places=10)
+
+    def test_interfaces_and_reject_unsupported_or_bound_definitions(self):
+        evaluator = self.model(ndim=2)
+        runner = AnalyticVPTRunner(evaluator,order=2,logger=False,dipole_expansion=[])
+        result,_ = runner.get_action_expansion()
+        reference,_ = evaluator.get_action_expansion()
+        self.assertExpansion(result,reference)
+        with self.assertRaises(NotImplementedError):evaluator.get_action_expansion(order=4)
+        with self.assertRaises(ValueError):evaluator.get_action_expansion(correction='wavefunction')
+        with self.assertRaises(ValueError):evaluator.get_action_expansion(degenerate_changes=[(1,-2)])
+        compiled = evaluator.precompile_action_expansion()
+        prepared = evaluator._prep_expansions(evaluator.expansions)
+        for indices in ((.5,),(2,),(-1,),()):
+            with self.assertRaises(ValueError):
+                compiled[2,(2,)].evaluate_coefficient([prepared],evaluator.freqs,indices=indices)
+        # compile=False must also hold inside an outer compiled context.
+        from Psience.VPT2.Evaluators import compiled_evaluation_context
+        evaluator.compile_expressions = False
+        with compiled_evaluation_context(evaluator.expression_store):
+            with mock.patch.object(evaluator.expression_store,'compile',side_effect=AssertionError('opt-out ignored')):
+                uncompiled,_ = evaluator.get_action_expansion()
+        self.assertExpansion(uncompiled,reference)
+        evaluator.solver = A.AnalyticPerturbationTheorySolver.from_order(
+            2,internals=False,logger=False,polynomial_representation='eager')
+        eager,_ = evaluator.get_action_expansion()
+        self.assertExpansion(eager,reference)
+        evaluator.solver.allowed_energy_changes = [(1,)]
+        with self.assertRaises(ValueError):evaluator.get_action_expansion()
+        evaluator = self.model(ndim=2)
+        evaluator.solver.hamiltonian_expansion[1] = A.HamiltonianExpansionTerm(
+            [['x']*2],order=1,identities=[0],logger=False)
+        with self.assertRaises(ValueError):evaluator.get_action_expansion()
+        projection = _OccupationCoefficientProjection((1,))
+        transform = projection.compiler()
+        mask = A._ChangeDomainIndex(True,0)
+        bound = A.PTEnergyChangeProductSum({((mask,0),):A.PolyPath.from_coeffs([[1]],steps=0)})
+        with self.assertRaises(ValueError):transform(((1,0,0,0,0),),bound)
+        evaluator = self.model(ndim=2)
+        evaluator.solver.hamiltonian_expansion[2] = A.HamiltonianExpansionTerm(
+            [['x']*6],order=2,identities=[0],logger=False)
+        with self.assertRaises(ValueError):evaluator.get_action_expansion()
+
+
 if __name__ == '__main__':
     unittest.main()
