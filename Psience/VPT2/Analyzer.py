@@ -187,6 +187,13 @@ class VPTAnalyzerLogParser(LogParser):
                         self._tree = self._tree.condense_subtrees()
         return self._tree
 
+    @staticmethod
+    def _split_occupation_row(line):
+        """Recognize variable-width occupation labels before falling back to legacy vectors."""
+        match = re.match(r'^\s*(\(\)|(?:\d+\(\d+\))+)\s+(.*)$', line)
+        if match is not None:
+            return match.group(1), match.group(2).split()
+
     class EnergiesBlockParser(StringLineByLineReader):
         def __init__(self, spec_str, **opts):
             """
@@ -202,6 +209,8 @@ class VPTAnalyzerLogParser(LogParser):
             :rtype: None
             """
             self.label_width = None
+            if isinstance(spec_str, (list, tuple)):
+                spec_str = '\n'.join(spec_str)
             super().__init__(spec_str, max_nesting_depth=0, **opts)
         def check_tag(self, line:str, depth: int = 0, active_tag=None, label: str = None, history: list[str] = None):
             """
@@ -223,7 +232,7 @@ class VPTAnalyzerLogParser(LogParser):
             :rtype: object | None
             """
             ls = line.lstrip()
-            if len(ls) == 0 or ls.startswith("State") or line.startswith(" "*5):
+            if len(ls) == 0 or ls.startswith("State") or line.startswith(" "*5) or set(ls) == {"-"}:
                 return self.LineReaderTags.SKIP
         def handle_block_line(self, label, line, depth=0, history:list[str]=None):
             """
@@ -242,6 +251,9 @@ class VPTAnalyzerLogParser(LogParser):
             :return: `(state_label, value_tokens)` -- the fixed-width state label substring and the whitespace-split remainder
             :rtype: tuple[str, list[str]]
             """
+            occupation_row = VPTAnalyzerLogParser._split_occupation_row(line)
+            if occupation_row is not None:
+                return occupation_row
             if self.label_width is None:
                 self.label_width = len(line.split("  ", 1)[0])
             n = self.label_width
@@ -413,6 +425,8 @@ class VPTAnalyzerLogParser(LogParser):
             :return: None
             :rtype: None
             """
+            if isinstance(spec_str, (list, tuple)):
+                spec_str = '\n'.join(spec_str)
             super().__init__(spec_str, max_nesting_depth=0, **opts)
         def check_tag(self, line:str, depth: int = 0, active_tag=None, label: str = None, history: list[str] = None):
             """
@@ -435,7 +449,7 @@ class VPTAnalyzerLogParser(LogParser):
             """
             block_tag = 'Initial State:'
             stripped = line.strip()
-            if len(line) == 0 or line.startswith("State") or line.startswith(" "*5):
+            if not stripped or stripped.startswith("State") or line.startswith(" "*5):
                 return self.LineReaderTags.SKIP
             elif stripped.startswith(block_tag):
                 # NOTE: only the *first* "Initial State:" header in a multi-initial-state log
@@ -467,6 +481,9 @@ class VPTAnalyzerLogParser(LogParser):
             :return: `(state_label, value_tokens)`
             :rtype: tuple[str, list[str]]
             """
+            occupation_row = VPTAnalyzerLogParser._split_occupation_row(line)
+            if occupation_row is not None:
+                return occupation_row
             n = len(label)
             line = line.strip()
             state = line[:n]
@@ -534,6 +551,8 @@ class VPTAnalyzerLogParser(LogParser):
             :return: None
             :rtype: None
             """
+            if isinstance(spec_str, (list, tuple)):
+                spec_str = '\n'.join(spec_str)
             super().__init__(spec_str, max_nesting_depth=0, **opts)
         def check_tag(self, line:str, depth: int = 0, active_tag=None, label: str = None, history: list[str] = None):
             """
@@ -556,7 +575,7 @@ class VPTAnalyzerLogParser(LogParser):
             """
             block_tag = 'Initial State:'
             stripped = line.strip()
-            if len(line) == 0 or line.startswith("State") or line.startswith(" "*5):
+            if not stripped or stripped.startswith("State") or line.startswith(" "*5):
                 return self.LineReaderTags.SKIP
             elif stripped.startswith(block_tag):
                 # see the matching note in SpectrumBlockParser.check_tag above -- only the first
@@ -582,6 +601,9 @@ class VPTAnalyzerLogParser(LogParser):
             :return: `(state_label, value_tokens)`
             :rtype: tuple[str, list[str]]
             """
+            occupation_row = VPTAnalyzerLogParser._split_occupation_row(line)
+            if occupation_row is not None:
+                return occupation_row
             n = len(label)
             line = line.strip()
             state = line[:n]

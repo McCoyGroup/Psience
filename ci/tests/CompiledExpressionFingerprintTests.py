@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 
 from McUtils.Parallelizers import Parallelizer, SharedMemoryArrayTree
-from Psience.VPT2 import CompiledExpressions as ce
+from Psience.VPT2 import Evaluators as ce
 
 __all__ = ["CompiledExpressionFingerprintTests"]
 
@@ -125,7 +125,7 @@ def _implementation_signature():
 
 '''
 _ORIGINAL.update(dict(
-    __name__="Psience.VPT2.CompiledExpressions", __package__="Psience.VPT2",
+    __name__="Psience.VPT2.Evaluators", __package__="Psience.VPT2",
     functools=functools, hashlib=hashlib, inspect=inspect, json=json, marshal=marshal, os=os,
     pickle=pickle, sys=sys, uuid=uuid, Path=Path, np=np, Parallelizer=Parallelizer
 ))
@@ -159,6 +159,21 @@ class CompiledExpressionFingerprintTests(unittest.TestCase):
         yield np.array([{'a': 1}, [2]], dtype=object)
         yield Path('/tmp/some/where')
         yield np.float64(3.5)
+
+    def test_ImmutableConditionFingerprintIgnoresPreparedFunctionState(self):
+        from McUtils.Zachary import Symbols
+        from Psience.VPT2.Analytic import PolynomialInvariantCondition
+        q = Symbols('q').q
+        condition = PolynomialInvariantCondition(q*(q-1), [0])
+        import pickle
+        same = pickle.loads(pickle.dumps(condition))
+        before = ce._fingerprint(condition)
+        self.assertEqual(before, ce._fingerprint(same))
+        condition.matches([0], [1])
+        condition.functions[0].__dict__['prepared_runtime_note'] = object()
+        self.assertEqual(before, ce._fingerprint(condition))
+        different = PolynomialInvariantCondition(q*q, [0])
+        self.assertNotEqual(before, ce._fingerprint(different))
 
     def test_FreezeMatchesOriginal(self):
         for sample in self.samples():
@@ -195,6 +210,118 @@ class CompiledExpressionFingerprintTests(unittest.TestCase):
             self.assertEqual((d / 'new.pkl').read_bytes(), (d / 'old.pkl').read_bytes())
             self.assertEqual(ce._file_hash(d / 'new.pkl'), _ORIGINAL['_file_hash'](d / 'old.pkl'))
             self.assertEqual(sorted(p.name for p in d.iterdir()), ['new.json', 'new.pkl', 'old.json', 'old.pkl'])
+
+    def _numerical_plan_fixture(self, folder=None):
+        manifest=dict(signature='coefficient-binding-fixture',options={},
+                      projection=None,num_fixed=0,parts=[])
+        return ce.CompiledAnalyticExpression(folder,manifest)
+
+    def test_NumericalContextBindsTensorOnceAndPreservesSignature(self):
+        from unittest import mock
+        array=np.arange(24.,dtype=float).reshape(4,6).T
+        coefficients=[[[array,2.]]]
+        states=[(np.array([0,0]),np.array([[0,1]]))]
+        expression=self._numerical_plan_fixture()
+        expected=expression.prepare_evaluation(states,coefficients,[.1,.2]).signature
+        native=np.ascontiguousarray;calls=[]
+        def observe(value,*args,**kwargs):
+            if value is array:calls.append(value.shape)
+            return native(value,*args,**kwargs)
+        with ce.compiled_evaluation_context(ce.AnalyticExpressionStore()), \
+                mock.patch.object(np,'ascontiguousarray',side_effect=observe):
+            for _ in range(4):
+                self.assertEqual(expression.prepare_evaluation(states,coefficients,[.1,.2]).signature,expected)
+            self.assertEqual(len(calls),1)
+        self.assertIsNone(ce.current_compilation())
+
+    def test_NumericalContextKeepsChangingBindingsInSignature(self):
+        expression=self._numerical_plan_fixture()
+        tensor=np.arange(6.).reshape(2,3)
+        scalar=np.array(.7)
+        coefficients=[[[tensor,scalar]]]
+        state=np.array([0,0]);permutations=np.array([[0,1]])
+        frequencies=np.array([.1,.2])
+        projector=np.array([0,1])
+        def plan():
+            return expression.prepare_evaluation([(state,permutations)],coefficients,frequencies,
+                projection_bindings={'projector':projector}).signature
+        expected=plan()
+        with ce.compiled_evaluation_context(ce.AnalyticExpressionStore()):
+            self.assertEqual(plan(),expected)
+            keys=[plan()]
+            state[0]=1;keys.append(plan())
+            permutations[:]=[[1,0]];keys.append(plan())
+            frequencies[0]=.15;keys.append(plan())
+            projector[0]=1;keys.append(plan())
+            scalar[...]=1.4;keys.append(plan())
+            self.assertEqual(len(set(keys)),len(keys))
+
+    def test_NewContextRebindsChangedCoefficients(self):
+        expression=self._numerical_plan_fixture()
+        array=np.arange(4.)
+        states=[(np.array([0,0]),np.array([[0,1]]))]
+        def plan(coefficients):return expression.prepare_evaluation(states,coefficients,[.1,.2]).signature
+        coefficients=[[[array]]]
+        with ce.compiled_evaluation_context(ce.AnalyticExpressionStore()):
+            before=plan(coefficients)
+            self.assertEqual(plan([[[array.copy()]]]),before)
+            self.assertNotEqual(plan([[[array+1]]]),before)
+        array+=10
+        outside=plan(coefficients)
+        self.assertNotEqual(outside,before)
+        with ce.compiled_evaluation_context(ce.AnalyticExpressionStore()):
+            self.assertEqual(plan(coefficients),outside)
+        array+=1
+        self.assertNotEqual(plan(coefficients),outside)
+
+    def test_CoefficientBindingsDoNotRetainDiscardedArrays(self):
+        import gc,weakref
+        expression=self._numerical_plan_fixture()
+        states=[(np.array([0,0]),np.array([[0,1]]))]
+        with ce.compiled_evaluation_context(ce.AnalyticExpressionStore()):
+            array=np.arange(12.).reshape(3,4).copy()
+            reference=weakref.ref(array)
+            coefficients=[[[array]]]
+            plan=expression.prepare_evaluation(states,coefficients,[.1,.2])
+            del plan,coefficients,array
+            gc.collect()
+            self.assertIsNone(reference())
+
+    def test_CoefficientBindingScopeRestoresAfterNestedFailure(self):
+        from unittest import mock
+        expression=self._numerical_plan_fixture()
+        array=np.arange(6.)
+        states=[(np.array([0,0]),np.array([[0,1]]))]
+        coefficients=[[[array]]]
+        original=np.ascontiguousarray;calls=[]
+        def observed(value,*args,**kwargs):
+            if value is array:calls.append(1)
+            return original(value,*args,**kwargs)
+        with mock.patch.object(np,'ascontiguousarray',side_effect=observed):
+            with ce.compiled_evaluation_context(ce.AnalyticExpressionStore()):
+                outer=ce.current_compilation()
+                expression.prepare_evaluation(states,coefficients,[.1,.2])
+                with self.assertRaisesRegex(RuntimeError,'inner'):
+                    with ce.compiled_evaluation_context(ce.AnalyticExpressionStore()):
+                        expression.prepare_evaluation(states,coefficients,[.1,.2])
+                        raise RuntimeError('inner')
+                self.assertIs(ce.current_compilation(),outer)
+                expression.prepare_evaluation(states,coefficients,[.1,.2])
+                self.assertEqual(len(calls),2)
+            expression.prepare_evaluation(states,coefficients,[.1,.2])
+            self.assertEqual(len(calls),3)
+
+    def test_SharedCoefficientBindingsKeepNativeSignature(self):
+        tree=SharedMemoryArrayTree.create({'coefficients':[np.arange(6.).reshape(2,3)]})
+        expression=self._numerical_plan_fixture()
+        states=[(np.array([0,0]),np.array([[0,1]]))]
+        try:
+            expected=expression.prepare_evaluation(states,tree,[.1,.2]).signature
+            with ce.compiled_evaluation_context(ce.AnalyticExpressionStore()):
+                self.assertEqual(expression.prepare_evaluation(states,tree,[.1,.2]).signature,expected)
+                self.assertEqual(expression.prepare_evaluation(states,tree,[.1,.2]).signature,expected)
+        finally:
+            tree.close();tree.unlink()
 
 
 if __name__ == '__main__':

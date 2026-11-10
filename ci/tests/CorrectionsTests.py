@@ -61,6 +61,76 @@ class CompactCorrectionStorageTests(unittest.TestCase):
             np.testing.assert_allclose(selected.dot(selected.T).asarray(),native.dot(native.T),rtol=2e-12,atol=2e-13)
             np.testing.assert_allclose(SparseArray.from_data(native).dot(selected.T).asarray(),native.dot(native.T),rtol=2e-12,atol=2e-13)
 
+    def test_sparse_lower_orders_and_discovery_release_on_actual_HNO3(self):
+        import scipy.sparse as sp
+        captures=[];owners=[];extensions=[]
+        native_groups=PerturbationTheorySolver._strong_coupling_groups
+        native_extend=PerturbationTheorySolver._extend_strong_coupling_spaces
+        native_block=PerturbationTheorySolver._apply_VPT_block_equations_in_place
+        def groups(solver,spec,sc,corrs,threshold):
+            matrices=corrs.wfn_corrections
+            owners[:]=[weakref.ref(m) for m in matrices]
+            for matrix in matrices:
+                for row in getattr(matrix,'rows',()):
+                    owners.extend([weakref.ref(row),weakref.ref(row.values)])
+            return native_groups(solver,spec,sc,corrs,threshold)
+        def extend(solver,*args,**kwargs):
+            extensions.append((len(owners),sum(owner() is not None for owner in owners)))
+            return native_extend(solver,*args,**kwargs)
+        def block(solver,group,*args,**kwargs):
+            result=native_block(solver,group,*args,**kwargs)
+            if solver.sparse_low_order_corrections:
+                self.assertIsInstance(result[2],tuple)
+                self.assertTrue(sp.issparse(result[2][0]))
+                self.assertTrue(sp.issparse(result[2][1]))
+                self.assertEqual(result[2][1].dtype,np.dtype(float))
+                if not captures:
+                    H=list(kwargs.get('perturbations') or solver.representations)
+                    # Same actual molecular block/denominators, narrower input
+                    # storage. This checks accumulation dtype, not a new model.
+                    H[1]=SparseArray.from_data(H[1].data.astype(np.float32))
+                    solver.sparse_low_order_corrections=False
+                    dense=native_block(solver,group,perturbations=H)
+                    solver.sparse_low_order_corrections=True
+                    mixed=native_block(solver,group,perturbations=H)
+                    actual=np.stack([x.toarray() if sp.issparse(x) else x for x in mixed[2]],axis=1)
+                    np.testing.assert_allclose(actual,dense[2],rtol=2e-11,atol=2e-12)
+                    np.testing.assert_allclose(mixed[0],dense[0],rtol=2e-11,atol=2e-12)
+                captures.append(tuple(x.shape for x in result[2]))
+            else:self.assertIsInstance(result[2],np.ndarray)
+            return result
+        waves=[]
+        with patch.object(PerturbationTheorySolver,'_strong_coupling_groups',groups), \
+                patch.object(PerturbationTheorySolver,'_extend_strong_coupling_spaces',extend), \
+                patch.object(PerturbationTheorySolver,'_apply_VPT_block_equations_in_place',block):
+            for sparse in [False,True]:
+                molecule=Molecule.from_file(str(fixture('hno3.fchk')))
+                molecule.internals=None
+                waves.append(VPTRunner.run_simple(molecule,2,order=2,expansion_order=2,
+                    evaluator_defaults='new',degeneracy_specs='auto',use_block_recurrence=True,
+                    mixed_derivative_handling_mode='analytical',memory_constrained=True,
+                    state_space_storage='memory',correction_storage='compact',
+                    sparse_low_order_corrections=sparse,logger=False))
+        self.assertTrue(captures,'No actual multi-state recurrence returned')
+        self.assertTrue(extensions,'No automatic resonance pass was checked')
+        self.assertTrue(all(count>0 and alive==0 for count,alive in extensions),extensions)
+        a,b=waves
+        np.testing.assert_array_equal(a.corrs.states.indices,b.corrs.states.indices)
+        np.testing.assert_array_equal(a.corrs.total_basis.indices,b.corrs.total_basis.indices)
+        ga=[g.indices.tolist() for g in a.corrs.degenerate_states]
+        gb=[g.indices.tolist() for g in b.corrs.degenerate_states]
+        self.assertEqual(ga,gb)
+        np.testing.assert_allclose(a.energies,b.energies,rtol=2e-11,atol=2e-12)
+        np.testing.assert_allclose(a.corrs.energy_corrs,b.corrs.energy_corrs,rtol=2e-11,atol=2e-12)
+        for left,right in zip(a.corrs.wfn_corrections,b.corrs.wfn_corrections):
+            np.testing.assert_allclose(left.asarray(),right.asarray(),rtol=2e-11,atol=2e-12)
+        if isinstance(a.intensities,dict):
+            self.assertEqual(set(a.intensities),set(b.intensities))
+            for key in a.intensities:
+                np.testing.assert_allclose(a.intensities[key],b.intensities[key],rtol=2e-11,atol=2e-12)
+        else:np.testing.assert_allclose(a.intensities,b.intensities,rtol=2e-11,atol=2e-12)
+
+
 
 @unittest.skipUnless(fixture('hno3.fchk'),'Needs actual hno3.fchk; set PSIENCE_REAL_VPT_INPUTS')
 class FileBackedCorrectionTests(unittest.TestCase):
@@ -296,6 +366,29 @@ class VPTBlockHandoffTests(unittest.TestCase):
             self.assertEqual(len(calls), int(constrained))
             if constrained:
                 self.assertEqual(calls[0]['block_size'], 17)
+
+
+    def test_actual_Pyrene_mixed_rows_pack_without_dense_block(self):
+        import scipy.sparse as sp
+        from pathlib import Path
+        from Psience.VPT2.Corrections import PerturbationTheoryCorrections
+        data=json.loads((Path(__file__).parent/'TestData/pyrene_vpt2_block_handoff.json').read_text())
+        values=np.asarray(data['coefficients'],dtype=float)
+        for mode in ['sparse','compact']:
+            expected=PerturbationTheoryCorrections.create_correction_array(mode,len(values),values.shape[1]-1,values.shape[2],127,cutoff=1e-14)
+            actual=PerturbationTheoryCorrections.create_correction_array(mode,len(values),values.shape[1]-1,values.shape[2],127,cutoff=1e-14)
+            expected.set_rows(np.arange(len(values)),values)
+            levels=tuple(sp.csr_matrix(values[:,k]) if k<2 else values[:,k] for k in range(values.shape[1]))
+            actual.set_rows(np.arange(len(values)),levels)
+            for i in range(len(values)):
+                for k in range(values.shape[1]):
+                    if mode=='compact':
+                        a,b=actual.rows[i][k],expected.rows[i][k]
+                        np.testing.assert_array_equal(a.values,b.values)
+                        np.testing.assert_array_equal(np.asarray(a.columns),np.asarray(b.columns))
+                    else:
+                        for a,b in zip(actual.rows[i][k],expected.rows[i][k]):np.testing.assert_array_equal(a,b)
+
 
 
 class VPTWorkspaceTests(unittest.TestCase):

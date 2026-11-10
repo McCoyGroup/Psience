@@ -457,13 +457,15 @@ class VPTStateSpace:
 
     __props__ = (
         "degeneracy_specs",
+        "state_formatting",
     )
     def __init__(self,
                  states,
                  degeneracy_specs=None,
                  system=None,
                  frequencies=None,
-                 evaluator=None
+                 evaluator=None,
+                 state_formatting='quanta'
                  ):
         """
         :param states: A list of states or a number of quanta to target
@@ -473,6 +475,7 @@ class VPTStateSpace:
         """
 
         self.system = system
+        self.state_formatting = state_formatting
         if not isinstance(states, BasisStateSpace):
             states = BasisStateSpace(
                 HarmonicOscillatorProductBasis(len(states[0])),
@@ -645,9 +648,12 @@ class VPTStateSpace:
                 freqs = system.mol.normal_modes.modes.freqs
             spec.frequencies = freqs
         if spec.application_order == "pre":
+            state_formatting = getattr(self, 'state_formatting', 'quanta')
             group_filter = spec.get_degenerate_group_filter(
                 evaluator=evaluator.eval if evaluator is not None else None
             )
+            if hasattr(group_filter, 'items'):
+                group_filter = dict(group_filter, state_formatting=state_formatting)
             new_states = DegenerateMultiStateSpace.from_spec(
                 spec,
                 states=states,
@@ -655,6 +661,7 @@ class VPTStateSpace:
                 # full_basis=self.full_basis,
                 group_filter=group_filter,
                 default_group_filter=PerturbationTheorySolver.filter_degenerate_group,
+                state_formatting=state_formatting,
                 log_groups=True
             )
             # uuh = [
@@ -1062,15 +1069,17 @@ class VPTRuntimeOptions:
     __props__ = (
         "operator_chunk_size",
         "operator_contraction_method",
+        "use_analytic_harmonic_diagonal",
         "factorized_coriolis",
         'matrix_element_threshold',
         "logger",
         "verbose",
+        "state_formatting",
         "checkpoint",
         "results",
         "memory_constrained",
         "state_space_storage", "state_space_scratch", "hamiltonian_storage",
-        "state_space_memory_limit", "state_space_block_size",
+        "state_space_memory_limit", "state_space_block_size", "state_space_resident_bytes", "state_space_flush_buffer",
         "correction_storage", "correction_memory_limit", "correction_block_size", "correction_block_bytes",
         "correction_spill_directory", "correction_resident_bytes", "correction_spill_bytes", "correction_spill_segment_bytes",
         "resonance_memory_constrained", "resonance_block_size",
@@ -1094,6 +1103,7 @@ class VPTRuntimeOptions:
                  state_space_storage=None,
                  state_space_memory_limit=None,
                  state_space_block_size=None,
+                 state_space_resident_bytes=None,
                  state_space_scratch=None,
                  correction_storage=None,
                  correction_memory_limit=None,
@@ -1108,17 +1118,24 @@ class VPTRuntimeOptions:
                  hamiltonian_storage=None,
                  checkpoint_keys=None,
                  use_cached_representations=None,
-                 use_cached_basis=None
+                 use_cached_basis=None,
+                 use_analytic_harmonic_diagonal=None,
+                 state_formatting=None,
+                 state_space_flush_buffer=None
                  ):
         """
         :param operator_chunk_size: the number of representation matrix elements to calculate in at one time
         :type operator_chunk_size: int|None default:None
+        :param use_analytic_harmonic_diagonal: enable the native harmonic quadratic
+            diagonal shortcut (default True); False restores general contraction.
         :param matrix_element_threshold: the minimum size of matrix element to keep
         :type matrix_element_threshold: float|None default:None
         :param nondeg_hamiltonian_precision: the precision with which to print out elements in the degenerate coupling Hamiltonians in the log file
         :type nondeg_hamiltonian_precision: int
         :param logger: the `Logger` object to use when logging the status of the calculation (`True` means log normally)
         :type logger: str|Logger|bool|None default:None
+        :param state_formatting: 'quanta' (default) for compact occupation labels in all
+            matrix VPT diagnostics; 'vector' retains full excitation vectors
         :param results: the `Checkpointer` to write corrections out to
         :type results: str|Checkpointer|None default:None
         :param parallelizer: the `Parallelizer` to use for parallelizing the evaluation of matrix elements
@@ -1130,6 +1147,10 @@ class VPTRuntimeOptions:
         :param state_space_memory_limit: estimated state-space RAM cutoff in bytes;
             default 5_000_000_000. None disables automatic switching.
         :param state_space_block_size: maximum generated pair block, default 65536.
+        :param state_space_flush_buffer: optional MappedArrayFlushBuffer or a dict
+            of its max_bytes/max_files settings for external-state intermediate
+            merges. None keeps immediate flushes. Final mapped outputs always
+            flush. Queue limits count file sizes, not process RAM or dirty pages.
         :param correction_storage: 'auto' (new preset), 'dense' (old preset), or
             'sparse', or opt-in 'compact' (adaptive rows, packed support and row-block matrices).
             Auto keeps the original dense collector below its budget.
@@ -1163,6 +1184,7 @@ class VPTRuntimeOptions:
         ham_run_opts = dict(
             operator_chunk_size=operator_chunk_size,
             operator_contraction_method=operator_contraction_method,
+            use_analytic_harmonic_diagonal=use_analytic_harmonic_diagonal,
             factorized_coriolis=factorized_coriolis,
             logger=logger,
             checkpoint=checkpoint,
@@ -1177,12 +1199,15 @@ class VPTRuntimeOptions:
         self.ham_opts = real_ham_opts
 
         solver_run_opts = dict(
+            state_formatting=state_formatting,
             # operator_chunk_size=operator_chunk_size,
             memory_constrained=memory_constrained,
             state_space_storage=state_space_storage,
             state_space_memory_limit=state_space_memory_limit,
             state_space_block_size=state_space_block_size,
+            state_space_resident_bytes=state_space_resident_bytes,
             state_space_scratch=state_space_scratch,
+            state_space_flush_buffer=state_space_flush_buffer,
             correction_storage=correction_storage,
             correction_memory_limit=correction_memory_limit,
             correction_block_size=correction_block_size,
@@ -1257,6 +1282,8 @@ class VPTSolverOptions:
         "intermediate_normalization",
         "use_block_recurrence",
         "wavefunction_workspace_bytes",
+        "sparse_low_order_corrections",
+        "evaluation_mode",
         "zero_element_warning",
         "degenerate_states",
         "zero_order_energy_corrections",
@@ -1300,10 +1327,17 @@ class VPTSolverOptions:
                  check_overlap=None,
                  use_block_recurrence=None,
                  wavefunction_workspace_bytes=None,
+                 sparse_low_order_corrections=None,
                  strong_coupling_property_filter=None,
-                 strong_coupling_correction_filter=None
+                 strong_coupling_correction_filter=None,
+                 evaluation_mode=None
                  ):
         """
+        :param evaluation_mode: Omitted/None preserves all current stored paths, including H(0).
+            Explicit 'runtime' or 'positions' enables the evaluated matrix backend,
+            with vector H(0), stored H(1), and the selected mode for higher orders.
+            A dict changes only the listed orders; unlisted orders stay stored.
+            'stored' explicitly selects the existing implementation.
         :param order: the order of perturbation theory to apply
         :type order: int
         :type order: int
@@ -1386,6 +1420,8 @@ class VPTSolverOptions:
             check_overlap=check_overlap,
             use_block_recurrence=use_block_recurrence,
             wavefunction_workspace_bytes=wavefunction_workspace_bytes,
+            sparse_low_order_corrections=sparse_low_order_corrections,
+            evaluation_mode=evaluation_mode,
             strong_coupling_property_filter=strong_coupling_property_filter,
             strong_coupling_correction_filter=strong_coupling_correction_filter
         )
@@ -1591,10 +1627,13 @@ class VPTRunner:
                             print_energy_corrections=True,
                             print_transition_moments=True,
                             operators=None,
-                            logger=None, sep_char="=", sep_len=100):
+                            logger=None, sep_char="=", sep_len=100,
+                            state_formatting='quanta'):
         """
         Prints a bunch of formatted output data from a PT run
 
+        :param state_formatting: 'quanta' for padded analytic state labels (default),
+            or 'vector' for the original excitation arrays
         :param wfns:
         :type wfns:
         :return:
@@ -1620,7 +1659,11 @@ class VPTRunner:
                 :rtype: None
                 """
                 with logger.block(tag=label):
-                    logger.log_print(" ".join("{}".format(x) for x in args), **kwargs)
+                    logger.log_print(
+                        " ".join("{}".format(x) for x in args),
+                        message_prepper=None if dev.str_is(state_formatting, 'vector') else str.splitlines,
+                        **kwargs
+                    )
         else:
             if file is None:
                 file = sys.stdout
@@ -1682,38 +1725,38 @@ class VPTRunner:
                 print_footer(file=file, **kwargs)
 
         if print_energy_corrections:
-            print_block("Energy Corrections", wfns.format_energy_corrections_table())
+            print_block("Energy Corrections", wfns.format_energy_corrections_table(state_formatting=state_formatting))
         if print_energies:
             if wfns.degenerate_transformation is not None:
                 print_block("Deperturbed Energies",
-                            wfns.format_deperturbed_energies_table()
+                            wfns.format_deperturbed_energies_table(state_formatting=state_formatting)
                             )
                 print_block(
                     "Degenerate Energies",
-                    wfns.format_energies_table()
+                    wfns.format_energies_table(state_formatting=state_formatting)
                 )
             else:
                 print_block("States Energies",
-                    wfns.format_energies_table()
+                    wfns.format_energies_table(state_formatting=state_formatting)
                 )
 
         if print_intensities:
             ints = wfns.intensities # to make sure they're computed before printing starts
             if print_transition_moments:
                 if wfns.degenerate_transformation is not None:
-                    for a, m in zip(["X", "Y", "Z"], wfns.format_deperturbed_dipole_contribs_tables()):
+                    for a, m in zip(["X", "Y", "Z"], wfns.format_deperturbed_dipole_contribs_tables(state_formatting=state_formatting)):
                         print_block("{} Deperturbed Dipole Contributions".format(a), m)
 
                     print_block("Deperturbed IR Data",
-                                wfns.format_deperturbed_intensities_table()
+                                wfns.format_deperturbed_intensities_table(state_formatting=state_formatting)
                                 )
 
-                for a, m in zip(["X", "Y", "Z"], wfns.format_dipole_contribs_tables()):
+                for a, m in zip(["X", "Y", "Z"], wfns.format_dipole_contribs_tables(state_formatting=state_formatting)):
                     print_block("{} Dipole Contributions".format(a), m)
-            print_block("IR Data", wfns.format_intensities_table())
+            print_block("IR Data", wfns.format_intensities_table(state_formatting=state_formatting))
 
         if operators is not None:
-            print_block("Operator Data", wfns.format_operator_table(operators))
+            print_block("Operator Data", wfns.format_operator_table(operators, state_formatting=state_formatting))
 
 
     def print_tables(self,
@@ -1723,10 +1766,13 @@ class VPTRunner:
                      print_transition_moments=True,
                      operators=None,
                      logger=None,
-                     sep_char="=", sep_len=100):
+                     sep_char="=", sep_len=100,
+                     state_formatting='quanta'):
         """
         Prints a bunch of formatted output data from a PT run
 
+        :param state_formatting: 'quanta' for padded analytic state labels (default),
+            or 'vector' for the original excitation arrays
         :param wfns:
         :type wfns:
         :return:
@@ -1751,7 +1797,8 @@ class VPTRunner:
                                  print_energy_corrections=print_energy_corrections,
                                  print_transition_moments=print_transition_moments,
                                  operators=operators, logger=logger,
-                                 sep_char=sep_char, sep_len=sep_len)
+                                 sep_char=sep_char, sep_len=sep_len,
+                                 state_formatting=state_formatting)
 
         return wfns
 
@@ -1782,7 +1829,7 @@ class VPTRunner:
         else:
             return harm, tot
 
-    def print_Nielsen_frequencies(self, logger=None, state_formatting='vector', **potential_params):
+    def print_Nielsen_frequencies(self, logger=None, state_formatting='quanta', **potential_params):
         """
         **LLM Docstring**
 
@@ -1790,7 +1837,7 @@ class VPTRunner:
 
         :param logger: `None` to print directly, `True` to use the Hamiltonian's own logger, or an explicit logger to print into a block
         :type logger: Logger | bool | None
-        :param state_formatting: `'vector'` to display states as raw excitation vectors, or another format understood by `VPTStateMaker.parse_state`
+        :param state_formatting: 'quanta' (default) for compact occupation labels, or 'vector' for raw excitation vectors
         :type state_formatting: str
         :param potential_params: extra options forwarded to `get_Nielsen_energies`
         :type potential_params: dict
@@ -1819,7 +1866,7 @@ class VPTRunner:
             if logger is True:
                 logger = self.hamiltonian.logger
             with logger.block(tag="Nielsen Frequencies"):
-                logger.log_print(tab)
+                logger.log_print(tab, message_prepper=None if dev.str_is(state_formatting, "vector") else str.splitlines)
 
     @classmethod
     def _quanta_coupled_state_spaces(cls, states, order, track=False):
@@ -2079,6 +2126,7 @@ class VPTRunner:
                    operators=None,
                    evaluator_defaults="new",
                    basis_filters=None,
+                   state_formatting='quanta',
                    **opts
                    ):
         """
@@ -2105,6 +2153,11 @@ class VPTRunner:
             intermediate basis. Generic tests retain their existing path.
         :param calculate_intensities: whether or not to calculate energies
         :type calculate_intensities: bool default:True
+        :param state_formatting: 'quanta' (default) logs occupied modes using the analytic
+            runner's StateMaker labels, e.g. '1(2)3(1)' and '()' for the ground state;
+            'vector' restores full excitation arrays in state listings, solver
+            diagnostics, warnings, and the final output tables
+        :type state_formatting: str
         :param opts: options that work for a `VPTSystem`, `VPTStateSpace`, `VPTRuntimeOptions`, `VPTSolverOptions`, or `VPTHamiltonianOptions` object which will be filtered automatically
         :type opts:
         """
@@ -2116,6 +2169,7 @@ class VPTRunner:
             corrected_fundamental_frequencies=corrected_fundamental_frequencies,
             evaluator_defaults=evaluator_defaults,
             basis_filters=basis_filters,
+            state_formatting=state_formatting,
             **opts
         )
         if (operators is not None or (not calculate_intensities and target_property is None)) and 'strong_coupling_correction_filter' not in opts:
@@ -2135,24 +2189,47 @@ class VPTRunner:
                     order=runner.pt_opts.opts.get('order', 2), property_rules=rules))
 
         logger = runner.hamiltonian.logger
+        state_prepper = lambda a: VPTStateMaker.format_states(a, state_formatting)
+
+        def format_option(key, value):
+            # Only known state-bearing options contain occupation vectors. Other
+            # integer arrays can be indices, mode selections or numerical data.
+            if dev.str_is(state_formatting, 'vector') or value is None:
+                return str(value)
+            if key == 'zero_order_energy_corrections' and isinstance(value, (list, tuple)):
+                return str([(VPTStateMaker.format_state(s) if not nput.is_int(s) else s, e)
+                            for s, e in value])
+            if key in {'degenerate_states', 'coupled_states', 'total_space', 'flat_total_space'}:
+                def format_group(group):
+                    if isinstance(group, (list, tuple, np.ndarray)):
+                        try:
+                            array = np.asarray(group)
+                        except ValueError:
+                            array = None
+                        if array is not None and array.ndim == 2 and array.dtype.kind in 'iuf':
+                            return VPTStateMaker.format_states(array)
+                        return [format_group(g) for g in group]
+                    return group
+                return str(format_group(value))
+            return str(value)
         with np.printoptions(linewidth=1e8, threshold=1e6):
             with logger.block(tag="Starting Perturbation Theory Runner"):
                 with logger.block(tag="Hamiltonian Options"):
                     for k,v in runner.ham_opts.opts.items():
-                        logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
+                        logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':format_option(k, v)}, **kw))
                 with logger.block(tag="Solver Options"):
                     opts = runner.pt_opts.opts
                     for k,v in opts.items():
-                        logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
+                        logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':format_option(k, v)}, **kw))
                 with logger.block(tag="Runtime Options"):
                     opts = dict(runner.runtime_opts.ham_opts, **runner.runtime_opts.solver_opts)
                     for k,v in opts.items():
-                        logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':str(v)}, **kw))
+                        logger.log_print("{k}: {v:<100.100}", k=k, v=v, preformatter=lambda *a,k=k,v=v,**kw:dict({'k':k, 'v':format_option(k, v)}, **kw))
 
                 with logger.block(tag="States"):
                     logger.log_print(
                         states.state_list,
-                        message_prepper=lambda a:str(np.array(a)).splitlines()
+                        message_prepper=state_prepper
                     )
                 with logger.block(tag="Degeneracies"):
                     if states.degeneracy_specs is not None:
@@ -2163,12 +2240,15 @@ class VPTRunner:
                         logger.log_print("None")
                     else:
                         ds = states.degenerate_states
-                        if isinstance(ds, list):
+                        if isinstance(ds, list) or (isinstance(ds, tuple) and not dev.str_is(state_formatting, "vector")):
                             for x in states.degenerate_states:
                                 logger.log_print(
                                     x,
-                                    message_prepper=lambda a:str(np.array(a)).splitlines()
+                                    message_prepper=state_prepper
                                 )
+                        elif isinstance(ds, np.ndarray) and not dev.str_is(state_formatting, 'vector'):
+                            for group in (ds if ds.ndim == 3 else [ds]):
+                                logger.log_print(group, message_prepper=state_prepper)
                         else:
                             logger.log_print(str(ds))
 
@@ -2178,7 +2258,8 @@ class VPTRunner:
                     wfns=wfns,
                     print_intensities=calculate_intensities,
                     operators=operators,
-                    logger=wfns.logger
+                    logger=wfns.logger,
+                    state_formatting=state_formatting
                 )
                 if plot_spectrum:
                     wfns.get_spectrum().plot().show()
@@ -3621,6 +3702,7 @@ class AnalyticVPTRunner:
                  intermediate_normalization=None,
                  polynomial_representation='path',
                  resonance_condition=None,
+                 degeneracy_handling=None,
                  local_mode_couplings=None,
                  local_mode_coupling_order=None,
                  parallelizer=None,
@@ -3705,10 +3787,13 @@ class AnalyticVPTRunner:
                 expressions_folder=expressions_folder,
                 compile=compile,
                 compilation_options=compilation_options,
-                evaluation_options=evaluation_options
+                evaluation_options=evaluation_options,
+                degeneracy_handling=degeneracy_handling
             )
         else:
             self.eval = expansions
+            if degeneracy_handling is not None:
+                self.eval.degeneracy_handling = self.eval.resolve_degeneracy_handling(degeneracy_handling)
             self.eval.compile_expressions = compile is not False
             if expressions_folder is not None:self.eval.expressions_folder = expressions_folder
             if compilation_options is not None:self.eval.compilation_options = dict(compilation_options)
@@ -3744,6 +3829,7 @@ class AnalyticVPTRunner:
                          intermediate_normalization=None,
                          polynomial_representation='path',
                          resonance_condition=None,
+                         degeneracy_handling=None,
                          corrected_fundamental_frequencies=None,
                          expressions_folder=None,
                   compile=True,
@@ -3808,6 +3894,7 @@ class AnalyticVPTRunner:
             intermediate_normalization=intermediate_normalization,
             polynomial_representation=polynomial_representation,
             resonance_condition=resonance_condition,
+            degeneracy_handling=degeneracy_handling,
             local_mode_couplings=ham.local_mode_couplings,
             local_mode_coupling_order=ham.local_mode_coupling_order
         )
@@ -3833,6 +3920,7 @@ class AnalyticVPTRunner:
                   parallelizer=None,
                   polynomial_representation='path',
                   resonance_condition=None,
+                  degeneracy_handling=None,
                   take_diagonal_v4_terms=True,
                   two_mode_only=False,
                   **settings
@@ -3905,6 +3993,7 @@ class AnalyticVPTRunner:
                 allowed_energy_changes=allowed_energy_changes,
                 polynomial_representation=polynomial_representation,
                 resonance_condition=resonance_condition,
+                degeneracy_handling=degeneracy_handling,
                 take_diagonal_v4_terms=take_diagonal_v4_terms,
                 two_mode_only=two_mode_only,
                 intermediate_normalization=opts.get('intermediate_normalization', None),
@@ -3926,7 +4015,7 @@ class AnalyticVPTRunner:
                         and nput.is_numeric(degeneracy_specs[0][0][0])
                 ):
                     degeneracy_specs = {'polyads': degeneracy_specs}
-                from .Discovery import AnalyticPropertyDiscovery, uses_automatic_discovery
+                from .DegeneracySpecs import AnalyticPropertyDiscovery, uses_automatic_discovery
                 discovery = new
                 if uses_automatic_discovery(degeneracy_specs):
                     packet = MultiVPTStateSpace(states, runner.system, degeneracy_specs=None)
@@ -4233,7 +4322,7 @@ class AnalyticVPTRunner:
         :return: the resolved `MultiVPTStateSpace`
         :rtype: MultiVPTStateSpace
         """
-        from .Discovery import resolve_discovery_space
+        from .DegeneracySpecs import resolve_discovery_space
         states = resolve_discovery_space(self, states, degeneracy_specs)
         return self.prep_multispace(states,
                                     self.eval.freqs,
@@ -4739,7 +4828,7 @@ class AnalyticVPTRunner:
         physical matrix-element signs and array[bra state,ket state] axes. The
         ordinary calculation is unaffected until this separate method is called.
         """
-        from .Contributions import AnalyticTermContributions
+        from .Corrections import AnalyticTermContributions
         self._contribution_options(options)
         if order is None:order=self.order if self.order is not None else len(self.eval.expansions)-1
         prepared=self.prep_states(states,degeneracy_specs=degeneracy_specs,logger=options.get('logger'))
@@ -4761,7 +4850,7 @@ class AnalyticVPTRunner:
         These are amplitude contributions. Intensities also contain cross terms
         and must not be obtained by adding squared individual contributions.
         """
-        from .Contributions import AnalyticTermContributions
+        from .Corrections import AnalyticTermContributions
         self._contribution_options(options)
         if order is None:order=self.order if self.order is not None else len(self.eval.expansions)-1
         axes=[0,1,2] if axes is None else list(axes)
@@ -4788,7 +4877,7 @@ class AnalyticVPTRunner:
         state pair is evaluated; individual terms are never mirrored. Diagonal
         entries include absolute state energies, before ground subtraction.
         """
-        from .Contributions import AnalyticTermContributions
+        from .Corrections import AnalyticTermContributions
         self._contribution_options(options)
         if order is None:order=self.order if self.order is not None else len(self.eval.expansions)-1
         prepared=self.prep_states(states,degeneracy_specs=degeneracy_specs,logger=options.get('logger'))
@@ -5476,27 +5565,31 @@ class AnalyticVPTRunner:
         """Run with the configured compilation policy, or an explicit per-call override."""
         previous=self.eval.compile_expressions
         if compile is not None:self.eval.compile_expressions=compile is not False
+        from .Evaluators import compiled_evaluation_context
         try:
-            return self._run_VPT(
-                states=states,
-                calculate_intensities=calculate_intensities,
-                operator_expansions=operator_expansions,
-                operator_terms=operator_terms,
-                operator_type=operator_type,
-                order=order,
-                verbose=verbose,
-                degeneracy_specs=degeneracy_specs,
-                handle_degeneracies=handle_degeneracies,
-                zero_cutoff=zero_cutoff,
-                transition_moment_terms=transition_moment_terms,
-                hamiltonian_corrections=hamiltonian_corrections,
-                clear_caches=clear_caches,
-                hamiltonian_correction_type=hamiltonian_correction_type,
-                only_degenerate_terms=only_degenerate_terms,
-                state_specific_degeneracies=state_specific_degeneracies,
-                force_return_on_crash=force_return_on_crash,
+            with compiled_evaluation_context(
+                    self.eval.expression_store if self.eval.compile_expressions else None,
+                    self.eval.compilation_options, self.eval.evaluation_options, self.eval.parallelizer):
+                return self._run_VPT(
+                    states=states,
+                    calculate_intensities=calculate_intensities,
+                    operator_expansions=operator_expansions,
+                    operator_terms=operator_terms,
+                    operator_type=operator_type,
+                    order=order,
+                    verbose=verbose,
+                    degeneracy_specs=degeneracy_specs,
+                    handle_degeneracies=handle_degeneracies,
+                    zero_cutoff=zero_cutoff,
+                    transition_moment_terms=transition_moment_terms,
+                    hamiltonian_corrections=hamiltonian_corrections,
+                    clear_caches=clear_caches,
+                    hamiltonian_correction_type=hamiltonian_correction_type,
+                    only_degenerate_terms=only_degenerate_terms,
+                    state_specific_degeneracies=state_specific_degeneracies,
+                    force_return_on_crash=force_return_on_crash,
 
-            )
+                )
         finally:self.eval.compile_expressions=previous
 
     def _run_VPT(self,

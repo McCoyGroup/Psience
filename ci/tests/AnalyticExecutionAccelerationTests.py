@@ -3,12 +3,20 @@ import unittest,itertools,warnings
 from unittest.mock import patch
 import numpy as np
 from Psience.VPT2 import AnalyticVPTRunner
-from Psience.VPT2.Conditional import SameStateCondition,PolynomialInvariantCondition,IntegerLatticeCondition
-from Psience.VPT2.IndexedEvaluator import IndexedBlockEvaluator as Indexed
+from Psience.VPT2.Analytic import SameStateCondition,PolynomialInvariantCondition,IntegerLatticeCondition
+from Psience.VPT2.Evaluators import IndexedBlockEvaluator as Indexed
 from Psience.VPT2.Analytic import (PerturbationTheoryExpressionEvaluator as Expression,
     AnalyticPerturbationTheorySolver,HamiltonianExpansionTerm,PerturbationTheoryEvaluator)
-from Psience.VPT2.Conditional import ZeroTerm
+from Psience.VPT2.Analytic import ZeroTerm
 from McUtils.Zachary import Symbols
+
+# These tests inspect evaluator statistics, which are only recorded when diagnostics are enabled.
+from Psience.VPT2.Common import Diagnostics
+def setUpModule():
+    Diagnostics.enabled = True
+def tearDownModule():
+    Diagnostics.enabled = False
+
 
 class AccelerationTests(unittest.TestCase):
     def run_energy(self,nmodes=4,condition=None,batch=True,jit=True,max_states=128):
@@ -63,7 +71,7 @@ class AccelerationTests(unittest.TestCase):
         f=rng.random((3,4,2));c=rng.integers(-2,3,size=(3,2,3))
         with patch.object(Indexed,'use_jit_energy_contractions',False):a=Indexed._contract_energy_rows(c,f)
         with patch.object(Indexed,'use_jit_energy_contractions',True),\
-             patch('Psience.VPT2.IndexedEvaluator.get_energy_row_kernel',return_value=None):b=Indexed._contract_energy_rows(c,f)
+             patch('Psience.VPT2.Evaluators.get_energy_row_kernel',return_value=None):b=Indexed._contract_energy_rows(c,f)
         np.testing.assert_array_equal(a,b)
 
     def test_fourth_order_energies_match_with_batching(self):

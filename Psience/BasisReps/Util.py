@@ -60,6 +60,22 @@ class StateMaker:
                 raise ValueError("don't know what to do with filling mode '{}'".format(mode))
         return state
 
+    @classmethod
+    def format_state(cls, state, state_formatting='quanta'):
+        """Format one occupation vector, retaining its original spelling in vector mode."""
+        return str(state) if dev.str_is(state_formatting, 'vector') else cls.parse_state(state)
+
+    @classmethod
+    def format_states(cls, states, state_formatting='quanta', join=False):
+        """Format state rows for logger message preparers; optionally join them for inline messages."""
+        if hasattr(states, 'excitations'):
+            states = states.excitations
+        if dev.str_is(state_formatting, 'vector'):
+            lines = str(np.asarray(states)).splitlines()
+        else:
+            lines = [cls.parse_state(s) for s in states] or ['']
+        return '\n'.join(lines) if join else lines
+
     def __call__(self, *specs, mode=None):
         return self.make_state(*specs, mode=mode)
 

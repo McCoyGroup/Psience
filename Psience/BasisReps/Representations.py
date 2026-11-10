@@ -586,6 +586,204 @@ class Representation:
 
     # from memory_profiler import profile
     # @profile
+    def get_evaluated_representation(self, coupled_space, total_space, *,
+                                     evaluation_mode='runtime', diagonal=False,
+                                     filter_space=None, block_size=65536,
+                                     working_memory=64*1024**2,
+                                     directory=None, zero_element_warning=True):
+        """Bind this operator to a finite space without storing its values.
+
+        ``positions`` retains canonical CSC support only. ``runtime`` retains
+        neither values nor new global support: every contraction queries the
+        existing coupling recipes from its nonzero input support. Native
+        deferred recipes push endpoint restrictions into permutation generation.
+        Generic graph postfilters retain their original block semantics and may
+        require replay. Resident graphs keep their existing adjacency storage;
+        fully implicit graphs use external state-space recipes.
+        """
+        from pathlib import Path
+        from .StateSpaces import BasisStateSpace
+        from McUtils.Numputils import EvaluatedSparseMatrix, external_unique
+
+        if evaluation_mode not in ('runtime', 'positions', 'diagonal'):
+            raise ValueError('Unknown evaluated representation mode: '+str(evaluation_mode))
+        if evaluation_mode == 'diagonal' and not diagonal:
+            raise ValueError('diagonal evaluation requires an explicitly diagonal operator')
+        if not isinstance(working_memory, (int, np.integer)) or working_memory < 1:
+            raise ValueError('working_memory must be a positive byte count')
+        if not isinstance(block_size, (int, np.integer)) or block_size < 1:
+            raise ValueError('block_size must be positive')
+        # Account for bounded decoded bra/ket occupations as well as pairs.
+        size = max(1, min(int(block_size), working_memory//(128+32*total_space.ndim)))
+        n = len(total_space)
+        store = getattr(total_space, 'store', None)
+        if store is not None: directory = store.directory
+
+        def is_zero(rep):
+            if isinstance(rep, ExpansionRepresentation) and rep.operator is None:
+                return all((np.ndim(c) == 0 and c == 0) or is_zero(term)
+                           for c, term in zip(rep.coeffs, rep.computers))
+            return rep.is_zero
+
+        def evaluate(rows, columns):
+            if is_zero(self): return np.zeros(len(rows), dtype=float)
+            bra, ket = total_space.indices[rows], total_space.indices[columns]
+            # Stored symmetric matrices evaluate canonical rank pairs once and
+            # mirror them. Preserve that orientation even for asymmetric input
+            # coefficient tensors and a noncanonical finite basis ordering.
+            lo, hi = np.minimum(bra, ket), np.maximum(bra, ket)
+            pairs = BraKetSpace(BasisStateSpace(self.basis, lo, mode='indices'),
+                                BasisStateSpace(self.basis, hi, mode='indices'))
+            if isinstance(self, ExpansionRepresentation):
+                # Bounded direct contractions release arrays by reference
+                # counting. Do not scan the entire Python heap after each tiny
+                # term. Automatic cyclic collection remains enabled; normal
+                # stored evaluation retains its explicit collection policy.
+                values = self._dispatch_over_expansion('get_brakets', pairs,
+                    check_orthogonality=not diagonal, memory_constrained=True, _evaluation_collect_garbage=False)
+            else:
+                values = self.get_brakets(pairs, check_orthogonality=not diagonal, memory_constrained=True)
+            if isinstance(values, SparseArray): values = values.asarray()
+            values = np.asarray(values)
+            if values.ndim == 0 and values == 0:
+                return np.zeros(len(rows), dtype=float)
+            if values.shape != (len(rows),):
+                raise ValueError('Runtime matrices require scalar operator elements; store component-valued operators')
+            if zero_element_warning and np.any(values == 0):
+                raise ValueError('Got zero operator elements; set zero_element_warning=False if expected')
+            return values
+
+        if evaluation_mode == 'diagonal':
+            values = np.zeros(n) if store is None else store.array('diagonal', float, (n,))
+            for start in range(0, len(coupled_space), size):
+                selected = coupled_space.take_subspace(slice(start, min(start+size, len(coupled_space))))
+                positions = total_space.find(selected, missing_val=-1)
+                if np.any(positions < 0): raise ValueError('Diagonal states outside total space')
+                values[positions] = evaluate(positions, positions)
+            return EvaluatedSparseMatrix.from_diagonal_data(values, block_size=size, block_bytes=working_memory)
+
+        def member(space, ids):
+            if space is None: return np.ones(len(ids), dtype=bool)
+            contains = getattr(space, '_contains', None)
+            if contains is not None: return contains(ids)
+            return space.find(BasisStateSpace(self.basis, ids, mode='indices'), missing_val=-1) >= 0
+
+        def resident_pairs(graph):
+            if isinstance(graph, BraKetSpace):
+                for start in range(0, len(graph), size):
+                    yield np.column_stack((graph.bras.indices[start:start+size], graph.kets.indices[start:start+size]))
+            elif isinstance(graph, SelectionRuleStateSpace):
+                for rank, child in zip(graph.representative_space.indices, graph.spaces.flat):
+                    targets = child.representative_space if isinstance(child, SelectionRuleStateSpace) else child
+                    for start in range(0, len(targets), size):
+                        ids = targets.indices[start:start+size]
+                        yield np.column_stack((np.full(len(ids), rank, dtype=np.int64), ids))
+                    if isinstance(child, SelectionRuleStateSpace): yield from resident_pairs(child)
+            elif diagonal:
+                for start in range(0, len(graph), size):
+                    ids = graph.indices[start:start+size]; yield np.column_stack((ids, ids))
+            else:
+                raise TypeError('Runtime evaluation requires an explicit or deferred coupling graph')
+
+        def directed_pairs(source_filter=None, target_filter=None):
+            iterator = getattr(coupled_space, 'iter_pair_blocks', None)
+            if iterator is not None:
+                yield from iterator(filter_space=target_filter, source_filter=source_filter)
+            else:
+                for pairs in resident_pairs(coupled_space):
+                    keep = member(source_filter, pairs[:, 0]) & member(target_filter, pairs[:, 1])
+                    if np.any(keep): yield pairs[keep]
+
+        def coordinates(pairs):
+            r = total_space.find(BasisStateSpace(self.basis, pairs[:, 0], mode='indices'), missing_val=-1)
+            c = total_space.find(BasisStateSpace(self.basis, pairs[:, 1], mode='indices'), missing_val=-1)
+            if np.any(r < 0) or np.any(c < 0):
+                raise ValueError('Coupling graph contains states outside total space')
+            return r, c
+
+        def query(rows, columns, block_size):
+            if not len(columns) or is_zero(self): return
+            if diagonal and coupled_space is total_space:
+                # The diagonal's support is known algebraically. A selected
+                # H0 read must not scan/replay the complete state-space graph.
+                selected = columns[(columns >= rows.start) & (columns < rows.stop)]
+                for start in range(0, len(selected), block_size):
+                    block = selected[start:start+block_size]
+                    yield block, block
+                return
+            active = BasisStateSpace(self.basis, total_space.indices[columns], mode='indices')
+            def blocks():
+                yield np.empty((0, 2), dtype=np.int64)
+                for reverse in (False, True):
+                    target = active if not reverse else filter_space
+                    for pairs in directed_pairs(source_filter=active if reverse else None, target_filter=target):
+                        # An explicit filter_space applies to the original ket,
+                        # regardless of which symmetric orientation is needed.
+                        keep = member(filter_space, pairs[:, 1])
+                        if not np.any(keep): continue
+                        r, c = coordinates(pairs[keep])
+                        if reverse: r, c = c, r
+                        keep = (r >= rows.start) & (r < rows.stop) & np.isin(c, columns)
+                        if np.any(keep): yield np.column_stack((r[keep], c[keep]))
+            # Deduplicate just this contraction's requested couplings. A mapped
+            # bounded merge can spill; no support survives after consumption.
+            iterator = iter(blocks()); head = []; count = 0
+            for block in iterator:
+                head.append(block); count += len(block)
+                if count > block_size: break
+            if count <= block_size:
+                pairs = np.unique(np.concatenate(head), axis=0)
+                for start in range(0, len(pairs), block_size):
+                    block = pairs[start:start+block_size]
+                    yield block[:, 0], block[:, 1]
+                return
+            with tf.TemporaryDirectory(prefix='operator_pairs_', dir=directory) as temp:
+                pairs = external_unique(itertools.chain(head, iterator), sort=True, return_index=False,
+                    chunk_size=block_size, directory=temp, output_file=Path(temp)/'pairs.npy')
+                try:
+                    for start in range(0, len(pairs), block_size):
+                        block = pairs[start:start+block_size]
+                        # The query map is closed at exhaustion. Public block
+                        # consumers may retain coordinates after advancing.
+                        yield np.array(block[:, 0], copy=True), np.array(block[:, 1], copy=True)
+                finally:
+                    if isinstance(pairs, np.memmap): pairs._mmap.close()
+
+        if evaluation_mode == 'runtime':
+            return EvaluatedSparseMatrix((n, n), evaluate, pair_generator=query,
+                block_size=size, block_bytes=working_memory)
+
+        # Persist canonical support with no numerical-value allocation. Build
+        # it directly from the original graph, not by evaluating a stored CSR.
+        def all_pairs():
+            yield np.empty((0, 2), dtype=np.int64)
+            if is_zero(self): return
+            for pairs in directed_pairs(target_filter=filter_space):
+                r, c = coordinates(pairs)
+                yield np.column_stack((c, r))
+                off = r != c
+                if np.any(off): yield np.column_stack((r[off], c[off]))
+        with tf.TemporaryDirectory(prefix='operator_support_', dir=directory) as temp:
+            pairs = external_unique(all_pairs(), sort=True, return_index=False,
+                chunk_size=size, directory=temp, output_file=Path(temp)/'support.npy')
+            try:
+                dtype = SparseArray._index_dtype(max(n, len(pairs)))
+                indices = np.empty(len(pairs), dtype=dtype) if store is None else store.array('support_indices', dtype, (len(pairs),))
+                indptr = np.zeros(n+1, dtype=dtype) if store is None else store.array('support_indptr', dtype, (n+1,))
+                for start in range(0, len(pairs), size):
+                    block = pairs[start:start+size]
+                    indices[start:start+len(block)] = block[:, 1]
+                    np.add.at(indptr, block[:, 0]+1, 1)
+                carry = 0
+                for start in range(0, n+1, size):
+                    block = indptr[start:start+size]
+                    np.cumsum(block, out=block); block += carry
+                    if len(block): carry = int(block[-1])
+            finally:
+                if isinstance(pairs, np.memmap): pairs._mmap.close()
+        return EvaluatedSparseMatrix((n, n), evaluate, positions=(indices, indptr),
+            block_size=size, block_bytes=working_memory)
+
     def get_representation_matrix(self,
                                   coupled_space,
                                   total_space,
@@ -599,7 +797,11 @@ class Representation:
                                   remove_duplicates=True,
                                   memory_constrained=None,
                                   deduplication_method="memory",
-                                  deduplication_directory=None
+                                  deduplication_directory=None,
+                                  deduplication_flush_buffer=None,
+                                  evaluation_mode=None,
+                                  evaluation_block_size=65536,
+                                  evaluation_working_memory=64*1024**2
                                   ):
         """
         Actively constructs a perturbation theory Hamiltonian representation
@@ -614,6 +816,13 @@ class Representation:
 
         if not assume_symmetric:
             raise NotImplementedError("don't have non-symmetric representations implemented")
+        if evaluation_mode is not None and evaluation_mode != 'stored':
+            result = self.get_evaluated_representation(coupled_space, total_space,
+                evaluation_mode=evaluation_mode, diagonal=diagonal, filter_space=filter_space,
+                block_size=evaluation_block_size, working_memory=evaluation_working_memory,
+                directory=deduplication_directory, zero_element_warning=zero_element_warning)
+            if clear_operator_caches: self.clear_cache()
+            return result
         if hasattr(total_space,'store'):
             from .ExternalStateSpaces import disk_representation
             return disk_representation(self,coupled_space,total_space,
@@ -637,7 +846,8 @@ class Representation:
         if remove_duplicates and not (diagonal and coupled_space is total_space):
             m_pairs = m_pairs.remove_duplicates(assume_symmetric=assume_symmetric,
                                                method=deduplication_method,
-                                               directory=deduplication_directory)
+                                               directory=deduplication_directory,
+                                               flush_buffer=deduplication_flush_buffer)
 
         if len(m_pairs) > 0:
             # logger.log_print(["coupled space dimension {d}"], d=len(m_pairs))
@@ -1032,13 +1242,16 @@ class ExpansionRepresentation(Representation):
                     type(other).__name__
                 ))
 
-    def _dispatch_over_expansion(self, attr, *args, **kwargs):
+    def _dispatch_over_expansion(self, attr, *args, _evaluation_collect_garbage=True, **kwargs):
         els = None
         for c, t in zip(self.coeffs, self.computers):
             if not (isinstance(c, (int, float, np.integer, np.floating)) and c == 0):
                 with self.logger.block(tag="in {}".format(t)):
                     start = time.time()
-                    bits = getattr(t, attr)(*args, **kwargs)
+                    if not _evaluation_collect_garbage and isinstance(t, ExpansionRepresentation):
+                        bits = t._dispatch_over_expansion(attr, *args, _evaluation_collect_garbage=False, **kwargs)
+                    else:
+                        bits = getattr(t, attr)(*args, **kwargs)
                     scaled = bits * c
                     if self.ndims == 4:
                         raise ValueError("woop")
@@ -1069,7 +1282,7 @@ class ExpansionRepresentation(Representation):
                             els += scaled
                     self.logger.log_print("took {e:.3f}s", e=(time.time() - start))
                     # this can be memory intensive so we collect each step
-                    gc.collect()
+                    if _evaluation_collect_garbage: gc.collect()
 
         return els
 

@@ -186,7 +186,7 @@ class PersistenceTests(unittest.TestCase):
     def test_CompiledExpressionStoreUsesEntryStore(self):
         import types
         from McUtils.Devutils import EntryStore
-        from Psience.VPT2.CompiledExpressions import AnalyticExpressionStore
+        from Psience.VPT2.Evaluators import AnalyticExpressionStore
         store = AnalyticExpressionStore(self.path('compiled'))
         self.assertIsInstance(store.entries, EntryStore)
         wrapper = types.SimpleNamespace(expr=0, change=(), num_fixed=0, op=None)
@@ -209,7 +209,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual([n for n in os.listdir(self.path('compiled')) if n.startswith('.')], [])
 
     def test_CompiledExpressionStoreFailedCompileLeavesNothing(self):
-        from Psience.VPT2.CompiledExpressions import AnalyticExpressionStore
+        from Psience.VPT2.Evaluators import AnalyticExpressionStore
         store = AnalyticExpressionStore(self.path('compiled2'))
         def broken():
             raise RuntimeError('compile failed')
@@ -493,7 +493,7 @@ class PersistenceTests(unittest.TestCase):
         return {_HashableNumPyIndex(rng.integers(0, 5, size=3)): float(rng.normal()) for _ in range(n)}
 
     def test_PersistentPolyCacheRoundTrip(self):
-        from Psience.VPT2.PersistentCaches import PersistentEvaluationCache
+        from Psience.VPT2.Evaluators import PersistentEvaluationCache
         root = self.path('vpt2_store')
         poly_key = (('poly', 1, 2), (1, -1), None)
         cache = PersistentEvaluationCache(root, signature='impl-1')
@@ -510,7 +510,7 @@ class PersistenceTests(unittest.TestCase):
         self.assertEqual(PersistentEvaluationCache(root, signature='impl-1')[poly_key], values)
 
     def test_PersistentPolyCacheKeysAndFallbacks(self):
-        from Psience.VPT2.PersistentCaches import PersistentEvaluationCache
+        from Psience.VPT2.Evaluators import PersistentEvaluationCache
         root = self.path('vpt2_store2')
         a = PersistentEvaluationCache(root, signature='impl-1')
         a[('p', 1)] = self._poly_values(4)
@@ -529,7 +529,7 @@ class PersistenceTests(unittest.TestCase):
 
     def test_EvaluatorPersistentCacheHooks(self):
         from Psience.VPT2.Analytic import PerturbationTheoryExpressionEvaluator as Ev
-        from Psience.VPT2.PersistentCaches import PersistentEvaluationCache
+        from Psience.VPT2.Evaluators import PersistentEvaluationCache
         original = Ev._poly_cache
         try:
             with self.assertRaises(ValueError):

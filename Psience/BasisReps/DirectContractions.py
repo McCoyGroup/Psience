@@ -47,7 +47,8 @@ def _canonical_coefficients(coefficients, nmodes, degree):
 
 @njit(cache=True)
 def _contract(bras, kets, coefficients, tables, permutations,
-              permutation_counts, degree, phase, threshold, symmetric):
+              permutation_counts, degree, phase, threshold, symmetric,
+              analytic_diagonal):
     size, nmodes = bras.shape
     result = np.zeros((size, coefficients.shape[1]))
     minimum = np.empty(degree, dtype=np.int64)
@@ -68,6 +69,22 @@ def _contract(bras, kets, coefficients, tables, permutations,
                 minimum[used] = mode
                 used += 1
         if not possible or (degree-used) % 2:
+            continue
+        if analytic_diagonal and degree == 2 and used == 0:
+            # Only equal-mode quadratic terms have a nonzero diagonal.
+            # Keep the native oscillator table, phase, threshold and summation
+            # order, while avoiding multiset sorting/permutation machinery.
+            for mode in range(nmodes):
+                code = mode * nmodes + mode
+                nonzero = False
+                for c in range(coefficients.shape[1]):
+                    nonzero |= coefficients[code, c] != 0
+                if not nonzero:
+                    continue
+                value = phase * tables[3, bras[pair, mode], kets[pair, mode]]
+                if abs(value) >= threshold:
+                    for c in range(coefficients.shape[1]):
+                        result[pair, c] += value * coefficients[code, c]
             continue
         extra = (degree-used)//2
         for j in range(extra):
@@ -157,6 +174,7 @@ class HarmonicDirectContraction:
         self.nmodes = operator.mode_n
         self.threshold = operator.zero_threshold
         self.phase = operator.funcs.i_phase
+        self.analytic_diagonal = getattr(operator, 'use_analytic_harmonic_diagonal', True)
         self.component_shape = ()
         self.symmetric = len(set(self.word)) == 1
         self.tables = None
@@ -220,5 +238,5 @@ class HarmonicDirectContraction:
             self.tables,self.table_size = tables,extent
         result = _contract(bras,kets,self.coefficients,self.tables,
                            self.permutations,self.permutation_counts,self.degree,self.phase,
-                           self.threshold,self.symmetric)
+                           self.threshold,self.symmetric,self.analytic_diagonal)
         return result.reshape((len(bras),)+self.component_shape)

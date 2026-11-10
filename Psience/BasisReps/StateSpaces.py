@@ -798,86 +798,500 @@ class BasisStateSpace(AbstractStateSpace):
 
         return cls(basis, states, mode=cls.StateSpaceSpec.Excitations)
 
-    @classmethod #TODO: numba-ify this
+
+    @staticmethod
+    @mcmisc.jit(nopython=True, cache=True)
+    def _prepare_rule_window_suffixes(occupations, transitions, accepting, minimum,
+                                     maximum, frequencies):
+        # Reuse signed rule counters for all prefixes, and compute source-specific
+        # feasible suffixes once. These tables are bounded by input/rule metadata.
+        ndim, choices = occupations.shape
+        states = len(accepting)
+        low = np.full((ndim+1,states), np.inf)
+        high = np.full((ndim+1,states), -np.inf)
+        for state in range(states):
+            if accepting[state]:
+                low[ndim,state] = high[ndim,state] = 0.
+        for axis in range(ndim-1,-1,-1):
+            for state in range(states):
+                for choice in range(choices):
+                    next_state = transitions[state,choice]
+                    value = occupations[axis,choice]
+                    if (next_state < 0 or value < minimum[axis] or value > maximum[axis]
+                            or low[axis+1,next_state] == np.inf):
+                        continue
+                    energy = (value-minimum[axis])*frequencies[axis]
+                    low[axis,state] = min(low[axis,state],energy+low[axis+1,next_state])
+                    high[axis,state] = max(high[axis,state],energy+high[axis+1,next_state])
+        return low, high
+
+    @staticmethod
+    @mcmisc.jit(nopython=True, cache=True)
+    def _fill_rule_window_states(occupations, transitions, accepting, minimum,
+                                maximum, frequencies, low, high, window, margin,
+                                cursor, choices, states, energies, prefix, positions,
+                                values, support_sizes, dense_traversal, dense_output,
+                                output, columns, data, pointers, counters):
+        # Resumable coordinate DFS. No callback, occupation sum, support scan,
+        # change vector, sorting or rule lookup occurs at a completed state.
+        ndim = len(minimum)
+        capacity = len(output) if dense_output else len(pointers)-1
+        axis = cursor[0]
+        emitted = nnz = 0
+        while axis >= 0 and emitted < capacity:
+            if axis == ndim:
+                counters[2] += 1
+                if accepting[states[axis]] and window[0] <= energies[axis] <= window[1]:
+                    if dense_output:
+                        if dense_traversal:
+                            output[emitted,:] = prefix
+                        else:
+                            output[emitted,:] = 0
+                            for j in range(support_sizes[axis]):
+                                output[emitted,positions[j]] = values[j]
+                    else:
+                        for j in range(support_sizes[axis]):
+                            columns[nnz] = positions[j]
+                            data[nnz] = values[j]
+                            nnz += 1
+                        pointers[emitted+1] = nnz
+                    emitted += 1
+                    counters[3] += 1
+                axis -= 1
+                continue
+            choice = choices[axis]
+            if choice == occupations.shape[1]:
+                choices[axis] = 0
+                axis -= 1
+                continue
+            choices[axis] += 1
+            counters[0] += 1
+            state = transitions[states[axis],choice]
+            value = occupations[axis,choice]
+            if (state < 0 or value < minimum[axis] or value > maximum[axis]
+                    or low[axis+1,state] == np.inf):
+                continue
+            # Preserve states_in_windows' exact inclusive boundary arithmetic:
+            # initial dot product, then one addition per increment, in mode order.
+            energy = energies[axis]
+            for j in range(value-minimum[axis]):
+                energy += frequencies[axis]
+            if (energy+low[axis+1,state] > window[1]+margin
+                    or energy+high[axis+1,state] < window[0]-margin):
+                counters[1] += 1
+                continue
+            if dense_traversal:
+                prefix[axis] = value
+            count = support_sizes[axis]
+            if value:
+                positions[count] = axis
+                values[count] = value
+                count += 1
+            support_sizes[axis+1] = count
+            states[axis+1] = state
+            energies[axis+1] = energy
+            axis += 1
+        cursor[0] = axis
+        return emitted, nnz
+
+    @classmethod
+    def _iter_rule_window_states(cls, rule_filter, freqs, windows, initial, maximum,
+                                 movable, lower, upper, valid, size, max_bytes,
+                                 sparse, sparse_traversal, statistics):
+        sources = np.asarray(rule_filter.input_space.excitations,dtype=np.int64)
+        ndim, nwindows = len(freqs), len(windows)
+        if sources.ndim != 2 or sources.shape[1] != ndim or len(sources) not in (1,nwindows):
+            raise ValueError("filter input_space needs one source per window, or one shared source")
+        if np.any(sources < 0):
+            raise ValueError("filter sources must have nonnegative occupations")
+        if rule_filter.postfilters:
+            raise ValueError("window generation requires explicit selection-rule prefilters without postfilters")
+        prefilters = rule_filter.prefilters
+        if prefilters is None or any(rules is None for space,rules in prefilters):
+            raise ValueError("window generation requires explicit selection rules")
+        # Existing source-prefilter semantics: the first matching clause wins.
+        assigned = {}
+        remaining = set(range(len(sources)))
+        plans = {}
+        for space, rules in prefilters:
+            members = None if space is None else {tuple(row) for row in space.excitations}
+            matching = (remaining.copy() if members is None else
+                        {i for i in remaining if tuple(sources[i]) in members})
+            if matching:
+                key = tuple(tuple(int(x) for x in r) for r in rules)
+                if key not in plans:
+                    plans[key] = SymmetricGroupGenerator._get_direct_sum_rule_prefixes(key,ndim)
+                for i in matching:
+                    assigned[i] = plans[key]
+                remaining.difference_update(matching)
+        counters = np.zeros(4,dtype=np.int64)
+        index_bytes = np.dtype(np.intp).itemsize
+        for window in valid:
+            source = sources[0 if len(sources)==1 else window]
+            source_quanta = int(np.sum(source))
+            selected = assigned.get(0 if len(sources)==1 else window,{})
+            for change, (alphabet,transitions,accepting) in selected.items():
+                quanta = source_quanta+change
+                if (quanta < int(np.sum(initial))
+                        or (lower[window] is not None and quanta < lower[window])
+                        or (upper[window] is not None and quanta > upper[window])):
+                    continue
+                occupations = source[:,None]+alphabet[None,:]
+                ceiling = np.max(occupations,axis=1)
+                if maximum is not None:
+                    ceiling = np.minimum(ceiling,np.maximum(maximum,initial))
+                ceiling = np.where(movable,ceiling,initial).astype(np.int64)
+                floor = initial
+                low,high = cls._prepare_rule_window_suffixes(
+                    occupations,transitions,accepting,floor,ceiling,freqs)
+                if low[0,0] == np.inf:
+                    continue
+                width = min(ndim,quanta)
+                dtype = np.dtype(cls.excitations_dtype if sparse else int)
+                if sparse:
+                    dtype = np.promote_types(dtype,nput.infer_int_dtype(max(0,int(np.max(ceiling,initial=0)))))
+                row_bytes = (width*(dtype.itemsize+index_bytes)+2*index_bytes
+                             if sparse else ndim*dtype.itemsize+index_bytes)
+                capacity = size
+                if max_bytes is not None:
+                    capacity = min(capacity,(int(max_bytes)-(index_bytes if sparse else 0))//max(1,row_bytes))
+                if capacity < 1:
+                    raise ValueError("max_bytes cannot hold one occupation row and its window tag")
+                output = np.empty((0,ndim) if sparse else (capacity,ndim),dtype=int)
+                columns = np.empty(capacity*width if sparse else 0,dtype=np.intp)
+                data = np.empty(capacity*width if sparse else 0,dtype=dtype)
+                pointers = np.zeros(capacity+1 if sparse else 0,dtype=np.intp)
+                cursor = np.zeros(1,dtype=np.int64)
+                choices = np.zeros(ndim,dtype=np.int64)
+                states = np.zeros(ndim+1,dtype=np.int64)
+                energies = np.empty(ndim+1,dtype=float)
+                energies[0] = float(np.dot(freqs,initial))
+                prefix = np.empty(0 if sparse_traversal else ndim,dtype=np.int64)
+                positions = np.empty(ndim,dtype=np.intp)
+                values = np.empty(ndim,dtype=np.int64)
+                support_sizes = np.zeros(ndim+1,dtype=np.int64)
+                # Conservative enclosure for DP multiplication/reassociation.
+                # Exact leaf arithmetic above decides inclusion, without epsilon.
+                magnitude = float(np.dot(np.abs(freqs),np.maximum(ceiling,initial)))
+                eps = np.finfo(float).eps
+                operations = 8*(ndim+int(np.sum(np.maximum(ceiling-initial,0))))+16
+                error = operations*eps
+                margin = (np.nextafter(error/(1-error)*max(1.,magnitude),np.inf)
+                          if error < 1 else np.inf)
+                while cursor[0] >= 0:
+                    emitted,nnz = cls._fill_rule_window_states(
+                        occupations,transitions,accepting,floor,ceiling,freqs,
+                        low,high,windows[window],margin,cursor,choices,states,energies,
+                        prefix,positions,values,support_sizes,not sparse_traversal,
+                        not sparse,output,columns,data,pointers,counters)
+                    if not emitted:
+                        break
+                    if sparse:
+                        block = SparseArray.from_data(sp.csr_matrix(
+                            (data[:nnz].copy(),columns[:nnz].copy(),pointers[:emitted+1].copy()),
+                            shape=(emitted,ndim)))
+                    else:
+                        block = output[:emitted].copy()
+                    if statistics is not None:
+                        statistics.update(prefix_choices=int(counters[0]),energy_prunes=int(counters[1]),
+                                          leaf_checks=int(counters[2]),emitted_rows=int(counters[3]),
+                                          scalar_filter_calls=0,
+                                          maximum_output_rows=max(statistics.get('maximum_output_rows',0),emitted))
+                    yield np.full(emitted,window,dtype=np.intp),block
+
+    @classmethod
     def states_in_windows(cls, freqs, windows:'list[[int,int]]',
-                          max_state=None,
-                          min_quantas=None, max_quantas=None,
-                          initial_state=None,
-                          fixed_modes=None,
-                          basis=None # we'll use this some day probably...
-                          ):
-        # walk the state tree to find anything within a given frequency window
-        ndim = len(freqs)
-        # if basis is None:
-        #     from .HarmonicOscillator import HarmonicOscillatorProductBasis
-        #     basis = HarmonicOscillatorProductBasis(ndim)
+                          max_state=None, min_quantas=None, max_quantas=None,
+                          initial_state=None, fixed_modes=None, basis=None,
+                          *, sparse=False, sparse_traversal=None,
+                          return_iterator=False, block_size=None,
+                          max_bytes=64*1024**2, filter=None, statistics=None):
+        """Find occupation vectors in inclusive energy/quanta windows.
 
-        window_states = [[] for _ in windows]
-        if min_quantas is None or nput.is_numeric(min_quantas):
-            min_quantas = [min_quantas] * len(windows)
-        if max_quantas is None or nput.is_numeric(max_quantas):
-            max_quantas = [max_quantas] * len(windows)
+        sparse selects output storage independently of sparse_traversal.
+        By default traversal follows storage: dense output uses dense traversal.
+        Both traversals visit one quanta level at a time in legacy row order,
+        holding only a depth-sized stack instead of a breadth-first frontier.
+        Dense traversal keeps dense prefix vectors; sparse traversal keeps
+        nonzero mode occupations. It materializes one borrowed dense vector
+        per leaf only when a filter requires it.
 
-        if initial_state is None:
-            base_state = np.zeros(ndim, dtype=int)
-        else:
-            base_state = np.array(initial_state, dtype=int)
-        queue = collections.deque()
-        base_freq = np.dot(freqs, base_state)
-        base_quant = np.sum(base_state)
-        if nput.is_numeric(fixed_modes): fixed_modes = [fixed_modes]
-        fixed_mask = np.full(len(freqs), True)
+        The eager result is one dense array or existing SparseArray CSR per
+        window. Matching windows share accepted row records during collection;
+        final result storage still grows with all accepted rows. Sparse output
+        is built from nonzero entries, without an intermediate dense table.
+
+        return_iterator=True yields (window_indices, occupations) blocks.
+        Overlapping windows emit separate tagged rows. Blocks own their data;
+        max_bytes bounds emitted array payload including tags, and block_size
+        bounds emitted rows. Construction buffers and traversal state are
+        additional bounded storage, so neither option is a process-RAM cap.
+        These options do not bound the complete eager result.
+
+        A BasisStateSpaceFilter with explicit source selection rules instead
+        drives a deterministic signed-rule prefix traversal. It carries energy,
+        rule counters and support while descending, prunes impossible suffixes,
+        and emits only reachable states. block_size=1 constructs one state per
+        next() call; it does not construct a hidden batch. Existing prefilter
+        first-match semantics apply; postfilters are not supported by this path.
+        statistics optionally receives prefix/pruning/output counters.
+
+        filter(state, window_index) runs before output storage is allocated.
+        The state is a borrowed read-only vector: do not retain it. Filtering
+        does not prune descendants; a rejected state's descendants may match.
+        """
+        freqs = np.asarray(freqs, dtype=float)
+        windows = np.asarray(windows, dtype=float)
+        if freqs.ndim != 1 or np.any(~np.isfinite(freqs)):
+            raise ValueError("freqs must be a finite one-dimensional array")
+        if windows.size == 0:
+            return iter(()) if return_iterator else []
+        if windows.ndim != 2 or windows.shape[1] != 2 or np.any(np.isnan(windows)):
+            raise ValueError("windows must have shape (n, 2) without NaNs")
+        ndim, nwindows = len(freqs), len(windows)
+        size = cls.excitation_block_size if block_size is None else int(block_size)
+        if size < 1 or (max_bytes is not None and int(max_bytes) < 1):
+            raise ValueError("block_size and max_bytes must be positive")
+        rule_filter = filter if filter is not None and not callable(filter) else None
+        if rule_filter is not None and not all(
+                hasattr(rule_filter,key) for key in ('input_space','prefilters','postfilters')):
+            raise TypeError("filter must be callable or a BasisStateSpaceFilter")
+        if sparse_traversal is None:
+            sparse_traversal = sparse
+
+        def bounds(value, name):
+            values = ([value] * nwindows if value is None or nput.is_numeric(value)
+                      else list(value))
+            if len(values) != nwindows or any(
+                    x is not None and (not nput.is_numeric(x) or not np.isfinite(x))
+                    for x in values):
+                raise ValueError(name+" must contain one finite bound per window")
+            return values
+
+        lower = bounds(min_quantas, "min_quantas")
+        upper = bounds(max_quantas, "max_quantas")
+        raw = np.zeros(ndim, dtype=int) if initial_state is None else np.asarray(initial_state)
+        initial = np.array(raw, dtype=int, copy=True)
+        if (initial.shape != (ndim,) or np.any(initial < 0)
+                or not np.array_equal(raw, initial)):
+            raise ValueError("initial_state must contain nonnegative integer occupations")
+        maximum = None
+        if max_state is not None:
+            raw_maximum = np.broadcast_to(np.asarray(max_state), (ndim,))
+            maximum = np.array(raw_maximum, dtype=int, copy=True)
+            if np.any(maximum < 0) or not np.array_equal(maximum, raw_maximum):
+                raise ValueError("max_state must contain nonnegative integer occupations")
+        movable = np.ones(ndim, dtype=bool)
         if fixed_modes is not None:
-            fixed_mask[fixed_modes,] = False
+            movable[np.atleast_1d(fixed_modes)] = False
+        available = movable if maximum is None else movable & (initial < maximum)
+        base_energy = float(np.dot(freqs, initial))
+        base_quanta = int(np.sum(initial))
+        valid = [i for i in range(nwindows)
+                 if windows[i,0] <= windows[i,1]
+                 and (lower[i] is None or upper[i] is None or lower[i] <= upper[i])]
+        limits = []
+        if valid:
+            ceiling = max(windows[i,1] for i in valid)
+            if all(upper[i] is not None for i in valid):
+                limits.append(int(np.floor(max(upper[i] for i in valid))))
+            if maximum is not None:
+                limits.append(base_quanta + sum(
+                    max(int(maximum[i])-int(initial[i]), 0) for i in np.flatnonzero(movable)))
+            if not np.any(available):
+                limits.append(base_quanta)
+            elif np.all(freqs[available] > 0) and np.isfinite(ceiling):
+                # One conservative extra level protects floating boundaries;
+                # leaf comparisons use the original sequence of additions.
+                levels = max(0, int(np.ceil((ceiling-base_energy)/min(freqs[available])))+1)
+                limits.append(base_quanta+levels)
+            if not limits and rule_filter is None:
+                raise ValueError("enumeration needs a finite quanta, occupation, or positive-frequency energy bound")
+        final_quanta = min(limits) if limits else base_quanta-1
+        nonnegative = bool(np.all(freqs[available] >= 0))
+        sorted_nonnegative = nonnegative and bool(np.all(freqs[1:] >= freqs[:-1]))
+        frequencies = tuple(map(float, freqs))
+        modes = tuple(map(int, np.flatnonzero(movable)))
+        max_occupations = None if maximum is None else tuple(map(int, maximum))
+        energy_windows = tuple(map(tuple, windows.tolist()))
+        if rule_filter is not None:
+            stream = cls._iter_rule_window_states(rule_filter,freqs,windows,initial,maximum,
+                movable,lower,upper,valid,size,max_bytes,sparse,sparse_traversal,statistics)
+            if return_iterator:
+                return stream
+            pieces = [[] for _ in range(nwindows)]
+            for tags,block in stream:
+                # The rule traversal emits one source/window per block.
+                pieces[int(tags[0])].append(block)
+            return [(rows[0].concatenate(*rows[1:],axis=0) if sparse and len(rows)>1
+                     else rows[0] if sparse and rows
+                     else SparseArray.empty((0,ndim),dtype=cls.excitations_dtype) if sparse
+                     else np.concatenate(rows,axis=0) if rows else np.empty((0,ndim),dtype=int))
+                    for rows in pieces]
+        root = ({int(i):int(initial[i]) for i in np.flatnonzero(initial)}
+                if sparse_traversal else initial)
 
-        for states,min_quanta,max_quanta,(min_freq, max_freq) in zip(window_states, min_quantas, max_quantas, windows):
-            if (
-                    (min_freq <= base_freq <= max_freq)
-                    and (min_quanta is None or base_quant >= min_quanta)
-                    and (max_quanta is None or base_quant <= max_quanta)
-            ):
-                states.append(base_state)
-        queue.append([base_freq, 0, base_quant, base_state])
-        # indices.append(basis.ravel_state_inds(base_state)[0])
+        def children(node, ceiling):
+            energy, start, state = node
+            for mode in modes:
+                if mode < start:
+                    continue
+                occupation = state.get(mode, 0) if sparse_traversal else state[mode]
+                if max_occupations is not None and occupation >= max_occupations[mode]:
+                    continue
+                next_energy = energy+frequencies[mode]
+                if nonnegative and next_energy > ceiling:
+                    if sorted_nonnegative:
+                        break
+                    continue
+                child = state.copy()
+                child[mode] = occupation+1
+                yield next_energy, mode, child
 
-        # alternate indexing method, in case individual ravels are too slow
-        indices = set()
-        indices.add(tuple(base_state))
-        q_thresh = max([-1] + [max_quanta for max_quanta in max_quantas if max_quanta is not None])
-        if q_thresh < 0:
-            q_thresh = None
+        def leaves(steps, ceiling):
+            # Explicit iterator stack avoids recursion and a growing FIFO.
+            # At most steps+1 prefix vectors/support maps remain live here.
+            stack = [iter(((base_energy, 0, root),))]
+            while stack:
+                node = next(stack[-1], None)
+                if node is None:
+                    stack.pop()
+                elif len(stack) == steps+1:
+                    yield node[0], node[2]
+                else:
+                    stack.append(children(node, ceiling))
 
-        while queue:
-            e, mod_ind, q, s = queue.popleft()
-            q = q + 1
-            for n, ee in enumerate(freqs[mod_ind:]):
-                n = mod_ind + n
-                if not fixed_mask[n]: continue
-                if max_state is not None and s[n] >= max_state[n]: continue
+        def support(state):
+            if sparse_traversal:
+                indices = np.fromiter(sorted(state), dtype=np.intp, count=len(state))
+                values = np.fromiter((state[i] for i in indices), dtype=int, count=len(state))
+                return indices, values
+            indices = np.flatnonzero(state)
+            return indices, state[indices]
 
-                enew = e + ee
-                if all(enew > max_freq for _,max_freq in windows):  # assume freqs is sorted
-                    break
+        def dense_state(state):
+            if not sparse_traversal:
+                return state
+            dense = np.zeros(ndim, dtype=int)
+            for mode, occupation in state.items():
+                dense[mode] = occupation
+            return dense
 
-                enqueue = q_thresh is None or q < q_thresh
-                ss = None
-                if enqueue:
-                    ss = s.copy()
-                    ss[n] += 1
-                for states,min_quanta,max_quanta,(min_freq, max_freq) in zip(window_states, min_quantas, max_quantas, windows):
-                    if (# could preoptimize this with an initial dispatch over tests that we store
-                        (enew <= max_freq and enew >= min_freq)
-                        and (min_quanta is None or q >= min_quanta)
-                        and (max_quanta is None or q <= max_quanta)
-                    ):
-                        if ss is None:
-                            ss = s.copy()
-                            ss[n] += 1
-                        states.append(ss)
-                if enqueue:
-                    queue.append([enew, n, q, ss])
+        def candidates(quanta):
+            active = [(i, *energy_windows[i]) for i in valid
+                      if (lower[i] is None or quanta >= lower[i])
+                      and (upper[i] is None or quanta <= upper[i])]
+            if not active:
+                return
+            for energy, state in leaves(quanta-base_quanta, max(high for _,_,high in active)):
+                matching = [i for i,low,high in active if low <= energy <= high]
+                if filter is not None and matching:
+                    view = dense_state(state).view()
+                    view.flags.writeable = False
+                    matching = [i for i in matching if filter(view, i)]
+                if matching:
+                    yield matching, state
 
-        return [np.array(states, dtype=int).reshape((len(states), ndim)) for states in window_states]
+        def value_dtype(maximum):
+            dtype = np.dtype(cls.excitations_dtype)
+            if maximum > np.iinfo(dtype).max:
+                dtype = next((np.dtype(kind) for kind in (np.int16,np.int32,np.int64)
+                              if maximum <= np.iinfo(kind).max), None)
+                if dtype is None:
+                    raise OverflowError("occupations exceed integer sparse storage")
+            return dtype
+
+        def blocks():
+            index_bytes = np.dtype(np.intp).itemsize
+            for quanta in range(base_quanta, final_quanta+1):
+                width = min(ndim, quanta)
+                dtype = value_dtype(quanta) if sparse else np.dtype(int)
+                row_bytes = (width*(dtype.itemsize+index_bytes)+2*index_bytes
+                             if sparse else ndim*dtype.itemsize+index_bytes)
+                capacity = size
+                if max_bytes is not None:
+                    capacity = min(capacity, (int(max_bytes)-(index_bytes if sparse else 0))//row_bytes)
+                if capacity < 1:
+                    raise ValueError("max_bytes cannot hold one occupation row and its window tag")
+                if not sparse:
+                    # Leaf vectors are owned and never mutated after yielding.
+                    # Share them across matching windows until one bounded
+                    # chunk is ready, then pack with a single native array copy.
+                    row_list, tag_list = [], []
+                    for matching, state in candidates(quanta):
+                        record = dense_state(state)
+                        for window in matching:
+                            row_list.append(record)
+                            tag_list.append(window)
+                            if len(row_list) == capacity:
+                                yield (np.asarray(tag_list, dtype=np.intp),
+                                       np.asarray(row_list, dtype=int).reshape((len(row_list),ndim)))
+                                row_list.clear()
+                                tag_list.clear()
+                    if row_list:
+                        yield (np.asarray(tag_list, dtype=np.intp),
+                               np.asarray(row_list, dtype=int).reshape((len(row_list),ndim)))
+                    continue
+
+                tags = values = columns = pointers = None
+                used = nnz = 0
+
+                def emit():
+                    matrix = sp.csr_matrix(
+                        (values[:nnz].copy(), columns[:nnz].copy(), pointers[:used+1].copy()),
+                        shape=(used, ndim))
+                    return tags[:used].copy(), SparseArray.from_data(matrix)
+
+                for matching, state in candidates(quanta):
+                    positions, row_values = support(state)
+                    count = len(positions)
+                    for window in matching:
+                        if tags is None:
+                            tags = np.empty(capacity, dtype=np.intp)
+                            values = np.empty(capacity*width, dtype=dtype)
+                            columns = np.empty(capacity*width, dtype=np.intp)
+                            pointers = np.empty(capacity+1, dtype=np.intp)
+                            pointers[0] = 0
+                        tags[used] = window
+                        columns[nnz:nnz+count] = positions
+                        values[nnz:nnz+count] = row_values
+                        nnz += count
+                        pointers[used+1] = nnz
+                        used += 1
+                        if used == capacity:
+                            yield emit()
+                            used = nnz = 0
+                            pointers[0] = 0
+                if used:
+                    yield emit()
+
+        if return_iterator:
+            return blocks()
+        pieces = [[] for _ in range(nwindows)]
+        for quanta in range(base_quanta, final_quanta+1):
+            for matching, state in candidates(quanta):
+                record = support(state) if sparse else dense_state(state)
+                for window in matching:
+                    pieces[window].append(record)
+        result = []
+        for rows in pieces:
+            if sparse:
+                nnz = sum(len(indices) for indices,_ in rows)
+                dtype = value_dtype(max(0, final_quanta))
+                pointers = np.empty(len(rows)+1, dtype=np.intp)
+                pointers[0] = 0
+                np.cumsum(np.fromiter((len(indices) for indices,_ in rows),
+                                     dtype=np.intp, count=len(rows)), out=pointers[1:])
+                columns = (np.concatenate([indices for indices,_ in rows])
+                           if nnz else np.empty(0, dtype=np.intp))
+                values = (np.concatenate([values for _,values in rows]).astype(dtype, copy=False)
+                          if nnz else np.empty(0, dtype=dtype))
+                matrix = sp.csr_matrix((values, columns, pointers), shape=(len(rows),ndim))
+                result.append(SparseArray.from_data(matrix))
+            else:
+                result.append(np.asarray(rows, dtype=int).reshape((len(rows),ndim)))
+            rows.clear()
+        return result
 
     @classmethod
     def states_under_freq_threshold(cls, freqs, max_freq,
@@ -4250,12 +4664,12 @@ class BraKetSpace:
 
 
     def remove_duplicates(self, assume_symmetric=True, *, method="memory",
-                          directory=None, chunk_size=262144):
+                          directory=None, chunk_size=262144, flush_buffer=None):
 
         if method == "external":
             if not assume_symmetric:
                 raise NotImplementedError("non-symmetric deduplication is not implemented")
-            return self._remove_duplicates_external(directory, chunk_size)
+            return self._remove_duplicates_external(directory, chunk_size, flush_buffer=flush_buffer)
         if method != "memory":
             raise ValueError("unknown pair deduplication method: {}".format(method))
         if not assume_symmetric:
@@ -4287,7 +4701,7 @@ class BraKetSpace:
 
             return self.take_subspace(full_sel)
 
-    def _remove_duplicates_external(self, directory, chunk_size):
+    def _remove_duplicates_external(self, directory, chunk_size, *, flush_buffer=None):
         import tempfile
         from pathlib import Path
         from McUtils.Numputils import external_unique
@@ -4315,7 +4729,7 @@ class BraKetSpace:
                         offset += len(origin)
                         yield np.column_stack((c[mask], r[mask]) if flipped else (r[mask], c[mask]))
             _, first = external_unique(blocks(), sort=False, return_index=True, return_values=False,
-                                       directory=work, chunk_size=chunk_size)
+                                       directory=work, chunk_size=chunk_size,flush_buffer=flush_buffer)
             selected = np.array(origins[first], copy=True)
             origins._mmap.close()
             del origins

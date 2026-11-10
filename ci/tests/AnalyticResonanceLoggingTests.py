@@ -13,7 +13,7 @@ from Psience.VPT2.Analytic import (
     AnalyticPerturbationTheorySolver, HamiltonianExpansionTerm,
     PerturbationTheoryEvaluator, PerturbationTheoryExpressionEvaluator,
 )
-from Psience.VPT2.Conditional import SameStateCondition, ZeroTerm
+from Psience.VPT2.Analytic import SameStateCondition, ZeroTerm
 
 
 class AnalyticResonanceLoggingTests(unittest.TestCase):
@@ -246,7 +246,7 @@ class AnalyticResonanceLoggingTests(unittest.TestCase):
         self.assertIn('term survived numerator pruning',output.getvalue())
 
     def test_projected_warning_recovers_actual_reference_and_intermediate_pair(self):
-        from Psience.VPT2.Projected import ProjectionFactor
+        from Psience.VPT2.Analytic import ProjectionFactor
         E = PerturbationTheoryExpressionEvaluator
         reference = [1,0]
         factor = ProjectionFactor('R',0)
@@ -270,7 +270,7 @@ class AnalyticResonanceLoggingTests(unittest.TestCase):
         self.assertIn("'right_state': (0, 1)",output.getvalue())
 
     def test_conditional_warning_recovers_shifted_endpoint_states(self):
-        from Psience.VPT2.Conditional import ConditionEndpoint
+        from Psience.VPT2.Analytic import ConditionEndpoint
         E = PerturbationTheoryExpressionEvaluator
         condition = SameStateCondition()
         rows = ((ConditionEndpoint(condition,'resolvent',False,0),0),

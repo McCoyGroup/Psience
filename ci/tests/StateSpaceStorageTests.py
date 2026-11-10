@@ -643,5 +643,98 @@ class StateSpaceStorageTests(unittest.TestCase):
         self.assertTrue(filters)
         self.assertTrue(all(f.postfilters for f in filters.values()))
 
+    def test_sparse_window_stream_preserves_recorded_pyrene_states(self):
+        expected={tuple(state) for state in self.states if sum(state)<=2}
+        predicate=lambda state,window:tuple(state) in expected
+        blocks=list(BasisStateSpace.states_in_windows(
+            np.ones(self.basis.ndim),[[0.,2.]],max_quantas=2,
+            sparse=True,filter=predicate,block_size=3,max_bytes=1024, return_iterator=True))
+        actual=[]
+        for tags,block in blocks:
+            np.testing.assert_array_equal(tags,np.zeros(len(tags),dtype=int))
+            space=BasisStateSpace(self.basis,block)
+            self.assertTrue(space.has_sparse_excitations)
+            self.assertIsNone(space._excitations)
+            self.assertFalse(space.keep_excitations)
+            np.testing.assert_array_equal(space.indices,self.basis.ravel_state_inds(block.asarray()))
+            actual.extend(map(tuple,space.sparse_excitations.asarray()))
+        self.assertEqual(set(actual),expected)
+        self.assertEqual(len(actual),len(expected))
+        key=lambda row:(sum(row),tuple(i for i,n in enumerate(row) for _ in range(n)))
+        self.assertEqual(actual,sorted(expected,key=key))
+
+    def test_sparse_window_collection_never_decodes_dense_occupations(self):
+        with patch.object(type(self.space().sparse_excitations),'asarray',
+                          side_effect=AssertionError('dense occupation table requested')):
+            result=BasisStateSpace.states_in_windows(
+                np.ones(self.basis.ndim),[[0.,1.],[2.,1.]],
+                max_quantas=1,sparse=True,block_size=3,max_bytes=1024)
+            first=BasisStateSpace(self.basis,result[0])
+            empty=BasisStateSpace(self.basis,result[1])
+            self.assertTrue(first.has_sparse_excitations)
+            self.assertEqual(len(first),self.basis.ndim+1)
+            self.assertEqual(empty.sparse_excitations.shape,(0,self.basis.ndim))
+
+
+    def test_owned_page_policy_keeps_real_Pyrene_views_and_retires_at_last_owner(self):
+        import gc
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=1,resident_bytes=64)
+            mapped=store.array('probe',np.int64,self.ranks.shape)
+            mapped[:]=self.ranks
+            view=np.asarray(mapped)[1:];path=Path(mapped.filename)
+            store.retire(mapped)
+            store.checkpoint(mapped.nbytes,force=True)
+            np.testing.assert_array_equal(view,self.ranks[1:])
+            self.assertGreater(store.metrics['page_release_calls'],0)
+            self.assertEqual(store.metrics['page_release_failures'],0)
+            del mapped;gc.collect()
+            self.assertTrue(path.exists(),'borrowed view lost its backing file')
+            del view;gc.collect()
+            self.assertFalse(path.exists(),'dead build-only file retained')
+            self.assertEqual(store.metrics['retired_files'],1)
+            store.close()
+
+
+    def test_flush_buffer_option_is_forwarded_and_defaults_remain_immediate(self):
+        from McUtils.Numputils import MappedArrayFlushBuffer
+        from Psience.VPT2.Runner import VPTRuntimeOptions
+        self.assertIn('state_space_flush_buffer',VPTRuntimeOptions.__props__)
+        self.assertNotIn('state_space_flush_buffer',VPTRuntimeOptions().solver_opts)
+        buffer=MappedArrayFlushBuffer(max_bytes=1024,max_files=3)
+        opts=VPTRuntimeOptions(state_space_flush_buffer=buffer)
+        self.assertIs(opts.solver_opts['state_space_flush_buffer'],buffer)
+        with tempfile.TemporaryDirectory() as directory:
+            store=StateSpaceDiskStore(directory,block_size=2,flush_buffer={'max_bytes':4096,'max_files':3})
+            try:
+                self.assertIsInstance(store.flush_buffer,MappedArrayFlushBuffer)
+                actual=store.unique([self.ranks[:7],self.ranks[3:]])
+                np.testing.assert_array_equal(actual,np.unique(self.ranks))
+                self.assertEqual(store.flush_buffer.snapshot()['pending_files'],0)
+                self.assertGreater(store.flush_buffer.snapshot()['enqueued_files'],0)
+            finally:store.close()
+            self.assertFalse(list(Path(directory).iterdir()))
+
+    def test_real_pyrene_buffered_graph_nodes_and_pairs_match_immediate(self):
+        from McUtils.Numputils import MappedArrayFlushBuffer
+        results=[]
+        with tempfile.TemporaryDirectory() as directory:
+            for buffer,resident in [(None,None),
+                    (MappedArrayFlushBuffer(max_bytes=1024**2,max_files=8),None),
+                    (MappedArrayFlushBuffer(max_bytes=1024**2,max_files=8),4096)]:
+                store=StateSpaceDiskStore(directory,block_size=127,flush_buffer=buffer,resident_bytes=resident)
+                try:
+                    base=store.frontier(self.basis,[self.ranks])
+                    graph=DiskSelectionRuleStateSpace(base,[(1,),(-1,)])
+                    frontier=np.array(graph.to_single().indices,copy=True)
+                    pairs=np.concatenate(list(graph.iter_pair_blocks()))
+                    pairs=pairs[np.lexsort(pairs.T[::-1])]
+                    results.append((frontier,pairs))
+                    if buffer is not None:self.assertEqual(buffer.snapshot()['pending_files'],0)
+                finally:store.close()
+            self.assertFalse(list(Path(directory).iterdir()))
+        for result in results[1:]:
+            for a,b in zip(results[0],result):np.testing.assert_array_equal(a,b)
+
 
 if __name__=='__main__':unittest.main()

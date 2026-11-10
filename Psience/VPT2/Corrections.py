@@ -13,11 +13,17 @@ from ..BasisReps import (
     StateMaker, BasisStateSpaceView
 )
 from .Common import PerturbationTheoryException, _safe_dot
+# imports from merged modules
+from collections.abc import Mapping
+import numbers
+from McUtils.Formatters import TableFormatter
 
 __all__ = [
     "PerturbationTheoryCorrections",
     "AnalyticPerturbationTheoryCorrections",
-    "BasicAPTCorrections"
+    "BasicAPTCorrections",
+    "PerturbationTermOrder",
+    "AnalyticTermContributions"
 ]
 
 
@@ -27,6 +33,8 @@ class PerturbationTheoryCorrections:
     Can be used to correct other operators in the basis of the original calculation.
 
     """
+    state_formatting = 'quanta'
+
     @staticmethod
     def correction_storage_policy(mode, memory_limit, block_size, default_limit, shape):
         if mode not in {'auto', 'dense', 'sparse', 'compact'}:
@@ -95,6 +103,18 @@ class PerturbationTheoryCorrections:
             so callers can release the returned dense block after this call.
             """
             selected = np.asarray(selected)
+            if isinstance(corrections, tuple):
+                # Mixed per-order CSR/dense blocks from the opt-in recurrence.
+                expected = (len(selected), self.shape[2])
+                if selected.ndim != 1 or len(corrections) != self.shape[1] or any(
+                        level.shape != expected for level in corrections):
+                    raise ValueError('Incorrect completed correction block shape')
+                for position in np.flatnonzero(selected >= 0):
+                    index = selected[position]
+                    for order, level in enumerate(corrections):
+                        row = level.getrow(position) if sp.issparse(level) else level[position]
+                        self._set_order_row(index, order, row)
+                return
             data = np.asarray(corrections)
             if selected.ndim != 1 or data.shape != (len(selected),) + self.shape[1:]:
                 raise ValueError('Incorrect completed correction block shape')
@@ -104,6 +124,21 @@ class PerturbationTheoryCorrections:
             else:
                 for index in np.flatnonzero(present):
                     self[selected[index]] = data[index]
+
+        def _set_order_row(self, index, order, row):
+            if sp.issparse(row):
+                row = row.tocsr(copy=True)
+                row.sum_duplicates(); row.sort_indices()
+                keep = row.data != 0 if self.cutoff is None or self.cutoff < 0 else np.abs(row.data) > self.cutoff
+                values, positions = row.data[keep], row.indices[keep].astype(np.intp)
+            else:
+                row = np.asarray(row)
+                positions = np.flatnonzero(row != 0 if self.cutoff is None or self.cutoff < 0 else np.abs(row) > self.cutoff)
+                values = row[positions]
+            old_values, old_positions = self.rows[index][order]
+            self.rows[index][order] = values, positions
+            self.retained_bytes += values.nbytes+positions.nbytes-old_values.nbytes-old_positions.nbytes
+            self.peak_retained_bytes = max(self.peak_retained_bytes, self.retained_bytes)
 
         def dot(self, left, lo, right, ro):
             def vector(n, order):
@@ -127,7 +162,7 @@ class PerturbationTheoryCorrections:
                 self.retained_bytes += values.dtype.itemsize + columns.dtype.itemsize
                 self.peak_retained_bytes = max(self.peak_retained_bytes, self.retained_bytes)
 
-        def to_coupling_matrices(self, states, total_space, cutoff, logger=None, entry_filter=None):
+        def to_coupling_matrices(self, states, total_space, cutoff, logger=None, entry_filter=None, state_formatting="quanta"):
             if cutoff is None:
                 from .Common import Settings
                 cutoff = Settings.non_zero_cutoff
@@ -143,7 +178,8 @@ class PerturbationTheoryCorrections:
                     columns, values = columns[kept], values[kept]
                     if not len(values) and logger is not None:
                         logger.log_print('No corrections for state {s} at order {o}',
-                                         s=states.excitations[row], o=order)
+                                         s=states.excitations[row], o=order,
+                                         preformatter=None if state_formatting == "vector" else logger.preformat_keys({"s": lambda s: StateMaker.format_state(s, state_formatting)}))
                     if entry_filter is not None:columns, values = entry_filter(row, order, columns, values)
                     self.rows[row][order] = values, columns
                     counts[row] = len(values)
@@ -218,6 +254,23 @@ class PerturbationTheoryCorrections:
                     old[order] = row
                     self.peak_retained_bytes = max(self.peak_retained_bytes, self.retained_bytes)
 
+        def _set_order_row(self, index, order, row):
+            from McUtils.Numputils import CompactSparseRow
+            if sp.issparse(row):
+                row = row.tocsr(copy=True)
+                row.sum_duplicates(); row.sort_indices()
+                if self.cutoff is not None and self.cutoff >= 0:
+                    row.data[~(np.abs(row.data) > self.cutoff)] = 0
+                new = CompactSparseRow.from_native(row, self.block_size)
+            else:
+                new = CompactSparseRow.from_dense(row, self.cutoff, self.block_size)
+            if self._spill_store is not None:
+                new = self._spill_store.retain(new)
+            old = self.rows[index][order]
+            self.rows[index][order] = new
+            self.retained_bytes += new.nbytes-old.nbytes
+            self.peak_retained_bytes = max(self.peak_retained_bytes, self.retained_bytes)
+
         def dot(self, left, lo, right, ro):
             a, b = self.rows[left][lo].native(), self.rows[right][ro].native()
             # Preserve SparseCorrectionArray's overlap accumulation convention.
@@ -244,7 +297,7 @@ class PerturbationTheoryCorrections:
             self.retained_bytes += new.nbytes-old.nbytes
             self.peak_retained_bytes = max(self.peak_retained_bytes, self.retained_bytes)
 
-        def to_coupling_matrices(self, states, total_space, cutoff, logger=None, entry_filter=None):
+        def to_coupling_matrices(self, states, total_space, cutoff, logger=None, entry_filter=None, state_formatting="quanta"):
             from McUtils.Numputils import CompactSparseRow, RowSparseArray
             if cutoff is None:
                 from .Common import Settings
@@ -267,7 +320,8 @@ class PerturbationTheoryCorrections:
                         row = CompactSparseRow.from_dense(values, None, self.block_size)
                         if self._spill_store is not None: row = self._spill_store.retain(row)
                     if not row.nnz and logger is not None:
-                        logger.log_print('No corrections for state {s} at order {o}', s=states.excitations[index], o=order)
+                        logger.log_print('No corrections for state {s} at order {o}', s=states.excitations[index], o=order,
+                            preformatter=None if state_formatting == "vector" else logger.preformat_keys({"s": lambda s: StateMaker.format_state(s, state_formatting)}))
                     rows.append(row)
                     spaces[index].append(BasisStateSpaceView(total_space.basis, row.columns,
                         index_parent=total_space, assume_unique=True))
@@ -338,7 +392,8 @@ class PerturbationTheoryCorrections:
                  degenerate_energies=None,
                  degenerate_hamiltonians=None,
                  nondeg_hamiltonian_precision=3,
-                 logger=None
+                 logger=None,
+                 state_formatting="quanta"
                  ):
         """
         :param states:
@@ -369,6 +424,7 @@ class PerturbationTheoryCorrections:
         self.degenerate_energies = degenerate_energies
         self.degenerate_hamiltonians = degenerate_hamiltonians
         self.logger = logger
+        self.state_formatting = state_formatting
         self.nondeg_hamiltonian_precision = nondeg_hamiltonian_precision
 
     @classmethod
@@ -468,7 +524,8 @@ class PerturbationTheoryCorrections:
             degenerate_states=self.degenerate_states,
             degenerate_transformation=self.degenerate_transf,
             degenerate_energies=self.degenerate_energies,
-            logger=self.logger
+            logger=self.logger,
+            state_formatting=self.state_formatting
         )
 
     @classmethod
@@ -477,7 +534,8 @@ class PerturbationTheoryCorrections:
                                nstates, order,
                                filters=None,
                                non_zero_cutoff=1.0e-14,
-                               logger=None
+                               logger=None,
+                               state_formatting="quanta"
                                ):
         """
 
@@ -506,7 +564,7 @@ class PerturbationTheoryCorrections:
                     row, positions, values, np.sum(states.excitations[row]))
             return corrs.to_coupling_matrices(
                 states, flat_total_space, non_zero_cutoff, logger,
-                entry_filter=None if filters is None else filter_entries)
+                entry_filter=None if filters is None else filter_entries, state_formatting=state_formatting)
 
         # now we recompute reduced state spaces for use in results processing
         # and we also convert the correction vectors to sparse representations
@@ -568,7 +626,8 @@ class PerturbationTheoryCorrections:
                         if logger is not None:
                             logger.log_print("No corrections for state {s} at order {o}",
                                 s=states.excitations[i],
-                                o=o
+                                o=o,
+                                preformatter=None if state_formatting == "vector" else logger.preformat_keys({"s": lambda s: StateMaker.format_state(s, state_formatting)})
                             )
 
                     # and then we add the appropriate basis indices to the list of basis data
@@ -693,9 +752,8 @@ class PerturbationTheoryCorrections:
         # raise Exception(corrs.states.excitations, deg_group)
         with logger.block(tag="states" if label is None else label):
             logger.log_print(
-                str(
-                    self.states.take_states(deg_group).excitations
-                ).splitlines()
+                self.states.take_states(deg_group),
+                message_prepper=lambda a: StateMaker.format_states(a, self.state_formatting)
             )
         subdegs = self.take_subspace(deg_group)
 
@@ -840,7 +898,7 @@ class PerturbationTheoryCorrections:
             bad = group.take_subspace(np.where(np.logical_not(mask))[0])
             self.logger.log_print(
                 "WARNING: got degeneracy spec including states {} that are not in space of corrected states".format(
-                    bad.excitations
+                    StateMaker.format_states(bad, self.state_formatting, join=True)
                 ))
         group = group.take_subspace(np.where(mask)[0])
         # print(">..", deg_inds, self.states.find(group, missing_val=-1))
@@ -954,7 +1012,7 @@ class PerturbationTheoryCorrections:
 
         return strong_couplings
 
-    def format_strong_couplings_report(self, couplings=None, threshold=.1, int_fmt="{:>3.0f}", padding="{:<8}", join=True, use_excitations=True):
+    def format_strong_couplings_report(self, couplings=None, threshold=.1, int_fmt="{:>3.0f}", padding="{:<8}", join=True, use_excitations=True, state_formatting=None):
         """
         **LLM Docstring**
 
@@ -970,7 +1028,7 @@ class PerturbationTheoryCorrections:
         :type padding: str
         :param join: whether to join the report lines into a single string, or return them as a list
         :type join: bool
-        :param use_excitations: whether to display states as their excitation-quantum-number vectors (rather than raw basis indices)
+        :param use_excitations: whether to display occupation labels (or legacy vectors) rather than raw basis indices
         :type use_excitations: bool
         :return: the formatted report, as a single string or a list of lines
         :rtype: str | list[str]
@@ -978,16 +1036,18 @@ class PerturbationTheoryCorrections:
         if couplings is None:
             couplings = self.find_strong_couplings(threshold=threshold)
 
+        state_formatting = self.state_formatting if state_formatting is None else state_formatting
         list_fmt = " ".join(int_fmt for _ in range(self.total_basis.ndim))
+        format_state = list_fmt.format if state_formatting == "vector" else lambda *s: StateMaker.parse_state(s)
         coupling_statements = []
         for i,v in sorted(couplings.items(), key=lambda k:k[0]):
             if use_excitations:
                 i = self.states.take_states([i]).excitations[0]
-                coupling_statements.append(padding.format("state:") + list_fmt.format(*i))
+                coupling_statements.append(padding.format("state:") + format_state(*i))
                 # print(v)
                 for n,l in enumerate(v):
                     if l is not None and len(l) > 0:
-                        coupling_statements.extend(padding.format(" order {}".format(n) if j == 0 else "")+list_fmt.format(*e) for j,e in enumerate(l.excitations))
+                        coupling_statements.extend(padding.format(" order {}".format(n) if j == 0 else "")+format_state(*e) for j,e in enumerate(l.excitations))
             else:
                 coupling_statements.append(list_fmt.format(i))
                 coupling_statements.append(padding + str(v.indices))
@@ -1148,7 +1208,19 @@ class PerturbationTheoryCorrections:
                             subrep = 0
                             op.append(0)
                     else:
-                        subrep = dot(dot(wfn_corrs[a], rop), wfn_corrs[b].T)
+                        if isinstance(rop, nput.EvaluatedSparseMatrix):
+                            subrep = rop.bilinear(wfn_corrs[a], wfn_corrs[b].T)
+                            # Preserve the ordinary correction backend for the
+                            # small result so sums with stored terms retain
+                            # their existing arithmetic dispatch.
+                            if isinstance(wfn_corrs[a], nput.RowSparseArray):
+                                subrep = nput.RowSparseArray.from_native(subrep,
+                                    block_bytes=wfn_corrs[a].block_bytes,
+                                    block_size=wfn_corrs[a].block_size)
+                            elif isinstance(wfn_corrs[a], SparseArray):
+                                subrep = SparseArray.from_data(subrep)
+                        else:
+                            subrep = dot(dot(wfn_corrs[a], rop), wfn_corrs[b].T)
                         op.append(subrep)
 
                     full_ops.append([
@@ -1934,3 +2006,146 @@ class AnalyticPerturbationTheoryCorrections:
                 # self._operator_values = all_tms
 
         return self._operator_values
+
+
+
+# ---------------------------------------------------------------------------------------------
+#  Contributions (formerly VPT2/Contributions.py)
+#  Optional bra/ket/operator order diagnostics using native analytic evaluation.
+# ---------------------------------------------------------------------------------------------
+
+class PerturbationTermOrder(collections.namedtuple('_PerturbationTermOrder',
+        ['bra_order','ket_order','operator_order'])):
+    """Matrix-code key convention: (bra order, ket order, operator order)."""
+    __slots__=()
+    def __new__(cls,bra_order,ket_order,operator_order):
+        values=(bra_order,ket_order,operator_order)
+        if any(isinstance(v,(bool,np.bool_)) or not isinstance(v,numbers.Integral) or v<0 for v in values):
+            raise ValueError('bra, ket and operator orders must be nonnegative integers')
+        return super().__new__(cls,*(int(v) for v in values))
+    @property
+    def order(self):return sum(self)
+    @property
+    def analytic_filter(self):return self.ket_order,self.operator_order,self.bra_order
+    def label(self,symbol='A'):
+        return '<{}|{}({})|{}>'.format(self.bra_order,symbol,self.operator_order,self.ket_order)
+
+def _copy_pack(pack):return [[np.array(matrix,copy=True) for matrix in component] for component in pack]
+def _sum_packs(packs):
+    iterator=iter(packs);result=_copy_pack(next(iterator))
+    for pack in iterator:
+        if len(pack)!=len(result):raise ValueError('inconsistent operator component count')
+        for i,(left,right) in enumerate(zip(result,pack)):
+            if len(left)!=len(right):raise ValueError('inconsistent state block count')
+            for j,(a,b) in enumerate(zip(left,right)):
+                if a.shape!=np.shape(b):raise ValueError('inconsistent state matrix shapes')
+                result[i][j]=a+b
+    return result
+
+class AnalyticTermContributions(Mapping):
+    """Physical matrix elements by (bra,ket,operator) order, before final resonance rotation.
+
+    Each value is component -> state block -> array[bra state,ket state].
+    Individual terms are not symmetrized; Hermitian partners remain distinct.
+    """
+    def __init__(self,contributions,*,symbol,units,state_blocks,component_names=None,
+                 metadata=None,reference=None,atol=1e-11,rtol=1e-9):
+        self.contributions=dict(contributions);self.symbol=symbol;self.units=units
+        if not self.contributions:raise ValueError('at least one contribution is required')
+        self.state_blocks=[dict(bra_states=np.asarray(b['bra_states'],dtype=int),
+                                ket_states=np.asarray(b['ket_states'],dtype=int)) for b in state_blocks]
+        first=next(iter(self.contributions.values()));count=len(first)
+        self.component_names=tuple(component_names or [symbol if count==1 else '{}_{}'.format(symbol,i) for i in range(count)])
+        if len(self.component_names)!=count:raise ValueError('component_names does not match operator components')
+        self.metadata=dict(metadata or {},term_key_order=['bra_order','ket_order','operator_order'],
+            native_filter_order=['ket_order','operator_order','bra_order'],matrix_axes=['bra_state','ket_state'],
+            native_operator_correction_to_matrix_element=-1,final_resonance_rotation_applied=False)
+        self.reference=reference;self.reconstruction_error=None
+        for key,pack in self.contributions.items():
+            if len(pack)!=count:raise ValueError('inconsistent component count')
+            for component in pack:
+                if len(component)!=len(self.state_blocks):raise ValueError('inconsistent block count')
+                for matrix,states in zip(component,self.state_blocks):
+                    if np.shape(matrix)!=(len(states['bra_states']),len(states['ket_states'])):
+                        raise ValueError('contribution matrix does not match its explicit state axes')
+        if reference is not None:self.validate(atol=atol,rtol=rtol)
+    def __getitem__(self,key):return self.contributions[key]
+    def __iter__(self):return iter(self.contributions)
+    def __len__(self):return len(self.contributions)
+    @property
+    def orders(self):return tuple(sorted({key.order for key in self}))
+    @property
+    def by_order(self):return {n:{key:value for key,value in self.items() if key.order==n} for n in self.orders}
+    def term(self,key,component=0,block=0):return self[key][component][block]
+    def sum(self,order,component=None,block=None):
+        if order not in self.orders:raise KeyError(order)
+        pack=_sum_packs(value for key,value in self.items() if key.order==order)
+        if component is not None:pack=pack[component]
+        if block is not None:
+            if component is None:raise ValueError('specify component when selecting a block')
+            pack=pack[block]
+        return pack
+    def validate(self,*,atol=1e-11,rtol=1e-9):
+        if self.reference is None:raise ValueError('no independent aggregate reference was requested')
+        largest=0.
+        for n in self.orders:
+            actual=self.sum(n);expected=self.reference[n]
+            if len(actual)!=len(expected):raise ValueError('reference component count does not match contributions')
+            for a_component,e_component in zip(actual,expected):
+                if len(a_component)!=len(e_component):raise ValueError('reference block count does not match contributions')
+                for a,e in zip(a_component,e_component):
+                    if np.shape(a)!=np.shape(e):raise ValueError('reference matrix shape does not match contributions')
+                    largest=max(largest,float(np.max(np.abs(a-e),initial=0.)))
+                    np.testing.assert_allclose(a,e,atol=atol,rtol=rtol,
+                        err_msg='bra/ket/operator terms do not reconstruct native aggregate at order {}'.format(n))
+        self.reconstruction_error=largest
+        return largest
+    def rows(self,order=None,include_zeros=True):
+        records=[]
+        for key,pack in self.items():
+            if order is not None and key.order!=order:continue
+            for component,blocks in enumerate(pack):
+                for block,(matrix,states) in enumerate(zip(blocks,self.state_blocks)):
+                    for bra,ket in np.ndindex(matrix.shape):
+                        value=matrix[bra,ket].item()
+                        if not include_zeros and value==0:continue
+                        records.append(dict(order=key.order,term=tuple(key),label=key.label(self.symbol),
+                            component=self.component_names[component],block=block,
+                            bra_state=tuple(int(n) for n in states['bra_states'][bra]),
+                            ket_state=tuple(int(n) for n in states['ket_states'][ket]),value=value))
+        return records
+    def format_table(self,order=None,*,conversion=1.,units=None,include_zeros=True,number_format='{:.12g}'):
+        """Native TableFormatter output; conversion affects display only."""
+        rows=self.rows(order,include_zeros)
+        body=[[r['order'],r['label'],r['component'],r['block'],str(r['bra_state']),str(r['ket_state']),r['value']*conversion] for r in rows]
+        formatter=TableFormatter(['{}','{}','{}','{}','{}','{}',number_format],
+            headers=[['Order','Term','Component','Block','Bra state','Ket state','Value [{}]'.format(self.units if units is None else units)]],column_join=' | ')
+        return formatter.format(body)
+    def to_dict(self):
+        def array(value):
+            value=np.asarray(value)
+            return dict(real=value.real.tolist(),imag=value.imag.tolist()) if np.iscomplexobj(value) else value.tolist()
+        def pack(value):return [[array(matrix) for matrix in component] for component in value]
+        return dict(symbol=self.symbol,units=self.units,component_names=list(self.component_names),metadata=self.metadata,
+            state_blocks=[{name:value.tolist() for name,value in states.items()} for states in self.state_blocks],
+            contributions=[dict(term=list(key),order=key.order,label=key.label(self.symbol),values=pack(value)) for key,value in self.items()],
+            reference=None if self.reference is None else {str(n):pack(value) for n,value in self.reference.items()},
+            reconstruction_max_abs_error=self.reconstruction_error)
+    @classmethod
+    def collect(cls,evaluate,order,*,orders=None,term_orders=None,validate=True,**options):
+        if isinstance(order,(bool,np.bool_)) or not isinstance(order,numbers.Integral) or order<0:raise ValueError('order must be a nonnegative integer')
+        order=int(order)
+        selected_orders=list(range(order+1)) if orders is None else list(orders)
+        if not selected_orders or any(not isinstance(n,numbers.Integral) or isinstance(n,(bool,np.bool_)) or n<0 or n>order for n in selected_orders):
+            raise ValueError('orders must be nonempty integers between zero and order')
+        if term_orders is None:
+            keys=[PerturbationTermOrder(bra,ket,n-bra-ket) for n in sorted(set(selected_orders)) for bra in range(n+1) for ket in range(n-bra+1)]
+        else:
+            keys=list(dict.fromkeys(PerturbationTermOrder(*key) for key in term_orders))
+            if not keys or any(key.order>order or key.order not in selected_orders for key in keys):raise ValueError('selected term orders lie outside the requested orders')
+        contributions={key:evaluate([key.analytic_filter],key.order)[key.order] for key in keys}
+        reference=None
+        if validate:
+            reference=evaluate(None if term_orders is None else [key.analytic_filter for key in keys],order)
+            reference={n:reference[n] for n in sorted({key.order for key in keys})}
+        return cls(contributions,reference=reference,**options)

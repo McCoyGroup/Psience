@@ -36,7 +36,8 @@ class Operator:
                  zero_threshold=None,
                  skipped_indices=None,
                  chunk_size=None,
-                 contraction_method="tensor", direct_block_size=65536
+                 contraction_method="tensor", direct_block_size=65536,
+                 use_analytic_harmonic_diagonal=True
                  ):
         """
         :param funcs: The functions use to calculate representation
@@ -68,6 +69,7 @@ class Operator:
         self.quanta = tuple(quanta)
         self.mode_n = len(quanta)
         self.zero_threshold = 1.0e-14 if zero_threshold is None else zero_threshold
+        self.use_analytic_harmonic_diagonal = bool(use_analytic_harmonic_diagonal)
         # self._tensor = None
         if logger is None:
             logger = NullLogger()
@@ -1114,7 +1116,8 @@ class ContractedOperator(Operator):
                  parallelizer=None,
                  logger=None,
                  contraction_method="tensor",
-                 direct_block_size=65536
+                 direct_block_size=65536,
+                 use_analytic_harmonic_diagonal=True
                  ):
         """
 
@@ -1170,7 +1173,8 @@ class ContractedOperator(Operator):
                          zero_threshold=zero_threshold,
                          parallelizer=parallelizer,
                          logger=logger,
-                         skipped_indices=skipped_indices
+                         skipped_indices=skipped_indices,
+                         use_analytic_harmonic_diagonal=use_analytic_harmonic_diagonal
                          )
         self.chunk_size = chunk_size
 

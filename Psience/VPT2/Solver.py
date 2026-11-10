@@ -13,11 +13,12 @@ from McUtils.Combinatorics import LatticePathGenerator
 
 from ..BasisReps import (
     Representation, BasisStateSpace, BasisMultiStateSpace,
-    SelectionRuleStateSpace, BasisStateSpaceFilter, HarmonicOscillatorProductBasis
+    SelectionRuleStateSpace, BasisStateSpaceFilter, HarmonicOscillatorProductBasis, StateMaker
 )
 
 from .DegeneracySpecs import DegenerateMultiStateSpace, DegeneracySpec
 from .Common import *
+from .Common import _safe_dot
 from .Corrections import *
 
 __reload_hook__ = [ "..BasisReps", ".DegeneracySpecs", ".Corrections", ".Common" ]
@@ -33,7 +34,9 @@ class PerturbationTheorySolver:
     Supports degenerate and non-degenerate PT.
     """
 
+    evaluation_mode = None  # Old restored solvers retain their existing backend.
     default_wavefunction_workspace_bytes = 64*1024**2
+    state_formatting = 'quanta'
 
     def __init__(self,
                  perturbations, states,
@@ -71,9 +74,11 @@ class PerturbationTheorySolver:
                  nondeg_hamiltonian_precision=3,
                  memory_constrained=False,
                  wavefunction_workspace_bytes=None,
+                 sparse_low_order_corrections=False,
                  state_space_storage="auto",
                  state_space_memory_limit=5_000_000_000,
                  state_space_block_size=65536,
+                 state_space_resident_bytes=None,
                  state_space_scratch=None,
                  correction_storage="auto",
                  correction_memory_limit=None,
@@ -96,7 +101,10 @@ class PerturbationTheorySolver:
                  use_cached_basis=False,
                  use_block_recurrence=True,
                  strong_coupling_property_filter=False,
-                 strong_coupling_correction_filter=None
+                 strong_coupling_correction_filter=None,
+                 state_formatting='quanta',
+                 state_space_flush_buffer=None,
+                 evaluation_mode=None
                  ):
         """
 
@@ -120,6 +128,8 @@ class PerturbationTheorySolver:
         :type use_block_recurrence: bool
         :param logger:
         :type logger:
+        :param state_formatting: 'quanta' for compact occupation labels (default),
+            or 'vector' for the original excitation-vector diagnostics
         :param parallelizer:
         :type parallelizer:
         :param checkpointer:
@@ -132,6 +142,7 @@ class PerturbationTheorySolver:
         #     raise NotImplementedError('memory constraint handling currently broken')
 
         self.perts = perturbations
+        self.state_formatting = state_formatting
         if state_space_storage not in {'auto', 'memory', 'external'}:
             raise ValueError('state_space_storage must be auto, memory or external')
         if state_space_memory_limit is not None and (not np.isfinite(state_space_memory_limit) or state_space_memory_limit < 0):
@@ -157,9 +168,33 @@ class PerturbationTheorySolver:
                 self.state_space_estimate['estimated_bytes'] > state_space_memory_limit else 'memory')
         self.state_space_storage = state_space_storage
         self._state_space_store = None
+        self.state_space_flush_buffer = state_space_flush_buffer
         if state_space_storage == 'external':
             from ..BasisReps.ExternalStateSpaces import StateSpaceDiskStore
-            self._state_space_store = StateSpaceDiskStore(state_space_scratch,state_space_block_size,memory_limit=state_space_memory_limit)
+            self._state_space_store = StateSpaceDiskStore(state_space_scratch,state_space_block_size,
+                memory_limit=state_space_memory_limit, resident_bytes=state_space_resident_bytes,
+                flush_buffer=state_space_flush_buffer)
+            self.state_space_flush_buffer = self._state_space_store.flush_buffer
+        if evaluation_mode is not None and not (isinstance(evaluation_mode, str) and evaluation_mode == 'stored'):
+            modes = {'stored', 'positions', 'runtime', 'diagonal'}
+            if isinstance(evaluation_mode, str):
+                if evaluation_mode not in modes-{'diagonal'}:
+                    raise ValueError('Unknown evaluation_mode: '+evaluation_mode)
+                evaluation_mode = {0: 'diagonal', **{
+                    k: ('stored' if k == 1 else evaluation_mode)
+                    for k in range(1, len(perturbations))}}
+            if not isinstance(evaluation_mode, dict):
+                raise TypeError('evaluation_mode must be a mode string or an order-to-mode dictionary')
+            if any(not isinstance(k, (int, np.integer)) or k < 0 or v not in modes
+                   or (k != 0 and v == 'diagonal') for k, v in evaluation_mode.items()):
+                raise ValueError('Invalid perturbation-order evaluation policy')
+            if any(v != 'stored' for v in evaluation_mode.values()):
+                self.evaluation_mode = dict(evaluation_mode)
+            implicit = any(v in ('positions', 'runtime') for v in evaluation_mode.values())
+            if implicit and use_cached_representations:
+                raise ValueError('Runtime/positions bindings must be rebuilt; disable use_cached_representations')
+            if implicit and modify_degenerate_perturbations:
+                raise ValueError('In-place modification of implicit perturbations is unsupported; use stored evaluation')
         self._reps = None
         self.order = order
         self.state_space_iterations = state_space_iterations
@@ -287,6 +322,10 @@ class PerturbationTheorySolver:
                 or wavefunction_workspace_bytes < 1):
             raise ValueError('wavefunction_workspace_bytes must be positive integer bytes')
         self.wavefunction_workspace_bytes = int(wavefunction_workspace_bytes)
+        if sparse_low_order_corrections and (not memory_constrained or
+                correction_storage not in {'sparse', 'compact'}):
+            raise ValueError('sparse_low_order_corrections requires memory_constrained and sparse/compact storage')
+        self.sparse_low_order_corrections = bool(sparse_low_order_corrections)
         self.keep_hamiltonians=keep_hamiltonians
 
         self._coupled_states = coupled_states
@@ -426,7 +465,7 @@ class PerturbationTheorySolver:
                     solver=self,
                     full_basis=self.full_basis,
                     group_filter=group_filter,
-                    default_group_filter=(partial(self.filter_degenerate_group, block_size=self.resonance_block_size)
+                    default_group_filter=(partial(self.filter_degenerate_group, block_size=self.resonance_block_size, state_formatting=self.state_formatting)
                         if self.resonance_memory_constrained else None),
                     log_groups=True
                 ))
@@ -506,7 +545,7 @@ class PerturbationTheorySolver:
                                 self.logger.log_print(
                                     "WARNING: zero-order correction {} for state {} not used as state is not in basis".format(
                                         v * UnitsData.convert("Hartrees", "Wavenumbers"),
-                                        k
+                                        StateMaker.format_state(k, self.state_formatting)
                                     )
                                 )
                     # for k,v in self.zero_order_energy_corrections:
@@ -520,7 +559,10 @@ class PerturbationTheorySolver:
                     #             )
                     #         )
                     self._zo_engs[inds] = energies
-                self.representations[0] = SparseArray.from_diag(self._zo_engs)
+                if self.evaluation_mode is not None and self.evaluation_mode.get(0, 'stored') != 'stored':
+                    self.representations[0] = nput.EvaluatedSparseMatrix.from_diagonal_data(self._zo_engs)
+                else:
+                    self.representations[0] = SparseArray.from_diag(self._zo_engs)
         return self._zo_engs
 
     def apply_VPT(self):
@@ -535,6 +577,7 @@ class PerturbationTheorySolver:
         corrs = self.get_corrections()
         degenerate_states = corrs.degeneracies
         corrs = corrs.corrections
+        corrs.state_formatting = self.state_formatting
 
         # degeneracy_mode = self.degeneracy_mode
         # degenerate_states = self.degenerate_spaces
@@ -576,6 +619,13 @@ class PerturbationTheorySolver:
                         H = None
                 except (OSError, KeyError):
                     H = None
+                if (H is not None and self.evaluation_mode is not None
+                        and self.evaluation_mode.get(0, 'stored') == 'diagonal'):
+                    H = list(H)
+                    if not isinstance(H[0], nput.EvaluatedSparseMatrix):
+                        old = H[0]
+                        values = old._mapped_diagonal if hasattr(old, '_mapped_diagonal') else old.diag
+                        H[0] = nput.EvaluatedSparseMatrix.from_diagonal_data(values)
                 if H is None:
                     self.logger.log_print('failed to load, building instead...')
 
@@ -592,7 +642,10 @@ class PerturbationTheorySolver:
                             start = time.time()
                             H[0] = self.perts[0].get_representation_matrix(self.flat_total_space, self.flat_total_space,
                                                                            zero_element_warning=self.zero_element_warning,
-                                                                           diagonal=True
+                                                                           diagonal=True,
+                                                                           **({} if self.evaluation_mode is None else dict(
+                                                                               evaluation_mode=self.evaluation_mode.get(0, 'stored'),
+                                                                               evaluation_working_memory=self.wavefunction_workspace_bytes))
                                                                            )
                             end = time.time()
                             logger.log_print("took {t:.3f}s", t=end - start)
@@ -616,7 +669,11 @@ class PerturbationTheorySolver:
                                                                            diagonal=False,
                                                                            memory_constrained=self.memory_constrained,
                                                                            deduplication_method=self.state_space_storage,
-                                                                           deduplication_directory=self.state_space_scratch
+                                                                           deduplication_directory=self.state_space_scratch,
+                                                                           deduplication_flush_buffer=self.state_space_flush_buffer,
+                                                                           **({} if self.evaluation_mode is None else dict(
+                                                                               evaluation_mode=self.evaluation_mode.get(i+1, 'stored'),
+                                                                               evaluation_working_memory=self.wavefunction_workspace_bytes))
                                                                            )
                                     h.clear_cache()
                                     end = time.time()
@@ -637,7 +694,7 @@ class PerturbationTheorySolver:
                 directory = Path(self.hamiltonian_storage)
                 directory.mkdir(parents=True, exist_ok=True)
                 for order, matrix in enumerate(H):
-                    if isinstance(matrix, SparseArray):
+                    if isinstance(matrix, SparseArray) and not isinstance(matrix, nput.EvaluatedSparseMatrix):
                         path = directory / "H{}.npz".format(order)
                         save_sparse_matrix(path, matrix)
                         H[order] = load_sparse_matrix(path)
@@ -657,7 +714,8 @@ class PerturbationTheorySolver:
         :rtype: list[SparseArray]
         """
 
-        if self._state_space_store is not None:
+        if self._state_space_store is not None or (self.evaluation_mode is not None and
+                any(mode != 'stored' for mode in self.evaluation_mode.values())):
             # Rebuild from the merged recipes into mapped CSR. The resident
             # splice below materializes all old/new COO entries for np.unique.
             self._zo_engs = None
@@ -851,8 +909,8 @@ class PerturbationTheorySolver:
                 #TODO: add better message
                 raise ValueError(
                     "degeneracies encountered: states {} and {} are degenerate (average energy: {} stddev: {})".format(
-                        self.flat_total_space.take_subspace(degenerate_subspace).excitations,
-                        self.flat_total_space.take_subspace(zero_checks).excitations,
+                        StateMaker.format_states(self.flat_total_space.take_subspace(degenerate_subspace), self.state_formatting, join=True),
+                        StateMaker.format_states(self.flat_total_space.take_subspace(zero_checks), self.state_formatting, join=True),
                         np.average(bad_vec),
                         np.std(bad_vec)
                     ))
@@ -2068,7 +2126,7 @@ class PerturbationTheorySolver:
         return group.take_subspace(keep) if len(keep) else None
 
     @classmethod
-    def filter_degenerate_group(cls, group, states=None, basis=None, corrections=None, threshold=None, energy_cutoff=None, frequencies=None, energies=None, decoupling_overide=10, maximize_groups=True, target_modes=None, max_mode_differences=None, threshold_step_size=0.1, extra_groups=None, uncoupled_states=None, state_diff_filters=1, logger=None, block_size=65536):
+    def filter_degenerate_group(cls, group, states=None, basis=None, corrections=None, threshold=None, energy_cutoff=None, frequencies=None, energies=None, decoupling_overide=10, maximize_groups=True, target_modes=None, max_mode_differences=None, threshold_step_size=0.1, extra_groups=None, uncoupled_states=None, state_diff_filters=1, logger=None, block_size=65536, state_formatting="quanta"):
         if not isinstance(block_size,(int,np.integer)) or block_size < 1:raise ValueError('block_size must be a positive integer')
         if len(group) < 2:
             return group
@@ -2091,7 +2149,8 @@ class PerturbationTheorySolver:
                 found_pos = np.where(uncoupled_pos > -1)[0]
                 if len(found_pos) > 0:
                     if logger is not None:
-                        logger.log_print('WARNING: states {g0} were in degenerate group {g2}, coupling has been removed', g0=uncoupled_states.excitations, g2=g.excitations)
+                        logger.log_print('WARNING: states {g0} were in degenerate group {g2}, coupling has been removed', g0=uncoupled_states.excitations, g2=g.excitations,
+                            preformatter=None if state_formatting == "vector" else logger.preformat_keys({key: lambda s: StateMaker.format_states(s, state_formatting, join=True) for key in ['g0', 'g2']}))
                     mask = np.setdiff1d(np.arange(len(g)), found_pos)
                     g = g.take_subspace(mask)
                 new_groups.append(g)
@@ -2340,6 +2399,11 @@ class PerturbationTheorySolver:
         :return: `(degenerate_states, (states, perturbations, flat_total_space, N))` -- the identified degenerate groups, and the (possibly extended) states/representations/flat space/dimension to use going forward
         :rtype: tuple
         """
+        groups = self._strong_coupling_groups(spec, sc, corrs, threshold)
+        return groups, self._extend_strong_coupling_spaces(spec, groups, states)
+
+    def _strong_coupling_groups(self, spec, sc, corrs, threshold):
+        """Finish native group filtering while discovery coefficients are live."""
         sc = corrs.collapse_strong_couplings(sc)
         # self.logger.log_print(
         #     corrs.states.excitations,
@@ -2349,7 +2413,7 @@ class PerturbationTheorySolver:
             for s in sc.values():
                 self.logger.log_print(
                     s,
-                    message_prepper=lambda a: str(a.excitations).splitlines(),
+                    message_prepper=lambda a: StateMaker.format_states(a, self.state_formatting),
                     log_level=self.logger.LogLevel.Never
                 )
 
@@ -2359,18 +2423,22 @@ class PerturbationTheorySolver:
             couplings=sc,
             solver=self,
             group_filter=group_filter,
-            default_group_filter=(partial(self.filter_degenerate_group, block_size=self.resonance_block_size)
+            default_group_filter=(partial(self.filter_degenerate_group, block_size=self.resonance_block_size, state_formatting=self.state_formatting)
                 if self.resonance_memory_constrained else None),
             log_groups=True
         )
 
+        return degenerate_states
+
+    def _extend_strong_coupling_spaces(self, spec, degenerate_states, states):
+        """Extend representations after finalized groups no longer need amplitudes."""
         if spec.extend_spaces:
             missing = degenerate_states.to_single().difference(states)
             if len(missing) > 0:
                 with self.logger.block(tag='new states'):
                     self.logger.log_print(
                         missing.excitations,
-                        message_prepper=lambda a: str(np.array(a)).splitlines()
+                        message_prepper=lambda a: StateMaker.format_states(a, self.state_formatting)
                     )
                 extended_spaces = self.extend_state_spaces(missing, degenerate_states=degenerate_states)
                 if extended_spaces is not None:
@@ -2398,7 +2466,7 @@ class PerturbationTheorySolver:
             N = self.total_space_dim
             perturbations = self.representations
 
-        return degenerate_states, (states, perturbations, flat_total_space, N)
+        return states, perturbations, flat_total_space, N
 
     def _get_corrections(self,
                          perturbations,
@@ -2615,7 +2683,8 @@ class PerturbationTheorySolver:
                 non_zero_cutoff=non_zero_cutoff,
                 # filters=self.state_space_filters
                 filters=None,
-                logger=logger
+                logger=logger,
+                state_formatting=self.state_formatting
             )
 
             cs_states = SelectionRuleStateSpace(states, corr_inds, None)
@@ -2636,6 +2705,7 @@ class PerturbationTheorySolver:
                 }
                 , logger=self.logger
                 , nondeg_hamiltonian_precision=self.nondeg_hamiltonian_precision
+                , state_formatting=self.state_formatting
             )
 
             # if (
@@ -2652,9 +2722,20 @@ class PerturbationTheorySolver:
                     if handle_strong_couplings and (sc is not None and len(sc) > 0):
                         for spec in self.degeneracy_handlers:
                             if hasattr(spec, 'wfc_threshold'):
-                                degenerate_states, meta = self.construct_strong_coupling_spaces(spec, sc, corrs, states,
-                                                                                                degenerate_correction_threshold
-                                                                                                )
+                                construct = self.construct_strong_coupling_spaces
+                                if (self.memory_constrained and mode == 'compact' and
+                                        getattr(construct, '__func__', None) is
+                                        PerturbationTheorySolver.construct_strong_coupling_spaces):
+                                    degenerate_states = self._strong_coupling_groups(
+                                        spec, sc, corrs, degenerate_correction_threshold)
+                                    # The group-filter closure has returned. No amplitudes
+                                    # from this discarded pass are needed by extension.
+                                    corrs = corr_mats = corr_inds = cs_states = None
+                                    meta = self._extend_strong_coupling_spaces(spec, degenerate_states, states)
+                                else:
+                                    # Preserve existing subclass/instance overrides.
+                                    degenerate_states, meta = construct(
+                                        spec, sc, corrs, states, degenerate_correction_threshold)
                                 states, perturbations, flat_total_space, N = meta
                                 if self.correction_storage == 'compact':
                                     # This branch returns the recomputed result. Its old
@@ -2681,7 +2762,7 @@ class PerturbationTheorySolver:
                                         with self.logger.block(tag="Degenerate groups:"):
                                             for g in degenerate_states.flat:
                                                 if len(g) > 1:
-                                                    self.logger.log_print(str(g.excitations).splitlines())
+                                                    self.logger.log_print(g, message_prepper=lambda a: StateMaker.format_states(a, self.state_formatting))
                                     if self.degenerate_states is not None:
                                         degenerate_states = self.merge_deg_spaces(
                                             [degenerate_states, self.degenerate_states]
@@ -2748,36 +2829,8 @@ class PerturbationTheorySolver:
 
     PTResults = namedtuple("PTResults", ["corrections", "degeneracies"])
 
-    @staticmethod
-    def _safe_dot(a, b):
-        """
-        **LLM Docstring**
+    _safe_dot = staticmethod(_safe_dot)
 
-        Generalized dot product that treats a bare `0` operand (rather than a zero-valued array) as an exact zero result, short-circuiting the multiplication -- used throughout the perturbation-theory recursion, where many terms really are the literal integer `0` rather than zero arrays.
-
-        :param a: the left operand, or `0`
-        :type a: np.ndarray | SparseArray | int | float
-        :param b: the right operand, or `0`
-        :type b: np.ndarray | SparseArray | int | float
-        :return: `0` if either operand is a numeric zero, otherwise the dot product of `a` and `b`
-        :rtype: np.ndarray | SparseArray | int
-        """
-        # generalizes the dot product so that we can use 0 as a special value...
-        if (
-                isinstance(a, (int, np.integer, float, np.floating)) and a == 0
-                or isinstance(b, (int, np.integer, float, np.floating)) and b == 0
-        ):
-            return 0
-
-        if isinstance(a, np.ndarray):
-            doots = np.dot(a, b)
-        else:
-            doots = a.dot(b)
-
-        if isinstance(b, np.ndarray) and isinstance(doots, SparseArray):
-            doots = doots.asarray()
-
-        return doots
     def apply_VPT_equations(self,
                             state_index,
                             degenerate_space_indices,
@@ -2835,8 +2888,15 @@ class PerturbationTheorySolver:
         nstates, nbasis = len(inds), len(self.flat_total_space)
         order = self.order
         e0 = self.zero_order_energies[inds]
-        C = np.zeros((order+1, nstates, nbasis), dtype=float)
-        C[0, np.arange(nstates), inds] = 1
+        sparse_low = self.sparse_low_order_corrections
+        if sparse_low:
+            # Existing CSR selectors contain only one entry per reference.
+            selector = sp.csr_matrix((np.ones(nstates), inds, np.arange(nstates+1)),
+                                     shape=(nstates, nbasis))
+            C = [selector, None]+[np.zeros((nstates, nbasis)) for _ in range(2, order+1)]
+        else:
+            C = np.zeros((order+1, nstates, nbasis), dtype=float)
+            C[0, np.arange(nstates), inds] = 1
         F = np.zeros((order+1, nstates, nstates), dtype=float)
         F[0] = np.diag(e0)
         energies = np.zeros((nstates, order+1), dtype=float)
@@ -2848,8 +2908,8 @@ class PerturbationTheorySolver:
         p_order = np.argsort(inds)
         p_sorted = inds[p_order]
         # One denominator buffer is shared by all orders and reference states.
-        chunk_size = max(1, min(nbasis, budget//(4*C.dtype.itemsize)))
-        denominator = np.empty(chunk_size, dtype=C.dtype)
+        chunk_size = max(1, min(nbasis, budget//(4*np.dtype(float).itemsize)))
+        denominator = np.empty(chunk_size, dtype=float)
         basis_energies = self.zero_order_energies
 
         def project_product(rows, columns, product):
@@ -2864,13 +2924,35 @@ class PerturbationTheorySolver:
             else:
                 # C is real by construction; conjugating it would copy a full
                 # B-by-N correction slice for no numerical change.
-                normalizer = -.5*sum(C[i] @ C[k-i].T for i in range(1, k))
+                products = (C[i] @ C[k-i].T for i in range(1, k))
+                normalizer = -.5*sum(x.toarray() if sp.issparse(x) else x for x in products)
                 if not self.reorthogonalize_degenerate_states:
                     normalizer = np.diag(np.diag(normalizer))
             F[k] = e0[:, None]*normalizer-normalizer*e0[None, :]
-            rhs = C[k]  # Lower-order C[t] is never overwritten.
-            terms = []
-            for s in range(k, 0, -1):
+            if sparse_low and k == 1:
+                h1 = H[1].data if isinstance(H[1], SparseArray) else H[1]
+                if sp.issparse(h1):
+                    # Select before transpose: never copy the full Hamiltonian.
+                    rhs = -h1[:, inds].T.tocsr()
+                elif isinstance(h1, (int, float, np.integer, np.floating)) and h1 == 0:
+                    rhs = sp.csr_matrix((nstates, nbasis))
+                else:
+                    rhs = sp.csr_matrix(-np.asarray(h1)[:, inds].T)
+                if not np.can_cast(rhs.dtype, float, casting='same_kind'):
+                    raise TypeError('Block recurrence requires real Hamiltonian coefficients')
+                # The dense recurrence accumulates in float64 even when an
+                # input operator uses narrower floating-point/integer storage.
+                rhs = rhs.astype(float, copy=False)
+                rhs.sum_duplicates()
+                rhs.sort_indices()
+                C[k] = rhs
+                projection = -rhs[:, inds].T.toarray()
+                F[k] += projection
+                terms = [np.diag(projection)]
+            else:
+                rhs = C[k]  # Lower-order C[t] is never overwritten.
+                terms = []
+            for s in (() if sparse_low and k == 1 else range(k, 0, -1)):
                 t = k-s
                 projection = np.zeros((nstates, nstates))
                 if not isinstance(H[s], (int, float, np.integer, np.floating)):
@@ -2904,18 +2986,34 @@ class PerturbationTheorySolver:
                         raise ValueError('Unexpected unprojected near-zero denominator')
                     np.reciprocal(gap, out=gap)
                     gap[local_p] = 0
-                    np.multiply(rhs[a, start:stop], gap, out=rhs[a, start:stop])
+                    if sp.issparse(rhs):
+                        lo_row, hi_row = rhs.indptr[a:a+2]
+                        columns = rhs.indices[lo_row:hi_row]
+                        lo_col, hi_col = np.searchsorted(columns, [start, stop])
+                        values = rhs.data[lo_row+lo_col:lo_row+hi_col]
+                        np.multiply(values, gap[columns[lo_col:hi_col]-start], out=values)
+                    else:
+                        np.multiply(rhs[a, start:stop], gap, out=rhs[a, start:stop])
                 energy_terms[a, k] = (None if self.ignore_odd_orders and k % 2 else
                                       np.asarray([term[a] for term in terms]))
-            C[k][:, inds] = normalizer.T
+            if sp.issparse(C[k]):
+                # C1 has zero P projection and zero first-order normalizer.
+                C[k].eliminate_zeros()
+            else:
+                C[k][:, inds] = normalizer.T
             overlaps[:, k] = np.diag(normalizer)
-        return energies, overlaps, C.transpose(1, 0, 2), energy_terms
+        # Only the explicit sparse-low-order option changes the block container.
+        corrections = tuple(C) if sparse_low else C.transpose(1, 0, 2)
+        return energies, overlaps, corrections, energy_terms
 
     def apply_VPT_block_equations(self, group, perturbations=None, non_zero_cutoff=None):
         """Apply the same recurrence to all columns of one projected block.
 
         Corrections are stored as (order, reference state, basis state), so
         right multiplication of ket columns by F is F.T @ C in this layout.
+        With sparse_low_order_corrections=True, corrections are a tuple of
+        (reference, basis) matrices by order: CSR selectors/C1 and dense C2+.
+        The default retains the existing (reference, order, basis) ndarray.
         F is constructed from HY = YF; higher-order normalization is imposed
         before advancing the recurrence. No denominator is inverted inside P.
         """
@@ -3020,7 +3118,7 @@ class PerturbationTheorySolver:
 
         block_tag_formatter = lambda:'getting corrections for state {}/{}'.format(
             n,
-            total_state_space.take_subspace(n_ind).excitations[0]
+            StateMaker.format_state(total_state_space.take_subspace(n_ind).excitations[0], self.state_formatting)
         )
 
         with logger.block(
@@ -3158,7 +3256,7 @@ class PerturbationTheorySolver:
 
     #region Handle Post-PT Variational Stuff
     @staticmethod
-    def _fmt_depert_engs(total_state_space, base_energies):
+    def _fmt_depert_engs(total_state_space, base_energies, state_formatting='quanta'):
         """
         **LLM Docstring**
 
@@ -3176,7 +3274,7 @@ class PerturbationTheorySolver:
             """
             **LLM Docstring**
 
-            Format each state's excitation vector alongside its (ground-state-relative, where applicable) energy/frequency as a fixed-width line, for logging.
+            Format each state's padded occupation label (or legacy vector) beside its energy/frequency.
 
             :param a: unused positional arguments, accepted for logger message-formatter compatibility
             :type a: tuple
@@ -3198,13 +3296,17 @@ class PerturbationTheorySolver:
                 base_energies = base_energies - gs_eng
                 base_energies[gs_pos] = gs_eng
 
-            ndim = len(states[0])
-            fmt_str = "{:.0f} " * ndim + " {:12.4f}"
+            if state_formatting == 'vector':
+                labels = [('{:.0f} ' * len(s)).format(*s) for s in states]
+            else:
+                labels = [StateMaker.parse_state(s) for s in states]
+                width = max([len('State')] + [len(s) for s in labels]) + 1
+                labels = [s.ljust(width) for s in labels]
 
             return [label] + [
-                fmt_str.format(*s, e)
+                s + " {:12.4f}".format(e)
                 for s, e in zip(
-                    total_state_space.excitations,
+                    labels,
                     UnitsData.convert("Hartrees", "Wavenumbers") * base_energies
                 )
             ]
@@ -3240,7 +3342,7 @@ class PerturbationTheorySolver:
         logger = NullLogger() if self.logger is None else self.logger
         logger.log_print(
             None,
-            message_prepper=self._fmt_depert_engs(total_state_space, base_energies)
+            message_prepper=self._fmt_depert_engs(total_state_space, base_energies, self.state_formatting)
         )
 
         rotations = []
@@ -3337,7 +3439,7 @@ class PerturbationTheorySolver:
                 if len(d) > 1:
                     block_logger.log_print(
                         None,
-                        lambda *a:["dropping elements coupling degenerate space:"] + str(g.excitations).splitlines(),
+                        message_prepper=lambda *a: ["dropping elements coupling degenerate space:"] + StateMaker.format_states(g, self.state_formatting),
                         log_level=block_logger.LogLevel.Debug
                     )
                     idx = tuple(np.array([x for x in itertools.product(d, d) if x[0] != x[1]]).T)

@@ -12,7 +12,15 @@ from Psience.VPT2.Analytic import (
     AnalyticPerturbationTheorySolver, HamiltonianExpansionTerm,
     PerturbationTheoryEvaluator,
 )
-from Psience.VPT2.Conditional import SameStateCondition, ZeroTerm
+from Psience.VPT2.Analytic import SameStateCondition, ZeroTerm
+
+# These tests inspect evaluator statistics, which are only recorded when diagnostics are enabled.
+from Psience.VPT2.Common import Diagnostics
+def setUpModule():
+    Diagnostics.enabled = True
+def tearDownModule():
+    Diagnostics.enabled = False
+
 
 
 class AnalyticStageTimingTests(unittest.TestCase):

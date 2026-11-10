@@ -89,4 +89,88 @@ class DirectTests(unittest.TestCase):
                 out.append(value.asarray() if hasattr(value,'asarray') else value)
             np.testing.assert_allclose(*out,atol=2e-14)
 
+    @staticmethod
+    def _molecular_quadratic_fixture():
+        from pathlib import Path
+        from Psience.VPT2.Hamiltonian import PerturbationTheoryHamiltonian
+        path = Path(__file__).parent / 'TestData/HOH_freq.fchk'
+        ham = PerturbationTheoryHamiltonian.from_fchk(
+            str(path), logger=False, operator_contraction_method='direct')
+        states = BasisStateSpace.from_quanta(ham.basis, range(3))
+        return ham, states
+
+    def test_molecular_quadratic_diagonal_shortcut_is_exact(self):
+        ham, states = self._molecular_quadratic_fixture()
+        representation = ham.get_perturbations(0)[0]
+        values = []
+        for enabled in [False, True]:
+            for term in representation.computers:
+                term.operator.use_analytic_harmonic_diagonal = enabled
+            matrix = representation.get_representation_matrix(
+                states, states, diagonal=True, zero_element_warning=False)
+            values.append(matrix.asarray())
+        self.assertEqual(values[0].tobytes(), values[1].tobytes())
+        self.assertTrue(np.all(np.isfinite(values[1])))
+        # Operators restored from older checkpoints lack the new option.
+        for term in representation.computers:
+            del term.operator.use_analytic_harmonic_diagonal
+        restored = representation.get_representation_matrix(
+            states, states, diagonal=True, zero_element_warning=False)
+        self.assertEqual(values[1].tobytes(), restored.asarray().tobytes())
+
+    def test_molecular_quadratic_diagonal_components_masks_and_thresholds(self):
+        ham, states = self._molecular_quadratic_fixture()
+        pairs = BraKetSpace(states, states)
+        for word, raw in [(('x', 'x'), ham.V_terms[0]), (('p', 'p'), ham.G_terms[0])]:
+            coefficients = np.stack([raw, raw.T], axis=1)
+            for threshold, skipped in [(1e-14, None), (1., None), (1e-14, [(0, 0)])]:
+                with self.subTest(word=word, threshold=threshold, skipped=skipped):
+                    values = []
+                    for enabled in [False, True]:
+                        rep = ham.basis.representation(
+                            *word, coeffs=coefficients, axes=[[1, 0], [2, 0]],
+                            contraction_method='direct', zero_threshold=threshold,
+                            skipped_indices=skipped, use_analytic_harmonic_diagonal=enabled)
+                        values.append(rep.get_brakets(pairs))
+                    self.assertEqual(values[0].tobytes(), values[1].tobytes())
+
+    def test_molecular_mixed_diagonal_and_off_diagonal_pairs_are_exact(self):
+        ham, states = self._molecular_quadratic_fixture()
+        order = np.arange(len(states))[::-1].copy()
+        order[::3] = np.arange(len(states))[::3]
+        pairs = BraKetSpace(states, states.take_subspace(order))
+        for word, raw in [(('x', 'x'), ham.V_terms[0]), (('p', 'p'), ham.G_terms[0])]:
+            values = [ham.basis.representation(
+                *word, coeffs=raw, contraction_method='direct',
+                use_analytic_harmonic_diagonal=enabled).get_brakets(pairs)
+                for enabled in [False, True]]
+            self.assertEqual(values[0].tobytes(), values[1].tobytes())
+
+    def test_run_simple_quadratic_diagonal_option_defaults_on_and_can_disable(self):
+        from Psience.VPT2 import VPTRunner
+        ham, states = self._molecular_quadratic_fixture()
+        for options, expected in [({}, True), ({'use_analytic_harmonic_diagonal': True}, True),
+                                  ({'use_analytic_harmonic_diagonal': False}, False)]:
+            runner, _ = VPTRunner.construct(ham.molecule, states.excitations,
+                                           logger=False, degeneracy_specs='auto', **options)
+            self.assertIs(runner.hamiltonian.operator_settings['use_analytic_harmonic_diagonal'], expected)
+            h0 = runner.hamiltonian.get_perturbations(0)[0]
+            self.assertTrue(all(term.operator.use_analytic_harmonic_diagonal is expected
+                                for term in h0.computers))
+
+    def test_nonharmonic_basis_keeps_its_native_diagonal(self):
+        from Psience.BasisReps import SimpleProductBasis, LegendreBasis
+        ham, actual_states = self._molecular_quadratic_fixture()
+        basis = SimpleProductBasis(LegendreBasis, [8, 8])
+        states = BasisStateSpace(basis, actual_states.excitations[:, :2])
+        pairs = BraKetSpace(states, states)
+        for method in ['tensor', 'auto']:
+            values = []
+            for enabled in [False, True]:
+                rep = basis.representation('x', 'x', coeffs=ham.V_terms[0][:2, :2],
+                    contraction_method=method, use_analytic_harmonic_diagonal=enabled)
+                value = rep.get_brakets(pairs)
+                values.append(value.asarray() if hasattr(value, 'asarray') else value)
+            self.assertEqual(values[0].tobytes(), values[1].tobytes())
+
 if __name__=='__main__':unittest.main()
