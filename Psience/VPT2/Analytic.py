@@ -1160,7 +1160,7 @@ class AnalyticPerturbationTheorySolver:
         return parent.get_correction('block-H', BlockHamiltonianCorrection, order, **kw)
 
     @staticmethod
-    def action_expansion_powers(order):
+    def action_expansion_powers(order, *, max_degree=None):
         """Ordered positive exponent patterns through the VPT action degree.
 
         A standard even correction n has degree at most n/2+1 in actions.
@@ -1169,26 +1169,35 @@ class AnalyticPerturbationTheorySolver:
         """
         if isinstance(order,(bool,np.bool_)) or not isinstance(order,(int,np.integer)) or order < 0:
             raise ValueError('action expansion order must be a nonnegative integer')
+        if max_degree is None:max_degree=int(order)//2+1
+        if isinstance(max_degree,(bool,np.bool_)) or not isinstance(max_degree,(int,np.integer)) or max_degree<0:
+            raise ValueError('action degree must be a nonnegative integer')
         powers = [()]
-        for degree in range(1,int(order)//2+2):
+        for degree in range(1,int(max_degree)+1):
             for group in IntegerPartitioner.partitions(degree):
                 for partition in group:
                     powers.extend(tuple(int(p) for p in permutation)
                                   for permutation in UniquePermutations(partition).permutations())
         return tuple(powers)
 
-    def _action_expansion_source(self, correction, order=2):
+    def _action_expansion_source(self, correction, order=2, *, resonance_correction=False):
+        if not isinstance(resonance_correction,(bool,np.bool_)):
+            raise TypeError('resonance_correction must be boolean')
         if correction not in {'energy','hamiltonian'}:
             raise ValueError("action source must be 'energy' or 'hamiltonian'")
         if any(getattr(self,name) is not None for name in (
                 'allowed_terms','allowed_coefficients','disallowed_coefficients','allowed_energy_changes')):
             raise ValueError('unrestricted action expansion requires unfiltered correction definitions')
-        source = copy.copy(self)
-        source._op_maps,source._conditional_stacks = {},{}
+        key=('action-source',correction,int(order),bool(resonance_correction),
+             bool(self.intermediate_normalization),self.polynomial_representation,
+             tuple(self.hamiltonian_expansion[:order+1]))
+        cached=self._op_maps.get(key)
+        source = copy.copy(self) if cached is None else cached
+        if cached is None:source._op_maps,source._conditional_stacks = {},{}
         source.resonance_condition = None
-        source.resonance_independent = True
-        source.filtered_block_recurrence = correction == 'hamiltonian'
-        source.intermediate_normalization = False
+        source.resonance_independent = not resonance_correction
+        source.filtered_block_recurrence = resonance_correction or correction == 'hamiltonian'
+        source.intermediate_normalization = self.intermediate_normalization if resonance_correction else correction == 'energy'
         # Missing higher Hamiltonian orders are zero; the lower orders can
         # still generate corrections to arbitrary perturbative order.
         source.hamiltonian_expansion = source.hamiltonian_expansion[:order+1]
@@ -1203,17 +1212,23 @@ class AnalyticPerturbationTheorySolver:
                 if any(getattr(term,name) is not None for name in (
                         'allowed_terms','allowed_coefficients','disallowed_coefficients','allowed_energy_changes')):
                     raise ValueError('unrestricted action expansion requires unfiltered Hamiltonian terms')
+        self._op_maps[key]=source
         return source
 
-    def action_expansion_terms(self, order=2, correction='energy'):
-        """Symbolic unrestricted action coefficients, indexed by (PT order, powers).
+    def action_expansion_terms(self, order=2, correction='energy', *, resonance_correction=False):
+        """Reusable symbolic action coefficients indexed by (PT order, powers).
+
+        By default the coefficients are resonance independent. With
+        resonance_correction=True they represent the exact retained-domain
+        residual, including its full native normalization and F feedback.
+        Both sources remain symbolic and reusable across numerical bindings.
 
         The zero-change block Hamiltonian uses singleton P and its full Q
         complement. No runtime resonance selection enters either source.
         Kernels retain force tensors and harmonic frequency denominators.
         """
         powers = self.action_expansion_powers(order)
-        source = self._action_expansion_source(correction,order)
+        source = self._action_expansion_source(correction,order,resonance_correction=resonance_correction)
         generator = (source.energy_correction if correction == 'energy'
                      else source.block_hamiltonian_correction)
         result = {}
@@ -1222,9 +1237,52 @@ class AnalyticPerturbationTheorySolver:
             if nput.is_numeric(polynomial):
                 polynomial = SqrtChangePoly(PTTensorCoeffProductDAG.from_sum(
                     PTTensorCoeffProductSum({():polynomial},ndim=0)),(),())
-            for pattern in powers:
-                result[n,pattern] = polynomial.project_coefficients(pattern,shift=-.5)
+            selected_powers=powers
+            if resonance_correction:
+                _,polynomial=polynomial.split_change_domains()
+                if nput.is_zero(polynomial):continue
+                from .Evaluators import _polynomial_degree
+                selected_powers=self.action_expansion_powers(order,max_degree=_polynomial_degree(polynomial.poly_obj)//2)
+            for pattern in selected_powers:
+                result[n,pattern] = polynomial.project_coefficients(pattern,shift=-.5,
+                    preserve_domains=resonance_correction)
         return result
+
+    def operator_action_expansion_terms(self, order, change, operator_type='transition_moment',
+                                        base_index=None, *, shift=-.5, resonance_correction=False):
+        """Symbolic operator coefficients keyed by (order, fixed powers, free powers).
+
+        resonance_correction=True selects the exact resonance residual instead
+        of the unrestricted operator, preserving integer change domains.
+
+        Changed-mode slots remain external even when their powers are zero.
+        Positive free powers denote additional distinct spectator-mode slots.
+        Returned SqrtChangePoly kernels retain the exact transition ladder.
+        This is a coefficient extraction from native equations, not a fit.
+        """
+        self.action_expansion_powers(order)  # shared order validation
+        change = tuple(change)
+        if any(int(c) != c or c == 0 for c in change) or tuple(self.hamiltonian_expansion[0].sorted_changes(change)) != change:
+            raise ValueError('operator expansion requires a canonical nonzero change tuple, or ()')
+        from .Evaluators import _polynomial_degree
+        source = self._action_expansion_source('hamiltonian',order,resonance_correction=resonance_correction)
+        terms = {}
+        for n in range(order+1):
+            polynomial = source.operator_correction(n,operator_type=operator_type,
+                base_index=base_index).get_poly_terms(change)
+            if nput.is_zero(polynomial):
+                continue
+            if resonance_correction:
+                _,polynomial=polynomial.split_change_domains()
+                if nput.is_zero(polynomial):continue
+            degree = max(0,(_polynomial_degree(polynomial.poly_obj)-sum(map(abs,change)))//2)
+            free_patterns = self.action_expansion_powers(order,max_degree=degree)
+            for fixed_powers in itertools.product(range(degree+1),repeat=len(change)):
+                for powers in free_patterns:
+                    if sum(fixed_powers)+sum(powers) <= degree:
+                        terms[n,fixed_powers,powers] = polynomial.project_coefficients(powers,shift,
+                            fixed_powers=fixed_powers,preserve_domains=resonance_correction)
+        return terms
 
     def block_main_wavefunction_correction(self, order):
         if order == 0:
@@ -1458,6 +1516,9 @@ class PolyAtom:
             cls._cache[key] = atom
         return atom
 
+    def __fingerprint__(self):
+        return (type(self).__module__,type(self).__qualname__,self._base_coeffs,self.shift)
+
     @property
     def coeffs(self):
         if self._coeffs is None:
@@ -1500,6 +1561,9 @@ class PolyAxis:
             axis._coeffs = None
             cls._cache[atoms] = axis
         return axis
+
+    def __fingerprint__(self):
+        return (type(self).__module__,type(self).__qualname__,self.atoms)
 
     @property
     def order(self):
@@ -2742,6 +2806,11 @@ class PolyPath(ProductPTPolynomialSum):
         if Diagnostics.enabled:
             type(self)._construction_count += 1
 
+    def __fingerprint__(self):
+        # Hashes, materialized axes and comparison caches are derived state.
+        return (type(self).__module__,type(self).__qualname__,
+                self._node,self._items,self.ndim,self.reduced)
+
     @classmethod
     def _from_node(cls, kind, args, ndim, order):
         if Diagnostics.enabled:
@@ -3622,6 +3691,10 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         #         if any(all(s == 0 for s in sk) for sk in k): raise ValueError("huh")
         # self.audit()
 
+    def __fingerprint__(self):
+        return (type(self).__module__,type(self).__qualname__,
+                self.terms,self.prefactor,self.ndim if self.terms or self._ndim is not None else 0,self.reduced)
+
     def mutate(self, terms:dict=default, prefactor:'Any'=default,  canonicalize:'Any'=default, reduced:'Any'=default):
         return type(self)(
             self.terms if terms is default else terms,
@@ -4259,6 +4332,10 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
         # if canonicalize:
         #     self.terms = self.ensure_subpoly_dim(self.terms)
         # self.audit()
+
+    def __fingerprint__(self):
+        return (type(self).__module__,type(self).__qualname__,
+                self.terms,self.prefactor,self.ndim if self.terms or self._ndim is not None else 0,self.reduced)
 
     def mutate(self,
                terms:'Any'=default, *, prefactor:'Any'=default,
@@ -5291,6 +5368,10 @@ class PTTensorCoeffProductDAG(PTTensorCoeffProductSum):
         self._hash = None
         self._operator_keys = None
 
+    def __fingerprint__(self):
+        # Retain the symbolic DAG, never its cached operator/domain analyses.
+        return (type(self).__module__,type(self).__qualname__,self._node,self._ndim,self.reduced)
+
     @staticmethod
     def _freeze(arg):
         if isinstance(arg, np.ndarray):
@@ -5399,13 +5480,82 @@ class PTTensorCoeffProductDAG(PTTensorCoeffProductSum):
     def __repr__(self):
         return "TensorDAG({}; ndim={})".format(self._node[0], self._ndim)
 
-    def project_coefficients(self, powers, shift=-.5):
-        return type(self)._from_node('occupation_coefficient', (self,tuple(powers),float(shift)),
+    def project_coefficients(self, powers, shift=-.5, *, fixed_powers=(), preserve_domains=False):
+        options = ((tuple(fixed_powers),bool(preserve_domains))
+                   if fixed_powers or preserve_domains else ())
+        return type(self)._from_node('occupation_coefficient', (self,tuple(powers),float(shift))+options,
                                     ndim=self._ndim, reduced=False)
 
     def with_change_domain(self, change, retain):
         return type(self)._from_node('change_domain', (self, tuple(change), bool(retain)),
                                      ndim=self._ndim, reduced=self.reduced)
+
+    def split_change_domains(self):
+        """Return shared unrestricted and resonance-residual polynomial DAGs.
+
+        This is the exact algebra P=P_res and Q=1-P_res for nonzero
+        changes. Zero-change P has already become the identity in the native
+        recurrence. Every residual summand therefore contains a retained
+        nonzero change domain; no occupations or resonance groups are bound.
+        """
+        cls=type(self)
+        pending=[(self,False)]
+        binary={'mul_simple','rmul_simple','mul_along','rmul_along'}
+        def zero(value):return nput.is_numeric(value) and value==0
+        def make(node,args):
+            kind=node._node[0]
+            children=[a for a in args if isinstance(a,cls) or zero(a)]
+            if kind=='add':
+                if zero(args[0]):return args[1]
+                if zero(args[1]):return args[0]
+            elif kind in binary:
+                if zero(args[0]) or zero(args[1]):return 0
+            elif zero(args[0]):return 0
+            return cls._from_node(kind,tuple(args),ndim=node._ndim,reduced=node.reduced)
+        def add(left,right):
+            if zero(left):return right
+            if zero(right):return left
+            return cls._from_node('add',(left,right),ndim=max(left._ndim,right._ndim))
+        while pending:
+            node,ready=pending.pop()
+            if hasattr(node,'_change_domain_split'):continue
+            kind,*args=node._node
+            children=[arg for arg in args if isinstance(arg,cls)]
+            if not ready and children:
+                pending.append((node,True))
+                pending.extend((child,False) for child in children if not hasattr(child,'_change_domain_split'))
+                continue
+            if kind=='leaf':result=node,0
+            elif kind=='change_domain':
+                child,delta,retain=args
+                common,residual=child._change_domain_split
+                if retain:
+                    # P_res(common+residual), with no unrestricted part.
+                    result=0,node
+                else:
+                    # Q_res(common+residual) = common + Q_res residual - P_res common.
+                    kept=0 if zero(residual) else residual.with_change_domain(delta,False)
+                    removed=0 if zero(common) else common.with_change_domain(delta,True).scale(-1)
+                    result=common,add(kept,removed)
+            elif kind in binary:
+                left,right=args[:2]
+                lu,lr=left._change_domain_split if isinstance(left,cls) else (left,0)
+                ru,rr=right._change_domain_split if isinstance(right,cls) else (right,0)
+                # delta(A B) = delta(A) B + A_0 delta(B), preserving order,
+                # contraction maps, and shared full right-hand subgraphs.
+                result=(make(node,[lu,ru]+args[2:]),
+                        add(make(node,[lr,right]+args[2:]),make(node,[lu,rr]+args[2:])))
+            elif kind=='add':
+                left,right=args
+                lu,lr=left._change_domain_split;ru,rr=right._change_domain_split
+                result=add(lu,ru),add(lr,rr)
+            else:
+                common_args=[a._change_domain_split[0] if isinstance(a,cls) else a for a in args]
+                residual_args=[a._change_domain_split[1] if isinstance(a,cls) else a for a in args]
+                result=make(node,common_args),make(node,residual_args)
+            node._change_domain_split=result
+        return self._change_domain_split
+
 
     def change_equations(self):
         """Stream (integer index domains, coefficient key, ordinary equation)."""
@@ -5454,7 +5604,8 @@ class PTTensorCoeffProductDAG(PTTensorCoeffProductSum):
             for key,poly in PTTensorCoeffProductDAGEvaluationPlan(self).iter_terms():
                 collected.setdefault(key,_BalancedPolynomialAccumulator()).append(poly)
             from .Evaluators import _OccupationCoefficientProjection
-            collapse = _OccupationCoefficientProjection((),0.).compiler()
+            collapse = _OccupationCoefficientProjection((),0.,preserve_domains=(
+                bool(self._node[-1]) if len(self._node)>4 else False)).compiler()
             terms = {key:value for key,acc in collected.items()
                      if (value := collapse(key,acc.total())) is not None}
             eager = PTTensorCoeffProductSum(terms,
@@ -5813,6 +5964,22 @@ class PTTensorCoeffProductDAG(PTTensorCoeffProductSum):
                 if _change_support is None:
                     raise ValueError('change-index domains require their evaluation bindings')
                 child, delta, retain = args
+                if retain and any(delta):
+                    # Multiplication identifies aliases across children, never
+                    # within one child. A retained change must therefore have
+                    # the same nonzero quantum pattern as an actual block edge,
+                    # even while its physical axes are still floating.
+                    if 'retained_patterns' not in masks:
+                        bindings=_change_support[1]
+                        masks['retained_patterns']={tuple(sorted(int(x) for x in np.asarray(v)-u if x))
+                            for group in bindings[0] for u in map(np.asarray,group) for v in group
+                            if not np.array_equal(u,v)}
+                    if tuple(sorted(int(x) for x in delta if x)) not in masks['retained_patterns']:
+                        result=0,signature(('excluded_change_pattern',tuple(delta)))
+                        if statistics is not None:
+                            statistics['change_domains_pattern_pruned']=statistics.get('change_domains_pattern_pruned',0)+1
+                        memo[key]=result
+                        return result
                 start = project((), axes, offset)
                 end = project(delta, axes, offset)
                 mask = None
@@ -5918,7 +6085,7 @@ class PTTensorCoeffProductDAG(PTTensorCoeffProductSum):
                 elif kind not in {'add', 'scale', 'shift', 'ensure_dimension',
                                   'filter_coefficients', 'filter_energies',
                                   'prune_operators', 'combine', 'mul_simple',
-                                  'rmul_simple'}:
+                                  'rmul_simple', 'occupation_coefficient'}:
                     raise NotImplementedError('resonance pruning of tensor DAG node {}'.format(kind))
                 updated = list(args)
                 changes = [b''] * len(args)
@@ -6441,8 +6608,8 @@ class PTTensorCoeffProductDAGEvaluationPlan:
         kind, *args = node._node
         if kind == 'occupation_coefficient':
             from .Evaluators import _OccupationCoefficientProjection
-            child,powers,shift = args
-            transform = _OccupationCoefficientProjection(powers,shift).compiler()
+            child,powers,shift,*options = args
+            transform = _OccupationCoefficientProjection(powers,shift,*options).compiler()
             for key,poly in self._iter_node(child):
                 projected = transform(key,poly)
                 if projected is not None:
@@ -6542,11 +6709,20 @@ class SqrtChangePoly(PolynomialInterface):
                 self.poly_obj, self.poly_change, self.shift_start
             )
 
-    def project_coefficients(self, powers, shift=-.5):
-        if np.any(self.poly_change) or np.any(self.shift_start):
-            raise ValueError('action coefficients require an unshifted diagonal expression')
+    def split_change_domains(self):
+        """Reusable symbolic unrestricted and retained-resonance polynomials."""
+        common,residual=PTTensorCoeffProductDAG.from_sum(self.poly_obj).split_change_domains()
+        return tuple(0 if nput.is_zero(poly) else self.mutate(poly_obj=poly)
+                     for poly in (common,residual))
+
+    def project_coefficients(self, powers, shift=-.5, *, fixed_powers=(), preserve_domains=False):
+        if np.any(self.shift_start) or (np.any(self.poly_change) and len(fixed_powers) != len(self.poly_change)):
+            raise ValueError('coefficient projection requires an unshifted expression and powers for every changed mode')
+        if any(int(p) != p or p < 0 for p in tuple(fixed_powers)+tuple(powers)):
+            raise ValueError('coefficient powers must be nonnegative integers')
         dag = PTTensorCoeffProductDAG.from_sum(self.poly_obj)
-        return self.mutate(poly_obj=dag.project_coefficients(powers,shift))
+        return self.mutate(poly_obj=dag.project_coefficients(powers,shift,
+                           fixed_powers=fixed_powers,preserve_domains=preserve_domains))
 
     def mutate(self,
                poly_obj:'Any'=default,
@@ -11946,16 +12122,16 @@ class PerturbationTheoryExpressionEvaluator:
                  dag_stream_options=None, projection_bindings=None
                  ):
 
+        from .Evaluators import _current_evaluation_mode, _validate_evaluation_mode
+        evaluation_mode = _validate_evaluation_mode(
+            _current_evaluation_mode.get() if evaluation_mode is None else evaluation_mode)
+        use_actions = evaluation_mode == 'actions'
+        if evaluation_mode in {'actions', 'direct'}:
+            evaluation_mode = None  # compile selects the numerical backend
+
         # state = np.asanyarray(state)
         smol = nput.is_numeric(state_perms[0][0])
         if smol: state_perms = [state_perms]
-
-        if mode_subset_selector is not None:
-            if self.num_fixed != 0 or any(
-                    not np.all(np.asarray(perms)==np.arange(len(state)))
-                    for state,perms in state_perms):
-                raise NotImplementedError(
-                    "mode-subset selection requires diagonal requests in original mode order")
 
         if parallelizer is not None:
             parallelizer = Parallelizer.lookup(parallelizer)
@@ -12001,6 +12177,24 @@ class PerturbationTheoryExpressionEvaluator:
             compiled_context = current_compilation()
             compiled_expression = self
             pruning_signature = b''
+            from .Evaluators import AnalyticCorrectionCompiler
+            if use_actions:
+                numerical = dict(degenerate_changes=degenerate_changes,
+                    only_degenerate_terms=only_degenerate_terms,projection_bindings=projection_bindings,
+                    zero_cutoff=zero_cutoff,parallelizer=parallelizer,verbose=verbose,log_scaled=log_scaled,
+                    evaluation_mode=evaluation_mode,evaluation_backend=evaluation_backend,
+                    dag_cache_size=dag_cache_size,dag_cache_bytes=dag_cache_bytes,dag_chunk_size=dag_chunk_size,
+                    path_cache_size=path_cache_size,path_cache_bytes=path_cache_bytes,
+                    state_permutation_cache_size=state_permutation_cache_size,
+                    state_permutation_cache_bytes=state_permutation_cache_bytes,
+                    use_shared_memory=use_shared_memory,dag_stream_options=dag_stream_options,
+                    _degeneracy_identification_context=_degeneracy_identification_context)
+                res = AnalyticCorrectionCompiler.evaluate_action_expansion(
+                    compiled_expression,state_perms,coeffs,freqs,
+                    pruning_signature=pruning_signature,**numerical)
+                if smol_coeffs:res = [r[0] for r in res]
+                return res[0] if smol else res
+
             if isinstance(poly_obj, PTTensorCoeffProductDAG) and poly_obj.has_change_domains:
                 if projection_bindings is None:
                     raise ValueError('filtered block equations require resonance-change bindings')
@@ -12062,6 +12256,7 @@ class PerturbationTheoryExpressionEvaluator:
                 numerical.setdefault('use_shared_memory', use_shared_memory)
                 with _log_evaluation_time(self.logger, "evaluating compiled expression..."):
                     res = compiled.evaluate(state_perms, coeffs, freqs,
+                        mode_subset_selector=mode_subset_selector,
                         parallelizer=parallelizer if parallelizer is not None else default_parallelizer, **numerical)
                 if smol_coeffs:res = [r[0] for r in res]
                 if smol:res = res[0]
@@ -12142,15 +12337,28 @@ class PerturbationTheoryExpressionEvaluator:
 
 def _compiled_evaluation_context(method):
     import functools
+    signature = inspect.signature(method)
     @functools.wraps(method)
     def wrapped(self, *args, **kwargs):
-        from .Evaluators import compiled_evaluation_context, current_compilation
-        if not self.compile_expressions:
-            with compiled_evaluation_context(None, evaluation_options=self.evaluation_options):return method(self, *args, **kwargs)
-        if current_compilation() is not None:return method(self, *args, **kwargs)
-        with compiled_evaluation_context(self.expression_store,
-                self.compilation_options, self.evaluation_options, self.parallelizer):
-            return method(self, *args, **kwargs)
+        from .Evaluators import (compiled_evaluation_context, evaluation_mode_context,
+                                 current_compilation, _current_evaluation_plan)
+        arguments = signature.bind(self, *args, **kwargs).arguments
+        mode = arguments.get('evaluation_mode', arguments.get('opts', {}).get('evaluation_mode'))
+        with evaluation_mode_context(mode):
+            active_plan = _current_evaluation_plan.get() is not None
+            active_compilation = current_compilation() is not None
+            if (self.compile_expressions and active_compilation
+                    or not self.compile_expressions and active_plan and not active_compilation):
+                return method(self, *args, **kwargs)
+            options = dict(self.evaluation_options)
+            if active_plan:
+                options.pop('evaluation_mode', None)
+            if mode is not None:
+                options['evaluation_mode'] = mode
+            with compiled_evaluation_context(
+                    self.expression_store if self.compile_expressions else None,
+                    self.compilation_options, options, self.parallelizer):
+                return method(self, *args, **kwargs)
     return wrapped
 
 @contextlib.contextmanager
@@ -14374,6 +14582,11 @@ class PerturbationTheoryEvaluator:
 
     def _projected_corrections(self, blocks, pairs, expansions=None, freqs=None, zero_cutoff=None,
                                parallelizer=None, logger=None, verbose=False):
+        from .Evaluators import _current_evaluation_mode
+        if (_current_evaluation_mode.get() == 'actions'
+                and (self.degeneracy_handling == 'conditional'
+                     or (self.degeneracy_handling == 'projected' and (blocks is not None or pairs is not None)))):
+            raise ValueError('actions evaluation requires the native filtered recurrence')
         self._prepare_filtered_recurrence(blocks, pairs)
         if self.degeneracy_handling == 'conditional':
             return ConditionalCorrectionEvaluator(self, expansions, freqs, zero_cutoff, parallelizer,
@@ -14424,7 +14637,7 @@ class PerturbationTheoryEvaluator:
 
     def __init__(self, solver:AnalyticPerturbationTheorySolver, expansion, freqs=None, parallelizer=None,
                  expressions_folder=None, compilation_options=None, evaluation_options=None, compile=True,
-                 degeneracy_handling=None, block_recurrence=True):
+                 degeneracy_handling=None, block_recurrence=True, evaluation_mode=None):
         if not isinstance(block_recurrence, (bool, np.bool_)):
             raise TypeError("block_recurrence must be boolean")
         self.block_recurrence = bool(block_recurrence)
@@ -14434,6 +14647,8 @@ class PerturbationTheoryEvaluator:
         self._expression_store = None
         self.compilation_options = dict(compilation_options or {})
         self.evaluation_options = dict(evaluation_options or {})
+        if evaluation_mode is not None:
+            self.evaluation_options['evaluation_mode'] = evaluation_mode
         self.solver = solver
         self.expansions = expansion
         if freqs is None:
@@ -14442,6 +14657,9 @@ class PerturbationTheoryEvaluator:
             kinetic_diagonal = np.diag(kinetic) if np.ndim(kinetic) == 2 else kinetic
             freqs = np.diag(potential) + kinetic_diagonal
         self.freqs = freqs
+        from .Evaluators import _validate_evaluation_mode
+        self.evaluation_options['evaluation_mode'] = _validate_evaluation_mode(
+            self.evaluation_options.get('evaluation_mode'), nmodes=len(freqs))
         self.parallelizer = Parallelizer.lookup(parallelizer) if parallelizer is not None else None
 
     @property
@@ -14566,10 +14784,15 @@ class PerturbationTheoryEvaluator:
         parallelizer = Parallelizer.lookup(parallelizer) if parallelizer is not None else None
 
         PerturbationTheoryExpressionEvaluator._cached_expansion = None # to make paralellism work right
+        from .Evaluators import _current_evaluation_mode
+        generator=self.solver.energy_correction
+        if (_current_evaluation_mode.get()=='actions' and self.block_recurrence
+                and not self.solver.filtered_block_recurrence):
+            generator=self.solver._action_expansion_source('energy',order).energy_correction
         corrs = []
         for o in range(0, order + 1, 2):
             with logger.block(tag="Getting corrections at order {o}", o=o):
-                evaluator = self.solver.energy_correction(o)([])
+                evaluator = generator(o)([])
                 with logger.block(tag="evaluating..."):
                     start = time.time()
                     subcorrs = evaluator.evaluate(
@@ -15138,7 +15361,7 @@ class PerturbationTheoryEvaluator:
                                        logger=None,
                                        parallelizer=None,
                                        target_orders=None,
-                                       resonant_complement=False, projection_bindings=None):
+                                       resonant_complement=False, projection_bindings=None, evaluation_mode=None):
         PerturbationTheoryExpressionEvaluator._cached_expansion = None # to make paralellism work right
 
         spex = expansions is None or self.is_single_expansion(expansions)
@@ -15313,12 +15536,13 @@ class PerturbationTheoryEvaluator:
             verbose=verbose,**opts)
 
     @_timed_evaluation('Effective Hamiltonian corrections (total)')
+    @_compiled_evaluation_context
     def get_reexpressed_hamiltonian(self, states, order=None, expansions=None, freqs=None,
                                     degenerate_states=None, only_degenerate_terms=False,
                                     verbose=False, include_diagonal=False,
                                     hamiltonian_corrections=None,
                                     degenerate_blocks=None,
-                                    **opts):
+                                    evaluation_mode=None, **opts):
         """
 
         :param states:
@@ -15500,8 +15724,8 @@ class PerturbationTheoryEvaluator:
                                  operator_type=None,
                                  check_single=True,
                                  terms=None, min_order=1, verbose=False,
-                                 degenerate_blocks=None,
-                                 **opts):
+                                 degenerate_blocks=None, operator_action_expansion=False,
+                                 evaluation_mode=None, **opts):
         logger = Logger.lookup(self.solver.logger if opts.get('logger') is None else opts['logger'])
         with _log_evaluation_time(logger, "Preparing operator coefficients"):
             if check_single and self.is_single_expansion(operator_expansion, min_order=min_order):
@@ -15516,6 +15740,11 @@ class PerturbationTheoryEvaluator:
                 ]
                 base_index = len(exps[0][-1]) - 1
 
+        if not isinstance(operator_action_expansion,(bool,np.bool_)):
+            raise TypeError('operator_action_expansion must be boolean')
+        from .Evaluators import _current_evaluation_mode
+        action_token = _current_evaluation_mode.set(
+            'actions' if operator_action_expansion else _current_evaluation_mode.get())
         cur_symm = PTTensorCoeffProductSum.default_symmetrizers
         symms = PTTensorCoeffProductSum.symmetrizers()
         if len(symms) < base_index + 1:
@@ -15528,6 +15757,8 @@ class PerturbationTheoryEvaluator:
                                                    expansions, freqs, opts.get('zero_cutoff'),opts.get('parallelizer'),
                                                    logger=opts.get('logger'), verbose=verbose)
             if projected is not None:
+                if operator_action_expansion:
+                    raise ValueError('operator action expansion requires the native filtered recurrence')
                 if hasattr(projected,'validate_options'):
                     projected.validate_options(opts)
                 else:
@@ -15557,6 +15788,7 @@ class PerturbationTheoryEvaluator:
                 ),
                 verbose=verbose, **opts)
         finally:
+            _current_evaluation_mode.reset(action_token)
             PTTensorCoeffProductSum.default_symmetrizers = cur_symm
 
     @_timed_evaluation('Expression corrections (total)')

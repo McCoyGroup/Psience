@@ -3709,7 +3709,8 @@ class AnalyticVPTRunner:
                  expressions_folder=None,
                   compile=True,
                  compilation_options=None,
-                 evaluation_options=None
+                 evaluation_options=None,
+                 evaluation_mode=None
                  ):
         """
         **LLM Docstring**
@@ -3791,7 +3792,7 @@ class AnalyticVPTRunner:
                 expressions_folder=expressions_folder,
                 compile=compile,
                 compilation_options=compilation_options,
-                evaluation_options=evaluation_options,
+                evaluation_options=evaluation_options, evaluation_mode=evaluation_mode,
                 degeneracy_handling=degeneracy_handling, block_recurrence=block_recurrence
             )
         else:
@@ -3808,6 +3809,10 @@ class AnalyticVPTRunner:
             if expressions_folder is not None:self.eval.expressions_folder = expressions_folder
             if compilation_options is not None:self.eval.compilation_options = dict(compilation_options)
             if evaluation_options is not None:self.eval.evaluation_options = dict(evaluation_options)
+            from .Evaluators import _validate_evaluation_mode
+            mode = self.eval.evaluation_options.get('evaluation_mode') if evaluation_mode is None else evaluation_mode
+            self.eval.evaluation_options['evaluation_mode'] = _validate_evaluation_mode(
+                mode, nmodes=len(self.eval.freqs))
             if parallelizer is not None:self.eval.parallelizer = Parallelizer.lookup(parallelizer)
         if dipole_expansion is None and self.ham is not None:
             if expansion_order is None:
@@ -3845,6 +3850,7 @@ class AnalyticVPTRunner:
                   compile=True,
                          compilation_options=None,
                          evaluation_options=None,
+                         evaluation_mode=None,
                          **opts):
         """
         A driver powered by a classic PerturbationTheoryHamiltonian object
@@ -3898,7 +3904,7 @@ class AnalyticVPTRunner:
             expressions_folder=expressions_folder,
                 compile=compile,
             compilation_options=compilation_options,
-            evaluation_options=evaluation_options,
+            evaluation_options=evaluation_options, evaluation_mode=evaluation_mode,
             allowed_terms=allowed_terms,
             allowed_coefficients=allowed_coefficients,
             disallowed_coefficients=disallowed_coefficients,
@@ -3921,6 +3927,7 @@ class AnalyticVPTRunner:
                   compile=True,
                   compilation_options=None,
                   evaluation_options=None,
+                  evaluation_mode=None,
                   allowed_terms=None,
                   allowed_coefficients=None,
                   disallowed_coefficients=None,
@@ -4002,7 +4009,7 @@ class AnalyticVPTRunner:
                 expressions_folder=expressions_folder,
                 compile=compile,
                 compilation_options=compilation_options,
-                evaluation_options=evaluation_options,
+                evaluation_options=evaluation_options, evaluation_mode=evaluation_mode,
                 parallelizer=parallelizer,
                 expansion_order=opts.get('expansion_order', None),
                 allowed_terms=allowed_terms,
@@ -4063,6 +4070,7 @@ class AnalyticVPTRunner:
                   compile=True,
                   compilation_options=None,
                   evaluation_options=None,
+                  evaluation_mode=None,
                   parallelizer=None,
                   block_recurrence=True,
                   **settings):
@@ -4119,7 +4127,7 @@ class AnalyticVPTRunner:
             expressions_folder=expressions_folder,
                 compile=compile,
             compilation_options=compilation_options,
-            evaluation_options=evaluation_options,
+            evaluation_options=evaluation_options, evaluation_mode=evaluation_mode,
             expansion_order=opts.get('expansion_order', None),
             allowed_terms=allowed_terms,
             allowed_coefficients=allowed_coefficients,
@@ -4433,7 +4441,7 @@ class AnalyticVPTRunner:
 
     @_timed_evaluation('Energy correction call (total)')
     def get_energy_corrections(self, states, order=None, degeneracy_specs=None, zero_cutoff=None, verbose=False,
-                               state_specific_degeneracies=True):
+                               state_specific_degeneracies=True, evaluation_mode=None):
         """
         **LLM Docstring**
 
@@ -4459,7 +4467,7 @@ class AnalyticVPTRunner:
             degenerate_states=self._eval_degeneracies(states, state_specific_degeneracies),
             degenerate_blocks=states.flat_space.degenerate_states,
             verbose=verbose,
-            zero_cutoff=zero_cutoff
+            zero_cutoff=zero_cutoff, evaluation_mode=evaluation_mode
         )
     @_timed_evaluation('Overlap correction call (total)')
     def get_overlap_corrections(self,
@@ -5596,16 +5604,21 @@ class AnalyticVPTRunner:
                 only_degenerate_terms=True,
                 state_specific_degeneracies=True,
                 force_return_on_crash=True,
-                compile=None
+                compile=None,
+                operator_action_expansion=False,
+                evaluation_mode=None
                 ):
         """Run with the configured compilation policy, or an explicit per-call override."""
         previous=self.eval.compile_expressions
         if compile is not None:self.eval.compile_expressions=compile is not False
         from .Evaluators import compiled_evaluation_context
+        evaluation_options = dict(self.eval.evaluation_options)
+        if evaluation_mode is not None:
+            evaluation_options['evaluation_mode'] = evaluation_mode
         try:
             with compiled_evaluation_context(
                     self.eval.expression_store if self.eval.compile_expressions else None,
-                    self.eval.compilation_options, self.eval.evaluation_options, self.eval.parallelizer):
+                    self.eval.compilation_options, evaluation_options, self.eval.parallelizer):
                 return self._run_VPT(
                     states=states,
                     calculate_intensities=calculate_intensities,
@@ -5618,6 +5631,7 @@ class AnalyticVPTRunner:
                     handle_degeneracies=handle_degeneracies,
                     zero_cutoff=zero_cutoff,
                     transition_moment_terms=transition_moment_terms,
+                    operator_action_expansion=operator_action_expansion,
                     hamiltonian_corrections=hamiltonian_corrections,
                     clear_caches=clear_caches,
                     hamiltonian_correction_type=hamiltonian_correction_type,
@@ -5645,7 +5659,8 @@ class AnalyticVPTRunner:
                 hamiltonian_correction_type=None,
                 only_degenerate_terms=True,
                 state_specific_degeneracies=True,
-                force_return_on_crash=True
+                force_return_on_crash=True,
+                operator_action_expansion=False
                 ):
         """
         **LLM Docstring**
@@ -5839,7 +5854,8 @@ class AnalyticVPTRunner:
                             verbose=verbose,
                             zero_cutoff=zero_cutoff,
                             terms=transition_moment_terms,
-                            state_specific_degeneracies=state_specific_degeneracies
+                            state_specific_degeneracies=state_specific_degeneracies,
+                            operator_action_expansion=operator_action_expansion
                         )
                     corrs.transition_moment_corrections = transition_moments_corrs
 
@@ -5888,7 +5904,8 @@ class AnalyticVPTRunner:
                             zero_cutoff=zero_cutoff,
                             check_single=False,
                             operator_type=operator_type,
-                            state_specific_degeneracies=state_specific_degeneracies
+                            state_specific_degeneracies=state_specific_degeneracies,
+                            operator_action_expansion=operator_action_expansion
                         )
                     corrs.operator_corrections = operator_corrections
                     corrs.operator_keys = keys
@@ -5946,7 +5963,9 @@ class AnalyticVPTRunner:
                   compile=True,
                    compilation_options=None,
                    evaluation_options=None,
+                   evaluation_mode=None,
                    block_recurrence=True,
+                   operator_action_expansion=False,
                    parallelizer=None,
                    **opts
                    ):
@@ -6002,6 +6021,8 @@ class AnalyticVPTRunner:
         through the existing state-space preparation and discovery pipeline;
         no separate resonance_condition is accepted.
 
+        :param evaluation_mode: "direct" evaluates the original energy/operator expressions; "actions" evaluates exact occupation coefficients with runtime resonance domains. None selects "actions" for more than six active modes and "direct" otherwise, once during construction. The compile flag independently selects the numerical backend. Projected and conditional block evaluators require "direct".
+        :param operator_action_expansion: legacy operator-only opt in to exact occupation-coefficient evaluation of transition moments and additional operators in the native filtered branch. Resonance domains bind at evaluation time.
         :param block_recurrence: include shared symbolic F[k] feedback and block normalization in filtered handling of resolved resonances (default True); False retains the legacy filtered recurrence for comparisons. In conditional handling, select the block recurrence (True) or ordered transformation (False). Projected handling is unchanged. F corrections stay in the DAG and resonance-change domains bind only at evaluation time.
         :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
         :param expressions_folder: persistent compiled-expression shards and resumable numerical tasks; enables compilation in the controller before dispatching each correction
@@ -6021,7 +6042,7 @@ class AnalyticVPTRunner:
             expressions_folder=expressions_folder,
                 compile=compile,
             compilation_options=compilation_options,
-            evaluation_options=evaluation_options, block_recurrence=block_recurrence,
+            evaluation_options=evaluation_options, evaluation_mode=evaluation_mode, block_recurrence=block_recurrence,
             parallelizer=parallelizer,
             **opts
         )
@@ -6040,7 +6061,8 @@ class AnalyticVPTRunner:
                              hamiltonian_corrections=hamiltonian_corrections,
                              only_degenerate_terms=only_degenerate_terms,
                              state_specific_degeneracies=state_specific_degeneracies,
-                             force_return_on_crash=force_return_on_crash
+                             force_return_on_crash=force_return_on_crash,
+                             operator_action_expansion=operator_action_expansion
                              )
 
         if return_runner:

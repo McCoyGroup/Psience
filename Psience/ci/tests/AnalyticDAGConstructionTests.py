@@ -1267,5 +1267,632 @@ class AnyOrderActionExpansionTests(unittest.TestCase):
                 self.assertTrue(all(not kernel.poly_obj.has_change_domains for kernel in kernels.values()))
 
 
+class OperatorActionExpansionTests(unittest.TestCase):
+    flat = SymbolicBlockRecurrenceTests.flat
+    assertValues = SymbolicBlockRecurrenceTests.assertValues
+
+    @staticmethod
+    def hot_states():
+        states = []
+        for initial in ([0,0],[1,0],[0,2],[1,2]):
+            finals = []
+            for delta in ((1,0),(-1,0),(0,2),(1,-1),(-2,1)):
+                target = np.array(initial)+delta
+                if np.all(target >= 0):finals.append(target.tolist())
+            states.append([initial,finals])
+        return states
+
+    @staticmethod
+    def dipole():
+        return [0.,np.array([.2,.3]),np.array([[.01,.02],[.02,.03]]),np.full((2,)*3,.001)]
+
+    def test_hot_bands_mixed_changes_and_permuted_modes(self):
+        for compiled in (False,True):
+            evaluator = SymbolicActionExpansionTests.model(ndim=2,compile=compiled)
+            arguments = dict(order=2,operator_type='transition_moment')
+            expected = evaluator.get_operator_corrections(self.dipole(),self.hot_states(),**arguments)
+            actual = evaluator.get_operator_corrections(self.dipole(),self.hot_states(),
+                operator_action_expansion=True,**arguments)
+            self.assertValues(actual,expected)
+            if compiled:
+                self.assertGreater(evaluator.compilation_statistics()['operator_coefficient_cache_hits'],0)
+
+    def test_harmonic_dipole_through_fourth_order_matches_native_matrix(self):
+        from Psience.BasisReps import HarmonicOscillatorBasis
+        q = HarmonicOscillatorBasis.qmatrix_ho(32).toarray()
+        strengths = [.2,.003,.00004]
+        matrix = sum(value*np.linalg.matrix_power(q,degree)
+                     for value,degree in zip(strengths,(1,3,5)))
+        expansion = [0.]+[np.full((1,)*degree,strengths[(degree-1)//2] if degree%2 else 0.)
+                           for degree in range(1,6)]
+        requests = [[[n],[[m] for m in range(7) if (m-n)%2]] for n in (0,1,3)]
+        for compiled in (False,True):
+            solver = A.AnalyticPerturbationTheorySolver(
+                A.AnalyticPerturbationTheorySolver.from_order(2,internals=False,logger=False).hamiltonian_expansion[:1],logger=False)
+            evaluator = A.PerturbationTheoryEvaluator(solver,[[np.array([[.02]])]*2],
+                np.array([.04]),compile=compiled)
+            result = evaluator.get_operator_corrections(expansion,requests,order=4,
+                operator_type='transition_moment',operator_action_expansion=True)
+            for initial,finals,corrections in zip(result.initial_states.excitations,
+                                                 result.final_states,result.corrections):
+                expected = matrix[finals.excitations[:,0],initial[0]]
+                # The existing analytic correction API returns minus the
+                # physical matrix element; preserve that public convention.
+                np.testing.assert_allclose(-np.sum(corrections,axis=0),expected,atol=1e-12,rtol=1e-12)
+
+    def test_scalar_operator_includes_diagonal_and_constant(self):
+        requests = [[[0],[[0],[1],[2]]],[[2],[[0],[2],[3]]]]
+        for compiled in (False,True):
+            solver = A.AnalyticPerturbationTheorySolver(
+                A.AnalyticPerturbationTheorySolver.from_order(2,internals=False,logger=False).hamiltonian_expansion[:1],logger=False)
+            evaluator = A.PerturbationTheoryEvaluator(solver,[[np.array([[.02]])]*2],
+                np.array([.04]),compile=compiled)
+            expansion = [.7,np.array([.2]),np.array([[.03]])]
+            kwargs = dict(order=2,operator_type=0)
+            expected = evaluator.get_operator_corrections(expansion,requests,**kwargs)
+            actual = evaluator.get_operator_corrections(expansion,requests,operator_action_expansion=True,**kwargs)
+            self.assertValues(actual,expected)
+
+    def test_filtered_resonances_preserve_all_branches_and_opt_out(self):
+        fixture = FilteredBlockRecurrenceTests()
+        for compiled in (False,True):
+            runner = fixture.runner(compile=compiled)
+            space = runner.prep_states(fixture.states,degeneracy_specs=fixture.groups)
+            expected = runner.get_transition_moment_corrections(space,order=2)
+            with (mock.patch.object(A.ConditionalTransformationStack,'extend',side_effect=AssertionError('Conditional')),
+                  mock.patch.object(A.ProjectedCorrectionEvaluator,'__init__',side_effect=AssertionError('projected')),
+                  mock.patch.object(A.AnalyticBlockExpansion,'_scalar',side_effect=AssertionError('numeric F'))):
+                actual = runner.get_transition_moment_corrections(space,order=2,operator_action_expansion=True)
+            self.assertValues(actual,expected)
+            self.assertValues(runner.get_transition_moment_corrections(space,order=2,
+                operator_action_expansion=False),expected)
+
+    def test_domains_survive_projection_pruning_and_equation_export(self):
+        primitive = A.HamiltonianExpansionTerm([['x']],order=1,identities=[0],logger=False)
+        polynomial = A._change_domain_polynomial(primitive.get_poly_terms((1,)),(1,),True)
+        projected = polynomial.project_coefficients((),shift=0.,fixed_powers=(0,),preserve_domains=True)
+        equations = list(projected.change_equations())
+        self.assertTrue(equations)
+        self.assertEqual(equations[0][0],((True,(0,),(1,)),))
+        self.assertTrue(projected.poly_obj.has_change_domains)
+        exported = projected.poly_obj.to_eager()
+        self.assertIsInstance(exported,A.PTTensorCoeffProductSum)
+        binding = ((((0,),(1,)),),)
+        selected,_ = projected.poly_obj.select_change_domains(
+            [(np.array([2]),np.array([[0]]))],binding,1,1)
+        self.assertEqual(selected,0)
+
+    def test_symbolic_operator_coefficients_keep_zero_external_powers(self):
+        solver = A.AnalyticPerturbationTheorySolver(
+                A.AnalyticPerturbationTheorySolver.from_order(2,internals=False,logger=False).hamiltonian_expansion[:1],logger=False)
+        with (mock.patch.object(A.PolyPath,'evaluate_polynomial',side_effect=AssertionError('sampling')),
+              mock.patch.object(A.PolyPath,'to_eager',side_effect=AssertionError('eager polynomial')),
+              mock.patch.object(A.PTTensorCoeffProductDAG,'to_eager',side_effect=AssertionError('eager tensor')),
+              mock.patch.object(A.ConditionalTransformationStack,'extend',side_effect=AssertionError('Conditional'))):
+            kernels = solver.operator_action_expansion_terms(4,(1,))
+        self.assertIn((0,(0,),()),kernels)
+        self.assertIn((2,(1,),()),kernels)
+        self.assertIn((2,(0,),(1,)),kernels)
+        self.assertTrue(all(tuple(kernel.poly_change)==(1,) for kernel in kernels.values()))
+        self.assertFalse(any(kernel.poly_obj.has_change_domains for kernel in kernels.values()))
+        self.assertIn((3,5),kernels[2,(1,),()].poly_obj.operator_keys)
+
+    def test_coefficients_rebind_forces_frequencies_and_runtime_groups(self):
+        fixture = FilteredBlockRecurrenceTests()
+        alternate = {'groups':[[[1,0,0],[0,1,0]]]}
+        runner = fixture.runner()
+        for index,groups in enumerate((fixture.groups,alternate,fixture.groups)):
+            if index == 1:
+                runner.eval.expansions[1][0] *= 1.3
+                runner.eval.freqs *= 1.01
+            space = runner.prep_states(fixture.states,degeneracy_specs=groups)
+            expected = runner.get_transition_moment_corrections(space,order=2)
+            actual = runner.get_transition_moment_corrections(space,order=2,operator_action_expansion=True)
+            self.assertValues(actual,expected)
+
+    def test_disk_cache_warm_instances_and_changed_inputs(self):
+        with tempfile.TemporaryDirectory() as folder:
+            for scale in (1.,1.,1.2):
+                evaluator = SymbolicActionExpansionTests.model(ndim=2,folder=folder,scale=scale)
+                kwargs = dict(order=2,operator_type='transition_moment')
+                expected = evaluator.get_operator_corrections(self.dipole(),self.hot_states(),**kwargs)
+                before = evaluator.compilation_statistics()['compilations']
+                actual = evaluator.get_operator_corrections(self.dipole(),self.hot_states(),
+                    operator_action_expansion=True,**kwargs)
+                self.assertValues(actual,expected)
+                if scale == 1.2:
+                    self.assertEqual(evaluator.compilation_statistics()['compilations'],before)
+
+    def test_public_run_simple_flag_and_mode_validation(self):
+        self.assertIs(inspect.signature(AnalyticVPTRunner.run_simple).parameters['operator_action_expansion'].default,False)
+        evaluator = SymbolicActionExpansionTests.model(ndim=2)
+        with self.assertRaises(TypeError):
+            evaluator.get_operator_corrections(self.dipole(),self.hot_states(),order=2,operator_action_expansion='yes')
+        fixture = FilteredBlockRecurrenceTests()
+        for mode in ('projected','conditional'):
+            runner = fixture.runner(degeneracy_handling=mode)
+            space = runner.prep_states(fixture.states,degeneracy_specs=fixture.groups)
+            with self.assertRaisesRegex(ValueError,'native filtered'):
+                runner.get_transition_moment_corrections(space,order=2,operator_action_expansion=True)
+
+
+class ActionsEvaluationModeTests(unittest.TestCase):
+    assertValues = SymbolicBlockRecurrenceTests.assertValues
+    flat = SymbolicBlockRecurrenceTests.flat
+
+    def test_energy_and_operator_per_call_modes_with_both_backends(self):
+        from Psience.VPT2.Evaluators import AnalyticCorrectionCompiler as Compiler
+        for compiled in (False,True):
+            evaluator = SymbolicActionExpansionTests.model(ndim=2,compile=compiled)
+            states = np.array([[0,0],[1,0],[0,2],[2,1]])
+            expected = evaluator.get_energy_corrections(states,order=2)
+            with mock.patch.object(Compiler,'evaluate_action_expansion',wraps=Compiler.evaluate_action_expansion) as route:
+                actual = evaluator.get_energy_corrections(states,order=2,evaluation_mode='actions')
+            self.assertGreater(route.call_count,0)
+            self.assertTrue(all(not call.args[0].change for call in route.call_args_list))
+            self.assertValues(actual,expected)
+            arguments = dict(order=2,operator_type='transition_moment')
+            expected = evaluator.get_operator_corrections(OperatorActionExpansionTests.dipole(),
+                OperatorActionExpansionTests.hot_states(),**arguments)
+            with mock.patch.object(Compiler,'evaluate_action_expansion',wraps=Compiler.evaluate_action_expansion) as route:
+                actual = evaluator.get_operator_corrections(OperatorActionExpansionTests.dipole(),
+                    OperatorActionExpansionTests.hot_states(),evaluation_mode='actions',**arguments)
+            self.assertGreater(route.call_count,0)
+            self.assertTrue(any(call.args[0].change for call in route.call_args_list))
+            self.assertValues(actual,expected)
+
+    def test_filtered_blocks_energies_moments_and_hamiltonian(self):
+        fixture = FilteredBlockRecurrenceTests()
+        for compiled in (False,True):
+            runner = fixture.runner(compile=compiled)
+            for groups in (fixture.groups,{'groups':[[[1,0,0],[0,1,0]]]}):
+                expected = fixture.values(runner,groups)
+                runner.eval.evaluation_options['evaluation_mode'] = 'actions'
+                with (mock.patch.object(A.ConditionalTransformationStack,'extend',side_effect=AssertionError('Conditional')),
+                      mock.patch.object(A.ProjectedCorrectionEvaluator,'__init__',side_effect=AssertionError('projected')),
+                      mock.patch.object(A.AnalyticBlockExpansion,'_scalar',side_effect=AssertionError('numeric F'))):
+                    actual = fixture.values(runner,groups)
+                self.assertValues(actual,expected)
+                runner.eval.evaluation_options.pop('evaluation_mode')
+
+    def test_full_run_override_inherits_and_restores(self):
+        from Psience.VPT2.Evaluators import AnalyticCorrectionCompiler as Compiler, _current_evaluation_mode
+        fixture = FilteredBlockRecurrenceTests();runner = fixture.runner()
+        space = runner.prep_states(fixture.states,degeneracy_specs=fixture.groups)
+        options = dict(order=2,clear_caches=False,force_return_on_crash=False)
+        expected = runner.run_VPT(space,**options)
+        seen=[];original=Compiler.evaluate_action_expansion
+        def observe(wrapper,*args,**kwargs):
+            seen.append(tuple(wrapper.change))
+            return original(wrapper,*args,**kwargs)
+        with mock.patch.object(Compiler,'evaluate_action_expansion',side_effect=observe):
+            actual = runner.run_VPT(space,evaluation_mode='actions',**options)
+        self.assertIn((),seen);self.assertTrue(any(seen))
+        self.assertIsNone(_current_evaluation_mode.get())
+        self.assertEqual(runner.eval.evaluation_options['evaluation_mode'],'direct')
+        for name in ('energy_corrections','degenerate_hamiltonian_corrections','transition_moment_corrections'):
+            self.assertValues(getattr(actual,name),getattr(expected,name))
+        runner.eval.evaluation_options['evaluation_mode']='actions'
+        with mock.patch.object(Compiler,'evaluate_action_expansion',side_effect=AssertionError('actions selected')):
+            runner.run_VPT(space,evaluation_mode='direct',**options)
+
+    def test_public_factories_capture_mode_and_run_simple(self):
+        fixture = FilteredBlockRecurrenceTests();runner=fixture.runner()
+        for interface in (AnalyticVPTRunner,AnalyticVPTRunner.construct,AnalyticVPTRunner.from_hamiltonian,
+                          AnalyticVPTRunner.from_file,AnalyticVPTRunner.run_simple,AnalyticVPTRunner.run_VPT):
+            self.assertIn('evaluation_mode',inspect.signature(interface).parameters)
+        with mock.patch.object(AnalyticVPTRunner,'construct',return_value=(runner,fixture.states)) as construct:
+            result=AnalyticVPTRunner.run_simple('fixture',fixture.states,evaluation_mode='actions',
+                degeneracy_specs=fixture.groups,force_return_on_crash=False)
+            self.assertEqual(construct.call_args.kwargs['evaluation_mode'],'actions')
+            self.assertIsNotNone(result.energy_corrections)
+        configured=AnalyticVPTRunner(runner.eval,order=2,evaluation_mode='actions',
+            dipole_expansion=runner.dipole_expansion,logger=False,degeneracy_handling='filtered')
+        self.assertEqual(configured.eval.evaluation_options['evaluation_mode'],'actions')
+
+    def test_mode_validation_branch_identity_and_exception_cleanup(self):
+        from Psience.VPT2.Evaluators import _current_evaluation_mode, compiled_evaluation_context, current_compilation
+        fixture=FilteredBlockRecurrenceTests()
+        for branch in ('projected','conditional'):
+            runner=fixture.runner(degeneracy_handling=branch)
+            space=runner.prep_states(fixture.states,degeneracy_specs=fixture.groups)
+            for call in (runner.get_energy_corrections,runner.get_transition_moment_corrections):
+                with self.assertRaisesRegex(ValueError,'native filtered'):
+                    call(space,order=2,evaluation_mode='actions')
+            self.assertEqual(runner.eval.degeneracy_handling,branch)
+        evaluator=SymbolicActionExpansionTests.model(ndim=2)
+        with self.assertRaisesRegex(ValueError,'evaluation mode'):
+            evaluator.get_energy_corrections([[0,0]],evaluation_mode='typo')
+        with self.assertRaisesRegex(RuntimeError,'probe'):
+            with compiled_evaluation_context(evaluator.expression_store,
+                    evaluation_options={'evaluation_mode':'actions'}):
+                self.assertEqual(_current_evaluation_mode.get(),'actions')
+                self.assertNotIn('evaluation_mode',current_compilation()[2])
+                raise RuntimeError('probe')
+        self.assertIsNone(_current_evaluation_mode.get())
+
+    def test_nested_backend_selection_is_independent_of_actions(self):
+        from Psience.VPT2.Evaluators import compiled_evaluation_context, AnalyticCorrectionCompiler as Compiler
+        from Psience.VPT2.Evaluators import current_compilation, _current_evaluation_mode
+        evaluator=SymbolicActionExpansionTests.model(ndim=2,compile=False)
+        expected=evaluator.get_energy_corrections([[0,0],[1,2]],order=2)
+        seen=[];original=Compiler.evaluate_action_expansion
+        def observe(*args,**kwargs):
+            seen.append(current_compilation() is not None)
+            return original(*args,**kwargs)
+        with compiled_evaluation_context(evaluator.expression_store,evaluation_options={'evaluation_mode':'actions'}):
+            with mock.patch.object(Compiler,'evaluate_action_expansion',side_effect=observe):
+                actual=evaluator.get_energy_corrections([[0,0],[1,2]],order=2)
+            self.assertEqual(_current_evaluation_mode.get(),'actions')
+        self.assertTrue(seen);self.assertFalse(any(seen));self.assertValues(actual,expected)
+        evaluator.compile_expressions=True;seen.clear()
+        with compiled_evaluation_context(None,evaluation_options={'evaluation_mode':'actions'}):
+            with mock.patch.object(Compiler,'evaluate_action_expansion',side_effect=observe):
+                actual=evaluator.get_energy_corrections([[0,0],[1,2]],order=2)
+        self.assertTrue(seen);self.assertTrue(all(seen));self.assertValues(actual,expected)
+
+
+class ActionDirectSelectionTests(unittest.TestCase):
+    flat = SymbolicBlockRecurrenceTests.flat
+    assertValues = SymbolicBlockRecurrenceTests.assertValues
+
+    @staticmethod
+    def harmonic(modes, *, compile=True, evaluation_mode=None, evaluation_options=None,
+                 infer_freqs=False, degeneracy_handling='filtered'):
+        w=np.linspace(.011,.051,modes)
+        base=A.AnalyticPerturbationTheorySolver.from_order(2,internals=False,logger=False)
+        solver=A.AnalyticPerturbationTheorySolver(base.hamiltonian_expansion[:1],logger=False)
+        return A.PerturbationTheoryEvaluator(solver,[[np.diag(w)/2,np.diag(w)/2]],
+            freqs=None if infer_freqs else w,compile=compile,evaluation_mode=evaluation_mode,
+            evaluation_options=evaluation_options,degeneracy_handling=degeneracy_handling)
+
+    @classmethod
+    def harmonic_runner(cls,modes,**opts):
+        evaluator=cls.harmonic(modes,**opts)
+        dipole=[[0.,np.linspace(.1,.3,modes)]]
+        dipole += [[0.,np.zeros(modes)] for _ in range(2)]
+        return AnalyticVPTRunner(evaluator,order=0,logger=False,dipole_expansion=dipole,
+            compile=evaluator.compile_expressions,degeneracy_handling=evaluator.degeneracy_handling)
+
+    @staticmethod
+    def states(modes):
+        return np.concatenate((np.zeros((1,modes),dtype=int),np.eye(modes,dtype=int)))
+
+    def test_construction_threshold_and_explicit_overrides(self):
+        for modes in (1,6,7,12):
+            for infer in (False,True):
+                evaluator=self.harmonic(modes,infer_freqs=infer)
+                self.assertEqual(evaluator.evaluation_options['evaluation_mode'],
+                                 'actions' if modes>6 else 'direct')
+        for modes in (6,7):
+            for mode in ('direct','actions'):
+                evaluator=self.harmonic(modes,evaluation_mode=mode)
+                self.assertEqual(evaluator.evaluation_options['evaluation_mode'],mode)
+        for invalid in ('compiled','dag','typo'):
+            with self.assertRaisesRegex(ValueError,'during construction'):
+                self.harmonic(7,evaluation_mode=invalid)
+
+    def test_evaluation_options_and_wrapped_evaluator_resolution(self):
+        for mode in (None,'direct','actions'):
+            options={'evaluation_mode':mode}
+            evaluator=self.harmonic(7,evaluation_options=options)
+            self.assertEqual(evaluator.evaluation_options['evaluation_mode'],mode or 'actions')
+            self.assertEqual(options,{'evaluation_mode':mode})
+        evaluator=self.harmonic(7,evaluation_mode='direct',
+            evaluation_options={'evaluation_mode':'actions'})
+        runner=AnalyticVPTRunner(evaluator,order=0,logger=False,dipole_expansion=[],
+            evaluation_options={'evaluation_mode':None})
+        self.assertEqual(runner.eval.evaluation_options['evaluation_mode'],'actions')
+        runner=AnalyticVPTRunner(evaluator,order=0,logger=False,dipole_expansion=[],
+            evaluation_mode='direct')
+        self.assertEqual(runner.eval.evaluation_options['evaluation_mode'],'direct')
+
+    def test_auto_routes_energy_and_operator_with_both_backends(self):
+        from Psience.VPT2.Evaluators import AnalyticCorrectionCompiler as Compiler
+        for compiled in (False,True):
+            for modes in (6,7):
+                runner=self.harmonic_runner(modes,compile=compiled)
+                states=self.states(modes)
+                expected=(runner.get_energy_corrections(states,order=0,evaluation_mode='direct'),
+                          runner.get_transition_moment_corrections(states,order=0,evaluation_mode='direct'))
+                with mock.patch.object(Compiler,'evaluate_action_expansion',wraps=Compiler.evaluate_action_expansion) as route:
+                    actual=(runner.get_energy_corrections(states,order=0,evaluation_mode=None),
+                            runner.get_transition_moment_corrections(states,order=0,evaluation_mode=None))
+                self.assertEqual(route.call_count>0,modes>6)
+                self.assertValues(actual,expected)
+
+    def test_direct_keeps_compile_choice_and_none_inherits(self):
+        from Psience.VPT2.Evaluators import AnalyticCorrectionCompiler as Compiler, _validate_evaluation_mode
+        for compiled in (False,True):
+            evaluator=self.harmonic(7,compile=compiled)
+            store=evaluator.expression_store
+            original=store.compile
+            def validate(mode,**kwargs):
+                self.assertNotIn('nmodes',kwargs)
+                return _validate_evaluation_mode(mode,**kwargs)
+            with mock.patch('Psience.VPT2.Evaluators._validate_evaluation_mode',side_effect=validate):
+                expected=evaluator.get_energy_corrections(self.states(7),order=0,evaluation_mode=None)
+            with (mock.patch.object(Compiler,'evaluate_action_expansion',side_effect=AssertionError('actions')),
+                  mock.patch.object(store,'compile',wraps=original) as compile_call):
+                actual=evaluator.get_energy_corrections(self.states(7),order=0,evaluation_mode='direct')
+            self.assertEqual(compile_call.call_count>0,compiled)
+            self.assertValues(actual,expected)
+            self.assertEqual(evaluator.evaluation_options['evaluation_mode'],'actions')
+
+    def test_full_run_auto_and_run_simple_forwarding(self):
+        from Psience.VPT2.Evaluators import AnalyticCorrectionCompiler as Compiler
+        for modes in (6,7):
+            runner=self.harmonic_runner(modes)
+            states=self.states(modes)
+            expected=runner.run_VPT(states,evaluation_mode='direct',order=0,
+                                   clear_caches=False,force_return_on_crash=False)
+            with (mock.patch.object(AnalyticVPTRunner,'construct',return_value=(runner,states)) as construct,
+                  mock.patch.object(Compiler,'evaluate_action_expansion',wraps=Compiler.evaluate_action_expansion) as route):
+                actual=AnalyticVPTRunner.run_simple('fixture',states,evaluation_mode=None,
+                    order=0,clear_caches=False,force_return_on_crash=False)
+            self.assertIsNone(construct.call_args.kwargs['evaluation_mode'])
+            self.assertEqual(route.call_count>0,modes>6)
+            for name in ('energy_corrections','transition_moment_corrections'):
+                self.assertValues(getattr(actual,name),getattr(expected,name))
+
+    def test_direct_with_each_resonance_handling_method(self):
+        from Psience.VPT2.Evaluators import AnalyticCorrectionCompiler as Compiler
+        fixture=FilteredBlockRecurrenceTests()
+        for branch in ('filtered','projected','conditional'):
+            for compiled in (False,True):
+                runner=fixture.runner(compile=compiled,degeneracy_handling=branch)
+                space=runner.prep_states(fixture.states,degeneracy_specs=fixture.groups)
+                expected=fixture.values(runner)
+                with mock.patch.object(Compiler,'evaluate_action_expansion',side_effect=AssertionError('actions')):
+                    actual=(runner.get_energy_corrections(space,order=2,evaluation_mode='direct'),
+                            runner.get_transition_moment_corrections(space,order=2,evaluation_mode='direct'),
+                            runner.get_reexpressed_hamiltonian(space,order=2,evaluation_mode='direct'))
+                self.assertValues(actual,expected)
+                self.assertEqual(runner.eval.degeneracy_handling,branch)
+
+    def test_auto_does_not_reroute_unsupported_resonance_methods(self):
+        states=self.states(7)
+        groups={'groups':[[states[1].tolist(),states[2].tolist()]],'group_filter':'unfiltered'}
+        for branch in ('projected','conditional'):
+            runner=self.harmonic_runner(7,degeneracy_handling=branch)
+            self.assertEqual(runner.eval.evaluation_options['evaluation_mode'],'actions')
+            space=runner.prep_states(states,degeneracy_specs=groups)
+            for call in (runner.get_energy_corrections,runner.get_transition_moment_corrections,
+                         runner.get_reexpressed_hamiltonian):
+                with self.assertRaisesRegex(ValueError,'native filtered'):
+                    call(space,order=0)
+                self.assertEqual(runner.eval.degeneracy_handling,branch)
+
+    def test_action_export_and_frequency_helpers_consume_controller_mode(self):
+        from Psience.VPT2.Evaluators import AnalyticCorrectionCompiler as Compiler
+        for mode in ('direct','actions'):
+            for compiled in (False,True):
+                evaluator=self.harmonic(7,compile=compiled,evaluation_mode=mode)
+                with mock.patch.object(Compiler,'evaluate_action_expansion',side_effect=AssertionError('projected twice')):
+                    tensors,_=evaluator.get_action_expansion(order=0)
+                self.assertAlmostEqual(tensors[0],0.,places=14)
+                np.testing.assert_allclose(tensors[1],evaluator.freqs,rtol=0,atol=1e-14)
+                if compiled:
+                    initial=np.zeros(7,dtype=int);target=initial.copy();target[0]=1
+                    values=evaluator.get_frequency_corrections(initial,target,order=0)
+                    np.testing.assert_allclose(values,[evaluator.freqs[0]],rtol=0,atol=1e-14)
+
+
+class SharedActionPolynomialTests(unittest.TestCase):
+    flat=SymbolicBlockRecurrenceTests.flat
+    assertValues=SymbolicBlockRecurrenceTests.assertValues
+
+    @staticmethod
+    def model(compile=True):
+        evaluator=AnyOrderActionExpansionTests.model([
+            (1,1,[((0,),.001)]),(2,2,[((0,0),.0007)])],compile=compile)
+        evaluator.degeneracy_handling='filtered'
+        evaluator.compilation_options['free_index_reduction']=False
+        return evaluator
+
+    @staticmethod
+    def binding():
+        return [[np.array([1]),np.array([2])]]
+
+    def test_sparse_subset_counts_match_exhaustive_union(self):
+        from Psience.VPT2.Evaluators import _AnchoredModeSubset
+        for n in (3,6):
+            for supports in ((),((),),((0,),),((0,1),(1,2)),((0,),(0,1),(2,))):
+                selector=_AnchoredModeSubset((),supports)
+                for rank in range(n+1):
+                    actual=list(selector.iter_subsets(n,0,rank))
+                    expected={s for s in itertools.combinations(range(n),rank)
+                              if any(set(t)<=set(s) for t in supports)}
+                    self.assertEqual(len(actual),len(set(actual)))
+                    self.assertEqual(selector.count(n,0,rank),len(expected))
+                    self.assertEqual({tuple(sorted(s)) for s in actual},expected)
+
+    def test_floating_retained_patterns_prune_before_child_expansion(self):
+        primitive=A.HamiltonianExpansionTerm([['x']],order=1,identities=[0],logger=False)
+        leaf=primitive.get_poly_terms((1,)).poly_obj
+        poison=A.PTTensorCoeffProductDAG._from_node('must_not_expand',(leaf,),ndim=1)
+        root=poison.with_change_domain((3,),True)
+        stats={}
+        selected,_=root.select_change_domains([(np.array([0,0]),np.array([[0,1]]))],
+            ((((1,0),(0,1)),),),0,2,statistics=stats)
+        self.assertEqual(selected,0)
+        self.assertEqual(stats['change_domains_pattern_pruned'],1)
+
+    def test_uncompiled_and_compiled_blocks_through_sixth_order(self):
+        states=np.array([[0],[1],[2],[3]])
+        for compiled in (False,True):
+            evaluator=self.model(compiled)
+            for order in (2,4):
+                options=dict(order=order,degenerate_blocks=self.binding())
+                expected=evaluator.get_energy_corrections(states,evaluation_mode='direct',**options)
+                actual=evaluator.get_energy_corrections(states,evaluation_mode='actions',**options)
+                self.assertValues(actual,expected)
+            # A pure quadratic perturbation reaches sixth order with three
+            # vertices and supplies a cheap independent higher-order control.
+            evaluator=AnyOrderActionExpansionTests.model([(2,2,[((0,0),.0007)])],compile=compiled)
+            evaluator.degeneracy_handling='filtered'
+            evaluator.compilation_options['free_index_reduction']=False
+            options=dict(order=6,degenerate_blocks=[[[0],[2]]])
+            expected=evaluator.get_energy_corrections(states,evaluation_mode='direct',**options)
+            actual=evaluator.get_energy_corrections(states,evaluation_mode='actions',**options)
+            self.assertValues(actual,expected)
+
+    def test_cubic_quartic_fourth_order_matches_independent_matrix_blocks(self):
+        evaluator=AnyOrderActionExpansionTests.model([
+            (1,3,[((0,0,0),.0002)]),(2,4,[((0,0,0,0),.00001)])])
+        evaluator.compilation_options['free_index_reduction']=False
+        states=np.array([[0],[1],[2],[3]])
+        options=dict(order=4,degenerate_blocks=self.binding())
+        evaluator.degeneracy_handling='projected'
+        expected=evaluator.get_energy_corrections(states,evaluation_mode='direct',**options)
+        evaluator.degeneracy_handling='filtered'
+        actual=evaluator.get_energy_corrections(states,evaluation_mode='actions',**options)
+        self.assertValues(actual,expected)
+
+    def test_symbolic_residual_coefficient_derivative_rebinds_parameters(self):
+        evaluator=self.model()
+        kernel=evaluator.solver.action_expansion_terms(4,resonance_correction=True)[4,()]
+        derivative_terms={}
+        for key,poly in A.PTTensorCoeffProductDAGEvaluationPlan(kernel.poly_obj).iter_terms():
+            count=sum(c[:2]==(1,0) for c in key)
+            if count:
+                part=poly.scale(count)
+                derivative_terms[key]=derivative_terms.get(key,0)+part
+        derivative=kernel.mutate(poly_obj=A.PTTensorCoeffProductSum(derivative_terms,canonicalize=False))
+        requests=[(np.array([1]),np.array([[0]]))]
+        bindings={'projectors':((((1,),(2,)),),),'scalar_count':0,'scalar_order':3}
+        def evaluate(poly,scale):
+            coefficients=evaluator._prep_expansions(None)
+            coefficients=[[c.copy() if isinstance(c,np.ndarray) else c for c in row] for row in coefficients]
+            coefficients[1][0]*=scale
+            return np.asarray(A.PerturbationTheoryExpressionEvaluator(None,poly,(),logger=False).evaluate(
+                requests,coefficients,evaluator.freqs,projection_bindings=bindings,evaluation_mode='direct'))
+        h=1e-4
+        finite=(evaluate(kernel,1+h)-evaluate(kernel,1-h))/(2*h)
+        exact=evaluate(derivative,1.)
+        self.assertGreater(float(np.max(abs(exact))),1e-12)
+        np.testing.assert_allclose(exact,finite,atol=1e-12,rtol=1e-6)
+
+    def test_split_is_symbolic_and_shared_at_arbitrary_order(self):
+        evaluator=self.model();solver=evaluator.solver
+        solver.filtered_block_recurrence=True
+        with (mock.patch.object(A.PTTensorCoeffProductDAG,'to_eager',side_effect=AssertionError('eager')),
+              mock.patch.object(A.PolyPath,'evaluate_polynomial',side_effect=AssertionError('sampling')),
+              mock.patch.object(A.ConditionalTransformationStack,'extend',side_effect=AssertionError('Conditional'))):
+            full=solver.energy_correction(4).get_poly_terms(())
+            common,residual=full.split_change_domains()
+            again=full.split_change_domains()
+            self.assertIs(common.poly_obj,again[0].poly_obj)
+            self.assertIs(residual.poly_obj,again[1].poly_obj)
+            self.assertFalse(common.poly_obj.has_change_domains)
+            self.assertTrue(residual.poly_obj.has_change_domains)
+            coefficient=residual.project_coefficients((1,),shift=0.,preserve_domains=True)
+            self.assertTrue(coefficient.poly_obj.has_change_domains)
+        self.assertTrue(list(coefficient.change_equations()))
+
+    def test_public_energy_and_operator_coefficients_reuse_polynomial_objects(self):
+        evaluator=self.model();solver=evaluator.solver
+        for correction in ('energy','hamiltonian'):
+            for resonance in (False,True):
+                first=solver.action_expansion_terms(4,correction,resonance_correction=resonance)
+                second=solver.action_expansion_terms(4,correction,resonance_correction=resonance)
+                self.assertEqual(set(first),set(second));self.assertTrue(first)
+                for key in first:self.assertIs(first[key].poly_obj,second[key].poly_obj)
+                self.assertTrue(any(k[0]==4 for k in first))
+                self.assertEqual(any(p.poly_obj.has_change_domains for p in first.values()),resonance)
+        for resonance in (False,True):
+            first=solver.operator_action_expansion_terms(2,(1,),resonance_correction=resonance)
+            second=solver.operator_action_expansion_terms(2,(1,),resonance_correction=resonance)
+            self.assertTrue(first);self.assertEqual(set(first),set(second))
+            for key in first:self.assertIs(first[key].poly_obj,second[key].poly_obj)
+
+    def test_coefficients_reconstruct_full_domain_polynomial(self):
+        evaluator=self.model();evaluator.solver.filtered_block_recurrence=True
+        polynomial=evaluator.solver.energy_correction(4).get_poly_terms(())
+        common,residual=polynomial.split_change_domains()
+        states=np.array([[0],[1],[2],[3]])
+        requests=[(s,np.array([[0]])) for s in states]
+        coefficients=evaluator._prep_expansions(None)
+        bindings={'projectors':(tuple(tuple(tuple(s) for s in g) for g in self.binding()),),
+                  'scalar_order':len(coefficients),'scalar_count':0}
+        def evaluate(poly):
+            return np.asarray(A.PerturbationTheoryExpressionEvaluator(None,poly,(),logger=False).evaluate(
+                requests,coefficients,evaluator.freqs,evaluation_mode='direct',projection_bindings=bindings))
+        np.testing.assert_allclose(evaluate(polynomial),evaluate(common)+evaluate(residual),atol=1e-13,rtol=1e-11)
+        # Q=1-P is an identity on the physical oscillator space. At its lower
+        # boundary individual coefficients of differently domain-partitioned
+        # expressions need not coincide; their complete polynomial must.
+        from Psience.VPT2.Evaluators import _polynomial_degree
+        reconstructed=np.zeros((len(states),1))
+        degree=_polynomial_degree(polynomial.poly_obj)//2
+        for power in range(degree+1):
+            powers=() if power==0 else (power,)
+            base=common.project_coefficients(powers,shift=0.)
+            delta=residual.project_coefficients(powers,shift=0.,preserve_domains=True)
+            reconstructed+=(evaluate(base)+evaluate(delta))*states[:,0,None]**power
+        np.testing.assert_allclose(evaluate(polynomial),reconstructed,atol=1e-13,rtol=1e-11)
+
+    def test_rebinding_keeps_symbolic_split_and_reuses_compiled_kernels(self):
+        evaluator=self.model();states=np.array([[0],[1],[2],[3]])
+        for index,groups in enumerate((self.binding(),[[np.array([0]),np.array([1])]],self.binding())):
+            if index:
+                evaluator.expansions[1][0]*=1.1;evaluator.freqs*=1.01
+            expected=evaluator.get_energy_corrections(states,order=4,degenerate_blocks=groups,evaluation_mode='direct')
+            actual=evaluator.get_energy_corrections(states,order=4,degenerate_blocks=groups,evaluation_mode='actions')
+            self.assertValues(actual,expected)
+            full=evaluator.solver.energy_correction(4).get_poly_terms(())
+            pair=full.split_change_domains()
+            if index:self.assertIs(pair[0].poly_obj,saved[0].poly_obj);self.assertIs(pair[1].poly_obj,saved[1].poly_obj)
+            saved=pair
+        before=evaluator.compilation_statistics()['compilations']
+        evaluator.expansions[1][0]*=.9;evaluator.freqs*=.99
+        evaluator.get_energy_corrections(states,order=4,degenerate_blocks=self.binding(),evaluation_mode='actions')
+        self.assertEqual(evaluator.compilation_statistics()['compilations'],before)
+
+    def test_polynomial_definition_reuses_disk_kernel_after_lazy_analyses(self):
+        import pickle
+        from Psience.VPT2.Evaluators import AnalyticExpressionStore,_OccupationCoefficientProjection,_fingerprint
+        evaluator=self.model();evaluator.solver.filtered_block_recurrence=True
+        poly=evaluator.solver.energy_correction(2).get_poly_terms(()).project_coefficients(
+            (),shift=0.,preserve_domains=True)
+        wrapper=A.PerturbationTheoryExpressionEvaluator(None,poly,(),logger=False)
+        options=dict(projection=_OccupationCoefficientProjection((),0.,(),True),
+                     free_index_reduction=False,mode_dimension=1)
+        before=_fingerprint(poly)
+        with tempfile.TemporaryDirectory() as folder:
+            store=AnalyticExpressionStore(folder)
+            first=store.compile(wrapper,**options)
+            hash(poly.poly_obj);poly.poly_obj.operator_keys;poly.poly_obj.has_change_domains
+            # Projection/compilation materialize one-dimensional polynomial axes
+            # and fill hash, index and operator caches. These are not equations.
+            self.assertEqual(_fingerprint(poly),before)
+            restored=pickle.loads(pickle.dumps(poly))
+            self.assertEqual(_fingerprint(restored),before)
+            warm=AnalyticExpressionStore(folder)
+            second=warm.compile(A.PerturbationTheoryExpressionEvaluator(None,restored,(),logger=False),**options)
+            self.assertEqual(first.manifest['signature'],second.manifest['signature'])
+            self.assertEqual(warm.statistics()['compilations'],0)
+            self.assertEqual(warm.statistics()['cache_hits'],1)
+
+    def test_second_order_support_is_previous_retained_neighbor_schedule(self):
+        from Psience.VPT2.Evaluators import AnalyticCorrectionCompiler as Compiler
+        evaluator=SymbolicActionExpansionTests.model(ndim=3)
+        evaluator.solver.filtered_block_recurrence=True
+        term=evaluator.solver.energy_correction(2)
+        wrapper=A.PerturbationTheoryExpressionEvaluator(term,term.get_poly_terms(()),(),logger=False)
+        groups=(((0,0,0),(1,0,0),(0,1,1)),((2,0,0),(0,0,1)))
+        for state in itertools.product(range(3),repeat=3):
+            selector=Compiler._resonance_subsets(wrapper,np.array(state),np.arange(3),groups)
+            supports=set()
+            for group in groups:
+                if state not in group:continue
+                for other in group:
+                    change=np.asarray(other)-state
+                    if np.sum(abs(change)) in (1,3):supports.add(tuple(np.flatnonzero(change)))
+            for rank in range(4):
+                expected={indices for indices in itertools.combinations(range(3),rank)
+                          if any(set(s)<=set(indices) for s in supports)}
+                self.assertEqual(selector.count(3,0,rank),len(expected))
+
 if __name__ == '__main__':
     unittest.main()
