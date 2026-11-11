@@ -1152,8 +1152,9 @@ class VPTRuntimeOptions:
             merges. None keeps immediate flushes. Final mapped outputs always
             flush. Queue limits count file sizes, not process RAM or dirty pages.
         :param correction_storage: 'auto' (new preset), 'dense' (old preset), or
-            'sparse', or opt-in 'compact' (adaptive rows, packed support and row-block matrices).
-            Auto keeps the original dense collector below its budget.
+            'sparse', or 'compact' (adaptive rows, packed support and row-block matrices).
+            Auto selects compact in memory-constrained mode; otherwise it selects
+            dense or sparse according to the correction-memory budget.
         :param correction_memory_limit: dense collector switch point in bytes;
             defaults to the existing state_space_memory_limit. Explicit limits override this
             default. No scheduler-specific policy is introduced. This is not a cap
@@ -3803,8 +3804,6 @@ class AnalyticVPTRunner:
             if not isinstance(block_recurrence, (bool, np.bool_)):
                 raise TypeError('block_recurrence must be boolean')
             self.eval.block_recurrence = bool(block_recurrence)
-            if degeneracy_handling is not None:
-                self.eval.degeneracy_handling = self.eval.resolve_degeneracy_handling(degeneracy_handling)
             self.eval.compile_expressions = compile is not False
             if expressions_folder is not None:self.eval.expressions_folder = expressions_folder
             if compilation_options is not None:self.eval.compilation_options = dict(compilation_options)
@@ -3813,6 +3812,9 @@ class AnalyticVPTRunner:
             mode = self.eval.evaluation_options.get('evaluation_mode') if evaluation_mode is None else evaluation_mode
             self.eval.evaluation_options['evaluation_mode'] = _validate_evaluation_mode(
                 mode, nmodes=len(self.eval.freqs))
+            if degeneracy_handling is not None or self.eval.evaluation_options['evaluation_mode'] == 'actions':
+                self.eval.degeneracy_handling = self.eval.resolve_degeneracy_handling(
+                    degeneracy_handling, self.eval.evaluation_options['evaluation_mode'])
             if parallelizer is not None:self.eval.parallelizer = Parallelizer.lookup(parallelizer)
         if dipole_expansion is None and self.ham is not None:
             if expansion_order is None:
@@ -3839,7 +3841,7 @@ class AnalyticVPTRunner:
                          allowed_coefficients=None,
                          disallowed_coefficients=None,
                          allowed_energy_changes=None,
-                         take_diagonal_v4_terms=True,
+                         take_diagonal_v4_terms=None,
                          two_mode_only=False,
                          intermediate_normalization=None,
                          polynomial_representation='path',
@@ -3851,18 +3853,25 @@ class AnalyticVPTRunner:
                          compilation_options=None,
                          evaluation_options=None,
                          evaluation_mode=None,
+                         evaluator_defaults='new',
                          **opts):
         """
         A driver powered by a classic PerturbationTheoryHamiltonian object
 
         :param ham:
-        :param take_diagonal_v4_terms: retain all repeated-index iijk terms in V4 and G2
+        :param take_diagonal_v4_terms: None retains full quartic terms for 'new' defaults;
+            'old' defaults retain only repeated-index iijk terms in V4 and G2.
+            Explicit True/False overrides the profile.
+        :param evaluator_defaults: 'new' (default) or 'old', matching the other runner factories
         :param two_mode_only: select the stricter legacy iiii/iijj subset instead
         :param polynomial_representation: ``'path'`` for the canonical DAG backend or ``'eager'`` for timing/comparison runs
         :return:
         """
         if 'resonance_condition' in opts:
             raise TypeError('supply degeneracy_specs instead of resonance_condition')
+        resolve_evaluator_defaults(evaluator_defaults)
+        if take_diagonal_v4_terms is None:
+            take_diagonal_v4_terms = evaluator_defaults == 'old'
         exp_orders = ham._get_expansion_orders(expansion_order, order)
         exps = ham.get_perturbations(
             exp_orders,
@@ -3892,7 +3901,7 @@ class AnalyticVPTRunner:
             _.append(e)
 
         exps = _
-        return cls(
+        new = cls(
             exps,
             order,
             internals=internals,
@@ -3915,6 +3924,8 @@ class AnalyticVPTRunner:
             local_mode_couplings=ham.local_mode_couplings,
             local_mode_coupling_order=ham.local_mode_coupling_order
         )
+        new.evaluator_defaults = evaluator_defaults
+        return new
 
     @classmethod
     def construct(cls,
@@ -3939,7 +3950,7 @@ class AnalyticVPTRunner:
                   polynomial_representation='path',
                   degeneracy_handling=None,
                   block_recurrence=True,
-                  take_diagonal_v4_terms=True,
+                  take_diagonal_v4_terms=None,
                   two_mode_only=False,
                   **settings
                   ) -> tuple[AnalyticVPTRunner, MultiVPTStateSpace]:
@@ -4019,6 +4030,7 @@ class AnalyticVPTRunner:
                 polynomial_representation=polynomial_representation,
                 degeneracy_handling=degeneracy_handling, block_recurrence=block_recurrence,
                 take_diagonal_v4_terms=take_diagonal_v4_terms,
+                evaluator_defaults=runner.evaluator_defaults,
                 two_mode_only=two_mode_only,
                 intermediate_normalization=opts.get('intermediate_normalization', None),
                 corrected_fundamental_frequencies=corrected_fundamental_frequencies
@@ -4064,7 +4076,7 @@ class AnalyticVPTRunner:
                   allowed_energy_changes=None,
                   expressions_file=None,
                   polynomial_representation='path',
-                  take_diagonal_v4_terms=True,
+                  take_diagonal_v4_terms=None,
                   two_mode_only=False,
                   expressions_folder=None,
                   compile=True,
@@ -4135,6 +4147,7 @@ class AnalyticVPTRunner:
             allowed_energy_changes=allowed_energy_changes,
             polynomial_representation=polynomial_representation,
             take_diagonal_v4_terms=take_diagonal_v4_terms,
+            evaluator_defaults=runner.evaluator_defaults,
             two_mode_only=two_mode_only, block_recurrence=block_recurrence
         )
         if isinstance(new, AnalyticVPTRunner):
@@ -6032,7 +6045,7 @@ class AnalyticVPTRunner:
         through the existing state-space preparation and discovery pipeline;
         no separate resonance_condition is accepted.
 
-        :param evaluation_mode: "direct" evaluates the original energy/operator expressions; "actions" evaluates exact occupation coefficients with runtime resonance domains. None selects "actions" for more than six active modes and "direct" otherwise, once during construction. The compile flag independently selects the numerical backend. Projected and conditional block evaluators require "direct".
+        :param evaluation_mode: "direct" evaluates the original energy/operator expressions; "actions" evaluates exact occupation coefficients with runtime resonance domains. None selects "actions" for more than six active modes and "direct" otherwise, once during construction. The compile flag independently selects the numerical backend. With no explicit degeneracy_handling, actions selects filtered and direct selects projected. Explicit projected and conditional block evaluators require "direct".
         :param operator_action_expansion: legacy operator-only opt in to exact occupation-coefficient evaluation of transition moments and additional operators in the native filtered branch. Resonance domains bind at evaluation time.
         :param block_recurrence: include shared symbolic F[k] feedback and block normalization in filtered handling of resolved resonances (default True); False retains the legacy filtered recurrence for comparisons. In conditional handling, select the block recurrence (True) or ordered transformation (False). Projected handling is unchanged. F corrections stay in the DAG and resonance-change domains bind only at evaluation time.
         :param compile: Compile final expressions by default; False selects the uncompiled evaluator.

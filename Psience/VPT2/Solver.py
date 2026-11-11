@@ -297,6 +297,8 @@ class PerturbationTheorySolver:
 
         self.state_space_storage = state_space_storage
         self.state_space_scratch = state_space_scratch
+        if memory_constrained and correction_storage == 'auto':
+            correction_storage = 'compact'
         self.correction_storage = correction_storage
         self.correction_block_bytes = correction_block_bytes
         self.correction_spill_directory = correction_spill_directory
@@ -304,7 +306,7 @@ class PerturbationTheorySolver:
         self.correction_spill_bytes = correction_spill_bytes
         self.correction_spill_segment_bytes = correction_spill_segment_bytes
         if correction_spill_bytes is not None and correction_storage != 'compact':
-            raise ValueError('Correction spill requires explicit correction_storage="compact"')
+            raise ValueError('Correction spill requires compact correction storage')
         self.correction_memory_limit = correction_memory_limit
         self.correction_block_size = self.state_space_block_size if correction_block_size is None else correction_block_size
         self.resonance_memory_constrained = resonance_memory_constrained

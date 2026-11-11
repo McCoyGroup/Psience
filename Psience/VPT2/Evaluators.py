@@ -2404,7 +2404,7 @@ class AnalyticExpressionStore:
     def compile(self, expression, *, context=None, active_operators=None, projection=None,
                 max_terms=32768, max_bytes=64*1024**2, cache_size=100000,
                 cache_bytes=512*1024**2, node_cache_size=8192, mode_dimension=None, progress=None,
-                coalesce_combine_nodes=True,bounded_byte_accounting=True,free_index_reduction=True,
+                coalesce_combine_nodes=True,bounded_byte_accounting=True,free_index_reduction=None,
                 file=None,staging_folder=None,storage_backend=None):
         """Compile native expressions; early DAG combine-node coalescing is on by default.
 
@@ -2413,10 +2413,17 @@ class AnalyticExpressionStore:
         explicit stages as a convenience. Omitting a destination preserves the
         existing in-memory/legacy-cache interface.
 
+        Free-index reduction defaults to off for one-shot in-memory compilation
+        and on for persistent caches or explicit compiled-file/staging output.
+        Pass True or False to override that choice.
+
         Set coalesce_combine_nodes=False (also accepted through evaluator
         compilation_options) to disable that optimization for diagnostics or
         benchmarking. Bounded final-part accumulation remains active.
         """
+        if free_index_reduction is None:
+            free_index_reduction = (self.using_artifacts or self.folder is not None
+                                    or file is not None or staging_folder is not None)
         if self.using_artifacts and file is None and staging_folder is None:
             if storage_backend is not None:
                 raise ValueError('select storage_backend on the artifact session')
@@ -2453,7 +2460,13 @@ class AnalyticExpressionStore:
             bounded_byte_accounting=bounded_byte_accounting,free_index_reduction=free_index_reduction)
 
     def compile_factory(self, factory, **options):
-        """Compile or reuse an entry, accounting separately for lookup and actual construction."""
+        """Compile or reuse an entry; reduction defaults to persistent outputs only."""
+        reduction = options.get('free_index_reduction')
+        if reduction is None:
+            reduction = self.using_artifacts or self.folder is not None
+        if not isinstance(reduction, (bool, np.bool_)):
+            raise TypeError('free_index_reduction must be boolean')
+        options['free_index_reduction'] = bool(reduction)
         if self.using_artifacts:
             return self._compile_artifact(factory, **options)
         backend = options.pop('storage_backend', None)
@@ -2462,9 +2475,6 @@ class AnalyticExpressionStore:
             raise ValueError('storage_backend needs compile(..., file=...) or export_ir/compile_ir')
         started=time.perf_counter(); building=[]; completed=False
         from .Analytic import PolyPath
-        reduction=options.get('free_index_reduction',True)
-        if not isinstance(reduction,(bool,np.bool_)):
-            raise TypeError('free_index_reduction must be boolean')
         index_token=PolyPath._index_reduction_context.set(bool(reduction))
         self.timings['requests']+=1
         def build():
@@ -2486,7 +2496,7 @@ class AnalyticExpressionStore:
     def _compile_factory(self, factory, *, context, active_operators=None, projection=None,
                          max_terms=32768,max_bytes=64*1024**2,cache_size=100000,
                           cache_bytes=512*1024**2,node_cache_size=8192,mode_dimension=None,progress=None,
-                          coalesce_combine_nodes=True,bounded_byte_accounting=True,free_index_reduction=True,
+                          coalesce_combine_nodes=True,bounded_byte_accounting=True,free_index_reduction=False,
                           part_format='pickle',storage_backend='portable'):
         from .Analytic import (SqrtChangePoly,PTTensorCoeffProductDAG,PTTensorCoeffProductSum,
             PTTensorCoeffProductDAGEvaluationPlan,_BalancedPolynomialAccumulator)

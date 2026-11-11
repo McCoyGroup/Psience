@@ -15110,9 +15110,10 @@ class PerturbationTheoryEvaluator:
     use_resonant_complement = False
 
     @classmethod
-    def resolve_degeneracy_handling(cls, mode):
+    def resolve_degeneracy_handling(cls, mode, evaluation_mode=None):
         """
-        'projected' (default): degenerate blocks are treated by block projection
+        With no explicit method, actions selects 'filtered'; direct selects 'projected'.
+        'projected': degenerate blocks are treated by block projection
         (`ProjectedCorrectionEvaluator`).
         'conditional': resonance membership is inferred from the same resolved
         degeneracy-spec blocks/pairs as the other modes and bound at evaluation.
@@ -15127,7 +15128,7 @@ class PerturbationTheoryEvaluator:
         neither choice uses the Conditional stack or numerical projection.
         """
         if mode is None:
-            mode = cls.degeneracy_handling_modes[0]
+            mode = 'filtered' if evaluation_mode == 'actions' else cls.degeneracy_handling_modes[0]
         if mode not in cls.degeneracy_handling_modes:
             raise ValueError("degeneracy_handling must be one of {}, got {!r}".format(
                 cls.degeneracy_handling_modes, mode))
@@ -15194,7 +15195,6 @@ class PerturbationTheoryEvaluator:
         if not isinstance(block_recurrence, (bool, np.bool_)):
             raise TypeError("block_recurrence must be boolean")
         self.block_recurrence = bool(block_recurrence)
-        self.degeneracy_handling = self.resolve_degeneracy_handling(degeneracy_handling)
         self.expressions_folder = expressions_folder
         self.compile_expressions = compile is not False
         self._expression_store = None
@@ -15213,6 +15213,8 @@ class PerturbationTheoryEvaluator:
         from .Evaluators import _validate_evaluation_mode
         self.evaluation_options['evaluation_mode'] = _validate_evaluation_mode(
             self.evaluation_options.get('evaluation_mode'), nmodes=len(freqs))
+        self.degeneracy_handling = self.resolve_degeneracy_handling(
+            degeneracy_handling, self.evaluation_options['evaluation_mode'])
         self.parallelizer = Parallelizer.lookup(parallelizer) if parallelizer is not None else None
 
     @property

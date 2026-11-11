@@ -174,6 +174,8 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
         :rtype: dict | None | object
         """
         group_filter = self.group_filter
+        if isinstance(group_filter, str) and group_filter == 'unfiltered':
+            return None
         if isinstance(group_filter, str) and group_filter == 'default':
             group_filter = None
         if corrs is None:
@@ -217,8 +219,6 @@ class DegeneracySpec(metaclass=abc.ABCMeta):
                 uncoupled_states=self.uncoupled_states,
                 logger=logger
             )
-        elif isinstance(group_filter, str) and group_filter == 'unfiltered':
-            group_filter = None
         return group_filter
 
     format = None

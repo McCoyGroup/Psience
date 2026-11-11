@@ -47,6 +47,7 @@ def test_run_simple_builds_and_reuses_single_libraries_across_systems(tmp_path, 
     for name in names:
         with ce._CompiledAnalyticArchive.load(compiled_file, expression=name) as entry:
             assert entry.storage_backend == backend
+            assert entry.manifest['options']['free_index_reduction'] is True
             assert entry.manifest['specializations'] == dict(active_operators=None, mode_dimension=None)
     assert sorted(path.name for path in compiled_file.parent.iterdir()) == [compiled_file.name]
     assert not list(tmp_path.rglob('evaluations'))
@@ -829,3 +830,134 @@ print(json.dumps({'systems':3, 'planners_disabled':True}))
     assert completed.returncode == 0, completed.stderr
     assert json.loads(completed.stdout) == dict(systems=3, planners_disabled=True)
     assert sorted(p.name for p in recipient.iterdir()) == [target.name]
+
+
+def test_actions_implies_filtered_and_preserves_explicit_methods():
+    for nmodes in (2, 7):
+        frequencies = np.linspace(.011, .051, nmodes)
+        expansion = [[np.diag(frequencies)/2, np.diag(frequencies)/2]]
+        for mode in (None, 'direct', 'actions'):
+            base = a.AnalyticPerturbationTheorySolver.from_order(2, internals=False, logger=False)
+            solver = a.AnalyticPerturbationTheorySolver(base.hamiltonian_expansion[:1], logger=False)
+            evaluator = a.PerturbationTheoryEvaluator(solver, expansion, freqs=frequencies,
+                evaluation_mode=mode)
+            selected = mode or ('actions' if nmodes > 6 else 'direct')
+            assert evaluator.degeneracy_handling == ('filtered' if selected == 'actions' else 'projected')
+        for method in ('filtered', 'projected', 'conditional'):
+            evaluator = a.PerturbationTheoryEvaluator(solver, expansion, freqs=frequencies,
+                evaluation_mode='actions', degeneracy_handling=method)
+            assert evaluator.degeneracy_handling == method
+        evaluator = a.PerturbationTheoryEvaluator(solver, expansion, freqs=frequencies,
+            evaluation_options={'evaluation_mode':'actions'})
+        assert evaluator.degeneracy_handling == 'filtered'
+        evaluator = a.PerturbationTheoryEvaluator(solver, expansion, freqs=frequencies,
+            evaluation_mode='direct')
+        wrapped = AnalyticVPTRunner(evaluator, order=0, dipole_expansion=[], evaluation_mode='actions')
+        assert wrapped.eval.degeneracy_handling == 'filtered'
+
+
+@pytest.mark.parametrize('compiled', [False, True])
+def test_implied_filtered_recurrence_matches_resonant_energies_and_moments(compiled):
+    system, states, options = simple_run_inputs(2)
+    states.append(np.eye(2, dtype=int)[1])
+    groups = {'groups': [[states[1], states[2]]], 'group_filter':'unfiltered'}
+    options.update(degeneracy_specs=groups, compile=compiled, evaluation_mode='actions')
+    expected = AnalyticVPTRunner.run_simple(system, states, degeneracy_handling='filtered', **options)
+    runner, actual = AnalyticVPTRunner.run_simple(system, states, return_runner=True, **options)
+    assert runner.eval.degeneracy_handling == 'filtered'
+    for name in ('energy_corrections', 'degenerate_hamiltonian_corrections', 'transition_moment_corrections'):
+        np.testing.assert_allclose(getattr(actual,name), getattr(expected,name), atol=1e-12, rtol=1e-12)
+
+
+def test_memory_constrained_storage_defaults_and_explicit_overrides(tmp_path):
+    from Psience.BasisReps import BasisStateSpace, HarmonicOscillatorProductBasis
+    from Psience.VPT2.Solver import PerturbationTheorySolver
+    states = BasisStateSpace(HarmonicOscillatorProductBasis(2), [[0,0], [1,0]])
+    for constrained in (False, True):
+        for storage in ('auto', 'dense', 'sparse', 'compact'):
+            solver = PerturbationTheorySolver([None], states, order=0,
+                memory_constrained=constrained, correction_storage=storage)
+            expected = 'compact' if constrained and storage == 'auto' else storage
+            assert solver.correction_storage == expected
+            assert solver.state_space_storage == 'memory'
+    solver = PerturbationTheorySolver([None], states, order=0,
+        memory_constrained=True, state_space_memory_limit=1, state_space_scratch=tmp_path)
+    assert solver.state_space_storage == 'external'
+    assert solver.correction_storage == 'compact'
+    solver._state_space_store.close()
+
+
+def test_automatic_compact_storage_preserves_matrix_resonance_spectrum():
+    from Psience.VPT2 import VPTRunner
+    system, states, options = simple_run_inputs(2)
+    states.append(np.eye(2, dtype=int)[1])
+    options.pop('clear_caches')
+    options.pop('force_return_on_crash')
+    options.update(memory_constrained=True, calculate_intensities=False,
+        degeneracy_specs={'groups':[[states[1],states[2]]], 'group_filter':'unfiltered'})
+    reference = VPTRunner.run_simple(system, states, correction_storage='dense', **options)
+    actual = VPTRunner.run_simple(system, states, **options)
+    np.testing.assert_allclose(actual.corrs.energy_corrs, reference.corrs.energy_corrs, atol=1e-12, rtol=1e-12)
+    np.testing.assert_allclose(actual.energies, reference.energies, atol=1e-12, rtol=1e-12)
+    # The synthetic molecule has no Cartesian dipole surface; supply the
+    # fixture's already expanded normal-mode moments to both wavefunctions.
+    for wave in (actual, reference):
+        wave.expansion_options['dipole_terms'] = options['dipole_terms']
+    left, right = actual.intensities, reference.intensities
+    if isinstance(left, dict):
+        assert left.keys() == right.keys()
+        for key in left:
+            np.testing.assert_allclose(left[key], right[key], atol=1e-8, rtol=0)
+    else:
+        np.testing.assert_allclose(left, right, atol=1e-8, rtol=0)
+    for left, right in zip(actual.corrs.wfn_corrections, reference.corrs.wfn_corrections):
+        np.testing.assert_allclose(left.asarray(), right.asarray(), atol=1e-12, rtol=1e-12)
+
+
+@pytest.mark.parametrize('profile,override,restricted', [
+    ('new',None,False), ('old',None,True), ('new',True,True), ('old',False,False)])
+def test_quartic_profile_and_explicit_overrides_across_factories(profile, override, restricted):
+    from Psience.VPT2 import VPTRunner
+    system, states, options = simple_run_inputs(4)
+    options.pop('clear_caches')
+    options.pop('force_return_on_crash')
+    requested = {} if override is None else {'take_diagonal_v4_terms':override}
+    classic, _ = VPTRunner.construct(system, states, evaluator_defaults=profile, **options)
+    runners = [
+        AnalyticVPTRunner.construct(system, states, evaluator_defaults=profile, **requested, **options)[0],
+        AnalyticVPTRunner.from_hamiltonian(classic.hamiltonian, 2, evaluator_defaults=profile, **requested)]
+    with mock.patch.object(VPTRunner, 'construct', return_value=(classic, states)):
+        runners.append(AnalyticVPTRunner.from_file('fixture.fchk', evaluator_defaults=profile, **requested))
+    for runner in runners:
+        assert runner.evaluator_defaults == profile
+        assert bool(runner.eval.expansions[2][0][0,1,2,3] == 0) == restricted
+
+
+def test_free_index_reduction_distinguishes_one_shot_and_reusable_compilation(tmp_path):
+    wrapper = expression()
+    store = ce.AnalyticExpressionStore()
+    with mock.patch.object(ce, '_prepare_free_index_plan', side_effect=AssertionError('unexpected reduction')):
+        default = store.compile(wrapper)
+        with store.export_ir(wrapper, tmp_path/'source.ir.tar'): pass
+        disabled = store.compile_ir(tmp_path/'source.ir.tar', tmp_path/'disabled.plan.tar',
+                                    free_index_reduction=False)
+    assert default.manifest['options']['free_index_reduction'] is False
+    assert disabled.manifest['options']['free_index_reduction'] is False
+    persistent = ce.AnalyticExpressionStore(tmp_path/'cache')
+    cached = persistent.compile(wrapper)
+    portable = store.compile_ir(tmp_path/'source.ir.tar', tmp_path/'default.plan.tar')
+    saved = default.save(tmp_path/'saved.plan.tar')
+    for compiled in (cached, portable, saved):
+        assert compiled.manifest['options']['free_index_reduction'] is True
+    with mock.patch.object(ce, '_prepare_free_index_plan', side_effect=AssertionError('unexpected reduction')):
+        cached_disabled = persistent.compile(wrapper, free_index_reduction=False)
+    assert cached_disabled.manifest['options']['free_index_reduction'] is False
+    reduced = store.compile(wrapper, free_index_reduction=True)
+    assert reduced.manifest['options']['free_index_reduction'] is True
+    for nmodes in (2,3):
+        arguments = inputs(nmodes)
+        expected = default.evaluate(*arguments)
+        for actual in (portable.evaluate(*arguments), reduced.evaluate(*arguments),
+                       disabled.evaluate(*arguments), cached.evaluate(*arguments), saved.evaluate(*arguments)):
+            for left, right in zip(actual, expected):
+                np.testing.assert_allclose(left, right, atol=1e-12, rtol=1e-12)
