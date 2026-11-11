@@ -3,6 +3,7 @@ Numerical evaluation backends for the analytic VPT expressions in `Analytic`.
 """
 # imports from merged modules
 import collections
+from collections.abc import Mapping
 import contextlib
 import os
 import sys
@@ -56,7 +57,7 @@ def evaluation_mode_context(mode):
     finally:
         _current_evaluation_mode.reset(token)
 
-__all__ = ['AnalyticExpressionStore', 'CompiledAnalyticExpression', 'CompiledAnalyticEvaluation', 'AnalyticCorrectionCompiler']
+__all__ = ['AnalyticExpressionStore', 'AnalyticExpressionIR', 'CompiledAnalyticExpression', 'CompiledAnalyticEvaluation', 'AnalyticCorrectionCompiler']
 
 
 # ---------------------------------------------------------------------------------------------
@@ -565,6 +566,10 @@ def compiled_evaluation_context(store, compilation_options=None, evaluation_opti
     """
     # This selects symbolic coefficient evaluation in the controller, rather
     # than a numerical worker option (workers contract the projected kernels).
+    compilation_options = dict(compilation_options or {})
+    artifact_options = {name: compilation_options.pop(name) for name in
+                        ('ir_file', 'compiled_file', 'storage_backend', 'reuse_only')
+                        if name in compilation_options}
     evaluation_options = dict(evaluation_options or {})
     mode = _validate_evaluation_mode(evaluation_options.pop('evaluation_mode', None))
     mode_token = _current_evaluation_mode.set(_current_evaluation_mode.get() if mode is None else mode)
@@ -581,8 +586,11 @@ def compiled_evaluation_context(store, compilation_options=None, evaluation_opti
     token = _current_compilation.set(None if store is None else
         (store, compilation_options or {}, evaluation_options or {}, parallelizer))
     manager = parallelizer if owner and parallelizer is not None else contextlib.nullcontext()
+    artifacts = (store.artifact_session(**artifact_options,
+                    evaluation_folder=evaluation_options.get('evaluation_folder'))
+                 if owner and store is not None else contextlib.nullcontext())
     try:
-        with manager:
+        with artifacts, manager:
             try:
                 yield plan[1]
             finally:
@@ -1066,6 +1074,735 @@ class _CompiledEntries(EntryStore):
     stage_prefix = '.compile-'
 
 
+class _AnalyticIRCodec:
+    """Versioned semantic records, deliberately independent of Python pickling.
+
+    References name nodes in a per-part graph; numerical buffers are ordinary
+    non-object .npy files. Only explicitly supported mathematical types are
+    accepted. Caches, compiled annotations and arbitrary object dictionaries
+    never enter the record. Graph traversal is iterative, including decoding.
+    """
+    version = 2
+    record_format = 'psience-analytic-expression'
+    path_operations = frozenset({'add', 'linear', 'scale', 'shift', 'remap',
+                                 'permutation_sum', 'project', 'mul'})
+
+    def __init__(self, directory, prefix):
+        self.directory = Path(directory)
+        self.prefix = prefix
+        self.nodes = []
+        self.pending = []
+        self.identities = {}
+        self.arrays = []
+        self.array_blocks = {}
+        self.array_values = {}
+
+    def _value(self, value):
+        if value is None or type(value) in (str, bool):
+            return value
+        if type(value) is int:
+            # Ordinary JSON readers preserve these integers exactly. Keep an
+            # explicit decimal tag beyond the binary64-safe integer range.
+            return value if abs(value) <= 2**53-1 else {'integer': str(value)}
+        if type(value) is float:
+            return {'float': value.hex()}
+        if type(value) is complex:
+            return {'complex': [value.real.hex(), value.imag.hex()]}
+        if type(value) is bytes:
+            return {'bytes': value.hex()}
+        if isinstance(value, np.generic):
+            dtype = value.dtype
+            if (dtype.kind not in 'biufcSU' or dtype.kind == 'f' and dtype.itemsize > 8
+                    or dtype.kind == 'c' and dtype.itemsize > 16):
+                raise TypeError('unsupported portable IR scalar precision/type')
+            return {'scalar': [dtype.newbyteorder('<').str, self._value(value.item())]}
+        if type(value) in (tuple, list):
+            items = [self._value(v) for v in value]
+            return items if type(value) is tuple else {'list': items}
+        if type(value) is dict:
+            return {'mapping': [[self._value(k), self._value(v)] for k, v in value.items()]}
+        identity = id(value)
+        if identity not in self.identities:
+            if isinstance(value, np.ndarray) and not value.dtype.hasobject and value.dtype.fields is None:
+                array = value.astype(value.dtype.newbyteorder('<'), copy=False)
+                content = (array.dtype.str, array.shape, hashlib.sha256(array.tobytes(order='C')).digest())
+                previous = self.array_values.get(content)
+                if previous is not None:
+                    # Published numerical arrays are immutable. Equal factors
+                    # can share one mapped node even when the compiler created
+                    # separate ndarray objects for different numeric programs.
+                    return {'ref': previous}
+                self.array_values[content] = len(self.nodes)
+            self.identities[identity] = len(self.nodes)
+            self.nodes.append(None)
+            self.pending.append(value)
+        return {'ref': self.identities[identity]}
+
+    def _record(self, value):
+        from . import Analytic as a
+        from McUtils.Zachary.Symbolic import ElementaryFunctions as ef
+        kind = type(value)
+        if isinstance(value, (np.ndarray, np.generic)):
+            array = np.asarray(value)
+            if array.dtype.hasobject or array.dtype.fields is not None or array.dtype.kind not in 'biufcSU':
+                raise TypeError('IR requires primitive, non-object numerical/string arrays')
+            if (array.dtype.kind == 'f' and array.dtype.itemsize > 8
+                    or array.dtype.kind == 'c' and array.dtype.itemsize > 16):
+                raise TypeError('portable IR extended-precision encoding is not implemented')
+            # Explicit byte order, never a native-size alias such as intp.
+            array = array.astype(array.dtype.newbyteorder('<'), copy=False)
+            dtype = array.dtype.str
+            if dtype not in self.array_blocks:
+                name = '{}-buffer-{:03d}.npy'.format(self.prefix, len(self.array_blocks))
+                self.array_blocks[dtype] = dict(file=name, size=0, arrays=[])
+                self.arrays.append(name)
+            block = self.array_blocks[dtype]
+            offset = block['size']
+            block['arrays'].append(array)
+            block['size'] += array.size
+            return dict(kind='array', file=block['file'], dtype=dtype,
+                        shape=list(array.shape), offset=offset, count=array.size)
+        if isinstance(value, ef.Functionlike):
+            if kind is ef.Variable: function, fields = 'variable', (value.name, value.idx)
+            elif kind is ef.Scalar: function, fields = 'scalar', (value.scalar, value.idx)
+            elif kind is ef.Power: function, fields = 'power', (value.power, value.idx)
+            elif kind in {ef.Exponent, ef.Logarithm}:
+                function, fields = ('exponent' if kind is ef.Exponent else 'logarithm'), (value.base, value.idx)
+            elif kind in {ef.Identity, ef.Exp, ef.Ln, ef.Sin, ef.Cos}:
+                function, fields = {ef.Identity:'identity', ef.Exp:'exp', ef.Ln:'ln', ef.Sin:'sin', ef.Cos:'cos'}[kind], (value.idx,)
+            elif kind in {ef.ElementarySummation, ef.ElementaryProduct, ef.ElementaryComposition,
+                          ef.Summation, ef.Product, ef.Composition}:
+                function = {ef.ElementarySummation:'elementary-sum', ef.ElementaryProduct:'elementary-product',
+                            ef.ElementaryComposition:'elementary-composition', ef.Summation:'sum',
+                            ef.Product:'product', ef.Composition:'composition'}[kind]
+                fields = value.functions, (value.idx if isinstance(value, ef.ElementaryFunction) else value._inds)
+            else: raise TypeError('unsupported portable elementary function: ' + kind.__name__)
+            return dict(kind='elementary-function', fields=self._value((function, fields)))
+        if kind is a.PolyAtom:
+            fields = (value._base_coeffs, value.shift)
+            tag = 'polynomial-factor'
+        elif kind is a.PolyAxis:
+            tag, fields = 'polynomial-axis', value.atoms
+        elif kind is a.PolyTerm:
+            tag, fields = 'polynomial-term', (value.axes, value.steps)
+        elif kind is a.PolyPath:
+            if value._node is not None and value._node[0] not in self.path_operations:
+                raise TypeError('unsupported IR polynomial operation: ' + value._node[0])
+            tag = 'polynomial-path'
+            fields = (value._items, value._node, value.ndim, value.order, value.reduced)
+        elif kind is a.ProductPTPolynomial:
+            tag, fields = 'product-polynomial', (value.coeffs, value.prefactor, value.steps)
+        elif kind is a.ProductPTPolynomialSum:
+            tag, fields = 'polynomial-sum', (value.polys, value.prefactor, value.reduced)
+        elif kind in (a.PTEnergyChangeProductSum, a.PTTensorCoeffProductSum):
+            tag = 'energy-sum' if kind is a.PTEnergyChangeProductSum else 'tensor-sum'
+            fields = (value.terms, value.prefactor, value.reduced, value.ndim)
+        elif kind is a.SqrtChangePoly:
+            tag, fields = 'sqrt-change', (value.poly_obj, value.poly_change, value.shift_start)
+        elif kind is a.ProjectionFactor:
+            tag, fields = 'projection', (value.kind, value.slot)
+        elif kind is a._ChangeDomainIndex:
+            tag, fields = 'change-domain', (value.retain, value.endpoint)
+        elif kind is a.ConditionEndpoint:
+            tag, fields = 'condition-endpoint', (value.condition, value.kind, value.retain, value.endpoint)
+        elif kind is a.SameStateCondition:
+            tag, fields = 'same-state', ()
+        elif kind is a.ResonanceBlockCondition:
+            tag, fields = 'resonance-blocks', ()
+        elif kind is a.BooleanCondition:
+            tag, fields = 'boolean-condition', (value.operation, value.conditions)
+        elif kind is a.SymmetricCondition:
+            tag, fields = 'symmetric-condition', (value.condition,)
+        elif kind is a.EnergyWindowCondition:
+            tag, fields = 'energy-window', (value.tolerance, value.modes)
+        elif kind is a.IntegerLatticeCondition:
+            tag = 'integer-lattice'
+            fields = (value.modes, value.basis)
+        elif kind is a.PolynomialInvariantCondition:
+            tag, fields = 'polynomial-invariant', (value.functions, value.modes, value.freeze_other_modes, value.tolerance)
+        elif kind is a.PolynomialRelationshipCondition:
+            tag, fields = 'polynomial-relationship', (value.function, value.modes, value.comparison,
+                                                    value.tolerance, value.freeze_other_modes)
+        else:
+            raise TypeError('unsupported analytic IR value: ' + kind.__name__)
+        return dict(kind=tag, fields=self._value(fields))
+
+    @staticmethod
+    def storage_backend(backend):
+        if type(backend) is not str or backend not in {'portable', 'pickle'}:
+            raise ValueError("storage_backend must be 'portable' or 'pickle'")
+        return backend
+
+    @classmethod
+    def record_suffix(cls, backend):
+        return '.json' if cls.storage_backend(backend) == 'portable' else '.pkl'
+
+    @classmethod
+    def storage_version(cls, backend):
+        return 2 if cls.storage_backend(backend) == 'pickle' else 1
+
+    @staticmethod
+    def content_hash(record):
+        """Identify the same mathematical/program data across storage backends."""
+        digest = hashlib.sha256()
+        encoder = json.JSONEncoder(sort_keys=True, separators=(',', ':'), allow_nan=False)
+        for chunk in encoder.iterencode(record): digest.update(chunk.encode('utf-8'))
+        return digest.hexdigest()
+
+    @classmethod
+    def write_record(cls, path, record, backend):
+        if cls.storage_backend(backend) == 'portable':
+            atomic_write_json(path, record, indent=None, sort_keys=True)
+        else:
+            _atomic_pickle(path, record)
+
+    def write(self, expression, *, storage_backend='portable'):
+        suffix = self.record_suffix(storage_backend)
+        root = self._value(expression)
+        position = 0
+        while position < len(self.pending):
+            self.nodes[position] = self._record(self.pending[position])
+            position += 1
+        hashes = {}
+        for dtype, block in self.array_blocks.items():
+            destination = self.directory / block['file']
+            with destination.open('wb') as stream:
+                np.lib.format.write_array_header_2_0(stream, dict(descr=dtype,
+                    fortran_order=False, shape=(block['size'],)))
+                for array in block['arrays']:
+                    array.ravel(order='C').tofile(stream)
+            hashes[block['file']] = _file_hash(destination)
+        for node in self.nodes:
+            if node['kind'] == 'array':
+                node['sha256'] = hashes[node['file']]
+        record = dict(format=self.record_format, version=self.version,
+                      root=root, nodes=self.nodes)
+        self.content_sha256 = self.content_hash(record)
+        if storage_backend == 'portable':
+            self.write_record(self.directory / (self.prefix + suffix), record, storage_backend)
+            return [self.prefix + suffix] + self.arrays
+        envelope = dict(format=self.record_format, version=self.version,
+                        representation='python', payload=expression)
+        try:
+            atomic_write(self.directory/(self.prefix+suffix), lambda stream:
+                _AnalyticPickler(stream, type(self)).dump(envelope), fsync=False, keep_mode=False)
+        except RecursionError:
+            # Python's object pickler is recursive. Keep exceptionally deep
+            # expressions in the same validated, flat reference graph instead.
+            self.write_record(self.directory/(self.prefix+suffix),
+                dict(format=self.record_format, version=self.version,
+                     representation='graph', payload=record), storage_backend)
+            return [self.prefix+suffix]+self.arrays
+        # These pools were used to compute the backend-neutral content digest.
+        # Pickle stores its immutable numerical data inline in the part instead.
+        for name in self.arrays: (self.directory/name).unlink()
+        return [self.prefix+suffix]
+
+    @classmethod
+    def read(cls, record, array_loader, *, consume=False):
+        from . import Analytic as a
+        if record.get('format') != cls.record_format or record.get('version') not in (1, cls.version):
+            raise ValueError('unsupported analytic IR record')
+        records = record['nodes']
+        values, active = {}, set()
+
+        def references(value):
+            todo = [value]
+            while todo:
+                item = todo.pop()
+                if isinstance(item, dict):
+                    if set(item) == {'ref'}:
+                        index = item['ref']
+                        if type(index) is not int or not 0 <= index < len(records):
+                            raise ValueError('invalid analytic IR reference')
+                        yield index
+                    else:
+                        todo.extend(item.values())
+                elif isinstance(item, list):
+                    todo.extend(item)
+
+        def decode(value):
+            if value is None or type(value) in (str, bool):
+                return value
+            if type(value) is int and abs(value) <= 2**53-1:
+                return value
+            if type(value) is list:
+                return tuple(decode(v) for v in value)
+            if not isinstance(value, dict) or len(value) != 1:
+                raise ValueError('invalid analytic IR value')
+            tag, content = next(iter(value.items()))
+            if tag == 'ref': return values[content]
+            if tag == 'integer': return int(content)
+            if tag == 'float': return float.fromhex(content)
+            if tag == 'complex': return complex(*(float.fromhex(v) for v in content))
+            if tag == 'bytes': return bytes.fromhex(content)
+            if tag == 'scalar':
+                dtype = np.dtype(content[0])
+                if dtype.hasobject or dtype.fields is not None or dtype.kind not in 'biufcSU':
+                    raise ValueError('invalid analytic IR scalar type')
+                return np.asarray(decode(content[1]), dtype=dtype)[()]
+            if tag == 'tuple': return tuple(decode(v) for v in content)
+            if tag == 'list': return [decode(v) for v in content]
+            if tag == 'mapping': return {decode(k): decode(v) for k, v in content}
+            raise ValueError('unknown analytic IR value tag: ' + tag)
+
+        def build(node):
+            kind = node['kind']
+            if kind == 'array':
+                buffer = array_loader(node)
+                offset, count = node['offset'], node['count']
+                shape = node['shape']
+                if (buffer.dtype.str != node['dtype'] or buffer.ndim != 1
+                        or type(offset) is not int or type(count) is not int
+                        or offset < 0 or count < 0 or offset + count > len(buffer)
+                        or any(type(d) is not int or d < 0 for d in shape)
+                        or math.prod(shape) != count):
+                    raise ValueError('analytic IR array descriptor mismatch')
+                return buffer[offset:offset + count].reshape(shape)
+            fields = decode(node['fields'])
+            return cls.restore_node(kind, fields)
+
+        stack = [(index, False) for index in references(record['root'])]
+        while stack:
+            index, ready = stack.pop()
+            if index in values:
+                continue
+            if ready:
+                values[index] = build(records[index])
+                if consume: records[index] = None
+                active.remove(index)
+            else:
+                if index in active:
+                    raise ValueError('cyclic analytic IR graph')
+                active.add(index)
+                stack.append((index, True))
+                stack.extend((child, False) for child in references(records[index].get('fields'))
+                             if child not in values)
+        return decode(record['root'])
+
+    @classmethod
+    def restore_node(cls, kind, fields):
+        from . import Analytic as a
+        custom = cls._restore_custom(kind, fields)
+        if custom is not NotImplemented:
+            return custom
+        if kind == 'elementary-function':
+            from McUtils.Zachary.Symbolic import ElementaryFunctions as ef
+            name, arguments = fields
+            simple = {'variable':ef.Variable, 'scalar':ef.Scalar, 'power':ef.Power,
+                      'exponent':ef.Exponent, 'logarithm':ef.Logarithm, 'identity':ef.Identity,
+                      'exp':ef.Exp, 'ln':ef.Ln, 'sin':ef.Sin, 'cos':ef.Cos}
+            if name == 'variable': return ef.Variable(*arguments)
+            if name in simple:
+                return simple[name](*arguments[:-1], idx=arguments[-1])
+            univariate = {'elementary-sum':ef.ElementarySummation, 'elementary-product':ef.ElementaryProduct,
+                          'elementary-composition':ef.ElementaryComposition}
+            multivariate = {'sum':ef.Summation, 'product':ef.Product, 'composition':ef.Composition}
+            if name in univariate: return univariate[name](*arguments[0], idx=arguments[1])
+            if name in multivariate: return multivariate[name](*arguments[0], indices=arguments[1])
+            raise ValueError('unknown portable function operation: ' + name)
+        constructors = {
+            'polynomial-factor': lambda: a.PolyAtom(*fields),
+            'polynomial-axis': lambda: a.PolyAxis(fields),
+            'polynomial-term': lambda: a.PolyTerm(*fields),
+            'product-polynomial': lambda: a.ProductPTPolynomial(fields[0], prefactor=fields[1], steps=fields[2]),
+            'polynomial-sum': lambda: a.ProductPTPolynomialSum(fields[0], prefactor=fields[1], reduced=fields[2]),
+            'sqrt-change': lambda: a.SqrtChangePoly(*fields),
+            'projection': lambda: a.ProjectionFactor(*fields),
+            'change-domain': lambda: a._ChangeDomainIndex(*fields),
+            'condition-endpoint': lambda: a.ConditionEndpoint(*fields),
+            'same-state': a.SameStateCondition,
+            'resonance-blocks': a.ResonanceBlockCondition,
+            'boolean-condition': lambda: a.BooleanCondition(fields[0], *fields[1]),
+            'symmetric-condition': lambda: a.SymmetricCondition(*fields),
+            'energy-window': lambda: a.EnergyWindowCondition(*fields)
+            ,'polynomial-invariant': lambda: a.PolynomialInvariantCondition(*fields)
+            ,'polynomial-relationship': lambda: a.PolynomialRelationshipCondition(*fields)
+        }
+        if kind == 'polynomial-path':
+            items, operation, ndim, order, reduced = fields
+            if operation is not None and operation[0] not in cls.path_operations:
+                raise ValueError('unknown analytic IR polynomial operation')
+            return a.PolyPath(items, reduced=reduced, node=operation, ndim=ndim, order=order)
+        if kind in ('energy-sum', 'tensor-sum'):
+            terms, prefactor, reduced, ndim = fields
+            constructor = a.PTEnergyChangeProductSum if kind == 'energy-sum' else a.PTTensorCoeffProductSum
+            result = constructor(terms, prefactor=prefactor, canonicalize=False, reduced=reduced)
+            result._ndim = ndim
+            return result
+        if kind == 'integer-lattice':
+            # Only the mathematical lattice is in IR. Its evaluation program
+            # will belong to the compiled artifact, not this semantic record.
+            modes, basis = fields
+            relations = np.zeros((len(basis[0]), max(modes) + 1), dtype=int)
+            relations[:, modes] = np.asarray(basis, dtype=int).T
+            return a.IntegerLatticeCondition(relations)
+        if kind not in constructors:
+            raise ValueError('unknown analytic IR node kind: ' + kind)
+        return constructors[kind]()
+
+
+    @classmethod
+    def _restore_custom(cls, kind, fields):
+        return NotImplemented
+
+
+class _CompiledEnergyProgram(dict):
+    """A shared denominator program, retained as a graph node on disk."""
+
+
+class _CompiledAnalyticCodec(_AnalyticIRCodec):
+    record_format = 'psience-compiled-expression'
+
+    def _record(self, value):
+        from . import Analytic as a
+        from McUtils.Zachary.Symbolic import ElementaryFunctions as ef
+        kind = type(value)
+        if kind is a._PolynomialProgramTable:
+            tag, fields = 'polynomial-table', tuple(getattr(value, name) for name in value.fields)
+        elif kind is _CompiledEnergyProgram:
+            tag, fields = 'energy-program', tuple(value.items())
+        elif kind is ef._FunctionProgram:
+            tag, fields = 'function-program', (value.instructions, value.signature, value.elementary, value.idx)
+        elif isinstance(value, a.OperatorCondition):
+            tag = 'condition-program'
+            name, fields = _condition_program_fields(value)
+            fields = (name, fields, tuple(getattr(value, field) for field in
+                       ('symmetric', 'diagonal', 'equivalence', 'requires_frequencies')), value.key)
+        elif kind is a.ConditionEndpoint:
+            tag, fields = 'compiled-endpoint', (value.condition, value.kind, value.retain, value.endpoint, int(value))
+        elif kind is a._CompiledPolynomial and value.table is not None:
+            tag, fields = 'table-polynomial', (value.table, value.node_index, value.ndim, value.order,
+                                              value.signature, value.zero, value.occupation_shifts)
+        elif kind is a._CompiledPolynomial:
+            tag = 'polynomial-program'
+            fields = (value.instructions, value.ndim, value.order, value.signature, value.zero,
+                      value.occupation_shifts, value.graph_program)
+        elif kind is a.PTEnergyChangeProductSum and hasattr(value, '_compiled_terms'):
+            tag, fields = 'compiled-energy-plan', (value._compiled_terms, value.prefactor, value.reduced, value.ndim)
+        elif kind in (a.PTTensorCoeffProductSum, a.PTEnergyChangeProductSum):
+            tag = 'compiled-tensor' if kind is a.PTTensorCoeffProductSum else 'compiled-energy'
+            fields = (value.terms, value.prefactor, value.reduced, value.ndim,
+                      value._inds_map if kind is a.PTTensorCoeffProductSum else None)
+        elif kind is IndexedSubexpressionPlan:
+            tag = 'subexpression-plan'
+            fields = (value.expression, value.direct_polynomial, value.prefactor, value.groups)
+        elif kind is IndexedEnergyTerm:
+            tag = 'energy-term-plan'
+            fields = tuple(getattr(value, name) for name in
+                           ('ordinal', 'energy_changes', 'polynomial', 'contraction_shape',
+                            'projected', 'constant_numerator', 'denominator_program'))
+        else:
+            return super()._record(value)
+        return dict(kind=tag, fields=self._value(fields))
+
+    @classmethod
+    def _restore_custom(cls, kind, fields):
+        from . import Analytic as a
+        if kind == 'polynomial-table': return a._PolynomialProgramTable(*fields)
+        if kind == 'table-polynomial':
+            table, index, ndim, order, signature, zero, occupations = fields
+            return a._CompiledPolynomial((), ndim, order, signature, zero, occupations, table=table, node_index=index)
+        if kind == 'energy-program': return _CompiledEnergyProgram(fields)
+        if kind == 'compiled-energy-plan':
+            terms, prefactor, reduced, ndim = fields
+            result = object.__new__(a.PTEnergyChangeProductSum)
+            result.terms = {term.energy_changes: term.polynomial for term in terms}
+            result.prefactor, result.reduced, result._ndim = prefactor, reduced, ndim
+            result._shape, result._compiled_terms = None, terms
+            return result
+        if kind == 'function-program':
+            from McUtils.Zachary.Symbolic.ElementaryFunctions import _FunctionProgram
+            return _FunctionProgram(*fields)
+        if kind == 'condition-program':
+            name, arguments, flags, key = fields
+            result = _restore_condition_program(name, arguments)
+            for field, value in zip(('symmetric', 'diagonal', 'equivalence', 'requires_frequencies'), flags):
+                object.__setattr__(result, field, value)
+            object.__setattr__(result, 'key', key)
+            return result
+        if kind == 'compiled-endpoint':
+            condition, role, retain, endpoint, number = fields
+            result = int.__new__(a.ConditionEndpoint, number)
+            for name, value in (('condition', condition), ('kind', role), ('retain', retain),
+                                ('endpoint', endpoint), ('_frozen', True)):
+                object.__setattr__(result, name, value)
+            return result
+        if kind == 'polynomial-program':
+            return a._CompiledPolynomial(*fields)
+        if kind in {'compiled-tensor', 'compiled-energy'}:
+            constructor = a.PTTensorCoeffProductSum if kind == 'compiled-tensor' else a.PTEnergyChangeProductSum
+            result = object.__new__(constructor)
+            result.terms, result.prefactor, result.reduced, result._ndim, indices = fields
+            result._shape = None
+            if indices is not None: result._inds_map = indices
+            return result
+        if kind == 'subexpression-plan': return IndexedSubexpressionPlan(*fields)
+        if kind == 'energy-term-plan': return IndexedEnergyTerm(*fields)
+        return NotImplemented
+
+
+def _restore_analytic_array(dtype, shape, data, scalar):
+    array = np.frombuffer(data, dtype=np.dtype(dtype)).reshape(shape)
+    return array[()] if scalar else array
+
+
+def _restore_analytic_pickle_node(compiled, kind, fields):
+    codec = _CompiledAnalyticCodec if compiled else _AnalyticIRCodec
+    return codec.restore_node(kind, fields)
+
+
+class _AnalyticPickler(pickle.Pickler):
+    """Use the same whitelisted node fields while preserving Python memoization."""
+    def __init__(self, stream, codec):
+        super().__init__(stream, protocol=5)
+        self.codec = codec(Path('.'), '')
+        self.compiled = codec.record_format == 'psience-compiled-expression'
+        # _record describes exactly the same fields for both storage modes.
+        # Native pickle traverses them itself instead of making a tagged graph.
+        self.codec._value = lambda value: value
+
+    def reducer_override(self, value):
+        if isinstance(value, (np.ndarray, np.generic)):
+            array = np.asarray(value)
+            dtype = array.dtype
+            if (dtype.hasobject or dtype.fields is not None or dtype.kind not in 'biufcSU'
+                    or dtype.kind == 'f' and dtype.itemsize > 8
+                    or dtype.kind == 'c' and dtype.itemsize > 16):
+                raise TypeError('unsupported analytic pickle numerical precision/type')
+            array = array.astype(dtype.newbyteorder('<'), copy=False)
+            return _restore_analytic_array, (array.dtype.str, array.shape, array.tobytes(order='C'),
+                                             isinstance(value, np.generic))
+        if isinstance(value, (type, types.FunctionType, types.BuiltinFunctionType)):
+            return NotImplemented
+        record = self.codec._record(value)
+        return _restore_analytic_pickle_node, (self.compiled, record['kind'], record['fields'])
+
+
+def _condition_program_layouts():
+    from . import Analytic as a
+    return {
+        'same-state': (a.SameStateCondition, ()), 'resonance-blocks': (a.ResonanceBlockCondition, ()),
+        'boolean': (a.BooleanCondition, ('operation', 'conditions')),
+        'symmetric': (a.SymmetricCondition, ('condition',)),
+        'energy-window': (a.EnergyWindowCondition, ('tolerance', 'modes')),
+        'integer-lattice': (a.IntegerLatticeCondition, ('modes', 'basis', 'pivots', 'inverse_numerators', 'denominator')),
+        'invariant': (a.PolynomialInvariantCondition, ('functions', 'modes', 'freeze_other_modes', 'tolerance')),
+        'relationship': (a.PolynomialRelationshipCondition, ('function', 'modes', 'comparison', 'tolerance', 'freeze_other_modes'))
+    }
+
+
+def _condition_program_fields(condition):
+    for name, (constructor, attributes) in _condition_program_layouts().items():
+        if type(condition) is constructor:
+            return name, tuple(getattr(condition, attribute) for attribute in attributes)
+    raise TypeError('unsupported compiled condition: ' + type(condition).__name__)
+
+
+def _restore_condition_program(name, fields):
+    layouts = _condition_program_layouts()
+    if name not in layouts: raise ValueError('unknown compiled condition program: ' + name)
+    constructor, attributes = layouts[name]
+    if len(fields) != len(attributes): raise ValueError('invalid compiled condition fields')
+    result = object.__new__(constructor)
+    for attribute, value in zip(attributes, fields): object.__setattr__(result, attribute, value)
+    return result
+
+
+class AnalyticExpressionIR:
+    """A lazy, portable simplified expression; no numerical system is bound."""
+    format_version = 1
+    artifact_kind = 'analytic-expression-ir'
+    version_field = 'ir_version'
+    codec = _AnalyticIRCodec
+
+    def __init__(self, source, manifest, archive=None, prefix='', expression=None):
+        self.source = Path(source)
+        self.manifest = manifest
+        self.archive = archive
+        self.prefix, self.expression = prefix, expression
+        self.storage_backend = self.codec.storage_backend(manifest.get('storage_backend', 'portable'))
+
+    @classmethod
+    def load(cls, source, *, expression=None):
+        from McUtils.Scaffolding import IndexedTarStore
+        source = Path(source).expanduser().resolve()
+        archive = None if source.is_dir() else IndexedTarStore(source, read_only=True)
+        try:
+            catalog = cls._catalog(source, archive)
+            if catalog is not None:
+                if expression is None:
+                    if len(catalog['entries']) != 1:
+                        raise ValueError('select an expression from the archive: ' + ', '.join(catalog['entries']))
+                    expression = next(iter(catalog['entries']))
+                if expression not in catalog['entries']: raise KeyError(expression)
+                prefix = catalog['entries'][expression]
+                if IndexedTarStore.normalize_name(prefix) != prefix:
+                    raise ValueError('invalid expression catalog prefix')
+            else:
+                if expression is not None: raise KeyError(expression)
+                prefix = '' if archive is None else 'expression'
+            member = prefix+'/manifest.json' if prefix else 'manifest.json'
+            data = (source/member).read_bytes() if archive is None else archive.read(member)
+            manifest = json.loads(data)
+            if (manifest.get('kind') != cls.artifact_kind
+                    or manifest.get(cls.version_field) != cls.format_version or not manifest.get('complete')):
+                raise ValueError('incomplete or unsupported analytic expression IR')
+            storage_version = manifest.get('storage_version', 1)
+            if (storage_version not in {1, 2} or
+                    storage_version == 2 and manifest.get('storage_backend') != 'pickle'):
+                raise ValueError('unsupported analytic storage version')
+            return cls(source, manifest, archive, prefix, expression)
+        except BaseException:
+            if archive is not None:
+                archive.close()
+            raise
+
+    @classmethod
+    def _catalog(cls, source, archive=None):
+        if archive is None:
+            path = Path(source)/'manifest.json'
+            data = path.read_bytes() if path.is_file() else None
+        else:
+            try: data = archive.read('manifest.json')
+            except FileNotFoundError: data = None
+        if data is None: return None
+        manifest = json.loads(data)
+        if manifest.get('kind') == cls.artifact_kind+'-collection':
+            if (manifest.get('catalog_version') != 1 or not manifest.get('complete')
+                    or not isinstance(manifest.get('entries'), dict)):
+                raise ValueError('unsupported or incomplete analytic expression collection')
+            return manifest
+        return None
+
+    @classmethod
+    def expression_names(cls, source):
+        from McUtils.Scaffolding import IndexedTarStore
+        source = Path(source).expanduser().resolve()
+        manager = contextlib.nullcontext(None) if source.is_dir() else IndexedTarStore(source, read_only=True)
+        with manager as archive:
+            catalog = cls._catalog(source, archive)
+            return () if catalog is None else tuple(catalog['entries'])
+
+    @staticmethod
+    def _name(name):
+        if type(name) is not str or not name or Path(name).name != name or name in {'.', '..'}:
+            raise ValueError('invalid analytic IR member path')
+        return name
+
+    def _read(self, name):
+        with self._open(name) as stream:
+            return stream.read()
+
+    def _member(self, name):
+        name = self._name(name)
+        return self.prefix+'/'+name if self.prefix else name
+
+    def _open(self, name):
+        member = self._member(name)
+        return (self.source/member).open('rb') if self.archive is None else self.archive.open(member)
+
+    def iter_parts(self):
+        for part in self.manifest['parts']:
+            yield self.read_part(part)
+
+    def _read_record(self, part):
+        if Path(part['file']).suffix != self.codec.record_suffix(self.storage_backend):
+            raise ValueError('analytic part does not match its storage backend')
+        data = self._read(part['file'])
+        if hashlib.sha256(data).hexdigest() != part['sha256']:
+            raise ValueError('analytic IR part checksum mismatch')
+        record = json.loads(data) if self.storage_backend == 'portable' else pickle.loads(data)
+        if (not isinstance(record, dict) or record.get('format') != self.codec.record_format
+                or record.get('version') not in (1, self.codec.version)):
+            raise ValueError('unsupported analytic expression record')
+        return record
+
+    def read_part(self, part):
+        record = self._read_record(part)
+        return self._decode_record(record)
+
+    def _decode_record(self, record):
+        if record.get('representation') == 'python':
+            if self.storage_backend != 'pickle' or self.manifest.get('storage_version', 1) != 2:
+                raise ValueError('native analytic data requires pickle storage version 2')
+            return record['payload']
+        if record.get('representation') == 'graph':
+            if self.storage_backend != 'pickle' or self.manifest.get('storage_version', 1) != 2:
+                raise ValueError('flattened analytic data requires pickle storage version 2')
+            record = record['payload']
+        buffers = {}
+        def array_loader(descriptor):
+            name = self._name(descriptor['file'])
+            if name in buffers:
+                expected, buffer = buffers[name]
+                if expected != descriptor['sha256']:
+                    raise ValueError('inconsistent analytic IR buffer checksum')
+                return buffer
+            if self.archive is None:
+                path = self.source/self._member(name)
+                if _file_hash(path) != descriptor['sha256']:
+                    raise ValueError('analytic IR array checksum mismatch')
+                buffer = np.load(path, mmap_mode='r', allow_pickle=False)
+            else:
+                digest = hashlib.sha256()
+                with self._open(name) as stream:
+                    for block in iter(lambda: stream.read(1024 * 1024), b''):
+                        digest.update(block)
+                if digest.hexdigest() != descriptor['sha256']:
+                    raise ValueError('analytic IR array checksum mismatch')
+                buffer = self.archive.memmap(self._member(name))
+            buffers[name] = descriptor['sha256'], buffer
+            return buffer
+        return self.codec.read(record, array_loader, consume=True)
+
+    def save(self, file, *, storage_backend=None):
+        """Repack or change storage without simplifying or compiling expressions."""
+        target = AnalyticExpressionStore._pack_readers(
+            {self.expression or 'expression': self}, file, storage_backend=storage_backend,
+            single=self.expression is None)
+        return type(self).load(target)
+
+    def close(self):
+        if self.archive is not None:
+            self.archive.close()
+
+    def __enter__(self): return self
+    def __exit__(self, *exc): self.close()
+
+
+class _CompiledAnalyticArchive(AnalyticExpressionIR):
+    artifact_kind = 'compiled-analytic-expression'
+    version_field = 'plan_version'
+    codec = _CompiledAnalyticCodec
+
+    @classmethod
+    def load(cls, source, *, expression=None):
+        result = super().load(source, expression=expression)
+        versions = result.manifest.get('program_versions', {})
+        if (versions.get('polynomial') not in {1, 2, 3} or versions.get('denominator') not in {1, 2} or
+                {key: value for key, value in versions.items() if key not in {'polynomial', 'denominator'}} !=
+                {'function':1, 'degeneracy':1}):
+            result.close()
+            raise ValueError('unsupported compiled analytic program versions')
+        return result
+
+    def read_part(self, part):
+        payload = super().read_part(part)
+        expression = payload['expression']
+        execution = payload['execution']
+        if execution.get('version') != 1:
+            raise ValueError('unsupported compiled expression execution version')
+        execution['plans'] = {name: IndexedExpressionPlan(expression,
+            types.MappingProxyType(plans), count,
+            None if bindings is None else types.MappingProxyType(bindings))
+            for name, (plans, count, bindings) in payload['plans'].items()}
+        expression._compiled_execution = execution
+        if payload['free_index'] is not None:
+            expression._free_index_plan_data = payload['free_index']
+        return expression
+
+
 class AnalyticExpressionStore:
     format_version = 1
     def __init__(self, folder=None, *, memory_cache_size=128, memory_cache_bytes=512*1024**2):
@@ -1079,6 +1816,7 @@ class AnalyticExpressionStore:
         self._memory = collections.OrderedDict()
         self._aliases = collections.OrderedDict()
         self.memory_bytes = 0
+        self._artifacts = None
         self.timings = dict(requests=0, compilations=0, cache_hits=0, failures=0,
             compilation_seconds=0., cache_lookup_seconds=0., preparation_seconds=0., evaluation_seconds=0.,
             operator_coefficient_contractions=0,operator_coefficient_cache_hits=0,operator_coefficient_batches=0)
@@ -1090,6 +1828,548 @@ class AnalyticExpressionStore:
     def clear(self):
         """Release reusable in-memory entries; never remove persistent cache files."""
         self._memory.clear(); self._aliases.clear(); self.memory_bytes=0
+
+    @property
+    def using_artifacts(self):
+        return self._artifacts is not None
+
+    @contextlib.contextmanager
+    def artifact_session(self, *, ir_file=None, compiled_file=None, storage_backend=None,
+                         reuse_only=False, evaluation_folder=None):
+        """Reuse/build whole libraries during one public runner calculation.
+
+        Entries are identified by versioned formal requests, without producer
+        source hashes or numerical system inputs. On normal exit, publish each
+        library atomically from temporary staging.
+        """
+        if ir_file is None and compiled_file is None:
+            if storage_backend is not None or reuse_only:
+                raise ValueError('storage_backend/reuse_only requires compiled_file')
+            yield
+            return
+        if compiled_file is None:
+            raise ValueError('ir_file requires a separate compiled_file')
+        if self.using_artifacts:
+            raise RuntimeError('an expression artifact session is already active')
+        if not isinstance(reuse_only, (bool, np.bool_)):
+            raise TypeError('reuse_only must be boolean')
+        if storage_backend is not None: _AnalyticIRCodec.storage_backend(storage_backend)
+        paths = dict(compiled=Path(compiled_file).expanduser().resolve(),
+                     ir=None if ir_file is None else Path(ir_file).expanduser().resolve())
+        if paths['ir'] == paths['compiled']:
+            raise ValueError('compiled_file must be separate from ir_file')
+        if evaluation_folder is not None:
+            destination = Path(evaluation_folder).expanduser().resolve()
+            for path in paths.values():
+                if path is not None and (destination == path.parent or path.parent in destination.parents):
+                    raise ValueError('evaluation_folder must be outside the expression artifact folders')
+        import shutil
+        import tempfile
+        with tempfile.TemporaryDirectory(prefix='analytic-run-') as folder:
+            with contextlib.ExitStack() as readers:
+                state = dict(folder=Path(folder), paths=paths, readers=readers,
+                             sources=dict(ir={}, compiled={}), dirty=set(), results=[],
+                             backend=storage_backend, reuse_only=bool(reuse_only))
+                for kind, path in paths.items():
+                    if path is None or not path.exists(): continue
+                    reader_type = AnalyticExpressionIR if kind == 'ir' else _CompiledAnalyticArchive
+                    names = reader_type.expression_names(path)
+                    if not names:
+                        raise ValueError('runner expression files must be named libraries')
+                    for name in names:
+                        reader = readers.enter_context(reader_type.load(path, expression=name))
+                        state['sources'][kind][name] = reader
+                        if storage_backend is not None and reader.storage_backend != storage_backend:
+                            state['dirty'].add(kind)
+                self._artifacts = state
+                candidates = {}
+                try:
+                    yield
+                    for kind in state['dirty']:
+                        if paths[kind] is None: continue
+                        candidate = state['folder']/(kind+'.tar')
+                        self._pack_readers(state['sources'][kind], candidate,
+                                           storage_backend=storage_backend)
+                        candidates[kind] = candidate
+                finally:
+                    self._artifacts = None
+            # Close original immutable archive handles before replacing a file.
+            for kind, candidate in candidates.items():
+                target = paths[kind]
+                target.parent.mkdir(parents=True, exist_ok=True)
+                def publish(stream, candidate=candidate):
+                    with candidate.open('rb') as source:
+                        shutil.copyfileobj(source, stream, length=1024*1024)
+                atomic_write(target, publish, keep_mode=False)
+            for name, result in state['results']:
+                final = CompiledAnalyticExpression.load(paths['compiled'], expression=name)
+                result.folder, result.artifact = final.folder, final.artifact
+                result.expression, result.manifest = final.expression, final.manifest
+
+    def _compile_artifact(self, factory, *, context, active_operators=None, projection=None,
+                          mode_dimension=None, free_index_reduction=True, progress=None, **options):
+        state = self._artifacts
+        unknown = set(options) - {'max_terms', 'max_bytes', 'cache_size', 'cache_bytes',
+                                  'node_cache_size', 'coalesce_combine_nodes', 'bounded_byte_accounting'}
+        if unknown: raise TypeError('unknown artifact compilation options: ' + ', '.join(sorted(unknown)))
+        if not isinstance(free_index_reduction, (bool, np.bool_)):
+            raise TypeError('free_index_reduction must be boolean')
+        request = _fingerprint(dict(request_version=1, definition=context, projection=projection,
+                                    active_operators=active_operators, mode_dimension=mode_dimension))
+        def source_ir():
+            ir = state['sources']['ir'].get(request)
+            if ir is None:
+                ir = self.export_ir(factory(), staging_folder=state['folder']/request/'ir',
+                    context=context, active_operators=active_operators, projection=projection,
+                    mode_dimension=mode_dimension, progress=progress,
+                    storage_backend=state['backend'] or 'portable', **options)
+                state['readers'].enter_context(ir)
+                ir.manifest.update(request_version=1, request_signature=request)
+                state['sources']['ir'][request] = ir
+                state['dirty'].add('ir')
+            elif ir.manifest.get('request_version') != 1 or ir.manifest.get('request_signature') != request:
+                raise ValueError('unsupported runner expression IR request metadata')
+            return ir
+
+        source = state['sources']['compiled'].get(request)
+        if source is not None:
+            if source.manifest.get('request_version') != 1 or source.manifest.get('request_signature') != request:
+                raise ValueError('unsupported runner expression request metadata')
+            if source.manifest['options']['free_index_reduction'] == bool(free_index_reduction):
+                if state['paths']['ir'] is not None and request not in state['sources']['ir']:
+                    if state['reuse_only']:
+                        raise ValueError('ir_file lacks the mathematical source for request ' + request)
+                    source_ir()
+                self.timings['requests'] += 1
+                self.timings['cache_hits'] += 1
+                result = CompiledAnalyticExpression(None, source.manifest,
+                    artifact=source.source, expression=source.expression)
+                result.store = self
+                state['results'].append((request, result))
+                return result
+        if state['reuse_only']:
+            raise ValueError('compiled_file has no compatible expression for request ' + request)
+        ir = source_ir()
+        result = self.compile_ir(ir, staging_folder=state['folder']/request/'compiled',
+            free_index_reduction=free_index_reduction, storage_backend=state['backend'] or 'portable', progress=progress)
+        compiled = state['readers'].enter_context(_CompiledAnalyticArchive.load(result.artifact))
+        compiled.manifest.update(request_version=1, request_signature=request)
+        state['sources']['compiled'][request] = compiled
+        state['dirty'].add('compiled')
+        state['results'].append((request, result))
+        return result
+
+    def export_ir(self, expression, file=None, *, staging_folder=None, storage_backend='portable', **options):
+        """Simplify/stream an expression to portable IR without execution plans.
+
+        A directory may be retained with ``file=None, staging_folder=...``.
+        Otherwise only the final self-contained uncompressed tar is published.
+        Physical pruning is opt-in through active_operators/mode_dimension and
+        is recorded in the manifest. No coefficients or frequencies are used.
+        """
+        import tempfile
+        from McUtils.Scaffolding import IndexedTarStore
+        storage_backend = _AnalyticIRCodec.storage_backend(storage_backend)
+        if file is None and staging_folder is None:
+            raise ValueError('IR export needs a file or a staging folder')
+        if isinstance(expression, (str, os.PathLike)):
+            # Data migration deliberately discards the old execution annotations.
+            # Validate its complete manifest and part checksums, then accept only
+            # the mathematical types supported by the explicit IR codec.
+            expression = CompiledAnalyticExpression.load(expression, validate_source=False)
+        if isinstance(expression, CompiledAnalyticExpression):
+            if options: raise TypeError('a simplified cached expression cannot be specialized again during export')
+            return self._export_cached_ir(expression, file, staging_folder=staging_folder,
+                                          storage_backend=storage_backend)
+        if options.pop('free_index_reduction', False):
+            raise ValueError('execution free-index plans belong to IR compilation')
+        manager = (tempfile.TemporaryDirectory(prefix='analytic-ir-') if staging_folder is None
+                   else contextlib.nullcontext(str(Path(staging_folder).expanduser().resolve())))
+        with manager as folder:
+            store = type(self)(Path(folder) / 'expressions')
+            from .Analytic import PolyPath
+            token = PolyPath._index_reduction_context.set(False)
+            try:
+                source_context = options.pop('context', None)
+                directory = store._compile_factory(lambda: expression,
+                    context=expression if source_context is None else source_context, free_index_reduction=False,
+                    part_format='ir', storage_backend=storage_backend, **options)
+            finally:
+                PolyPath._index_reduction_context.reset(token)
+            if file is None:
+                return AnalyticExpressionIR.load(directory)
+            target = Path(file).expanduser().resolve()
+            target.parent.mkdir(parents=True, exist_ok=True)
+            archive = IndexedTarStore(Path(folder) / 'build.tar')
+            archive.write_trees([('expression', directory, {})])
+            # Build locking belongs to the staging store. Publish through the
+            # existing atomic writer without leaving a target-side lock file.
+            atomic_write(target, archive.save, keep_mode=False)
+        return AnalyticExpressionIR.load(target)
+
+    def _export_cached_ir(self, expression, file, *, staging_folder=None, storage_backend='portable'):
+        import tempfile
+        from McUtils.Scaffolding import IndexedTarStore
+        if expression.artifact is not None:
+            raise ValueError('retain the mathematical source IR when compiling portable programs')
+        if expression.manifest.get('active_operators') is not None and expression.manifest.get('operator_keys') is None:
+            raise ValueError('specialized legacy cache lacks its operator domain; re-export from the original expression')
+        manager = (tempfile.TemporaryDirectory(prefix='analytic-cache-ir-') if staging_folder is None else
+                   contextlib.nullcontext(str(Path(staging_folder).expanduser().resolve())))
+        with manager as folder:
+            entries = _CompiledEntries(Path(folder)/'expressions')
+            key = _fingerprint(('cached-ir', expression.manifest['signature'], storage_backend))
+            directory = Path(entries.entry_path(key))
+            operators = set()
+            with entries.stage(key) as staged:
+                stage, parts = Path(staged.path), []
+                for original, part in zip(expression.manifest['parts'], expression.iter_parts()):
+                    name = 'part-{:06d}-r{}'.format(len(parts), original['rank'])
+                    codec = _AnalyticIRCodec(stage, name)
+                    files = codec.write(part, storage_backend=storage_backend)
+                    operators.update(coefficient[:2] for product in part.terms for coefficient in product)
+                    parts.append(dict(original, file=files[0], buffers=files[1:], sha256=_file_hash(stage/files[0]),
+                                      content_sha256=codec.content_sha256,
+                                      bytes=sum((stage/member).stat().st_size for member in files), free_index_plan_stats=None))
+                manifest = dict(expression.manifest, parts=parts, kind=AnalyticExpressionIR.artifact_kind,
+                                ir_version=AnalyticExpressionIR.format_version,
+                                storage_backend=storage_backend, storage_version=_AnalyticIRCodec.storage_version(storage_backend),
+                                operator_keys=expression.manifest.get('operator_keys', sorted(operators)),
+                                specializations=dict(active_operators=expression.manifest.get('active_operators'),
+                                    mode_dimension=expression.manifest['options'].get('mode_dimension')))
+                manifest['signature'] = _fingerprint((key, [part['sha256'] for part in parts]))
+                manifest['source_legacy_signature'] = expression.manifest['signature']
+                manifest['options'] = dict(manifest['options'], free_index_reduction=False)
+                _atomic_json(stage/'manifest.json', manifest)
+            if file is None: return AnalyticExpressionIR.load(directory)
+            target = Path(file).expanduser().resolve()
+            target.parent.mkdir(parents=True, exist_ok=True)
+            archive = IndexedTarStore(Path(folder)/'build.tar')
+            archive.write_trees([('expression', directory, {})])
+            atomic_write(target, archive.save, keep_mode=False)
+        return AnalyticExpressionIR.load(target)
+
+    @staticmethod
+    def _pack_readers(readers, file, *, staging_folder=None, storage_backend=None, single=False):
+        import shutil
+        import tempfile
+        from McUtils.Scaffolding import IndexedTarStore
+        if storage_backend is not None: _AnalyticIRCodec.storage_backend(storage_backend)
+        if not readers or any(type(name) is not str or not name for name in readers):
+            raise ValueError('an expression collection needs nonempty string names')
+        if single and len(readers) != 1: raise ValueError('single-expression output needs one reader')
+        kinds = {reader.artifact_kind for reader in readers.values()}
+        if len(kinds) != 1: raise ValueError('cannot mix expression IR and compiled programs in a collection')
+        if staging_folder is not None: Path(staging_folder).mkdir(parents=True, exist_ok=True)
+        if file is None:
+            if staging_folder is None: raise ValueError('a collection needs an output file or staging folder')
+            manager = contextlib.nullcontext(tempfile.mkdtemp(prefix='analytic-library-', dir=staging_folder))
+        else:
+            manager = tempfile.TemporaryDirectory(prefix='analytic-library-', dir=staging_folder)
+        with manager as temporary:
+            root = Path(temporary)
+            entries = {}
+            for index, (name, reader) in enumerate(readers.items()):
+                prefix = 'expression' if single else 'entries/{:06d}'.format(index)
+                destination = root/prefix
+                destination.mkdir(parents=True)
+                backend = reader.storage_backend if storage_backend is None else storage_backend
+                version = (reader.manifest.get('storage_version', 1) if storage_backend is None else
+                           reader.codec.storage_version(backend))
+                parts = []
+                for part in reader.manifest['parts']:
+                    record = None
+                    if backend == reader.storage_backend and version == reader.manifest.get('storage_version', 1):
+                        buffers = part.get('buffers')
+                        if buffers is None:
+                            record = reader._read_record(part)
+                            buffers = sorted({node['file'] for node in record['nodes'] if node['kind'] == 'array'})
+                        for member in (part['file'], *buffers):
+                            with reader._open(member) as source, (destination/reader._name(member)).open('wb') as target:
+                                shutil.copyfileobj(source, target, length=1024*1024)
+                        if _file_hash(destination/part['file']) != part['sha256']:
+                            raise ValueError('analytic part checksum mismatch while copying')
+                        digest = part.get('content_sha256')
+                        if digest is None:
+                            if record is None: record = reader._read_record(part)
+                            digest = reader.codec.content_hash(record)
+                        parts.append(dict(part, buffers=list(buffers), content_sha256=digest))
+                    else:
+                        payload = reader._decode_record(reader._read_record(part))
+                        codec = reader.codec(destination, Path(part['file']).stem)
+                        members = codec.write(payload, storage_backend=backend)
+                        parts.append(dict(part, file=members[0], buffers=members[1:],
+                            sha256=_file_hash(destination/members[0]), content_sha256=codec.content_sha256,
+                            bytes=sum((destination/member).stat().st_size for member in members)))
+                _atomic_json(destination/'manifest.json', dict(reader.manifest, parts=parts,
+                             storage_backend=backend, storage_version=version))
+                entries[name] = prefix
+            if not single:
+                catalog = dict(kind=next(iter(kinds))+'-collection', catalog_version=1, complete=True, entries=entries)
+                _atomic_json(root/'manifest.json', catalog)
+            if file is None: return root/'expression' if single else root
+            target = Path(file).expanduser().resolve()
+            if any(target == reader.source for reader in readers.values()):
+                raise ValueError('collection output must be separate from its inputs')
+            target.parent.mkdir(parents=True, exist_ok=True)
+            archive = IndexedTarStore(root/'build.tar')
+            archive.write_trees([('expression', root/'expression', {})] if single else
+                               [('entries', root/'entries', {}),
+                                ('manifest.json', None, {'': (root/'manifest.json').read_bytes()})])
+            atomic_write(target, archive.save, keep_mode=False)
+        return target
+
+    def pack_ir(self, sources, file, *, staging_folder=None, storage_backend=None):
+        """Pack named, already simplified expressions into one indexed IR file."""
+        with contextlib.ExitStack() as stack:
+            readers = {name: (source if isinstance(source, AnalyticExpressionIR) else
+                              stack.enter_context(AnalyticExpressionIR.load(source)))
+                       for name, source in sources.items()}
+            if any(reader.artifact_kind != AnalyticExpressionIR.artifact_kind for reader in readers.values()):
+                raise ValueError('pack_ir requires simplified mathematical expressions')
+            return self._pack_readers(readers, file, staging_folder=staging_folder, storage_backend=storage_backend)
+
+    def _compile_ir_collection(self, sources, file, *, staging_folder=None, **options):
+        import tempfile
+        if file is not None:
+            target = Path(file).expanduser().resolve()
+            if any(target == (source.source if isinstance(source, AnalyticExpressionIR) else
+                               Path(source).expanduser().resolve()) for source in sources.values()):
+                raise ValueError('compiled output must be separate from its source IR')
+        with tempfile.TemporaryDirectory(prefix='analytic-library-compile-') as temporary, contextlib.ExitStack() as stack:
+            readers = {}
+            for index, (name, source) in enumerate(sources.items()):
+                compiled = self.compile_ir(source, staging_folder=Path(temporary)/str(index), **options)
+                readers[name] = stack.enter_context(_CompiledAnalyticArchive.load(compiled.artifact))
+            started = time.perf_counter()
+            target = self._pack_readers(readers, file, staging_folder=staging_folder)
+            self.timings['compilation_seconds'] += time.perf_counter()-started
+        results = {name: CompiledAnalyticExpression.load(target, expression=name) for name in sources}
+        for value in results.values(): value.store = self
+        return results
+
+    @staticmethod
+    def _lower_ir_part(part, manifest, *, free_index_reduction=True, rank=None, orbit_cache=None):
+        from . import Analytic as a
+        num_fixed = manifest['num_fixed']
+        baseline = manifest['baseline_shift']
+        if free_index_reduction and not (baseline and any(baseline[num_fixed:])):
+            _prepare_free_index_plan(part, num_fixed, orbit_cache, rank=rank)
+        source_plans = {'native': IndexedBlockEvaluator.compile_plan(part)}
+        if hasattr(part, '_free_index_plan_data'):
+            source_plans['reduced'] = IndexedBlockEvaluator.compile_plan(part, reduced=True)
+        max_order = a.PerturbationTheoryExpressionEvaluator._get_max_order(part)
+        memo, programs, polynomial_cache = {}, {}, {}
+        conditions, energy_keys, energy_programs, lowered_terms, lowered_subplans = {}, {}, {}, {}, {}
+        occupation_shifts = tuple(np.arange(delta+1 if delta < 0 else 1,
+                                             1 if delta < 0 else delta+1, dtype=np.int64)
+                                  for delta in manifest['change'])
+
+        def condition(value):
+            identity = id(value)
+            if identity not in conditions:
+                name, arguments = _condition_program_fields(value)
+                def prepare(argument):
+                    from McUtils.Zachary.Symbolic.ElementaryFunctions import Functionlike
+                    if isinstance(argument, a.OperatorCondition): return condition(argument)
+                    if isinstance(argument, Functionlike): return argument.compile(mode='program')
+                    if isinstance(argument, tuple): return tuple(prepare(item) for item in argument)
+                    return argument
+                arguments = tuple(prepare(argument) for argument in arguments)
+                result = _restore_condition_program(name, arguments)
+                for field in ('symmetric', 'diagonal', 'equivalence', 'requires_frequencies'):
+                    object.__setattr__(result, field, getattr(value, field))
+                object.__setattr__(result, 'key', ('compiled-condition', _fingerprint((name, arguments))))
+                conditions[identity] = result
+            return conditions[identity]
+
+        def energy_key(key):
+            if key not in energy_keys:
+                energy_keys[key] = tuple((a.ConditionEndpoint(condition(row[0].condition), row[0].kind,
+                                                   row[0].retain, row[0].endpoint),)+row[1:]
+                             if isinstance(row[0], a.ConditionEndpoint) else row for row in key)
+            return energy_keys[key]
+
+        def lower_term(term):
+            identity = id(term)
+            if identity not in lowered_terms:
+                key = energy_key(term.energy_changes)
+                if key not in energy_programs:
+                    energy_programs[key] = _CompiledEnergyProgram(a._compile_energy_program(key, baseline))
+                lowered_terms[identity] = dataclasses.replace(term, polynomial=lower(term.polynomial),
+                    energy_changes=key, denominator_program=energy_programs[key])
+            return lowered_terms[identity]
+
+        def lower(value):
+            identity = id(value)
+            if identity not in memo:
+                if isinstance(value, a.PTEnergyChangeProductSum):
+                    result = object.__new__(a.PTEnergyChangeProductSum)
+                    result.terms = {energy_key(key): lower(poly) for key, poly in value.terms.items()}
+                    result.prefactor, result.reduced, result._ndim = value.prefactor, value.reduced, value.ndim
+                    result._shape = None
+                else:
+                    result = a._CompiledPolynomial.compile(value, cache=polynomial_cache)
+                    result = programs.setdefault(result.signature, result)
+                    result.occupation_shifts = occupation_shifts
+                memo[identity] = result
+            return memo[identity]
+
+        indices = {key: tuple(part.get_inds(key)) for key in part.terms}
+        free_groups, patterns = {}, {}
+        for key, positions in indices.items():
+            free_groups.setdefault(len(positions)-num_fixed, []).append(key)
+            for coefficient in key:
+                pattern = tuple(int(i) for i in coefficient[2:])
+                if pattern:
+                    table = patterns.setdefault(len(pattern), {})
+                    table.setdefault(pattern, len(table))
+        pattern_tables = {arity: (np.asarray(tuple(table), dtype=np.int64), table)
+                          for arity, table in patterns.items()}
+        maximum_factors = max(map(len, part.terms), default=0)
+        execution = dict(version=1, max_order=max_order,
+            groups=tuple((rank, tuple(keys)) for rank, keys in free_groups.items()),
+            factorials=tuple(math.factorial(n) for n in range(maximum_factors+1)),
+            coefficient_patterns=pattern_tables)
+        plans = {}
+        for name, source in source_plans.items():
+            subexpressions = {}
+            for key, subplan in source.subexpressions.items():
+                if id(subplan) not in lowered_subplans:
+                    groups = tuple((shape, tuple(lower_term(term) for term in terms))
+                                   for shape, terms in subplan.groups)
+                    lowered = lower(subplan.expression)
+                    if isinstance(lowered, a.PTEnergyChangeProductSum):
+                        lowered._compiled_terms = tuple(sorted((term for _, terms in groups for term in terms),
+                                                               key=lambda term: term.ordinal))
+                    lowered_subplans[id(subplan)] = IndexedSubexpressionPlan(lowered,
+                        subplan.direct_polynomial, subplan.prefactor, groups)
+                subexpressions[key] = lowered_subplans[id(subplan)]
+            plans[name] = subexpressions, source.term_count, (
+                None if source.index_bindings is None else dict(source.index_bindings))
+        free_index = getattr(part, '_free_index_plan_data', None)
+        if free_index is not None:
+            free_index = dict(free_index, values={key: lower(value) for key, value in free_index['values'].items()})
+        expression = object.__new__(a.PTTensorCoeffProductSum)
+        expression.terms = {key: lower(value) for key, value in part.terms.items()}
+        expression.prefactor, expression.reduced, expression._ndim = part.prefactor, part.reduced, part.ndim
+        expression._shape, expression._inds_map = None, indices
+        requirements, sides, energy_terms = {}, {}, {}
+        identification = a.DegeneracyIdentificationContext([])
+        for value in expression.terms.values():
+            if not isinstance(value, a.PTEnergyChangeProductSum): continue
+            for key in value.terms:
+                if key in sides: continue
+                sides[key] = tuple(a.PTEnergyChangeProductSum.side_change_iter(key))
+                for _, change in sides[key]:
+                    for method in ('linear', 'perfect'):
+                        identity = method, tuple(change)
+                        if identity in requirements: continue
+                        requirement = identification._requirement(change, method)
+                        maps = requirement[1]
+                        projections = None
+                        if method == 'linear':
+                            checked = np.flatnonzero(maps[0] >= 0)
+                            projections = np.stack([checked[np.argsort(mapping[checked])] for mapping in maps])
+                        requirements[identity] = requirement, projections
+        energy_terms = {key: tuple(value.terms) for key, value in expression.terms.items()
+                        if isinstance(value, a.PTEnergyChangeProductSum)}
+        execution['degeneracy'] = dict(sides=sides, requirements=requirements, terms=energy_terms)
+        a._PolynomialProgramTable.pack(tuple(programs.values()))
+        return dict(expression=expression, execution=execution, plans=plans, free_index=free_index)
+
+    def compile_ir(self, source, file=None, *, staging_folder=None, free_index_reduction=True,
+                   storage_backend='portable', progress=None):
+        """Compile portable IR without a solver or any physical system inputs.
+
+        The output is an independent self-contained archive (or a retained
+        staging directory). All expression planning occurs before publication.
+        """
+        import tempfile
+        from McUtils.Scaffolding import IndexedTarStore
+        storage_backend = _CompiledAnalyticCodec.storage_backend(storage_backend)
+        if file is None and staging_folder is None:
+            raise ValueError('IR compilation needs an output file or staging folder')
+        if not isinstance(free_index_reduction, (bool, np.bool_)):
+            raise TypeError('free_index_reduction must be boolean')
+        if isinstance(source, Mapping):
+            return self._compile_ir_collection(source, file, staging_folder=staging_folder,
+                free_index_reduction=free_index_reduction, storage_backend=storage_backend, progress=progress)
+        if not isinstance(source, AnalyticExpressionIR):
+            if file is not None and Path(source).expanduser().resolve() == Path(file).expanduser().resolve():
+                raise ValueError('compiled output must be separate from its source IR')
+            names = AnalyticExpressionIR.expression_names(source)
+            if names:
+                with contextlib.ExitStack() as stack:
+                    sources = {name: stack.enter_context(AnalyticExpressionIR.load(source, expression=name)) for name in names}
+                    return self._compile_ir_collection(sources, file, staging_folder=staging_folder,
+                        free_index_reduction=free_index_reduction, storage_backend=storage_backend, progress=progress)
+        owner = not isinstance(source, AnalyticExpressionIR)
+        reader = AnalyticExpressionIR.load(source) if owner else source
+        started = time.perf_counter()
+        self.timings['requests'] += 1
+        completed = False
+        try:
+            semantic = {key: reader.manifest[key] for key in
+                        ('change', 'baseline_shift', 'num_fixed', 'projection', 'active_operators',
+                         'operator_letter_bound', 'maximum_mode_indices', 'specializations')}
+            semantic['operator_keys'] = reader.manifest.get('operator_keys')
+            if semantic['active_operators'] is not None and semantic['operator_keys'] is None:
+                raise ValueError('specialized IR needs operator-domain metadata; re-export it')
+            signature = _fingerprint(dict(version=_CompiledAnalyticArchive.format_version,
+                parts=[part.get('content_sha256', part['sha256']) for part in reader.manifest['parts']], semantic=semantic,
+                free_index_reduction=bool(free_index_reduction)))
+            manager = (tempfile.TemporaryDirectory(prefix='analytic-compile-') if staging_folder is None
+                       else contextlib.nullcontext(str(Path(staging_folder).expanduser().resolve())))
+            with manager as folder:
+                entries = _CompiledEntries(Path(folder) / 'compiled')
+                storage_key = _fingerprint((signature, storage_backend))
+                directory = Path(entries.entry_path(storage_key))
+                with entries.stage(storage_key) as staged:
+                    stage = Path(staged.path)
+                    parts = []
+                    orbit_cache = BoundedCache.sampled(32768, 32*1024**2) if free_index_reduction else None
+                    for original, expression in zip(reader.manifest['parts'], reader.iter_parts()):
+                        payload = self._lower_ir_part(expression, reader.manifest,
+                                                      free_index_reduction=free_index_reduction,
+                                                      rank=original['rank'], orbit_cache=orbit_cache)
+                        name = 'part-{:06d}-r{}'.format(len(parts), original['rank'])
+                        codec = _CompiledAnalyticCodec(stage, name)
+                        files = codec.write(payload, storage_backend=storage_backend)
+                        parts.append(dict(original, file=files[0], buffers=files[1:], sha256=_file_hash(stage/files[0]),
+                                          content_sha256=codec.content_sha256,
+                                          bytes=sum((stage/member).stat().st_size for member in files)))
+                        if progress is not None:
+                            progress(dict(stage='lowering', parts=len(parts), source_parts=len(reader.manifest['parts'])))
+                    manifest = dict(semantic, format=self.format_version, kind=_CompiledAnalyticArchive.artifact_kind,
+                        plan_version=_CompiledAnalyticArchive.format_version, complete=True, signature=signature,
+                        storage_backend=storage_backend, storage_version=_AnalyticIRCodec.storage_version(storage_backend),
+                        program_versions=dict(polynomial=3, function=1, denominator=2, degeneracy=1),
+                        parts=parts, source_ir_signature=reader.manifest['signature'],
+                        options=dict(free_index_reduction=bool(free_index_reduction),
+                                     mode_dimension=semantic['specializations']['mode_dimension']),
+                        seconds=time.perf_counter()-started)
+                    for key in ('request_version', 'request_signature'):
+                        if key in reader.manifest: manifest[key] = reader.manifest[key]
+                    _atomic_json(stage/'manifest.json', manifest)
+                if file is None:
+                    result = CompiledAnalyticExpression.load(directory)
+                else:
+                    target = Path(file).expanduser().resolve()
+                    if target == reader.source:
+                        raise ValueError('compiled output must be separate from its source IR')
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    archive = IndexedTarStore(Path(folder)/'build.tar')
+                    archive.write_trees([('expression', directory, {})])
+                    atomic_write(target, archive.save, keep_mode=False)
+                    result = CompiledAnalyticExpression.load(target)
+                result.store = self
+                completed = True
+                return result
+        finally:
+            if owner: reader.close()
+            self.timings['compilation_seconds'] += time.perf_counter()-started
+            self.timings['compilations' if completed else 'failures'] += 1
 
     def _remember(self, compiled):
         size = sum(part['bytes'] for part in compiled.manifest['parts'])
@@ -1124,13 +2404,48 @@ class AnalyticExpressionStore:
     def compile(self, expression, *, context=None, active_operators=None, projection=None,
                 max_terms=32768, max_bytes=64*1024**2, cache_size=100000,
                 cache_bytes=512*1024**2, node_cache_size=8192, mode_dimension=None, progress=None,
-                coalesce_combine_nodes=True,bounded_byte_accounting=True,free_index_reduction=True):
+                coalesce_combine_nodes=True,bounded_byte_accounting=True,free_index_reduction=True,
+                file=None,staging_folder=None,storage_backend=None):
         """Compile native expressions; early DAG combine-node coalescing is on by default.
+
+        Pass an IR path/reader plus ``file=...`` for standalone portable
+        compilation. A native expression plus ``file=...`` runs the same two
+        explicit stages as a convenience. Omitting a destination preserves the
+        existing in-memory/legacy-cache interface.
 
         Set coalesce_combine_nodes=False (also accepted through evaluator
         compilation_options) to disable that optimization for diagnostics or
         benchmarking. Bounded final-part accumulation remains active.
         """
+        if self.using_artifacts and file is None and staging_folder is None:
+            if storage_backend is not None:
+                raise ValueError('select storage_backend on the artifact session')
+            return self._compile_artifact(lambda: expression,
+                context=expression if context is None else context, active_operators=active_operators,
+                projection=projection, mode_dimension=mode_dimension, free_index_reduction=free_index_reduction,
+                max_terms=max_terms, max_bytes=max_bytes, cache_size=cache_size, cache_bytes=cache_bytes,
+                node_cache_size=node_cache_size, progress=progress,
+                coalesce_combine_nodes=coalesce_combine_nodes, bounded_byte_accounting=bounded_byte_accounting)
+        if storage_backend is not None:
+            _AnalyticIRCodec.storage_backend(storage_backend)
+            if file is None and staging_folder is None:
+                raise ValueError('storage_backend needs an output file or staging folder')
+        backend = 'portable' if storage_backend is None else storage_backend
+        if isinstance(expression, (AnalyticExpressionIR, str, os.PathLike)):
+            if active_operators is not None or projection is not None or mode_dimension is not None:
+                raise ValueError('IR specializations are fixed at export')
+            return self.compile_ir(expression, file, staging_folder=staging_folder,
+                free_index_reduction=free_index_reduction, storage_backend=backend, progress=progress)
+        if file is not None or staging_folder is not None:
+            import tempfile
+            with tempfile.TemporaryDirectory(prefix='analytic-ir-compile-') as temporary:
+                with self.export_ir(expression, staging_folder=temporary, context=context, storage_backend=backend,
+                    active_operators=active_operators, projection=projection, mode_dimension=mode_dimension,
+                    max_terms=max_terms, max_bytes=max_bytes, cache_size=cache_size, cache_bytes=cache_bytes,
+                    node_cache_size=node_cache_size, coalesce_combine_nodes=coalesce_combine_nodes,
+                    bounded_byte_accounting=bounded_byte_accounting, progress=progress) as ir:
+                    return self.compile_ir(ir, file, staging_folder=staging_folder,
+                        free_index_reduction=free_index_reduction, storage_backend=backend, progress=progress)
         return self.compile_factory(lambda:expression, context=expression if context is None else context,
             active_operators=active_operators,projection=projection,max_terms=max_terms,max_bytes=max_bytes,
             cache_size=cache_size,cache_bytes=cache_bytes,node_cache_size=node_cache_size,
@@ -1139,6 +2454,12 @@ class AnalyticExpressionStore:
 
     def compile_factory(self, factory, **options):
         """Compile or reuse an entry, accounting separately for lookup and actual construction."""
+        if self.using_artifacts:
+            return self._compile_artifact(factory, **options)
+        backend = options.pop('storage_backend', None)
+        if backend is not None:
+            _AnalyticIRCodec.storage_backend(backend)
+            raise ValueError('storage_backend needs compile(..., file=...) or export_ir/compile_ir')
         started=time.perf_counter(); building=[]; completed=False
         from .Analytic import PolyPath
         reduction=options.get('free_index_reduction',True)
@@ -1165,7 +2486,8 @@ class AnalyticExpressionStore:
     def _compile_factory(self, factory, *, context, active_operators=None, projection=None,
                          max_terms=32768,max_bytes=64*1024**2,cache_size=100000,
                           cache_bytes=512*1024**2,node_cache_size=8192,mode_dimension=None,progress=None,
-                          coalesce_combine_nodes=True,bounded_byte_accounting=True,free_index_reduction=True):
+                          coalesce_combine_nodes=True,bounded_byte_accounting=True,free_index_reduction=True,
+                          part_format='pickle',storage_backend='portable'):
         from .Analytic import (SqrtChangePoly,PTTensorCoeffProductDAG,PTTensorCoeffProductSum,
             PTTensorCoeffProductDAGEvaluationPlan,_BalancedPolynomialAccumulator)
         if not isinstance(coalesce_combine_nodes, (bool, np.bool_)):
@@ -1174,17 +2496,23 @@ class AnalyticExpressionStore:
         if not isinstance(free_index_reduction,(bool,np.bool_)):
             raise TypeError('free_index_reduction must be boolean')
         free_index_reduction=bool(free_index_reduction)
+        if part_format not in {'pickle', 'ir'}:
+            raise ValueError('unknown analytic part format')
+        if part_format == 'ir' and (self.folder is None or free_index_reduction):
+            raise ValueError('IR building requires staging and no execution plans')
+        if part_format == 'ir': _AnalyticIRCodec.storage_backend(storage_backend)
         options = dict(max_terms=max_terms,max_bytes=max_bytes,cache_size=cache_size,
                        cache_bytes=cache_bytes,node_cache_size=node_cache_size,mode_dimension=mode_dimension,
                        coalesce_combine_nodes=coalescing_enabled,bounded_byte_accounting=bool(bounded_byte_accounting),
                        free_index_reduction=free_index_reduction)
+        if part_format == 'ir': options.update(part_format='ir', storage_backend=storage_backend)
         if max_terms<1 or (max_bytes is not None and max_bytes<1):raise ValueError('invalid compilation budget')
         signature = self._signature(context,active_operators,projection,options)
         directory = None if self.folder is None else self.folder/signature
         if self.folder is None:
             cached=self._get_memory(signature)
             if cached is not None:return cached
-        elif self.entries.has(signature):return CompiledAnalyticExpression.load(directory)
+        elif self.entries.has(signature):return directory if part_format == 'ir' else CompiledAnalyticExpression.load(directory)
         alias=self._find_alias(signature)
         if alias is None and active_operators is not None:
             # A cache compiled without pruning is valid for a narrower active
@@ -1196,15 +2524,17 @@ class AnalyticExpressionStore:
         expr = wrapper.expr
         if np.isscalar(expr):
             if expr!=0:raise ValueError('nonzero scalar expression needs a native identity polynomial')
-            change = tuple(wrapper.change) if wrapper.change is not None else ()
+            change = tuple(int(i) for i in wrapper.change) if wrapper.change is not None else ()
             baseline = None;poly = PTTensorCoeffProductSum({})
         elif isinstance(expr,SqrtChangePoly):
             change = tuple(int(i) for i in expr.poly_change)
             baseline = tuple(int(i) for i in expr.shift_start);poly = expr.poly_obj
         else:
-            change = tuple(wrapper.change) if wrapper.change is not None else ()
+            change = tuple(int(i) for i in wrapper.change) if wrapper.change is not None else ()
             baseline = None;poly = expr
         if not isinstance(poly,PTTensorCoeffProductSum):poly = PTTensorCoeffProductSum({():poly})
+        operator_keys = (poly.operator_keys if isinstance(poly, PTTensorCoeffProductDAG) else
+                         {coefficient[:2] for key in poly.terms for coefficient in key})
         if projection is not None and (any(change) or baseline and any(baseline)):
             raise ValueError('final occupation projection requires a zero-change numerator')
         if isinstance(poly,PTTensorCoeffProductDAG) and active_operators is not None:
@@ -1258,11 +2588,17 @@ class AnalyticExpressionStore:
                     rank = len({i for coefficient in key for i in coefficient[2:]})
                     groups.setdefault(rank,{})[key] = value
                 for rank,terms in sorted(groups.items()):
-                    name = 'part-{:06d}-r{}.pkl'.format(len(parts),rank)
+                    name = 'part-{:06d}-r{}.{}'.format(len(parts),rank,'json' if part_format == 'ir' else 'pkl')
                     part = PTTensorCoeffProductSum(terms,canonicalize=False,reduced=True)
                     if can_reduce:
                         _prepare_free_index_plan(part,wrapper.num_fixed,self._free_index_orbits,rank=rank)
-                    if stage is None:
+                    if part_format == 'ir':
+                        codec = _AnalyticIRCodec(stage, Path(name).stem)
+                        files = codec.write(part, storage_backend=storage_backend)
+                        name = files[0]
+                        part_hash = _file_hash(stage / name)
+                        part_bytes = sum((stage / member).stat().st_size for member in files)
+                    elif stage is None:
                         payload=pickle.dumps(part,protocol=5)
                         part_hash=hashlib.sha256(payload).hexdigest();part_bytes=len(payload)
                         memory_parts[name]=part
@@ -1272,6 +2608,7 @@ class AnalyticExpressionStore:
                     parts.append(dict(file=name,rank=rank,sha256=part_hash,bytes=part_bytes,
                         coefficient_keys=len(terms),energy_rows=sum(len(p.terms) if hasattr(p,'terms') else 1 for p in terms.values()),
                         free_index_plan_stats=(getattr(part,'_free_index_plan_data',{}).get('stats'))))
+                    if part_format == 'ir': parts[-1].update(content_sha256=codec.content_sha256, buffers=files[1:])
                 pending.clear();budget.flushed(reason)
             for key,value in iterator:
                 if transform is not None:value = transform(key,value)
@@ -1285,10 +2622,17 @@ class AnalyticExpressionStore:
                 change=change,baseline_shift=baseline,num_fixed=wrapper.num_fixed,
                 projection=None if projection is None else dataclasses.asdict(projection),
                 active_operators=None if active_operators is None else sorted(active_operators),
+                operator_keys=sorted(operator_keys),
                 operator_letter_bound=degree,maximum_mode_indices=maximum,options=options,
                 seconds=time.perf_counter()-started,stream_stats=budget.stats(),
                 plan_stats=None if plan is None else plan.stats(),implementation=_implementation_signature())
+            if part_format == 'ir':
+                manifest.update(kind='analytic-expression-ir', ir_version=AnalyticExpressionIR.format_version,
+                                storage_backend=storage_backend, storage_version=_AnalyticIRCodec.storage_version(storage_backend),
+                                specializations=dict(active_operators=manifest['active_operators'],
+                                                     mode_dimension=mode_dimension))
             if stage is not None:_atomic_json(stage/'manifest.json',manifest)
+        if part_format == 'ir': return directory
         compiled=(self._remember(CompiledAnalyticExpression(None,manifest,parts=memory_parts))
                   if directory is None else CompiledAnalyticExpression.load(directory))
         if projection is None:
@@ -1319,15 +2663,60 @@ class _TemplateSubset:
 
 
 class CompiledAnalyticExpression:
-    def __init__(self,folder,manifest,parts=None):
+    def __init__(self,folder,manifest,parts=None,artifact=None,expression=None):
         self.folder=None if folder is None else Path(folder)
         self.manifest=manifest;self.parts=parts;self.store=None
+        self.artifact = None if artifact is None else Path(artifact)
+        self.expression = expression
+
     @classmethod
-    def load(cls,folder):
-        folder=Path(folder).resolve();manifest=json.loads((folder/'manifest.json').read_text())
+    def expression_names(cls, source):
+        return _CompiledAnalyticArchive.expression_names(source)
+
+    def iter_parts(self):
+        """Read bounded parts from a compatible legacy cache or portable file."""
+        if self.artifact is not None:
+            with _CompiledAnalyticArchive.load(self.artifact, expression=self.expression) as reader:
+                yield from reader.iter_parts()
+            return
+        for part in self.manifest['parts']:
+            if self.parts is not None:
+                yield self.parts[part['file']]
+            else:
+                path = self.folder/part['file']
+                if _file_hash(path) != part['sha256']: raise ValueError('compiled part checksum mismatch')
+                with path.open('rb') as stream: yield pickle.load(stream)
+
+    def save(self, file, *, free_index_reduction=True, storage_backend=None):
+        """Publish one self-contained compiled file, including legacy migration."""
+        if self.artifact is not None:
+            with _CompiledAnalyticArchive.load(self.artifact, expression=self.expression) as reader:
+                target = AnalyticExpressionStore._pack_readers({self.expression or 'expression':reader}, file,
+                    storage_backend=storage_backend, single=self.expression is None)
+            return type(self).load(target)
+        import tempfile
+        store = AnalyticExpressionStore()
+        with tempfile.TemporaryDirectory(prefix='analytic-cache-migration-') as temporary:
+            backend = 'portable' if storage_backend is None else storage_backend
+            with store.export_ir(self, staging_folder=temporary, storage_backend=backend) as ir:
+                return store.compile_ir(ir, file, free_index_reduction=free_index_reduction,
+                                        storage_backend=backend)
+    @classmethod
+    def load(cls,folder,*,expression=None,validate_source=True):
+        folder=Path(folder).resolve()
+        if folder.is_file():
+            with _CompiledAnalyticArchive.load(folder, expression=expression) as reader:
+                return cls(None, reader.manifest, artifact=folder, expression=reader.expression)
+        manifest=json.loads((folder/'manifest.json').read_text())
+        if manifest.get('kind') in {_CompiledAnalyticArchive.artifact_kind, _CompiledAnalyticArchive.artifact_kind+'-collection'}:
+            with _CompiledAnalyticArchive.load(folder, expression=expression) as reader:
+                return cls(folder, reader.manifest, artifact=folder, expression=reader.expression)
+        if manifest.get('kind') == 'analytic-expression-ir':
+            raise ValueError('simplified expression IR must be compiled before evaluation')
         if not manifest.get('complete') or manifest.get('format')!=AnalyticExpressionStore.format_version:
             raise ValueError('incomplete or unsupported compiled expression')
-        if manifest['implementation']!=_implementation_signature():raise ValueError('compiled expression source version changed')
+        if validate_source and manifest['implementation']!=_implementation_signature():
+            raise ValueError('compiled expression source version changed')
         for part in manifest['parts']:
             if Path(part['file']).name!=part['file']:raise ValueError('invalid expression part path')
             if _file_hash(folder/part['file'])!=part['sha256']:raise ValueError('compiled expression checksum mismatch')
@@ -1349,12 +2738,14 @@ class CompiledAnalyticExpression:
         return self.evaluate(carrier,coeffs,freqs,anchored_modes=indices,**options)[0][:,0]
 
     def prepare_evaluation(self,state_perms,coeffs,freqs,*,anchored_modes=(),mode_subset_selector=None,parallelizer=None,
-                           batch_size=512,task_size=32768,resume=True,use_shared_memory=None,**numerical_options):
+                           batch_size=512,task_size=32768,resume=True,use_shared_memory=None,
+                           evaluation_folder=None,**numerical_options):
         started=time.perf_counter()
         try:
             return CompiledAnalyticEvaluation(self,state_perms,coeffs,freqs,anchored_modes=anchored_modes,mode_subset_selector=mode_subset_selector,
                 parallelizer=parallelizer,batch_size=batch_size,task_size=task_size,resume=resume,
-                numerical_options=numerical_options,use_shared_memory=use_shared_memory)
+                numerical_options=numerical_options,use_shared_memory=use_shared_memory,
+                evaluation_folder=evaluation_folder)
         finally:
             if self.store is not None:self.store.timings['preparation_seconds']+=time.perf_counter()-started
     def evaluate(self,state_perms,coeffs,freqs,**options):
@@ -1364,7 +2755,8 @@ class CompiledAnalyticExpression:
 class CompiledAnalyticEvaluation:
     """A reusable numerical task plan; the parallelizer never sees a symbolic DAG."""
     def __init__(self,compiled,state_perms,coeffs,freqs,*,anchored_modes=(),mode_subset_selector=None,parallelizer=None,
-                 batch_size=512,task_size=32768,resume=True,numerical_options=None,use_shared_memory=None):
+                 batch_size=512,task_size=32768,resume=True,numerical_options=None,use_shared_memory=None,
+                 evaluation_folder=None):
         self.compiled=compiled
         self.state_perms=[(np.asarray(state,dtype=int),np.asarray(perms,dtype=int)) for state,perms in state_perms]
         from McUtils.Parallelizers import SharedMemoryArrayTree
@@ -1374,6 +2766,15 @@ class CompiledAnalyticEvaluation:
             PerturbationTheoryExpressionEvaluator._normalize_coefficient_expansions(
                 coeffs,preparation_context=None if active is None else active[1]))
         self.freqs=np.asarray(freqs);self.anchored_modes=tuple(anchored_modes)
+        active_operators = compiled.manifest.get('active_operators')
+        if compiled.artifact is not None and active_operators is not None:
+            relevant = compiled.manifest.get('operator_keys')
+            if relevant is None: raise ValueError('compiled specialization lacks its operator domain')
+            coefficients = self.coeffs.tree if isinstance(self.coeffs, SharedMemoryArrayTree) else self.coeffs
+            unexpected = (set(_active_coefficient_operators(coefficients)) & set(map(tuple, relevant))
+                          - set(map(tuple, active_operators)))
+            if unexpected:
+                raise ValueError('compiled specialization excludes active coefficient operators: {}'.format(sorted(unexpected)))
         self.mode_subset_selector=mode_subset_selector or _AnchoredModeSubset(self.anchored_modes)
         cap=compiled.manifest['options'].get('mode_dimension')
         if cap is not None and len(self.freqs)>cap:
@@ -1402,7 +2803,14 @@ class CompiledAnalyticEvaluation:
         signature=self._fingerprint_context(dict(expression=compiled.manifest['signature'],states=self.state_perms,
             coefficients=self.coeffs,frequencies=self.freqs,anchors=self.anchored_modes,subsets=self.mode_subset_selector,numerical=self.numerical_options,
             batch_size=self.batch_size,task_size=self.task_size))
-        self.folder=None if compiled.folder is None else compiled.folder/'evaluations'/signature
+        if evaluation_folder is None and active is not None:
+            evaluation_folder = active[1].root.options.get('evaluation_folder')
+        destination = None if evaluation_folder is None else Path(evaluation_folder).expanduser().resolve()
+        if destination is not None and compiled.folder is not None:
+            root = compiled.folder.resolve() if compiled.store is None or compiled.store.folder is None else compiled.store.folder
+            if destination == root or root in destination.parents:
+                raise ValueError('evaluation_folder must be outside the compiled expression store')
+        self.folder=None if destination is None else destination/signature
         if self.folder is not None:self.folder.mkdir(parents=True,exist_ok=True)
         tasks=[];ndim=len(self.freqs);num_fixed=compiled.manifest['num_fixed']
         for part in compiled.manifest['parts']:
@@ -1459,6 +2867,8 @@ class CompiledAnalyticEvaluation:
         return dict(plan_identity=None if plan is None else plan[0],
             coefficient_bindings=bindings,coefficient_owner_pid=os.getpid(),expression_folder=None if self.compiled.folder is None else str(self.compiled.folder),
             expression_parts=self.compiled.parts,manifest=self.compiled.manifest,
+            expression_archive=None if self.compiled.artifact is None else str(self.compiled.artifact),
+            expression_name=self.compiled.expression,
             evaluation_folder=None if self.folder is None else str(self.folder),signature=self.signature,state_perms=self.state_perms,
             coeffs=self.coeffs if coeffs is None else coeffs,freqs=self.freqs,anchors=self.anchored_modes,subset_selector=self.mode_subset_selector,
             batch_size=self.batch_size,resume=self.resume,numerical_options=self.numerical_options)
@@ -1554,6 +2964,14 @@ def _run_compiled_tasks(tasks,context):
 
 
 def _run_compiled_tasks_inner(tasks,context):
+    source = context.get('expression_archive')
+    manager = (contextlib.nullcontext(None) if source is None else
+               _CompiledAnalyticArchive.load(source, expression=context.get('expression_name')))
+    with manager as archive:
+        return _run_compiled_tasks_bound(tasks, context, archive)
+
+
+def _run_compiled_tasks_bound(tasks,context,archive):
     from .Analytic import PerturbationTheoryExpressionEvaluator as Expression
     from McUtils.Parallelizers import SharedMemoryArrayTree
     evaluation_plan = _evaluation_plan(context)
@@ -1605,7 +3023,9 @@ def _run_compiled_tasks_inner(tasks,context):
         else:record=None
         part=task['part'];key=part['file']
         if key not in cache:
-            if context.get('expression_parts') is not None:
+            if archive is not None:
+                cache[key] = archive.read_part(part)
+            elif context.get('expression_parts') is not None:
                 cache[key]=context['expression_parts'][key]
             else:
                 path=Path(context['expression_folder'])/key
@@ -1613,7 +3033,9 @@ def _run_compiled_tasks_inner(tasks,context):
                 with path.open('rb') as stream:cache[key]=pickle.load(stream)
             # Compiled parts are immutable for the lifetime of this worker.
             # Compute invariant polynomial degree once per load, not per batch.
-            cache[key]=(cache[key],Expression._get_max_order(cache[key])
+            execution = getattr(cache[key], '_compiled_execution', None)
+            cache[key]=(cache[key], execution['max_order'] if execution is not None else
+                        Expression._get_max_order(cache[key])
                         if context['numerical_options'].get('cache_polynomial_order',True) else None)
             while len(cache)>2:cache.popitem(last=False)
         poly,max_order=cache[key];rank=part['rank'];free=rank-num_fixed
@@ -1752,7 +3174,11 @@ class AnalyticCorrectionCompiler:
         if correction not in {'energy','overlap','wavefunction','full_wavefunction'}:
             active=None
         options=dict(evaluator.compilation_options);options.update(compilation_options or {})
-        options.setdefault('mode_dimension',len(evaluator.freqs))
+        if not self.store.using_artifacts:
+            options.setdefault('mode_dimension',len(evaluator.freqs))
+        else:
+            active = None
+        for key in ('ir_file', 'compiled_file', 'storage_backend', 'reuse_only'): options.pop(key, None)
         source=dict(solver=evaluator.solver,correction=correction,energy_method=energy_method)
         generator=[None]
         def expression(n,change):
@@ -1772,7 +3198,9 @@ class AnalyticCorrectionCompiler:
         source = self.evaluator.solver._action_expansion_source(correction,order)
         options = dict(self.evaluator.compilation_options)
         options.update(compilation_options or {})
-        options.setdefault('mode_dimension',len(self.evaluator.freqs))
+        if not self.store.using_artifacts:
+            options.setdefault('mode_dimension',len(self.evaluator.freqs))
+        for key in ('ir_file', 'compiled_file', 'storage_backend', 'reuse_only'): options.pop(key, None)
         return {key:self.store.compile(
                     PerturbationTheoryExpressionEvaluator(None,kernel,(),logger=False),
                     context=dict(solver=source,order=key[0],powers=key[1],source=correction),
@@ -2003,13 +3431,14 @@ class AnalyticCorrectionCompiler:
                     if compiled:
                         store,compile_options,_,_ = compilation
                         compile_options = dict(compile_options)
-                        compile_options.setdefault('mode_dimension',len(freqs))
+                        if not store.using_artifacts:
+                            compile_options.setdefault('mode_dimension',len(freqs))
                         projection = _OccupationCoefficientProjection(powers,shift,fixed_powers,True)
                         kernel = store.compile(kernel,projection=projection,
                             context=dict(operator=wrapper.op if wrapper.op is not None else expression.poly_obj,
                                 change=change,fixed_powers=fixed_powers,powers=powers,shift=shift,
                                 excluded_resonances=pruning_signature.hex()),
-                            active_operators=_active_coefficient_operators(coeffs),**compile_options)
+                            active_operators=None if store.using_artifacts else _active_coefficient_operators(coeffs),**compile_options)
                     kernels[pattern] = kernel
                 carriers = collections.OrderedDict()
                 for key,(carrier,permutation,targets) in pending.items():
@@ -2379,6 +3808,7 @@ class IndexedEnergyTerm:
     contraction_shape: tuple
     projected: bool = False
     constant_numerator: object = None
+    denominator_program: object = None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -2817,6 +4247,7 @@ class IndexedCoefficientGatherPlan:
     )
 
     preparation_context: object = dataclasses.field(default=None, repr=False, compare=False)
+    structural_patterns: object = dataclasses.field(default=None, repr=False, compare=False)
     _tensor_metadata: object = dataclasses.field(init=False,repr=False,compare=False)
     _gather_cache: object = dataclasses.field(init=False,repr=False,compare=False)
 
@@ -2920,6 +4351,23 @@ class IndexedCoefficientGatherPlan:
             )
             stats.coefficient_unique_patterns += len(unique_patterns)
         return unique_patterns, inverse
+
+    def _bind_request_pattern_map(self, patterns):
+        """Select a compiled request table for the concrete active tensor group.
+
+        Which requests survive depends on actual tensors, aliases and cutoffs.
+        The abstract patterns and their IDs were already compiled; this step
+        instantiates only the selected physical group, without pattern analysis.
+        """
+        pool, identifiers = self.structural_patterns[len(patterns[0])]
+        selected, inverse, positions = [], [], {}
+        for pattern in patterns:
+            identifier = identifiers[tuple(pattern)]
+            if identifier not in positions:
+                positions[identifier] = len(selected)
+                selected.append(identifier)
+            inverse.append(positions[identifier])
+        return pool[np.asarray(selected, dtype=np.intp)], np.asarray(inverse, dtype=np.intp)
 
     @staticmethod
     def _remap_request_patterns(patterns, subset, num_fixed):
@@ -3030,7 +4478,10 @@ class IndexedCoefficientGatherPlan:
                     if stats is not None:
                         stats.coefficient_tensor_groups += 1
                         stats.coefficient_gather_requests += len(patterns)
-                    if self.use_cached_request_patterns:
+                    if self.structural_patterns is not None:
+                        unique_structural, inverse = self._bind_request_pattern_map(structural_patterns)
+                        unique_patterns = self._remap_request_patterns(unique_structural, subset, num_fixed)
+                    elif self.use_cached_request_patterns:
                         old_evictions = self.request_pattern_cache.evictions
                         unique_structural, inverse = (
                             self._get_request_pattern_map(
@@ -3203,6 +4654,13 @@ class IndexedBlockEvaluator:
         cls._plan_cache.clear()
 
     def get_plan(self, expression, reduced=False):
+        execution = getattr(expression, '_compiled_execution', None)
+        if execution is not None:
+            name = 'reduced' if reduced else 'native'
+            if name not in execution['plans']:
+                raise ValueError('compiled expression lacks requested structural plan')
+            if self.stats is not None: self.stats.plan_cache_hits += 1
+            return execution['plans'][name]
         namespace='free-index-v1' if reduced else None
         cache_plans = (self.preparation_context is None
                        or getattr(self.preparation_context, 'immutable_expressions', False))
@@ -3290,11 +4748,13 @@ class IndexedBlockEvaluator:
         return None
 
     def get_coefficient_plan(self, coefficient_specs, coefficient_tensors):
+        execution = getattr(getattr(getattr(self, 'plan', None), 'expression', None), '_compiled_execution', None)
+        patterns = None if execution is None else execution['coefficient_patterns']
         if self.preparation_context is not None:
             def create():
                 return IndexedCoefficientGatherPlan(coefficient_specs, coefficient_tensors,
                     0 if not coefficient_tensors else len(coefficient_tensors[0]),
-                    preparation_context=self.preparation_context)
+                    preparation_context=self.preparation_context, structural_patterns=patterns)
             plan, hit = self.preparation_context.coefficient_plan(
                 coefficient_specs, coefficient_tensors, create)
             if hit:
@@ -3324,7 +4784,8 @@ class IndexedBlockEvaluator:
         plan = IndexedCoefficientGatherPlan(
             coefficient_specs,
             coefficient_tensors,
-            expansion_count
+            expansion_count,
+            structural_patterns=patterns
         )
         if self.stats is not None:
             self.stats.coefficient_plans_compiled += 1
@@ -4155,9 +5616,13 @@ class IndexedBlockEvaluator:
                             row_projection_bindings=[
                                 projection_inputs(evaluation_context, blocks.state_indices[int(block_indices[index])])
                                 for index in indices],
-                            preparation_context=self.preparation_context)
+                            preparation_context=self.preparation_context,
+                            programs=([terms[index].denominator_program for index in indices]
+                                      if terms[indices[0]].denominator_program is not None else None))
                         return mask, np.where(mask, factors, 1.)
-                    changes = np.asarray([terms[index].energy_changes for index in indices])
+                    changes = np.stack([terms[index].denominator_program['energy_rows']
+                        if terms[index].denominator_program is not None else np.asarray(terms[index].energy_changes)
+                        for index in indices])
                     frequencies = np.stack([selections[index][0] for index in indices])
                     if self.preparation_context is None:
                         return None, self._contract_energy_rows(changes, frequencies)
@@ -4183,9 +5648,11 @@ class IndexedBlockEvaluator:
 
                 share_energy = (self.use_shared_energy_rows and self.plan.index_bindings is not None
                     and degenerate_changes is None and not any(only_degenerate_terms[:2])
-                    and not any(getattr(row[0], '_conditional_endpoint', False)
-                                or getattr(row[0], '_filtered_change_domain', False)
-                                for term in terms for row in term.energy_changes))
+                    and all(term.denominator_program['pure_projectors']
+                            if term.denominator_program is not None else
+                            not any(getattr(row[0], '_conditional_endpoint', False)
+                                    or getattr(row[0], '_filtered_change_domain', False)
+                                    for row in term.energy_changes) for term in terms))
                 if not share_energy:
                     projected_mask, energy_factors = contract(range(block_size))
                     if self.stats is not None:

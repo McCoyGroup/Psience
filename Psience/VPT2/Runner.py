@@ -3759,9 +3759,9 @@ class AnalyticVPTRunner:
 
         :param block_recurrence: include shared symbolic F[k] feedback and block normalization in filtered handling of resolved resonances (default True); False retains the legacy filtered recurrence for comparisons. In conditional handling, select the block recurrence (True) or ordered transformation (False). Projected handling is unchanged. F corrections stay in the DAG and resonance-change domains bind only at evaluation time.
         :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
-        :param expressions_folder: directory of reusable compiled expression shards and resumable numerical tasks
-        :param compilation_options: bounded compilation settings (max_terms, max_bytes, cache_size, cache_bytes)
-        :param evaluation_options: task/batch sizes, numerical cutoffs and shared-memory options for compiled evaluation
+        :param expressions_folder: legacy directory of reusable compiled symbolic shards; numerical output is configured separately
+        :param compilation_options: bounded compilation settings plus optional ir_file, compiled_file, storage_backend and reuse_only library settings
+        :param evaluation_options: task/batch sizes, numerical cutoffs, shared-memory options and an independent evaluation_folder
         :return: None
         :rtype: None
         """
@@ -5960,7 +5960,11 @@ class AnalyticVPTRunner:
                    *,
                    expressions_file=None,
                    expressions_folder=None,
-                  compile=True,
+                   ir_file=None,
+                   compiled_file=None,
+                   storage_backend=None,
+                   evaluation_folder=None,
+                   compile=True,
                    compilation_options=None,
                    evaluation_options=None,
                    evaluation_mode=None,
@@ -5975,9 +5979,16 @@ class AnalyticVPTRunner:
         Convenience one-shot entry point: builds an `AnalyticVPTRunner` for the given system (via `construct`) and immediately runs the full VPT calculation on it (via `run_VPT`).
 
         By default, final expressions compile in bounded reusable memory. Pass compile=False
-        to disable compilation. Supplying expressions_folder persists compiled expressions
-        followed by numerical dispatch through parallelizer. Matching shards and
-        completed task checkpoints are reused on subsequent calls. Energy,
+        to disable compilation. compiled_file creates or reuses one self-contained
+        library of fully prepared expressions; ir_file optionally retains their
+        simplified mathematical source in a separate library. storage_backend is
+        'portable' (JSON/NumPy interchange) or 'pickle' (trusted Python), defaulting
+        to portable for new files. Existing entries load without symbolic rebuilding
+        or structural compilation, including when transferred to another system.
+        File-backed runs consume saved full-expression programs for either
+        controller evaluation policy, without runtime symbolic projection.
+        evaluation_folder independently enables numerical checkpoint/resume;
+        omitting it leaves no persistent evaluation results. Energy,
         transition-moment and additional operator requests keep their normal
         result format and native resonance handling. No separate precompile call
         is required. expressions_file can still cache intermediate expressions.
@@ -6025,7 +6036,11 @@ class AnalyticVPTRunner:
         :param operator_action_expansion: legacy operator-only opt in to exact occupation-coefficient evaluation of transition moments and additional operators in the native filtered branch. Resonance domains bind at evaluation time.
         :param block_recurrence: include shared symbolic F[k] feedback and block normalization in filtered handling of resolved resonances (default True); False retains the legacy filtered recurrence for comparisons. In conditional handling, select the block recurrence (True) or ordered transformation (False). Projected handling is unchanged. F corrections stay in the DAG and resonance-change domains bind only at evaluation time.
         :param compile: Compile final expressions by default; False selects the uncompiled evaluator.
-        :param expressions_folder: persistent compiled-expression shards and resumable numerical tasks; enables compilation in the controller before dispatching each correction
+        :param expressions_folder: legacy directory cache for compiled symbolic shards
+        :param ir_file: optional single-file mathematical IR library; requires compiled_file
+        :param compiled_file: single-file prepared expression library, built or reused automatically
+        :param storage_backend: 'portable' or 'pickle'; existing storage is preserved unless explicitly selected
+        :param evaluation_folder: separate directory for resumable numerical tasks
         :param compilation_options: bounded compilation settings forwarded to the analytic evaluator
         :param evaluation_options: compiled task/batch sizes, resume, numerical and shared-memory settings
         :param parallelizer: existing McUtils parallelizer used for numerical workers
@@ -6035,6 +6050,17 @@ class AnalyticVPTRunner:
         """
         if degeneracy_states is not None:
             raise ValueError("expect `degeneracy_specs`, not `degeneracy_states`")
+
+        compilation_options = dict(compilation_options or {})
+        evaluation_options = dict(evaluation_options or {})
+        for name, value in dict(ir_file=ir_file, compiled_file=compiled_file,
+                                storage_backend=storage_backend).items():
+            if value is not None: compilation_options[name] = value
+        if evaluation_folder is not None:
+            evaluation_options['evaluation_folder'] = evaluation_folder
+        if compile is False and any(compilation_options.get(key) is not None
+                                    for key in ('ir_file', 'compiled_file', 'storage_backend')):
+            raise ValueError('expression artifact files require compile=True')
 
         runner, states = cls.construct(
             system, states, degeneracy_specs=degeneracy_specs,

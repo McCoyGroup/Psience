@@ -791,18 +791,19 @@ class DegeneracyIdentificationContext:
         if offset != len(output):
             raise AssertionError('degeneracy pattern row count changed')
 
-    def _compact_clause(self, echange, requirement, modes):
+    def _compact_clause(self, echange, requirement, modes, projections=None):
         key = ('compact_clause', tuple(echange))
         cached = self._get(key, 'compact_clause')
         if cached is not None:
             return cached
         signature, maps, _ = requirement
-        checked = np.flatnonzero(maps[0] >= 0)
-        projections = np.stack([
-            checked[np.argsort(mode_map[checked])]
-            for mode_map in maps
-        ])
-        projections.setflags(write=False)
+        if projections is None:
+            checked = np.flatnonzero(maps[0] >= 0)
+            projections = np.stack([
+                checked[np.argsort(mode_map[checked])]
+                for mode_map in maps
+            ])
+            projections.setflags(write=False)
         mode_set, mode_keys, mode_trie = self.changes.get_mode_membership(signature)
         clause = (
             signature, projections, mode_set, mode_keys, mode_trie,
@@ -812,14 +813,17 @@ class DegeneracyIdentificationContext:
             self._stats['compact_clauses_compiled'] += 1
         return self._put(key, clause, projections.nbytes)
 
-    def _bind_energy_key(self, ekey, nmodes, method):
+    def _bind_energy_key(self, ekey, nmodes, method, compiled=None):
         key = ('bound', method, int(nmodes), ekey)
         cached = self._get(key, 'bound_plan')
         if cached is not None:
             return cached
         sides = ([], [])
-        for eside, echange in PTEnergyChangeProductSum.side_change_iter(ekey):
-            requirement = self._requirement(echange, method)
+        changes = (PTEnergyChangeProductSum.side_change_iter(ekey) if compiled is None
+                   else compiled['sides'][ekey])
+        for eside, echange in changes:
+            requirement = (self._requirement(echange, method) if compiled is None
+                           else compiled['requirements'][method, tuple(echange)][0])
             modes = self.changes.get(requirement[0])
             if modes is not None:
                 sides[eside].append((echange, requirement, modes))
@@ -841,7 +845,8 @@ class DegeneracyIdentificationContext:
                 continue
             if self.compact_index and method == 'linear':
                 clauses = [
-                    self._compact_clause(echange, requirement, modes)
+                    self._compact_clause(echange, requirement, modes,
+                        None if compiled is None else compiled['requirements'][method, tuple(echange)][1])
                     for echange, requirement, modes in requirements
                 ]
                 plan = CompactDegeneracyTestPlan(
@@ -943,11 +948,14 @@ class DegeneracyIdentificationContext:
         all_degs = ({}, {})
         by_content = {}
         by_identity = weakref.WeakKeyDictionary()
-        for cinds, term in expr.terms.items():
-            if not isinstance(term, PTEnergyChangeProductSum):
-                continue
-            for ekey in term.terms:
-                left, right = self._bind_energy_key(ekey, nmodes, method)
+        execution = getattr(expr, '_compiled_execution', None)
+        compiled = None if execution is None else execution['degeneracy']
+        terms = (compiled['terms'].items() if compiled is not None else
+                 ((key, value.terms) for key, value in expr.terms.items() if isinstance(value, PTEnergyChangeProductSum)))
+        for cinds, energy_keys in terms:
+            for ekey in energy_keys:
+                left, right = (self._bind_energy_key(ekey, nmodes, method) if compiled is None else
+                               self._bind_energy_key(ekey, nmodes, method, compiled))
                 if left is not None:
                     all_degs[0].setdefault(cinds, {})[ekey] = (
                         self._intern_predicate(left, by_content, by_identity)
@@ -3665,6 +3673,359 @@ class PolyPath(ProductPTPolynomialSum):
     def __radd__(self, other):
         return self.__add__(other)
 
+class _PolynomialProgramTable:
+    """Mapped numeric call records shared by every polynomial in one part."""
+    operations = ('constant', 'leaf', 'sum', 'linear', 'scale', 'shift', 'remap',
+                  'permutation_sum', 'project', 'mul')
+    fields = ('opcodes', 'dimensions', 'child_offsets', 'children', 'parameter_offsets',
+              'parameters', 'terms', 'axes', 'coefficients', 'coefficient_keys', 'scalars', 'signature')
+
+    def __init__(self, *values):
+        for position, (name, value) in enumerate(zip(self.fields, values)):
+            # ndarray views retain the read-only mapping while avoiding the
+            # memmap subclass's per-scalar indexing overhead in the interpreter.
+            if position < 8: value = np.asarray(value)
+            elif name == 'coefficients': value = tuple(np.asarray(array) for array in value)
+            setattr(self, name, value)
+        if len(values) != len(self.fields): raise ValueError('invalid polynomial table')
+        self._hash = hash(('polynomial-table', self.signature))
+
+    def __hash__(self): return self._hash
+    def __eq__(self, other): return type(other) is type(self) and self.signature == other.signature
+
+    @classmethod
+    def pack(cls, roots):
+        nodes, identifiers, pending = [], {}, list(roots)
+        while pending:
+            node = pending.pop()
+            if id(node) in identifiers: continue
+            identifiers[id(node)] = len(nodes)
+            nodes.append(node)
+            pending.extend(node.instructions[0][1])
+        scalars, scalar_ids, coefficients, coefficient_keys, coefficient_ids = [], {}, [], [], {}
+        def scalar(value):
+            if isinstance(value, np.generic): key = type(value), value.dtype.str, value.tobytes()
+            elif type(value) is float: key = float, value.hex()
+            elif type(value) is complex: key = complex, value.real.hex(), value.imag.hex()
+            else: key = type(value), value
+            if key not in scalar_ids:
+                scalar_ids[key] = len(scalars); scalars.append(value)
+            return scalar_ids[key]
+        opcodes, dimensions, child_offsets, children, parameter_offsets, parameters = [], [], [0], [], [0], []
+        terms, axes = [], []
+        for node in nodes:
+            kind, calls, extra, _ = node.instructions[0]
+            opcodes.append(cls.operations.index(kind)); dimensions.append(node.ndim)
+            children.extend(identifiers[id(child)] for child in calls)
+            child_offsets.append(len(children))
+            if kind in {'constant', 'scale'}: data = [scalar(extra)]
+            elif kind == 'linear': data = [scalar(value) for value in extra]
+            elif kind in {'shift', 'remap', 'permutation_sum'}: data = np.asarray(extra).ravel().tolist()
+            elif kind == 'mul': data = [index for pull in extra for index in pull]
+            elif kind == 'project': data = [extra[0], *extra[1]]
+            elif kind == 'leaf':
+                first = len(terms)
+                for weight, divisor, factors in extra:
+                    start = len(axes)
+                    for index, offset, coeffs, signature in factors:
+                        if signature not in coefficient_ids:
+                            coefficient_ids[signature] = len(coefficients)
+                            coefficients.append(coeffs); coefficient_keys.append(signature)
+                        axes.append((index, offset, coefficient_ids[signature]))
+                    terms.append((scalar(weight), scalar(divisor), start, len(axes)))
+                data = [first, len(terms)]
+            else: data = []
+            parameters.extend(data); parameter_offsets.append(len(parameters))
+        arrays = [np.asarray(opcodes, dtype=np.int8), np.asarray(dimensions, dtype=np.int64),
+                  np.asarray(child_offsets, dtype=np.int64), np.asarray(children, dtype=np.int64),
+                  np.asarray(parameter_offsets, dtype=np.int64), np.asarray(parameters, dtype=np.int64),
+                  np.asarray(terms, dtype=np.int64).reshape(-1,4), np.asarray(axes, dtype=np.int64).reshape(-1,3)]
+        for array in arrays: array.flags.writeable = False
+        table = cls(*arrays, tuple(coefficients), tuple(coefficient_keys), tuple(scalars),
+                    dev.fingerprint(tuple(node.signature for node in nodes)))
+        for root in roots:
+            root.table, root.node_index = table, identifiers[id(root)]
+            root.instructions, root.graph_program = (), False
+        return table
+
+    def evaluate(self, root, states, node_cache, axis_cache):
+        def identity(index, data):
+            return self, int(index), (data.dtype.str, data.shape, data.tobytes())
+        root_key = identity(root, states)
+        cached = node_cache.get(root_key)
+        if cached is not None: return cached
+        frames = [[root, states, root_key, 0, []]]
+        while frames:
+            index, data, key, cursor, values = frames[-1]
+            kind = self.operations[int(self.opcodes[index])]
+            children = self.children[self.child_offsets[index]:self.child_offsets[index+1]]
+            extra = self.parameters[self.parameter_offsets[index]:self.parameter_offsets[index+1]]
+            if cursor < len(children):
+                child = int(children[cursor])
+                ndim = int(self.dimensions[child])
+                if kind == 'shift': argument = data[:, :ndim]+extra[None, :]
+                elif kind == 'remap': argument = data[:, extra]
+                elif kind == 'permutation_sum': argument = data[:, extra[cursor*ndim:(cursor+1)*ndim]]
+                elif kind == 'project':
+                    argument = np.zeros((len(data), int(extra[0])), dtype=data.dtype)
+                    argument[:, extra[1:]] = data[:, :len(extra)-1]
+                elif kind == 'mul':
+                    start = 0 if cursor == 0 else int(self.dimensions[int(children[0])])
+                    argument = data[:, extra[start:start+ndim]]
+                else: argument = data
+                frames[-1][3] += 1
+                child_key = identity(child, argument)
+                cached = node_cache.get(child_key)
+                if cached is None: frames.append([child, argument, child_key, 0, []])
+                else: values.append(cached)
+                continue
+            if kind == 'constant': result = np.full(len(data), self.scalars[int(extra[0])])
+            elif kind == 'leaf':
+                result = np.zeros(len(data))
+                for weight, divisor, first, last in self.terms[int(extra[0]):int(extra[1])]:
+                    factors = []
+                    for column, offset, coefficient in self.axes[first:last]:
+                        selected = data[:, column]
+                        if offset: selected = selected+offset
+                        axis_key = ('compiled-axis', self.coefficient_keys[coefficient],
+                                    selected.dtype.str, selected.shape, selected.tobytes())
+                        factor = axis_cache.get(axis_key)
+                        if factor is None:
+                            factor = np.polynomial.polynomial.polyval(selected, self.coefficients[coefficient])
+                            axis_cache[axis_key] = factor
+                        factors.append(factor)
+                    product = np.prod(factors, axis=0) if factors else np.ones(len(data))
+                    result += self.scalars[weight]*product/self.scalars[divisor]
+            elif kind == 'scale': result = self.scalars[int(extra[0])]*values[0]
+            elif kind == 'mul': result = values[0]*values[1]
+            elif kind in {'shift', 'remap', 'project'}: result = values[0]
+            else:
+                result = np.zeros(len(data))
+                for position, value in enumerate(values):
+                    result += self.scalars[int(extra[position])]*value if kind == 'linear' else value
+            node_cache[key] = result
+            frames.pop()
+            if frames: frames[-1][4].append(result)
+        return result
+
+
+class _CompiledPolynomial(PolyPath):
+    """An immutable numeric program consumed by the existing polynomial backend.
+
+    The program has no symbolic DAG to expand or polynomial factors to convolve
+    at load/evaluation time. Input occupations are the only late-bound values.
+    """
+    program_version = 2
+
+    def __init__(self, instructions, ndim, order, signature, zero=False, occupation_shifts=None, graph_program=False, table=None, node_index=None):
+        self.instructions = tuple(instructions)
+        self._ndim, self._order = int(ndim), tuple(order)
+        self.signature, self.zero = signature, bool(zero)
+        self.prefactor, self.reduced = 1, True
+        self.occupation_shifts = occupation_shifts
+        self.graph_program = bool(graph_program)
+        self.table, self.node_index = table, node_index
+        self._node, self._items, self._combined = None, (), None
+        self._hash = hash(('compiled-polynomial', signature))
+
+    @property
+    def is_zero(self): return self.zero
+    def __hash__(self): return self._hash
+    def __eq__(self, other):
+        return type(other) is type(self) and self.signature == other.signature
+    def __fingerprint__(self): return ('compiled-polynomial', self.program_version, self.signature)
+    def __repr__(self): return 'CompiledPolynomial[{}; {} instructions]'.format(self.signature[:12], len(self.instructions))
+    def format_expr(self): return repr(self)
+
+    @classmethod
+    def compile(cls, polynomial, cache=None):
+        """Compile shared callable nodes without unrolling coordinate contexts."""
+        polynomial = PolyPath.from_polynomial(polynomial)
+        cache = {} if cache is None else cache
+        programs = cache.setdefault('programs', {})
+        interned = cache.setdefault('interned', {})
+        axes = cache.setdefault('axes', {})
+        constants = cache.setdefault('constants', {})
+        constant_axes = cache.setdefault('constant_axes', {})
+
+        def describe(node):
+            if not any(node.order):
+                value = node.evaluate_polynomial(np.zeros((1, node.ndim), dtype=int),
+                                                 node_cache=constants, axis_cache=constant_axes)
+                return 'constant', (), np.asarray(value).reshape(-1)[0]
+            if node._node is None:
+                terms = []
+                for term, weight in node._items:
+                    factors = []
+                    for index, axis in enumerate(term.axes):
+                        identity = id(axis)
+                        if identity not in axes:
+                            coefficients = np.array(axis.coeffs, copy=True)
+                            coefficients.flags.writeable = False
+                            axes[identity] = axis, coefficients, dev.fingerprint(coefficients)
+                        _, coefficients, signature = axes[identity]
+                        factors.append((index, 0, coefficients, signature))
+                    terms.append((weight, np.sqrt(2.)**term.steps, tuple(factors)))
+                return 'leaf', (), tuple(terms)
+            kind, arguments = node._node
+            if kind == 'add':
+                pending, children = list(arguments), []
+                while pending:
+                    child = pending.pop()
+                    if child._node is not None and child._node[0] == 'add':
+                        pending.extend(child._node[1])
+                    else:
+                        children.append(child)
+                return 'sum', tuple(children), None
+            if kind == 'linear':
+                return 'linear', tuple(child for child, _ in arguments), tuple(weight for _, weight in arguments)
+            if kind == 'scale': return kind, (arguments[0],), arguments[1]
+            if kind in {'shift', 'remap'}:
+                return kind, (arguments[0],), np.asarray(arguments[1], dtype=np.int64)
+            if kind == 'permutation_sum':
+                return kind, (arguments[0],)*len(arguments[2]), np.asarray(arguments[2], dtype=np.int64)
+            if kind == 'project':
+                return kind, (arguments[0],), (arguments[0].ndim, np.asarray(arguments[1], dtype=np.int64))
+            if kind == 'mul':
+                return kind, arguments[:2], tuple(np.asarray(pull, dtype=np.int64) for pull in arguments[4:6])
+            raise ValueError('unsupported polynomial compilation operation: ' + kind)
+
+        pending = [(polynomial, None)]
+        while pending:
+            node, description = pending.pop()
+            if id(node) in programs: continue
+            if description is None:
+                description = describe(node)
+                if description[1]:
+                    pending.append((node, description))
+                    pending.extend((child, None) for child in reversed(description[1]))
+                    continue
+            kind, children, extra = description
+            children = tuple(programs[id(child)][1] for child in children)
+            signature = dev.fingerprint((cls.program_version, kind,
+                tuple(child.signature for child in children), extra, node.ndim, node.order))
+            result = interned.get(signature)
+            if result is None:
+                result = cls(((kind, children, extra, ()),), node.ndim, node.order,
+                             signature, node.is_zero, graph_program=True)
+                interned[signature] = result
+            programs[id(node)] = node, result
+        return programs[id(polynomial)][1]
+
+    @staticmethod
+    def _leaf_value(terms, states, axis_cache):
+        count = len(states)
+        result = np.zeros(count)
+        for weight, divisor, axes in terms:
+            factors = []
+            for index, offset, coefficients, coefficient_key in axes:
+                values = np.zeros(count, dtype=states.dtype) if index < 0 else states[:, index]
+                if offset: values = values+offset
+                key = ('compiled-axis', coefficient_key, values.dtype.str, values.shape, values.tobytes())
+                factor = axis_cache.get(key)
+                if factor is None:
+                    factor = np.polynomial.polynomial.polyval(values, coefficients)
+                    axis_cache[key] = factor
+                factors.append(factor)
+            product = np.prod(factors, axis=0) if factors else np.ones(count)
+            result += weight*product/divisor
+        return result
+
+    def _evaluate_graph_program(self, states, node_cache, axis_cache):
+        def identity(program, data):
+            return program, (data.dtype.str, data.shape, data.tobytes())
+        root = identity(self, states)
+        prior = node_cache.get(root)
+        if prior is not None: return prior
+        # A numerical call stack executes already compiled child calls and
+        # coordinate bindings. It constructs no symbolic/topological plan and
+        # releases completed call frames instead of retaining an unrolled DAG.
+        frames = [[self, states, root, 0, []]]
+        while frames:
+            program, data, key, cursor, values = frames[-1]
+            kind, children, extra, _ = program.instructions[0]
+            if cursor < len(children):
+                child = children[cursor]
+                if kind == 'shift': argument = data[:, :child.ndim]+extra[None, :]
+                elif kind == 'remap': argument = data[:, extra]
+                elif kind == 'permutation_sum': argument = data[:, extra[cursor]]
+                elif kind == 'project':
+                    ndim, keep = extra
+                    argument = np.zeros((len(data), ndim), dtype=data.dtype)
+                    argument[:, keep] = data[:, :len(keep)]
+                elif kind == 'mul': argument = data[:, extra[cursor]]
+                else: argument = data
+                frames[-1][3] += 1
+                child_key = identity(child, argument)
+                cached = node_cache.get(child_key)
+                if cached is None:
+                    frames.append([child, argument, child_key, 0, []])
+                else:
+                    values.append(cached)
+                continue
+            if kind == 'leaf': result = self._leaf_value(extra, data, axis_cache)
+            elif kind == 'constant': result = np.full(len(data), extra)
+            elif kind == 'scale': result = extra*values[0]
+            elif kind == 'mul': result = values[0]*values[1]
+            elif kind in {'shift', 'remap', 'project'}: result = values[0]
+            elif kind in {'sum', 'linear', 'permutation_sum'}:
+                result = np.zeros(len(data))
+                for index, value in enumerate(values):
+                    result += extra[index]*value if kind == 'linear' else value
+            else: raise ValueError('unsupported compiled polynomial call: ' + kind)
+            node_cache[key] = result
+            frames.pop()
+            if frames: frames[-1][4].append(result)
+        return result
+
+    def evaluate_polynomial(self, substates, node_cache=None, axis_cache=None):
+        node_cache = {} if node_cache is None else node_cache
+        axis_cache = {} if axis_cache is None else axis_cache
+        if self.table is not None:
+            return self.table.evaluate(self.node_index, substates, node_cache, axis_cache)
+        if self.graph_program:
+            return self._evaluate_graph_program(substates, node_cache, axis_cache)
+        state_key = (substates.dtype.str, substates.shape, substates.tobytes())
+        root_key = self, state_key
+        cached = node_cache.get(root_key)
+        if cached is not None:
+            return cached
+        values = []
+        count = len(substates)
+        for instruction in self.instructions:
+            kind, arguments, extra, releases = instruction
+            if kind == 'constant': result = np.full(count, arguments)
+            elif kind == 'leaf':
+                result = np.zeros(count)
+                for weight, divisor, axes in arguments:
+                    factors = []
+                    for index, offset, coefficients, coefficient_key in axes:
+                        axis_key = ('compiled-axis', coefficient_key, index, offset, state_key)
+                        factor = axis_cache.get(axis_key)
+                        if factor is None:
+                            states = np.zeros(count, dtype=substates.dtype) if index < 0 else substates[:, index]
+                            if offset: states = states + offset
+                            factor = np.polynomial.polynomial.polyval(states, coefficients)
+                            axis_cache[axis_key] = factor
+                        factors.append(factor)
+                    product = np.prod(factors, axis=0) if factors else np.ones(count)
+                    result += weight * product / divisor
+            elif kind == 'alias': result = values[arguments[0]]
+            elif kind == 'scale': result = extra * values[arguments[0]]
+            elif kind == 'mul': result = values[arguments[0]] * values[arguments[1]]
+            elif kind in {'sum', 'linear'}:
+                result = np.zeros(count)
+                weights = (1,)*len(arguments) if kind == 'sum' else extra
+                for index, weight in zip(arguments, weights):
+                    result += values[index] if kind == 'sum' else weight * values[index]
+            else: raise ValueError('unsupported compiled polynomial instruction: ' + kind)
+            values.append(result)
+            for index in releases: values[index] = None
+        result = values[-1]
+        node_cache[root_key] = result
+        return result
+
+
 class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
     """
     A representation of a sum of 1/energy * poly sums
@@ -6352,6 +6713,7 @@ class _MaterializedEvaluationCache:
         @classmethod
         def _is_shareable(cls, key):
             path = key[0]
+            if isinstance(path, _PolynomialProgramTable): return True
             return (
                 path._node is None
                 or path._node[0] not in cls._noncanonical_kinds
@@ -7537,6 +7899,19 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
 
     def __call__(self, changes, shift=None, coeffs=None, freqs=None,
                  check_sorting=True, simplify=None, return_evaluator=True):
+        from .Evaluators import current_compilation
+        compilation = current_compilation()
+        if (return_evaluator and coeffs is None and freqs is None and compilation is not None
+                and compilation[0].using_artifacts):
+            # A transferred compiled library can satisfy this formal request
+            # before any polynomial is constructed. Retain the ordinary builder
+            # as a lazy source for a missing entry or an explicit symbolic use.
+            changes = tuple(changes)
+            result = PerturbationTheoryExpressionEvaluator(self, None, changes, logger=self.logger,
+                expression_factory=lambda: PerturbationTheoryTerm.__call__(self, changes,
+                    shift=shift, check_sorting=check_sorting, simplify=simplify, return_evaluator=False))
+            result._expression_shift = None if shift is None else tuple(shift)
+            return result
         with self.logger.block(tag="Building evaluator {term}[{change}]",
                 term=self, change=format_quantum_change(changes)):
             with self.checkpoint: # Open once
@@ -9442,15 +9817,31 @@ class PerturbationTheoryTermProduct(PerturbationTheoryTerm):
 
 
 class PerturbationTheoryExpressionEvaluator:
-    def __init__(self, op, expr:'SqrtChangePoly', change=None, logger=None, parallelizer=None):
+    def __init__(self, op, expr:'SqrtChangePoly', change=None, logger=None, parallelizer=None,
+                 expression_factory=None):
         self.op = op
         self.expr = expr
+        self._expression_factory = expression_factory
         if change is None:
             change = expr.poly_change
         self.change = change # TODO: check that expr has the same change...
         self.num_fixed = len(change)
         self.logger = Logger.lookup(logger)
         self.parallelizer = Parallelizer.lookup(parallelizer) if parallelizer is not None else None
+
+    @property
+    def expr(self):
+        if '_expr' not in self.__dict__:
+            self._expr = self.__dict__.pop('expr', None)
+        if self._expr is None and getattr(self, '_expression_factory', None) is not None:
+            self._expr = self._expression_factory()
+            self._expression_factory = None
+        return self._expr
+
+    @expr.setter
+    def expr(self, value):
+        self._expr = value
+        self._expression_factory = None
     @classmethod
     def _prune_resonant_dag(cls, expr, state_perms, changes, num_fixed, nmodes,
                            context=None):
@@ -9514,6 +9905,10 @@ class PerturbationTheoryExpressionEvaluator:
                     raise NotImplementedError('sorry')
                 if substates.shape[-1] == 0:
                     sqrt_factor = np.ones(substates.shape[0])
+                elif isinstance(poly, _CompiledPolynomial) and poly.occupation_shifts is not None:
+                    shifts_sqrts = [np.prod(n[:, np.newaxis]+offset[np.newaxis, :], axis=-1)
+                                    for n, offset in zip(substates.T, poly.occupation_shifts)]
+                    sqrt_factor = np.sqrt(np.prod(shifts_sqrts, axis=0))
                 else:
                     shifts_sqrts = [
                         np.prod(
@@ -11820,6 +12215,9 @@ class PerturbationTheoryExpressionEvaluator:
                 for state,perms in state_perms
             )
         else:
+            execution = getattr(expr, '_compiled_execution', None)
+            if execution is not None:
+                _max_polynomial_order = execution['max_order']
             max_order = (cls._get_max_order(expr) if _max_polynomial_order is None
                          else _max_polynomial_order)
             if max_order < 0:
@@ -11865,6 +12263,8 @@ class PerturbationTheoryExpressionEvaluator:
                         if free_inds not in free_ind_groups:
                             free_ind_groups[free_inds] = []
                         free_ind_groups[free_inds].append(coeff_indices)
+            elif execution is not None:
+                free_ind_groups = dict(execution['groups'])
             else:
                 for coeff_indices, poly_terms in expr.terms.items():
                     num_inds = len(expr.get_inds(coeff_indices))
@@ -12007,7 +12407,7 @@ class PerturbationTheoryExpressionEvaluator:
                                 _stream_preparation.prepare(cls, cind_sets))
                             if len(tensors) > 0:
 
-                                facs = [
+                                facs = execution['factorials'] if execution is not None else [
                                     math.factorial(n)
                                     for n in range(max([len(cinds) for cinds in cind_specs] + [0]) + 1)
                                 ]
@@ -12146,6 +12546,41 @@ class PerturbationTheoryExpressionEvaluator:
         elif smol_coeffs:
             coeffs = [coeffs]
 
+        from .Evaluators import current_compilation, _active_coefficient_operators
+        compiled_context = current_compilation()
+        def evaluate_compiled(compiled):
+            _, _, task_options, default_parallelizer = compiled_context
+            numerical = dict(projection_bindings=projection_bindings,zero_cutoff=zero_cutoff, degenerate_changes=degenerate_changes,
+                only_degenerate_terms=only_degenerate_terms, verbose=verbose, log_scaled=log_scaled)
+            for key,value in dict(evaluation_backend=evaluation_backend,path_cache_size=path_cache_size,
+                    path_cache_bytes=path_cache_bytes,state_permutation_cache_size=state_permutation_cache_size,
+                    state_permutation_cache_bytes=state_permutation_cache_bytes).items():
+                if value is not None:numerical[key] = value
+            numerical.update(task_options)
+            numerical.setdefault('use_shared_memory', use_shared_memory)
+            with _log_evaluation_time(self.logger, "evaluating compiled expression..."):
+                res = compiled.evaluate(state_perms, coeffs, freqs,
+                    mode_subset_selector=mode_subset_selector,
+                    parallelizer=parallelizer if parallelizer is not None else default_parallelizer, **numerical)
+            if smol_coeffs:res = [r[0] for r in res]
+            if smol:res = res[0]
+            return res
+
+        if (compiled_context is not None and compiled_context[0].using_artifacts
+                and evaluation_mode in {None, 'compiled'}):
+            # File libraries contain full, system-independent programs. Execute
+            # those programs directly, without controller-side physical pruning
+            # or symbolic occupation-coefficient projection.
+            store, compile_options, _, _ = compiled_context
+            stored = self.__dict__.get('_expr', self.__dict__.get('expr'))
+            change = stored.poly_change if isinstance(stored, SqrtChangePoly) else self.change
+            baseline = (stored.shift_start if isinstance(stored, SqrtChangePoly)
+                        else getattr(self, '_expression_shift', None))
+            context = dict(operator=self.op if self.op is not None else self.expr,
+                change=tuple(change), baseline=None if baseline is None else tuple(baseline))
+            compiled = store.compile_factory(lambda: self, context=context, **compile_options)
+            return evaluate_compiled(compiled)
+
         expr = self.expr
         if nput.is_zero(expr):
             res = [
@@ -12246,21 +12681,7 @@ class PerturbationTheoryExpressionEvaluator:
                         compilation_context['excluded_resonances'] = pruning_signature.hex()
                     compiled = store.compile(compiled_expression, context=compilation_context,
                                              active_operators=active, **compile_options)
-                numerical = dict(projection_bindings=projection_bindings,zero_cutoff=zero_cutoff, degenerate_changes=degenerate_changes,
-                    only_degenerate_terms=only_degenerate_terms, verbose=verbose, log_scaled=log_scaled)
-                for key,value in dict(evaluation_backend=evaluation_backend,path_cache_size=path_cache_size,
-                        path_cache_bytes=path_cache_bytes,state_permutation_cache_size=state_permutation_cache_size,
-                        state_permutation_cache_bytes=state_permutation_cache_bytes).items():
-                    if value is not None:numerical[key] = value
-                numerical.update(task_options)
-                numerical.setdefault('use_shared_memory', use_shared_memory)
-                with _log_evaluation_time(self.logger, "evaluating compiled expression..."):
-                    res = compiled.evaluate(state_perms, coeffs, freqs,
-                        mode_subset_selector=mode_subset_selector,
-                        parallelizer=parallelizer if parallelizer is not None else default_parallelizer, **numerical)
-                if smol_coeffs:res = [r[0] for r in res]
-                if smol:res = res[0]
-                return res
+                return evaluate_compiled(compiled)
 
             shared_coefficients = None
             evaluator_cls = type(self)
@@ -12596,6 +13017,115 @@ def projected_path_factors(energy_key, state, permutations, perm_freqs, baseline
     return good, denominator
 
 
+def _compile_energy_program(key, baseline=None):
+    """Validate formal factors once and lower their constant occupation data."""
+    operations, position = [], 0
+    ordinary = not any(getattr(row[0], '_state_projection_factor', False) for row in key)
+    pure_projectors = not any(isinstance(row[0], (ConditionEndpoint, _ChangeDomainIndex)) for row in key)
+    while position < len(key):
+        row = key[position]
+        factor, delta = row[0], np.asarray(row[1:])
+        if isinstance(factor, (ConditionEndpoint, _ChangeDomainIndex)):
+            if position+1 >= len(key): raise ValueError('incomplete compiled endpoint pair')
+            following = key[position+1]
+            end_factor = following[0]
+            if (type(end_factor) is not type(factor) or factor.endpoint != 0 or end_factor.endpoint != 1
+                    or factor.retain != end_factor.retain):
+                raise ValueError('invalid compiled endpoint pair')
+            offset = np.zeros(len(delta), dtype=int)
+            if baseline is not None: offset[:min(len(offset), len(baseline))] = baseline[:len(offset)]
+            start, end = delta+offset, np.asarray(following[1:])+offset
+            if isinstance(factor, ConditionEndpoint):
+                if factor.kind != end_factor.kind or factor.condition != end_factor.condition:
+                    raise ValueError('mismatched compiled conditional endpoints')
+                operations.append(('condition', factor.condition, factor.kind, factor.retain, start, end, start-end))
+            else:
+                operations.append(('domain', factor.retain, start, end, bool(np.array_equal(start, end))))
+            position += 2
+        elif isinstance(factor, ProjectionFactor):
+            operations.append(('projector', factor.kind, factor.slot, delta))
+            position += 1
+        else:
+            if getattr(factor, '_state_projection_factor', False):
+                raise TypeError('unknown compiled projection factor')
+            operations.append(('harmonic', delta))
+            position += 1
+    program = dict(version=1, operations=tuple(operations), ordinary=ordinary, pure_projectors=pure_projectors)
+    if pure_projectors:
+        program['deltas'] = np.asarray([row[1:] for row in key])
+        program['kinds'] = np.asarray([{'R':1, 'P':2, 'Q':3, 'V':4}[row[0].kind]
+                                      if isinstance(row[0], ProjectionFactor) else 0 for row in key], dtype=np.int64)
+        program['slots'] = tuple(row[0].slot if isinstance(row[0], ProjectionFactor) else -1 for row in key)
+        program['projection_indices'] = tuple(i for i, kind in enumerate(program['kinds']) if kind in {1, 2, 3})
+        program['energy_rows'] = np.asarray(key) if ordinary else None
+    return program
+
+
+def _evaluate_energy_program(program, state, permutations, frequencies, bindings):
+    state, permutations = np.asarray(state)[0], np.asarray(permutations, dtype=int)
+    good, denominator = np.ones(len(permutations), dtype=bool), np.ones(len(permutations))
+    for operation in program['operations']:
+        kind, *arguments = operation
+        if kind == 'harmonic': denominator *= frequencies @ arguments[0]
+        elif kind == 'projector':
+            role, slot, delta = arguments
+            possible = np.all(state[permutations]+delta >= 0, axis=-1)
+            if role == 'V':
+                good &= possible
+                continue
+            binding = bindings[slot]
+            if binding[3]:
+                gap = 0. if binding[2] is None else float(np.dot(np.asarray(binding[2])-state, binding[1]))
+                good &= possible
+                denominator *= gap - frequencies @ delta
+                continue
+            differences, counts, gap = _projection_reference_data(binding, tuple(state))
+            local = differences[:, permutations]
+            members = np.any(np.all(local == delta, axis=-1)
+                             & (np.count_nonzero(local, axis=-1) == counts[:, None]), axis=0)
+            good &= possible & (members if role == 'P' else ~members)
+            if role == 'R': denominator *= gap - frequencies @ delta
+        elif kind == 'condition':
+            condition, role, retain, start, end, gap = arguments
+            possible = np.all(state[permutations]+start >= 0, axis=-1) & np.all(state[permutations]+end >= 0, axis=-1)
+            members = condition.evaluate_bound(state, permutations, start, end, frequencies, bindings)
+            good &= possible & (members if retain else ~members)
+            if role == 'resolvent': denominator *= frequencies @ gap
+        elif kind == 'domain':
+            retain, start, end, identical = arguments
+            possible = np.all(state[permutations]+start >= 0, axis=-1) & np.all(state[permutations]+end >= 0, axis=-1)
+            if identical: members = np.ones(len(permutations), dtype=bool)
+            else:
+                if not bindings: raise ValueError('filtered block contraction requires resonance-change bindings')
+                labels = _filtered_block_labels(bindings[0])
+                origins = np.broadcast_to(state, (len(permutations), len(state))).copy()
+                targets = origins.copy()
+                rows = np.arange(len(permutations))[:, None]
+                origins[rows, permutations] += start
+                targets[rows, permutations] += end
+                members = np.fromiter((source in labels and labels[source] == labels.get(tuple(target))
+                    for source, target in zip(map(tuple, origins), targets)), dtype=bool, count=len(permutations))
+            good &= possible & (members if retain else ~members)
+        else: raise ValueError('unknown compiled denominator operation: ' + kind)
+    return good, denominator
+
+
+def _bind_projection_program(program, state, model_size, bindings):
+    deltas, kinds = program['deltas'], program['kinds'].copy()
+    gaps = np.zeros(len(deltas))
+    differences = np.zeros((len(deltas), model_size, len(state)), dtype=int)
+    counts = np.full((len(deltas), model_size), -1, dtype=int)
+    for i in program['projection_indices']:
+        binding = bindings[program['slots'][i]]
+        if binding[3]:
+            kinds[i] = 5
+            gaps[i] = 0. if binding[2] is None else float(np.dot(np.asarray(binding[2])-state, binding[1]))
+        else:
+            delta, number, gaps[i] = _projection_reference_data(binding, state)
+            differences[i,:len(number)], counts[i,:len(number)] = delta, number
+    return deltas, kinds, gaps, differences, counts
+
+
 @functools.lru_cache(maxsize=512)
 def _bound_projection_row(energy_key, state, model_size, projection_bindings):
     factor_count = len(energy_key)
@@ -12622,18 +13152,27 @@ def _bound_projection_row(energy_key, state, model_size, projection_bindings):
 
 
 def projected_energy_rows(energy_keys, source_states, permutations, frequency_blocks, baseline_shift=None,
-                          *, projection_bindings=(), row_projection_bindings=None, preparation_context=None):
+                          *, projection_bindings=(), row_projection_bindings=None, preparation_context=None,
+                          programs=None):
     """Contract a bounded indexed row batch, retaining all projector tests."""
     bindings = ([projection_bindings] * len(energy_keys) if row_projection_bindings is None
                 else row_projection_bindings)
     if len(bindings) != len(energy_keys):
         raise ValueError('one projector binding is required per energy row')
-    if any(isinstance(row[0], _ChangeDomainIndex) for key in energy_keys for row in key):
+    if programs is not None:
+        if len(programs) != len(energy_keys) or any(program is None for program in programs):
+            raise ValueError('incomplete compiled denominator programs')
+        if not all(program['pure_projectors'] for program in programs):
+            results = [_evaluate_energy_program(program, state, perms, freqs, binding)
+                       for program, state, perms, freqs, binding in zip(programs, source_states,
+                           permutations, frequency_blocks, bindings)]
+            return tuple(np.stack([result[k] for result in results]) for k in range(2))
+    if programs is None and any(isinstance(row[0], _ChangeDomainIndex) for key in energy_keys for row in key):
         results = [_filtered_change_factors(key, state, perms, freqs, baseline_shift, binding)
                    for key, state, perms, freqs, binding in zip(
                        energy_keys, source_states, permutations, frequency_blocks, bindings)]
         return tuple(np.stack([result[k] for result in results]) for k in range(2))
-    if any(getattr(row[0],'_conditional_endpoint',False) for key in energy_keys for row in key):
+    if programs is None and any(getattr(row[0],'_conditional_endpoint',False) for key in energy_keys for row in key):
         if row_projection_bindings is None:
             return conditional_energy_rows(energy_keys,source_states,permutations,frequency_blocks,baseline_shift,
                 projection_bindings=projection_bindings)
@@ -12642,9 +13181,11 @@ def projected_energy_rows(energy_keys, source_states, permutations, frequency_bl
                    for key,state,perms,freqs,binding in zip(
                        energy_keys,source_states,permutations,frequency_blocks,bindings)]
         return tuple(np.concatenate([result[k] for result in results]) for k in range(2))
-    model_size = max([1]+[len(binding[row[0].slot][0])
+    model_size = (max([1]+[len(binding[program['slots'][i]][0])
+        for program, binding in zip(programs, bindings) for i in program['projection_indices']
+        if not binding[program['slots'][i]][3]]) if programs is not None else max([1]+[len(binding[row[0].slot][0])
         for key,binding in zip(energy_keys,bindings) for row in key if isinstance(row[0],ProjectionFactor)
-        and row[0].kind!='V' and not binding[row[0].slot][3]])
+        and row[0].kind!='V' and not binding[row[0].slot][3]]))
     # Bound the projector-comparison scratch independently of the native
     # polynomial row chunk, whose bound does not include model-space size.
     factors = len(energy_keys[0])
@@ -12656,12 +13197,15 @@ def projected_energy_rows(energy_keys, source_states, permutations, frequency_bl
         results = [projected_energy_rows(energy_keys[i:i+row_limit],
             source_states[i:i+row_limit],permutations[i:i+row_limit],frequency_blocks[i:i+row_limit],
             baseline_shift,projection_bindings=projection_bindings,
-            row_projection_bindings=bindings[i:i+row_limit], preparation_context=preparation_context)
+            row_projection_bindings=bindings[i:i+row_limit], preparation_context=preparation_context,
+            programs=None if programs is None else programs[i:i+row_limit])
             for i in range(0,len(energy_keys),row_limit)]
         return tuple(np.concatenate([result[k] for result in results]) for k in range(2))
     states = np.stack([np.asarray(state)[0] for state in source_states])
-    bound = [_bound_projection_row(key,tuple(state),model_size,binding)
-             for key,state,binding in zip(energy_keys,states,bindings)]
+    bound = ([_bind_projection_program(program, tuple(state), model_size, binding)
+              for program, state, binding in zip(programs, states, bindings)] if programs is not None else
+             [_bound_projection_row(key,tuple(state),model_size,binding)
+              for key,state,binding in zip(energy_keys,states,bindings)])
     deltas,kinds,gaps,differences,counts = [np.stack(items) for items in zip(*bound)]
     permutations = np.stack(permutations)
     linear = (np.einsum('rpm,rfm->rpf',frequency_blocks,deltas,optimize=False)
@@ -12899,8 +13443,12 @@ class AnalyticBlockExpansion:
                 coefficients = [list(item['expansions']) + [[value] for value in item['scalars']]
                                 for item in cohort]
                 generic, change = group['generic'], group['change']
-                expression = PerturbationTheoryExpressionEvaluator(
-                    generic, generic.get_poly_terms(change), change, logger=group['logger'])
+                if current_compilation() is not None and current_compilation()[0].using_artifacts:
+                    expression = generic(change)
+                    expression.logger = group['logger']
+                else:
+                    expression = PerturbationTheoryExpressionEvaluator(
+                        generic, generic.get_poly_terms(change), change, logger=group['logger'])
                 subset_batch=max(1,int((getattr(block.evaluator,'evaluation_options',None) or {}).get('batch_size',512)))
                 permutation_bytes=16*len(block.freqs)*subset_batch*len(cohort)*max(len(perms) for _,perms in group['routes'])
                 # Account conservatively for the bound model-space/reference
@@ -13503,7 +14051,7 @@ def _outside_unchanged(permutations, change, modes):
 def _function_value(function, points):
     # McUtils elementary functions act on a single coordinate; multivariate
     # functions perform their own index selection.
-    if isinstance(function,ElementaryFunction):
+    if isinstance(function,ElementaryFunction) or getattr(function, 'elementary', False):
         if points.shape[-1] == 0:
             return function(np.zeros(points.shape[:-1]))
         return function(points[...,0 if function.idx is None else function.idx])
@@ -14472,12 +15020,17 @@ class ConditionalCorrectionEvaluator:
                         {'allowed_coefficients','disallowed_coefficients','epaths','return_sorted'}}
 
     def _diagonal_values(self,term,states,**numerical):
+        from .Evaluators import current_compilation
         changes = self.evaluator.get_diff_map([[state,[state]] for state in states], logger=self.logger)
         values = []
         for change,permutations in changes.items():
             with _log_evaluation_time(self.logger, "Building evaluator {s}[{c}]", s=term, c=change):
-                expression = PerturbationTheoryExpressionEvaluator(
-                    term,term.get_poly_terms(change),change,logger=self.logger)
+                if current_compilation() is not None and current_compilation()[0].using_artifacts:
+                    expression = term(change)
+                    expression.logger = self.logger
+                else:
+                    expression = PerturbationTheoryExpressionEvaluator(
+                        term,term.get_poly_terms(change),change,logger=self.logger)
             with _log_evaluation_time(self.logger, "evaluating..."):
                 values.extend(expression.evaluate(permutations,self.expansions,self.freqs,
                     zero_cutoff=self.zero_cutoff,parallelizer=self.parallelizer,log_scaled=False,
