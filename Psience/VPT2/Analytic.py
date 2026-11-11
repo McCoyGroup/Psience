@@ -1159,7 +1159,25 @@ class AnalyticPerturbationTheorySolver:
             parent.filtered_block_recurrence = True
         return parent.get_correction('block-H', BlockHamiltonianCorrection, order, **kw)
 
-    def _action_expansion_source(self, correction):
+    @staticmethod
+    def action_expansion_powers(order):
+        """Ordered positive exponent patterns through the VPT action degree.
+
+        A standard even correction n has degree at most n/2+1 in actions.
+        Distinct permutations such as (2,1) and (1,2) represent different
+        monomials on the same ordered pair of physical mode indices.
+        """
+        if isinstance(order,(bool,np.bool_)) or not isinstance(order,(int,np.integer)) or order < 0:
+            raise ValueError('action expansion order must be a nonnegative integer')
+        powers = [()]
+        for degree in range(1,int(order)//2+2):
+            for group in IntegerPartitioner.partitions(degree):
+                for partition in group:
+                    powers.extend(tuple(int(p) for p in permutation)
+                                  for permutation in UniquePermutations(partition).permutations())
+        return tuple(powers)
+
+    def _action_expansion_source(self, correction, order=2):
         if correction not in {'energy','hamiltonian'}:
             raise ValueError("action source must be 'energy' or 'hamiltonian'")
         if any(getattr(self,name) is not None for name in (
@@ -1171,12 +1189,15 @@ class AnalyticPerturbationTheorySolver:
         source.resonance_independent = True
         source.filtered_block_recurrence = correction == 'hamiltonian'
         source.intermediate_normalization = False
-        for n,term in enumerate(source.hamiltonian_expansion[:3]):
+        # Missing higher Hamiltonian orders are zero; the lower orders can
+        # still generate corrections to arbitrary perturbative order.
+        source.hamiltonian_expansion = source.hamiltonian_expansion[:order+1]
+        for n,term in enumerate(source.hamiltonian_expansion):
             if not isinstance(term,(OperatorExpansionTerm,ZeroTerm)):
                 raise NotImplementedError('action expansion requires the native Hamiltonian expansion')
             if isinstance(term,OperatorExpansionTerm):
                 if max(map(len,term.terms),default=0) > n+2:
-                    raise ValueError('Hamiltonian order exceeds the VPT2 action degree bound')
+                    raise ValueError('Hamiltonian order exceeds the VPT action degree bound')
                 if any(len(t)%2 != n%2 for t in term.terms):
                     raise ValueError('Hamiltonian terms must have the native VPT order parity')
                 if any(getattr(term,name) is not None for name in (
@@ -1191,19 +1212,18 @@ class AnalyticPerturbationTheorySolver:
         complement. No runtime resonance selection enters either source.
         Kernels retain force tensors and harmonic frequency denominators.
         """
-        if order != 2:
-            raise NotImplementedError('symbolic action expansion currently supports VPT2')
-        source = self._action_expansion_source(correction)
+        powers = self.action_expansion_powers(order)
+        source = self._action_expansion_source(correction,order)
         generator = (source.energy_correction if correction == 'energy'
                      else source.block_hamiltonian_correction)
         result = {}
-        for n in (0,2):
+        for n in range(0,int(order)+1,2):
             polynomial = generator(n).get_poly_terms(())
             if nput.is_numeric(polynomial):
                 polynomial = SqrtChangePoly(PTTensorCoeffProductDAG.from_sum(
-                    PTTensorCoeffProductSum({():polynomial})),(),())
-            for powers in ((),(1,),(2,),(1,1)):
-                result[n,powers] = polynomial.project_coefficients(powers,shift=-.5)
+                    PTTensorCoeffProductSum({():polynomial},ndim=0)),(),())
+            for pattern in powers:
+                result[n,pattern] = polynomial.project_coefficients(pattern,shift=-.5)
         return result
 
     def block_main_wavefunction_correction(self, order):
@@ -7464,7 +7484,7 @@ class OperatorExpansionTerm(PerturbationTheoryTerm):
                             l = p.shape[1]
                             for n in range(0, l+1):
                                 base_perm = [1] * (l-n) + [-1] * n
-                                signs = np.array(list(itertools.permutations(base_perm)))
+                                signs = UniquePermutations(base_perm).permutations()
                                 resigned_perms = (signs[np.newaxis] * p[:, np.newaxis]).reshape(-1, l)
                                 sort_key = self.change_sort(resigned_perms)
                                 sort_perms = nput.vector_take(resigned_perms, sort_key, shared=1)
@@ -7545,7 +7565,28 @@ class OperatorExpansionTerm(PerturbationTheoryTerm):
             ckey = tuple(changes)
             skey = tuple(shift)
             # Integer
+            symmetric_terms = [
+                (i,t) for i,t in terms if all(letter == 'x' for letter in t)
+                and self.symmetrizers[self.identities[i]] is PTTensorCoeffProductSum._potential_symmetrizer
+            ]
+            general_terms = [(i,t) for i,t in terms if (i,t) not in symmetric_terms]
             for partition_sizes in targets:
+                if symmetric_terms:
+                    # Identical coordinate letters and a fully symmetric force
+                    # tensor make every assignment with these sizes identical.
+                    # Count them exactly instead of enumerating set partitions.
+                    sizes = tuple(partition_sizes)
+                    p_vec = np.split(np.arange(group_size),np.cumsum(partition_sizes)[:-1])
+                    tensor_idx = tuple(np.repeat(np.arange(total_dim),partition_sizes))
+                    multiplicity = UniquePermutations.count_permutations(partition_sizes)
+                    for term_index,term_list in symmetric_terms:
+                        base_poly = self._resolve_poly(term_list,sizes,0,ckey,skey,p_vec,changes,shift)
+                        if nput.is_zero(base_poly):continue
+                        if isinstance(base_poly,SqrtChangePoly):base_poly = base_poly.poly_obj
+                        prefactor = (self.index,self.identities[term_index])+tensor_idx
+                        poly_contribs[(prefactor,)] = (poly_contribs.get((prefactor,),0)
+                                                       + base_poly.scale(multiplicity))
+                if not general_terms:continue
                 parts, inv_splits = partitioner.partitions(partition_sizes,
                                                           return_partitions=False, take_unique=False,
                                                           return_indices=True, return_inverse=True
@@ -7556,7 +7597,7 @@ class OperatorExpansionTerm(PerturbationTheoryTerm):
                 base_tup = np.array(sum(([i]*s for i,s in enumerate(partition_sizes)), []))
                 for j,p_vec in enumerate(zip(*parts)):
                     tensor_idx = tuple(base_tup[inv_splits[j]])
-                    for term_index,term_list in terms:
+                    for term_index,term_list in general_terms:
                         base_poly = self._resolve_poly(term_list, partition_sizes, j, ckey, skey, p_vec, changes, shift)
                         if nput.is_zero(base_poly): continue
 
@@ -7829,7 +7870,7 @@ class ShiftedHamiltonianCorrection(PerturbationTheoryTerm):
         k = self.order
 
         if k%2 == 1:
-            if len(H) == 0:
+            if k >= len(H):
                 return []
             else:
                 return [H[k]]
@@ -8021,12 +8062,16 @@ class WavefunctionCorrection(PerturbationTheoryTerm):
                 if self.parent.filtered_block_recurrence else base)
 
     def get_subexpressions(self):
-        if self.parent.filtered_block_recurrence:
+        if self.parent.filtered_block_recurrence or self.parent.resonance_independent:
             k = self.order
             H = self.parent.hamiltonian_expansion
             Y = self.parent.full_wavefunction_correction
             X = self.parent.wavefunction_correction
-            F = self.parent.block_hamiltonian_correction
+            # The unrestricted scalar reference has the same normalized
+            # recurrence with E in place of F. Energy feedback belongs inside
+            # the resolvent and acts on the source of each correction.
+            F = (self.parent.block_hamiltonian_correction if self.parent.filtered_block_recurrence
+                 else self.parent.energy_correction)
             parts = [H[r] if r == k else H[r]*Y(k-r)
                      for r in range(1, min(k, len(H)-1)+1)]
             parts += [-X(k-r)*F(r) for r in range(1, k)]
@@ -14432,11 +14477,13 @@ class PerturbationTheoryEvaluator:
 
     @_compiled_evaluation_context
     def get_action_expansion(self, order=2, correction='energy', **options):
-        """Return ([C, w, X], symbolic kernels) in actions I=n+1/2.
+        """Return ([C, w, X, Y, ...], symbolic kernels) in actions I=n+1/2.
 
-        X stores spectroscopic cross coefficients in its upper triangle:
-        E=C+sum(w_i I_i)+sum(i<=j, X_ij I_i I_j).
-        Both source choices are independent of runtime resonance groups.
+        Tensor r stores each monomial coefficient once at nondecreasing mode
+        indices i1<=...<=ir, with no permutation multiplicity factor. The
+        maximum rank is order//2+1. Odd perturbative orders vanish under the
+        native VPT parity; all lower even corrections are included. Both
+        source choices are independent of runtime resonance groups.
         """
         from .Evaluators import AnalyticCorrectionCompiler
         return AnalyticCorrectionCompiler(self).action_expansion(order,correction,**options)

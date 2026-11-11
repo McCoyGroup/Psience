@@ -4142,11 +4142,11 @@ class AnalyticVPTRunner:
         return self.eval.precompile(correction=correction, order=self.order if order is None else order, **options)
 
     def precompile_action_expansion(self, order=2, correction='energy', **options):
-        """Compile unrestricted symbolic action coefficients through VPT2."""
+        """Compile unrestricted symbolic action coefficients through the requested order."""
         return self.eval.precompile_action_expansion(order=order,correction=correction,**options)
 
     def get_action_expansion(self, order=2, correction='energy', **options):
-        """Return ([C, w, upper-triangle X], symbolic kernels), without state fitting."""
+        """Return ([C, w, X, Y, ...], kernels), with nondecreasing tensor indices and no state fitting."""
         return self.eval.get_action_expansion(order=order,correction=correction,**options)
 
     def precompile_frequency_corrections(self, initial_state, final_state, order=None, **options):

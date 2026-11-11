@@ -1680,7 +1680,7 @@ class AnalyticCorrectionCompiler:
     def precompile_action_expansion(self, order=2, correction='energy', *, compilation_options=None):
         from .Analytic import PerturbationTheoryExpressionEvaluator
         terms = self._action_terms(order,correction)
-        source = self.evaluator.solver._action_expansion_source(correction)
+        source = self.evaluator.solver._action_expansion_source(correction,order)
         options = dict(self.evaluator.compilation_options)
         options.update(compilation_options or {})
         options.setdefault('mode_dimension',len(self.evaluator.freqs))
@@ -1705,7 +1705,8 @@ class AnalyticCorrectionCompiler:
         freqs = evaluator.freqs
         ndim = len(freqs)
         backend = evaluator.parallelizer if parallelizer is None else parallelizer
-        constant = 0.;linear = np.zeros(ndim);quadratic = np.zeros((ndim,ndim))
+        maximum_degree = max(sum(powers) for _,powers in kernels)
+        tensors = [0.] + [np.zeros((ndim,)*degree) for degree in range(1,maximum_degree+1)]
         compiled = (self.precompile_action_expansion(order,correction)
                     if evaluator.compile_expressions else None)
         for key,kernel in kernels.items():
@@ -1726,14 +1727,11 @@ class AnalyticCorrectionCompiler:
                         mode_subset_selector=_AnchoredModeSubset(tuple(anchors)),
                         parallelizer=backend,**numerical)[0][0,0]
                 if not powers:
-                    constant += value
-                elif powers == (1,):
-                    linear[anchors[0]] += value
-                elif powers == (2,):
-                    quadratic[anchors[0],anchors[0]] += value
+                    tensors[0] += value
                 else:
-                    quadratic[anchors] += value
-        return [constant,linear,quadratic],kernels
+                    indices = tuple(mode for mode,power in zip(anchors,powers) for _ in range(power))
+                    tensors[sum(powers)][indices] += value
+        return tensors,kernels
 
     def _frequency_request(self,initial,final):
         from .Analytic import SameStateCondition

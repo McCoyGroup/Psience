@@ -1007,7 +1007,7 @@ class SymbolicActionExpansionTests(unittest.TestCase):
         result,_ = runner.get_action_expansion()
         reference,_ = evaluator.get_action_expansion()
         self.assertExpansion(result,reference)
-        with self.assertRaises(NotImplementedError):evaluator.get_action_expansion(order=4)
+        with self.assertRaises(ValueError):evaluator.get_action_expansion(order=-1)
         with self.assertRaises(ValueError):evaluator.get_action_expansion(correction='wavefunction')
         with self.assertRaises(ValueError):evaluator.get_action_expansion(degenerate_changes=[(1,-2)])
         compiled = evaluator.precompile_action_expansion()
@@ -1041,6 +1041,230 @@ class SymbolicActionExpansionTests(unittest.TestCase):
         evaluator.solver.hamiltonian_expansion[2] = A.HamiltonianExpansionTerm(
             [['x']*6],order=2,identities=[0],logger=False)
         with self.assertRaises(ValueError):evaluator.get_action_expansion()
+
+
+class AnyOrderActionExpansionTests(unittest.TestCase):
+    @staticmethod
+    def model(terms, dimensions=1, compile=True, folder=None):
+        # Each entry is (PT order, operator degree, sparse symmetric tensor data).
+        w = np.array([.043,.067,.091,.119][:dimensions])
+        base = A.AnalyticPerturbationTheorySolver.from_order(2,internals=False,logger=False)
+        maximum = max((order for order,_,_ in terms),default=0)
+        H = [base.hamiltonian_expansion[0]]+[A.ZeroTerm(logger=False) for _ in range(maximum)]
+        coefficients = [[np.diag(w)/2]*2]+[[0]*5 for _ in range(maximum)]
+        for order,degree,data in terms:
+            H[order] = A.HamiltonianExpansionTerm([['x']*degree],order=order,identities=[0],logger=False)
+            tensor = np.zeros((dimensions,)*degree)
+            for indices,value in data:
+                for permutation in A.UniquePermutations(indices).permutations():
+                    tensor[tuple(permutation)] = value
+            coefficients[order][0] = tensor
+        solver = A.AnalyticPerturbationTheorySolver(H,logger=False)
+        return A.PerturbationTheoryEvaluator(solver,coefficients,w,compile=compile,expressions_folder=folder)
+
+    @staticmethod
+    def reconstruct(tensors, states):
+        actions = np.asarray(states)+.5
+        values = np.full(len(actions),tensors[0],dtype=float)
+        for degree,tensor in enumerate(tensors[1:],1):
+            for index in itertools.combinations_with_replacement(range(actions.shape[1]),degree):
+                values += tensor[index]*np.prod(actions[:,index],axis=1)
+        return values
+
+    def assertTensors(self, left, right):
+        self.assertEqual(len(left),len(right))
+        for a,b in zip(left,right):np.testing.assert_allclose(a,b,atol=1e-13,rtol=1e-12)
+
+    def test_primitive_construction_matches_explicit_assignments(self):
+        class RepeatedSigns:
+            def __init__(self, values):self.values = values
+            def permutations(self):return np.array(list(itertools.permutations(self.values)))
+
+        state = np.array([2,3,1])
+        frequencies = np.array([.043,.067,.091])
+        for degree in range(1,7):
+            fast = A.OperatorExpansionTerm([['x']*degree],order=0,identities=[0],logger=False)
+            expected = fast.get_changes()
+            with mock.patch.object(A,'UniquePermutations',RepeatedSigns):
+                explicit = fast.get_changes()
+            self.assertEqual(list(expected),list(explicit))
+            # An equivalent user symmetrizer retains the general assignment
+            # algorithm, giving an independent check on multinomial counting.
+            slow = A.OperatorExpansionTerm([['x']*degree],order=0,identities=[0],
+                symmetrizers=[lambda indices:tuple(sorted(indices))],logger=False)
+            tensor = (1+np.sum(np.indices((3,)*degree)**2,axis=0))*.001
+            changes = [c for c in ((),(1,),(2,),(1,-1),(3,),(2,-1))
+                       if sum(map(abs,c))<=degree and sum(map(abs,c))%2==degree%2]
+            for change in changes:
+                values = []
+                for term in (fast,slow):
+                    wrapper = A.PerturbationTheoryExpressionEvaluator(term,term.get_poly_terms(change),change)
+                    values.append(wrapper.evaluate([(state,np.arange(3)[None])],[[tensor]],frequencies,
+                        evaluation_mode='dag',evaluation_backend='indexed',zero_cutoff=0.)[0])
+                np.testing.assert_allclose(values[0],values[1],atol=1e-12,rtol=1e-12)
+
+    def test_arbitrary_order_patterns_and_validation(self):
+        for order in range(13):
+            powers = A.AnalyticPerturbationTheorySolver.action_expansion_powers(order)
+            self.assertEqual(len(powers),2**(order//2+1))
+            self.assertEqual(len(powers),len(set(powers)))
+            self.assertIn((),powers)
+            for pattern in powers:
+                self.assertTrue(all(p>0 for p in pattern))
+                self.assertLessEqual(sum(pattern),order//2+1)
+        fourth = A.AnalyticPerturbationTheorySolver.action_expansion_powers(4)
+        self.assertTrue({(3,),(2,1),(1,2),(1,1,1)} <= set(fourth))
+        sixth = A.AnalyticPerturbationTheorySolver.action_expansion_powers(6)
+        self.assertTrue({(3,1),(1,3),(2,2),(2,1,1),(1,2,1),(1,1,2),(1,1,1,1)} <= set(sixth))
+        evaluator = self.model([])
+        for invalid in (-1,2.5,True,None):
+            with self.assertRaises(ValueError):evaluator.get_action_expansion(order=invalid)
+
+    def test_harmonic_and_odd_requested_orders(self):
+        evaluator = self.model([])
+        for source in ('energy','hamiltonian'):
+            reference,k = evaluator.get_action_expansion(order=0,correction=source)
+            self.assertTensors(reference,[0.,evaluator.freqs])
+            self.assertEqual(set(k),{(0,()),(0,(1,))})
+            actual,k = evaluator.get_action_expansion(order=1,correction=source)
+            self.assertTensors(actual,reference)
+            self.assertTrue(all(n%2==0 for n,_ in k))
+        evaluator = self.model([(2,2,[((0,0),.001)])])
+        even,_ = evaluator.get_action_expansion(order=4)
+        odd,k = evaluator.get_action_expansion(order=5)
+        self.assertTensors(even,odd)
+        self.assertEqual({n for n,_ in k},{0,2,4})
+
+    def test_quadratic_recurrence_through_eighth_order_has_no_spurious_actions(self):
+        g = .001
+        for compiled in (True,False):
+            evaluator = self.model([(2,2,[((0,0),g)])],compile=compiled)
+            w = evaluator.freqs[0]
+            binomial = 1.
+            expected = w
+            for k in range(1,5):
+                binomial *= (.5-(k-1))/k
+                expected += w*binomial*(2*g/w)**k
+            for source in ('energy','hamiltonian'):
+                tensors,kernels = evaluator.get_action_expansion(order=8,correction=source)
+                self.assertEqual(len(tensors),6)
+                self.assertEqual({n for n,_ in kernels},{0,2,4,6,8})
+                self.assertAlmostEqual(tensors[0],0.,places=13)
+                self.assertAlmostEqual(tensors[1][0],expected,places=13)
+                for tensor in tensors[2:]:np.testing.assert_allclose(tensor,0.,atol=1e-13,rtol=0)
+
+    def test_cubic_action_tensor_has_distinct_mixed_powers_and_three_anchors(self):
+        a,b,c = .000002,.000003,.0000004
+        terms = [(4,6,[((0,0,0,0,1,1),a),((0,0,1,1,1,1),b),((0,0,1,1,2,2),c)])]
+        for compiled in (True,False):
+            evaluator = self.model(terms,dimensions=3,compile=compiled)
+            expected = [0.,evaluator.freqs+np.array([45*b/8,45*a/8,0]),
+                        np.zeros((3,3)),np.zeros((3,3,3))]
+            expected[3][0,0,1] = 45*a/2
+            expected[3][0,1,1] = 45*b/2
+            expected[3][0,1,2] = 90*c
+            for source in ('energy','hamiltonian'):
+                tensors,k = evaluator.get_action_expansion(order=4,correction=source)
+                self.assertTensors(tensors,expected)
+                self.assertTrue({(4,(2,1)),(4,(1,2)),(4,(1,1,1))} <= set(k))
+
+    def test_quartic_action_tensor_has_four_anchors_and_quantum_lower_terms(self):
+        a,b = .0000002,.00000003
+        terms = [(6,8,[((0,0,0,0,1,1,2,2),a),((0,0,1,1,2,2,3,3),b)])]
+        for compiled in (True,False):
+            evaluator = self.model(terms,dimensions=4,compile=compiled)
+            expected = [0.,evaluator.freqs,np.zeros((4,)*2),np.zeros((4,)*3),np.zeros((4,)*4)]
+            expected[2][1,2] = 315*a/2
+            expected[4][0,0,1,2] = 630*a
+            expected[4][0,1,2,3] = 2520*b
+            for source in ('energy','hamiltonian'):
+                tensors,k = evaluator.get_action_expansion(order=6,correction=source)
+                self.assertTensors(tensors,expected)
+                self.assertIn((6,(2,1,1)),k)
+                self.assertIn((6,(1,1,1,1)),k)
+
+    def test_twelfth_order_direct_term_generates_seventh_rank(self):
+        from Psience.BasisReps import HarmonicOscillatorBasis
+        strength = 2e-12
+        evaluator = self.model([(12,14,[((0,)*14,strength)])])
+        q = HarmonicOscillatorBasis.qmatrix_ho(40).toarray()
+        states = np.arange(4)[:,None]
+        expected = (states[:,0]+.5)*evaluator.freqs[0]+strength*np.diag(np.linalg.matrix_power(q,14))[:4]
+        for source in ('energy','hamiltonian'):
+            tensors,k = evaluator.get_action_expansion(order=12,correction=source)
+            self.assertEqual(len(tensors),8)
+            self.assertAlmostEqual(float(tensors[7].ravel()[0]),strength*math.comb(14,7)/2**7,places=18)
+            np.testing.assert_allclose(self.reconstruct(tensors,states),expected,atol=1e-12,rtol=1e-12)
+            self.assertEqual({n for n,_ in k},set(range(0,13,2)))
+
+    def test_mixed_cubic_quartic_recurrence_matches_native_matrix_vpt(self):
+        from Psience.BasisReps import HarmonicOscillatorProductBasis,BasisStateSpace,ArrayStateIndexer
+        from Psience.VPT2.Solver import PerturbationTheorySolver
+        from McUtils.Scaffolding import NullLogger,NullCheckpointer
+        a,b = .0003,.00002
+        w = .043
+        basis = HarmonicOscillatorProductBasis([40],indexer=ArrayStateIndexer([40]))
+        def representation(word,value):
+            rank = len(word)
+            return basis.representation(*word,coeffs=np.full((1,)*rank,value),axes=[list(range(rank))]*2)
+        h0 = representation(['x']*2,w/2)+representation(['p']*2,w/2)
+        states = np.arange(4)[:,None]
+        for order,cubic in ((4,a),(6,0.)):
+            terms = [(2,4,[((0,0,0,0),b)])]
+            if cubic:terms.append((1,3,[((0,0,0),cubic)]))
+            evaluator = self.model(terms)
+            matrix = PerturbationTheorySolver(
+                [h0,representation(['x']*3,cubic),representation(['x']*4,b)]+[0]*(order-2),
+                BasisStateSpace(basis,states),order=order,handle_strong_couplings=False,
+                logger=NullLogger(),checkpointer=NullCheckpointer(None),results=NullCheckpointer(None),
+                zero_element_warning=False)
+            expected = matrix.apply_VPT().energy_corrs.sum(axis=1)
+            reference = None
+            for source in ('energy','hamiltonian'):
+                tensors,_ = evaluator.get_action_expansion(order=order,correction=source)
+                np.testing.assert_allclose(self.reconstruct(tensors,states),expected,atol=1e-12,rtol=1e-12)
+                if reference is None:reference=tensors
+                self.assertTensors(tensors,reference)
+
+    def test_higher_order_cache_rebinding_and_warm_disk(self):
+        with tempfile.TemporaryDirectory() as folder:
+            evaluator = self.model([(2,2,[((0,0),.001)])],folder=folder)
+            evaluator.get_action_expansion(order=6)
+            count = evaluator.compilation_statistics()['compilations']
+            evaluator.freqs *= 1.2
+            evaluator.expansions[0] = [np.diag(evaluator.freqs)/2]*2
+            evaluator.expansions[2][0] *= 1.7
+            changed,_ = evaluator.get_action_expansion(order=6)
+            self.assertEqual(evaluator.compilation_statistics()['compilations'],count)
+            evaluator.compile_expressions = False
+            direct,_ = evaluator.get_action_expansion(order=6)
+            self.assertTensors(changed,direct)
+            warm = self.model([(2,2,[((0,0),.0017)])],folder=folder)
+            warm.freqs,warm.expansions = evaluator.freqs,evaluator.expansions
+            result,_ = warm.get_action_expansion(order=6)
+            self.assertTensors(result,changed)
+            self.assertEqual(warm.compilation_statistics()['compilations'],0)
+
+    def test_all_requested_hamiltonian_orders_are_validated(self):
+        evaluator = self.model([(4,8,[((0,)*8,.0001)])])
+        # The unused invalid fourth-order term does not affect VPT2.
+        evaluator.get_action_expansion(order=2)
+        with self.assertRaisesRegex(ValueError,'degree bound'):evaluator.get_action_expansion(order=4)
+        evaluator = self.model([(4,5,[((0,)*5,.0001)])])
+        with self.assertRaisesRegex(ValueError,'parity'):evaluator.get_action_expansion(order=4)
+
+    def test_higher_order_construction_is_symbolic_and_resonance_independent(self):
+        evaluator = self.model([(4,6,[((0,)*6,.000001)])])
+        evaluator.solver.resonance_condition = A.ResonanceBlockCondition()
+        evaluator.solver.filtered_block_recurrence = True
+        with (mock.patch.object(A.PolyPath,'evaluate_polynomial',side_effect=AssertionError('state sampling')),
+              mock.patch.object(A.PolyPath,'to_eager',side_effect=AssertionError('polynomial flattening')),
+              mock.patch.object(A.PTTensorCoeffProductDAG,'to_eager',side_effect=AssertionError('tensor flattening')),
+              mock.patch.object(A.ConditionalTransformationStack,'extend',side_effect=AssertionError('Conditional route'))):
+            for source in ('energy','hamiltonian'):
+                kernels = evaluator.solver.action_expansion_terms(order=4,correction=source)
+                self.assertEqual(len(kernels),24)
+                self.assertTrue(all(not kernel.poly_obj.has_change_domains for kernel in kernels.values()))
 
 
 if __name__ == '__main__':
