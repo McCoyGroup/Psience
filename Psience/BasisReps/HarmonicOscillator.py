@@ -531,7 +531,7 @@ class HarmonicOscillatorMatrixGenerator:
 
     _size_blocks_cache = MaxSizeCache()
     @classmethod
-    def _get_poly_coeffs(cls, terms, delta):
+    def _get_poly_coeffs(cls, terms, delta, sqrt_scale=False):
 
         if (delta % 2) != len(terms) % 2:
             return 0
@@ -560,9 +560,17 @@ class HarmonicOscillatorMatrixGenerator:
                     poly_contrib = np.pad(poly_contrib, [0, len(poly)-len(poly_contrib)])
                 poly = poly + poly_contrib
 
-        return poly / np.sqrt(2)**len(terms)
+        return poly if sqrt_scale else poly / np.sqrt(2)**len(terms)
 
-    def poly_coeffs(self, delta, shift=0):
+    def poly_coeffs(self, delta, shift=0, sqrt_scale=False):
+        if sqrt_scale:
+            key = ('sqrt-scaled',delta,shift)
+            if key not in self._poly_cache:
+                coeffs = self._get_poly_coeffs(self.terms,delta,sqrt_scale=True)
+                if shift and not np.isscalar(coeffs):
+                    coeffs = DensePolynomial.compute_shifted_coeffs(coeffs,shift=shift)
+                self._poly_cache[key] = coeffs
+            return self._poly_cache[key]
         if (delta, shift) not in self._poly_cache:
             if delta not in self._poly_cache:
                 self._poly_cache[delta] = self._get_poly_coeffs(self.terms, delta)

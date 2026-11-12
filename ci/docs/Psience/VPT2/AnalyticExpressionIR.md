@@ -231,7 +231,7 @@ Runtime caches and _free_index_plan_data are omitted from mathematical IR.
 
 Compiled manifest and graph
   kind:"compiled-analytic-expression"; plan_version:1; complete:true
-  program_versions:{polynomial:3,function:1,denominator:2,degeneracy:1}
+  program_versions:{polynomial:3,function:1,denominator:2,degeneracy:1,coefficient:1}
   Readers also accept polynomial revisions 1/2 and denominator revision 1.
   source_ir_signature, semantic change/baseline/projection/specializations,
   parts and checksums, options.free_index_reduction, producer timing/provenance.
@@ -350,3 +350,37 @@ Runner libraries and request metadata
     selection and actual numerical routing remain supported. Evaluation output
     is optional and must be outside the artifact folders.
 ```
+# Effective internal-coordinate vertices
+
+Internal-coordinate Hamiltonians combine potential and kinetic coefficients at
+each primitive vertex before perturbative products expand. This applies at
+arbitrary perturbation order. The existing oscillator generator supplies the
+exact operator ordering and repeated-index contact polynomials. The extra
+potential and other Hamiltonian families retain their existing definitions.
+
+The ordinary `AnalyticVPTRunner.run_simple(...)` path enables this by default.
+Use `combine_kinetic_coefficients=False` to compare with the raw V/G basis.
+Cartesian Hamiltonians retain their existing coefficient basis. Explicit raw
+coefficient filters retain their original meaning by using the raw basis.
+
+A semantic `hamiltonian-coefficient` node has fields
+`(rank, positive_ladder_count, requests)`. Each request is
+`(source_kind, axis_permutation, numerator, denominator)`, with source kind 0
+for V and 1 for G. In the native normalized input convention a channel is
+`V - sum(s_a*s_b*G_ab)/binomial(rank, 2)`. G requests place the two momentum
+axes first and last; coordinate axes are in between. Positive ladder slots
+precede negative slots, with symmetry within each group. Global reversal
+identifies the two equal-size groups. The record carries every permutation and
+rational weight; a reader does not need to reconstruct the channel basis.
+
+Both portable and pickle IR/compiled backends preserve these same recipes.
+Compiled files declare coefficient program version 1; older files without it
+remain readable. Actual source tensor values bind at evaluation. Requests
+gather only the required entries, without allocating a dense effective tensor
+for every channel. Solvers, channel-basis selection, oscillator construction
+and expression planning are unnecessary when executing a transferred file.
+
+Basis selection uses exact rational linear algebra on O(rank**2) candidate
+sign patterns, avoiding enumeration of all 2**(rank-1) channels. Native input
+tensor normalizations and the separate evaluation destination are unchanged.
+

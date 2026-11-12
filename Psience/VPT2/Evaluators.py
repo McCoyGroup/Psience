@@ -176,6 +176,9 @@ class StreamPreparationContext:
 
     def bind(self, value):
         """Bind an input array once; identity cannot be recycled during the plan."""
+        from .Analytic import _BoundHamiltonianCoefficient
+        if isinstance(value,_BoundHamiltonianCoefficient):
+            return ('hamiltonian-coefficient',value.recipe.__fingerprint__(),self.bind(value.sources))
         if isinstance(value, np.ndarray) and value.ndim:
             root = self.root
             identity = id(value)
@@ -770,7 +773,9 @@ def _canonical_free_index_key(key, num_fixed, *, max_permutations=720,
     sorted mode subset.
     """
     from Psience.VPT2.Analytic import PTTensorCoeffProductSum
-    key = tuple(tuple(int(i) for i in coefficient) for coefficient in key)
+    from .Analytic import _HamiltonianCoefficient
+    key = tuple((int(coefficient[0]),coefficient[1] if isinstance(coefficient[1],_HamiltonianCoefficient)
+                 else int(coefficient[1]))+tuple(int(i) for i in coefficient[2:]) for coefficient in key)
     if num_fixed < 0:
         raise ValueError("num_fixed must be nonnegative")
     indices = sorted({i for coefficient in key for i in coefficient[2:]})
@@ -1178,7 +1183,9 @@ class _AnalyticIRCodec:
                 fields = value.functions, (value.idx if isinstance(value, ef.ElementaryFunction) else value._inds)
             else: raise TypeError('unsupported portable elementary function: ' + kind.__name__)
             return dict(kind='elementary-function', fields=self._value((function, fields)))
-        if kind is a.PolyAtom:
+        if kind is a._HamiltonianCoefficient:
+            tag, fields = 'hamiltonian-coefficient', (value.rank,value.positive,value.requests)
+        elif kind is a.PolyAtom:
             fields = (value._base_coeffs, value.shift)
             tag = 'polynomial-factor'
         elif kind is a.PolyAxis:
@@ -1402,6 +1409,7 @@ class _AnalyticIRCodec:
             if name in multivariate: return multivariate[name](*arguments[0], indices=arguments[1])
             raise ValueError('unknown portable function operation: ' + name)
         constructors = {
+            'hamiltonian-coefficient': lambda: a._HamiltonianCoefficient(*fields),
             'polynomial-factor': lambda: a.PolyAtom(*fields),
             'polynomial-axis': lambda: a.PolyAxis(fields),
             'polynomial-term': lambda: a.PolyTerm(*fields),
@@ -1780,8 +1788,9 @@ class _CompiledAnalyticArchive(AnalyticExpressionIR):
     def load(cls, source, *, expression=None):
         result = super().load(source, expression=expression)
         versions = result.manifest.get('program_versions', {})
-        if (versions.get('polynomial') not in {1, 2, 3} or versions.get('denominator') not in {1, 2} or
-                {key: value for key, value in versions.items() if key not in {'polynomial', 'denominator'}} !=
+        if (versions.get('polynomial') not in {1, 2, 3} or versions.get('denominator') not in {1, 2}
+                or versions.get('coefficient',0) not in {0,1} or
+                {key: value for key, value in versions.items() if key not in {'polynomial', 'denominator','coefficient'}} !=
                 {'function':1, 'degeneracy':1}):
             result.close()
             raise ValueError('unsupported compiled analytic program versions')
@@ -2344,7 +2353,7 @@ class AnalyticExpressionStore:
                     manifest = dict(semantic, format=self.format_version, kind=_CompiledAnalyticArchive.artifact_kind,
                         plan_version=_CompiledAnalyticArchive.format_version, complete=True, signature=signature,
                         storage_backend=storage_backend, storage_version=_AnalyticIRCodec.storage_version(storage_backend),
-                        program_versions=dict(polynomial=3, function=1, denominator=2, degeneracy=1),
+                        program_versions=dict(polynomial=3, function=1, denominator=2, degeneracy=1, coefficient=1),
                         parts=parts, source_ir_signature=reader.manifest['signature'],
                         options=dict(free_index_reduction=bool(free_index_reduction),
                                      mode_dimension=semantic['specializations']['mode_dimension']),
@@ -2545,10 +2554,12 @@ class AnalyticExpressionStore:
         if not isinstance(poly,PTTensorCoeffProductSum):poly = PTTensorCoeffProductSum({():poly})
         operator_keys = (poly.operator_keys if isinstance(poly, PTTensorCoeffProductDAG) else
                          {coefficient[:2] for key in poly.terms for coefficient in key})
+        from .Analytic import _HamiltonianCoefficient
+        raw_operator_keys = set().union(*(_HamiltonianCoefficient.operator_dependencies(key) for key in operator_keys))
         if projection is not None and (any(change) or baseline and any(baseline)):
             raise ValueError('final occupation projection requires a zero-change numerator')
         if isinstance(poly,PTTensorCoeffProductDAG) and active_operators is not None:
-            poly = poly.prune_operators(poly.operator_keys-set(active_operators))
+            poly = poly.prune_operators(_HamiltonianCoefficient.inactive_operators(poly.operator_keys,active_operators))
         degree = _polynomial_degree(poly)
         maximum = len(change)+max(0,(degree-sum(abs(i) for i in change))//2)
         if mode_dimension is not None:
@@ -2632,7 +2643,7 @@ class AnalyticExpressionStore:
                 change=change,baseline_shift=baseline,num_fixed=wrapper.num_fixed,
                 projection=None if projection is None else dataclasses.asdict(projection),
                 active_operators=None if active_operators is None else sorted(active_operators),
-                operator_keys=sorted(operator_keys),
+                operator_keys=sorted(raw_operator_keys),
                 operator_letter_bound=degree,maximum_mode_indices=maximum,options=options,
                 seconds=time.perf_counter()-started,stream_stats=budget.stats(),
                 plan_stats=None if plan is None else plan.stats(),implementation=_implementation_signature())

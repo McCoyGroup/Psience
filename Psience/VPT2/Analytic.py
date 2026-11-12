@@ -1018,7 +1018,8 @@ class AnalyticPerturbationTheorySolver:
                    disallowed_coefficients=None,
                    allowed_energy_changes=None,
                    intermediate_normalization=None,
-                   polynomial_representation='path', resonance_condition=None):
+                   polynomial_representation='path', resonance_condition=None,
+                   combine_kinetic_coefficients=True):
         logger = Logger.lookup(logger)
         if order < 2:
             raise ValueError("why")
@@ -1037,6 +1038,7 @@ class AnalyticPerturbationTheorySolver:
                     ),
                     order=o,
                     identities=[0, 1] + ([] if o < 2 else [2]), # V, G, G'
+                    combine_kinetic_coefficients=combine_kinetic_coefficients,
                     logger=logger,
                     allowed_coefficients=allowed_coefficients,
                     disallowed_coefficients=disallowed_coefficients,
@@ -4667,6 +4669,106 @@ class PTEnergyChangeProductSum(TensorCoefficientPoly, PolynomialInterface):
         else:
             return other.mul_simple(self)
 
+class _HamiltonianCoefficient(int):
+    """A saved linear recipe for one normal-coordinate ladder channel.
+
+    Numerical inputs retain their V/G conventions. Requests are prepared once
+    during expression construction and serialized verbatim, including the
+    source-axis permutations and rational weights; binding never derives them.
+    """
+    _cache = {}
+
+    def __new__(cls, rank, positive, requests=None):
+        rank, positive = int(rank), int(positive)
+        building = requests is None
+        if rank < 3 or not (rank+1)//2 <= positive <= rank:
+            raise ValueError('invalid effective Hamiltonian channel')
+        if requests is None:
+            key = rank, positive
+            if key in cls._cache: return cls._cache[key]
+            pairs = math.comb(rank, 2)
+            signs = (1,)*positive+(-1,)*(rank-positive)
+            requests = [(0, tuple(range(rank)), 1, 1)]
+            for i,j in itertools.combinations(range(rank), 2):
+                permutation = (i,)+tuple(k for k in range(rank) if k not in (i,j))+(j,)
+                requests.append((1, permutation, -signs[i]*signs[j], pairs))
+            requests = tuple(requests)
+        else:
+            requests = tuple((int(kind), tuple(map(int, perm)), int(num), int(den))
+                             for kind,perm,num,den in requests)
+            if not requests or any(kind not in (0,1) or sorted(perm) != list(range(rank)) or den <= 0
+                   for kind,perm,num,den in requests):
+                raise ValueError('invalid effective Hamiltonian recipe')
+        result = int.__new__(cls, 8+positive)
+        result.rank, result.positive, result.requests = rank, positive, requests
+        result._frozen = True
+        if building: cls._cache[(rank,positive)] = result
+        return result
+
+    def __setattr__(self,name,value):
+        if getattr(self,'_frozen',False): raise AttributeError('coefficient recipes are immutable')
+        object.__setattr__(self,name,value)
+
+    def __reduce__(self): return type(self), (self.rank,self.positive,self.requests)
+    def __fingerprint__(self): return ('hamiltonian-coefficient',1,self.rank,self.positive,self.requests)
+
+    def canonical_indices(self, indices):
+        left = tuple(sorted(indices[:self.positive]))
+        right = tuple(sorted(indices[self.positive:]))
+        if len(left) == len(right) and right < left: left,right = right,left
+        return left+right
+
+    @staticmethod
+    def operator_dependencies(operator):
+        order, kind = operator
+        return {(order,source) for source,_,_,_ in kind.requests} if isinstance(kind,_HamiltonianCoefficient) else {operator}
+
+    @classmethod
+    def inactive_operators(cls, operators, active):
+        active = set(active)
+        return {operator for operator in operators if not cls.operator_dependencies(operator)&active}
+
+    @classmethod
+    @functools.lru_cache(maxsize=32)
+    def basis(cls, rank):
+        """Select an exact basis from O(N**2) candidate sign patterns."""
+        from fractions import Fraction
+        pairs = tuple(itertools.combinations(range(rank),2))
+        signs, seen = [], set()
+        for count in range(3):
+            for negative in itertools.combinations(range(rank),count):
+                row = tuple(-1 if i in negative else 1 for i in range(rank))
+                if row[0] < 0: row = tuple(-s for s in row)
+                if row not in seen: seen.add(row); signs.append(row)
+        matrix = [(Fraction(1),)+tuple(Fraction(-row[i]*row[j],len(pairs)) for i,j in pairs)
+                  for row in signs]
+        pivots = nput.rational_matrix_pivots(tuple(zip(*matrix)))
+        selected = [matrix[i] for i in pivots]
+        if len(selected) != 1+len(pairs): raise ValueError('incomplete ladder-channel basis')
+        return tuple(signs[i] for i in pivots), nput.rational_matrix_inverse(selected)
+
+
+class _BoundHamiltonianCoefficient:
+    """Gather a bound saved recipe without materializing a dense tensor."""
+    def __init__(self, recipe, sources):
+        self.recipe, self.sources = recipe, tuple(sources)
+        shapes = [source.shape for source in sources if np.ndim(source)]
+        if shapes and any(shape != shapes[0] for shape in shapes):
+            raise ValueError('incompatible potential/kinetic coefficient shapes')
+        self.shape = () if not shapes else shapes[0]
+        self.ndim = len(self.shape)
+        if self.ndim and self.ndim != recipe.rank:
+            raise ValueError('effective coefficient tensor rank differs from its recipe')
+
+    def __getitem__(self, indices):
+        result = 0
+        for source, permutation, numerator, denominator in self.recipe.requests:
+            tensor = self.sources[source]
+            if np.ndim(tensor):
+                result = result + (numerator/denominator)*tensor[tuple(indices[i] for i in permutation)]
+        return result
+
+
 class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
     """
     A representation for a sum of tensor coefficients * polynomial sums
@@ -4771,7 +4873,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
     def format_key(cls, key):
         return "".join([
             "{}[{}]{}".format(
-                cls.tensor_ids[k[1]],
+                ('E{}'.format(k[1].positive) if isinstance(k[1],_HamiltonianCoefficient) else cls.tensor_ids[k[1]]),
                 k[0],
                 k[2:]
             )
@@ -4787,7 +4889,7 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
     def format_tensor_key(cls, key):
         return "".join([
             "{}[{}][{}]".format(
-                cls.tensor_ids[k[1]],  # we explicitly split Coriolis and Watson terms out
+                ('E{}'.format(k[1].positive) if isinstance(k[1],_HamiltonianCoefficient) else cls.tensor_ids[k[1]]),
                 k[0],
                 ", ".join(str(i) for i in k[2:])
             )
@@ -5081,6 +5183,8 @@ class PTTensorCoeffProductSum(TensorCoefficientPoly, PolynomialInterface):
             return cls.default_symmetrizers
     @classmethod
     def _symmetrize(cls, idx, symmetrizers=None):
+        if isinstance(idx[1],_HamiltonianCoefficient):
+            return idx[:2]+idx[1].canonical_indices(idx[2:])
         if symmetrizers is None:
             symmetrizers = cls.symmetrizers()
         return (idx[0], idx[1]) + symmetrizers[idx[1]](idx[2:])
@@ -7738,6 +7842,10 @@ class PerturbationTheoryTerm(metaclass=abc.ABCMeta):
     @property
     def serializer_key(self):
         key = self.get_serializer_key()
+        parent = getattr(self,'parent',None)
+        if key is not None and any(getattr(term,'combine_kinetic_coefficients',False)
+                                   for term in getattr(parent,'hamiltonian_expansion',())):
+            key += '::effective-vertices-v1'
         if key is not None and getattr(getattr(self, 'parent', None), 'filtered_block_recurrence', False):
             key += '::filtered-block-v1::intermediate={}'.format(bool(self.intermediate_normalization))
         if key is not None and getattr(getattr(self, 'parent', None), 'resonance_independent', False):
@@ -7996,10 +8104,7 @@ class OperatorExpansionTerm(PerturbationTheoryTerm):
     @classmethod
     def _evaluate_poly_coeffs(cls, terms, inds, delta, shift, sqrt_scale=False):
         gen = cls._get_generator(terms, inds)
-        poly_contrib = gen.poly_coeffs(delta, shift=shift)
-        if sqrt_scale:
-            scaling = np.sqrt(2)**len(inds)
-            poly_contrib = poly_contrib * scaling
+        poly_contrib = gen.poly_coeffs(delta, shift=shift, sqrt_scale=sqrt_scale)
         if nput.is_numeric(poly_contrib) and poly_contrib == 0:
             return 0
         # now we get any remainder we need to
@@ -8203,6 +8308,7 @@ class OperatorExpansionTerm(PerturbationTheoryTerm):
 class HamiltonianExpansionTerm(OperatorExpansionTerm):
     def __init__(self, terms, order=None, identities=None, symmetrizers=None,
                  change_rules=None,
+                 combine_kinetic_coefficients=False,
                  **opts):
 
         if identities is None:
@@ -8218,6 +8324,68 @@ class HamiltonianExpansionTerm(OperatorExpansionTerm):
         super().__init__(terms, order=order, identities=identities, symmetrizers=symmetrizers,
                          change_rules=change_rules,
                          **opts)
+        if not isinstance(combine_kinetic_coefficients,(bool,np.bool_)):
+            raise TypeError('combine_kinetic_coefficients must be boolean')
+        self.combine_kinetic_coefficients = bool(combine_kinetic_coefficients)
+
+    def __fingerprint__(self):
+        return super().__fingerprint__(), self.combine_kinetic_coefficients
+
+    def get_core_poly(self, changes, shift=None):
+        result = super().get_core_poly(changes,shift=shift)
+        # Raw coefficient filters have their original meaning. Do not mix a
+        # selected raw V/G subset into a channel which depends on both sources.
+        if (not self.combine_kinetic_coefficients or not self.order
+                or self.allowed_coefficients is not None or self.disallowed_coefficients is not None):
+            return result
+        rank = self.order+2
+        if not any(identity == 1 and term == ['p']+['x']*self.order+['p']
+                   for identity,term in zip(self.identities,self.terms)):
+            return result
+        from fractions import Fraction
+        signs, inverse = _HamiltonianCoefficient.basis(rank)
+        pairs = tuple(itertools.combinations(range(rank),2))
+        collected, unchanged = {}, {}
+        for key,poly in result.poly_obj.terms.items():
+            coefficient, = key
+            order,kind,*indices = coefficient
+            if kind not in (0,1) or len(indices) != rank:
+                unchanged[key] = poly
+                continue
+            ordered = tuple(sorted(indices))
+            position = 0
+            if kind == 1:
+                position = 1+next(i for i,(a,b) in enumerate(pairs)
+                    if sorted((ordered[a],ordered[b])) == sorted((indices[0],indices[-1])))
+            eager = PolyPath.from_polynomial(poly).to_eager()
+            leaves = eager.polys if isinstance(eager,ProductPTPolynomialSum) else [eager]
+            for channel,weight in zip(signs,inverse[position]):
+                if not weight: continue
+                plus = tuple(i for i,s in zip(ordered,channel) if s == 1)
+                minus = tuple(i for i,s in zip(ordered,channel) if s == -1)
+                if len(plus)<len(minus): plus,minus = minus,plus
+                recipe = _HamiltonianCoefficient(rank,len(plus))
+                newkey = ((order,recipe)+recipe.canonical_indices(plus+minus),)
+                monomials = collected.setdefault(newkey,collections.defaultdict(Fraction))
+                for leaf in leaves:
+                    if nput.is_zero(leaf): continue
+                    if leaf.steps != rank: raise ValueError('unexpected primitive oscillator normalization')
+                    prefactor = weight*Fraction(float(leaf.prefactor))
+                    if isinstance(eager,ProductPTPolynomialSum): prefactor *= Fraction(float(eager.prefactor))
+                    for powers in itertools.product(*(range(len(axis)) for axis in leaf.coeffs)):
+                        value = prefactor
+                        for axis,power in zip(leaf.coeffs,powers): value *= Fraction(float(axis[power]))
+                        monomials[powers] += value
+        terms = dict(unchanged)
+        for key,monomials in collected.items():
+            polynomial = 0
+            for powers,value in monomials.items():
+                if not value: continue
+                axes = [np.eye(1,p+1,p,dtype=float)[0] for p in powers]
+                polynomial += make_product_polynomial(axes,prefactor=float(value),steps=rank,
+                    representation=self.polynomial_representation)
+            if not nput.is_zero(polynomial): terms[key] = polynomial
+        return result.mutate(PTTensorCoeffProductSum(terms,canonicalize=False))
 
     def __repr__(self):
         return "H[{}]".format(self.order)
@@ -9880,8 +10048,12 @@ class PerturbationTheoryExpressionEvaluator:
 
     @staticmethod
     def _extract_coeffs(coeffs, coeff_indices, perm):
-
-        coeff_tensor = coeffs[coeff_indices[0]][coeff_indices[1]] # order then identity
+        kind = coeff_indices[1]
+        if isinstance(kind,_HamiltonianCoefficient):
+            row = coeffs[coeff_indices[0]] if len(coeffs)>coeff_indices[0] else ()
+            coeff_tensor = _BoundHamiltonianCoefficient(kind,tuple(row[i] if i<len(row) else 0 for i in (0,1)))
+        else:
+            coeff_tensor = coeffs[coeff_indices[0]][kind] # order then identity
         if nput.is_zero(coeff_tensor): return 0
 
         idx = tuple(perm[i] for i in coeff_indices[2:])
@@ -10954,13 +11126,25 @@ class PerturbationTheoryExpressionEvaluator:
     def _prep_coeff_data(cls, cind_sets, coeff_lists):
         final_tensors = []
         final_cinds = []
+        bound = {}
+        def coefficient(coeffs, ci):
+            order,kind = ci[:2]
+            if not isinstance(kind,_HamiltonianCoefficient):
+                return coeffs[order][kind] if len(coeffs)>order else 0
+            identity = id(coeffs),order,kind
+            if identity not in bound:
+                row = coeffs[order] if len(coeffs)>order else ()
+                sources = tuple(row[i] if i<len(row) else 0 for i in (0,1))
+                bound[identity] = (_BoundHamiltonianCoefficient(kind,sources)
+                                   if any(np.ndim(source) for source in sources) else 0)
+            return bound[identity]
         for cinds in cind_sets:
             bad = True
             subtensors = []
             for coeffs in coeff_lists:
                 try:
                     tensors = [
-                        coeffs[ci[0]][ci[1]] if len(coeffs) > ci[0] else 0
+                        coefficient(coeffs,ci)
                         for ci in cinds
                     ]
                 except:
@@ -12150,7 +12334,7 @@ class PerturbationTheoryExpressionEvaluator:
                 for coefficient_type, coefficient in enumerate(order_expansion)
                 if not nput.is_zero(coefficient)
             }
-            inactive_coefficients = expr.operator_keys.difference(active_coefficients)
+            inactive_coefficients = _HamiltonianCoefficient.inactive_operators(expr.operator_keys,active_coefficients)
             if len(inactive_coefficients) > 0:
                 expr = expr.prune_operators(inactive_coefficients)
 

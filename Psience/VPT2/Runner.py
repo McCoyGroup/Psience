@@ -3702,6 +3702,7 @@ class AnalyticVPTRunner:
                  allowed_energy_changes=None,
                  intermediate_normalization=None,
                  polynomial_representation='path',
+                 combine_kinetic_coefficients=True,
                  degeneracy_handling=None,
                  block_recurrence=True,
                  local_mode_couplings=None,
@@ -3748,6 +3749,8 @@ class AnalyticVPTRunner:
         :type intermediate_normalization: bool | None
         :param polynomial_representation: ``'path'`` for the canonical DAG backend or ``'eager'`` for the legacy tree backend
         :type polynomial_representation: str
+        :param combine_kinetic_coefficients: combine internal potential/kinetic vertices before recurrence expansion (default True); False retains the raw coefficient basis for comparisons
+        :type combine_kinetic_coefficients: bool
         :param local_mode_couplings: extra local-mode coupling terms to inject into the Hamiltonian when running VPT
         :type local_mode_couplings: list | None
         :param local_mode_coupling_order: the perturbative order local-mode couplings should be injected at
@@ -3786,6 +3789,7 @@ class AnalyticVPTRunner:
                     allowed_energy_changes=allowed_energy_changes,
                     intermediate_normalization=intermediate_normalization,
                     polynomial_representation=polynomial_representation,
+                    combine_kinetic_coefficients=combine_kinetic_coefficients,
                 ),
                 expansions,
                 freqs=freqs,
@@ -3845,6 +3849,7 @@ class AnalyticVPTRunner:
                          two_mode_only=False,
                          intermediate_normalization=None,
                          polynomial_representation='path',
+                         combine_kinetic_coefficients=True,
                          degeneracy_handling=None,
                          block_recurrence=True,
                          corrected_fundamental_frequencies=None,
@@ -3920,6 +3925,7 @@ class AnalyticVPTRunner:
             allowed_energy_changes=allowed_energy_changes,
             intermediate_normalization=intermediate_normalization,
             polynomial_representation=polynomial_representation,
+            combine_kinetic_coefficients=combine_kinetic_coefficients,
             degeneracy_handling=degeneracy_handling, block_recurrence=block_recurrence,
             local_mode_couplings=ham.local_mode_couplings,
             local_mode_coupling_order=ham.local_mode_coupling_order
@@ -3948,6 +3954,7 @@ class AnalyticVPTRunner:
                   corrected_fundamental_frequencies=None,
                   parallelizer=None,
                   polynomial_representation='path',
+                  combine_kinetic_coefficients=True,
                   degeneracy_handling=None,
                   block_recurrence=True,
                   take_diagonal_v4_terms=None,
@@ -4028,6 +4035,7 @@ class AnalyticVPTRunner:
                 disallowed_coefficients=disallowed_coefficients,
                 allowed_energy_changes=allowed_energy_changes,
                 polynomial_representation=polynomial_representation,
+                combine_kinetic_coefficients=combine_kinetic_coefficients,
                 degeneracy_handling=degeneracy_handling, block_recurrence=block_recurrence,
                 take_diagonal_v4_terms=take_diagonal_v4_terms,
                 evaluator_defaults=runner.evaluator_defaults,
@@ -4076,6 +4084,7 @@ class AnalyticVPTRunner:
                   allowed_energy_changes=None,
                   expressions_file=None,
                   polynomial_representation='path',
+                  combine_kinetic_coefficients=True,
                   take_diagonal_v4_terms=None,
                   two_mode_only=False,
                   expressions_folder=None,
@@ -4146,6 +4155,7 @@ class AnalyticVPTRunner:
             disallowed_coefficients=disallowed_coefficients,
             allowed_energy_changes=allowed_energy_changes,
             polynomial_representation=polynomial_representation,
+            combine_kinetic_coefficients=combine_kinetic_coefficients,
             take_diagonal_v4_terms=take_diagonal_v4_terms,
             evaluator_defaults=runner.evaluator_defaults,
             two_mode_only=two_mode_only, block_recurrence=block_recurrence
